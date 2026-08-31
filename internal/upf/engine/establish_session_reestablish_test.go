@@ -19,9 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestReEstablishTearsDownOldSession asserts that establishing a session for a
-// SEID that already has a live session tears the old one down first, leaving no
-// orphaned datapath entry from the previous session. Requires root.
 func TestReEstablishTearsDownOldSession(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

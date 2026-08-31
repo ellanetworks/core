@@ -33,8 +33,8 @@ func TestLocalSwitchIPv4(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C5331) // "LS1"
-		teidB = uint32(0x4C5332) // "LS2"
+		teidA = uint32(0x4C5331)
+		teidB = uint32(0x4C5332)
 	)
 
 	ulPdr := PdrInfo{
@@ -97,8 +97,8 @@ func TestLocalSwitchDisabled(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C5344) // "LSD"
-		teidB = uint32(0x4C5345) // "LSE"
+		teidA = uint32(0x4C5344)
+		teidB = uint32(0x4C5345)
 	)
 
 	ulPdr := PdrInfo{
@@ -142,8 +142,8 @@ func TestLocalSwitchIPv6(t *testing.T) {
 	var (
 		ueAv6 = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
 		ueBv6 = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0x0a}
-		teidA = uint32(0x4C5636) // "LV6"
-		teidB = uint32(0x4C5637) // "LV7"
+		teidA = uint32(0x4C5636)
+		teidB = uint32(0x4C5637)
 	)
 
 	ueAPrefix := netip.AddrFrom16(ueAv6)
@@ -466,7 +466,7 @@ func TestLocalSwitchStatistics(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C5354) // "LST"
+		teidA = uint32(0x4C5354)
 		teidB = uint32(0x4C5355)
 	)
 
@@ -530,7 +530,7 @@ func TestLocalSwitchFlowAccounting(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C464C) // "LFL"
+		teidA = uint32(0x4C464C)
 		teidB = uint32(0x4C464D)
 	)
 
@@ -580,8 +580,8 @@ func TestLocalSwitchURR(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		ulSeid = 0x4C5552 // "LUR"
-		dlSeid = 0x4C4452 // "LDR"
+		ulSeid = 0x4C5552
+		dlSeid = 0x4C4452
 		urrID  = 7
 	)
 
@@ -653,7 +653,7 @@ func TestLocalSwitchNoDownlinkPDR(t *testing.T) {
 
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
-		teidA = uint32(0x4C4E44) // "LND"
+		teidA = uint32(0x4C4E44)
 	)
 
 	ulPdr := PdrInfo{
@@ -668,7 +668,6 @@ func TestLocalSwitchNoDownlinkPDR(t *testing.T) {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
-	// No downlink PDR for 8.8.8.8 — should fall through to N6 routing.
 	inner := ipv4Packet(ueAIP, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
@@ -677,7 +676,6 @@ func TestLocalSwitchNoDownlinkPDR(t *testing.T) {
 		t.Fatalf("packet to internet got XDP action %d, want a forwarding action (N6 path)", action)
 	}
 
-	// The packet should NOT be GTP-encapsulated (no local switch happened).
 	if len(out) >= ethHdrLen+20+8 {
 		udpOff := ethHdrLen + 20
 		if len(out) >= udpOff+8 && binary.BigEndian.Uint16(out[udpOff+2:udpOff+4]) == GTPUDPPort {
@@ -694,7 +692,7 @@ func TestLocalSwitchFramedRoute(t *testing.T) {
 	var (
 		ueAIP      = [4]byte{10, 0, 0, 9}
 		framedUEIP = [4]byte{10, 0, 0, 10}
-		teidA      = uint32(0x4C4652) // "LFR"
+		teidA      = uint32(0x4C4652)
 		teidB      = uint32(0x4C4653)
 	)
 
@@ -719,7 +717,6 @@ func TestLocalSwitchFramedRoute(t *testing.T) {
 		t.Fatalf("install framed route: %v", err)
 	}
 
-	// Send to an address inside the framed prefix, not the UE's own address.
 	framedDst := [4]byte{192, 168, 50, 9}
 	inner := ipv4Packet(ueAIP, framedDst, 17, udpDatagram(4000, 53, nil))
 
@@ -744,13 +741,12 @@ func TestLocalSwitchIPv6Transport(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C5636) // "LV6"
+		teidA = uint32(0x4C5636)
 		teidB = uint32(0x4C5637)
 	)
 
-	// Uplink PDR with IPv6 outer header removal.
 	ulPdr := PdrInfo{
-		OuterHeaderRemoval: 1, // OHR_GTP_U_UDP_IPv6
+		OuterHeaderRemoval: 1,
 		IMSI:               "001010000000001",
 		Far:                FarInfo{Action: 0x02},
 		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
@@ -768,7 +764,6 @@ func TestLocalSwitchIPv6Transport(t *testing.T) {
 
 	inner := ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil))
 
-	// Send via IPv6 transport (outer IPv6).
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDUv6(teidA, inner))
 
 	if action == ActionDrop || action == ActionAborted {
@@ -794,7 +789,7 @@ func TestLocalSwitchSourceSpoofStillEnforced(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C5350) // "LSP"
+		teidA = uint32(0x4C5350)
 		teidB = uint32(0x4C5351)
 	)
 
@@ -815,7 +810,6 @@ func TestLocalSwitchSourceSpoofStillEnforced(t *testing.T) {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
-	// Spoofed source: not UE-A's address.
 	spoofed := [4]byte{10, 0, 0, 99}
 	inner := ipv4Packet(spoofed, ueBIP, 17, udpDatagram(4000, 53, nil))
 
@@ -838,7 +832,7 @@ func TestLocalSwitchMTUExceeded(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C4D54) // "LMT"
+		teidA = uint32(0x4C4D54)
 		teidB = uint32(0x4C4D55)
 	)
 
@@ -859,17 +853,10 @@ func TestLocalSwitchMTUExceeded(t *testing.T) {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
-	// The loopback MTU is 65536, so we need a very large inner packet to exceed it.
-	// With GTP encap overhead of 44 bytes, the inner needs to be > 65536 - 44.
-	// BPF_PROG_TEST_RUN may not support such large frames, so we test with a
-	// reasonable size and check that the packet is either forwarded (MTU ok)
-	// or dropped with mtu_exceeded. The test mainly verifies the code path
-	// doesn't crash.
 	inner := innerIPv4UDPSized(ueBIP, 1400)
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
 
-	// With loopback (65536 MTU), a 1400-byte packet should pass.
 	if action == ActionAborted {
 		t.Fatalf("local switch with normal packet got ActionAborted: %d", action)
 	}
@@ -883,7 +870,7 @@ func TestLocalSwitchNoEncap(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C4E45) // "LNE"
+		teidA = uint32(0x4C4E45)
 	)
 
 	ulPdr := PdrInfo{
@@ -898,10 +885,9 @@ func TestLocalSwitchNoEncap(t *testing.T) {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
-	// Downlink PDR with FAR FORW but no OHC — should be dropped.
 	dlPdr := PdrInfo{
 		IMSI: "001010000000001",
-		Far:  FarInfo{Action: 0x02 /* FAR_FORW */},
+		Far:  FarInfo{Action: 0x02},
 		Qer:  QerInfo{GateStatusDL: 0, MaxBitrateDL: 0},
 	}
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
@@ -929,7 +915,7 @@ func TestLocalSwitchFARDrop(t *testing.T) {
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
 		ueBIP = [4]byte{10, 0, 0, 10}
-		teidA = uint32(0x4C4644) // "LFD"
+		teidA = uint32(0x4C4644)
 		teidB = uint32(0x4C4645)
 	)
 
@@ -945,10 +931,9 @@ func TestLocalSwitchFARDrop(t *testing.T) {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
 
-	// Downlink PDR with FAR DROP action.
 	dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
 
-	dlPdr.Far.Action = 0x01 // FAR_DROP
+	dlPdr.Far.Action = 0x01
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
@@ -973,16 +958,15 @@ func TestLocalSwitchUplinkFARUnsupportedN9(t *testing.T) {
 
 	var (
 		ueAIP = [4]byte{10, 0, 0, 9}
-		teidA = uint32(0x4C4E39) // "LN9"
+		teidA = uint32(0x4C4E39)
 	)
 
-	// Uplink PDR with FAR that has OHC set (N9 forwarding request).
 	ulPdr := PdrInfo{
 		OuterHeaderRemoval: 0,
 		IMSI:               "001010000000001",
 		Far: FarInfo{
-			Action:              0x02, // FAR_FORW
-			OuterHeaderCreation: 0x01, // OHC_GTP_U_UDP_IPv4
+			Action:              0x02,
+			OuterHeaderCreation: 0x01,
 			TeID:                0x99999999,
 		},
 		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},

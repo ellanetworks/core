@@ -15,21 +15,17 @@ import (
 )
 
 const (
-	vethInjDev  = "ellvethx"  // veth_xdp_func attaches here (production: veth-xdp)
-	vethInjPeer = "ellveths"  // RA injected here (production: veth-smf)
-	vethN3Dev   = "ellvethn3" // the gNB route resolves here; encapsulated RA egresses here
+	vethInjDev  = "ellvethx"
+	vethInjPeer = "ellveths"
+	vethN3Dev   = "ellvethn3"
 	vethN3Peer  = "ellvethn3p"
 )
 
-// TestVethRAEncapsulation checks the veth XDP program (veth_xdp_func) over an
-// IPv4 N3 transport: an IPv6 packet injected on the veth, matching a
-// veth_tunnels entry, is GTP-U encapsulated toward the gNB and forwarded out the
-// interface the routing table resolves for the gNB address.
 func TestVethRAEncapsulation(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		teid = 0x56455448 // "VETH"
+		teid = 0x56455448
 		qfi  = 6
 	)
 
@@ -85,8 +81,6 @@ func TestVethRAEncapsulation(t *testing.T) {
 	}
 }
 
-// TestVethRAEncapsulationIPv6Transport checks the same path over an IPv6 N3
-// transport.
 func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -158,8 +152,6 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 	}
 }
 
-// setupVethRA builds the injection and N3 veth pairs, enables forwarding, and
-// loads and attaches the veth program.
 func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *BpfObjects) {
 	t.Helper()
 
@@ -192,14 +184,9 @@ func isGTPv4Outer(fr []byte) bool {
 	return fr[ethHdrLen+9] == 17 && binary.BigEndian.Uint16(fr[ethHdrLen+22:ethHdrLen+24]) == GTPUDPPort
 }
 
-// routerAdvertisement builds a minimal ICMPv6 Router Advertisement message
-// (type 134). The veth program treats it as opaque inner payload.
-// Carries a valid ICMPv6 checksum, as buildRAPacket emits: the datapath
-// derives the outer checksum from the inner one, so an invalid inner packet
-// would prove nothing.
 func routerAdvertisement(src, dst [16]byte) []byte {
 	ra := make([]byte, 16)
-	ra[0] = 134 // Router Advertisement
+	ra[0] = 134
 
 	return icmpv6Checksummed(src, dst, ra)
 }

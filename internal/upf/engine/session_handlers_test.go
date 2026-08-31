@@ -56,6 +56,14 @@ func TestDeleteSessionAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error deleting session: %v", err)
 	}
+
+	if got := conn.GetSession(seid); got != nil {
+		t.Fatalf("session %d still held after a successful delete", seid)
+	}
+
+	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err == nil {
+		t.Fatal("deleting the same SEID twice must report it unknown")
+	}
 }
 
 func TestDeleteSessionNotFound(t *testing.T) {
@@ -102,5 +110,14 @@ func TestModifySessionAccepted(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Error modifying session: %v", err)
+	}
+
+	got := conn.GetSession(seid)
+	if got == nil {
+		t.Fatalf("session %d dropped by a modification that changed nothing", seid)
+	}
+
+	if got.SEID != seid {
+		t.Fatalf("session SEID = %d, want %d", got.SEID, seid)
 	}
 }

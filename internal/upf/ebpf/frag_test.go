@@ -12,8 +12,6 @@ import (
 	"testing"
 )
 
-// tcpFragment builds an inner TCP fragment. transportLen truncates the
-// offset-0 fragment's TCP header.
 func tcpFragment(src, dst [4]byte, id, offsetUnits uint16, more bool, transportLen int) []byte {
 	payload := make([]byte, 20)
 	if offsetUnits == 0 && transportLen > 0 {
@@ -41,8 +39,6 @@ const (
 	fragDport = 53
 )
 
-// TestFragmentPortsRecoveredUplink: a later fragment is matched on the ports
-// its datagram was sent with, not on the payload where its header would be.
 func TestFragmentPortsRecoveredUplink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -53,8 +49,6 @@ func TestFragmentPortsRecoveredUplink(t *testing.T) {
 	remote := [4]byte{8, 8, 8, 8}
 	ue := canonicalUEv4.As4()
 
-	// The later fragment's payload spells a different port, so it can only
-	// be denied on the recorded ones.
 	putSDFFilter(t, obj, filterIndex, []SdfRule{
 		sdfRuleIPv4(remote, 32, fragDport, fragDport, 17, SdfActionDeny),
 	})
@@ -72,8 +66,6 @@ func TestFragmentPortsRecoveredUplink(t *testing.T) {
 	}
 }
 
-// TestFragmentUnresolvedIsDeliveredWhenPortsAreNotNeeded: with no port-scoped
-// rule and no translation, nothing needs the ports.
 func TestFragmentUnresolvedIsDeliveredWhenPortsAreNotNeeded(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -91,8 +83,6 @@ func TestFragmentUnresolvedIsDeliveredWhenPortsAreNotNeeded(t *testing.T) {
 	}
 }
 
-// TestFragmentUnresolvedCounted: orphans are visible even when not fatal, so
-// reordering can be told apart from policy.
 func TestFragmentUnresolvedCounted(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -113,8 +103,7 @@ func TestFragmentUnresolvedCounted(t *testing.T) {
 	}
 }
 
-// TestFragmentFirstWins: a forged second offset-0 fragment must not replace the
-// recorded ports (RFC 6274 §4.1.2.6).
+// RFC 6274 §4.1.2.6
 func TestFragmentFirstWins(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -142,8 +131,6 @@ func TestFragmentFirstWins(t *testing.T) {
 	}
 }
 
-// TestFragmentSessionsDoNotCollide: same identification, same peer, different
-// UE — keyed apart by the UE address.
 func TestFragmentSessionsDoNotCollide(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -159,7 +146,6 @@ func TestFragmentSessionsDoNotCollide(t *testing.T) {
 	ueA := netip.MustParseAddr("10.0.0.9")
 	ueB := netip.MustParseAddr("10.0.0.10")
 
-	// Denies only session A's destination port.
 	putSDFFilter(t, obj, filterIndex, []SdfRule{
 		sdfRuleIPv4(remote, 32, fragDport, fragDport, 17, SdfActionDeny),
 	})
@@ -167,7 +153,6 @@ func TestFragmentSessionsDoNotCollide(t *testing.T) {
 	putForwardingUplinkPDRUE(t, obj, teidA, filterIndex, ueA, canonicalUEv6Prefix)
 	putForwardingUplinkPDRUE(t, obj, teidB, filterIndex, ueB, canonicalUEv6Prefix)
 
-	// B's datagram is on a permitted port.
 	firstA := innerIPv4FragmentID(ueA.As4(), remote, 0x7777, 0, true, fragSport, fragDport)
 	firstB := innerIPv4FragmentID(ueB.As4(), remote, 0x7777, 0, true, fragSport, 8080)
 	laterB := innerIPv4FragmentID(ueB.As4(), remote, 0x7777, 2, false, 0, 0)
@@ -180,7 +165,7 @@ func TestFragmentSessionsDoNotCollide(t *testing.T) {
 	}
 }
 
-// TestFragmentTinyRejected: the two shapes RFC 3128 §3 names.
+// RFC 3128 §3
 func TestFragmentTinyRejected(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -208,9 +193,6 @@ func TestFragmentTinyRejected(t *testing.T) {
 				t.Errorf("got XDP action %d, want the fragment refused", action)
 			}
 
-			// Not just refused: counted as what it is. Rejecting it
-			// as an internal error hides an attacker-shaped
-			// fragment among decap failures.
 			if after := DropCount(obj, Uplink, "fragment_malformed"); after != before+1 {
 				t.Errorf("fragment_malformed = %d, want %d", after, before+1)
 			}
@@ -218,11 +200,6 @@ func TestFragmentTinyRejected(t *testing.T) {
 	}
 }
 
-// TestFragmentIPv6HeaderRestored: frag_resolve6 and frag_record6 build their
-// key in the packet's own IPv6 header, because a 40-byte key does not fit the
-// stack they share with ipv6_walk_chain. The eight bytes they clobber —
-// version, traffic class, flow label, payload length, next header, hop limit —
-// have to come back before the frame leaves.
 func TestFragmentIPv6HeaderRestored(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -237,9 +214,6 @@ func TestFragmentIPv6HeaderRestored(t *testing.T) {
 
 	_, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	// Located by its source address rather than a fixed offset: what the
-	// program does with the frame does not matter here, only that the
-	// header it hands on is the one it was given.
 	src := bytes.Index(out, testUEv6Src[:])
 	if src < 8 {
 		t.Fatalf("inner IPv6 header not found in the %d-byte output frame", len(out))

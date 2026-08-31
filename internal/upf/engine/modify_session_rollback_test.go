@@ -19,9 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestModifySessionRollsBackOnFailure asserts that a mid-modify failure restores
-// the session's in-memory rules and unwinds the eBPF entries applied so far, so
-// the live session and the data plane never diverge. Requires root.
 func TestModifySessionRollsBackOnFailure(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
@@ -71,8 +68,6 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 
 	ueIP := netip.MustParseAddr("10.0.0.1")
 
-	// A valid downlink PDR (applies to pdrs_downlink_ip4) followed by a malformed
-	// PDR (no F-TEID, no UE IP → ExtractPDR fails) forces a mid-modify rollback.
 	modify := &models.ModifyRequest{
 		SEID: seid,
 		UpdatePDRs: []models.PDR{
@@ -100,9 +95,6 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 	}
 }
 
-// TestModifySessionUpdatePDRKeyChangeRollback asserts that when an UpdatePDRs
-// changes a PDR's key (UE IP) and a later PDR in the same request fails, rollback
-// removes the newly-written entry and restores the original, leaving no orphan.
 func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
@@ -151,7 +143,6 @@ func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
 		t.Fatalf("establish: %v", err)
 	}
 
-	// Update PDR 2's UE IP (a key change), then a malformed PDR to force rollback.
 	modify := &models.ModifyRequest{
 		SEID: seid,
 		UpdatePDRs: []models.PDR{
@@ -175,13 +166,6 @@ func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
 	}
 }
 
-// TestModifySessionUpdatePDRKeyChangeCommit is the committed counterpart of
-// TestModifySessionUpdatePDRKeyChangeRollback: the entry under the previous key
-// must be gone. A stale one survives teardown, which iterates the current PDR
-// set, and source_allowed keeps authorising the old address.
-//
-// No production path reaches this today — the SMF releases and re-establishes
-// on a UE address change — so the request below constructs the state directly.
 func TestModifySessionUpdatePDRKeyChangeCommit(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

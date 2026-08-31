@@ -14,22 +14,12 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// QER rate limiting (utils/qer.h): each accepted packet is charged
-// tx_time = size*8/rate against a 5 ms window, so a backlogged sender is
-// admitted once every tx_time and receives the configured MBR.
-
-// qerWindow is window_size in utils/qer.h.
 const qerWindow = 5 * time.Millisecond
 
-// TestQERUplinkRateLimitDeliversConfiguredRate measures a backlogged sender at
-// rates either side of the packet_size*8/window threshold. Wall-clock: median
-// of nine admission intervals, ±20%.
 func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		// The uplink limiter charges the inner packet: ctx->data points past
-		// the GTP header when limit_rate_sliding_window is called.
 		innerLen = 1250
 		samples  = 12
 		teid     = 0x51455210
@@ -44,9 +34,7 @@ func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 		name    string
 		rateBps uint64
 	}{
-		// tx_time = 20 ms, above the window.
 		{"500 kbit/s", 500_000},
-		// tx_time = 2.5 ms, below the window.
 		{"4 Mbit/s", 4_000_000},
 	}
 
@@ -57,12 +45,8 @@ func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 			obj := loadN3N6Program(t)
 			putRateLimitedUplinkPDR(t, obj, teid, tc.rateBps)
 
-			// A backlogged sender: offer the frame as fast as the program can
-			// run and record when each packet is admitted.
 			accepted, rejected := acceptanceTimes(t, obj.UpfEntryFunc, frame, samples, samples*3*txTime+time.Second)
 
-			// Every rejection must be the limiter's, or the interval below
-			// measures something else.
 			if got := DropCount(obj, Uplink, "qer_rate_limit"); got != uint64(rejected) {
 				t.Fatalf("%d packets were dropped but only %d as qer_rate_limit; another stage is dropping the frame", rejected, got)
 			}
@@ -80,14 +64,10 @@ func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 	}
 }
 
-// TestQERUplinkRateLimitAdmitsFirstPacket: the window opens at 0, so clamping
-// it forward while charging before the eligibility test would reject the first
-// packet, never advance the window, and wedge the session permanently.
 func TestQERUplinkRateLimitAdmitsFirstPacket(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		// tx_time = 100 ms, twenty times the window.
 		rateBps  = 100_000
 		innerLen = 1250
 		teid     = 0x51455211
@@ -103,22 +83,18 @@ func TestQERUplinkRateLimitAdmitsFirstPacket(t *testing.T) {
 			DropCount(obj, Uplink, "qer_rate_limit"))
 	}
 
-	// The second packet arrives far inside the first packet's transmission
-	// time, so the limiter must still be holding the line.
 	if action := runXDP(t, obj.UpfEntryFunc, frame); action != ActionDrop {
 		t.Errorf("second back-to-back packet got XDP action %d, want ActionDrop (%d): the limiter is not enforcing", action, ActionDrop)
 	}
 }
 
-// putRateLimitedUplinkPDR installs a forwarding uplink PDR whose QER caps the
-// uplink at rateBps (0 = unlimited).
 func putRateLimitedUplinkPDR(t *testing.T, obj *BpfObjects, teid uint32, rateBps uint64) {
 	t.Helper()
 
 	pdr := PdrInfo{
 		IMSI:         "001010000000001",
-		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:          QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: rateBps},
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: rateBps},
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
@@ -127,9 +103,6 @@ func putRateLimitedUplinkPDR(t *testing.T, obj *BpfObjects, teid uint32, rateBps
 	}
 }
 
-// requireUplinkForwards fails the test when the frame is not forwarded with the
-// limiter disabled: a frame this environment's routing drops would be
-// indistinguishable from one the limiter rejected.
 func requireUplinkForwards(t *testing.T, frame []byte, teid uint32) {
 	t.Helper()
 
@@ -141,8 +114,6 @@ func requireUplinkForwards(t *testing.T, frame []byte, teid uint32) {
 	}
 }
 
-// acceptanceTimes offers frame to prog in a tight loop until n packets are
-// admitted, returning the instant of each admission and how many were rejected.
 func acceptanceTimes(t *testing.T, prog *ebpf.Program, frame []byte, n int, timeout time.Duration) ([]time.Time, int) {
 	t.Helper()
 
@@ -154,7 +125,7 @@ func acceptanceTimes(t *testing.T, prog *ebpf.Program, frame []byte, n int, time
 	deadline := time.Now().Add(timeout)
 
 	for len(accepted) < n {
-		opts.DataOut = out // Run re-slices DataOut to the length produced
+		opts.DataOut = out
 
 		action, err := prog.Run(opts)
 		if err != nil {
@@ -177,9 +148,6 @@ func acceptanceTimes(t *testing.T, prog *ebpf.Program, frame []byte, n int, time
 	return accepted, rejected
 }
 
-// medianInterval is the median gap between consecutive admissions. The first
-// two are discarded: the window starts empty, so the run opens with a burst
-// that is not the steady state.
 func medianInterval(accepted []time.Time) time.Duration {
 	const skip = 2
 
@@ -194,12 +162,6 @@ func medianInterval(accepted []time.Time) time.Duration {
 	return intervals[len(intervals)/2]
 }
 
-// TestQERDownlinkWindowSharedAcrossFamilies: an IPv4v6 session gets two
-// downlink PDRs referencing one QER, so a window held per PDR gives each family
-// the full AMBR.
-//
-// Deterministic rather than rate-based: tx_time is 100 ms here, so the second
-// packet can only be admitted from a separate budget.
 func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -239,8 +201,6 @@ func TestQERDownlinkWindowSharedAcrossFamilies(t *testing.T) {
 		t.Fatalf("first downlink packet was dropped, %d as qer_rate_limit", DropCount(obj, Downlink, "qer_rate_limit"))
 	}
 
-	// Same session, other family, immediately after: the budget the IPv4
-	// packet just spent is the same budget.
 	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x86DD, v6))
 
 	if got := DropCount(obj, Downlink, "qer_rate_limit"); action != ActionDrop || got != 1 {

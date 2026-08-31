@@ -87,17 +87,15 @@ type filterCall struct {
 }
 
 type fakeUpdater struct {
-	mu               sync.Mutex
-	natCalls         []bool
-	flowCalls        []bool
-	localSwitchCalls []bool
-	n3Calls          []netip.Addr
-	filterCalls      []filterCall
-	natErr           error
-	flowErr          error
-	localSwitchErr   error
-	// updateFiltersErr fails every UpdateFilters call; updateFiltersFunc, when
-	// set, takes precedence and decides per (policyID, direction, rules).
+	mu                sync.Mutex
+	natCalls          []bool
+	flowCalls         []bool
+	localSwitchCalls  []bool
+	n3Calls           []netip.Addr
+	filterCalls       []filterCall
+	natErr            error
+	flowErr           error
+	localSwitchErr    error
 	updateFiltersErr  error
 	updateFiltersFunc func(policyID string, direction models.Direction, rules []models.FilterRule) error
 }
@@ -520,10 +518,6 @@ func TestReconcile_FilterClearFailureRetried(t *testing.T) {
 	}
 }
 
-// TestReconcile_LoopWakesOnChangefeedEvent verifies the end-to-end
-// path: starting the reconciler with a real changefeed wakeup, then
-// publishing an event, drives Reconcile within milliseconds — not
-// "next backstop tick."
 func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	feed := db.NewChangefeed()
 
@@ -531,12 +525,11 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	updater := &fakeUpdater{}
 
 	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"))
-	r.backstop = time.Hour // disable backstop so the test only passes via events
+	r.backstop = time.Hour
 
 	r.Start()
 	defer r.Stop()
 
-	// Wait for the initial reconcile (synchronous in loop()).
 	deadline := time.Now().Add(time.Second)
 
 	for time.Now().Before(deadline) {
@@ -559,8 +552,6 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 		t.Fatalf("expected 1 NAT call after initial reconcile, got %d", initialNATCalls)
 	}
 
-	// Flip desired state and publish an event; the loop must observe
-	// the change without waiting for the (disabled) backstop tick.
 	store.mu.Lock()
 	store.natEnabled = false
 	store.mu.Unlock()

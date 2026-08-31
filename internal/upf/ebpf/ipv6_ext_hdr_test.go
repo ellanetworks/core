@@ -11,8 +11,6 @@ import (
 	"testing"
 )
 
-// TestSDFIPv6ExtensionHeaderUplink runs each rule set against a plain packet
-// and the same packet behind a Hop-by-Hop header; the verdicts must agree.
 func TestSDFIPv6ExtensionHeaderUplink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -26,7 +24,7 @@ func TestSDFIPv6ExtensionHeaderUplink(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putForwardingUplinkPDR(t, obj, teid, filterIndex)
 
-	remote := testUEv6 // inner daddr is the SDF remote on uplink
+	remote := testUEv6
 
 	tests := []struct {
 		name     string
@@ -49,7 +47,6 @@ func TestSDFIPv6ExtensionHeaderUplink(t *testing.T) {
 			wantDrop: true,
 		},
 		{
-			// Permitted traffic must survive the closing catch-all.
 			name: "allow-list ending in a catch-all deny",
 			rules: []SdfRule{
 				sdfRuleIPv6(remote, 128, dport, dport, protoUDP, SdfActionAllow),
@@ -81,8 +78,6 @@ func TestSDFIPv6ExtensionHeaderUplink(t *testing.T) {
 	}
 }
 
-// TestIPv6ExtensionHeaderDownlinkDelivery: a chained downlink packet reaches
-// its session.
 func TestIPv6ExtensionHeaderDownlinkDelivery(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -130,10 +125,7 @@ func TestIPv6ExtensionHeaderDownlinkDelivery(t *testing.T) {
 	}
 }
 
-// TestSDFIPv6FragmentPortScopedPolicy: a non-first fragment is dropped where
-// the policy scopes on ports, and evaluated in full where it does not. Reading
-// the L4 offset would take the port from sender-chosen payload (RFC 1858);
-// skipping those rules would evade the deny.
+// RFC 1858
 func TestSDFIPv6FragmentPortScopedPolicy(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -165,17 +157,12 @@ func TestSDFIPv6FragmentPortScopedPolicy(t *testing.T) {
 			wantReason:  "fragment_unfilterable",
 		},
 		{
-			// A port-scoped allow could equally have been the rule
-			// that applied, so it is not skipped either.
 			name:        "port-scoped allow drops the fragment too",
 			filterIndex: filterIndex,
 			rules:       []SdfRule{sdfRuleIPv6(remote, 128, 1, 1023, protoUDP, SdfActionAllow)},
 			wantReason:  "fragment_unfilterable",
 		},
 		{
-			// The rule scopes on ports but names a protocol the
-			// fragment is not, so it could never have matched and
-			// costs the fragment nothing.
 			name:        "port-scoped rule for another protocol is skipped",
 			filterIndex: filterIndex,
 			rules: []SdfRule{
@@ -185,8 +172,6 @@ func TestSDFIPv6FragmentPortScopedPolicy(t *testing.T) {
 			wantReason: "",
 		},
 		{
-			// Same, by address: the rule is port-scoped but for a
-			// prefix this fragment is not from.
 			name:        "port-scoped rule for another address is skipped",
 			filterIndex: filterIndex,
 			rules: []SdfRule{
@@ -196,8 +181,6 @@ func TestSDFIPv6FragmentPortScopedPolicy(t *testing.T) {
 			wantReason: "",
 		},
 		{
-			// A range spanning every port matches whatever the ports
-			// are, so it needs none.
 			name:        "full-range port rule is evaluated normally",
 			filterIndex: filterIndex,
 			rules:       []SdfRule{sdfRuleIPv6(remote, 128, 0, 65535, protoUDP, SdfActionDeny)},
@@ -237,10 +220,6 @@ func TestSDFIPv6FragmentPortScopedPolicy(t *testing.T) {
 	}
 }
 
-// TestSDFIPv6FragmentDoesNotResolveProtocolFromPayload: past a non-first
-// fragment the bytes are payload, so a walk that kept going would take the
-// upper-layer protocol from them and let the sender choose which protocol-scoped
-// rules apply. The kernel stops there too (ipv6_skip_exthdr).
 func TestSDFIPv6FragmentDoesNotResolveProtocolFromPayload(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -255,8 +234,6 @@ func TestSDFIPv6FragmentDoesNotResolveProtocolFromPayload(t *testing.T) {
 
 	remote := testUEv6
 
-	// A deny the sender wants to miss: the payload claims TCP, so a walk
-	// reading it would evaluate this UDP-scoped rule against protocol 6.
 	putSDFFilter(t, obj, filterIndex, []SdfRule{
 		sdfRuleIPv6(remote, 128, 0, 0, protoUDP, SdfActionDeny),
 	})
@@ -269,9 +246,6 @@ func TestSDFIPv6FragmentDoesNotResolveProtocolFromPayload(t *testing.T) {
 	}
 }
 
-// TestSDFIPv6FragmentKeepsProtocolFromFragmentHeader: the fragment header is a
-// real header and its next-header field is the same in every fragment, so a
-// protocol-scoped rule is still enforced on a later fragment.
 func TestSDFIPv6FragmentKeepsProtocolFromFragmentHeader(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -298,9 +272,6 @@ func TestSDFIPv6FragmentKeepsProtocolFromFragmentHeader(t *testing.T) {
 	}
 }
 
-// TestSDFIPv4FragmentPortScopedPolicy is the IPv4 counterpart. The first
-// fragment is the case to get right: more-fragments marks it too, but it does
-// carry the L4 header.
 func TestSDFIPv4FragmentPortScopedPolicy(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -309,9 +280,7 @@ func TestSDFIPv4FragmentPortScopedPolicy(t *testing.T) {
 		filterIndex = 1
 		dport       = 53
 		protoUDP    = 17
-		// What the payload spells at the destination-port offset: a
-		// permitted port, so reading it as a header evades the deny.
-		decoyPort = 8080
+		decoyPort   = 8080
 	)
 
 	obj := loadN3N6Program(t)
@@ -362,8 +331,6 @@ func TestSDFIPv4FragmentPortScopedPolicy(t *testing.T) {
 	}
 }
 
-// TestIPv6ExtensionChainTooLong: an unwalkable chain is dropped and counted,
-// not evaluated against a protocol and port it could not read.
 func TestIPv6ExtensionChainTooLong(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -381,8 +348,7 @@ func TestIPv6ExtensionChainTooLong(t *testing.T) {
 	}
 }
 
-// TestSDFIPv6AuthHeaderWalk: the AH length counts 4-octet units less two, not
-// 8-octet units (RFC 4302 §2).
+// RFC 4302 §2
 func TestSDFIPv6AuthHeaderWalk(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -405,8 +371,6 @@ func TestSDFIPv6AuthHeaderWalk(t *testing.T) {
 	}
 }
 
-// TestDownlinkDeliversNonL4Protocols: the uplink carries these unfiltered, so
-// withholding the replies breaks the session one way only.
 func TestDownlinkDeliversNonL4Protocols(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -454,8 +418,6 @@ func TestDownlinkDeliversNonL4Protocols(t *testing.T) {
 	}
 }
 
-// requireEncapsulated asserts that the downlink frame was tunnelled to the gNB
-// with its inner packet intact.
 func requireEncapsulated(t *testing.T, obj *BpfObjects, frame, inner []byte) {
 	t.Helper()
 
@@ -474,7 +436,6 @@ func requireEncapsulated(t *testing.T, obj *BpfObjects, frame, inner []byte) {
 	}
 }
 
-// uplinkSDFDenied reports whether the SDF filter denied the uplink packet.
 func uplinkSDFDenied(t *testing.T, obj *BpfObjects, teid uint32, inner []byte) bool {
 	t.Helper()
 
@@ -490,7 +451,6 @@ func uplinkSDFDenied(t *testing.T, obj *BpfObjects, teid uint32, inner []byte) b
 	}
 }
 
-// uplinkDropReason returns the recorded drop reason, or "" if forwarded.
 func uplinkDropReason(t *testing.T, obj *BpfObjects, teid uint32, inner []byte) string {
 	t.Helper()
 
