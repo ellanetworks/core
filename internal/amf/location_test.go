@@ -14,7 +14,7 @@ import (
 )
 
 func testUserLocation(kind ngap.UserLocationInformationKind, cell uint64) ngap.UserLocationInformation {
-	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10} // MCC 001, MNC 01
+	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 	return ngap.UserLocationInformation{
 		Kind:         kind,
@@ -34,8 +34,6 @@ func TestUpdateLocationConversion(t *testing.T) {
 		t.Fatalf("NrLocation not populated: %+v", nr)
 	}
 
-	// The NR cell identity is 36 bits, so it renders as nine hex digits where
-	// the E-UTRA one renders as seven.
 	if nr.Ncgi.NrCellID != "123456789" {
 		t.Fatalf("cell id = %q, want 123456789", nr.Ncgi.NrCellID)
 	}
@@ -53,8 +51,6 @@ func TestUpdateLocationConversion(t *testing.T) {
 	}
 }
 
-// The E-UTRA alternative is the one S1AP also carries, and its 28-bit cell
-// identity renders as seven hex digits.
 func TestUpdateLocationEUTRA(t *testing.T) {
 	c := &UeConn{}
 
@@ -74,9 +70,6 @@ func TestUpdateLocationEUTRA(t *testing.T) {
 	}
 }
 
-// A UE that moves between accesses must not keep the location it reported on
-// the one it left, or the AMF answers a location query with a cell the UE is
-// no longer in.
 func TestUpdateLocationReplacesPreviousAccess(t *testing.T) {
 	ctx := context.Background()
 
@@ -95,8 +88,6 @@ func TestUpdateLocationReplacesPreviousAccess(t *testing.T) {
 	}
 }
 
-// TimeStamp is optional; when absent the age stays zero rather than reading as
-// a location reported at the NTP epoch.
 func TestUpdateLocationTimeStamp(t *testing.T) {
 	c := &UeConn{}
 
@@ -115,8 +106,6 @@ func TestUpdateLocationTimeStamp(t *testing.T) {
 	}
 }
 
-// ntpTimeStamp renders t as the first four octets of an RFC 5905 timestamp,
-// which is what the Time Stamp IE carries (TS 38.413 §9.3.1.75).
 func ntpTimeStamp(t time.Time) *ngap.TimeStamp {
 	var ts ngap.TimeStamp
 
@@ -125,7 +114,6 @@ func ntpTimeStamp(t time.Time) *ngap.TimeStamp {
 	return &ts
 }
 
-// TS 29.571 defines ageOfLocationInformation as elapsed minutes in 0..32767.
 func TestAgeOfLocation(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 
@@ -174,7 +162,7 @@ func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 }
 
 func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
-	c := &UeConn{} // no bound UE (a bare Initial UE Message connection)
+	c := &UeConn{}
 
 	c.UpdateLocation(context.Background(), testUserLocation(ngap.UserLocationNR, 1))
 
@@ -183,9 +171,6 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 	}
 }
 
-// TestUpdateLocationConcurrentReadWrite mirrors the dispatch-goroutine write
-// against the API-goroutine read; run under -race it guards the mirror-write
-// synchronization.
 func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	ue := NewUeContext()
 	c := &UeConn{}
@@ -216,8 +201,6 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	<-done
 }
 
-// operatorOnlyDB serves the operator record and nothing else; embedding the
-// interface leaves the rest nil, so a call this test does not expect panics.
 type operatorOnlyDB struct {
 	DBer
 	operator *db.Operator
@@ -229,8 +212,6 @@ func (d operatorOnlyDB) GetOperator(context.Context) (*db.Operator, error) {
 
 func (d operatorOnlyDB) NodeID() int { return 0 }
 
-// Untrusted non-3GPP access reports a transport address rather than a cell, and
-// the serving TAI comes from this AMF's own configuration.
 func TestUpdateLocationN3IWF(t *testing.T) {
 	c := &UeConn{amf: &AMF{DBInstance: operatorOnlyDB{operator: &db.Operator{
 		Mcc: "001", Mnc: "01", SupportedTACs: `["000007"]`,
@@ -264,8 +245,6 @@ func TestUpdateLocationN3IWF(t *testing.T) {
 	}
 }
 
-// Without an operator TAI there is nothing to record the UE against, and the
-// last known location must stand rather than be replaced by a partial one.
 func TestUpdateLocationN3IWFKeepsLastKnownWithoutOperator(t *testing.T) {
 	ctx := context.Background()
 

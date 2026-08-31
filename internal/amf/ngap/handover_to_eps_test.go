@@ -264,7 +264,6 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 		t.Fatal("the EPS peer was never asked to prepare the handover")
 	}
 
-	// TS 33.501 §8.3.2 step 2, §8.6.1
 	if want := req.SecurityContext.DLNASCount; container.SequenceNumber != uint8(want-1) {
 		t.Errorf("container sequence number = %d, want one below the mapped downlink COUNT %d",
 			container.SequenceNumber, want)
@@ -475,7 +474,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.1, TS 33.501 §8.4.2
+// TS 23.501 §5.17.2.1
 func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)

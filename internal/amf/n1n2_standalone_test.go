@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// connectedUE returns a registered UE with a NAS connection and the sender behind it.
 func connectedUE(t *testing.T, imsi string) (*amf.UeContext, *amf.UeConn, *fakeNGAPSender) {
 	t.Helper()
 
@@ -76,7 +75,6 @@ func TestDeliverStandaloneN1N2_NRPPa_SendsNGAPTransport(t *testing.T) {
 	}
 }
 
-// A request carrying both an N1 and an N2 part delivers both.
 func TestDeliverStandaloneN1N2_BothParts(t *testing.T) {
 	ue, conn, sender := connectedUE(t, "001010000000062")
 
@@ -97,8 +95,6 @@ func TestDeliverStandaloneN1N2_BothParts(t *testing.T) {
 	}
 }
 
-// An unmapped class is an error rather than a silent mis-delivery, so adding a class
-// without wiring its transport cannot go unnoticed.
 func TestDeliverStandaloneN1N2_UnknownClass(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

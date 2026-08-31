@@ -17,24 +17,16 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// buildAuthResponsePlain builds a plain AUTHENTICATION RESPONSE. A nil res omits
-// the RES* IE; a non-nil res (including empty) includes it (IEI 0x2D, TLV).
 func buildAuthResponse(res []byte) *fgs.AuthenticationResponse {
 	return &fgs.AuthenticationResponse{RES: res}
 }
 
-// A missing RES* (nil authentication response parameter IE) is treated as an
-// unsuccessful authentication per TS 24.501: a GUTI-identified UE is
-// asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
 	testcases := []struct {
 		name    string
 		idType  uint8
 		msgType uint8
 	}{
-		// The AMF authenticates identify-first (on the UE's SUCI), so an
-		// authentication failure is rejected regardless of the identity the UE
-		// registered with — no redundant re-identification (mirrors the MME).
 		{"used GUTI", uint8(fgs.IdentityGUTI), uint8(fgs.MsgAuthenticationReject)},
 		{"used SUCI", uint8(fgs.IdentitySUCI), uint8(fgs.MsgAuthenticationReject)},
 	}
@@ -62,8 +54,6 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 	}
 }
 
-// Precondition failures (wrong state, missing authentication context, undecodable
-// RAND) leave the authentication exchange untouched: no downlink is emitted.
 func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	type TestCase struct {
 		name  string
@@ -185,8 +175,6 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 	}
 
 	testcases := []TestCase{
-		// Identify-first: an authentication failure rejects and deregisters
-		// regardless of the registration identity (mirrors the MME).
 		{
 			"used GUTI",
 			uint8(fgs.IdentityGUTI),

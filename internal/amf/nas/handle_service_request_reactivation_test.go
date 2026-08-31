@@ -18,7 +18,6 @@ func idleToActive(t *testing.T, f connectedModeFixture, svcType fgs.ServiceType)
 	return f
 }
 
-// TS 24.501 5.6.1.4.1: Uplink data status drives user-plane re-establishment.
 func TestHandleServiceRequest_IdleToActive_ReactivatesPDUSession(t *testing.T) {
 	f := idleToActive(t, connectedModeUe(t, &fakeSmf{}), fgs.ServiceTypeData)
 
@@ -31,7 +30,6 @@ func TestHandleServiceRequest_IdleToActive_ReactivatesPDUSession(t *testing.T) {
 	}
 }
 
-// TS 24.501 5.6.1.2.1: a UE with pending uplink data sends service type "data", not "mobile terminated services".
 func TestHandleServiceRequest_BufferedN1N2_DoesNotSuppressReactivation(t *testing.T) {
 	for _, svcType := range []fgs.ServiceType{
 		fgs.ServiceTypeData,

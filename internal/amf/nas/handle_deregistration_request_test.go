@@ -16,10 +16,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestHandleDeregistrationRequest_ProcessedInAnyState verifies a UE-initiated
-// Deregistration Request is processed regardless of the UE's state — TS 24.501
-// §5.5.2.2.2 (like TS 24.301 §5.5.2.2.2) has no state precondition; the integrity
-// guard is the security control. Mirrors the MME's state-unguarded detach handling.
+// TS 24.301 §5.5.2.2.2
 func TestHandleDeregistrationRequest_ProcessedInAnyState(t *testing.T) {
 	testcases := []amf.StateType{amf.Deregistered, amf.RegistrationInitiated, amf.DeregistrationInitiated, amf.Registered}
 	for _, tc := range testcases {
@@ -153,9 +150,6 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 	}
 }
 
-// TestHandleDeregistrationRequest_MacFailed_RejectsForgery verifies the
-// handler rejects a MacFailed Deregistration Request while the amf.AMF still
-// holds a valid security context (TS 24.501 defense in depth).
 func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -214,8 +208,6 @@ func buildTestDeregistrationRequestUEOriginatingDeregistration() *fgs.Deregistra
 	return buildDeregRequestUEOrig(fgs.AccessType3GPP, false)
 }
 
-// buildDeregRequestUEOrig builds a UE-originating DEREGISTRATION REQUEST with the
-// given de-registration type (TS 24.501 §8.2.12, §9.11.3.20).
 func buildDeregRequestUEOrig(accessType fgs.AccessType, switchOff bool) *fgs.DeregistrationRequestUEOriginating {
 	return &fgs.DeregistrationRequestUEOriginating{
 		AccessType: accessType,

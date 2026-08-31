@@ -18,9 +18,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// operatorPLMN is the operator PLMN (001/01) the fake DB serves, BCD-encoded as
-// TS 38.413 §9.3.3.5 carries it. internal/mme/s1ap spells its PLMN out the same
-// way.
 var operatorPLMN = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 type fakeDBInstance struct {
@@ -275,10 +272,6 @@ func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([
 
 func (fdb *fakeDBInstance) NodeID() int { return 0 }
 
-// fakeNGAPSender records the NGAP messages the AMF sends, standing in for an
-// NG-RAN node. Every outbound PDU is parsed with the in-house library and filed
-// in the bucket matching its procedure, so a test asserts on the same message
-// struct the library hands a real peer. internal/mme/s1ap does the same.
 type fakeNGAPSender struct {
 	SentNGSetupFailures                []*ngap.NGSetupFailure
 	SentNGSetupResponses               []*ngap.NGSetupResponse
@@ -299,10 +292,6 @@ type fakeNGAPSender struct {
 	SentDownlinkNASTransport           []*ngap.DownlinkNASTransport
 }
 
-// capture parses one message body into its bucket. A parse failure means the
-// AMF encoded a PDU its own library cannot read back, which is a bug in the
-// code under test rather than in the test — so it panics here instead of
-// surfacing as a puzzling empty bucket further along.
 func capture[M any](bucket *[]*M, parse func([]byte) (*M, error), value []byte, name string) {
 	m, err := parse(value)
 	if err != nil {
@@ -379,8 +368,6 @@ func (fng *fakeNGAPSender) captureUnsuccessful(m *ngap.UnsuccessfulOutcome) {
 	}
 }
 
-// newTestRadio creates a minimal Radio with a sender, bound to a, so its UEs live
-// in a's registry index. Pass the same AMF a handler is invoked with.
 func newTestRadio(a *amf.AMF) *amf.Radio {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
@@ -393,22 +380,15 @@ func newTestRadio(a *amf.AMF) *amf.Radio {
 	return ran
 }
 
-// newTestAMF creates a minimal AMF context for testing.
 func newTestAMF() *amf.AMF {
 	return amf.New(nil, nil, nil)
 }
 
-// NASCall records one invocation of the NAS handler.
 type NASCall struct {
 	UeConn *amf.UeConn
 	NASPDU []byte
 }
 
-// fakeNASHandler records inbound NAS calls. By default it models a message that
-// establishes a UE context — binding a fresh one to a bare connection, as a real
-// registration would — so the NGAP layer keeps the connection. Set LeavesBare to
-// model a message that establishes none (undecodable, or an identity the network
-// cannot resolve), which the NGAP layer then releases.
 type fakeNASHandler struct {
 	Calls      []NASCall
 	LeavesBare bool
@@ -422,7 +402,6 @@ func (f *fakeNASHandler) HandleNAS(_ context.Context, ue *amf.UeConn, nasPdu []b
 	}
 }
 
-// newTestAMFWithNAS creates a minimal AMF with a fakeNASHandler wired in.
 func newTestAMFWithNAS(nasHandler *fakeNASHandler) *amf.AMF {
 	a := newTestAMF()
 	a.NAS = nasHandler

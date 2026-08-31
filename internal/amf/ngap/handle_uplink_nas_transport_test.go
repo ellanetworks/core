@@ -36,10 +36,6 @@ func TestHandleUplinkNASTransport_UnknownUeConn_SendsErrorIndication(t *testing.
 	}
 }
 
-// TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication covers
-// TS 38.413: an AMF UE NGAP ID the AMF never allocated is an unknown local
-// AP ID, so the AMF answers with an Error Indication carrying the received AP IDs
-// and cause "Unknown local UE NGAP ID".
 func TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
@@ -62,11 +58,6 @@ func TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 	}
 }
 
-// TestHandleUplinkNASTransport_InconsistentRanUeNgapID_SendsErrorIndication
-// covers TS 38.413: a RAN UE NGAP ID different from the one stored for the
-// connection is an inconsistent remote AP ID, so the AMF answers with an Error
-// Indication carrying the received AP IDs and cause "Inconsistent remote UE NGAP
-// ID".
 func TestHandleUplinkNASTransport_InconsistentRanUeNgapID_SendsErrorIndication(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)

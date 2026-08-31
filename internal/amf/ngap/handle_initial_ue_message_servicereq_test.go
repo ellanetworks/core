@@ -13,18 +13,13 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// realNASAdapter wires the actual NAS layer (not the fake) into the AMF, so a routing test
-// exercises the real mint gate and its SERVICE REJECT end to end.
 type realNASAdapter struct{ amf *amf.AMF }
 
 func (n *realNASAdapter) HandleNAS(ctx context.Context, ue *amf.UeConn, pdu []byte) {
 	amfnas.HandleNAS(ctx, n.amf, ue, pdu)
 }
 
-// A truncated-but-recognizable plain SERVICE REQUEST arriving in an Initial UE Message (the
-// 3gpp-server Test5GServiceRequest_Fuzz "7e004c" case, sent verbatim) must be classified by
-// message type and answered with SERVICE REJECT #96 over the whole NGAP→NAS path — never
-// dropped (TS 24.501 §5.6.1.8 b).
+// TS 24.501 §5.6.1.8
 func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) {
 	amfInstance := newTestAMF()
 	amfInstance.NAS = &realNASAdapter{amf: amfInstance}
@@ -34,7 +29,7 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 
 	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      ngap.NASPDU{0x7e, 0x00, 0x4c}, // plain SERVICE REQUEST header, truncated
+		NASPDU:      ngap.NASPDU{0x7e, 0x00, 0x4c},
 	})
 
 	if len(sender.SentDownlinkNASTransport) != 1 {
@@ -46,7 +41,7 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}
 
-	if pdu[3] != 0x60 { // 5GMM cause #96: invalid mandatory information
+	if pdu[3] != 0x60 {
 		t.Errorf("5GMM cause = 0x%02x, want #96 (invalid mandatory information)", pdu[3])
 	}
 }

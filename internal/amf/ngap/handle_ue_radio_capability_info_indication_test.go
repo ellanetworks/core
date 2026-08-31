@@ -31,12 +31,17 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
 		RANUENGAPID: ngap.RANUENGAPID(1),
 		AMFUENGAPID: ngap.AMFUENGAPID(10),
 	})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("a resolvable connection with no UE context must be dropped silently, got %d error indications", len(sender.SentErrorIndications))
+	}
 }
 
 func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
@@ -88,8 +93,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 	}
 }
 
-// TS 38.413 §10.3.5: the capability is mandatory but ignore criticality, so an
-// indication without it is still handled and the stored capability stands.
+// TS 38.413 §10.3.5
 func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)

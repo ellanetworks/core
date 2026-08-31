@@ -9,9 +9,8 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// Conformance tests for interworking without N26
 func TestFiveGSNetworkFeatureSupportEncodesIWKN26(t *testing.T) {
-	const iwkN26Octet3 = 0x40 // octet 3, bit 7
+	const iwkN26Octet3 = 0x40
 
 	for _, tc := range []struct {
 		name string
