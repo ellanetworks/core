@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// captureConn records the S1AP messages the MME sends, standing in for an eNB.
 type captureConn struct {
 	mu   sync.Mutex
 	sent [][]byte
@@ -40,8 +39,6 @@ func (c *captureConn) snapshot() [][]byte {
 	return append([][]byte(nil), c.sent...)
 }
 
-// mobileIdentityDigits extracts the identity digits from a TS 24.008 Mobile
-// Identity IE, reporting a value that does not decode as no digits.
 func mobileIdentityDigits(b []byte) string {
 	digits, err := nas.DecodeBCDIdentity(b)
 	if err != nil {
@@ -51,7 +48,6 @@ func mobileIdentityDigits(b []byte) string {
 	return digits
 }
 
-// decodeDownlinkNAS extracts the NAS PDU from an S1AP Downlink NAS Transport.
 func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	t.Helper()
 

@@ -15,8 +15,8 @@ func TestEncodePLMN(t *testing.T) {
 		mcc, mnc string
 		want     s1ap.PLMNIdentity
 	}{
-		{"001", "01", s1ap.PLMNIdentity{0x00, 0xf1, 0x10}},  // 2-digit MNC
-		{"310", "260", s1ap.PLMNIdentity{0x13, 0x00, 0x62}}, // 3-digit MNC (TS 23.003: octet2 = MNC3|MCC3, octet3 = MNC2|MNC1)
+		{"001", "01", s1ap.PLMNIdentity{0x00, 0xf1, 0x10}},
+		{"310", "260", s1ap.PLMNIdentity{0x13, 0x00, 0x62}},
 	}
 	for _, c := range cases {
 		got, err := EncodePLMN(models.PlmnID{Mcc: c.mcc, Mnc: c.mnc})
@@ -36,8 +36,6 @@ func TestEncodePLMNInvalid(t *testing.T) {
 	}
 }
 
-// TestDecodePLMNRoundTrip confirms decodePLMN inverts EncodePLMN for both 2- and
-// 3-digit MNCs (TS 23.003).
 func TestDecodePLMNRoundTrip(t *testing.T) {
 	cases := []models.PlmnID{
 		{Mcc: "999", Mnc: "01"},
@@ -60,8 +58,7 @@ func TestDecodePLMNRoundTrip(t *testing.T) {
 	}
 }
 
-// TestENBSupportedTAIs confirms an S1 Setup Request's Supported TAs flatten into
-// one TAI per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
+// TS 36.413 §8.7.3.2
 func TestENBSupportedTAIs(t *testing.T) {
 	plmnA, err := EncodePLMN(models.PlmnID{Mcc: "999", Mnc: "01"})
 	if err != nil {

@@ -67,7 +67,7 @@ func TestAttachWithNoCommonIntegrityIsRejected(t *testing.T) {
 	}
 }
 
-// TS 33.501 §6.9.5.1, TS 33.401 §7.2.8
+// TS 33.501 §6.9.5.1
 func TestStartSecurityModeClaimsKeyChain(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

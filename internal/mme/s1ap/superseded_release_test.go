@@ -13,9 +13,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// resumeOntoNewConnection re-establishes ue on a new S1 connection (eNB-UE-S1AP-ID
-// 1001) via a verified TRACKING AREA UPDATE and returns the superseded connection's
-// S1AP ID pair.
 func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMMEID s1ap.MMEUES1APID, oldENBID s1ap.ENBUES1APID) {
 	t.Helper()
 
@@ -36,7 +33,7 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 		t.Fatal(err)
 	}
 
-	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary() // periodic
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +67,6 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 	return oldMMEID, oldENBID
 }
 
-// isReleaseCommandFor reports whether pdu is a UE CONTEXT RELEASE COMMAND naming the
-// given S1AP ID pair.
 func isReleaseCommandFor(t *testing.T, pdu []byte, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) bool {
 	t.Helper()
 
@@ -106,12 +101,10 @@ func isErrorIndication(t *testing.T, pdu []byte) bool {
 	return ok && im.ProcedureCode == s1ap.ProcErrorIndication
 }
 
-// TestSupersededConnectionIsReleasedTowardENB checks that re-establishing a UE on a new
-// S1 connection releases the superseded one toward the eNB with a UE CONTEXT RELEASE
-// COMMAND (TS 23.401 §4.11, TS 36.413 §8.3.3.1).
+// TS 23.401 §4.11
 func TestSupersededConnectionIsReleasedTowardENB(t *testing.T) {
 	m := newTestMME(t)
-	ue, oldConn := securedUE(t, m) // ECM-CONNECTED on oldConn, eNB-UE-S1AP-ID 7
+	ue, oldConn := securedUE(t, m)
 
 	oldMMEID, oldENBID := resumeOntoNewConnection(t, m, ue)
 
@@ -128,10 +121,7 @@ func TestSupersededConnectionIsReleasedTowardENB(t *testing.T) {
 	}
 }
 
-// TestSupersededConnectionReleaseRequestGetsCommand checks that an eNB release request
-// for a superseded context is answered with a UE CONTEXT RELEASE COMMAND, not an Error
-// Indication (TS 36.413 §8.3.2.2). The proactive release is already in flight and
-// guarded, so the crossing request adds no Error Indication and no duplicate command.
+// TS 36.413 §8.3.2.2
 func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, oldConn := securedUE(t, m)
@@ -162,17 +152,13 @@ func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	}
 }
 
-// TestDetachedReleaseRequestGuardsAndDedups covers the leak-proofing for a detached
-// connection that has no release in flight (a bare or handover-source association): the
-// first release request draws a command and arms the guard; a crossing second request is
-// suppressed.
 func TestDetachedReleaseRequestGuardsAndDedups(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
 	const enbID s1ap.ENBUES1APID = 55
 
-	bare := m.NewUeConn(cc, enbID) // UE-less connection, as an Initial UE Message creates
+	bare := m.NewUeConn(cc, enbID)
 	if bare == nil {
 		t.Fatal("failed to allocate a bare connection")
 	}
@@ -195,5 +181,5 @@ func TestDetachedReleaseRequestGuardsAndDedups(t *testing.T) {
 		t.Fatalf("duplicate release command not suppressed while a release is in flight: %d commands", cc.count())
 	}
 
-	m.ReleaseDetachedConn(cc, bare.MMEUES1APID, enbID) // reap + stop the guard
+	m.ReleaseDetachedConn(cc, bare.MMEUES1APID, enbID)
 }

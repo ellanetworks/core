@@ -14,7 +14,7 @@ import (
 func TestVerifiedMessageMarksSecureExchange(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.Conn().SetSecureExchangeEstablishedForTest(false) // fresh connection, not yet established
+	ue.Conn().SetSecureExchangeEstablishedForTest(false)
 	ue.SetULCountForTest(0)
 
 	tac, err := (&eps.TrackingAreaUpdateComplete{}).MarshalBinary()

@@ -35,8 +35,6 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 	m := newTestMME(t)
 
-	// Carries a Cause but neither UE identity: §8.7.2.2 requires at least one of
-	// Cause / Criticality Diagnostics, and the UE IEs stay absent.
 	b, err := (&s1ap.ErrorIndication{
 		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}),
 	}).Marshal()
@@ -44,12 +42,15 @@ func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No UE referenced: log only, no release, no panic.
-	handleErrorIndication(m, context.Background(), &mme.Radio{Conn: &captureConn{}}, initiatingValue(t, b))
+	conn := &captureConn{}
+
+	handleErrorIndication(m, context.Background(), &mme.Radio{Conn: conn}, initiatingValue(t, b))
+
+	if got := conn.count(); got != 0 {
+		t.Fatalf("an Error Indication naming no UE must release nothing, got %d S1AP messages", got)
+	}
 }
 
-// The MME-UE-S1AP-ID space is shared across eNBs, so an ERROR INDICATION from
-// one association must not release a UE attached through another.
 func TestErrorIndicationFromAnotherENBDoesNotRelease(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
