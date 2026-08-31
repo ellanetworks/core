@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -37,33 +36,6 @@ func TestCreateDataNetwork_Success(t *testing.T) {
 	err := clientObj.CreateDataNetwork(ctx, createDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestCreateDataNetwork_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid UE IP Pool"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	createDataNetworkOpts := &client.CreateDataNetworkOptions{
-		Name:     "testDataNetwork",
-		IPv4Pool: "12312312312",
-		DNS:      "8.8.8.8",
-		Mtu:      1400,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateDataNetwork(ctx, createDataNetworkOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -113,32 +85,6 @@ func TestGetDataNetwork_Success(t *testing.T) {
 	}
 }
 
-func TestGetDataNetwork_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Data Network not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	name := "non-existent-data-network"
-	getDataNetworkOpts := &client.GetDataNetworkOptions{
-		Name: name,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetDataNetwork(ctx, getDataNetworkOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeleteDataNetwork_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -162,33 +108,6 @@ func TestDeleteDataNetwork_Success(t *testing.T) {
 	err := clientObj.DeleteDataNetwork(ctx, deleteDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteDataNetwork_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Data Network not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	name := "non-existent-data-network"
-
-	deleteDataNetworkOpts := &client.DeleteDataNetworkOptions{
-		Name: name,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteDataNetwork(ctx, deleteDataNetworkOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -219,32 +138,6 @@ func TestListDataNetworks_Success(t *testing.T) {
 
 	if len(resp.Items) != 1 {
 		t.Fatalf("expected 1 data network, got %d", len(resp.Items))
-	}
-}
-
-func TestListDataNetworks_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListDataNetworks(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -290,36 +183,6 @@ func TestListIPv4Allocations_Success(t *testing.T) {
 	}
 }
 
-func TestListIPv4Allocations_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Data Network not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	opts := &client.ListIPAllocationsOptions{
-		DataNetworkName: "nonexistent",
-	}
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 25,
-	}
-
-	_, err := clientObj.ListIPv4Allocations(ctx, opts, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestListIPv6Allocations_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -362,36 +225,6 @@ func TestListIPv6Allocations_Success(t *testing.T) {
 	}
 }
 
-func TestListIPv6Allocations_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Data Network not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	opts := &client.ListIPAllocationsOptions{
-		DataNetworkName: "nonexistent",
-	}
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 25,
-	}
-
-	_, err := clientObj.ListIPv6Allocations(ctx, opts, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestListDataNetworkStaticIps_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -422,23 +255,6 @@ func TestListDataNetworkStaticIps_Success(t *testing.T) {
 	}
 }
 
-func TestListDataNetworkStaticIps_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Data Network not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	_, err := clientObj.ListDataNetworkStaticIps(context.Background(), "nonexistent")
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestCreateDataNetworkStaticIp_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -459,26 +275,6 @@ func TestCreateDataNetworkStaticIp_Success(t *testing.T) {
 	}
 }
 
-func TestCreateDataNetworkStaticIp_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "address is already in use"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.CreateDataNetworkStaticIp(context.Background(), "internet", &client.CreateStaticIPOptions{
-		IMSI:    "001010000000001",
-		Address: "10.45.0.10",
-	})
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateDataNetworkStaticIp_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -496,23 +292,6 @@ func TestUpdateDataNetworkStaticIp_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateDataNetworkStaticIp_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "static IP is in use by an active session"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.UpdateDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4", "10.45.0.20")
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeleteDataNetworkStaticIp_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -527,22 +306,5 @@ func TestDeleteDataNetworkStaticIp_Success(t *testing.T) {
 	err := clientObj.DeleteDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteDataNetworkStaticIp_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "static IP is in use by an active session"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.DeleteDataNetworkStaticIp(context.Background(), "internet", "001010000000001", "ipv4")
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

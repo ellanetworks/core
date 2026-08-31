@@ -10,9 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestNASGuardRetransmitsThenReleases confirms an unanswered guarded procedure
-// is retransmitted up to the limit and then aborted by releasing the UE
-// (TS 24.301 §10.2).
+// TS 24.301 §10.2
 func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 	m := newTestMME(t)
 	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
@@ -22,17 +20,12 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 
 	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
 
-	// Two retransmissions plus the UE Context Release Command. Wait for all three
-	// sends rather than the releasing flag, which releaseUEContext sets just before
-	// it sends the release command.
 	eventually(t, time.Second, func() bool {
 		return cc.count() >= 3
 	})
 }
 
-// TestNASGuardAbortOnlyRunsFinalizer confirms an abort-only guard, on exhausting
-// its retransmissions, runs its finalizer and leaves the UE connected rather
-// than releasing the context (TS 24.301 §6.4.2.5, §6.4.4.5).
+// TS 24.301 §6.4.2.5
 func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 	m := newTestMME(t)
 	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
@@ -56,16 +49,11 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 		t.Fatal("abort-only guard released the UE; expected it to stay connected")
 	}
 
-	// Two retransmissions, and no UE Context Release Command.
 	if got := cc.count(); got != 2 {
 		t.Fatalf("sent %d messages, want 2 retransmissions and no release", got)
 	}
 }
 
-// TestESMGuardUsesESMTimeout confirms the ESM bearer-procedure guard (T3486
-// modify, T3495 deactivate) fires at the ESM interval, not the common-procedure
-// interval. The common timeout is set long so that only the ESM interval can
-// drive the retransmissions within the test window.
 func TestESMGuardUsesESMTimeout(t *testing.T) {
 	m := newTestMME(t)
 	m.nasGuardCfg.ExpireTime = 10 * time.Second
@@ -93,11 +81,6 @@ func TestESMGuardUsesESMTimeout(t *testing.T) {
 	}
 }
 
-// TestPerBearerESMGuardsAreIndependent is the property that fixes the verified
-// single-guard gap: each bearer's ESM procedure has its own guard, so a procedure
-// outstanding on one bearer (or on EMM) does not cancel another's retransmissions.
-// With a single shared guard, arming the second would cancel the first and its
-// finalizer would never run.
 func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 	m := newTestMME(t)
 	m.esmGuardCfg.ExpireTime = 5 * time.Millisecond
@@ -123,8 +106,6 @@ func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 	}
 }
 
-// TestNASGuardStoppedByResponse confirms a UE response cancels the guard before
-// it can retransmit or release.
 func TestNASGuardStoppedByResponse(t *testing.T) {
 	m := newTestMME(t)
 	m.nasGuardCfg.ExpireTime = 5 * time.Millisecond
@@ -135,7 +116,6 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
 	ue.Conn().StopNASGuard()
 
-	// The guard is cancelled, so after the timeout window nothing mutates the UE.
 	time.Sleep(50 * time.Millisecond)
 
 	if ue.ReleasingForTest() {

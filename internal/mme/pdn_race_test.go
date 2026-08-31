@@ -11,12 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// TestPDNBearerWriteVsStatusNoRace races the bearer-install writer (S1AP/NAS
-// goroutine) against the status-export reader (API goroutine) on the same UE's
-// PdnConnection and UE-AMBR. Its value is under `-race`: with the writers filling
-// fields off-lock (or the reader reading live pointers off-lock) this fails;
-// through InstallDefaultBearer/pdnSessionViews/AmbrStrings — all under ue.mu — it is
-// clean.
 func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 	m := newTestMME(t)
 	ue := m.NewUe(&captureConn{}, 7)

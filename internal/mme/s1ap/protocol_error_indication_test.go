@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TS 36.413 §10.2: the transfer-syntax ERROR INDICATION for an undecodable PDU is
-// cause-only.
+// TS 36.413 §10.2
 func TestSendProtocolErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -35,9 +34,7 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 	}
 }
 
-// TS 36.413 §10.3.4.1: an unknown Procedure Code is answered per its received
-// criticality — Reject and Ignore-and-Notify draw an ERROR INDICATION with
-// Criticality Diagnostics; Ignore draws no reply.
+// TS 36.413 §10.3.4.1
 func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -55,7 +52,6 @@ func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 			m := newTestMME(t)
 			cc := &captureConn{}
 
-			// A Procedure Code no initiating-message handler serves.
 			Route(m, context.Background(), mme.NewRadioForTest(cc), &s1ap.InitiatingMessage{
 				ProcedureCode: s1ap.ProcedureCode(200),
 				Criticality:   tt.crit,

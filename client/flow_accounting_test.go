@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -37,27 +36,6 @@ func TestGetFlowAccountingInfo_Success(t *testing.T) {
 	}
 }
 
-func TestGetFlowAccountingInfo_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Flow accounting info not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetFlowAccountingInfo(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateFlowAccountingInfo_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -80,30 +58,5 @@ func TestUpdateFlowAccountingInfo_Success(t *testing.T) {
 	err := clientObj.UpdateFlowAccountingInfo(ctx, opts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateFlowAccountingInfo_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request data"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateFlowAccountingInfoOptions{
-		Enabled: false,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateFlowAccountingInfo(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

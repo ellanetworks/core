@@ -15,8 +15,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// Conformance tests for the X2 handover Path Switch procedure.
-
 const (
 	ieIDTAI                    = 67
 	ieIDEUTRANCGI              = 100
@@ -49,7 +47,7 @@ func dropIEs(t *testing.T, value []byte, ids ...uint16) []byte {
 		}
 
 		id := binary.BigEndian.Uint16(value[pos : pos+2])
-		pos += 3 // ID (2) + criticality (1)
+		pos += 3
 
 		n := int(value[pos])
 		if n < 0x80 {
@@ -219,8 +217,6 @@ func TestPathSwitchPartialUPFailureReportsReleasedERAB(t *testing.T) {
 		t.Fatalf("E-RAB To Be Released List = %+v, want exactly E-RAB 6", ack.ERABToBeReleased)
 	}
 
-	// TS 36.413 §9.1.5.9: an E-RAB ID shall be present only once across the
-	// switched-uplink and to-be-released lists.
 	seen := map[s1ap.ERABID]bool{}
 	for _, item := range ack.ERABToBeReleased {
 		if seen[item.ERABID] {
@@ -476,7 +472,6 @@ func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
 		t.Fatal("source eNB was not commanded to release the UE context")
 	}
 
-	// The target still gets its failure.
 	if target.count() != 1 {
 		t.Fatalf("target eNB got %d messages, want one Path Switch Request Failure", target.count())
 	}

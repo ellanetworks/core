@@ -167,7 +167,7 @@ func idleArrivalMME(t *testing.T, peer *fakeFiveGSPeer) (*mme.MME, *mme.UeConn, 
 	return m, conn, cc
 }
 
-// TS 33.501 §8.5.2 steps 3-6
+// TS 33.501 §8.5.2
 func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -250,7 +250,7 @@ func TestInterSystemTAULeavesTheUERegistered(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.7 d)
+// TS 24.301 §5.5.3.2.7
 func TestRepeatedInterSystemTAUReKeysTheHeldContext(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -306,7 +306,7 @@ func TestRepeatedInterSystemTAUReKeysTheHeldContext(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.7 d)
+// TS 24.301 §5.5.3.2.7
 func TestInterSystemTAUAfterTheProcedureCompletedStartsAfresh(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -373,7 +373,7 @@ func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi 
 	return bearer, nil
 }
 
-// TS 24.301 §5.5.1.2.7 f)
+// TS 24.301 §5.5.1.2.7
 func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -474,7 +474,7 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.1.2.7 f)
+// TS 24.301 §5.5.1.2.7
 func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -519,7 +519,7 @@ func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	}
 }
 
-// TS 23.401 §5.3.3.1 step 8, TS 24.301 annex A.2 cause #40
+// TS 23.401 §5.3.3.1
 func TestInterSystemTAUWithNothingToAdoptIsRejected(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -572,7 +572,7 @@ func TestInterSystemTAUWithNothingToAdoptIsRejected(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.5.2 steps 7-10
+// TS 33.501 §8.5.2
 func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
@@ -596,7 +596,7 @@ func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.3.1, §5.4.3.2; TS 33.401 §6.5.
+// TS 24.301 §4.4.3.1
 func TestInterSystemTAURekeyKeepsTheMappedNASCounts(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
@@ -634,7 +634,7 @@ func TestInterSystemTAURekeyKeepsTheMappedNASCounts(t *testing.T) {
 	}
 }
 
-// TS 33.401 §7.2.4.4, TS 24.301 §5.4.3.3.
+// TS 33.401 §7.2.4.4
 func TestInterSystemTAURekeyReplaysTheCapabilitiesTheUEJustSent(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
@@ -698,7 +698,7 @@ func TestAnArrivalWithNoSessionsIsStillAnArrival(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.4.3.4, TS 33.501 §8.5.2 steps 7-11
+// TS 24.301 §5.4.3.4
 func TestDeferredInterSystemTAUResumesAfterTheRekey(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -755,7 +755,7 @@ func deferredTAUResumes(t *testing.T, tail []byte) {
 	}
 }
 
-// TS 24.301 §4.4.2.3, §5.4.3.7 a); TS 33.501 §8.5.2 step 7
+// TS 24.301 §4.4.2.3
 func TestInterSystemTAUIsAnsweredWhenTheRekeyCannotStart(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,

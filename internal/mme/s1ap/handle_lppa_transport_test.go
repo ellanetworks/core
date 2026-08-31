@@ -38,8 +38,6 @@ func TestHandleUplinkLPPaTransport(t *testing.T) {
 	}
 }
 
-// TestHandleUplinkLPPaTransportUnknownUE routes a transport whose MME-UE-S1AP-ID
-// resolves no UE; resolveUE answers with an Error Indication and nothing panics.
 func TestHandleUplinkLPPaTransportUnknownUE(t *testing.T) {
 	m := newTestMME(t)
 	conn := &captureConn{}
@@ -61,10 +59,15 @@ func TestHandleUplinkLPPaTransportUnknownUE(t *testing.T) {
 	}
 }
 
-// TestHandleUplinkLPPaTransportMalformed feeds garbage; handleParseError must
-// log and return without panicking.
 func TestHandleUplinkLPPaTransportMalformed(t *testing.T) {
 	m := newTestMME(t)
+	conn := &captureConn{}
 
-	handleUplinkLPPaTransport(m, context.Background(), mme.NewRadioForTest(&captureConn{}), []byte{0xff, 0xff, 0xff})
+	handleUplinkLPPaTransport(m, context.Background(), mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
+
+	if got := conn.count(); got != 1 {
+		t.Fatalf("expected an Error Indication for the malformed transport, got %d S1AP messages", got)
+	}
+
+	parseOutboundErrorIndication(t, conn.sent[0])
 }

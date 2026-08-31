@@ -34,8 +34,6 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	return wire, nil
 }
 
-// activateFromAccept unprotects an Attach Accept and decodes the embedded
-// Activate Default EPS Bearer Context Request.
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
@@ -62,9 +60,7 @@ func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.Activa
 	return activate
 }
 
-// TestAttachAcceptIMSVoPS checks the Attach Accept advertises IMS voice over PS
-// session in the EPS network feature support IE (TS 24.301 §9.9.3.12A), so a
-// voice-centric UE stays on E-UTRAN (TS 23.221 §7.2a).
+// TS 24.301 §9.9.3.12
 func TestAttachAcceptIMSVoPS(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -91,8 +87,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 	}
 }
 
-// TestAttachAcceptDNSPCO checks an IPv4 bearer's PCO advertises both the DNS
-// server (0x000D) and the IPv4 Link MTU (0x0010), TS 24.008 §10.5.6.3.
+// TS 24.008 §10.5.6.3.
 func TestAttachAcceptDNSPCO(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -108,9 +103,6 @@ func TestAttachAcceptDNSPCO(t *testing.T) {
 	}
 }
 
-// TestAttachAcceptIPv6NoLinkMTU checks an IPv6-only bearer's PCO carries the
-// IPv6 DNS but no IPv4 Link MTU (there is no IPv6 PCO MTU container; the IPv6
-// link MTU is delivered via the Router Advertisement).
 func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -128,8 +120,7 @@ func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 	}
 }
 
-// TestAttachAcceptDowngradeCause checks an IPv4v6→IPv4 downgrade carries ESM
-// cause #50 in the Activate Default (TS 24.301 §6.5.1.3).
+// TS 24.301 §6.5.1.3
 func TestAttachAcceptDowngradeCause(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -144,9 +135,7 @@ func TestAttachAcceptDowngradeCause(t *testing.T) {
 	}
 }
 
-// TestActivateDefaultBearerRejectsWhen4GNotAllowed checks that a subscriber on a
-// profile that forbids 4G is rejected with EMM cause #7 "EPS services not
-// allowed" (Core Network type restriction, TS 23.501 §5.3.4 / TS 24.301 §9.9.3.9).
+// TS 23.501 §5.3.4
 func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
@@ -169,9 +158,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 
-// TestActivateDefaultBearerRejectsOnSessionFailure checks that when the anchor
-// cannot establish the default bearer, the attach is rejected with EMM cause
-// #19 "ESM failure" and the S1 context is released (TS 24.301 §5.5.1.2.5).
+// TS 24.301 §5.5.1.2.5
 func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
 	ue, cc := securedUE(t, m)
@@ -211,9 +198,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 
-// TestAttachAcceptPDNAddress checks the Attach Accept encodes the PDN Address per
-// the negotiated PDN type (TS 24.301 §9.9.4.9): IPv4 carries the address, IPv6
-// the SLAAC interface identifier, IPv4v6 both.
+// TS 24.301 §9.9.4.9
 func TestAttachAcceptPDNAddress(t *testing.T) {
 	cases := []struct {
 		name    string

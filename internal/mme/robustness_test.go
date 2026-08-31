@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// TestDropStaleUe checks a re-attach reusing the same eNB UE id on the same
-// association drops the prior context, so it is not leaked (TS 36.413).
 func TestDropStaleUe(t *testing.T) {
 	m := newTestMME(t)
 
@@ -22,9 +20,6 @@ func TestDropStaleUe(t *testing.T) {
 	}
 }
 
-// TestBareConnectionIgnoredByLookups checks that a connection with no bound UE
-// context (an Initial UE Message not yet attached) is invisible to UE lookups and
-// subscriber counts, and is removed by release.
 func TestBareConnectionIgnoredByLookups(t *testing.T) {
 	m := newTestMME(t)
 
