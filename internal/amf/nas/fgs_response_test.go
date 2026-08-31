@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// assertPlainGmm asserts pdu is a plain 5GMM message of the given type. The plain
-// wire bytes double as the plaintext, so callers parse pdu directly with fgs.ParseX.
 func assertPlainGmm(t *testing.T, pdu []byte, wantType uint8) {
 	t.Helper()
 
@@ -29,8 +27,6 @@ func assertPlainGmm(t *testing.T, pdu []byte, wantType uint8) {
 	}
 }
 
-// assertPlainDLTransport asserts pdu is a plain DL NAS TRANSPORT message and
-// returns the parsed message for further field inspection.
 func assertPlainDLTransport(t *testing.T, pdu []byte) *fgs.DLNASTransport {
 	t.Helper()
 
@@ -44,8 +40,6 @@ func assertPlainDLTransport(t *testing.T, pdu []byte) *fgs.DLNASTransport {
 	return dl
 }
 
-// psiSet reports whether PSI n (0..15) is set in a 2-octet PSI bitmap value
-// (PDU session status / reactivation result; TS 24.501 §9.11.3.44).
 func psiSet(b *fgs.PSIBitmap, n int) bool {
 	if b == nil || n < 0 || n >= len(b.PSI) {
 		return false
@@ -54,17 +48,12 @@ func psiSet(b *fgs.PSIBitmap, n int) bool {
 	return b.PSI[n]
 }
 
-// decipherGmm asserts pdu is an integrity-protected-and-ciphered downlink NAS
-// message of wantType (deciphered against the UE's security context) and returns
-// the plaintext.
 func decipherGmm(t *testing.T, ue *amf.UeContext, pdu []byte, wantType uint8) []byte {
 	t.Helper()
 
 	return decipherGmmCount(t, ue, pdu, ue.ULCount(), wantType)
 }
 
-// decipherGmmCount is decipherGmm with an explicit NAS count, for downlinks whose
-// sequence number has advanced past the UE's uplink count.
 func decipherGmmCount(t *testing.T, ue *amf.UeContext, pdu []byte, count uint32, wantType uint8) []byte {
 	t.Helper()
 

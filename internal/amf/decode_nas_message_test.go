@@ -13,8 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// newDecoderTestUE returns a UE in the "registered with valid security
-// context" state, attached to a fresh UeConn.
 func newDecoderTestUE(t *testing.T) *UeContext {
 	t.Helper()
 
@@ -77,7 +75,7 @@ func encodePlainDeregistrationRequest(t *testing.T) []byte {
 	t.Helper()
 
 	m := &fgs.DeregistrationRequestUEOriginating{
-		AccessType:     1, // 3GPP access
+		AccessType:     1,
 		MobileIdentity: testMobileIdentity(),
 	}
 
@@ -107,8 +105,6 @@ func encodePlainRegistrationRequest(t *testing.T) []byte {
 	return payload
 }
 
-// TestDecodeNASMessage_PlainServiceRequestRejected verifies a plain
-// ServiceRequest is rejected by the decoder (TS 24.501).
 func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainServiceRequest(t)
@@ -127,14 +123,11 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	}
 }
 
-// A plain message whose type octet is readable but whose body cannot be decoded is a protocol
-// error: the decoder resolves it to a 5GMM STATUS #96 disposition (TS 24.501 §7.5.1), so the
-// finalizer answers rather than dropping it.
+// TS 24.501 §7.5.1
 func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
 	ue := newDecoderTestUE(t)
-	ue.secured = false // fresh UE: the plain path is taken
+	ue.secured = false
 
-	// EPD, plain security header, REGISTRATION REQUEST type — then truncated (no mandatory IEs).
 	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationRequest)})
 	if err == nil {
 		t.Fatal("expected a decode error for a truncated registration request")
@@ -146,14 +139,11 @@ func TestDecodeNASMessage_MalformedPlain_YieldsStatus96(t *testing.T) {
 	}
 }
 
-// A plain message whose type octet is a 5GMM type the AMF does not define resolves to a
-// 5GMM STATUS #97, not #96 — the decode failed because the type is unknown, not because a
-// mandatory IE is malformed (TS 24.501 §7.4).
+// TS 24.501 §7.4
 func TestDecodeNASMessage_UnknownType_YieldsStatus97(t *testing.T) {
 	ue := newDecoderTestUE(t)
-	ue.secured = false // fresh UE: the plain path is taken
+	ue.secured = false
 
-	// EPD, plain security header, message type 0xff (undefined).
 	_, err := DecodeNASMessage(ue, []byte{0x7e, 0x00, 0xff})
 	if err == nil {
 		t.Fatal("expected a decode error for an unknown message type")
@@ -173,8 +163,6 @@ func TestGmmDecodeFailureCause(t *testing.T) {
 	}{
 		{"unknown type 0xff", []byte{0x7e, 0x00, 0xff}, nasreply.CauseMessageTypeNotImplemented},
 		{"defined uplink type, malformed body", []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationRequest)}, nasreply.CauseInvalidMandatoryInfo},
-		// A downlink-only type on the uplink is "not defined for the EPD in the given
-		// direction" (TS 24.501 §7.4 NOTE) → #97, not #96.
 		{"downlink-only type on uplink", []byte{0x7e, 0x00, uint8(fgs.MsgRegistrationAccept)}, nasreply.CauseMessageTypeNotImplemented},
 		{"too short to carry a type", []byte{0x7e, 0x00}, nasreply.CauseInvalidMandatoryInfo},
 	}
@@ -188,9 +176,7 @@ func TestGmmDecodeFailureCause(t *testing.T) {
 	}
 }
 
-// A message the decoder discards for a security reason resolves to a silent-discard
-// disposition — the network must never answer forged or non-exempt plain NAS
-// (TS 24.501 §4.4.4.3).
+// TS 24.501 §4.4.4.3
 func TestDecodeNASMessage_PlainRejected_YieldsSilent(t *testing.T) {
 	ue := newDecoderTestUE(t)
 
@@ -204,8 +190,6 @@ func TestDecodeNASMessage_PlainRejected_YieldsSilent(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_PlainULNasTransportRejected verifies a plain
-// ULNasTransport is rejected by the decoder.
 func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainULNasTransport(t)
@@ -224,12 +208,9 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap verifies the
-// decoder admits a plain REGISTRATION REQUEST for a fresh UE and does not
-// mutate security state.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	ue := newDecoderTestUE(t)
-	ue.secured = false // fresh UE
+	ue.secured = false
 	payload := encodePlainRegistrationRequest(t)
 
 	result, err := DecodeNASMessage(ue, payload)
@@ -250,9 +231,6 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext
-// verifies the decoder admits a plain REGISTRATION REQUEST for a UE that still
-// has a stored security context and leaves all security state untouched.
 func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainRegistrationRequest(t)
@@ -275,9 +253,6 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 	}
 }
 
-// TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder verifies
-// a plain DeregistrationRequest is accepted by the decoder (it is on the
-// whitelist).
 func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainDeregistrationRequest(t)

@@ -16,7 +16,6 @@ func pagingTestGuami() *models.Guami {
 	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}
 }
 
-// pagingTestUE is a UE registered over one TAI, as SendPaging finds it.
 func pagingTestUE(t *testing.T) *UeContext {
 	t.Helper()
 
@@ -30,9 +29,6 @@ func pagingTestUE(t *testing.T) *UeContext {
 		{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 	}
 	ue.SetTmsiForTest(tmsi)
-	// 0 is a legal 5G-TMSI; only the all-ones value means "no reallocation in
-	// flight", so it must be set explicitly or paging would use the zero value
-	// as the old identity (TS 23.003 §2.10).
 	ue.SetOldTmsiForTest(etsi.InvalidTMSI)
 
 	return ue
@@ -52,7 +48,6 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatal("paging carries no 5G-S-TMSI")
 	}
 
-	// AMF id cafe00: Set ID is the middle 10 bits, Pointer the low 6.
 	if got, want := paging.FiveGSTMSI.AMFSetID, ngap.AMFSetID(uint16(0xfe)<<2|uint16(0x00)>>6); got != want {
 		t.Errorf("AMFSetID = %d, want %d", got, want)
 	}
@@ -65,7 +60,6 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("TAI list length = %d, want 1", len(paging.TAIListForPaging))
 	}
 
-	// The paging TAI list is the UE's registration area — the served TAC (1).
 	if paging.TAIListForPaging[0].TAC != 1 {
 		t.Errorf("paging TAI TAC = %d, want 1 (served)", paging.TAIListForPaging[0].TAC)
 	}
@@ -93,9 +87,7 @@ func TestBuildPaging(t *testing.T) {
 	}
 }
 
-// A UE with no registration area cannot be paged: TS 38.413 §9.2.4.1 makes the
-// TAI List for Paging mandatory, so this must fail loudly rather than emit a
-// message no gNB can act on.
+// TS 38.413 §9.2.4.1
 func TestBuildPagingRejectsEmptyRegistrationArea(t *testing.T) {
 	amfInstance := New(nil, nil, nil)
 	ue := pagingTestUE(t)
@@ -106,8 +98,6 @@ func TestBuildPagingRejectsEmptyRegistrationArea(t *testing.T) {
 	}
 }
 
-// The capability IE is optional: a UE that reported none must page without it
-// rather than with an empty one.
 func TestBuildPagingOmitsAbsentRadioCapability(t *testing.T) {
 	amfInstance := New(nil, nil, nil)
 	ue := pagingTestUE(t)

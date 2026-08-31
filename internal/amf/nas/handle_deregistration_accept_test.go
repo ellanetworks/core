@@ -51,10 +51,7 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 	}
 }
 
-// TestHandleGmmMessage_DeregistrationAcceptDispatch checks the dispatch, not just
-// the handler: the UE answers a network-initiated de-registration with message
-// type 0x48 (TS 24.501 §8.2.15), and dispatching on the accept the AMF itself
-// sends (0x46, §8.2.13) leaves the procedure hanging on its guard timer.
+// TS 24.501 §8.2.15
 func TestHandleGmmMessage_DeregistrationAcceptDispatch(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

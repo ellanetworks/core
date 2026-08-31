@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// mustSecurityContext builds a NAS security context for a test.
 func mustSecurityContext(t *testing.T, ia nas.IntegrityAlgorithm, ca nas.CipheringAlgorithm, kInt nas.IntegrityKey, kEnc nas.CipherKey) *nas.SecurityContext {
 	t.Helper()
 
