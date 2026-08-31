@@ -129,8 +129,85 @@ func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
 	return dl.PayloadContainer
 }
 
-// ===========================
-// ===========================
+func TestSmContextHandlers_UnknownRef(t *testing.T) {
+	tests := []struct {
+		name           string
+		call           func(context.Context, *smf.SMF, string) error
+		notFoundIsNoOp bool
+	}{
+		{name: "ActivateSmContext", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.ActivateSmContext(ctx, ref)
+
+			return err
+		}},
+		{name: "DeactivateSmContext", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			return s.DeactivateSmContext(ctx, ref)
+		}},
+		{name: "UpdateSmContextN1Msg", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextN1Msg(ctx, ref, nil)
+
+			return err
+		}},
+		{name: "UpdateSmContextN2InfoPduResSetupFail", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			return s.UpdateSmContextN2InfoPduResSetupFail(ctx, ref, nil)
+		}},
+		{name: "UpdateSmContextN2InfoPduResSetupRsp", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			return s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, nil)
+		}},
+		{name: "UpdateSmContextN2InfoPduResRelRsp", notFoundIsNoOp: true, call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
+
+			return err
+		}},
+		{name: "UpdateSmContextCauseDuplicatePDUSessionID", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextCauseDuplicatePDUSessionID(ctx, ref)
+
+			return err
+		}},
+		{name: "UpdateSmContextN2HandoverPreparing", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextN2HandoverPreparing(ctx, ref, nil)
+
+			return err
+		}},
+		{name: "UpdateSmContextN2HandoverPrepared", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, nil)
+
+			return err
+		}},
+		{name: "UpdateSmContextXnHandoverPathSwitchReq", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			_, err := s.UpdateSmContextXnHandoverPathSwitchReq(ctx, ref, nil)
+
+			return err
+		}},
+		{name: "UpdateSmContextXnHandoverFailed", call: func(ctx context.Context, s *smf.SMF, ref string) error {
+			return s.UpdateSmContextXnHandoverFailed(ctx, ref, nil)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := defaultFakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
+
+			if err := tt.call(context.Background(), s, ""); err == nil {
+				t.Error("expected error for empty ref")
+			}
+
+			err := tt.call(context.Background(), s, "nonexistent-ref")
+			if tt.notFoundIsNoOp {
+				if err != nil {
+					t.Errorf("expected nil for an already-removed session, got %v", err)
+				}
+
+				return
+			}
+
+			if err == nil {
+				t.Error("expected error for non-existent session")
+			}
+		})
+	}
+}
 
 // ===========================
 // ActivateSmContext tests
@@ -149,26 +226,6 @@ func TestActivateSmContext_HappyPath(t *testing.T) {
 
 	if len(n2Buf) == 0 {
 		t.Fatal("expected non-empty N2 buffer")
-	}
-}
-
-func TestActivateSmContext_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.ActivateSmContext(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestActivateSmContext_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.ActivateSmContext(context.Background(), "nonexistent-ref")
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
 	}
 }
 
@@ -203,26 +260,6 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 	dlFAR := upf.modifyCalls[0].UpdateFARs[1]
 	if dlFAR.ApplyAction != (models.ApplyAction{Buff: true, Nocp: true}) {
 		t.Fatalf("downlink FAR sent to the UPF = %+v, want buffer and notify", dlFAR.ApplyAction)
-	}
-}
-
-func TestDeactivateSmContext_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.DeactivateSmContext(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestDeactivateSmContext_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.DeactivateSmContext(context.Background(), "nonexistent-ref")
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
 	}
 }
 
@@ -728,50 +765,6 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 	}
 }
 
-func TestUpdateSmContextN1Msg_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN1Msg(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN1Msg_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN1Msg(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
-// ===========================
-// UpdateSmContextN2InfoPduResSetupFail tests
-// ===========================
-
-func TestUpdateSmContextN2InfoPduResSetupFail_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
 // ===========================
 // UpdateSmContextN2InfoPduResRelRsp tests
 // ===========================
@@ -841,27 +834,6 @@ func TestUpdateSmContextN2InfoPduResRelRsp_DuplicatePDU(t *testing.T) {
 	}
 }
 
-func TestUpdateSmContextN2InfoPduResRelRsp_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN2InfoPduResRelRsp_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	// Idempotent: returns nil when session already removed (e.g. slice-mismatch release).
-	_, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "nonexistent")
-	if err != nil {
-		t.Fatalf("expected nil for already-removed session, got error: %v", err)
-	}
-}
-
 // ===========================
 // UpdateSmContextCauseDuplicatePDUSessionID tests
 // ===========================
@@ -894,145 +866,9 @@ func TestUpdateSmContextCauseDuplicatePDUSessionID_HappyPath(t *testing.T) {
 	upf.mu.Unlock()
 }
 
-func TestUpdateSmContextCauseDuplicatePDUSessionID_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextCauseDuplicatePDUSessionID(context.Background(), "")
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextCauseDuplicatePDUSessionID_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextCauseDuplicatePDUSessionID(context.Background(), "nonexistent")
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
-// ===========================
-// UpdateSmContextN2HandoverPreparing tests
-// ===========================
-
-func TestUpdateSmContextN2HandoverPreparing_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN2HandoverPreparing_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
-// ===========================
-// UpdateSmContextN2HandoverPrepared tests
-// ===========================
-
-func TestUpdateSmContextN2HandoverPrepared_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN2HandoverPrepared_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
-// ===========================
-// UpdateSmContextXnHandoverPathSwitchReq tests
-// ===========================
-
-func TestUpdateSmContextXnHandoverPathSwitchReq_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextXnHandoverPathSwitchReq(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextXnHandoverPathSwitchReq_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, err := s.UpdateSmContextXnHandoverPathSwitchReq(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
-// ===========================
-// UpdateSmContextXnHandoverFailed tests
-// ===========================
-
-func TestUpdateSmContextXnHandoverFailed_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextXnHandoverFailed(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextXnHandoverFailed_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextXnHandoverFailed(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
-
 // ===========================
 // UpdateSmContextN2InfoPduResSetupRsp tests
 // ===========================
-
-func TestUpdateSmContextN2InfoPduResSetupRsp_EmptyRef(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), "", nil)
-	if err == nil {
-		t.Fatal("expected error for empty ref")
-	}
-}
-
-func TestUpdateSmContextN2InfoPduResSetupRsp_NotFound(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), "nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
-	}
-}
 
 func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
