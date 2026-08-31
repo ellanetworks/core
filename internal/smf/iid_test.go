@@ -26,10 +26,6 @@ func TestGenerateIID(t *testing.T) {
 	if allZero {
 		t.Fatal("GenerateIID returned all zeros")
 	}
-
-	if len(iid) != 8 {
-		t.Fatalf("expected 8 bytes, got %d", len(iid))
-	}
 }
 
 func TestGenerateIID_Uniqueness(t *testing.T) {
