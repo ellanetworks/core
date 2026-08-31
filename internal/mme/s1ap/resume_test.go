@@ -13,9 +13,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestInitialUEMessageResumeMacFailedTAURejects verifies that a resume TRACKING
-// AREA UPDATE whose integrity check fails is rejected with EMM cause #9 so the UE
-// re-attaches at once (TS 24.301 §5.5.3.2.5).
+// TS 24.301 §5.5.3.2.5
 func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -36,7 +34,7 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 
 	mtmsi := ue.TmsiForTest()
 
-	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary() // periodic
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +44,7 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wire[1] ^= 0xff // corrupt the MAC so the resume fails the integrity check
+	wire[1] ^= 0xff
 
 	plmnID := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 
@@ -80,15 +78,10 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 		t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 
-	// TS 24.301 §5.3.1.2.1 d)
 	parseUEContextReleaseCommand(t, lastSent(t, conn))
 }
 
-// TestInitialUEMessageResumeVerifiedBindsAndDispatches verifies the folded resume
-// path end-to-end: a security-protected TRACKING AREA UPDATE presenting a valid
-// S-TMSI and MAC binds the held context to the requesting connection (via the S-TMSI
-// hint, mirroring the AMF), commits the uplink NAS COUNT, establishes secure exchange,
-// and dispatches the message through the single HandleNAS entry (TS 24.301 §5.5.3.2).
+// TS 24.301 §5.5.3.2
 func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -109,7 +102,7 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 
 	mtmsi := ue.TmsiForTest()
 
-	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary() // periodic
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 3, OldGUTI: testGUTI()}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +131,6 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 	conn := &captureConn{}
 	HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, im))
 
-	// The held context is bound to the resuming connection (the hint ran AttachUeConn).
 	if !m.UeConnected(ue) {
 		t.Fatal("UE not connected after a verified resume")
 	}
@@ -147,9 +139,6 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		t.Fatalf("resumed connection eNB-UE-S1AP-ID = %d, want 1001", got)
 	}
 
-	// DecodeNASMessage (inside HandleNAS) committed the uplink NAS COUNT (0 -> 1) and
-	// established secure exchange on the new connection — proof the message was decoded
-	// and dispatched through the single entry, not bound blindly.
 	if got := ue.ULCount(); got != 1 {
 		t.Fatalf("uplink NAS COUNT = %d, want 1 (committed by the resume decode)", got)
 	}
@@ -158,9 +147,6 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		t.Fatal("secure exchange not established on the resumed connection")
 	}
 
-	// The TAU was processed, not rejected. A genuine reject on this path is sent in
-	// plaintext, so only a plaintext downlink can be a reject; the accept is security
-	// protected and must not be mis-read as one (its MAC can start with any byte).
 	if conn.count() > 0 {
 		dl := decodeDownlinkNAS(t, conn.sent[0])
 		if len(dl) > 0 && dl[0]>>4 == uint8(eps.SHTPlain) {
@@ -171,7 +157,6 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 	}
 }
 
-// decodeDownlinkNAS extracts the NAS PDU carried in a Downlink NAS Transport.
 func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	t.Helper()
 

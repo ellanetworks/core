@@ -11,8 +11,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// TestDispatchRecordsReceiveSpan verifies the MME emits an s1ap/receive span for
-// every inbound S1AP message, so 4G control-plane traffic is traceable.
 func TestDispatchRecordsReceiveSpan(t *testing.T) {
 	m := newTestMME(t)
 
@@ -29,8 +27,6 @@ func TestDispatchRecordsReceiveSpan(t *testing.T) {
 
 	before := len(testSpanRecorder.Ended())
 
-	// A nil conn gates the message, but the receive span is created and ended
-	// before the gate, so it is recorded regardless.
 	Dispatch(context.Background(), m, nil, raw)
 
 	emitted := testSpanRecorder.Ended()[before:]

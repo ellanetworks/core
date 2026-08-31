@@ -10,12 +10,11 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TS 24.301 §5.5.1.2.7 f)
+// TS 24.301 §5.5.1.2.7
 func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 	m := newTestMME(t)
 	victim, _ := securedUE(t, m)
 
-	// A fresh, not-yet-authenticated attach context claiming the victim's IMSI.
 	attacker := m.NewUe(&captureConn{}, 8)
 	m.SetIMSI(attacker, victim.IMSI())
 
@@ -37,9 +36,6 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 	}
 }
 
-// TestEstablishS1ConnectionMarksSecureExchange asserts the per-connection
-// §4.4.4.3 flag is set when a UE resumes on a new connection — a resume only
-// reaches establishS1Connection after its message was integrity-verified.
 func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -51,13 +47,6 @@ func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 	}
 }
 
-// TestVerifiedMessageMarksSecureExchange asserts a successfully integrity-checked
-// message establishes secure exchange on a connection that did not have it yet
-// (the fresh-attach case, where the flag is set when SMC Complete verifies).
-
-// establishResumeForTest binds a UE returning from ECM-IDLE to a fresh verified
-// S1 connection, the resume primitives HandleServiceRequest uses (NewUeConn +
-// AttachUeConn + mark secure exchange).
 func establishResumeForTest(m *MME, ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
 	m.AttachUeConn(ue, c)

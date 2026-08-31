@@ -52,8 +52,7 @@ func TestResolveQoSByAPNReadsDataNetworkOnce(t *testing.T) {
 	}
 }
 
-// TestResolveAttachQoSDefaultWhenNoAPN: with no requested APN the attach uses the
-// subscriber's default policy (TS 24.301 §6.5.1.3).
+// TS 24.301 §6.5.1.3
 func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
@@ -68,8 +67,6 @@ func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 	}
 }
 
-// TestResolveAttachQoSSelectsRequestedAPN: a requested non-default APN selects the
-// policy bound to that data network.
 func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "ims"}
@@ -88,8 +85,6 @@ func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 	}
 }
 
-// TestResolveAttachQoSRejectsUnknownAPN: a requested APN not bound to any policy in
-// the profile returns ErrUnknownAPN, which the attach path maps to a reject.
 func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "nonexistent"}
@@ -98,5 +93,3 @@ func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
 		t.Fatalf("ResolveAttachQoS error = %v, want ErrUnknownAPN", err)
 	}
 }
-
-// TestIngestAttachRequestExtractsAPN: the requested APN in the attach's PDN

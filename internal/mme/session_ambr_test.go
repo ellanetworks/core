@@ -10,9 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// TestQosForPolicyDNSeparatesUEAndSessionAMBR verifies the 4G QoS resolution
-// keeps the two AMBRs distinct: the UE-AMBR (S1AP) from the profile, and the
-// per-APN Session-AMBR (UPF QER + APN-AMBR) from the policy.
 func TestQosForPolicyDNSeparatesUEAndSessionAMBR(t *testing.T) {
 	profile := &db.Profile{UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps", Allow4G: true}
 	pol := &db.Policy{ID: "p1", Var5qi: 7, Arp: 15, SessionAmbrUplink: "30 Mbps", SessionAmbrDownlink: "60 Mbps"}

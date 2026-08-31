@@ -27,8 +27,6 @@ var (
 	testSGWFTEID  = models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
 )
 
-// connectedBearerUE returns a secured UE with a recorded default-bearer QoS, so a
-// reconcile against an unchanged policy is a no-op.
 func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
@@ -46,7 +44,6 @@ func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) 
 	return ue, cc
 }
 
-// initialUEMessagePDU builds an S1AP Initial UE Message carrying nas.
 func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID, nas []byte) []byte {
 	t.Helper()
 
@@ -66,7 +63,6 @@ func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID, nas []byte) []byt
 	return b
 }
 
-// initiatingValue unwraps an S1AP InitiatingMessage to its procedure value.
 func initiatingValue(t *testing.T, b []byte) []byte {
 	t.Helper()
 
@@ -83,7 +79,6 @@ func initiatingValue(t *testing.T, b []byte) []byte {
 	return im.Value
 }
 
-// fakeSessionManager stands in for the SMF+PGW-C anchor.
 type fakeSessionManager struct {
 	lastRequest     models.EPSBearerRequest
 	modifiedENB     models.FTEID
@@ -174,7 +169,6 @@ func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string)
 	return models.SubscriptionDelta{}, nil
 }
 
-// fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.
 type erroringSessionManager struct{ fakeSessionManager }
 
 func (erroringSessionManager) CreateEPSSession(context.Context, models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -227,7 +221,6 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 
 func (fakeBearerStore) NodeID() int { return 1 }
 
-// testSubscriber is the TS 35.208 test-set-1 key material used across the tests.
 var testSubscriber = struct {
 	IMSI string
 	K    [16]byte
@@ -282,8 +275,6 @@ func (f *fakeCredStore) UpdateSequenceNumber(_ context.Context, imsi, sqn string
 
 func noopKeyResolver(string, int) (string, error) { return "", nil }
 
-// newTestMME builds an MME backed by a credential authority over a fake store
-// seeded with testSubscriber, with the NAS layer wired in.
 func newTestMME(t *testing.T) *mme.MME {
 	t.Helper()
 
@@ -314,8 +305,6 @@ func newCountingMME(t *testing.T) (*mme.MME, *countingBearerStore) {
 	return m, store
 }
 
-// nasHandler implements mme.NASHandler over the in-package handlers, so the
-// kernel's S1AP layer dispatches NAS in tests.
 type nasHandler struct{ m *mme.MME }
 
 func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
@@ -326,12 +315,8 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWrit
 	HandleServiceRequest(ctx, h.m, conn, msg)
 }
 
-// servedAttachTAI is a TAI in the test operator's served area (PLMN 001/01, TAC 1),
-// as an INITIAL UE MESSAGE reports for an admitted attach.
 var servedAttachTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}
 
-// newAttachUe registers a test UE with a served serving TAI (as HandleInitialUEMessage
-// sets in production) so the attach clears the serving-area gate (TS 24.301 §5.5.1.2.5).
 func newAttachUe(m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) *mme.UeContext {
 	ue := m.NewUe(conn, enbUEID)
 	if ue != nil {
@@ -341,7 +326,6 @@ func newAttachUe(m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) *mme
 	return ue
 }
 
-// securedUE returns a registered UE with a valid EPS NAS security context.
 func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
@@ -364,7 +348,6 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	return ue, cc
 }
 
-// testPDN returns the UE's default PDN connection, creating it if absent.
 func testPDN(ue *mme.UeContext) *mme.PdnConnection {
 	return ue.EnsurePDN(mme.DefaultERABID)
 }
@@ -390,11 +373,9 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 	return cmd
 }
 
-// establishResumeForTest binds a UE returning from ECM-IDLE to a fresh verified S1
-// connection, the resume primitives HandleServiceRequest uses.
 func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
-	c.ServingTAI = servedAttachTAI // set from the resume's INITIAL UE MESSAGE in production
+	c.ServingTAI = servedAttachTAI
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
 }

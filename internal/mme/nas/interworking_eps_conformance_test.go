@@ -14,10 +14,9 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// Conformance tests for interworking without N26
 func TestEPSNetworkFeatureSupportNeverEncodesIWKN26(t *testing.T) {
 	const (
-		epcoOctet4 = 0x08 // octet 4, bit 4
+		epcoOctet4 = 0x08
 	)
 
 	for _, tc := range []struct {

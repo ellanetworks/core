@@ -17,13 +17,11 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestTrackingAreaUpdateTrackingAreaNotAllowed checks a TAU from a serving cell outside
-// the served area is rejected with TAU REJECT #12 (TS 24.301 §5.5.3.2.5).
+// TS 24.301 §5.5.3.2.5
 func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
 	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
@@ -42,25 +40,18 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 	}
 }
 
-// tauGUTI is the Old GUTI every TAU request carries.
 var tauGUTI = eps.GUTIIdentity(eps.GUTI{
 	PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 0, TMSI: [4]byte{0, 0, 0, 1},
 })
 
-// tauRequest is a TRACKING AREA UPDATE REQUEST of the given EPS update type.
 func tauRequest(updateType eps.EPSUpdateType) *eps.TrackingAreaUpdateRequest {
 	return &eps.TrackingAreaUpdateRequest{EPSUpdateType: updateType, OldGUTI: tauGUTI}
 }
 
-// tauRequestActive is a TRACKING AREA UPDATE REQUEST with the active flag set,
-// which asks the network to re-establish the radio bearers (TS 24.301 §9.9.3.14).
 func tauRequestActive(updateType eps.EPSUpdateType) *eps.TrackingAreaUpdateRequest {
 	return &eps.TrackingAreaUpdateRequest{EPSUpdateType: updateType, ActiveFlag: true, OldGUTI: tauGUTI}
 }
 
-// handleTAU dispatches a TRACKING AREA UPDATE REQUEST together with the octets it
-// encodes to, which the handler keeps as the duplicate-detection oracle
-// (TS 24.301 §5.5.3.2.7 case d).
 func handleTAU(t *testing.T, m *mme.MME, ue *mme.UeContext, req *eps.TrackingAreaUpdateRequest) {
 	t.Helper()
 
@@ -72,13 +63,8 @@ func handleTAU(t *testing.T, m *mme.MME, ue *mme.UeContext, req *eps.TrackingAre
 	handleTrackingAreaUpdate(context.Background(), m, ue, ue.Conn(), req, plain)
 }
 
-// tauOldGUTI is the mandatory Old GUTI (EPS mobile identity, LV) every TAU
-// REQUEST carries right after the update-type octet (TS 24.301 table 8.2.29.1).
 var tauOldGUTI = []byte{0x0b, 0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
 
-// trackingAreaUpdateNAS builds a protected TRACKING AREA UPDATE REQUEST at the
-// UE's current uplink NAS COUNT, optionally carrying an EPS bearer context status
-// IE (IEI 0x57) when bearerStatus is non-nil.
 func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, bearerStatus *uint16) []byte {
 	t.Helper()
 
@@ -97,9 +83,7 @@ func trackingAreaUpdateNAS(t *testing.T, ue *mme.UeContext, bearerStatus *uint16
 	return wire
 }
 
-// TestTrackingAreaUpdateConnectedAccepted checks that a periodic TAU from a
-// connected UE is accepted over Downlink NAS Transport and the UE stays
-// registered and connected (TS 24.301 §5.5.3.2.4).
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -139,11 +123,10 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	}
 }
 
-// An identical TAU retransmission resends the stored accept byte-for-byte, so no
-// second GUTI is reallocated (TS 24.301 §5.5.3.2.7 case d).
+// TS 24.301 §5.5.3.2.7
 func TestTrackingAreaUpdateDuplicateResendsAccept(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+	ue, cc := securedUE(t, m)
 
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
@@ -175,19 +158,15 @@ func TestTrackingAreaUpdateDuplicateResendsAccept(t *testing.T) {
 	}
 }
 
-// TestTrackingAreaUpdateReconcilesBearerContextStatus checks that when the UE
-// reports its EPS bearer context status, the MME deactivates locally the bearers
-// the UE marks inactive and reflects the resulting active set in the TAU Accept
-// (TS 24.301 §5.5.3.2.4). Default bearer EBI 5 stays; additional bearer EBI 6 is
-// released.
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+	ue, cc := securedUE(t, m)
 
-	m.AddDefaultPDN(ue) // EBI 5
-	ue.EnsurePDN(6)     // an additional PDN connection
+	m.AddDefaultPDN(ue)
+	ue.EnsurePDN(6)
 
-	status := uint16(1 << 5) // the UE reports only EBI 5 active
+	status := uint16(1 << 5)
 	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, &status))
 
 	if _, ok := ue.Pdns[6]; ok {
@@ -292,7 +271,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ICS = mme.ICSCompleted // stay connected across both updates
+	ue.Conn().ICS = mme.ICSCompleted
 
 	m.AddDefaultPDN(ue)
 
@@ -337,7 +316,7 @@ func parseTAUAccept(t *testing.T, ue *mme.UeContext, sent []byte) *eps.TrackingA
 // TS 24.301 §8.2.26.8, §5.5.3.3.4.3
 func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
+	ue, cc := securedUE(t, m)
 
 	handleTAU(t, m, ue, tauRequest(2))
 
@@ -383,7 +362,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 
 	oldMTMSI := ue.TmsiForTest()
 
-	handleTAU(t, m, ue, tauRequest(3)) // periodic
+	handleTAU(t, m, ue, tauRequest(3))
 
 	if ue.OldTmsiForTest() != oldMTMSI || ue.TmsiForTest() == oldMTMSI {
 		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.TmsiForTest(), ue.OldTmsiForTest(), oldMTMSI)
@@ -436,7 +415,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.SetTmsiForTest(1) // a GUTI to reallocate
+	ue.SetTmsiForTest(1)
 
 	handleTAU(t, m, ue, tauRequest(0))
 
@@ -474,7 +453,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := idleRegisteredUE(t, m)
 	cc := &captureConn{}
-	establishResumeForTest(m, ue, cc, 9) // the resume re-binds the connection
+	establishResumeForTest(m, ue, cc, 9)
 
 	handleTAU(t, m, ue, tauRequestActive(0))
 
@@ -489,7 +468,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	parseInitialContextSetup(t, cc.sent[0])
 }
 
-// TTS 24.301 §5.5.3.2.5
+// TS 24.301 §5.5.3.2.5
 func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

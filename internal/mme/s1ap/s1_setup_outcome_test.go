@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// goldenS1SetupRequest is a real S1 SETUP REQUEST (eNB "JLT-621", PLMN 001/01,
-// TAC 0x3039), used to exercise the MME's request->response handling without a
-// live SCTP association.
 const goldenS1SetupRequest = "0011002d000004003b00090000f1104054f64010003c400903004a4c542d36323100400007000c0e4000f1100089400100"
 
 func goldenS1SetupValue(t *testing.T) []byte {
@@ -38,8 +35,6 @@ func goldenS1SetupValue(t *testing.T) []byte {
 	return im.Value
 }
 
-// TestS1SetupOutcomeAccepts checks that an eNB broadcasting a PLMN this MME
-// serves (001/01) is answered with an S1 Setup Response carrying our identity.
 func TestS1SetupOutcomeAccepts(t *testing.T) {
 	req, respBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x3039}, 1, 1, "ella", 0xff)
 	if err != nil {
@@ -76,10 +71,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 	}
 }
 
-// TestS1SetupOutcomeRejectsUnknownPLMN checks that an eNB broadcasting only PLMNs
-// this MME does not serve is rejected with an S1 Setup Failure carrying cause
-// Misc "unknown-PLMN" (TS 36.413 §8.7.3.4). The golden eNB broadcasts 001/01; the
-// MME here serves 999/99.
+// TS 36.413 §8.7.3.4
 func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 	_, outBytes, accepted, _, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "999", Mnc: "99"}, []uint16{0x3039}, 1, 1, "ella", 0xff)
 	if err != nil {
@@ -110,10 +102,6 @@ func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 	}
 }
 
-// TestS1SetupOutcomeRejectsUnknownTAC checks that an eNB broadcasting the served
-// PLMN but no served TAC is rejected with an S1 Setup Failure carrying cause Misc
-// "unspecified", matching the AMF's NG Setup handling. The golden eNB broadcasts
-// 001/01 with TAC 0x3039; the MME here serves 001/01 but only TAC 0x0007.
 func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
 	_, outBytes, accepted, reason, err := s1SetupOutcomeFor(goldenS1SetupValue(t), models.PlmnID{Mcc: "001", Mnc: "01"}, []uint16{0x0007}, 1, 1, "ella", 0xff)
 	if err != nil {
@@ -148,10 +136,7 @@ func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
 	}
 }
 
-// TestS1SetupFailureNamesMissingIEs checks the S1 Setup Failure sent for a request
-// omitting mandatory reject-criticality IEs carries cause "abstract-syntax-error-
-// reject" and names each missing IE in Criticality Diagnostics (TS 36.413 §10.3.5),
-// mirroring the AMF's NG Setup Failure.
+// TS 36.413 §10.3.5
 func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 	const (
 		ieGlobalENBID  s1ap.ProtocolIEID = 59
@@ -196,9 +181,6 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		t.Fatal("failure carries no Criticality Diagnostics")
 	}
 
-	// TS 36.413 §9.2.1.21 keeps the Procedure Code out of a response to the
-	// procedure that caused the error, and the Triggering Message out of
-	// anything but an ERROR INDICATION.
 	if cd.ProcedureCode != nil || cd.TriggeringMessage != nil ||
 		cd.ProcedureCriticality == nil || *cd.ProcedureCriticality != s1ap.CriticalityReject {
 		t.Fatalf("Criticality Diagnostics header mismatch: %+v", cd)

@@ -11,9 +11,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestDispatchGatesUEMessageBeforeS1Setup confirms a UE-associated message on an
-// association whose S1 Setup has not completed is dropped before any UE context
-// is created (TS 36.413).
 func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 	m := newTestMME(t)
 
@@ -28,7 +25,6 @@ func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// nil conn: no S1 Setup has completed on this association.
 	Dispatch(context.Background(), m, nil, raw)
 
 	if got := m.ConnCountForTest(); got != 0 {
@@ -36,9 +32,6 @@ func TestDispatchGatesUEMessageBeforeS1Setup(t *testing.T) {
 	}
 }
 
-// TestDispatchSurvivesGarbage feeds malformed PDUs to the dispatcher and checks
-// it neither panics nor disrupts the association — the codecs reject malformed
-// input without relying on any panic recovery.
 func TestDispatchSurvivesGarbage(t *testing.T) {
 	m := newTestMME(t)
 
@@ -50,6 +43,10 @@ func TestDispatchSurvivesGarbage(t *testing.T) {
 		{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
 		bytes.Repeat([]byte{0xab}, 128),
 	} {
-		Dispatch(context.Background(), m, nil, g) // must not panic
+		Dispatch(context.Background(), m, nil, g)
+	}
+
+	if got := m.ConnCountForTest(); got != 0 {
+		t.Fatalf("malformed PDUs created %d UE contexts", got)
 	}
 }
