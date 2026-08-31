@@ -5,7 +5,6 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -82,136 +81,23 @@ func listFlowReports(url string, client *http.Client, token string, page int, pe
 		queryParams = append(queryParams, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/flow-reports?%s", url, strings.Join(queryParams, "&")), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var flowReportsResponse ListFlowReportsResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&flowReportsResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &flowReportsResponse, nil
+	return apiDo[ListFlowReportsResponse](client, "GET", fmt.Sprintf("%s/api/v1/flow-reports?%s", url, strings.Join(queryParams, "&")), token, nil)
 }
 
 func getFlowReportsRetentionPolicy(url string, client *http.Client, token string) (int, *GetFlowReportsRetentionPolicyResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/flow-reports/retention", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var retentionPolicyResponse GetFlowReportsRetentionPolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&retentionPolicyResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &retentionPolicyResponse, nil
+	return apiDo[GetFlowReportsRetentionPolicyResponse](client, "GET", url+"/api/v1/flow-reports/retention", token, nil)
 }
 
 func updateFlowReportsRetentionPolicy(url string, client *http.Client, token string, data *UpdateFlowReportsRetentionPolicyParams) (int, *UpdateFlowReportsRetentionPolicyResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/flow-reports/retention", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response UpdateFlowReportsRetentionPolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[UpdateFlowReportsRetentionPolicyResponse](client, "PUT", url+"/api/v1/flow-reports/retention", token, data)
 }
 
 func clearFlowReports(url string, client *http.Client, token string) (int, *ClearFlowReportsResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/flow-reports", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ClearFlowReportsResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ClearFlowReportsResponse](client, "DELETE", url+"/api/v1/flow-reports", token, nil)
 }
 
 func TestAPIFlowReports(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	statusCode, response, err := listFlowReports(env.Server.URL, client, token, 1, 10, nil)
 	if err != nil {
@@ -244,21 +130,7 @@ func TestAPIFlowReports(t *testing.T) {
 }
 
 func TestGetFlowReportsRetentionPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	statusCode, response, err := getFlowReportsRetentionPolicy(env.Server.URL, client, token)
 	if err != nil {
@@ -279,21 +151,7 @@ func TestGetFlowReportsRetentionPolicy(t *testing.T) {
 }
 
 func TestUpdateFlowReportsRetentionPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Update retention policy to 14 days
 	statusCode, response, err := updateFlowReportsRetentionPolicy(env.Server.URL, client, token, &UpdateFlowReportsRetentionPolicyParams{Days: 14})
@@ -329,21 +187,7 @@ func TestUpdateFlowReportsRetentionPolicy(t *testing.T) {
 }
 
 func TestUpdateFlowReportsRetentionPolicyInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	testCases := []struct {
 		name       string
@@ -453,21 +297,7 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) strin
 }
 
 func TestListFlowReportsPagination(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create prerequisite subscriber
 	createFlowReportTestSubscriber(t, env.DB)
@@ -540,21 +370,7 @@ func TestListFlowReportsPagination(t *testing.T) {
 }
 
 func TestListFlowReportsFilterBySubscriber(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create prerequisite subscribers
 	profileID := createFlowReportTestSubscriber(t, env.DB)
@@ -644,21 +460,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 }
 
 func TestClearFlowReports(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create prerequisite subscriber
 	createFlowReportTestSubscriber(t, env.DB)
@@ -758,51 +560,11 @@ func getFlowReportStats(url string, client *http.Client, token string, filters m
 		reqURL += "?" + strings.Join(queryParams, "&")
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", reqURL, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var statsResponse GetFlowReportStatsResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&statsResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &statsResponse, nil
+	return apiDo[GetFlowReportStatsResponse](client, "GET", reqURL, token, nil)
 }
 
 func TestGetFlowReportStats_Empty(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	statusCode, response, err := getFlowReportStats(env.Server.URL, client, token, nil)
 	if err != nil {
@@ -827,21 +589,7 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 }
 
 func TestGetFlowReportStats_WithData(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	createFlowReportTestSubscriber(t, env.DB)
 
@@ -913,21 +661,7 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 }
 
 func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	profileID := createFlowReportTestSubscriber(t, env.DB)
 
@@ -1010,21 +744,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 }
 
 func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	createFlowReportTestSubscriber(t, env.DB)
 
@@ -1096,21 +816,7 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 }
 
 func TestListFlowReportsFilterByAction(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	createFlowReportTestSubscriber(t, env.DB)
 

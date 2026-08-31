@@ -4,8 +4,6 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -35,26 +33,7 @@ type autopilotStateResponse struct {
 }
 
 func getAutopilotState(url string, client *http.Client, token string) (int, *autopilotStateResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/cluster/autopilot", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	var body autopilotStateResponse
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &body, nil
+	return apiDo[autopilotStateResponse](client, "GET", url+"/api/v1/cluster/autopilot", token, nil)
 }
 
 // TestGetAutopilotState_NoCluster verifies that on a node where HA is not
@@ -62,21 +41,7 @@ func getAutopilotState(url string, client *http.Client, token string) (int, *aut
 // an empty envelope. Autopilot only runs on the leader of a real cluster;
 // returning an empty state here keeps the UI contract consistent.
 func TestGetAutopilotState_NoCluster(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	status, body, err := getAutopilotState(env.Server.URL, client, token)
 	if err != nil {

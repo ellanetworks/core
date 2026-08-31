@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -45,30 +43,7 @@ type DeleteHomeNetworkKeyResponse struct {
 }
 
 func createHomeNetworkKey(url string, client *http.Client, token string, data *CreateHomeNetworkKeyParams) (int, *CreateHomeNetworkKeyResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/operator/home-network-keys", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer res.Body.Close() //nolint:errcheck
-
-	var resp CreateHomeNetworkKeyResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[CreateHomeNetworkKeyResponse](client, "POST", url+"/api/v1/operator/home-network-keys", token, data)
 }
 
 func deleteHomeNetworkKey(url string, client *http.Client, token string, id string) (int, *DeleteHomeNetworkKeyResponse, error) { //nolint:unparam
@@ -94,21 +69,7 @@ func deleteHomeNetworkKey(url string, client *http.Client, token string, id stri
 }
 
 func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	params := &CreateHomeNetworkKeyParams{
 		KeyIdentifier: 1,
@@ -141,21 +102,7 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 }
 
 func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Valid P-256 private key (32 bytes hex).
 	params := &CreateHomeNetworkKeyParams{
@@ -193,21 +140,7 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 }
 
 func TestCreateHomeNetworkKey_InvalidScheme(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	params := &CreateHomeNetworkKeyParams{
 		KeyIdentifier: 0,
@@ -226,21 +159,7 @@ func TestCreateHomeNetworkKey_InvalidScheme(t *testing.T) {
 }
 
 func TestCreateHomeNetworkKey_InvalidPrivateKey(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	params := &CreateHomeNetworkKeyParams{
 		KeyIdentifier: 1,
@@ -259,21 +178,7 @@ func TestCreateHomeNetworkKey_InvalidPrivateKey(t *testing.T) {
 }
 
 func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Default key (A, 0) exists. Try creating another.
 	params := &CreateHomeNetworkKeyParams{
@@ -293,21 +198,7 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 }
 
 func TestDeleteHomeNetworkKey(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create a key so we can delete it.
 	params := &CreateHomeNetworkKeyParams{
@@ -372,21 +263,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 }
 
 func TestDeleteHomeNetworkKey_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	statusCode, _, err := deleteHomeNetworkKey(env.Server.URL, client, token, "00000000-0000-7000-8000-000000000000")
 	if err != nil {

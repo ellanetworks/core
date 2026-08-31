@@ -6,7 +6,6 @@ package server_test
 import (
 	"context"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -32,21 +31,7 @@ func createCellPosition(url string, client *http.Client, token, body string) (in
 // TestCreateCellPositionAuditLog verifies that provisioning a cell position
 // records an audit-log entry identifying the actor and the cell.
 func TestCreateCellPositionAuditLog(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	body := `{"rat":"nr","mcc":"001","mnc":"01","cell_identity":"00066c","latitude":45.62,"longitude":-73.73}`
 
