@@ -64,6 +64,7 @@ type UeConn struct {
 	// radioName is the node name captured at bind, for hot-path last-seen tagging without
 	// a registry lookup. Immutable after bind.
 	radioName string
+	radioID   string
 	// amf is the owning registry; connection-lifecycle methods reach amf.mu through it.
 	// Always set at creation.
 	amf              *AMF
@@ -426,8 +427,16 @@ func (ueConn *UeConn) TouchLastSeen() {
 		return
 	}
 
-	if ue := ueConn.ue.Load(); ue != nil {
-		ue.TouchLastSeen()
+	ue := ueConn.ue.Load()
+	if ue == nil {
+		return
+	}
+
+	now := time.Now()
+	ue.lastSeen.Store(now.UnixNano())
+
+	if supi := ue.Supi(); supi.IsIMSI() && ueConn.amf != nil {
+		ueConn.amf.lastSeen.record(supi.IMSI(), ueConn.radioID, ueConn.radioName, now)
 	}
 }
 
@@ -659,6 +668,7 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 		AmfUeNgapID: amfUeNgapID,
 		conn:        radio.Conn,
 		radioName:   radio.name,
+		radioID:     radioIDOf(radio),
 		amf:         radio.amf,
 	}
 	ueConn.setLog(log)

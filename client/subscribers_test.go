@@ -182,7 +182,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"imsi": "001010100000022", "profile_name": "default", "radio": "gnb-01", "status": {"registered": true, "num_sessions": 1, "last_seen_at": "2025-01-01T00:00:00Z"}}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": true, "connection_state": "idle", "num_sessions": 1, "last_seen_at": "2025-01-01T00:00:00Z", "last_seen_radio": "gnb-01"}}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -207,8 +207,12 @@ func TestListSubscribers_Success(t *testing.T) {
 	}
 
 	sub := resp.Items[0]
-	if sub.Radio != "gnb-01" {
-		t.Fatalf("expected radio %q, got %q", "gnb-01", sub.Radio)
+	if sub.Status.LastSeenRadio != "gnb-01" {
+		t.Fatalf("expected last_seen_radio %q, got %q", "gnb-01", sub.Status.LastSeenRadio)
+	}
+
+	if sub.Status.ConnectionState != "idle" {
+		t.Fatalf("expected connection_state %q, got %q", "idle", sub.Status.ConnectionState)
 	}
 
 	if sub.Status.LastSeenAt != "2025-01-01T00:00:00Z" {

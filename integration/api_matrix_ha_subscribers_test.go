@@ -162,7 +162,7 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d Status.Registered: got true, want false (subscriber never attached)", i+1)
 		}
 
-		if got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
+		if got.Status.ConnectionState != "" || got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
 			got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
 			got.Status.LastSeenRadio != "" {
 			t.Fatalf("node %d Status: expected zero-valued strings on a never-attached subscriber, got %+v",

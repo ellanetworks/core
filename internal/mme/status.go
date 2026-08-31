@@ -19,9 +19,10 @@ type ConnectedSubscriber struct {
 	RadioName          string
 	NumSessions        int
 	Imei               string    // 15-digit IMEI from the UE's IMEISV, empty if unknown
-	LastSeenAt         time.Time // most recent uplink NAS activity, zero if none
-	CipheringAlgorithm string    // EPS NAS ciphering, e.g. "EEA2" (TS 33.401)
-	IntegrityAlgorithm string    // EPS NAS integrity, e.g. "EIA2"
+	LastSeenAt         time.Time // most recent evidence the UE was present, zero if none
+	Connected          bool
+	CipheringAlgorithm string // EPS NAS ciphering, e.g. "EEA2" (TS 33.401)
+	IntegrityAlgorithm string // EPS NAS integrity, e.g. "EIA2"
 	// Sessions are the UE's PDN connections, one per active APN, ordered by EPS
 	// bearer identity (TS 23.401).
 	Sessions []SubscriberSession
@@ -55,6 +56,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 
 	cs := ConnectedSubscriber{
 		RadioName:          radioName,
+		Connected:          ue.Connected(),
 		Imei:               snap.Imei,
 		LastSeenAt:         snap.LastSeenAt,
 		CipheringAlgorithm: snap.CipheringAlgorithm,

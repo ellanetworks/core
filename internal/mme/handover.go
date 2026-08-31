@@ -385,6 +385,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	target.ICS = ICSCompleted
 
 	ue.active.Store(target)
+	m.recordLastSeenLocked(ue, target)
 
 	if source == nil {
 		m.clearHandoverLocked(ue)

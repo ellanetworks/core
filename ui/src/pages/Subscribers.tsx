@@ -153,12 +153,14 @@ const SubscriberPage: React.FC = () => {
         minWidth: 100,
       },
       {
-        field: "radio",
-        headerName: "Radio",
+        field: "last_seen_radio",
+        headerName: "Last radio",
         flex: 0.8,
-        minWidth: 100,
+        minWidth: 110,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.status?.last_seen_radio ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const radioName = params.row.radio;
+          const radioName = params.row?.status?.last_seen_radio;
           if (!radioName) {
             return (
               <Box
@@ -224,6 +226,33 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
+        field: "connection",
+        headerName: "Connection",
+        flex: 0.6,
+        minWidth: 110,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.status?.connection_state ?? "",
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const state = params.row?.status?.connection_state;
+          if (!state) {
+            return (
+              <Typography variant="body2" color="textSecondary">
+                —
+              </Typography>
+            );
+          }
+          const connected = state === "connected";
+          return (
+            <Chip
+              size="small"
+              label={connected ? "Connected" : "Idle"}
+              color={connected ? "success" : "info"}
+              variant={connected ? "filled" : "outlined"}
+            />
+          );
+        },
+      },
+      {
         field: "access",
         headerName: "Access",
         flex: 0.4,
@@ -249,26 +278,6 @@ const SubscriberPage: React.FC = () => {
           );
         },
       },
-      {
-        field: "sessions",
-        headerName: "Sessions",
-        flex: 0.5,
-        minWidth: 100,
-        valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.num_sessions ?? 0,
-        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const count = params.row?.status?.num_sessions ?? 0;
-          return (
-            <Chip
-              size="small"
-              label={count}
-              color={count > 0 ? "success" : "default"}
-              variant="filled"
-              sx={{ fontSize: "0.75rem" }}
-            />
-          );
-        },
-      },
     ];
 
     return base;
@@ -280,8 +289,8 @@ const SubscriberPage: React.FC = () => {
       headerName: "Status",
       children: [
         { field: "registration" },
+        { field: "connection" },
         { field: "access" },
-        { field: "sessions" },
       ],
     },
   ];

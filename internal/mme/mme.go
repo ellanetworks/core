@@ -103,6 +103,8 @@ type MME struct {
 
 	relocating map[etsi.SUPI]*relocation
 
+	lastSeen lastSeenStore
+
 	relocationIDs atomic.Uint64
 
 	tmsi *etsi.TmsiAllocator

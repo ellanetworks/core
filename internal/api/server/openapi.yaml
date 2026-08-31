@@ -897,7 +897,9 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter subscribers connected to a specific radio by name.
+          description: >-
+            Filter to registered subscribers whose last-seen radio is this one, so an
+            idle subscriber still matches the radio that last served it.
         - name: data_network
           in: query
           schema:
@@ -3900,6 +3902,16 @@ components:
         registered:
           type: boolean
           description: Whether the device is currently registered on the network.
+        connection_state:
+          type: string
+          enum: ["idle", "connected"]
+          description: >-
+            Whether the device holds a signalling connection to the core: the CM state in
+            5G (TS 23.501 §5.3.3.2, CM-IDLE / CM-CONNECTED) and the ECM state in 4G
+            (TS 23.401 §4.6.3, ECM-IDLE / ECM-CONNECTED). "connected" reports a signalling
+            connection, not radio activity — a connected UE may have its radio in
+            RRC_INACTIVE. Omitted when the subscriber is not registered, which is neither
+            state.
         radio_access_types:
           type: array
           items:
@@ -3918,6 +3930,13 @@ components:
           type: string
           format: date-time
           description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
+        last_seen_radio:
+          type: string
+          description: >-
+            Name of the radio that last served the device. Retained while the device is
+            idle and after it deregisters, so it is last known rather than current — the
+            core knows the serving radio only while the device is connected
+            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Omitted if never seen.
       required: [registered, num_sessions]
 
     Subscriber:
@@ -3933,9 +3952,6 @@ components:
           type: string
           maxLength: 64
           description: Free-text operator note. Absent when unset.
-        radio:
-          type: string
-          description: Radio name the subscriber is connected through (empty if not connected).
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -3966,6 +3982,16 @@ components:
       properties:
         registered:
           type: boolean
+        connection_state:
+          type: string
+          enum: ["idle", "connected"]
+          description: >-
+            Whether the device holds a signalling connection to the core: the CM state in
+            5G (TS 23.501 §5.3.3.2, CM-IDLE / CM-CONNECTED) and the ECM state in 4G
+            (TS 23.401 §4.6.3, ECM-IDLE / ECM-CONNECTED). "connected" reports a signalling
+            connection, not radio activity — a connected UE may have its radio in
+            RRC_INACTIVE. Omitted when the subscriber is not registered, which is neither
+            state.
         radio_access_types:
           type: array
           items:
@@ -3997,8 +4023,10 @@ components:
         last_seen_radio:
           type: string
           description: >-
-            Name of the radio serving the device on that access. Empty when the
-            device is registered but idle, with no radio connection to name.
+            Name of the radio that last served the device. Retained while the device is
+            idle and after it deregisters, so it is last known rather than current — the
+            core knows the serving radio only while the device is connected
+            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Empty if never seen.
       required: [registered, imei, ciphering_algorithm, integrity_algorithm]
 
     SubscriberDetail:

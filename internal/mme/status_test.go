@@ -184,3 +184,111 @@ func TestHasENBAndCount(t *testing.T) {
 		t.Fatalf("CountRadios = %d, want 2", got)
 	}
 }
+
+func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
+	m := newTestMME(t)
+
+	conn := new(sctp.SCTPConn)
+	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+
+	ue := m.NewUe(conn, 7)
+	registerTestUE(m, ue, "001010000000001")
+	ue.ForceStateForTest(EMMRegistered)
+
+	if err := m.CommitUEIdentity(t.Context(), ue, MintAuthProofForAttachCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	cs, ok := m.LookupSubscriber("001010000000001")
+	if !ok || !cs.Connected {
+		t.Fatalf("connected UE: found=%v Connected=%v, want true/true", ok, cs.Connected)
+	}
+
+	m.FreeUeConn(ue)
+
+	cs, ok = m.LookupSubscriber("001010000000001")
+	if !ok {
+		t.Fatal("idle UE missing from LookupSubscriber")
+	}
+
+	if cs.Connected {
+		t.Error("Connected = true for a UE with no S1-connection")
+	}
+
+	if seen, ok := m.LastSeen("001010000000001"); !ok || seen.RadioName != "enb-a" {
+		t.Errorf("idle UE last-seen radio = %q (found %v), want enb-a", seen.RadioName, ok)
+	}
+
+	m.RemoveUe(ue)
+
+	if _, ok := m.LookupSubscriber("001010000000001"); ok {
+		t.Fatal("deregistered UE still reported as registered")
+	}
+
+	if seen, ok := m.LastSeen("001010000000001"); !ok || seen.RadioName != "enb-a" {
+		t.Errorf("deregistered UE last-seen radio = %q (found %v), want it retained as enb-a", seen.RadioName, ok)
+	}
+
+	m.ForgetSubscriber("001010000000001")
+
+	if _, ok := m.LastSeen("001010000000001"); ok {
+		t.Error("ForgetSubscriber left the retained record in place")
+	}
+}
+
+func TestLastSeenRadioFollowsARename(t *testing.T) {
+	const imsi = "001010000000001"
+
+	m := newTestMME(t)
+	conn := connectENB(t, m, "enb-a", 1)
+
+	ue := m.NewUe(conn, 7)
+	registerTestUE(m, ue, imsi)
+	ue.ForceStateForTest(EMMRegistered)
+
+	if err := m.CommitUEIdentity(t.Context(), ue, MintAuthProofForAttachCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	m.FreeUeConn(ue)
+
+	m.UpdateRadioName(m.RadioForConn(conn), "enb-a-renamed")
+
+	seen, ok := m.LastSeen(imsi)
+	if !ok {
+		t.Fatal("retained record missing after rename")
+	}
+
+	if seen.RadioName != "enb-a-renamed" {
+		t.Errorf("RadioName = %q, want the current name enb-a-renamed", seen.RadioName)
+	}
+}
+
+func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
+	const imsi = "001010000000001"
+
+	m := newTestMME(t)
+	conn := new(sctp.SCTPConn)
+	m.trackRadio(conn, RadioInfo{Name: "enb-unclaimed"})
+
+	ue := m.NewUe(conn, 7)
+	registerTestUE(m, ue, imsi)
+	ue.ForceStateForTest(EMMRegistered)
+
+	if err := m.CommitUEIdentity(t.Context(), ue, MintAuthProofForAttachCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	seen, ok := m.LastSeen(imsi)
+	if !ok {
+		t.Fatal("retained record missing")
+	}
+
+	if seen.RadioID != "" {
+		t.Errorf("RadioID = %q, want empty for a radio with no Global eNB ID", seen.RadioID)
+	}
+
+	if seen.RadioName != "enb-unclaimed" {
+		t.Errorf("RadioName = %q, want the captured name enb-unclaimed", seen.RadioName)
+	}
+}

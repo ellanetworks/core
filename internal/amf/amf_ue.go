@@ -212,7 +212,12 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 		}
 	}
 
-	ue.lastSeen.Store(time.Now().UnixNano())
+	now := time.Now()
+	ue.lastSeen.Store(now.UnixNano())
+
+	if supi := ue.Supi(); supi.IsIMSI() {
+		a.lastSeen.record(supi.IMSI(), ueConn.radioID, ueConn.radioName, now)
+	}
 
 	ue.active.Store(ueConn)
 
@@ -293,6 +298,7 @@ type UESnapshot struct {
 	LastSeenAt         time.Time
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
+	Connected          bool
 }
 
 func (ue *UeContext) Snapshot() UESnapshot {
@@ -304,6 +310,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		LastSeenAt:         ue.lastSeenTime(),
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
+		Connected:          ue.active.Load() != nil,
 	}
 
 	return snap

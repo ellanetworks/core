@@ -161,6 +161,7 @@ type AMF struct {
 	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
 	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
+	lastSeen                 lastSeenStore
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -308,6 +309,10 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 		}
 	}
 
+	if supi := ue.Supi(); supi.IsIMSI() {
+		amf.lastSeen.record(supi.IMSI(), "", "", ue.lastSeenTime())
+	}
+
 	amf.mu.Lock()
 	amf.releaseTmsisLocked(ue)
 	amf.endRelocationFromEPSLocked(ue.supi, ue)
@@ -412,6 +417,15 @@ func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
 	}
 
 	return "", false
+}
+
+func radioIDOf(radio *Radio) string {
+	key, ok := radio.IDKey()
+	if !ok {
+		return ""
+	}
+
+	return key
 }
 
 func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
@@ -722,6 +736,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		RanUeNgapID: ranUeNgapID,
 		conn:        radio.Conn,
 		radioName:   radio.name,
+		radioID:     radioIDOf(radio),
 		amf:         a,
 	}
 	ueConn.setLog(radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)))

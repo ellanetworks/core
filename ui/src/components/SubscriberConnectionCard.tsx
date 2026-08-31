@@ -6,7 +6,10 @@ import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import AccessChip from "@/components/AccessChip";
-import type { SubscriberDetailStatus } from "@/queries/subscribers";
+import type {
+  ConnectionState,
+  SubscriberDetailStatus,
+} from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
@@ -146,6 +149,21 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
+const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
+  if (!state) return null;
+
+  const connected = state === "connected";
+
+  return (
+    <Chip
+      size="small"
+      label={connected ? "Connected" : "Idle"}
+      color={connected ? "success" : "info"}
+      variant={connected ? "filled" : "outlined"}
+    />
+  );
+};
+
 const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
   accessTypes,
 }) => (
@@ -196,11 +214,15 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
     >
       <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Connection
+          Status
         </Typography>
         <InfoRow
-          label="State"
+          label="Registration"
           value={<StateChip registered={status.registered} />}
+        />
+        <InfoRow
+          label="Connection"
+          value={<ConnectionChip state={status.connection_state} />}
         />
         {accessTypes.length > 0 && (
           <InfoRow

@@ -36,9 +36,11 @@ type DeleteSubscriberOptions struct {
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
 	Registered       bool     `json:"registered"`
+	ConnectionState  string   `json:"connection_state,omitempty"`
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
 	NumSessions      int      `json:"num_sessions"`
 	LastSeenAt       string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
 }
 
 // Subscriber is the summary form returned by ListSubscribers.
@@ -46,7 +48,6 @@ type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
 	Description string           `json:"description,omitempty"`
-	Radio       string           `json:"radio,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
 
@@ -67,6 +68,7 @@ type ListSubscribersResponse struct {
 // SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
 type SubscriberDetailStatus struct {
 	Registered         bool     `json:"registered"`
+	ConnectionState    string   `json:"connection_state,omitempty"`
 	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
 	Imei               string   `json:"imei"`
 	CipheringAlgorithm string   `json:"ciphering_algorithm"`

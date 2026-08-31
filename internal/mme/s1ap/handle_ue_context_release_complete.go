@@ -49,8 +49,6 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
-	ue.TouchLastSeen()
-
 	// Cancel the release-supervision guard so it does not also run the cleanup.
 	ueConn.StopReleaseGuard()
 

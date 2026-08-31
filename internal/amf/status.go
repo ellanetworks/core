@@ -14,6 +14,7 @@ type ConnectedSubscriber struct {
 	RadioName   string
 	NumSessions int
 	LastSeenAt  time.Time
+	Connected   bool
 }
 
 // ConnectedSubscribers returns a snapshot of every Registered 5G subscriber keyed by
@@ -34,8 +35,10 @@ func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 		registered := ue.state == Registered
 
 		radioName := ""
-		if r := ue.active.Load(); r != nil {
-			radioName = r.radioName
+		conn := ue.active.Load()
+
+		if conn != nil {
+			radioName = conn.radioName
 		}
 
 		numSessions := len(ue.SmContextList)
@@ -49,6 +52,7 @@ func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 			RadioName:   radioName,
 			NumSessions: numSessions,
 			LastSeenAt:  ue.lastSeenTime(),
+			Connected:   conn != nil,
 		}
 	}
 
