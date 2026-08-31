@@ -148,7 +148,6 @@ type SMF struct {
 	upf   UPFClient
 	amf   AMFCallback
 	mme   MMECallback // set after construction
-	clock func() time.Time
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -164,9 +163,6 @@ const maxSMProcedureRetransmissions = 4
 
 // Option configures an SMF instance.
 type Option func(*SMF)
-
-// WithClock overrides the time source (useful for testing).
-func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn } }
 
 // WithT3591 overrides the network-requested modification retransmission interval.
 func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
@@ -184,7 +180,6 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		store:  store,
 		upf:    upf,
 		amf:    amf,
-		clock:  time.Now,
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
 	}
