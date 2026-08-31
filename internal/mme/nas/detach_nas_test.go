@@ -14,8 +14,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// attackerKey stands in for key material an attacker would not have: a message
-// protected under it must not verify against the UE's context.
 var attackerKey = [16]byte{
 	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
 	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
@@ -31,8 +29,6 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("expected network Detach Request, got %d", len(cc.sent))
 	}
 
-	// The connected UE stays EMM-DEREGISTERED-INITIATED while T3422 guards the
-	// DETACH REQUEST, reaching EMM-DEREGISTERED on Detach Accept (TS 24.301 §5.1.3.2).
 	if ue.EMMState() != mme.EMMDeregistrationInitiated {
 		t.Fatal("UE not EMM-DEREGISTERED-INITIATED after network-initiated detach")
 	}
@@ -63,10 +59,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	}
 }
 
-// TestPlainDetachOnSecuredUEDiscarded asserts TS 24.301 §4.4.4.3: once secure
-// exchange of NAS messages is established, a message that is not integrity
-// protected is discarded. A spoofed plain DETACH REQUEST injected on a secured
-// UE's connection must not deregister or release it.
+// TS 24.301 §4.4.4.3
 func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -92,15 +85,11 @@ func TestPlainDetachOnSecuredUEDiscarded(t *testing.T) {
 	}
 }
 
-// TestPlainDetachSecuredUEFreshConnectionRejected verifies a secured UE that has
-// not yet established secure exchange on this connection (a fresh S1 link, so the
-// chokepoint's per-connection guard does not fire) still cannot be deregistered by
-// an unprotected DETACH REQUEST: the handler rejects it on ue.Secured(), mirroring
-// the AMF (TS 24.301 §4.4.4.3 defense in depth).
+// TS 24.301 §4.4.4.3
 func TestPlainDetachSecuredUEFreshConnectionRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.Conn().SetSecureExchangeEstablishedForTest(false) // fresh connection: connSecured is false
+	ue.Conn().SetSecureExchangeEstablishedForTest(false)
 
 	plain, err := (&eps.DetachRequestUE{
 		TypeOfDetach:      eps.DetachTypeEPS,
@@ -137,7 +126,6 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	forged := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, byte(ue.ULCount())}, plain...)
 
 	HandleNAS(context.Background(), m, ue.Conn(), forged)
@@ -157,7 +145,6 @@ func TestDetachSwitchOff(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), detachRequest(t, ue, true))
 
-	// Switch-off: no Detach Accept, just the UE Context Release Command.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 S1AP message (UE Context Release Command), got %d", len(cc.sent))
 	}
@@ -179,8 +166,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	}
 }
 
-// A switch-off DETACH REQUEST that fails the integrity check is ignored once a
-// security context exists (TS 24.301 §4.4.4.3).
+// TS 24.301 §4.4.4.3
 func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -193,7 +179,6 @@ func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Null algorithms: zero MAC, unciphered payload — unverifiable without the keys.
 	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, 0, nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityNull, nas.CipheringNull, attackerKey, attackerKey))
 	if err != nil {
 		t.Fatal(err)
@@ -210,14 +195,10 @@ func TestDetachSwitchOffUnverifiableIgnoredForSecuredUE(t *testing.T) {
 	}
 }
 
-// Before a security context exists, an unverifiable switch-off detach is honoured
-// (TS 24.301 §4.4.4.3).
+// TS 24.301 §4.4.4.3
 func TestDetachSwitchOffUnsecuredAccepted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	// Model a connection on which secure exchange has not been established
-	// (TS 24.301 §4.4.4.3): a switch-off detach is then honoured without
-	// integrity protection.
 	ue.SetSecuredForTest(false)
 	ue.Conn().SetSecureExchangeEstablishedForTest(false)
 
@@ -249,7 +230,6 @@ func TestDetachNotSwitchOff(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), detachRequest(t, ue, false))
 
-	// Not switch-off: Detach Accept (downlink NAS), then UE Context Release Command.
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Detach Accept + Release Command, got %d", len(cc.sent))
 	}
@@ -268,7 +248,6 @@ func TestDetachNotSwitchOff(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 
-// detachRequest builds an integrity-protected UE-initiated DETACH REQUEST.
 func detachRequest(t *testing.T, ue *mme.UeContext, switchOff bool) []byte {
 	t.Helper()
 

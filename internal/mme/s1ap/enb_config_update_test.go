@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// servedPLMN is the operator PLMN the fake bearer store serves (MCC 001 / MNC 01).
 var servedPLMN = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 func servedPLMNIdentity(t *testing.T) s1ap.PLMNIdentity {
@@ -26,8 +25,7 @@ func servedPLMNIdentity(t *testing.T) s1ap.PLMNIdentity {
 	return p
 }
 
-// TestENBConfigUpdateAcknowledged confirms an update whose TAs still broadcast a
-// served PLMN (or that changes only the name) is acknowledged (TS 36.413 §8.7.4).
+// TS 36.413 §8.7.4
 func TestENBConfigUpdateAcknowledged(t *testing.T) {
 	cases := []struct {
 		name string
@@ -63,10 +61,8 @@ func TestENBConfigUpdateAcknowledged(t *testing.T) {
 	}
 }
 
-// TestENBConfigUpdateRejectedUnknownPLMN confirms an update whose TAs broadcast
-// no served PLMN draws an ENB CONFIGURATION UPDATE FAILURE with Unknown PLMN.
 func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
-	foreign := s1ap.PLMNIdentity{0x09, 0xf9, 0x99} // MCC 999 / MNC 99
+	foreign := s1ap.PLMNIdentity{0x09, 0xf9, 0x99}
 
 	req := &s1ap.ENBConfigurationUpdate{
 		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{foreign}}},
@@ -101,9 +97,6 @@ func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
 	}
 }
 
-// TestENBConfigUpdateRejectedUnknownTAC confirms an update whose TAs broadcast a
-// served PLMN but no served TAC draws an ENB CONFIGURATION UPDATE FAILURE with
-// cause Misc "unspecified", matching the AMF's RAN Configuration Update handling.
 func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
 	req := &s1ap.ENBConfigurationUpdate{
 		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{servedPLMNIdentity(t)}}},
@@ -138,10 +131,7 @@ func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
 	}
 }
 
-// TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks verifies that a
-// name-only update (Supported TAs IE absent) is acknowledged, the stored TAs are
-// left unchanged, and the eNB name is applied (TS 36.413 §8.7.4.2). Mirrors the
-// AMF's RAN Configuration Update test of the same rule.
+// TS 36.413 §8.7.4.2
 func TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -174,9 +164,6 @@ func TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks(t *testing.T) {
 	}
 }
 
-// TestHandleENBConfigurationUpdate_RejectPreservesTAs verifies that an update
-// whose Supported TAs name no served TAI is rejected without discarding the
-// stored TAs.
 func TestHandleENBConfigurationUpdate_RejectPreservesTAs(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

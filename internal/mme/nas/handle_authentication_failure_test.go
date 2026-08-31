@@ -13,16 +13,12 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestAuthenticationFailureIgnoredWithNoAuthInProgress verifies a spurious
-// AUTHENTICATION FAILURE (no authentication in flight) does not release the UE —
-// the message is admissible without integrity (TS 24.301 §4.4.4.3), so an
-// out-of-order one must not tear down a UE. Mirrors the AMF's RegStep gating.
+// TS 24.301 §4.4.4.3
 func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// No AuthVector: no authentication is in progress.
 	plain := &eps.AuthenticationFailure{Cause: eps.EMMCauseMACFailure}
 
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), plain)
@@ -36,18 +32,11 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	}
 }
 
-// TestAuthenticationFailureDuringSecurityModeIgnored proves the RegStep gate drops an
-// out-of-phase AUTHENTICATION FAILURE on its own. A real UE clears its auth vector on
-// authentication success, so this forces a vector set alongside RegStepSecurityMode to
-// isolate the RegStep gate — not the AuthVector==nil gate — as what drops an unprotected
-// #20 injected during the security-mode sub-phase (out-of-state handling is
-// implementation-dependent, TS 24.301 §7.4).
+// TS 24.301 §7.4
 func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 
-	// Force the security-mode sub-phase with a vector still set (a real UE clears it on
-	// auth success) so the RegStep gate is the only thing that can drop the failure.
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseMACFailure, nil))
@@ -61,16 +50,11 @@ func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 	}
 }
 
-// TestFreshAuthenticationResetsResyncBudget verifies a new authentication procedure
-// resets resyncTried, so a genuine synch failure on a later authentication (on a reused
-// persistent UE context) is not wrongly refused a resync. resyncTried scopes to one
-// exchange's consecutive synch failures (TS 24.301 §5.4.2.7); the AMF likewise resets
-// its per-connection synch-failure counter.
+// TS 24.301 §5.4.2.7
 func TestFreshAuthenticationResetsResyncBudget(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := authChallengedUE(t, m)
 
-	// A prior authentication exchange already spent its resync.
 	ue.Conn().SetResyncTried(true)
 
 	startAuthentication(context.Background(), m, ue, ue.Conn(), models.PlmnID{Mcc: "001", Mnc: "01"})
@@ -80,8 +64,6 @@ func TestFreshAuthenticationResetsResyncBudget(t *testing.T) {
 	}
 }
 
-// authChallengedUE returns a UE that has been sent an Authentication Request
-// (auth vector with a fixed RAND), as it would be mid-authentication.
 func authChallengedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
@@ -100,8 +82,6 @@ func authChallengedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	return ue, cc
 }
 
-// autsFor builds a valid AUTS for sqnMS using the hard-coded subscriber's
-// credentials and the UE's challenge RAND, as a UE would on a synch failure.
 func autsFor(t *testing.T, ue *mme.UeContext, sqnMS []byte) []byte {
 	t.Helper()
 
@@ -129,7 +109,6 @@ func authFailure(_ *testing.T, cause eps.EMMCause, auts []byte) *eps.Authenticat
 	return &eps.AuthenticationFailure{Cause: cause, AUTS: auts}
 }
 
-// authFailureWire is the same message as it arrives on the wire.
 func authFailureWire(t *testing.T, cause eps.EMMCause, auts []byte) []byte {
 	t.Helper()
 
@@ -141,10 +120,7 @@ func authFailureWire(t *testing.T, cause eps.EMMCause, auts []byte) []byte {
 	return b
 }
 
-// TestAuthenticationResponseWrongRESRejects checks that a UE answering the
-// challenge with a RES that does not match the expected XRES is refused with
-// AUTHENTICATION REJECT and its S1 context released (TS 24.301 §5.4.2.5),
-// matching the AUTHENTICATION FAILURE path, and gains no security context.
+// TS 24.301 §5.4.2.5
 func TestAuthenticationResponseWrongRESRejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
@@ -196,7 +172,6 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 
-	// A fresh Authentication Request, not a reject.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected a re-sent Authentication Request, got %d messages", len(cc.sent))
 	}
@@ -209,7 +184,6 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 		t.Fatal("resyncTried not set")
 	}
 
-	// A second synch failure must not resync again — it rejects.
 	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[1])); err != nil {
@@ -217,17 +191,12 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 	}
 }
 
-// TestAuthFailureOutOfEnumerationCauseIgnored verifies an AUTHENTICATION FAILURE
-// carrying a cause outside the enumeration (#20, #21, #26) is ignored — the UE is not
-// released and the guard is left armed — rather than teardown on a semantically
-// incorrect message (TS 24.301 §7.8). Mirrors the AMF.
+// TS 24.301 §7.8
 func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTPlain)
 
-	// #111 "protocol error, unspecified" is a valid EMM cause but not an
-	// AUTHENTICATION FAILURE cause.
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
 
 	if ue.Conn() == nil || ue.ReleasingForTest() {
@@ -248,7 +217,7 @@ func TestAuthFailureBadAUTSRejects(t *testing.T) {
 	ue, cc := authChallengedUE(t, m)
 
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
-	auts[len(auts)-1] ^= 0xff // corrupt MAC-S
+	auts[len(auts)-1] ^= 0xff
 
 	HandleNAS(context.Background(), m, ue.Conn(), authFailureWire(t, eps.EMMCauseSynchFailure, auts))
 

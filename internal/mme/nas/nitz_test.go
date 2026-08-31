@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// spnBearerStore is a fakeBearerStore with a configured service provider name.
 type spnBearerStore struct{ fakeBearerStore }
 
 func (spnBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
@@ -52,7 +51,7 @@ func TestSendNITZ(t *testing.T) {
 
 // TS 24.301 §8.2.13
 func TestSendNITZNoSPN(t *testing.T) {
-	m := newTestMME(t) // fakeBearerStore has no SPN configured
+	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
 	sendNITZ(context.Background(), m, ue, ue.Conn())

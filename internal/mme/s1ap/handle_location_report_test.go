@@ -40,6 +40,13 @@ func TestHandleLocationReport(t *testing.T) {
 
 func TestHandleLocationReportMalformed(t *testing.T) {
 	m := newTestMME(t)
+	conn := &captureConn{}
 
-	handleLocationReport(m, context.Background(), mme.NewRadioForTest(&captureConn{}), []byte{0xff, 0xff, 0xff})
+	handleLocationReport(m, context.Background(), mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
+
+	if got := conn.count(); got != 1 {
+		t.Fatalf("expected an Error Indication for the malformed report, got %d S1AP messages", got)
+	}
+
+	parseOutboundErrorIndication(t, conn.sent[0])
 }

@@ -5,8 +5,6 @@ package mme
 
 import "testing"
 
-// TestENBDisconnectRetainsRegisteredUE confirms a registered UE whose eNB
-// association drops is retained in ECM-IDLE under mobile reachable supervision.
 func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -31,15 +29,13 @@ func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 		t.Fatal("EPS session not deactivated for paging after eNB disconnect")
 	}
 
-	m.RemoveUe(ue) // stop the default-duration timer
+	m.RemoveUe(ue)
 }
 
-// TestENBDisconnectDropsMidAttachUE confirms a UE that had not completed
-// registration is dropped (and its session released) when its eNB drops.
 func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.ForceStateForTest(EMMDeregistered) // attach not yet completed
+	ue.ForceStateForTest(EMMDeregistered)
 	testPDN(ue).Apn = "internet"
 
 	m.reclaimUEsOnConnLoss(cc)
@@ -53,12 +49,10 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 	}
 }
 
-// TestENBDisconnectLeavesIdleUE confirms an already-idle UE on no association is
-// not disturbed by an eNB's disconnect.
 func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	m.FreeUeConn(ue) // already idle
+	m.FreeUeConn(ue)
 
 	m.reclaimUEsOnConnLoss(cc)
 

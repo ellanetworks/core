@@ -288,7 +288,7 @@ func mustPDNConnectivityRequest(t *testing.T, pti uint8, eit bool) []byte {
 	return b
 }
 
-// TS 24.301 §6.5.1.2 b)1)
+// TS 24.301 §6.5.1.2
 func TestESMInformationResponseKeepsTheAttachPDUSessionIdentity(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)
