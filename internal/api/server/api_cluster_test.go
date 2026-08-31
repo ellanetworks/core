@@ -170,34 +170,54 @@ func TestListClusterMembers_IncludesHAFields(t *testing.T) {
 	}
 }
 
-func TestRemoveClusterMember_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
+func TestClusterMember_NotFound(t *testing.T) {
+	const unknownNodeID = 999
 
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	status, msg, err := removeClusterMember(env.Server.URL, client, token, 99)
-	if err != nil {
-		t.Fatalf("request failed: %s", err)
+	tests := []struct {
+		name string
+		call func(url string, client *http.Client, token string, nodeID int) (int, string, error)
+	}{
+		{name: "remove", call: removeClusterMember},
+		{
+			name: "drain",
+			call: func(url string, client *http.Client, token string, nodeID int) (int, string, error) {
+				return postDrain(url, client, token, nodeID, 0)
+			},
+		},
+		{name: "resume", call: postResume},
+		{name: "promote", call: postPromote},
 	}
 
-	if status != http.StatusNotFound {
-		t.Fatalf("expected 404 for unknown nodeId, got %d (body: %s)", status, msg)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
 
-	if !strings.Contains(strings.ToLower(msg), "not found") {
-		t.Errorf("expected body to mention not found, got %q", msg)
+			env, err := setupServer(dbPath)
+			if err != nil {
+				t.Fatalf("couldn't create test server: %s", err)
+			}
+			defer env.Server.Close()
+
+			client := newTestClient(env.Server)
+
+			token, err := initializeAndRefresh(env.Server.URL, client)
+			if err != nil {
+				t.Fatalf("couldn't initialize: %s", err)
+			}
+
+			status, msg, err := tt.call(env.Server.URL, client, token, unknownNodeID)
+			if err != nil {
+				t.Fatalf("request failed: %s", err)
+			}
+
+			if status != http.StatusNotFound {
+				t.Fatalf("expected 404 for unknown nodeId, got %d (body: %s)", status, msg)
+			}
+
+			if !strings.Contains(strings.ToLower(msg), "not found") {
+				t.Errorf("expected body to mention not found, got %q", msg)
+			}
+		})
 	}
 }
 
@@ -661,34 +681,6 @@ func TestDrainClusterMember_InvalidDeadline(t *testing.T) {
 	}
 }
 
-// TestDrainClusterMember_NotFound verifies 404 for an unknown node.
-func TestDrainClusterMember_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	status, body, err := postDrain(env.Server.URL, c, token, 999, 0)
-	if err != nil {
-		t.Fatalf("drain request failed: %s", err)
-	}
-
-	if status != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d (body: %s)", status, body)
-	}
-}
-
 // TestResumeClusterMember_AlreadyActive covers the no-op response when the
 // target is already in the active state.
 func TestResumeClusterMember_AlreadyActive(t *testing.T) {
@@ -733,34 +725,6 @@ func TestResumeClusterMember_AlreadyActive(t *testing.T) {
 	}
 }
 
-// TestResumeClusterMember_NotFound verifies 404 for an unknown node.
-func TestResumeClusterMember_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	status, body, err := postResume(env.Server.URL, c, token, 999)
-	if err != nil {
-		t.Fatalf("resume request failed: %s", err)
-	}
-
-	if status != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d (body: %s)", status, body)
-	}
-}
-
 // TestPromoteClusterMember_AlreadyVoter verifies the 409 response when the
 // target is already a voter.
 func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
@@ -798,34 +762,6 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 
 	if status != http.StatusConflict {
 		t.Fatalf("expected 409 on already-voter, got %d (body: %s)", status, body)
-	}
-}
-
-// TestPromoteClusterMember_NotFound verifies 404 for an unknown node.
-func TestPromoteClusterMember_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	status, body, err := postPromote(env.Server.URL, c, token, 999)
-	if err != nil {
-		t.Fatalf("promote request failed: %s", err)
-	}
-
-	if status != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d (body: %s)", status, body)
 	}
 }
 

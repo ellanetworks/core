@@ -52,115 +52,67 @@ func newTestListener(t *testing.T, p *testutil.PKI, nodeID int) (*listener.Liste
 	return ln, addr
 }
 
-func TestListener_RoundtripRaft(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+func TestListener_Roundtrip(t *testing.T) {
+	for _, alpn := range []string{listener.ALPNRaft, listener.ALPNHTTP} {
+		t.Run(alpn, func(t *testing.T) {
+			p := testutil.GenTestPKI(t, []int{1, 2})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+			ln1, addr1 := newTestListener(t, p, 1)
 
-	var received sync.WaitGroup
+			var received sync.WaitGroup
 
-	received.Add(1)
+			received.Add(1)
 
-	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
-		defer func() { _ = conn.Close() }()
+			ln1.Register(alpn, func(conn net.Conn) {
+				defer func() { _ = conn.Close() }()
+				defer received.Done()
 
-		buf := make([]byte, 64)
-		n, _ := conn.Read(buf)
+				buf := make([]byte, 64)
+				n, _ := conn.Read(buf)
 
-		if string(buf[:n]) != "raft-ping" {
-			t.Errorf("expected raft-ping, got %q", string(buf[:n]))
-		}
+				if string(buf[:n]) != "ping" {
+					t.Errorf("expected ping, got %q", string(buf[:n]))
+				}
 
-		_, _ = conn.Write([]byte("raft-pong"))
+				_, _ = conn.Write([]byte("pong"))
+			})
 
-		received.Done()
-	})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+			if err := ln1.Start(ctx); err != nil {
+				t.Fatalf("start listener: %v", err)
+			}
 
-	if err := ln1.Start(ctx); err != nil {
-		t.Fatalf("start listener: %v", err)
+			ln2, _ := newTestListener(t, p, 2)
+			defer ln2.Stop()
+
+			conn, err := ln2.Dial(ctx, addr1, 1, alpn, 2*time.Second)
+			if err != nil {
+				t.Fatalf("dial: %v", err)
+			}
+
+			defer func() { _ = conn.Close() }()
+
+			if _, err := conn.Write([]byte("ping")); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			buf := make([]byte, 64)
+
+			n, err := conn.Read(buf)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+
+			if string(buf[:n]) != "pong" {
+				t.Fatalf("expected pong, got %q", string(buf[:n]))
+			}
+
+			received.Wait()
+			ln1.Stop()
+		})
 	}
-
-	ln2, _ := newTestListener(t, p, 2)
-	defer ln2.Stop()
-
-	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	if _, err := conn.Write([]byte("raft-ping")); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	buf := make([]byte, 64)
-
-	n, err := conn.Read(buf)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-
-	if string(buf[:n]) != "raft-pong" {
-		t.Fatalf("expected raft-pong, got %q", string(buf[:n]))
-	}
-
-	received.Wait()
-	ln1.Stop()
-}
-
-func TestListener_RoundtripHTTP(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
-
-	ln1, addr1 := newTestListener(t, p, 1)
-
-	ln1.Register(listener.ALPNHTTP, func(conn net.Conn) {
-		defer func() { _ = conn.Close() }()
-
-		buf := make([]byte, 64)
-		n, _ := conn.Read(buf)
-
-		if string(buf[:n]) != "http-hello" {
-			t.Errorf("expected http-hello, got %q", string(buf[:n]))
-		}
-
-		_, _ = conn.Write([]byte("http-world"))
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := ln1.Start(ctx); err != nil {
-		t.Fatalf("start listener: %v", err)
-	}
-
-	ln2, _ := newTestListener(t, p, 2)
-	defer ln2.Stop()
-
-	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	_, _ = conn.Write([]byte("http-hello"))
-
-	buf := make([]byte, 64)
-
-	n, err := conn.Read(buf)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-
-	if string(buf[:n]) != "http-world" {
-		t.Fatalf("expected http-world, got %q", string(buf[:n]))
-	}
-
-	ln1.Stop()
 }
 
 func TestListener_ALPNDispatch(t *testing.T) {
