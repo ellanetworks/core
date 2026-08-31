@@ -60,10 +60,18 @@ func TestSupersedeFiveGSRegistrationDefersToAnIdleMoveToFiveGS(t *testing.T) {
 }
 
 func TestSupersedeFiveGSRegistrationWithoutAFiveGSPeerIsANoOp(t *testing.T) {
-	m, ue, _ := supersedeUE(t)
+	m, ue, peer := supersedeUE(t)
 	m.FiveGS = nil
 
 	m.SupersedeFiveGSRegistration(context.Background(), ue)
+
+	if len(peer.cancelled) != 0 {
+		t.Errorf("cancelled %v through a peer the MME no longer holds", peer.cancelled)
+	}
+
+	if got := ue.IMSI(); got != "001010000000001" {
+		t.Errorf("IMSI = %q, want the UE left untouched with no 5GS peer to tell", got)
+	}
 }
 
 func TestSupersedeFiveGSRegistrationWithoutAnIdentityIsANoOp(t *testing.T) {

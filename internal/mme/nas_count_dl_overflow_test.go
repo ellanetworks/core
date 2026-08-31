@@ -48,7 +48,7 @@ func TestDownlinkProtectionAppliesOverflow(t *testing.T) {
 	wire0 := sendCapturingWire(t, ue0, plain, eps.SHTIntegrityProtectedCiphered)
 
 	ue256, _ := securedUE(t, newTestMME(t))
-	ue256.SetDLCountForTest(256) // overflow 1, sequence number 0 — same wire SQN as COUNT 0
+	ue256.SetDLCountForTest(256)
 
 	wire256 := sendCapturingWire(t, ue256, plain, eps.SHTIntegrityProtectedCiphered)
 

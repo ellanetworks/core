@@ -17,8 +17,7 @@ func esmStatus(_ *testing.T, ebi eps.EPSBearerIdentity, pti nas.ProcedureTransac
 	return &eps.ESMStatus{EPSBearerIdentity: ebi, PTI: pti, Cause: cause}
 }
 
-// TS 24.301 §6.7: cause #43 deactivates the named bearer; for the default bearer that
-// releases the UE context (§6.4.4).
+// TS 24.301 §6.7
 func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -61,7 +60,7 @@ func TestESMStatus_InvalidEPSBearerIdentityOnAdditionalPDNReleasesOnlyThatPDN(t 
 	}
 }
 
-// TS 24.301 §7.3.2 g).
+// TS 24.301 §7.3.2
 func TestESMStatus_UnknownEPSBearerIdentityIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -78,8 +77,7 @@ func TestESMStatus_UnknownEPSBearerIdentityIgnored(t *testing.T) {
 	}
 }
 
-// TS 24.301 §7.3.1 f); clause 7 applies ahead of the §6.7 cause handling, so even #43
-// takes no action.
+// TS 24.301 §7.3.1
 func TestESMStatus_ReservedPTIIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -96,9 +94,7 @@ func TestESMStatus_ReservedPTIIgnored(t *testing.T) {
 	}
 }
 
-// The user plane is released when the deactivation starts (TS 23.401 §5.4.4) and no
-// reconcile sweep re-derives a UE-requested disconnect, so a deactivation aborted by an
-// ESM STATUS is completed here or never.
+// TS 23.401 §5.4.4
 func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -126,8 +122,7 @@ func TestESMStatus_AbortingAnInFlightDeactivationReleasesPDN(t *testing.T) {
 	}
 }
 
-// The stored config is left stale so the backstop retries (TS 24.301 §6.7: the local
-// action for a cause the clause does not name is implementation dependent).
+// TS 24.301 §6.7
 func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

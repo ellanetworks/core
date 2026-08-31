@@ -23,9 +23,7 @@ func eventually(t *testing.T, d time.Duration, cond func() bool) {
 	t.Fatal("condition not met within deadline")
 }
 
-// TestMobileReachableDerivesFromT3412 pins the mobile reachable timer to the
-// periodic-TAU timer + 4 min (TS 24.301 §5.3.5), so the two cannot drift if
-// T3412PeriodicTAU changes — the same value the Attach Accept advertises.
+// TS 24.301 §5.3.5
 func TestMobileReachableDerivesFromT3412(t *testing.T) {
 	m := newTestMME(t)
 
@@ -34,27 +32,21 @@ func TestMobileReachableDerivesFromT3412(t *testing.T) {
 	}
 }
 
-// TestMobileReachableEscalatesToImplicitDetach drives the full idle-supervision
-// escalation (TS 24.301 §5.3.5): the mobile reachable timer expires, the
-// implicit detach timer expires, and the UE is released locally.
+// TS 24.301 §5.3.5
 func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 	m := newTestMME(t)
 	m.mobileReachableTime = 10 * time.Millisecond
 	m.implicitDetachTime = 10 * time.Millisecond
 
 	ue := idleRegisteredUE(t, m)
-	testPDN(ue).Apn = "internet" // so the implicit detach releases the EPS session
+	testPDN(ue).Apn = "internet"
 
 	m.StartMobileReachable(ue)
 
-	// The implicit detach transitions the EMM state under the registry lock.
 	eventually(t, time.Second, func() bool {
 		return ue.EMMState() == EMMDeregistered
 	})
 
-	// The EMM context is retained as a Deregistered husk keeping its native security
-	// context, so a later re-attach with the native GUTI can reuse it (skip auth),
-	// mirroring the AMF; it is not removed.
 	if _, ok := m.LookupUeByIMSI(ue.imsiOrEmpty()); !ok {
 		t.Fatal("implicit detach must retain the UE context (husk) for native-context reuse")
 	}
@@ -64,8 +56,6 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 	}
 }
 
-// TestReconnectStopsIdleTimers confirms a UE that re-establishes a NAS
-// connection before the timers expire is not implicitly detached.
 func TestReconnectStopsIdleTimers(t *testing.T) {
 	m := newTestMME(t)
 	m.mobileReachableTime = 20 * time.Millisecond
@@ -87,5 +77,3 @@ func TestReconnectStopsIdleTimers(t *testing.T) {
 		t.Fatal("EPS session released despite reconnecting")
 	}
 }
-
-// TestUEContextReleaseCompleteArmsMobileReachable confirms the supervision is

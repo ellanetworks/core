@@ -12,9 +12,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestBuildActivateDefaultESMSignalsAPNAMBR verifies the Activate Default EPS
-// Bearer Context Request carries the APN-AMBR IE encoding the policy
-// Session-AMBR (TS 24.301 §8.3.6.7).
+// TS 24.301 §8.3.6.7
 func TestBuildActivateDefaultESMSignalsAPNAMBR(t *testing.T) {
 	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
 	qos := &mme.EpsQoS{APN: "internet", QCI: 9, SessAmbrDL: models.MustParseBitRate("100 Mbps"), SessAmbrUL: models.MustParseBitRate("50 Mbps")}

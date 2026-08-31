@@ -14,8 +14,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// Conformance tests for the 4G S1 handover procedures
-
 const (
 	ieIDHandoverTargetID  = 4
 	ieIDHandoverCause     = 2

@@ -16,8 +16,6 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 
-	// The release buffers the session and sends the Release Command (TS 23.401 §5.3.5),
-	// then the eNB acknowledges with Release Complete.
 	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASNormalRelease)
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
@@ -81,15 +79,12 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	parseUEContextReleaseCommand(t, cc.sent[0])
 
-	// A second release attempt must not emit another command (idempotent).
 	m.ReleaseUEContext(context.Background(), ue, mme.CauseNASDetach)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("release not idempotent: %d commands sent", len(cc.sent))
 	}
 
-	// Completing an eNB-initiated release moves the UE to ECM-IDLE; the EMM
-	// context is retained, not deleted.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
 	b, _ = complete.Marshal()
@@ -106,10 +101,6 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 
-	// The released MME-UE-S1AP-ID does not identify an active S1 connection.
-	// A repeat UE Context Release Request on the same association is answered
-	// with an Error Indication, not re-actioned with another release command
-	// (TS 36.413).
 	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 2 {
@@ -122,11 +113,6 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	}
 }
 
-// TestUEContextReleaseRequestFromForeignENB checks that a UE-associated message
-// arriving on an S1 association other than the UE's own is rejected with an
-// Error Indication, not acted upon: the global MME-UE-S1AP-ID map is shared
-// across eNBs, so without this an eNB could release a UE attached through
-// another by presenting its AP-ID pair (TS 36.413).
 func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

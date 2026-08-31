@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-// tacBearerStore overrides the operator's supported TACs for TAC-parsing tests.
 type tacBearerStore struct {
 	fakeBearerStore
 	tacs string
@@ -22,10 +21,6 @@ func (s tacBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 	return &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: s.tacs, Ciphering: `["AES"]`, Integrity: `["AES"]`}, nil
 }
 
-// TestOperatorTACsHex confirms supported TACs are parsed as hex (not decimal) and
-// that a configured value wider than the 16-bit E-UTRAN TAC is excluded rather
-// than narrowed (TS 23.003). "000064" is hex 0x64 (decimal would be 64), "00ffff"
-// is the largest valid LTE TAC, and "010002" exceeds 16 bits and is dropped.
 func TestOperatorTACsHex(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","00ffff","010002"]`}, &fakeSessionManager{})
 

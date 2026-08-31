@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// testENBID builds a Global eNB ID rendering to "00f110-<value>" via ENBID.
 func testENBID(value uint32) s1ap.GlobalENBID {
 	return s1ap.GlobalENBID{
 		PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
@@ -38,7 +37,6 @@ func TestENBTable(t *testing.T) {
 		t.Fatalf("after remove: %+v", got)
 	}
 
-	// Removing an unknown association is a no-op.
 	m.DisconnectRadio(new(sctp.SCTPConn))
 
 	if got := len(m.ListRadios()); got != 1 {
@@ -46,8 +44,7 @@ func TestENBTable(t *testing.T) {
 	}
 }
 
-// TestENBSetupCompleteGate exercises the S1-Setup-complete marker that arms the
-// dispatcher's setup-first gate (TS 36.413 §8.7.3.1).
+// TS 36.413 §8.7.3.1
 func TestENBSetupCompleteGate(t *testing.T) {
 	m := newTestMME(t)
 	c := new(sctp.SCTPConn)
@@ -80,9 +77,6 @@ func TestENBSetupCompleteGate(t *testing.T) {
 	}
 }
 
-// TestClaimENBID_EvictsStaleReassociation asserts an eNB re-associating and completing
-// S1 Setup under a Global eNB ID still held by a live association evicts the stale one,
-// so the ID resolves to the current association (mirrors the AMF's ClaimRanID eviction).
 func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	m := newTestMME(t)
 
@@ -119,10 +113,7 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	}
 }
 
-// TS 36.413 §8.7.3.1: S1 Setup re-initialises the S1AP UE-related contexts unless
-// both nodes agree to retain them. Ella Core never offers UE retention, so an eNB
-// repeating S1 Setup on its existing association — what an SCTP restart produces —
-// must not leave its previous UEs behind.
+// TS 36.413 §8.7.3.1
 func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	m := newTestMME(t)
 

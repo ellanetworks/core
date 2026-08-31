@@ -13,8 +13,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// erabModValue marshals an E-RAB MODIFICATION INDICATION and returns the
-// initiatingMessage open-type payload the handler consumes.
 func erabModValue(t *testing.T, req *s1ap.ERABModificationIndication) []byte {
 	t.Helper()
 
@@ -42,7 +40,7 @@ func modifiedItem(addr [4]byte, teid uint32) s1ap.ERABToBeModifiedItemBearerModI
 func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	testPDN(ue) // default bearer, EBI 5
+	testPDN(ue)
 
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
@@ -100,14 +98,12 @@ func TestERABModificationIndication_CapturesUserLocation(t *testing.T) {
 	}
 }
 
-// TestERABModificationIndication_OmittedERABReleases covers TS 36.413 §8.2.4.4:
-// an indication that omits an established E-RAB triggers a UE Context Release, not
-// a modification.
+// TS 36.413 §8.2.4.4
 func TestERABModificationIndication_OmittedERABReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	testPDN(ue)     // default bearer, EBI 5
-	ue.EnsurePDN(6) // a second bearer the indication will omit
+	testPDN(ue)
+	ue.EnsurePDN(6)
 
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
@@ -140,8 +136,7 @@ func TestERABModificationIndication_OmittedERABReleases(t *testing.T) {
 	}
 }
 
-// TestERABModificationIndication_DuplicateERABReleases covers TS 36.413 §8.2.4.4:
-// a repeated E-RAB ID triggers a UE Context Release.
+// TS 36.413 §8.2.4.4
 func TestERABModificationIndication_DuplicateERABReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

@@ -73,7 +73,7 @@ func testGUTIIdentity(t *testing.T, ue *UeContext) eps.EPSMobileIdentity {
 	})
 }
 
-// TS 23.502 §4.11.1.3.3 step 5a, TS 33.501 §8.2
+// TS 23.502 §4.11.1.3.3
 func TestMMContextReturnsTheContextForAVerifiedTAU(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleMobilityUE(t, m)
@@ -159,7 +159,7 @@ func TestMMContextRefusals(t *testing.T) {
 		ue, guti := idleMobilityUE(t, m)
 
 		tau := enclosedTAU(t, ue, nas.MakeCount(0, 0))
-		tau[2] ^= 0xff // corrupt the MAC
+		tau[2] ^= 0xff
 
 		_, err := m.MMContext(t.Context(), interworking.MMContextRequest{MappedEPSGUTI: guti, EPSNAS: tau})
 		if !errors.Is(err, interworking.ErrIntegrityCheckFailed) {

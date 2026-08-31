@@ -25,7 +25,6 @@ func TestConnectedSubscribers(t *testing.T) {
 	registered.integrityAlg = 2
 	registered.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
 	testPDN(registered).Apn = "internet"
-	// Deliberately different from the per-session AMBR below.
 	registered.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("5 Gbps"), Downlink: models.MustParseBitRate("6 Gbps")}
 	testPDN(registered).SessAmbrULBps = models.MustParseBitRate("1 Gbps").Bps()
 	testPDN(registered).SessAmbrDLBps = models.MustParseBitRate("2 Gbps").Bps()
@@ -36,8 +35,6 @@ func TestConnectedSubscribers(t *testing.T) {
 	registerTestUE(m, deregistered, "001010000000002")
 	deregistered.ForceStateForTest(EMMDeregistered)
 
-	// A registered context with no IMSI is never indexed by subscriber identity,
-	// so it is excluded from the status surface.
 	noIMSI := m.NewUe(conn, 9)
 	noIMSI.ForceStateForTest(EMMRegistered)
 
@@ -86,9 +83,6 @@ func TestConnectedSubscribers(t *testing.T) {
 	}
 }
 
-// TestStatusIncludesIdleSubscriber confirms a registered UE that has moved to
-// ECM-IDLE (no S1 connection) is still reported by the status surface, with no
-// radio name.
 func TestStatusIncludesIdleSubscriber(t *testing.T) {
 	m := newTestMME(t)
 
@@ -120,12 +114,10 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 		t.Fatal("idle registered subscriber missing from ConnectedSubscribers")
 	}
 
-	m.RemoveUe(ue) // stop the default-duration timer
+	m.RemoveUe(ue)
 }
 
 func TestMobileIdentityDigitsIMEISV(t *testing.T) {
-	// IMEISV mobile identity (TS 24.008 §10.5.1.4): octet 0 carries the type and
-	// the first digit; the rest is packed BCD with a trailing 0xF filler.
 	imeisv := []byte{0x03, 0x53, 0x60, 0x83, 0x12, 0x34, 0x56, 0x78, 0xf0}
 
 	got := mobileIdentityDigits(imeisv)

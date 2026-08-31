@@ -9,9 +9,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestPlainNasAllowed is the sole authority on the EMM pre-secure-exchange whitelist: a
-// message type is admissible without a verified MAC (sent plain, or received
-// integrity-protected with a failed MAC — TS 24.301 §4.4.4.3) iff it is on the list.
+// TS 24.301 §4.4.4.3
 func TestPlainNasAllowed(t *testing.T) {
 	cases := []struct {
 		name string
@@ -27,10 +25,6 @@ func TestPlainNasAllowed(t *testing.T) {
 		{"security mode reject", eps.MsgSecurityModeReject, true},
 		{"attach complete", eps.MsgAttachComplete, false},
 		{"security mode complete", eps.MsgSecurityModeComplete, false},
-		// TRACKING AREA UPDATE REQUEST is verified at the S1AP resume layer (like SERVICE
-		// REQUEST, which is a security-header type, not an EMM message type), so it is
-		// deliberately not admitted unverified on the EMM dispatch path (TS 24.301
-		// §4.4.4.3); its handler assumes a verified message.
 		{"tracking area update request", eps.MsgTrackingAreaUpdateRequest, false},
 	}
 
