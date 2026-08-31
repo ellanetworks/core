@@ -91,29 +91,7 @@ func TestCluster_FollowerTrackerMarksStoppedPeerUnhealthy(t *testing.T) {
 	proposeAndIndex(t, leader, 3)
 	tc.StopNode(followerIdx)
 
-	ft := leader.followerTracker
-
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		ft.mu.RLock()
-		state, known := ft.peers[peerID]
-
-		unhealthy := known && !state.healthy
-
-		ft.mu.RUnlock()
-
-		if unhealthy {
-			return
-		}
-
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	ft.mu.RLock()
-	tracked := len(ft.peers)
-	ft.mu.RUnlock()
-
-	t.Fatalf("leader never marked stopped peer %s unhealthy (tracked peers: %d)", peerID, tracked)
+	waitForUnhealthyPeer(t, leader, peerID, 15*time.Second)
 }
 
 func TestCluster_RestartNodeRetainsState(t *testing.T) {

@@ -101,197 +101,113 @@ func startTestClusterHTTP(t *testing.T, ln *listener.Listener, handler http.Hand
 	})
 }
 
-func TestProbePeer_LeaderReturns200(t *testing.T) {
+func newProbePeerHarness(t *testing.T, handler http.Handler) (*Manager, string) {
+	t.Helper()
+
 	pki := testutil.GenTestPKI(t, []int{1, 2})
 
-	serverPort := discoveryFreePort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
 
 	serverLn := listener.New(listener.Config{
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
 		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(1),
+		Leaf:             pki.LeafFunc(1),
 	})
 
-	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(statusResponse{
-			Result: statusResult{
-				Cluster: &statusClusterBlock{
-					Role:          "Leader",
-					NodeID:        1,
-					ClusterID:     "cluster-1",
-					SchemaVersion: 9,
-				},
-			},
-		})
-	}))
+	startTestClusterHTTP(t, serverLn, handler)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := serverLn.Start(ctx); err != nil {
+	if err := serverLn.Start(t.Context()); err != nil {
 		t.Fatalf("start listener: %v", err)
 	}
 
-	defer serverLn.Stop()
+	t.Cleanup(serverLn.Stop)
 
 	clientLn := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
 		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(2),
+		Leaf:             pki.LeafFunc(2),
 	})
 
-	m := &Manager{clusterListener: clientLn}
-
-	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
-
-	if state != peerFormed {
-		t.Fatalf("expected peerFormed, got %d", state)
-	}
-
-	if nodeID != 1 {
-		t.Fatalf("expected nodeID=1, got %d", nodeID)
-	}
-
-	if clusterID != "cluster-1" {
-		t.Fatalf("expected clusterID=cluster-1, got %s", clusterID)
-	}
-
-	if schema != 9 {
-		t.Fatalf("expected schema=9, got %d", schema)
-	}
+	return &Manager{clusterListener: clientLn}, serverAddr
 }
 
-func TestProbePeer_FollowerReturns200(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 2})
-
-	serverPort := discoveryFreePort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-
-	serverLn := listener.New(listener.Config{
-		BindAddress:      serverAddr,
-		AdvertiseAddress: serverAddr,
-		NodeID:           1,
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(1),
-	})
-
-	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func statusHandler(cluster *statusClusterBlock) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(statusResponse{
-			Result: statusResult{
-				Cluster: &statusClusterBlock{
-					Role:          "Follower",
-					NodeID:        2,
-					ClusterID:     "cluster-1",
-					SchemaVersion: 9,
-				},
-			},
-		})
-	}))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := serverLn.Start(ctx); err != nil {
-		t.Fatalf("start listener: %v", err)
-	}
-
-	defer serverLn.Stop()
-
-	clientLn := listener.New(listener.Config{
-		BindAddress:      "127.0.0.1:0",
-		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           3,
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(2),
+		_ = json.NewEncoder(w).Encode(statusResponse{Result: statusResult{Cluster: cluster}})
 	})
-
-	m := &Manager{clusterListener: clientLn}
-
-	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
-
-	if state != peerFormed {
-		t.Fatalf("expected peerFormed, got %d", state)
-	}
-
-	if nodeID != 2 {
-		t.Fatalf("expected nodeID=2, got %d", nodeID)
-	}
-
-	if clusterID != "cluster-1" {
-		t.Fatalf("expected clusterID=cluster-1, got %s", clusterID)
-	}
-
-	if schema != 9 {
-		t.Fatalf("expected schema=9, got %d", schema)
-	}
 }
 
-func TestProbePeer_FormingNode(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 2})
+func TestProbePeer(t *testing.T) {
+	tests := []struct {
+		name          string
+		handler       http.Handler
+		wantState     peerState
+		wantNodeID    int
+		wantClusterID string
+		wantSchema    int
+	}{
+		{
+			name: "leader",
+			handler: statusHandler(&statusClusterBlock{
+				Role: "Leader", NodeID: 1, ClusterID: "cluster-1", SchemaVersion: 9,
+			}),
+			wantState:     peerFormed,
+			wantNodeID:    1,
+			wantClusterID: "cluster-1",
+			wantSchema:    9,
+		},
+		{
+			name: "follower",
+			handler: statusHandler(&statusClusterBlock{
+				Role: "Follower", NodeID: 2, ClusterID: "cluster-1", SchemaVersion: 9,
+			}),
+			wantState:     peerFormed,
+			wantNodeID:    2,
+			wantClusterID: "cluster-1",
+			wantSchema:    9,
+		},
+		{
+			name:       "forming",
+			handler:    statusHandler(&statusClusterBlock{Role: "Follower", NodeID: 3}),
+			wantState:  peerForming,
+			wantNodeID: 3,
+		},
+		{
+			name: "unavailable",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}),
+			wantState: peerUnreachable,
+		},
+	}
 
-	serverPort := discoveryFreePort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, serverAddr := newProbePeerHarness(t, tt.handler)
 
-	serverLn := listener.New(listener.Config{
-		BindAddress:      serverAddr,
-		AdvertiseAddress: serverAddr,
-		NodeID:           1,
-		Pin:              pki.PinFunc(),
+			state, nodeID, clusterID, schema := m.probePeer(t.Context(), serverAddr)
 
-		Leaf: pki.LeafFunc(1),
-	})
+			if state != tt.wantState {
+				t.Errorf("state = %d, want %d", state, tt.wantState)
+			}
 
-	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(statusResponse{
-			Result: statusResult{
-				Cluster: &statusClusterBlock{
-					Role:   "Follower",
-					NodeID: 3,
-				},
-			},
+			if nodeID != tt.wantNodeID {
+				t.Errorf("nodeID = %d, want %d", nodeID, tt.wantNodeID)
+			}
+
+			if clusterID != tt.wantClusterID {
+				t.Errorf("clusterID = %q, want %q", clusterID, tt.wantClusterID)
+			}
+
+			if schema != tt.wantSchema {
+				t.Errorf("schema = %d, want %d", schema, tt.wantSchema)
+			}
 		})
-	}))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := serverLn.Start(ctx); err != nil {
-		t.Fatalf("start listener: %v", err)
-	}
-
-	defer serverLn.Stop()
-
-	clientLn := listener.New(listener.Config{
-		BindAddress:      "127.0.0.1:0",
-		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(2),
-	})
-
-	m := &Manager{clusterListener: clientLn}
-
-	state, nodeID, _, _ := m.probePeer(ctx, serverAddr)
-
-	if state != peerForming {
-		t.Fatalf("expected peerForming, got %d", state)
-	}
-
-	if nodeID != 3 {
-		t.Fatalf("expected nodeID=3, got %d", nodeID)
 	}
 }
 
@@ -379,63 +295,5 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 				t.Fatalf("joined should be false when duplicate node-id is detected")
 			}
 		})
-	}
-}
-
-func TestProbePeer_503IsUnreachable(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 2})
-
-	serverPort := discoveryFreePort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-
-	serverLn := listener.New(listener.Config{
-		BindAddress:      serverAddr,
-		AdvertiseAddress: serverAddr,
-		NodeID:           1,
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(1),
-	})
-
-	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := serverLn.Start(ctx); err != nil {
-		t.Fatalf("start listener: %v", err)
-	}
-
-	defer serverLn.Stop()
-
-	clientLn := listener.New(listener.Config{
-		BindAddress:      "127.0.0.1:0",
-		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc(2),
-	})
-
-	m := &Manager{clusterListener: clientLn}
-
-	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
-
-	if state != peerUnreachable {
-		t.Fatalf("expected peerUnreachable, got %d", state)
-	}
-
-	if nodeID != 0 {
-		t.Fatalf("expected nodeID=0, got %d", nodeID)
-	}
-
-	if clusterID != "" {
-		t.Fatalf("expected empty clusterID, got %s", clusterID)
-	}
-
-	if schema != 0 {
-		t.Fatalf("expected schema=0, got %d", schema)
 	}
 }
