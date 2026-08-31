@@ -333,13 +333,6 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		return nil, silentDecode(nasreply.ReasonTooShort, "nas payload is too short")
 	}
 
-	// A protected message can only be verified against an installed context. The
-	// message is discarded rather than verified under whatever the algorithm
-	// fields hold, which for an uninstalled context is NIA0 (TS 33.501 §5.5.2).
-	if ue.sc == nil {
-		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS message for a UE with no security context")
-	}
-
 	sequenceNumber := spm.SequenceNumber
 
 	// Work on a copy of the uplink counter and commit to the security context
@@ -368,6 +361,10 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		// error answered with a 5GMM STATUS #111 (§7), not silently ignored. The message is
 		// never processed, so integrity protection is not weakened.
 		return nil, statusDecode(nasreply.CauseProtocolErrorUnspecified, "wrong security header type: 0x%0x", uint8(headerType))
+	}
+
+	if ue.sc == nil {
+		return decodeUnverifiedNAS(headerType, spm, conn)
 	}
 
 	// An exhausted uplink count accepts nothing further under this security
@@ -424,6 +421,10 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 
 	logger.AmfLog.Warn("NAS MAC verification failed")
 
+	return decodeUnverifiedNAS(headerType, spm, conn)
+}
+
+func decodeUnverifiedNAS(headerType fgs.SecurityHeaderType, spm *fgs.SecurityProtectedMessage, conn *UeConn) (*DecodeResult, error) {
 	// TS 24.501 §4.4.4.3: once secure exchange is established, a message failing
 	// the integrity check is discarded.
 	if conn.SecureExchangeEstablished() {
@@ -431,8 +432,8 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	}
 
 	// The plaintext type is readable only for an integrity-only (unciphered)
-	// security header; a ciphered body under a failed MAC is not deciphered, so
-	// such a message is dropped.
+	// security header; a ciphered body whose MAC was not verified is not
+	// deciphered, so such a message is dropped.
 	if headerType != fgs.SHTIntegrityProtected {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "mac verification failed for ciphered nas message")
 	}
@@ -444,8 +445,8 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "protected NAS decode failed under unverified MAC: %v", derr)
 	}
 
-	// An integrity-protected message with a failed MAC is admitted only for the
-	// whitelisted types processed before secure exchange (TS 24.501 §4.4.4.3).
+	// An integrity-protected message whose MAC was not verified is admitted only for
+	// the whitelisted types processed before secure exchange (TS 24.501 §4.4.4.3).
 	if !plainNasAllowed(msgType) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "mac verification failed for the nas message: %v", msgType)
 	}

@@ -274,3 +274,61 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 		t.Error("decoder must NOT clear SecurityContextAvailable")
 	}
 }
+
+func wrapProtectedNAS(t *testing.T, sht fgs.SecurityHeaderType, inner []byte) []byte {
+	t.Helper()
+
+	pdu := []byte{0x7e, byte(sht), 0xde, 0xad, 0xbe, 0xef, 0x01}
+
+	return append(pdu, inner...)
+}
+
+func TestDecodeNASMessage_ProtectedRegistrationRequest_NoSecurityContext_Admitted(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	payload := wrapProtectedNAS(t, fgs.SHTIntegrityProtected, encodePlainRegistrationRequest(t))
+
+	result, err := DecodeNASMessage(ue, payload)
+	if err != nil {
+		t.Fatalf("TS 24.501 §4.4.4.3 requires a REGISTRATION REQUEST to be processed when the security context is not available in the network: %v", err)
+	}
+
+	if !result.IsGMM || result.MessageType != uint8(fgs.MsgRegistrationRequest) {
+		t.Fatalf("expected RegistrationRequest, got %+v", result)
+	}
+
+	if result.IntegrityVerified {
+		t.Error("a message whose MAC could not be verified must not be reported integrity-verified")
+	}
+
+	if ue.Conn().SecureExchangeEstablished() {
+		t.Error("an unverified message must not establish secure exchange")
+	}
+}
+
+func TestDecodeNASMessage_ProtectedULNasTransport_NoSecurityContext_Dropped(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	payload := wrapProtectedNAS(t, fgs.SHTIntegrityProtected, encodePlainULNasTransport(t))
+
+	result, err := DecodeNASMessage(ue, payload)
+	if err == nil {
+		t.Fatalf("a message outside the TS 24.501 §4.4.4.3 list must not be admitted without a security context, got %+v", result)
+	}
+
+	if d := DispositionForDecodeError(err); d.Action != nasreply.ActionSilent {
+		t.Errorf("disposition = %+v, want a silent discard", d)
+	}
+}
+
+func TestDecodeNASMessage_ProtectedCipheredRegistrationRequest_NoSecurityContext_Dropped(t *testing.T) {
+	ue := newDecoderTestUE(t)
+	payload := wrapProtectedNAS(t, fgs.SHTIntegrityProtectedCiphered, encodePlainRegistrationRequest(t))
+
+	result, err := DecodeNASMessage(ue, payload)
+	if err == nil {
+		t.Fatalf("a ciphered body cannot be read without a security context, got %+v", result)
+	}
+
+	if d := DispositionForDecodeError(err); d.Action != nasreply.ActionSilent {
+		t.Errorf("disposition = %+v, want a silent discard", d)
+	}
+}
