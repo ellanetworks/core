@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// ConnectedSubscriber is a consistent snapshot of a Registered 5G subscriber's live
+// ConnectedSubscriber is a consistent snapshot of a 5G subscriber's live
 // status for the status API, taken under a single registry lock so the fields cannot
 // tear across per-field reads.
 type ConnectedSubscriber struct {
@@ -15,9 +15,10 @@ type ConnectedSubscriber struct {
 	NumSessions int
 	LastSeenAt  time.Time
 	Connected   bool
+	Registered  bool
 }
 
-// ConnectedSubscribers returns a snapshot of every Registered 5G subscriber keyed by
+// ConnectedSubscribers returns a snapshot of every 5G subscriber with a 5GMM context keyed by
 // IMSI, built under one amf.mu.RLock so it is a single consistent read that cannot tear
 // against a concurrent register/idle transition.
 func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
@@ -32,19 +33,19 @@ func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 		}
 
 		ue.mu.Lock()
-		registered := ue.state == Registered
+		state := ue.state
 
 		radioName := ""
 		conn := ue.active.Load()
 
 		if conn != nil {
-			radioName = conn.radioName
+			radioName = conn.radioName()
 		}
 
 		numSessions := len(ue.SmContextList)
 		ue.mu.Unlock()
 
-		if !registered {
+		if state == Deregistered {
 			continue
 		}
 
@@ -53,6 +54,7 @@ func (amf *AMF) ConnectedSubscribers() map[string]ConnectedSubscriber {
 			NumSessions: numSessions,
 			LastSeenAt:  ue.lastSeenTime(),
 			Connected:   conn != nil,
+			Registered:  state == Registered,
 		}
 	}
 

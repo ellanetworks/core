@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// ConnectedSubscriber is a runtime view of an EMM-registered UE for the API
+// ConnectedSubscriber is a runtime view of a UE with an EMM context for the API
 // layer.
 type ConnectedSubscriber struct {
 	RadioName          string
@@ -21,6 +21,7 @@ type ConnectedSubscriber struct {
 	Imei               string    // 15-digit IMEI from the UE's IMEISV, empty if unknown
 	LastSeenAt         time.Time // most recent evidence the UE was present, zero if none
 	Connected          bool
+	Registered         bool
 	CipheringAlgorithm string // EPS NAS ciphering, e.g. "EEA2" (TS 33.401)
 	IntegrityAlgorithm string // EPS NAS integrity, e.g. "EIA2"
 	// Sessions are the UE's PDN connections, one per active APN, ordered by EPS
@@ -57,6 +58,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	cs := ConnectedSubscriber{
 		RadioName:          radioName,
 		Connected:          ue.Connected(),
+		Registered:         ue.EMMState() == EMMRegistered,
 		Imei:               snap.Imei,
 		LastSeenAt:         snap.LastSeenAt,
 		CipheringAlgorithm: snap.CipheringAlgorithm,
@@ -103,7 +105,7 @@ func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
 	return out
 }
 
-// ConnectedSubscribers returns the status of every EMM-registered UE keyed by
+// ConnectedSubscribers returns the status of every UE with an EMM context keyed by
 // IMSI.
 func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	m.mu.RLock()
@@ -112,7 +114,7 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	out := make(map[string]ConnectedSubscriber)
 
 	for supi, ue := range m.UEs {
-		if ue.EMMState() != EMMRegistered || ue.imsiOrEmpty() == "" {
+		if ue.EMMState() == EMMDeregistered || ue.imsiOrEmpty() == "" {
 			continue
 		}
 
@@ -122,7 +124,7 @@ func (m *MME) ConnectedSubscribers() map[string]ConnectedSubscriber {
 	return out
 }
 
-// LookupSubscriber returns the runtime status of an EMM-registered UE by IMSI.
+// LookupSubscriber returns the runtime status of a UE with an EMM context by IMSI.
 func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -133,7 +135,7 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	}
 
 	ue, ok := m.UEs[supi]
-	if !ok || ue.EMMState() != EMMRegistered {
+	if !ok || ue.EMMState() == EMMDeregistered {
 		return ConnectedSubscriber{}, false
 	}
 

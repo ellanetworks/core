@@ -15,11 +15,11 @@ func TestMergeAccesses(t *testing.T) {
 		newer = time.Date(2026, 8, 17, 10, 5, 0, 0, time.UTC)
 
 		on4G = accessView{
-			rat: "4G", present: true, connected: true, imei: "490154203237518",
+			rat: "4G", present: true, registered: true, connected: true, imei: "490154203237518",
 			ciphering: "EEA2", integrity: "EIA2", lastSeenRadio: "enb-1",
 		}
 		on5G = accessView{
-			rat: "5G", present: true, connected: true, imei: "490154203237518",
+			rat: "5G", present: true, registered: true, connected: true, imei: "490154203237518",
 			ciphering: "NEA2", integrity: "NIA2", lastSeenRadio: "gnb-1",
 		}
 	)
@@ -37,7 +37,7 @@ func TestMergeAccesses(t *testing.T) {
 	}
 
 	deregistered := func(v accessView) accessView {
-		v.present, v.connected = false, false
+		v.present, v.registered, v.connected = false, false, false
 		v.imei, v.ciphering, v.integrity = "", "", ""
 
 		return v
@@ -58,7 +58,7 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:   at(on4G, older),
 			wantRATs: []string{"4G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
 				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: older,
 			},
 		},
@@ -67,7 +67,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, older),
 			wantRATs: []string{"5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
 				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: older,
 			},
 		},
@@ -77,7 +77,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, older),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
 				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: newer,
 			},
 		},
@@ -87,7 +87,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
 				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
 			},
 		},
@@ -97,7 +97,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), older),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
 				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: newer,
 			},
 		},
@@ -107,8 +107,18 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
 				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
+			},
+		},
+		{
+			name:     "the deregistered access is more recent than the registered one",
+			view4G:   at(deregistered(on4G), newer),
+			view5G:   at(on5G, older),
+			wantRATs: []string{"5G"},
+			want: mergedAccess{
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: older,
 			},
 		},
 		{
@@ -117,7 +127,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Registered: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
 				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
 			},
 		},
@@ -135,12 +145,12 @@ func TestMergeAccesses(t *testing.T) {
 			name:   "only the older access reported an IMEI",
 			view4G: at(on4G, older),
 			view5G: at(accessView{
-				rat: "5G", present: true, connected: true, lastSeenRadio: "gnb-1",
+				rat: "5G", present: true, registered: true, connected: true, lastSeenRadio: "gnb-1",
 				ciphering: "NEA2", integrity: "NIA2",
 			}, newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
 				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
 			},
 		},
@@ -150,6 +160,10 @@ func TestMergeAccesses(t *testing.T) {
 
 			if !slices.Equal(got.RATs, tc.wantRATs) {
 				t.Errorf("RATs = %v, want %v", got.RATs, tc.wantRATs)
+			}
+
+			if got.Registered != tc.want.Registered {
+				t.Errorf("Registered = %v, want %v", got.Registered, tc.want.Registered)
 			}
 
 			if got.Connected != tc.want.Connected {
@@ -212,18 +226,18 @@ func TestMergeAccessesNeverPairsARadioWithAnotherAccessesAlgorithms(t *testing.T
 
 func TestConnectionState(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		registered bool
-		connected  bool
-		want       string
+		name      string
+		present   bool
+		connected bool
+		want      string
 	}{
-		{name: "registered and connected", registered: true, connected: true, want: "connected"},
-		{name: "registered and idle", registered: true, want: "idle"},
-		{name: "not registered occupies neither state", want: ""},
+		{name: "a context holding a signalling connection", present: true, connected: true, want: "connected"},
+		{name: "a context with no signalling connection", present: true, want: "idle"},
+		{name: "no context on either access", want: ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := connectionState(tc.registered, tc.connected); got != tc.want {
-				t.Errorf("connectionState(%v, %v) = %q, want %q", tc.registered, tc.connected, got, tc.want)
+			if got := connectionState(tc.present, tc.connected); got != tc.want {
+				t.Errorf("connectionState(%v, %v) = %q, want %q", tc.present, tc.connected, got, tc.want)
 			}
 		})
 	}

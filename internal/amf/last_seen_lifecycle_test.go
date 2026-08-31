@@ -5,6 +5,7 @@ package amf_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -115,5 +116,141 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 
 	if seen.RadioName != "gnb-unclaimed" {
 		t.Errorf("RadioName = %q, want the captured name gnb-unclaimed", seen.RadioName)
+	}
+}
+
+func TestLastSeenRadioFollowsAnXnPathSwitch(t *testing.T) {
+	const imsi = "001010000000024"
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	sourceConn := &sctp.SCTPConn{}
+	source := newRadioForTest(amfInstance, sourceConn, "gnb-a")
+	amfInstance.SetRadioForTest(sourceConn, source)
+	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"))
+
+	targetConn := &sctp.SCTPConn{}
+	target := newRadioForTest(amfInstance, targetConn, "gnb-b")
+	amfInstance.SetRadioForTest(targetConn, target)
+	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"))
+
+	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
+	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
+		ue.ForceStateForTest(amf.Registered)
+	})
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	if !amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0) {
+		t.Fatal("CommitPathSwitch reported the UE released")
+	}
+
+	seen, ok := amfInstance.LastSeen(imsi)
+	if !ok {
+		t.Fatal("retained record missing after the path switch")
+	}
+
+	if seen.RadioName != "gnb-b" {
+		t.Errorf("RadioName = %q, want the target gnb-b", seen.RadioName)
+	}
+}
+
+func TestRegisteringUEIsReportedAsConnectedButNotRegistered(t *testing.T) {
+	const imsi = "001010000000025"
+
+	amfInstance := amf.New(nil, nil, nil)
+	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+
+	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
+		ue.ForceStateForTest(amf.RegistrationInitiated)
+	})
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	cs, ok := amfInstance.ConnectedSubscribers()[imsi]
+	if !ok {
+		t.Fatal("a UE part-way through registration is missing from ConnectedSubscribers")
+	}
+
+	if cs.Registered {
+		t.Error("Registered = true for a UE that has not completed registration")
+	}
+
+	if !cs.Connected {
+		t.Error("Connected = false for a UE holding an NGAP UE association")
+	}
+
+	snap, _, _, ok := amfInstance.LookupSubscriber(newSUPI(t, imsi))
+	if !ok {
+		t.Fatal("a UE part-way through registration is missing from LookupSubscriber")
+	}
+
+	if snap.Registered || !snap.Connected {
+		t.Errorf("snapshot Registered=%v Connected=%v, want false/true", snap.Registered, snap.Connected)
+	}
+}
+
+func TestUeConnRadioConcurrentAccess(t *testing.T) {
+	const (
+		imsi  = "001010000000026"
+		iters = 1500
+	)
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	sourceConn := &sctp.SCTPConn{}
+	source := newRadioForTest(amfInstance, sourceConn, "gnb-a")
+	amfInstance.SetRadioForTest(sourceConn, source)
+	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"))
+
+	targetConn := &sctp.SCTPConn{}
+	target := newRadioForTest(amfInstance, targetConn, "gnb-b")
+	amfInstance.SetRadioForTest(targetConn, target)
+	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"))
+
+	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
+	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
+		ue.ForceStateForTest(amf.Registered)
+	})
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for range iters {
+			ueConn.TouchLastSeen()
+		}
+	}()
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for range iters {
+			amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0)
+		}
+	}()
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for range iters {
+			_ = amfInstance.ConnectedSubscribers()
+		}
+	}()
+
+	wg.Wait()
+
+	amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0)
+	ueConn.TouchLastSeen()
+
+	if seen, ok := amfInstance.LastSeen(imsi); !ok || seen.RadioName != "gnb-b" {
+		t.Errorf("last-seen radio = %q (found %v), want gnb-b", seen.RadioName, ok)
 	}
 }

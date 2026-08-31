@@ -3906,12 +3906,11 @@ components:
           type: string
           enum: ["idle", "connected"]
           description: >-
-            Whether the device holds a signalling connection to the core: the CM state in
-            5G (TS 23.501 §5.3.3.2, CM-IDLE / CM-CONNECTED) and the ECM state in 4G
-            (TS 23.401 §4.6.3, ECM-IDLE / ECM-CONNECTED). "connected" reports a signalling
-            connection, not radio activity — a connected UE may have its radio in
-            RRC_INACTIVE. Omitted when the subscriber is not registered, which is neither
-            state.
+            Whether the device holds a NAS signalling connection: CM state in 5G
+            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3). Independent of
+            `registered` (TS 23.501 §5.3.3.2.1, TS 23.401 §4.6.1) — a device still
+            registering is "connected" with `registered` false. Omitted when the core
+            holds no context for the device.
         radio_access_types:
           type: array
           items:
@@ -3933,10 +3932,10 @@ components:
         last_seen_radio:
           type: string
           description: >-
-            Name of the radio that last served the device. Retained while the device is
-            idle and after it deregisters, so it is last known rather than current — the
-            core knows the serving radio only while the device is connected
-            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Omitted if never seen.
+            Name of the radio that last served the device — last known, not current
+            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Held in memory by the serving node
+            while the device is idle and after it deregisters: not shared across cluster
+            nodes, and reset on restart. Omitted if never seen.
       required: [registered, num_sessions]
 
     Subscriber:
@@ -3986,12 +3985,8 @@ components:
           type: string
           enum: ["idle", "connected"]
           description: >-
-            Whether the device holds a signalling connection to the core: the CM state in
-            5G (TS 23.501 §5.3.3.2, CM-IDLE / CM-CONNECTED) and the ECM state in 4G
-            (TS 23.401 §4.6.3, ECM-IDLE / ECM-CONNECTED). "connected" reports a signalling
-            connection, not radio activity — a connected UE may have its radio in
-            RRC_INACTIVE. Omitted when the subscriber is not registered, which is neither
-            state.
+            Whether the device holds a NAS signalling connection: CM state in 5G
+            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3).
         radio_access_types:
           type: array
           items:
@@ -4023,10 +4018,10 @@ components:
         last_seen_radio:
           type: string
           description: >-
-            Name of the radio that last served the device. Retained while the device is
-            idle and after it deregisters, so it is last known rather than current — the
-            core knows the serving radio only while the device is connected
-            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Empty if never seen.
+            Name of the radio that last served the device — last known, not current
+            (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2). Held in memory by the serving node
+            while the device is idle and after it deregisters: not shared across cluster
+            nodes, and reset on restart. Empty if never seen.
       required: [registered, imei, ciphering_algorithm, integrity_algorithm]
 
     SubscriberDetail:

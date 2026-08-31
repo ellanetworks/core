@@ -176,6 +176,7 @@ func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool 
 type accessView struct {
 	rat           string
 	present       bool
+	registered    bool
 	connected     bool
 	imei          string
 	ciphering     string
@@ -190,6 +191,7 @@ func (v accessView) newerThan(other accessView) bool {
 
 type mergedAccess struct {
 	RATs          []string
+	Registered    bool
 	Connected     bool
 	Imei          string
 	Ciphering     string
@@ -202,12 +204,12 @@ func mergeAccesses(views ...accessView) mergedAccess {
 	var (
 		merged   mergedAccess
 		serving  accessView
-		lastSeen accessView
+		retained accessView
 	)
 
 	for _, v := range views {
-		if v.lastSeenAt.After(lastSeen.lastSeenAt) {
-			lastSeen = v
+		if v.lastSeenAt.After(retained.lastSeenAt) {
+			retained = v
 		}
 
 		if !v.present {
@@ -215,6 +217,7 @@ func mergeAccesses(views ...accessView) mergedAccess {
 		}
 
 		merged.RATs = append(merged.RATs, v.rat)
+		merged.Registered = merged.Registered || v.registered
 		merged.Connected = merged.Connected || v.connected
 
 		if merged.Imei == "" {
@@ -226,8 +229,13 @@ func mergeAccesses(views ...accessView) mergedAccess {
 		}
 	}
 
+	answering := serving
+	if !answering.present {
+		answering = retained
+	}
+
 	merged.Ciphering, merged.Integrity = serving.ciphering, serving.integrity
-	merged.LastSeenAt, merged.LastSeenRadio = lastSeen.lastSeenAt, lastSeen.lastSeenRadio
+	merged.LastSeenAt, merged.LastSeenRadio = answering.lastSeenAt, answering.lastSeenRadio
 
 	return merged
 }
@@ -240,9 +248,9 @@ func lastSeenAt(present bool, live, retained time.Time) time.Time {
 	return retained
 }
 
-func connectionState(registered, connected bool) string {
+func connectionState(present, connected bool) string {
 	switch {
-	case !registered:
+	case !present:
 		return ""
 	case connected:
 		return "connected"
@@ -383,22 +391,20 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 			merged := mergeAccesses(
 				accessView{
-					rat: "4G", present: on4G, connected: mme4G.Connected,
+					rat: "4G", present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
 					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
 				},
 				accessView{
-					rat: "5G", present: on5G, connected: amf5G.Connected,
+					rat: "5G", present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
 					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
 				},
 			)
 
-			registered := on5G || on4G
-
 			subscriberStatus := SubscriberStatus{
-				Registered:       registered,
-				ConnectionState:  connectionState(registered, merged.Connected),
+				Registered:       merged.Registered,
+				ConnectionState:  connectionState(on5G || on4G, merged.Connected),
 				RadioAccessTypes: merged.RATs,
 				NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
 				LastSeenRadio:    merged.LastSeenRadio,
@@ -496,22 +502,20 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 
 		merged := mergeAccesses(
 			accessView{
-				rat: "4G", present: on4G, connected: cs.Connected, imei: cs.Imei,
+				rat: "4G", present: on4G, registered: cs.Registered, connected: cs.Connected, imei: cs.Imei,
 				ciphering: cs.CipheringAlgorithm, integrity: cs.IntegrityAlgorithm,
 				lastSeenAt: lastSeenAt(on4G, cs.LastSeenAt, mmeLastSeen.At), lastSeenRadio: mmeLastSeen.RadioName,
 			},
 			accessView{
-				rat: "5G", present: found, connected: snap.Connected, imei: snap.Imei,
+				rat: "5G", present: found, registered: snap.Registered, connected: snap.Connected, imei: snap.Imei,
 				ciphering: snap.CipheringAlgorithm, integrity: snap.IntegrityAlgorithm,
 				lastSeenAt: lastSeenAt(found, snap.LastSeenAt, amfLastSeen.At), lastSeenRadio: amfLastSeen.RadioName,
 			},
 		)
 
-		registered := on4G || found
-
 		subscriberStatus := SubscriberDetailStatus{
-			Registered:         registered,
-			ConnectionState:    connectionState(registered, merged.Connected),
+			Registered:         merged.Registered,
+			ConnectionState:    connectionState(on4G || found, merged.Connected),
 			RadioAccessTypes:   merged.RATs,
 			LastSeenRadio:      merged.LastSeenRadio,
 			Imei:               merged.Imei,

@@ -292,3 +292,36 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 		t.Errorf("RadioName = %q, want the captured name enb-unclaimed", seen.RadioName)
 	}
 }
+
+func TestLastSeenRadioFollowsAnX2PathSwitch(t *testing.T) {
+	const imsi = "001010000000001"
+
+	m := newTestMME(t)
+	source := connectENB(t, m, "enb-a", 1)
+	target := connectENB(t, m, "enb-b", 2)
+
+	ue := m.NewUe(source, 7)
+	registerTestUE(m, ue, imsi)
+	ue.ForceStateForTest(EMMRegistered)
+
+	if err := m.CommitUEIdentity(t.Context(), ue, MintAuthProofForAttachCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	ue.TouchLastSeen()
+
+	if _, ok := m.CommitPathSwitch(ue, target, 9, [32]byte{}, 0); !ok {
+		t.Fatal("CommitPathSwitch reported the UE released")
+	}
+
+	m.FreeUeConn(ue)
+
+	seen, ok := m.LastSeen(imsi)
+	if !ok {
+		t.Fatal("retained record missing after the path switch")
+	}
+
+	if seen.RadioName != "enb-b" {
+		t.Errorf("RadioName = %q, want the target enb-b", seen.RadioName)
+	}
+}
