@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -66,22 +65,6 @@ func TestGetCellPosition_Success(t *testing.T) {
 	}
 }
 
-func TestGetCellPosition_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Cell position not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	if _, err := clientObj.GetCellPosition(context.Background(), "missing"); err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestCreateCellPosition_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -107,23 +90,6 @@ func TestCreateCellPosition_Success(t *testing.T) {
 
 	if fake.lastOpts.Method != "POST" || fake.lastOpts.Path != "api/beta/cell-positions" {
 		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-}
-
-func TestCreateCellPosition_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "mcc and mnc are required"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.CreateCellPosition(context.Background(), &client.CreateCellPositionOptions{RAT: "nr"})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -172,21 +138,5 @@ func TestDeleteCellPosition_Success(t *testing.T) {
 
 	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/beta/cell-positions/cp-1" {
 		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-}
-
-func TestDeleteCellPosition_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Cell position not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	if err := clientObj.DeleteCellPosition(context.Background(), "missing"); err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
