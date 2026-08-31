@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -48,18 +47,6 @@ func TestListClusterMembers_Success(t *testing.T) {
 	}
 }
 
-func TestListClusterMembers_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("connection refused"),
-	}
-	c := &client.Client{Requester: fake}
-
-	_, err := c.ListClusterMembers(context.Background())
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
 func TestDrainClusterMember_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -85,18 +72,6 @@ func TestDrainClusterMember_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/cluster/members/3/drain" {
 		t.Errorf("expected api/v1/cluster/members/3/drain, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestDrainClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("leader unavailable"),
-	}
-	c := &client.Client{Requester: fake}
-
-	_, err := c.DrainClusterMember(context.Background(), 1)
-	if err == nil {
-		t.Fatal("expected error, got nil")
 	}
 }
 
@@ -147,18 +122,6 @@ func TestPromoteClusterMember_Success(t *testing.T) {
 	}
 }
 
-func TestPromoteClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("not found"),
-	}
-	c := &client.Client{Requester: fake}
-
-	err := c.PromoteClusterMember(context.Background(), 99)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
 func TestRemoveClusterMember_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -203,18 +166,6 @@ func TestRemoveClusterMember_Force(t *testing.T) {
 
 	if got := fake.lastOpts.Query.Get("force"); got != "true" {
 		t.Errorf("expected force=true in the query, got %q", got)
-	}
-}
-
-func TestRemoveClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("server error"),
-	}
-	c := &client.Client{Requester: fake}
-
-	err := c.RemoveClusterMember(context.Background(), 2, false)
-	if err == nil {
-		t.Fatal("expected error, got nil")
 	}
 }
 

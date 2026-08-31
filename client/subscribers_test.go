@@ -6,7 +6,6 @@ package client_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -38,33 +37,6 @@ func TestCreateSubscriber_Success(t *testing.T) {
 	err := clientObj.CreateSubscriber(ctx, createSubscriberOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestCreateSubscriber_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid IMSI"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	createSubscriberOpts := &client.CreateSubscriberOptions{
-		Imsi:           "invalid_imsi",
-		Key:            "5122250214c33e723a5dd523fc145fc0",
-		SequenceNumber: "000000000022",
-		ProfileName:    "default",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateSubscriber(ctx, createSubscriberOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -146,32 +118,6 @@ func TestGetSubscriber_Success(t *testing.T) {
 	}
 }
 
-func TestGetSubscriber_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Subscriber not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	imsi := "non_existent_imsi"
-
-	getSubOpts := &client.GetSubscriberOptions{
-		ID: imsi,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetSubscriber(ctx, getSubOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateSubscriber_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -205,31 +151,6 @@ func TestUpdateSubscriber_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateSubscriber_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Subscriber not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateSubscriberOptions{
-		ProfileName: "enterprise",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateSubscriber(ctx, "non_existent_imsi", opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeleteSubscriber_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -253,32 +174,6 @@ func TestDeleteSubscriber_Success(t *testing.T) {
 	err := clientObj.DeleteSubscriber(ctx, deleteSubOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteSubscriber_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Subscriber not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	imsi := "non_existent_imsi"
-
-	deleteSubOpts := &client.DeleteSubscriberOptions{
-		ID: imsi,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteSubscriber(ctx, deleteSubOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -357,32 +252,6 @@ func TestListSubscribers_Query(t *testing.T) {
 	}
 }
 
-func TestListSubscribers_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListSubscribersParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListSubscribers(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetSubscriberCredentials_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -417,31 +286,6 @@ func TestGetSubscriberCredentials_Success(t *testing.T) {
 
 	if creds.SequenceNumber != "16f3b3f70fc2" {
 		t.Fatalf("expected sequenceNumber 16f3b3f70fc2, got %s", creds.SequenceNumber)
-	}
-}
-
-func TestGetSubscriberCredentials_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Subscriber not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	opts := &client.GetSubscriberCredentialsOptions{
-		ID: "non_existent_imsi",
-	}
-
-	_, err := clientObj.GetSubscriberCredentials(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 

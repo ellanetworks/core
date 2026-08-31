@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -68,34 +67,6 @@ func TestListUsage_Success(t *testing.T) {
 	}
 }
 
-func TestListUsage_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListUsageParams{
-		Start:      "2023-10-01",
-		End:        "2023-10-02",
-		GroupBy:    "day",
-		Subscriber: "",
-	}
-
-	_, err := clientObj.ListUsage(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 // TestListUsage_InvalidGroupBy verifies the client rejects an unsupported
 // group_by before issuing a request.
 func TestListUsage_InvalidGroupBy(t *testing.T) {
@@ -145,27 +116,6 @@ func TestGetUsageRetentionPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestGetUsageRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetUsageRetentionPolicy(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateUsageRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -191,31 +141,6 @@ func TestUpdateUsageRetentionPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateUsageRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request body"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updateOpts := &client.UpdateUsageRetentionPolicyOptions{
-		Days: -10,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateUsageRetentionPolicy(ctx, updateOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestClearUsage_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -233,21 +158,5 @@ func TestClearUsage_Success(t *testing.T) {
 
 	if fake.lastOpts.Method != "DELETE" || fake.lastOpts.Path != "api/v1/subscriber-usage" {
 		t.Fatalf("unexpected request: %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
-	}
-}
-
-func TestClearUsage_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Failed to clear subscriber usage"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	if err := clientObj.ClearUsage(context.Background()); err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

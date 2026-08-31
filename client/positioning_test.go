@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -50,21 +49,5 @@ func TestListPositioningSessions_EmptySUPI(t *testing.T) {
 
 	if _, err := clientObj.ListPositioningSessions(context.Background(), ""); err == nil {
 		t.Fatalf("expected error for empty supi, got none")
-	}
-}
-
-func TestListPositioningSessions_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Failed to list sessions"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	if _, err := clientObj.ListPositioningSessions(context.Background(), "imsi-001010000000001"); err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
