@@ -17,10 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestDeleteSessionRemovesFramedRoutes asserts that deleting a session removes
-// its framed-route LPM entries from the datapath, so a released session leaves
-// no orphan framed routes (TS 29.244 §5.16). Requires root to load the eBPF
-// maps.
+// TS 29.244 §5.16
 func TestDeleteSessionRemovesFramedRoutes(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

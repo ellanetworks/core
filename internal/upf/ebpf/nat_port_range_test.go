@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-// ICMP is excluded: its identifier is not drawn from the host's ephemeral
-// range, so the port range neither constrains it nor protects it.
 func portedProtos() []natProto {
 	var out []natProto
 
@@ -35,8 +33,6 @@ func TestNATAllocatesWithinPortRange(t *testing.T) {
 	f := setupT2(t, true)
 	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 
-	// Spanning the privileged range, the allocation range, and the host's
-	// default ephemeral range (32768-60999).
 	ueSourcePorts := []uint16{80, 1023, 1024, 20000, 32767, 32768, 40000, 60999, 61000, 65535}
 
 	for _, proto := range portedProtos() {
@@ -44,7 +40,7 @@ func TestNATAllocatesWithinPortRange(t *testing.T) {
 			t.Run(proto.name+"/"+strconv.Itoa(int(ueSport)), func(t *testing.T) {
 				capFD := f.captureN6(t)
 
-				dport := uint16(9000 + i) // distinct 5-tuple per case
+				dport := uint16(9000 + i)
 				l4 := proto.build(ueIP, serverIP, ueSport, dport, []byte{1, 2, 3, 4})
 				f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, proto.num, l4)))
 
@@ -80,7 +76,7 @@ func TestNATDropsDownlinkOutsidePortRange(t *testing.T) {
 	const (
 		dlTEID   = 0x4E415451
 		qfi      = 7
-		hostPort = 40000 // within the host's ephemeral range, never allocated here
+		hostPort = 40000
 	)
 
 	f := setupT2(t, true)

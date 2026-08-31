@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-// Test nil bpfObjects returns nil, no error
 func TestDumpAll_Nil(t *testing.T) {
 	metas, err := DumpAll(context.Background(), nil, DumpOptions{}, tar.NewWriter(&bytes.Buffer{}))
 	if err != nil {
@@ -29,12 +28,11 @@ func TestDumpAll_Nil(t *testing.T) {
 	}
 }
 
-// mockMap implements MapHandle for tests
 type mockMap struct {
 	mtype   bpf.MapType
 	keySize int
 	valSize int
-	entries [][2][]byte // list of {key, val}
+	entries [][2][]byte
 }
 
 func (m *mockMap) Type() bpf.MapType { return m.mtype }
@@ -66,11 +64,9 @@ func (m *mockMap) LookupRaw(keyBytes []byte) ([]byte, error) {
 }
 
 func (m *mockMap) UnderlyingMap() *bpf.Map {
-	// mockMap does not have an underlying *bpf.Map; return nil to use fallback
 	return nil
 }
 
-// fakeMaps mirrors the real struct tags used by the generated code.
 type fakeMaps struct {
 	DownlinkRouteStats MapHandle `ebpf:"downlink_route_stats"`
 	DownlinkStatistics MapHandle `ebpf:"downlink_statistics"`
@@ -89,7 +85,6 @@ type fakeMaps struct {
 }
 
 func TestDumpAll_WritesMetaAndNDJSON(t *testing.T) {
-	// prepare a pdr info entry
 	pdr := ebpf.N3N6EntrypointPdrInfo{LocalSeid: 1, Imsi: 2, PdrId: 3}
 	key, _ := json.Marshal(uint32(7))
 	val, _ := json.Marshal(pdr)
@@ -113,7 +108,6 @@ func TestDumpAll_WritesMetaAndNDJSON(t *testing.T) {
 		t.Fatalf("expected some metadata entries, got none")
 	}
 
-	// read tar entries and find pdrs_uplink file
 	tr := tar.NewReader(bytes.NewReader(buf.Bytes()))
 	found := false
 
@@ -152,7 +146,6 @@ func TestDumpAll_WritesMetaAndNDJSON(t *testing.T) {
 }
 
 func TestExcludeAndRingbufSkip(t *testing.T) {
-	// create fake maps with an excluded pdrs_uplink and a ringbuf nocp_map
 	key, _ := json.Marshal(uint32(1))
 	val, _ := json.Marshal(map[string]int{"x": 1})
 
@@ -193,9 +186,7 @@ func TestExcludeAndRingbufSkip(t *testing.T) {
 	}
 }
 
-// TestTruncation ensures DumpAll truncates map iteration when MaxEntriesPerMap is set
 func TestTruncation(t *testing.T) {
-	// prepare 5 entries, but set MaxEntriesPerMap to 2
 	var entries [][2][]byte
 
 	for i := range 5 {
@@ -204,7 +195,6 @@ func TestTruncation(t *testing.T) {
 		entries = append(entries, [2][]byte{k, v})
 	}
 
-	// local fake struct with ebpf tag matching desired map name
 	type truncStruct struct {
 		TestTrunc MapHandle `ebpf:"test_trunc_map"`
 	}
@@ -244,7 +234,6 @@ func TestTruncation(t *testing.T) {
 		t.Fatalf("expected NumEntriesReported=%d, got %d", opts.MaxEntriesPerMap, metaFound.NumEntriesReported)
 	}
 
-	// inspect tar and count lines in ndjson.gz for the map
 	tr := tar.NewReader(bytes.NewReader(buf.Bytes()))
 	found := false
 
@@ -293,9 +282,7 @@ func TestTruncation(t *testing.T) {
 	}
 }
 
-// TestPerCPUOutput ensures per-CPU maps are decoded into a 'cpus' array in NDJSON
 func TestPerCPUOutput(t *testing.T) {
-	// per-CPU sample values
 	cpuVals := []uint64{10, 20, 30}
 	raw, _ := json.Marshal(cpuVals)
 
@@ -319,7 +306,6 @@ func TestPerCPUOutput(t *testing.T) {
 
 	_ = metas
 
-	// read tar and find test_percpu.ndjson.gz
 	tr := tar.NewReader(bytes.NewReader(buf.Bytes()))
 	found := false
 
@@ -340,7 +326,7 @@ func TestPerCPUOutput(t *testing.T) {
 			if err != nil {
 				t.Fatalf("gzip reader: %v", err)
 			}
-			// read first non-empty line
+
 			dec := json.NewDecoder(gz)
 
 			var v map[string]any
@@ -365,7 +351,6 @@ func TestPerCPUOutput(t *testing.T) {
 			}
 
 			for i := range arr {
-				// JSON numbers are float64
 				if float64(cpuVals[i]) != arr[i].(float64) {
 					t.Fatalf("unexpected cpu value at %d: expected %v got %v", i, cpuVals[i], arr[i])
 				}

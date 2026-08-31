@@ -11,8 +11,6 @@ import (
 	"testing"
 )
 
-// preservedMaps derives its set from N3N6EntrypointMaps, so a map missing from
-// that struct is recreated on reload and loses its state.
 func TestEveryMapIsAssignedAndClassified(t *testing.T) {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -29,7 +27,6 @@ func TestEveryMapIsAssignedAndClassified(t *testing.T) {
 	}
 
 	for name := range spec.Maps {
-		// .rodata and .bss hold the globals a reload exists to change.
 		if strings.HasPrefix(name, ".") {
 			continue
 		}

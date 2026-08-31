@@ -17,10 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestEstablishSessionSkipsMismatchedFamilyFramedRoute asserts that a framed
-// route whose family the session does not carry (here an IPv6 route on an
-// IPv4-only session) is skipped, not fatal: a dormant cross-family route must
-// not deny the UE all connectivity (TS 23.501 §5.6.14). Requires root.
+// TS 23.501 §5.6.14
 func TestEstablishSessionSkipsMismatchedFamilyFramedRoute(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

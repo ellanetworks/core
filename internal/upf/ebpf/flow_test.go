@@ -10,10 +10,6 @@ import (
 	"testing"
 )
 
-// TestFlowReportUplink checks that, with flow accounting enabled, a forwarded
-// uplink packet records a flow_stats entry with the expected key (IMSI,
-// addresses, protocol, action, egress interface) and counts. flow_stats is a
-// regular LRU hash, so it reads back after BPF_PROG_TEST_RUN.
 func TestFlowReportUplink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -22,7 +18,7 @@ func TestFlowReportUplink(t *testing.T) {
 	obj := loadProgramFlow(t, 0, 1)
 	putForwardingUplinkPDR(t, obj, teid, 0)
 
-	srcUE := [4]byte{10, 0, 0, 9} // innerIPv4UDP source
+	srcUE := [4]byte{10, 0, 0, 9}
 	dst := [4]byte{8, 8, 8, 8}
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv4UDP(dst, 53)))
@@ -59,8 +55,6 @@ func TestFlowReportUplink(t *testing.T) {
 		t.Errorf("flow egress ifindex = %d, want 1 (N6)", key.EgressIfindex)
 	}
 
-	// From the datapath: derived from the ingress ifindex, a shared interface
-	// or master labels every flow uplink.
 	if key.Direction != FlowDirectionUplink {
 		t.Errorf("flow direction = %d, want %d (uplink)", key.Direction, FlowDirectionUplink)
 	}
@@ -82,8 +76,6 @@ func TestFlowReportUplink(t *testing.T) {
 	}
 }
 
-// TestURRByteAccounting checks that a URR accumulates the forwarded byte count
-// across packets. urr_map is a PERCPU_HASH, which reads back after a test-run.
 func TestURRByteAccounting(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -102,7 +94,7 @@ func TestURRByteAccounting(t *testing.T) {
 		SEID:         seid,
 		IMSI:         "001010000000001",
 		UrrID:        urrID,
-		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
+		Far:          FarInfo{Action: 0x02},
 		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
 		UEIPv4:       netip.AddrFrom4([4]byte{10, 0, 0, 9}),
 		UEIPv6Prefix: netip.MustParseAddr("2001:db8::"),
@@ -112,7 +104,7 @@ func TestURRByteAccounting(t *testing.T) {
 	}
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
-	perPacket := uint64(ethHdrLen + len(inner)) // URR counts the decapsulated frame
+	perPacket := uint64(ethHdrLen + len(inner))
 
 	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
@@ -127,9 +119,6 @@ func TestURRByteAccounting(t *testing.T) {
 	}
 }
 
-// TestFlowReportDownlink is the downlink counterpart to TestFlowReportUplink: a
-// forwarded downlink packet records a flow with the server as source, the UE as
-// destination, and the N3 egress interface.
 func TestFlowReportDownlink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -193,8 +182,6 @@ func TestFlowReportDownlink(t *testing.T) {
 	}
 }
 
-// TestURRByteAccountingDownlink checks that a downlink URR accumulates the
-// forwarded byte count.
 func TestURRByteAccountingDownlink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -220,7 +207,7 @@ func TestURRByteAccountingDownlink(t *testing.T) {
 
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
 	frame := ethFrame(0x0800, inner)
-	perPacket := uint64(len(frame)) // URR counts the pre-encapsulation frame
+	perPacket := uint64(len(frame))
 
 	runXDP(t, obj.UpfEntryFunc, frame)
 

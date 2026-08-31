@@ -17,18 +17,11 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
-// canonicalUEv4 and canonicalUEv6Prefix are the authorized uplink source
-// addresses that match the shared inner-packet builders (innerIPv4UDP sources
-// from 10.0.0.9; innerIPv6UDP from 2001:db8::9, in 2001:db8::/64).
 var (
 	canonicalUEv4       = netip.AddrFrom4([4]byte{10, 0, 0, 9})
 	canonicalUEv6Prefix = netip.MustParseAddr("2001:db8::")
 )
 
-// TestParseGTPTruncatedExtension checks that a malformed GTP-U packet fails
-// closed: the parser rejects it and the packet is passed to the kernel
-// (ActionPass) rather than aborting the data path, whether or not its TEID matches
-// an installed PDR.
 func TestParseGTPTruncatedExtension(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -55,10 +48,7 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 	}
 }
 
-// TestOuterFragmentNotParsedAsGTPU: a non-first fragment of the tunnel
-// transport has payload where its UDP header would be. Payload that spells the
-// GTP-U port would otherwise be decapsulated, with the TEID read from payload
-// too (RFC 1858).
+// RFC 1858
 func TestOuterFragmentNotParsedAsGTPU(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -66,8 +56,6 @@ func TestOuterFragmentNotParsedAsGTPU(t *testing.T) {
 
 	obj := loadUplinkTestObjects(t, teid)
 
-	// A later fragment whose payload spells sport 3000, dport 2152, then a
-	// G-PDU header for the installed TEID.
 	gtp := make([]byte, 8)
 	gtp[0] = 0x30
 	gtp[1] = 0xFF
@@ -76,7 +64,6 @@ func TestOuterFragmentNotParsedAsGTPU(t *testing.T) {
 	payload := append(udpDatagram(3000, GTPUDPPort, gtp), innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)...)
 
 	ip4 := ipv4Packet(testGNBIP, testUPFN3IP, 17, payload)
-	// Fragment offset 1 (8 bytes in), more-fragments clear.
 	binary.BigEndian.PutUint16(ip4[6:8], 1)
 
 	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, ip4))
@@ -86,11 +73,6 @@ func TestOuterFragmentNotParsedAsGTPU(t *testing.T) {
 	}
 }
 
-// TestEntrypointClassifiesByPacketType checks that the entry dispatches on
-// packet type, not ingress interface: a plain (non-GTP) packet is treated as
-// downlink and, with no matching session, passed to the stack. Classifying by
-// packet type is what lets a single entry serve N3 and N6 whether they are
-// separate interfaces or the same one.
 func TestEntrypointClassifiesByPacketType(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -103,8 +85,6 @@ func TestEntrypointClassifiesByPacketType(t *testing.T) {
 	}
 }
 
-// requireProgTestRun skips when the test cannot run privileged, unless
-// EBPF_REQUIRE_PRIVILEGED is set, which makes the missing privilege fatal.
 func requireProgTestRun(t *testing.T) {
 	t.Helper()
 
@@ -122,41 +102,26 @@ func requireProgTestRun(t *testing.T) {
 	}
 }
 
-// loadProgram loads the N3/N6 program with the given interface indices.
-//
-// XDP BPF_PROG_TEST_RUN runs with ingress_ifindex == 1 (loopback). The
-// entrypoint tags a packet N3 or N6 by matching that against n3Ifindex/n6Ifindex,
-// and the in-path bpf_check_mtu needs a real device (loopback, index 1). GTP
-// decap runs from handle_ip4 regardless of the N3/N6 tag, and
-// handle_gtp_packet/handle_n6_packet set ctx->interface themselves — so
-// verdict/DataOut tests don't depend on the tag; only stats-map selection does
-// (see stats_test.go).
 func loadProgram(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
 	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
-// loadProgramVLAN is loadProgram with configurable N3/N6 VLAN IDs.
 func loadProgramVLAN(t *testing.T, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
 	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
 }
 
-// loadProgramFlow is loadProgram with flow accounting enabled.
 func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
 	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
-// Selects the SCHED_CLS build and TCX attach for the real-attach fixtures, so
-// the same suites run per mode. BPF_PROG_TEST_RUN suites always exercise the
-// XDP build; tc_test.go covers the TC build there.
 func testAttachModeTCX() bool { return os.Getenv("ELLA_TEST_ATTACH_MODE") == "tcx" }
 
-// loadAttachedProgramConfig is loadProgramConfig at the fixture attach mode.
 func loadAttachedProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
@@ -195,36 +160,26 @@ func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex,
 	return obj
 }
 
-// loadN3N6Program is the loader for the GTP/uplink tests. n3_ifindex 0 keeps the
-// routing ifindex-mismatch check disabled (stable forwarding verdicts) and
-// n6_ifindex 1 (loopback) is the valid MTU/egress device. The GTP decap path in
-// handle_ip4 runs regardless of the entrypoint's N3/N6 tag; these tests assert on
-// the packet/verdict, not the stats-map selection.
 func loadN3N6Program(t *testing.T) *BpfObjects {
 	t.Helper()
 
 	return loadProgram(t, 0, 1)
 }
 
-// putForwardingUplinkPDR installs an uplink PDR for teid that forwards (FAR FORW,
-// QER gate open, unlimited rate) and applies SDF filter filterIndex; 0 disables
-// filtering.
 func putForwardingUplinkPDR(t *testing.T, obj *BpfObjects, teid, filterIndex uint32) {
 	t.Helper()
 
 	putForwardingUplinkPDRUE(t, obj, teid, filterIndex, canonicalUEv4, canonicalUEv6Prefix)
 }
 
-// putForwardingUplinkPDRUE is putForwardingUplinkPDR with explicit authorized UE
-// source addresses (anti-spoofing). A zero ueV4/ueV6 leaves that family unset.
 func putForwardingUplinkPDRUE(t *testing.T, obj *BpfObjects, teid, filterIndex uint32, ueV4, ueV6 netip.Addr) {
 	t.Helper()
 
 	pdr := PdrInfo{
-		OuterHeaderRemoval: 0,                 // OHR_GTP_U_UDP_IPv4
-		IMSI:               "001010000000001", // non-numeric IMSI zeroes the FAR
-		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+		OuterHeaderRemoval: 0,
+		IMSI:               "001010000000001",
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
 		FilterMapIndex:     filterIndex,
 		UEIPv4:             ueV4,
 		UEIPv6Prefix:       ueV6,
@@ -251,15 +206,12 @@ func runXDP(t *testing.T, prog *ebpf.Program, packet []byte) uint32 {
 	return action
 }
 
-// runXDPOut runs the program and returns its action together with the resulting
-// packet. BPF_PROG_TEST_RUN re-slices the output buffer to the packet's final
-// length, so a head adjustment (GTP decapsulation/encapsulation) is reflected.
 func runXDPOut(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	t.Helper()
 
 	opts := &ebpf.RunOptions{
 		Data:    packet,
-		DataOut: make([]byte, len(packet)+256), // headroom for encapsulation growth
+		DataOut: make([]byte, len(packet)+256),
 	}
 
 	action, err := prog.Run(opts)
@@ -274,10 +226,6 @@ func runXDPOut(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte)
 	return action, opts.DataOut
 }
 
-// TestGTPDecapsulation checks that a well-formed uplink G-PDU is decapsulated to
-// its inner IP packet: the outer GTP-U/UDP/IP headers are stripped and the inner
-// packet is preserved byte for byte. The final action depends on the host's
-// routing table, so the assertion is on the output packet, not the verdict.
 func TestGTPDecapsulation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -290,8 +238,6 @@ func TestGTPDecapsulation(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	// The exact forwarding code (ActionTx vs ActionRedirect) depends on the host
-	// FIB, but the decapsulated packet must not be dropped or aborted.
 	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
 	}
@@ -309,11 +255,6 @@ func TestGTPDecapsulation(t *testing.T) {
 	}
 }
 
-// TestGTPDecapsulationStackedExtHeaders checks that an uplink G-PDU whose GTP
-// header carries more than the single PDU Session Container extension header is
-// decapsulated by stripping the actual parsed header length: the recovered inner
-// packet must be byte-identical. It guards the variable-length header handling
-// against a regression to a fixed-size strip.
 func TestGTPDecapsulationStackedExtHeaders(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -340,15 +281,11 @@ func TestGTPDecapsulationStackedExtHeaders(t *testing.T) {
 	}
 }
 
-// TestGTPErrorIndicationOnUnknownTEID checks that a G-PDU received for a TEID
-// with no PDU session is answered with a GTP-U Error Indication reflected to the
-// sender (TS 29.281 §7.3.1), carrying the triggering TEID (Tunnel Endpoint
-// Identifier Data I, §8.3) and the UPF address (GTP-U Peer Address, §8.4).
+// TS 29.281 §7.3.1
 func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 	requireProgTestRun(t)
 
 	obj := loadN3N6Program(t)
-	// The fresh program has no uplink PDRs, so this TEID is unknown.
 
 	const teid = 0x21222399
 
@@ -362,7 +299,7 @@ func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 
 	const gtpErrorIndication = 26
 
-	gtpOff := ethHdrLen + 20 + 8 // eth + IPv4 + UDP
+	gtpOff := ethHdrLen + 20 + 8
 
 	if got := out[gtpOff+1]; got != gtpErrorIndication {
 		t.Errorf("GTP message type = %d, want %d (Error Indication)", got, gtpErrorIndication)
@@ -372,8 +309,6 @@ func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 		t.Errorf("Error Indication header TEID = %#x, want 0 (TS 29.281 §5.1)", hdrTeid)
 	}
 
-	// Mandatory IEs after the 12-octet header: TEID Data I (type 16) carrying the
-	// triggering TEID, then GTP-U Peer Address (type 133) = the UPF.
 	ieOff := gtpOff + 12
 	if out[ieOff] != 16 {
 		t.Errorf("first IE type = %d, want 16 (TEID Data I)", out[ieOff])
@@ -391,7 +326,6 @@ func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 		t.Errorf("GTP-U Peer Address = %v, want %v (the UPF)", out[ieOff+8:ieOff+12], testUPFN3IP)
 	}
 
-	// Reflected to the sender: outer src = UPF, dst = the originating gNB.
 	if !bytes.Equal(out[ethHdrLen+12:ethHdrLen+16], testUPFN3IP[:]) {
 		t.Errorf("outer src = %v, want %v (UPF)", out[ethHdrLen+12:ethHdrLen+16], testUPFN3IP)
 	}
@@ -400,17 +334,12 @@ func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 		t.Errorf("outer dst = %v, want %v (reflected to the sender)", out[ethHdrLen+16:ethHdrLen+20], testGNBIP)
 	}
 
-	// The trailing T-PDU is trimmed: the frame ends after the two IEs.
 	if wantLen := ethHdrLen + 20 + 8 + 24; len(out) != wantLen {
 		t.Errorf("Error Indication frame length = %d, want %d (header + two IEs, T-PDU trimmed)", len(out), wantLen)
 	}
 }
 
-// TestGTPErrorIndicationOnUnknownTEIDIPv6Transport is the IPv6-transport
-// counterpart: a G-PDU received over IPv6 N3 transport for a TEID with no PDU
-// session must likewise be answered with a GTP-U Error Indication, with the
-// GTP-U Peer Address IE carrying the 16-octet IPv6 address (TS 29.281 §7.3.1,
-// §8.4).
+// TS 29.281 §7.3.1
 func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -428,7 +357,7 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 
 	const gtpErrorIndication = 26
 
-	gtpOff := ethHdrLen + 40 + 8 // eth + IPv6 + UDP
+	gtpOff := ethHdrLen + 40 + 8
 
 	if got := out[gtpOff+1]; got != gtpErrorIndication {
 		t.Errorf("GTP message type = %d, want %d (Error Indication)", got, gtpErrorIndication)
@@ -438,8 +367,6 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 		t.Errorf("Error Indication header TEID = %#x, want 0 (TS 29.281 §5.1)", hdrTeid)
 	}
 
-	// Mandatory IEs: TEID Data I (type 16) carrying the triggering TEID, then
-	// GTP-U Peer Address (type 133, length 16) = the UPF's IPv6 address.
 	ieOff := gtpOff + 12
 	if out[ieOff] != 16 {
 		t.Errorf("first IE type = %d, want 16 (TEID Data I)", out[ieOff])
@@ -461,7 +388,6 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 		t.Errorf("GTP-U Peer Address = %v, want %v (the UPF)", out[ieOff+8:ieOff+24], testUPFN3v6)
 	}
 
-	// Reflected to the sender: outer src = UPF, dst = the originating gNB.
 	if !bytes.Equal(out[ethHdrLen+8:ethHdrLen+24], testUPFN3v6[:]) {
 		t.Errorf("outer src = %v, want %v (UPF)", out[ethHdrLen+8:ethHdrLen+24], testUPFN3v6)
 	}
@@ -470,15 +396,11 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 		t.Errorf("outer dst = %v, want %v (reflected to the sender)", out[ethHdrLen+24:ethHdrLen+40], testGNBv6)
 	}
 
-	// The trailing T-PDU is trimmed: the frame ends after the two IEs.
 	if wantLen := ethHdrLen + 40 + 8 + 36; len(out) != wantLen {
 		t.Errorf("Error Indication frame length = %d, want %d (header + two IEs, T-PDU trimmed)", len(out), wantLen)
 	}
 }
 
-// TestGTPDecapsulationInnerIPv6 checks that an uplink G-PDU carrying an inner
-// IPv6 packet is decapsulated to that IPv6 packet, with the Ethernet protocol
-// set to IPv6.
 func TestGTPDecapsulationInnerIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -508,8 +430,6 @@ func TestGTPDecapsulationInnerIPv6(t *testing.T) {
 	}
 }
 
-// TestGTPDecapsulationIPv6Transport checks that a G-PDU received over an IPv6
-// transport (outer IPv6/UDP) is decapsulated to its inner IPv4 packet.
 func TestGTPDecapsulationIPv6Transport(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -539,16 +459,14 @@ func TestGTPDecapsulationIPv6Transport(t *testing.T) {
 	}
 }
 
-// putForwardingUplinkPDRv6Outer installs an uplink PDR for teid whose outer
-// header is removed as GTP-U over IPv6.
 func putForwardingUplinkPDRv6Outer(t *testing.T, obj *BpfObjects, teid uint32) {
 	t.Helper()
 
 	pdr := PdrInfo{
-		OuterHeaderRemoval: 1, // OHR_GTP_U_UDP_IPv6
+		OuterHeaderRemoval: 1,
 		IMSI:               "001010000000001",
-		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
 		UEIPv4:             canonicalUEv4,
 		UEIPv6Prefix:       canonicalUEv6Prefix,
 	}
@@ -557,11 +475,6 @@ func putForwardingUplinkPDRv6Outer(t *testing.T, obj *BpfObjects, teid uint32) {
 	}
 }
 
-// TestNonGTPOnN3IsNotDownlink: a plain IP frame on N3 is left to the host
-// stack. Downlink tunnels to a UE on its destination address alone, so anything
-// with L2 reach to the N3 segment could otherwise reach a subscriber by
-// addressing its prefix. BPF_PROG_TEST_RUN uses ingress_ifindex 1, which the
-// n3/n6 indices below are placed against.
 func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -573,9 +486,6 @@ func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
 	ueIP := [4]byte{10, 45, 0, 2}
 	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
 
-	// Created, not assumed: the suite runs in a namespace holding only lo, so
-	// a hardcoded index resolves to no device and bpf_check_mtu returns
-	// -ENODEV, which reads exactly like the guard wrongly firing.
 	addVethPair(t, t2N3Dev, t2N3Peer)
 
 	other := ifByName(t, t2N3Dev).Index
@@ -598,15 +508,12 @@ func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
 			inner: ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 53, nil)),
 		},
 		{
-			// The same frame on the interface it belongs on.
 			name: "IPv6 arriving on N6 is tunnelled",
 			n3:   other, n6: 1,
 			inner:          ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil)),
 			wantEncapsulat: true,
 		},
 		{
-			// The guard must not fire, or a single-NIC deployment
-			// loses its downlink entirely.
 			name: "IPv6 on a shared interface is tunnelled",
 			n3:   1, n6: 1,
 			inner:          ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil)),
@@ -639,8 +546,6 @@ func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
 
 			if tc.wantEncapsulat {
 				if len(out) != ethHdrLen+gtpV4EncapLen+len(tc.inner) {
-					// A pass is the guard firing; an abort
-					// is the frame dying earlier.
 					t.Fatalf("frame was not tunnelled: output is %d bytes, want %d (XDP action %d)", len(out), ethHdrLen+gtpV4EncapLen+len(tc.inner), action)
 				}
 
