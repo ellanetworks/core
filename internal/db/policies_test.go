@@ -13,18 +13,7 @@ import (
 )
 
 func TestPoliciesEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	res, total, err := database.ListPoliciesPage(context.Background(), 1, 10)
 	if err != nil {
@@ -158,18 +147,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 }
 
 func TestGetPolicyByLookup(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
 	if err != nil {
@@ -203,18 +181,7 @@ func TestGetPolicyByLookup(t *testing.T) {
 }
 
 func TestGetPolicyByProfileAndSlice(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
 	if err != nil {
@@ -243,18 +210,7 @@ func TestGetPolicyByProfileAndSlice(t *testing.T) {
 }
 
 func TestCountPoliciesInRelations(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
 	if err != nil {
@@ -310,18 +266,7 @@ func TestCountPoliciesInRelations(t *testing.T) {
 }
 
 func TestPoliciesInDataNetworkAndSlice(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	// Default data network "internet" has the default policy
 	exists, err := database.PoliciesInDataNetwork(context.Background(), "internet")
@@ -363,18 +308,7 @@ func TestPoliciesInDataNetworkAndSlice(t *testing.T) {
 }
 
 func TestGetSessionPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
 	if err != nil {

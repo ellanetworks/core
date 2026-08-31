@@ -5,25 +5,13 @@ package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestPositioningSessionCreateDelete(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	session := &db.PositioningSession{
 		SUPI:        "imsi-001010000000001",
@@ -56,20 +44,9 @@ func TestPositioningSessionCreateDelete(t *testing.T) {
 }
 
 func TestPositioningSessionDeleteNotFound(t *testing.T) {
-	tempDir := t.TempDir()
+	database := setupTestDB(t)
 
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	err = database.DeletePositioningSession(context.Background(), "non-existent-id")
+	err := database.DeletePositioningSession(context.Background(), "non-existent-id")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound deleting non-existent session, got: %v", err)
 	}
