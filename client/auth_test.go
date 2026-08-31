@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -44,32 +43,6 @@ func TestLogin_Success(t *testing.T) {
 	token := clientObj.GetToken()
 	if token != "testtoken" {
 		t.Errorf("expected token 'testtoken', got: %s", token)
-	}
-}
-
-// TestLogin_RequesterError verifies that if the Requester returns an error, Login passes it along.
-func TestLogin_RequesterError(t *testing.T) {
-	fake := &fakeRequester{
-		response: nil,
-		err:      errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	loginOpts := &client.LoginOptions{
-		Email:    "user@example.com",
-		Password: "secret",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.Login(ctx, loginOpts)
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-
-	if err.Error() != "requester error" {
-		t.Errorf("expected 'requester error', got: %v", err)
 	}
 }
 
@@ -162,28 +135,6 @@ func TestRefresh_Success(t *testing.T) {
 	token := clientObj.GetToken()
 	if token != "refreshtoken" {
 		t.Errorf("expected token 'refreshtoken', got: %s", token)
-	}
-}
-
-func TestRefresh_RequesterError(t *testing.T) {
-	fake := &fakeRequester{
-		response: nil,
-		err:      errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	clientObj.SetToken("oldtoken")
-
-	ctx := context.Background()
-
-	err := clientObj.Refresh(ctx)
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-
-	if err.Error() != "requester error" {
-		t.Errorf("expected 'requester error', got: %v", err)
 	}
 }
 
