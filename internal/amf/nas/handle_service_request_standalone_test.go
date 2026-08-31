@@ -18,8 +18,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// standaloneBufferUE builds a secured, registered UE with a paging procedure in flight,
-// ready to answer with an MT service request.
 func standaloneBufferUE(t *testing.T) (*amf.AMF, *amf.UeContext, *fakeNGAPSender, [16]uint8, nas.CipheringAlgorithm) {
 	t.Helper()
 
@@ -66,8 +64,6 @@ func standaloneBufferUE(t *testing.T) (*amf.AMF, *amf.UeContext, *fakeNGAPSender
 	return amfInstance, ue, ngapSender, key, nas.CipheringAES
 }
 
-// answerPaging drives an MT service request and the subsequent Configuration Update Complete,
-// the full branch a paged UE takes for a buffered standalone N1N2 message.
 func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo nas.CipheringAlgorithm, key [16]uint8) {
 	t.Helper()
 
@@ -80,8 +76,6 @@ func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo na
 	handleConfigurationUpdateComplete(amfInstance, ue)
 }
 
-// A UE answering a page for a buffered LPP message is sent that message in a DL NAS
-// Transport with the LPP payload container
 func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 	amfInstance, ue, ngapSender, key, algo := standaloneBufferUE(t)
 
@@ -96,10 +90,6 @@ func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 
 	answerPaging(t, amfInstance, ue, algo, key)
 
-	// With no PDU session to reactivate the Service Accept goes out on its own, so the
-	// buffered message is delivered after the Configuration Update Command: Service
-	// Accept, Configuration Update Command (the GUTI reallocation an MT service request
-	// triggers), buffered LPP.
 	if len(ngapSender.SentDownlinkNASTransport) != 3 {
 		t.Fatalf("DL NAS Transports sent = %d, want 3", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -130,8 +120,7 @@ func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 	}
 }
 
-// The NRPPa half goes to the RAN as a Downlink UE-Associated NRPPa Transport rather than to
-// the UE, and no PDU session resources are touched (TS 23.273 §6.11.2 step 3).
+// TS 23.273 §6.11.2
 func TestHandleServiceRequest_MT_BufferedNRPPa_Delivered(t *testing.T) {
 	amfInstance, ue, ngapSender, key, algo := standaloneBufferUE(t)
 

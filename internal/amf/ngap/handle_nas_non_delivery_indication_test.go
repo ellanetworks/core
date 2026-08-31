@@ -26,28 +26,7 @@ func TestNASNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestNASNonDeliveryIndication_UEFound_ReportOnly(t *testing.T) {
-	amfInstance := newTestAMF()
-	ran := newTestRadio(amfInstance)
-
-	amfUe := amf.NewUeContext()
-
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
-
-	// TS 38.413 §8.6.4: report-only — the handler resolves the UE and records
-	// liveness; the (undelivered downlink) NAS-PDU is not acted on. Verify no panic.
-	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		NASPDU:      ngap.NASPDU{0x7E, 0x00, 0x00},
-		Cause:       ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}),
-	})
-}
-
-// The NAS-PDU IE is the downlink message the RAN could not deliver; feeding it back
-// into the uplink NAS path would fail the downlink/uplink integrity check and perturb
-// the uplink NAS count (TS 38.413 §8.6.4). The handler must not invoke the NAS layer.
+// TS 38.413 §8.6.4
 func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)

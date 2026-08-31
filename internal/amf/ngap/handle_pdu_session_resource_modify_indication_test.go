@@ -54,9 +54,7 @@ func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 	}
 }
 
-// TestPDUSessionResourceModifyIndication_SendsModifyConfirm asserts the handler
-// forwards each indicated session's transfer to the SMF and returns a Modify
-// Confirm naming the modified sessions (TS 38.413 §8.2.5.2).
+// TS 38.413 §8.2.5.2
 func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{ModifyIndicationResponse: []byte{0x01}}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
@@ -103,8 +101,7 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	}
 }
 
-// TestPDUSessionResourceModifyIndication_SmContextNotFound reports the session in
-// the Failed to Modify list without calling the SMF (TS 38.413 §8.2.5.2).
+// TS 38.413 §8.2.5.2
 func TestPDUSessionResourceModifyIndication_SmContextNotFound(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)

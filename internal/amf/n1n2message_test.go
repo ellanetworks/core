@@ -24,8 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- Fakes ---
-
 type fakeNGAPSender struct {
 	pduSessionSetupCalls          int
 	initialContextSetupCalls      int
@@ -35,9 +33,6 @@ type fakeNGAPSender struct {
 	nrppaTransportCalls           int
 }
 
-// WriteMsg counts the sent NGAP PDU by procedure, standing in for a gNB
-// association. Only the envelope is decoded: these tests care which procedure
-// the AMF started, not what the transparent N2 payloads carry.
 func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	pdu, err := ngap.Unmarshal(b)
 	if err != nil {
@@ -180,8 +175,6 @@ func (f *fakeSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, s
 	return nil, nil
 }
 
-// --- Helpers ---
-
 func mustSUPIFromIMSI(t *testing.T, imsi string) etsi.SUPI {
 	t.Helper()
 
@@ -234,8 +227,6 @@ func newReq() models.N1N2MessageTransferRequest {
 		BinaryDataN2Information: []byte{0x03, 0x04},
 	}
 }
-
-// --- TransferN1N2Message tests ---
 
 func TestTransferN1N2Message_UENotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
@@ -341,7 +332,6 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	}})
 	amfInstance.SetRadioForTest(nil, radio)
 
-	// UE has no UeConn attached → CM-IDLE
 	err := amfInstance.ModifyN1N2Message(context.Background(), ue.SupiForTest(), 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
 	if err == nil {
 		t.Fatal("expected ErrUENotReachable for idle UE")
@@ -382,8 +372,6 @@ func TestModifyN1N2Message_OngoingN2Handover_Deferred(t *testing.T) {
 		t.Fatal("expected a temporary reject while an N2 handover is in flight")
 	}
 
-	// Must be the handover guard, not the idle path — the modification is deferred
-	// for the reconcile backstop, not treated as unreachable.
 	if err == amf.ErrUENotReachable {
 		t.Fatalf("expected the handover guard, got the idle path: %v", err)
 	}
@@ -403,7 +391,6 @@ func TestReleaseSessionMessage_IdleUE_ReturnsNotReachable(t *testing.T) {
 
 	supi := mustSUPIFromIMSI(t, "001010000000015")
 
-	// UE has no UeConn attached → CM-IDLE
 	err := amfInstance.ReleaseSessionMessage(context.Background(), supi, 1, []byte{0x01}, []byte{0x02})
 	if err == nil {
 		t.Fatal("expected ErrUENotReachable for idle UE")
@@ -413,8 +400,6 @@ func TestReleaseSessionMessage_IdleUE_ReturnsNotReachable(t *testing.T) {
 		t.Fatalf("expected ErrUENotReachable, got: %v", err)
 	}
 }
-
-// --- N2MessageTransferOrPage tests ---
 
 func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
@@ -426,14 +411,7 @@ func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
 	}
 }
 
-// TestSendPaging_IdleUE_ArmsPersistentTimer guards the paging-timer scope fix: an
-// idle UE has no NAS connection, so paging must not touch a connection-scoped
-// timer (previously a nil-connection crash) and must arm the persistent per-UE
-// paging timer instead (T3513, TS 24.501 §5.4.3).
-// TestIdleTimers_ArmedAndStoppedUnderRegistryLock verifies the AMF's idle-mode
-// supervision timers are driven through the registry lock (`(a *AMF)` receivers,
-// matching the MME): StartMobileReachable arms the timer and UE teardown
-// cancels it (TS 24.501 §5.3.7).
+// TS 24.501 §5.4.3
 func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	ue := addUE(t, amfInstance, "001010000000031", nil)
@@ -451,10 +429,7 @@ func TestIdleTimers_ArmedAndStoppedUnderRegistryLock(t *testing.T) {
 	}
 }
 
-// TestArmRegistrationAcceptGuard_ArmsT3550 verifies that a GUTI-bearing
-// REGISTRATION ACCEPT delivered on a mobility/periodic update outside
-// SendRegistrationAccept (embedded in a PDU Session Resource Setup, or a plain DL
-// NAS Transport) is still supervised by T3550 (TS 24.501 §5.5.1.3.4).
+// TS 24.501 §5.5.1.3.4
 func TestArmRegistrationAcceptGuard_ArmsT3550(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	ue := addUE(t, amfInstance, "001010000000030", nil)
@@ -478,7 +453,6 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	ue := addUE(t, amfInstance, "001010000000021", nil)
 
-	// Drop the NAS connection: paging targets an ECM-IDLE UE, which has none.
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}
@@ -575,7 +549,6 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
 	})
 
-	// A registered UE in CM-IDLE has no NAS connection; downlink data must page it.
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}
@@ -624,8 +597,6 @@ func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
 	}
 }
 
-// --- TransferN1Msg tests ---
-
 func TestTransferN1Msg_UENotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPIFromIMSI(t, "001010000000011")
@@ -668,11 +639,7 @@ func TestTransferN1Msg_Success(t *testing.T) {
 	}
 }
 
-// The Initial Context Setup claim is a CAS from ICSNotStarted to ICSPending, so
-// a path that claims it and then fails before sending must hand it back:
-// otherwise the connection never gets a UE context and every later transfer
-// takes the already-claimed branch, sending a standalone PDU SESSION RESOURCE
-// SETUP REQUEST to an NG-RAN node that has none (TS 38.413 §8.3.1).
+// TS 38.413 §8.3.1
 func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
@@ -700,11 +667,6 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 }
 
 // TS 23.501 §5.17.2.2.1
-//
-// A UE that never answers the REGISTRATION ACCEPT is written off by T3550 and treated as
-// registered anyway. That path reaches 5GMM-REGISTERED without a REGISTRATION COMPLETE, so
-// it has to supersede the EPS half of the registration too — otherwise a lost
-// acknowledgement leaves the subscriber holding an MM state in both the AMF and the MME.
 func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Millisecond, MaxRetryTimes: 1}

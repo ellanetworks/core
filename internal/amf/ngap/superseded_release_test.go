@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// supersedeOntoNewConnection registers a UE on a first NG connection, then has it
-// re-establish on a second one, superseding the first. It returns the AMF and the old
-// connection's AMF/RAN NGAP IDs.
 func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Radio, sender *fakeNGAPSender, oldAmfID, oldRanID int64) {
 	t.Helper()
 
@@ -39,14 +36,12 @@ func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Ra
 		t.Fatal(err)
 	}
 
-	amfInstance.AttachUeConn(amfUe, newConn) // supersede
+	amfInstance.AttachUeConn(amfUe, newConn)
 
 	return amfInstance, ran, sender, oldAmfID, oldRanID
 }
 
-// TestSupersededConnectionIsReleasedTowardGNB checks that re-establishing a UE on a new
-// NG connection releases the superseded one toward the gNB with a UE CONTEXT RELEASE
-// COMMAND (TS 23.502 §4.2.3.2, §4.2.6).
+// TS 23.502 §4.2.3.2
 func TestSupersededConnectionIsReleasedTowardGNB(t *testing.T) {
 	_, _, sender, oldAmfID, oldRanID := supersedeOntoNewConnection(t)
 
@@ -63,9 +58,7 @@ func TestSupersededConnectionIsReleasedTowardGNB(t *testing.T) {
 	}
 }
 
-// TestSupersededConnectionReleaseRequestNoErrorIndication checks that a gNB release
-// request for a superseded context is not answered with an Error Indication
-// (TS 38.413 §8.3.2.2).
+// TS 38.413 §8.3.2.2
 func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	amfInstance, ran, sender, oldAmfID, oldRanID := supersedeOntoNewConnection(t)
 

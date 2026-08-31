@@ -27,9 +27,7 @@ func TestDecodePayloadTooShort(t *testing.T) {
 	}
 }
 
-// TestAllocateRegistrationArea verifies the registration area is the whole served
-// area, independent of the UE's serving TAI (TS 23.501 §5.3.4; a single registration
-// area, matching the MME).
+// TS 23.501 §5.3.4
 func TestAllocateRegistrationArea(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -189,8 +187,6 @@ func TestIsAllowedNssai(t *testing.T) {
 	}
 }
 
-// makeUESecCap creates a UE security capability IE value (octet 1 = 5G-EA, octet 2
-// = 5G-IA) with the given 5G integrity and ciphering bits set.
 func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) *fgs.UESecurityCapability {
 	return &fgs.UESecurityCapability{
 		EA: nas.AlgorithmSet(ea0<<7 | ea1<<6 | ea2<<5 | ea3<<4),

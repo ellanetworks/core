@@ -97,7 +97,7 @@ func TestGUAMIToNGAP(t *testing.T) {
 	}
 }
 
-// S 38.413 §9.3.3.5, TS 24.008 §10.5.1.3
+// TS 24.008 §10.5.1.3
 func TestPLMNRoundTrip(t *testing.T) {
 	tests := []struct {
 		plmn models.PlmnID

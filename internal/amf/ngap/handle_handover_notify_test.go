@@ -78,7 +78,6 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
 	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
-	// No handover installed, so HandoverSource() is nil.
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -120,7 +119,6 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	// Handover Notify requires a prepared handover (the acknowledge step ran).
 	_, _ = amfInstance.MarkHandoverPrepared(amfUe, nil)
 
 	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
@@ -159,10 +157,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	}
 }
 
-// TestHandoverNotify_ReleasesRejectedSessions verifies that on handover completion
-// the sessions the target admitted are completed while a session the target did not
-// admit is released, not left leaking in the core (TS 23.501 §5.30.3.5 / TS 23.401
-// §5.5.1.2.2), mirroring the MME.
+// TS 23.501 §5.30.3.5
 func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	fakeSmf := &fakeSmfSbi{}
@@ -186,7 +181,6 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	// The target admitted session 1 only; session 2 was rejected at the acknowledge.
 	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
@@ -217,9 +211,6 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	}
 }
 
-// TestHandoverNotify_FromNonTarget_Dropped verifies a HANDOVER NOTIFY arriving on a
-// UeConn that is not the prepared handover target is dropped before any SMF side
-// effect or source release (the procedure is between the AMF and the prepared target).
 func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	fakeSmf := &fakeSmfSbi{}
@@ -245,9 +236,6 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 
 	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
-	// An impostor UeConn on the target radio carrying the same AMF UE context but not
-	// the prepared target sends the notify. Adopting it releases the superseded
-	// connection; the notify must add no further release.
 	impostor := amf.NewUeConnForTest(targetRan, 3, 4, logger.AmfLog)
 	impostor.AMFForTest().AttachUeConn(amfUe, impostor)
 
@@ -300,8 +288,6 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	// Handover Notify requires a prepared handover (the acknowledge step ran); the
-	// admitted session's completion is what fails below.
 	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	fakeSmf := &fakeSmfSbi{

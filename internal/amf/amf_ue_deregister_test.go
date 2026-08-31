@@ -22,7 +22,6 @@ type deregisterTestSmf struct {
 	clearSuppressionCalls int
 	onRelease             func(context.Context, string) error
 
-	// Optional hooks for reconcile tests; nil keeps the default (no-op) behaviour.
 	session       func(ref string) *smf.SMContext
 	sessionPolicy func() (*smf.Policy, error)
 	reconcileReqs []*models.SessionReconcileRequest
@@ -193,9 +192,7 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	}
 }
 
-// On abrupt NG-C loss (NG Reset / association drop) a registered UE deactivates
-// the user plane so the UPF stops sending downlink toward the lost RAN and buffers
-// it for paging, while the sessions are preserved (TS 23.501 §5.3.3.2.4).
+// TS 23.501 §5.3.3.2.4
 func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 	radio := &Radio{Log: logger.AmfLog}
 	radio.BindAMFForTest(New(nil, nil, nil))
@@ -230,9 +227,6 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 	}
 }
 
-// A partial NG Reset removes one specific UE; a registered one must get the same
-// idle-supervision cleanup (deactivate user plane, stay registered) as a whole
-// reset, so Radio.RemoveUe applies the stateful cleanup before removing.
 func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 	radio := &Radio{Log: logger.AmfLog}
 	radio.BindAMFForTest(New(nil, nil, nil))
@@ -264,10 +258,6 @@ func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 	}
 }
 
-// ReconcileSessionsForUE is the per-UE reconcile the reactivation hook runs when a UE
-// returns to CM-CONNECTED (item 8): it must re-resolve the current DB policy and pass
-// it to the SMF for each of the UE's sessions, so an idle-deferred change is applied
-// on reconnect.
 func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 	fakeSmf := &deregisterTestSmf{
 		session: func(string) *smf.SMContext {

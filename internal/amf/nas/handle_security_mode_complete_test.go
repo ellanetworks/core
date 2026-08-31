@@ -35,8 +35,6 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 			ue := amf.NewUeContext()
 			tc.setup(ue)
 
-			// Outside the security mode exchange the handler bails without advancing
-			// the registration (TS 24.501).
 			handleSecurityModeComplete(
 				t.Context(),
 				amf.New(nil, nil, nil),

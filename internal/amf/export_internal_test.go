@@ -15,10 +15,6 @@ type nopNGAPSender struct{}
 
 func (nopNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) { return len(b), nil }
 
-// detachUeConnLocked clears the connection's back-pointer before clearing
-// ue.active, both under amf.mu, which the export path does not hold. It can
-// therefore see a connection still in ue.active that no longer points back at its
-// UeContext.
 func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 	ue := NewUeContext()
 
@@ -46,8 +42,6 @@ func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 	ue.mu.Unlock()
 }
 
-// The export runs under ue.mu while a release runs under amf.mu, so anything the
-// export reads from the connection must not be written under amf.mu alone.
 func TestExportUeContext_ConcurrentWithReleaseNasConnection(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		amf := New(nil, nil, nil)

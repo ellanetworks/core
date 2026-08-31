@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// Conformance tests for the Xn handover Path Switch procedure.
 var errSmfRefused = errors.New("SMF refused the path switch")
 
 func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8) (*amf.AMF, *amf.UeContext, *amf.Radio) {
@@ -112,7 +111,7 @@ func TestPathSwitchReportsUndecodablePDUSessionID(t *testing.T) {
 	}
 
 	bad := switchedDLItem(t)
-	bad.PDUSessionID = 0 // outside the valid 1..15 range
+	bad.PDUSessionID = 0
 
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
@@ -192,18 +191,11 @@ func TestPathSwitchNoSessionSwitchedSendsFailure(t *testing.T) {
 	}
 }
 
-// NGAP protocol IE identifiers, for stripping mandatory ignore-criticality IEs from an
-// encoded PATH SWITCH REQUEST (TS 38.413 §9.3.1.x).
 const (
 	ieIDUESecurityCapabilities  = 119
 	ieIDUserLocationInformation = 121
 )
 
-// dropNGAPIEs removes the named protocol IEs from an encoded NGAP message body: a
-// 1-byte extension preamble, a 2-byte IE count, then ID/criticality/length/value
-// tuples. It builds a message the encoder would refuse to produce, so the receiver's
-// handling of an absent mandatory ignore-criticality IE can be exercised
-// (TS 38.413 §10.3.5). Mirrors dropIEs on the S1AP side.
 func dropNGAPIEs(t *testing.T, value []byte, ids ...uint16) []byte {
 	t.Helper()
 
@@ -461,7 +453,6 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 		t.Fatalf("a message missing only ignore-criticality IEs must still parse: %v", err)
 	}
 
-	// Guard against a vacuous test: the IEs must really be gone.
 	if stripped.UserLocationInformation != nil || stripped.UESecurityCapabilities != nil {
 		t.Fatal("dropNGAPIEs did not strip the ignore-criticality IEs")
 	}

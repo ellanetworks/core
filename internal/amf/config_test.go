@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-// configTestDB implements amf.DBer for SubscriberProfile / OperatorInfo tests.
 type configTestDB struct {
 	subscriber *db.Subscriber
 	subErr     error
@@ -72,7 +71,6 @@ func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice,
 		return d.allSlices, nil
 	}
 
-	// Build from the slices map so SubscriberProfile tests work.
 	var out []db.NetworkSlice
 	for _, s := range d.slices {
 		out = append(out, *s)
@@ -168,7 +166,7 @@ func TestGetSubscriberProfile_DeduplicatesSameSlice(t *testing.T) {
 		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
 		policies: []db.Policy{
 			{ID: "policy-1", ProfileID: "profile-10", SliceID: "slice-100"},
-			{ID: "policy-2", ProfileID: "profile-10", SliceID: "slice-100"}, // same slice
+			{ID: "policy-2", ProfileID: "profile-10", SliceID: "slice-100"},
 		},
 		slices: map[string]*db.NetworkSlice{
 			"slice-100": {ID: "slice-100", Name: "slice-a", Sst: 1, Sd: &sd},

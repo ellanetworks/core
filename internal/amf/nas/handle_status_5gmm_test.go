@@ -45,7 +45,6 @@ func buildTestStatus5gmm(_ *testing.T) *fgs.GMMStatus {
 	return &fgs.GMMStatus{Cause: 0x6f}
 }
 
-// buildTestStatus5gmmPlain is the same message as it arrives on the wire.
 func buildTestStatus5gmmPlain(t *testing.T) []byte {
 	t.Helper()
 

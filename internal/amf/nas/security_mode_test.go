@@ -13,10 +13,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestSecurityMode_BlockedByConflict verifies the security mode procedure is
-// claimed before the security context is mutated: while an N2 handover holds the
-// key-changing mutual exclusion, the re-key is refused and no NAS keys are
-// derived (TS 33.501 §6.9.5.1).
+// TS 33.501 §6.9.5.1
 func TestSecurityMode_BlockedByConflict(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -28,15 +25,12 @@ func TestSecurityMode_BlockedByConflict(t *testing.T) {
 		t.Fatal("UE has no NAS connection")
 	}
 
-	// An in-flight N2 handover holds the key-changing mutual exclusion.
 	if err := conn.Parent().Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("start N2 handover: %v", err)
 	}
 
 	before := ue.KnasEncForTest()
 
-	// While a handover holds the key chain the re-key is refused: no security mode
-	// procedure is claimed and no NAS keys are derived (asserted below).
 	securityMode(context.Background(), amf.New(nil, nil, nil), ue)
 
 	if conn.Parent().Procedures().Active(procedure.SecurityMode) {
@@ -48,10 +42,6 @@ func TestSecurityMode_BlockedByConflict(t *testing.T) {
 	}
 }
 
-// TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters verifies that when the
-// UE and the operator policy share no NAS algorithm, the AMF rejects the
-// registration (5GMM cause #23) and releases the UE, leaving no
-// half-registered UE with an open RAN connection (mirrors the MME's ATTACH REJECT).
 func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
@@ -69,8 +59,6 @@ func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	}
 
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
-	// The UE advertises no supported NAS algorithm, so it shares none with the
-	// operator's AES-only policy.
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 
 	securityMode(context.Background(), amfInstance, ue)
