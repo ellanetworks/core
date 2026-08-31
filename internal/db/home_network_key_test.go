@@ -1,13 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -26,18 +23,7 @@ func newKeyID(t *testing.T) string {
 }
 
 func TestHomeNetworkKeysCRUD(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -194,18 +180,7 @@ func TestHomeNetworkKeysCRUD(t *testing.T) {
 }
 
 func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -217,7 +192,7 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 		PrivateKey:    "0000000000000000000000000000000000000000000000000000000000000001",
 	}
 
-	err = database.CreateHomeNetworkKey(ctx, dupKey)
+	err := database.CreateHomeNetworkKey(ctx, dupKey)
 	if err == nil {
 		t.Fatal("Expected error for duplicate key, got nil")
 	}
@@ -228,22 +203,11 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 }
 
 func TestGetHomeNetworkKey_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = database.GetHomeNetworkKey(ctx, "00000000-0000-7000-8000-000000000000")
+	_, err := database.GetHomeNetworkKey(ctx, "00000000-0000-7000-8000-000000000000")
 	if err == nil {
 		t.Fatal("Expected error for non-existent key, got nil")
 	}
@@ -254,22 +218,11 @@ func TestGetHomeNetworkKey_NotFound(t *testing.T) {
 }
 
 func TestGetHomeNetworkKeyBySchemeAndIdentifier_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = database.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, "B", 0)
+	_, err := database.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, "B", 0)
 	if err == nil {
 		t.Fatal("Expected error for non-existent key, got nil")
 	}

@@ -1,13 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -17,18 +14,7 @@ import (
 )
 
 func TestRadioEventsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	res, total, err := database.ListRadioEvents(context.Background(), 1, 10, nil)
 	if err != nil {
@@ -108,18 +94,7 @@ func TestRadioEventsEndToEnd(t *testing.T) {
 func TestGetRadioEventByID(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -163,18 +138,7 @@ func TestGetRadioEventByID(t *testing.T) {
 func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -256,18 +220,7 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 func TestListRadioEventsProtocolFilter(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -310,18 +263,7 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 func TestListRadioEventsTimestampFilter(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -382,18 +324,7 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 

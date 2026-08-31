@@ -5,25 +5,13 @@ package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestImportPrefixes_EmptyByDefault(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -31,7 +19,7 @@ func TestImportPrefixes_EmptyByDefault(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create peer: %s", err)
 	}
@@ -47,18 +35,7 @@ func TestImportPrefixes_EmptyByDefault(t *testing.T) {
 }
 
 func TestImportPrefixes_SetAndList(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -66,7 +43,7 @@ func TestImportPrefixes_SetAndList(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create peer: %s", err)
 	}
@@ -112,18 +89,7 @@ func TestImportPrefixes_SetAndList(t *testing.T) {
 }
 
 func TestImportPrefixes_ReplaceOnSet(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -131,7 +97,7 @@ func TestImportPrefixes_ReplaceOnSet(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create peer: %s", err)
 	}
@@ -168,18 +134,7 @@ func TestImportPrefixes_ReplaceOnSet(t *testing.T) {
 }
 
 func TestImportPrefixes_ClearWithEmptySlice(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -187,7 +142,7 @@ func TestImportPrefixes_ClearWithEmptySlice(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create peer: %s", err)
 	}
@@ -216,18 +171,7 @@ func TestImportPrefixes_ClearWithEmptySlice(t *testing.T) {
 }
 
 func TestImportPrefixes_CascadeDeleteOnPeerRemoval(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -235,7 +179,7 @@ func TestImportPrefixes_CascadeDeleteOnPeerRemoval(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create peer: %s", err)
 	}
@@ -264,23 +208,12 @@ func TestImportPrefixes_CascadeDeleteOnPeerRemoval(t *testing.T) {
 }
 
 func TestImportPrefixes_IsolatedBetweenPeers(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer1 := &db.BGPPeer{Address: "10.0.0.1", RemoteAS: 65001, HoldTime: 90}
 	peer2 := &db.BGPPeer{Address: "10.0.0.2", RemoteAS: 65002, HoldTime: 90}
 
-	err = database.CreateBGPPeer(context.Background(), peer1)
+	err := database.CreateBGPPeer(context.Background(), peer1)
 	if err != nil {
 		t.Fatalf("Couldn't create peer1: %s", err)
 	}
