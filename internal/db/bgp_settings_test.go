@@ -12,18 +12,7 @@ import (
 )
 
 func TestGetBGPSettings_Default(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	settings, err := database.GetBGPSettings(context.Background())
 	if err != nil {
@@ -44,18 +33,7 @@ func TestGetBGPSettings_Default(t *testing.T) {
 }
 
 func TestIsBGPEnabled_Default(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	enabled, err := database.IsBGPEnabled(context.Background())
 	if err != nil {
@@ -68,18 +46,7 @@ func TestIsBGPEnabled_Default(t *testing.T) {
 }
 
 func TestUpdateAndGetBGPSettings(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	newSettings := &db.BGPSettings{
 		Enabled:  true,
@@ -87,7 +54,7 @@ func TestUpdateAndGetBGPSettings(t *testing.T) {
 		RouterID: "192.168.1.1",
 	}
 
-	err = database.UpdateBGPSettings(context.Background(), newSettings)
+	err := database.UpdateBGPSettings(context.Background(), newSettings)
 	if err != nil {
 		t.Fatalf("Couldn't update BGP settings: %s", err)
 	}

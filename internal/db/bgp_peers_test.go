@@ -5,25 +5,13 @@ package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestDBBGPPeersEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	// List should be empty initially
 	peers, total, err := database.ListBGPPeersPage(context.Background(), 1, 10)
@@ -140,18 +128,7 @@ func TestDBBGPPeersEndToEnd(t *testing.T) {
 }
 
 func TestCreateBGPPeer_DuplicateAddress(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	peer := &db.BGPPeer{
 		Address:  "10.0.0.1",
@@ -159,7 +136,7 @@ func TestCreateBGPPeer_DuplicateAddress(t *testing.T) {
 		HoldTime: 90,
 	}
 
-	err = database.CreateBGPPeer(context.Background(), peer)
+	err := database.CreateBGPPeer(context.Background(), peer)
 	if err != nil {
 		t.Fatalf("Couldn't create first BGP peer: %s", err)
 	}
@@ -178,58 +155,25 @@ func TestCreateBGPPeer_DuplicateAddress(t *testing.T) {
 }
 
 func TestGetBGPPeer_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
+	database := setupTestDB(t)
 
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	_, err = database.GetBGPPeer(context.Background(), 9999)
+	_, err := database.GetBGPPeer(context.Background(), 9999)
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
 	}
 }
 
 func TestDeleteBGPPeer_NotFound(t *testing.T) {
-	tempDir := t.TempDir()
+	database := setupTestDB(t)
 
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	err = database.DeleteBGPPeer(context.Background(), 9999)
+	err := database.DeleteBGPPeer(context.Background(), 9999)
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
 	}
 }
 
 func TestListAllBGPPeers(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	// Initially empty
 	peers, err := database.ListAllBGPPeers(context.Background())
@@ -267,18 +211,7 @@ func TestListAllBGPPeers(t *testing.T) {
 }
 
 func TestCreateMultipleBGPPeers(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	addresses := []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}
 
@@ -290,7 +223,7 @@ func TestCreateMultipleBGPPeers(t *testing.T) {
 			Description: "peer-" + addr,
 		}
 
-		err = database.CreateBGPPeer(context.Background(), peer)
+		err := database.CreateBGPPeer(context.Background(), peer)
 		if err != nil {
 			t.Fatalf("Couldn't create BGP peer %s: %s", addr, err)
 		}

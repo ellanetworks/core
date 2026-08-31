@@ -5,7 +5,6 @@ package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -14,18 +13,7 @@ import (
 func f64(v float64) *float64 { return &v }
 
 func TestCellPositionCRUD(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
