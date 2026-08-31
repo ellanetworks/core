@@ -201,17 +201,18 @@ func TestClusterPropose_UnknownCommandTypeRejected(t *testing.T) {
 
 func TestMapApplyErrorToHTTP(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		err  error
-		want int
+		name     string
+		err      error
+		want     int
+		wantCode string
 	}{
-		{"unknown operation", db.ErrUnknownOperation, http.StatusBadRequest},
-		{"not leader", hraft.ErrNotLeader, http.StatusMisdirectedRequest},
-		{"leadership lost", hraft.ErrLeadershipLost, http.StatusConflict},
-		{"enqueue timeout", hraft.ErrEnqueueTimeout, http.StatusServiceUnavailable},
-		{"raft shutdown", hraft.ErrRaftShutdown, http.StatusServiceUnavailable},
-		{"propose timeout", fmt.Errorf("%w: barrier", db.ErrProposeTimeout), http.StatusServiceUnavailable},
-		{"unclassified", errors.New("boom"), http.StatusInternalServerError},
+		{"unknown operation", db.ErrUnknownOperation, http.StatusBadRequest, ""},
+		{"not leader", hraft.ErrNotLeader, http.StatusMisdirectedRequest, ""},
+		{"leadership lost", hraft.ErrLeadershipLost, http.StatusConflict, ellaraft.ForwardCodeOutcomeUnknown},
+		{"enqueue timeout", hraft.ErrEnqueueTimeout, http.StatusServiceUnavailable, ""},
+		{"raft shutdown", hraft.ErrRaftShutdown, http.StatusServiceUnavailable, ""},
+		{"propose timeout", fmt.Errorf("%w: barrier", db.ErrProposeTimeout), http.StatusServiceUnavailable, ""},
+		{"unclassified", errors.New("boom"), http.StatusInternalServerError, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
@@ -221,36 +222,15 @@ func TestMapApplyErrorToHTTP(t *testing.T) {
 			if w.Code != tc.want {
 				t.Fatalf("status for %v: want %d, got %d", tc.err, tc.want, w.Code)
 			}
+
+			var body ellaraft.ProposeForwardErrorBody
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode error body: %v", err)
+			}
+
+			if body.Code != tc.wantCode {
+				t.Fatalf("code for %v: want %q, got %q", tc.err, tc.wantCode, body.Code)
+			}
 		})
-	}
-}
-
-func TestMapApplyErrorToHTTP_LeadershipLostCarriesOutcomeUnknownCode(t *testing.T) {
-	w := httptest.NewRecorder()
-
-	mapApplyErrorToHTTP(context.Background(), w, hraft.ErrLeadershipLost)
-
-	var body ellaraft.ProposeForwardErrorBody
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode error body: %v", err)
-	}
-
-	if body.Code != ellaraft.ForwardCodeOutcomeUnknown {
-		t.Fatalf("want code %q, got %q", ellaraft.ForwardCodeOutcomeUnknown, body.Code)
-	}
-}
-
-func TestMapApplyErrorToHTTP_NotLeaderHasNoCode(t *testing.T) {
-	w := httptest.NewRecorder()
-
-	mapApplyErrorToHTTP(context.Background(), w, hraft.ErrNotLeader)
-
-	var body ellaraft.ProposeForwardErrorBody
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode error body: %v", err)
-	}
-
-	if body.Code != "" {
-		t.Fatalf("not-leader must stay retryable with no code, got %q", body.Code)
 	}
 }

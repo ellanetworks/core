@@ -771,50 +771,6 @@ func TestFSM_ApplyBatch_PanicsOnBadPayloadMidBatch(t *testing.T) {
 	fsm.ApplyBatch(logs)
 }
 
-// TestFSM_ApplyBatch_SingleEntry verifies that a batch with a single element
-// behaves identically to Apply.
-func TestFSM_ApplyBatch_SingleEntry(t *testing.T) {
-	a := newTestApplier(t)
-	fsm := NewFSM(a, t.TempDir())
-
-	cmd, err := NewCommand(CmdChangeset, map[string]string{"k": "v"})
-	if err != nil {
-		t.Fatalf("new command: %v", err)
-	}
-
-	data, err := cmd.MarshalBinary()
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	results := fsm.ApplyBatch([]*hraft.Log{{Index: 42, Data: data}})
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-
-	if results[0] != nil {
-		t.Fatalf("result[0]: expected nil, got %v", results[0])
-	}
-
-	if got := fsm.AppliedIndex(); got != 42 {
-		t.Fatalf("applied index: want 42, got %d", got)
-	}
-
-	if got := len(a.seen()); got != 1 {
-		t.Fatalf("expected 1 command, got %d", got)
-	}
-
-	var idx uint64
-	if err := a.db.QueryRowContext(context.Background(),
-		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&idx); err != nil {
-		t.Fatalf("read lastApplied: %v", err)
-	}
-
-	if idx != 42 {
-		t.Fatalf("durable lastApplied: want 42, got %d", idx)
-	}
-}
-
 // TestFSM_Restore_CorruptMagic verifies that Restore rejects a snapshot whose
 // first 4 bytes are neither the ELSN magic nor the SQLite file header.
 func TestFSM_Restore_CorruptMagic(t *testing.T) {

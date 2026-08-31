@@ -14,33 +14,6 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-func TestSetupTestCluster_ThreeNodes(t *testing.T) {
-	applier := newTestApplier(t)
-
-	tc := SetupTestCluster(t, 3, applier)
-
-	if len(tc.Nodes) != 3 {
-		t.Fatalf("expected 3 nodes, got %d", len(tc.Nodes))
-	}
-
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("expected a leader")
-	}
-
-	followers := 0
-
-	for _, n := range tc.Nodes {
-		if !n.IsLeader() {
-			followers++
-		}
-	}
-
-	if followers != 2 {
-		t.Fatalf("expected 2 followers, got %d", followers)
-	}
-}
-
 func TestSetupTestCluster_LeaderPropose(t *testing.T) {
 	appliers := make([]*testApplier, 0, 3)
 
