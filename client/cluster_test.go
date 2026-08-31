@@ -48,18 +48,6 @@ func TestListClusterMembers_Success(t *testing.T) {
 	}
 }
 
-func TestListClusterMembers_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("connection refused"),
-	}
-	c := &client.Client{Requester: fake}
-
-	_, err := c.ListClusterMembers(context.Background())
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
 func TestDrainClusterMember_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -85,18 +73,6 @@ func TestDrainClusterMember_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/cluster/members/3/drain" {
 		t.Errorf("expected api/v1/cluster/members/3/drain, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestDrainClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("leader unavailable"),
-	}
-	c := &client.Client{Requester: fake}
-
-	_, err := c.DrainClusterMember(context.Background(), 1)
-	if err == nil {
-		t.Fatal("expected error, got nil")
 	}
 }
 
@@ -147,18 +123,6 @@ func TestPromoteClusterMember_Success(t *testing.T) {
 	}
 }
 
-func TestPromoteClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("not found"),
-	}
-	c := &client.Client{Requester: fake}
-
-	err := c.PromoteClusterMember(context.Background(), 99)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
 func TestRemoveClusterMember_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -206,18 +170,6 @@ func TestRemoveClusterMember_Force(t *testing.T) {
 	}
 }
 
-func TestRemoveClusterMember_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		err: errors.New("server error"),
-	}
-	c := &client.Client{Requester: fake}
-
-	err := c.RemoveClusterMember(context.Background(), 2, false)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
 func TestMintClusterJoinToken_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -250,5 +202,39 @@ func TestMintClusterJoinToken_NilOpts(t *testing.T) {
 
 	if _, err := c.MintClusterJoinToken(context.Background(), nil); err == nil {
 		t.Fatal("expected error on nil opts")
+	}
+}
+
+func TestClusterMemberCalls_RequesterFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(*client.Client) error
+	}{
+		{"list", func(c *client.Client) error {
+			_, err := c.ListClusterMembers(context.Background())
+
+			return err
+		}},
+		{"drain", func(c *client.Client) error {
+			_, err := c.DrainClusterMember(context.Background(), 1)
+
+			return err
+		}},
+		{"promote", func(c *client.Client) error {
+			return c.PromoteClusterMember(context.Background(), 99)
+		}},
+		{"remove", func(c *client.Client) error {
+			return c.RemoveClusterMember(context.Background(), 2, false)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &client.Client{Requester: &fakeRequester{err: errors.New("transport failure")}}
+
+			if err := tt.call(c); err == nil {
+				t.Fatal("expected error, got nil")
+			}
+		})
 	}
 }
