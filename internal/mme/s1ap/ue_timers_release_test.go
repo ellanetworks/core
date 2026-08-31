@@ -14,7 +14,7 @@ import (
 func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 	m := newTestMME(t)
 
-	ue, cc := securedUE(t, m) // connected; the release moves it to ECM-IDLE
+	ue, cc := securedUE(t, m)
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
@@ -38,5 +38,5 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 		t.Fatal("mobile reachable timer not armed when UE moved to ECM-IDLE")
 	}
 
-	m.RemoveUe(ue) // stop the default-duration timer
+	m.RemoveUe(ue)
 }

@@ -21,7 +21,6 @@ func TestBuildS1SetupResponseMarshals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// successfulOutcome / procedureCode 17 (s1Setup).
 	if b[0] != 0x20 || b[1] != 0x11 {
 		t.Fatalf("envelope prefix = % x, want 20 11", b[:2])
 	}
@@ -53,8 +52,6 @@ func TestBuildS1SetupResponseMarshals(t *testing.T) {
 	}
 }
 
-// An empty list broadcasts no PLMN at all, which is not the same as broadcasting
-// one this MME does not serve; the AMF reports unspecified for the same input.
 func TestServedTAICauseEmptySupportedTAs(t *testing.T) {
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 
@@ -68,8 +65,6 @@ func TestServedTAICauseEmptySupportedTAs(t *testing.T) {
 	}
 }
 
-// A PLMN that is broadcast but not served is a genuine Unknown PLMN, so the two
-// rejections stay distinguishable.
 func TestServedTAICauseUnservedPLMN(t *testing.T) {
 	served := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 	other := s1ap.PLMNIdentity{0x00, 0xf1, 0x20}

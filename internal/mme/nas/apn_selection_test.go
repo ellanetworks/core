@@ -13,10 +13,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestIngestAttachRequestStoresDRX verifies the UE's requested DRX parameter is
-// parsed and stored, mirroring the AMF's UESpecificDRX (parity; the value is
-// otherwise unused today — 4G echoes it only in NB-IoT and neither stack pages
-// with it yet).
 func TestIngestAttachRequestStoresDRX(t *testing.T) {
 	ue := &mme.UeContext{}
 	drx := []byte{0x00, 0x08}
@@ -27,7 +23,6 @@ func TestIngestAttachRequestStoresDRX(t *testing.T) {
 		t.Fatalf("DRXParameter = %x, want %x", ue.DRXParameter, drx)
 	}
 
-	// Omitted DRX parameter leaves it nil.
 	ue2 := &mme.UeContext{}
 	ingestAttachRequest(context.Background(), ue2, ue2.Conn(), &eps.AttachRequest{})
 
@@ -51,7 +46,6 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 		t.Errorf("requestedAPN = %q, want %q", ue.RequestedAPN, "ims")
 	}
 
-	// No APN IE → empty (use the default policy).
 	esm2, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal PDN Connectivity Request (no APN): %v", err)
@@ -65,11 +59,7 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 	}
 }
 
-// TestIngestAttachRequest_SoftIEErrorKeepsRequest pins TS 24.301 §7.7.1 on the
-// ESM container: a syntactically incorrect optional element leaves the rest of
-// the PDN CONNECTIVITY REQUEST usable. Dropping the whole message on a soft
-// error lost the requested APN, PDN type and PTI, so the UE got the default APN,
-// IPv4 where it asked for IPv6, and a PTI of 0 echoed back against §6.4.1.
+// TS 24.301 §7.7.1
 func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 	apn := eps.APN("internet")
 
@@ -79,15 +69,12 @@ func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 		RequestType:       eps.RequestTypeInitialRequest,
 		PDNType:           eps.PDNTypeIPv6,
 		AccessPointName:   &apn,
-		// An access point name the codec cannot use, under an IEI the message
-		// models: recognised, soft-failed, and preserved (§7.7.1).
-		Unrecognized: []nas.RawIE{{IEI: 0x5D, Format: nas.IETLV, Value: []byte{0x00}}},
+		Unrecognized:      []nas.RawIE{{IEI: 0x5D, Format: nas.IETLV, Value: []byte{0x00}}},
 	}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("build PDN CONNECTIVITY REQUEST: %v", err)
 	}
 
-	// Append a second, unusable APN so the parse reports a soft error.
 	esm = append(esm, 0x28, 0x01, 0x00)
 
 	ue := mme.NewUeContext()

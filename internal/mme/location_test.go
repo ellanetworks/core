@@ -11,7 +11,7 @@ import (
 )
 
 func testCGIAndTAI() (s1ap.EUTRANCGI, s1ap.TAI) {
-	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10} // MCC 001, MNC 01
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 	cgi := s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1}
 	tai := s1ap.TAI{PLMNIdentity: plmn, TAC: 7}
 
@@ -68,7 +68,7 @@ func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 }
 
 func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
-	c := &UeConn{} // no bound UE (a bare Initial UE Message connection)
+	c := &UeConn{}
 	cgi, tai := testCGIAndTAI()
 
 	c.UpdateLocation(cgi, tai)
@@ -78,9 +78,6 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 	}
 }
 
-// TestUpdateLocationConcurrentReadWrite mirrors the dispatch-goroutine write
-// against the API-goroutine read; run under -race it guards the mirror-write
-// synchronization.
 func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	ue := &UeContext{}
 	c := &UeConn{ue: ue}

@@ -27,7 +27,6 @@ var (
 	testSGWFTEID = models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
 )
 
-// captureConn records the S1AP messages the MME sends, standing in for an eNB.
 type captureConn struct {
 	mu   sync.Mutex
 	sent [][]byte
@@ -48,7 +47,6 @@ func (c *captureConn) count() int {
 	return len(c.sent)
 }
 
-// initialUEMessagePDU builds an S1AP Initial UE Message carrying nas.
 func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID, nas []byte) []byte {
 	t.Helper()
 
@@ -190,7 +188,6 @@ func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string)
 	return models.SubscriptionDelta{}, nil
 }
 
-// fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.
 type fakeBearerStore struct{}
 
 func (fakeBearerStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
@@ -231,7 +228,6 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 
 func (fakeBearerStore) NodeID() int { return 1 }
 
-// testSubscriber is the TS 35.208 test-set-1 key material used across the tests.
 var testSubscriber = struct {
 	IMSI string
 	K    [16]byte
@@ -286,10 +282,6 @@ func (f *fakeCredStore) UpdateSequenceNumber(_ context.Context, imsi, sqn string
 
 func noopKeyResolver(string, int) (string, error) { return "", nil }
 
-// newTestMME builds an MME with the NAS and S1AP layers wired in. The production
-// s1ap package cannot import nas, but this test file can (nas does not import
-// s1ap), so cross-layer flows (Initial UE Message → NAS, NAS → E-RAB) are
-// exercised against the real handlers.
 func newTestMME(t *testing.T) *mme.MME {
 	t.Helper()
 
@@ -299,7 +291,6 @@ func newTestMME(t *testing.T) *mme.MME {
 	return m
 }
 
-// nasHandler implements mme.NASHandler over the real nas package.
 type nasHandler struct{ m *mme.MME }
 
 func (h *nasHandler) HandleNAS(ctx context.Context, conn *mme.UeConn, pdu []byte) {
@@ -310,7 +301,6 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWrit
 	nas.HandleServiceRequest(ctx, h.m, conn, msg)
 }
 
-// securedUE returns a registered UE with a valid EPS NAS security context.
 func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
@@ -334,13 +324,10 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	return ue, cc
 }
 
-// testPDN returns the UE's default PDN connection, creating it if absent.
 func testPDN(ue *mme.UeContext) *mme.PdnConnection {
 	return ue.EnsurePDN(mme.DefaultERABID)
 }
 
-// hookSessionManager runs onModify the first time a bearer is modified, to drive
-// a concurrent event during the unlocked window of a handover/path-switch.
 type hookSessionManager struct {
 	*fakeSessionManager
 	onModify func()

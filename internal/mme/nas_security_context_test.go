@@ -9,9 +9,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// TestNextEksi verifies the eKSI cycles to a distinct value and skips 7 ("no key
-// available"), so a new authentication never reuses the stored eKSI (TS 24.301
-// §5.4.2.4, §9.9.3.21).
 func TestNextEksi(t *testing.T) {
 	for current, want := range map[uint8]uint8{0: 1, 1: 2, 5: 6, 6: 0, 7: 0} {
 		if got := NextEksi(current); got != want {
@@ -24,9 +21,7 @@ func TestNextEksi(t *testing.T) {
 	}
 }
 
-// TestInstallNASSecurityContext_ResetsNASCounts verifies a new EPS security
-// context starts both NAS COUNTs at zero, so the initial SECURITY MODE COMMAND
-// rides downlink COUNT 0 (TS 24.301 §4.4.3.1).
+// TS 24.301 §4.4.3.1
 func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 	m := newTestMME(t)
 	ue := m.NewUe(&captureConn{}, 7)
@@ -48,7 +43,7 @@ func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.4.3.2, TS 33.401 §6.5, §7.2.8.1.2)
+// TS 24.301 §5.4.3.2
 func TestRekeyNASSecurityContextKeepsNASCounts(t *testing.T) {
 	m := newTestMME(t)
 	ue := m.NewUe(&captureConn{}, 7)
