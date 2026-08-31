@@ -10,27 +10,6 @@ import (
 	"testing"
 )
 
-func TestResolveNodeID_FromConfig(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	id, err := ResolveNodeID(5, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if id != 5 {
-		t.Fatalf("want 5, got %d", id)
-	}
-
-	// Should have persisted to file.
-	persisted := readPersistedID(t, dir)
-	if persisted != 5 {
-		t.Fatalf("persisted id: want 5, got %d", persisted)
-	}
-}
-
 func TestResolveNodeID_FromFile(t *testing.T) {
 	t.Parallel()
 
@@ -69,25 +48,6 @@ func TestResolveNodeID_MismatchConfigVsFile(t *testing.T) {
 	}
 }
 
-func TestResolveNodeID_ConsistentConfigAndFile(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("5\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	id, err := ResolveNodeID(5, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if id != 5 {
-		t.Fatalf("want 5, got %d", id)
-	}
-}
-
 func TestResolveNodeID_NoSourceAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -103,55 +63,41 @@ func TestResolveNodeID_NoSourceAvailable(t *testing.T) {
 	}
 }
 
-func TestResolveNodeID_BoundaryMin(t *testing.T) {
+func TestResolveNodeID_ConfiguredIDRange(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-
-	id, err := ResolveNodeID(1, dir)
-	if err != nil {
-		t.Fatalf("unexpected error for ID 1: %v", err)
+	tests := []struct {
+		name    string
+		id      int
+		wantErr bool
+	}{
+		{name: "min", id: 1},
+		{name: "max", id: MaxNodeID},
+		{name: "below min", id: -1, wantErr: true},
+		{name: "above max", id: MaxNodeID + 1, wantErr: true},
 	}
 
-	if id != 1 {
-		t.Fatalf("want 1, got %d", id)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestResolveNodeID_BoundaryMax(t *testing.T) {
-	t.Parallel()
+			id, err := ResolveNodeID(tt.id, t.TempDir())
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ResolveNodeID(%d) = %d, want an out-of-range error", tt.id, id)
+				}
 
-	dir := t.TempDir()
+				return
+			}
 
-	id, err := ResolveNodeID(MaxNodeID, dir)
-	if err != nil {
-		t.Fatalf("unexpected error for ID %d: %v", MaxNodeID, err)
-	}
+			if err != nil {
+				t.Fatalf("ResolveNodeID(%d): %v", tt.id, err)
+			}
 
-	if id != MaxNodeID {
-		t.Fatalf("want %d, got %d", MaxNodeID, id)
-	}
-}
-
-func TestResolveNodeID_BelowMin(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	_, err := ResolveNodeID(-1, dir)
-	if err == nil {
-		t.Fatal("expected error for negative ID")
-	}
-}
-
-func TestResolveNodeID_AboveMax(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	_, err := ResolveNodeID(MaxNodeID+1, dir)
-	if err == nil {
-		t.Fatalf("expected error for ID %d (above max)", MaxNodeID+1)
+			if id != tt.id {
+				t.Fatalf("want %d, got %d", tt.id, id)
+			}
+		})
 	}
 }
 

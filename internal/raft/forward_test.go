@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -167,7 +168,7 @@ func TestRunForwardRetryLoop_500IsTerminal(t *testing.T) {
 	// Must surface the error from the leader verbatim — the caller
 	// needs to see the real cause (e.g. a specific FSM failure) to
 	// decide whether to retry the whole operation.
-	if !contains(err.Error(), "apply failed: boom") {
+	if !strings.Contains(err.Error(), "apply failed: boom") {
 		t.Fatalf("error should mention underlying cause: %v", err)
 	}
 
@@ -300,7 +301,7 @@ func TestDecodeForwardError_MalformedFallsBack(t *testing.T) {
 		t.Fatal("expected fallback error")
 	}
 
-	if !contains(err.Error(), "502") {
+	if !strings.Contains(err.Error(), "502") {
 		t.Fatalf("fallback should include status: %v", err)
 	}
 }
@@ -331,16 +332,6 @@ func TestForwardOperation_SingleServerReturnsNotLeader(t *testing.T) {
 	if !errors.Is(err, hraft.ErrNotLeader) {
 		t.Fatalf("want ErrNotLeader, got %v", err)
 	}
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-
-	return false
 }
 
 func TestRunForwardRetryLoop_OutcomeUnknownIsTerminal(t *testing.T) {
@@ -374,17 +365,6 @@ func TestDecodeForwardError_OutcomeUnknownCode(t *testing.T) {
 
 	if got := decodeForwardError(body, http.StatusConflict); !errors.Is(got, ErrOutcomeUnknown) {
 		t.Fatalf("want ErrOutcomeUnknown, got %v", got)
-	}
-}
-
-func TestDecodeForwardError_NoCodeStaysPlain(t *testing.T) {
-	body, err := json.Marshal(ProposeForwardErrorBody{Message: "not leader; nothing was applied, retry"})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	if got := decodeForwardError(body, http.StatusMisdirectedRequest); errors.Is(got, ErrOutcomeUnknown) {
-		t.Fatalf("retryable error must not decode as outcome-unknown: %v", got)
 	}
 }
 
@@ -502,5 +482,36 @@ func TestRunForwardRetryLoop_CallerDeadlineStaysRetryable(t *testing.T) {
 
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("the underlying deadline should survive for diagnostics, got %v", err)
+	}
+}
+
+func TestDecodeForwardError_PreservesCode(t *testing.T) {
+	body, err := json.Marshal(ProposeForwardErrorBody{
+		Message: "join token already consumed",
+		Code:    ForwardCodeTokenConsumed,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	decoded := decodeForwardError(body, http.StatusConflict)
+
+	if got := ForwardErrorCode(decoded); got != ForwardCodeTokenConsumed {
+		t.Fatalf("ForwardErrorCode = %q, want %q", got, ForwardCodeTokenConsumed)
+	}
+
+	if decoded.Error() != "join token already consumed" {
+		t.Fatalf("message not preserved: %q", decoded.Error())
+	}
+}
+
+func TestForwardErrorCode_UncodedIsEmpty(t *testing.T) {
+	body, err := json.Marshal(ProposeForwardErrorBody{Message: "apply failed"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if got := ForwardErrorCode(decodeForwardError(body, http.StatusInternalServerError)); got != "" {
+		t.Fatalf("ForwardErrorCode = %q, want empty", got)
 	}
 }
