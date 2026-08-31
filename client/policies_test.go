@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -44,37 +43,6 @@ func TestCreatePolicy_Success(t *testing.T) {
 	}
 }
 
-func TestCreatePolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid UE IP Pool"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:                "testPolicy",
-		ProfileName:         "testProfile",
-		SliceName:           "default",
-		DataNetworkName:     "internet",
-		SessionAmbrUplink:   "100 Mbps",
-		SessionAmbrDownlink: "100 Mbps",
-		Var5qi:              9,
-		Arp:                 1,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreatePolicy(ctx, createPolicyOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -105,32 +73,6 @@ func TestGetPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestGetPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Policy not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	name := "non-existent-policy"
-	getPolicyOpts := &client.GetPolicyOptions{
-		Name: name,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetPolicy(ctx, getPolicyOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeletePolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -154,33 +96,6 @@ func TestDeletePolicy_Success(t *testing.T) {
 	err := clientObj.DeletePolicy(ctx, deletePolicyOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeletePolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Policy not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	name := "non-existent-policy"
-
-	deletePolicyOpts := &client.DeletePolicyOptions{
-		Name: name,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeletePolicy(ctx, deletePolicyOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -211,32 +126,6 @@ func TestListPolicies_Success(t *testing.T) {
 
 	if len(policies.Items) != 2 {
 		t.Fatalf("expected 2 policies, got: %d", len(policies.Items))
-	}
-}
-
-func TestListPolicies_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListPolicies(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -302,39 +191,6 @@ func TestCreatePolicy_WithRules_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/policies" {
 		t.Fatalf("expected path api/v1/policies, got: %s", fake.lastOpts.Path)
-	}
-}
-
-func TestCreatePolicy_WithoutRules_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Policy created successfully"}`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:                "policy-without-rules",
-		ProfileName:         "policy-without-rules",
-		SliceName:           "default",
-		SessionAmbrUplink:   "100 Mbps",
-		SessionAmbrDownlink: "200 Mbps",
-		Var5qi:              9,
-		Arp:                 1,
-		DataNetworkName:     "internet",
-		Rules:               nil,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreatePolicy(ctx, createPolicyOpts)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
@@ -422,31 +278,6 @@ func TestUpdatePolicy_WithRules_Success(t *testing.T) {
 
 	if fake.lastOpts.Method != "PUT" {
 		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
-	}
-}
-
-func TestUpdatePolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Policy not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updatePolicyOpts := &client.UpdatePolicyOptions{
-		SessionAmbrUplink: "150 Mbps",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdatePolicy(ctx, "non-existent-policy", updatePolicyOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 

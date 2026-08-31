@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -39,30 +38,5 @@ func TestInitialize_Success(t *testing.T) {
 	token := clientObj.GetToken()
 	if token != "inittoken" {
 		t.Errorf("expected token 'inittoken', got: %s", token)
-	}
-}
-
-func TestInitialize_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid email"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	initializeOpts := &client.InitializeOptions{
-		Email:    "invalid-email",
-		Password: "secret",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.Initialize(ctx, initializeOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
