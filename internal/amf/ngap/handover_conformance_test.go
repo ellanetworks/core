@@ -18,8 +18,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Conformance tests for the 5G N2 handover procedures
-
 var errSmfRefusedHandover = errors.New("SMF refused the handover")
 
 const (

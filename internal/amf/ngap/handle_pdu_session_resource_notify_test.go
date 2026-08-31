@@ -30,12 +30,17 @@ func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID: ngap.RANUENGAPID(1),
 		AMFUENGAPID: ngap.AMFUENGAPID(10),
 	})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("a resolvable connection with no UE context must be dropped silently, got %d error indications", len(sender.SentErrorIndications))
+	}
 }
 
 func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
@@ -97,9 +102,6 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 	}
 }
 
-// PDU Session ID 0 is a legal INTEGER (0..255) value that no session in this
-// UE's context uses, so the released item names nothing to deactivate. The
-// handler skips it and carries on with the rest of the list.
 func TestPDUSessionResourceNotify_ReleasedSessionIDNotInContext(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)

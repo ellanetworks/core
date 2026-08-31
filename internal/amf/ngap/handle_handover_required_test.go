@@ -23,9 +23,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// releaseSignalSender wraps a sender and closes released the first time a
-// UE Context Release Command is sent, giving a test a happens-before edge to the
-// guard's timer goroutine.
 type releaseSignalSender struct {
 	*fakeNGAPSender
 	released chan struct{}
@@ -43,14 +40,8 @@ func (s *releaseSignalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, er
 	return n, err
 }
 
-// handoverTargetGnbID is the gNB every HANDOVER REQUIRED here names, and the
-// one each test's target Radio is registered under so the AMF routes to it.
 const handoverTargetGnbID = "000102"
 
-// handoverRequired builds a HANDOVER REQUIRED naming handoverTargetGnbID as the target
-// and carrying one entry per PDU session id. Every IE is set: these tests
-// exercise the handler, and the library's own tests cover which IEs may be
-// absent.
 func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *ngap.HandoverRequired {
 	t.Helper()
 
@@ -59,7 +50,6 @@ func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *
 		t.Fatalf("target gNB ID %q is not three octets: %v", handoverTargetGnbID, err)
 	}
 
-	// HandoverRequiredTransfer fields are all optional, so an empty value is valid.
 	transfer, err := (&ngap.HandoverRequiredTransfer{}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
@@ -89,16 +79,12 @@ func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *
 			},
 			SelectedTAI: ngap.TAI{PLMNIdentity: operatorPLMN, TAC: 1},
 		}},
-		PDUSessionResourceListHORqd: list,
-		// SourceToTargetTransparentContainer is opaque and passed through unchanged.
+		PDUSessionResourceListHORqd:        list,
 		SourceToTargetTransparentContainer: ngap.SourceToTargetTransparentContainer{0x01, 0x02, 0x03},
 	}
 }
 
-// The second case covers a HANDOVER REQUIRED with no Cause: TS 38.413 §9.2.3.1
-// makes it ignore criticality, so §10.3.5 delivers the message without it. The
-// Cause the AMF relays onward in the HANDOVER REQUEST is mandatory, so an absent
-// one must become a real cause rather than an empty CHOICE.
+// TS 38.413 §9.2.3.1
 func TestHandoverRequired(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
@@ -171,7 +157,6 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	// Target RAN's GNB ID matches the HandoverRequired TargetID, so the AMF routes to it.
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -199,10 +184,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 }
 
 func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
-	// Build a valid HandoverRequired message but with a RAN UE NGAP ID
-	// that doesn't exist in the RAN's UE map. The handler should send
-	// an ErrorIndication with UnknownLocalUENGAPID cause.
-	msg := handoverRequired(t, 99, 1) // No UE with this ID
+	msg := handoverRequired(t, 99, 1)
 
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
@@ -231,8 +213,6 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 }
 
 func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
-	// Build a valid HandoverRequired but the UE has no valid security context.
-	// The handler should send a HandoverPreparationFailure with AuthenticationFailure cause.
 	const (
 		pduSessionID = uint8(1)
 	)
@@ -271,10 +251,6 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	}
 }
 
-// TestHandoverRequired_UnknownTarget verifies that when the target gNB is not
-// served by this AMF, handover preparation fails gracefully: the source UE
-// receives a HandoverPreparationFailure with cause UnknownTargetID rather than
-// being left without a response (TS 38.413).
 func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	const (
 		pduSessionID = uint8(1)
@@ -316,7 +292,6 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	// No target gNB registered with this AMF.
 	amfInstance.ClearRadiosForTest()
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
@@ -333,11 +308,6 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	}
 }
 
-// TestHandoverRequired_GuardExpiryReleasesTarget drives a normal handover
-// preparation (source → AMF → target), then lets the supervision guard expire
-// because the target gNB never answers. The guard must abandon the handover:
-// release the target's half-prepared UE context and clear the N2Handover
-// procedure so it no longer pins the source UE.
 func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	const (
 		pduSessionID = uint8(1)
@@ -396,7 +366,6 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	// Drive the guard quickly; the target gNB never answers the HANDOVER REQUEST.
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
@@ -424,17 +393,12 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	// The guard abandons the handover without answering any gNB, so nothing else
-	// would restore the downlink FAR that HANDOVER REQUEST ACKNOWLEDGE re-pointed.
 	wantRef := smCtx.Ref
 	if got := smfSbi.N2HandoverCanceledCalls; len(got) != 1 || got[0] != wantRef {
 		t.Fatalf("source access tunnel not restored on guard expiry: N2HandoverCanceled calls = %v, want [%s]", got, wantRef)
 	}
 }
 
-// TestHandoverRequired_SourceDropReleasesTarget verifies that dropping the source
-// association at the prepared stage releases the prepared target and clears the
-// N2Handover procedure at once, without waiting for the supervision guard.
 func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	const (
 		pduSessionID = uint8(1)
@@ -494,7 +458,6 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		t.Fatal("N2Handover procedure not active after preparation")
 	}
 
-	// Drop the source association (gNB SCTP drop); the prepared target must release at once.
 	if err := amfInstance.RemoveUeConn(context.Background(), sourceUe); err != nil {
 		t.Fatalf("RemoveUeConn(source) error: %v", err)
 	}
@@ -517,11 +480,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	}
 }
 
-// A HandoverType this AMF does not serve is answered with HANDOVER PREPARATION
-// FAILURE before any target is staged. Left unchecked, the type is replayed into
-// HANDOVER COMMAND, whose NAS Security Parameters from NG-RAN IE is conditional
-// on it (TS 38.413 §9.2.3.2 iftoEPSUTRA) and which the AMF never populates, so
-// the command fails to encode and the source is left waiting on TNGRELOCprep.
+// TS 38.413 §9.2.3.2
 func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 	const (
 		pduSessionID = uint8(1)
@@ -580,11 +539,6 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 	}
 }
 
-// A target UeConn is staged for one handover and carries a back-pointer to the
-// UE. If an abandoned handover leaves it bound, releasing that target takes the
-// "connection still carries a UE" arm of ReleaseUeConn and deactivates every PDU
-// session of a UE that never left the source — undoing the tunnel restore the
-// abandonment just performed.
 func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T) {
 	const (
 		pduSessionID = uint8(1)
@@ -616,7 +570,6 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
-	// The bulk deactivation in ReleaseUeConn is gated on the UE being Registered.
 	amfUe.TransitionTo(amf.RegistrationInitiated)
 	amfUe.TransitionTo(amf.Registered)
 
@@ -643,7 +596,6 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 		t.Fatal("no target UeConn staged by handover preparation")
 	}
 
-	// Abandon the handover by dropping the source association.
 	if err := amfInstance.RemoveUeConn(context.Background(), sourceUe); err != nil {
 		t.Fatalf("RemoveUeConn(source) error: %v", err)
 	}
@@ -652,7 +604,6 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 		t.Error("abandoned target still bound to the UE context")
 	}
 
-	// The target answers the release command; this is what would deactivate.
 	amfInstance.ReleaseUeConn(context.Background(), targetUe)
 
 	if got := smfSbi.DeactivateSmContextCalls; len(got) != 0 {

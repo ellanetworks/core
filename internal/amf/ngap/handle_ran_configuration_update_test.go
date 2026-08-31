@@ -14,8 +14,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// ranConfigUpdateWithTA builds an update carrying one Supported TA Item for
-// (mcc, mnc, tac), which is the shape the dispatcher hands the handler.
 func ranConfigUpdateWithTA(t *testing.T, mcc, mnc string, tac uint32) *ngap.RANConfigurationUpdate {
 	t.Helper()
 
@@ -40,7 +38,6 @@ func ranConfigUpdateWithTA(t *testing.T, mcc, mnc string, tac uint32) *ngap.RANC
 	}
 }
 
-// operatorAMF is an AMF serving PLMN 001/01 and TAC 000064.
 func operatorAMF() *amf.AMF {
 	amfInstance := newTestAMFWithSmfAndDB(&fakeSmfSbi{})
 	amfInstance.DBInstance = &fakeDBInstance{
@@ -54,9 +51,7 @@ func operatorAMF() *amf.AMF {
 	return amfInstance
 }
 
-// TestHandleRANConfigurationUpdate_AbsentTAListPreservesAndAcks verifies that a
-// name-only update (Supported TA List IE absent) is acknowledged, the stored TAs
-// are left unchanged, and the RAN node name is applied (TS 38.413 §8.7.2.2).
+// TS 38.413 §8.7.2.2
 func TestHandleRANConfigurationUpdate_AbsentTAListPreservesAndAcks(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
@@ -86,9 +81,6 @@ func TestHandleRANConfigurationUpdate_AbsentTAListPreservesAndAcks(t *testing.T)
 	}
 }
 
-// TestHandleRANConfigurationUpdate_RejectPreservesTAs verifies that an update
-// whose Supported TA List names no served TAI is rejected without discarding
-// the stored TAs.
 func TestHandleRANConfigurationUpdate_RejectPreservesTAs(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := operatorAMF()
@@ -147,17 +139,14 @@ func TestHandleRANConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 	}
 
 	failure := sender.SentRanConfigurationUpdateFailures[0]
-	// The gNB broadcasts a served PLMN but no served TAC; TS 38.413 has no
-	// dedicated cause for an unserved TAC, so the reject cause is Misc/unspecified
-	// (Unknown PLMN is reserved for when no PLMN matches).
 	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+
 	if failure.Cause == nil || *failure.Cause != want {
 		t.Fatalf("cause = %v, want unspecified", failure.Cause)
 	}
 }
 
-// TestHandleRANConfigurationUpdate_NoMatchingPLMN rejects with Misc/Unknown PLMN
-// when no PLMN the gNB broadcasts is served by the AMF (TS 38.413 §8.7.2.3).
+// TS 38.413 §8.7.2.3
 func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := operatorAMF()
@@ -178,10 +167,7 @@ func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.7.2.2: "If the Global RAN Node ID IE is included ... the AMF
-// shall associate the TNLA to the NG-C interface instance using the Global RAN
-// Node ID." §8.7.2.1 adds that the procedure "does not affect existing
-// UE-related contexts", so the re-key must not disturb them.
+// TS 38.413 §8.7.2.2
 func TestHandleRANConfigurationUpdate_RebindsGlobalRANNodeID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()

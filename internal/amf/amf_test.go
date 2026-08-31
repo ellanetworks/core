@@ -104,7 +104,6 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	})
 
 	addTestUE(t, amfInstance, "001010000000008", func(ue *amf.UeContext) {
-		// default state is Deregistered
 	})
 
 	if count := amfInstance.CountRegisteredSubscribers(); count != 1 {
@@ -175,8 +174,6 @@ func TestLookupUeByGutiRefusesAGutiNamingAnotherNode(t *testing.T) {
 	}
 }
 
-// TestGutiIndexLifecycle verifies the GUTI resolution index is maintained through
-// the production reallocation window (old GUTI resolves until freed) and removal.
 func TestGutiIndexLifecycle(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -218,7 +215,6 @@ func TestGutiIndexLifecycle(t *testing.T) {
 		t.Fatal("current GUTI must still resolve after CommitGUTIRealloc")
 	}
 
-	// Removal: no GUTI resolves to the removed UE.
 	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
 	if _, ok := amfInstance.LookupUeByGuti(testGuami(), guti2); ok {
@@ -226,20 +222,16 @@ func TestGutiIndexLifecycle(t *testing.T) {
 	}
 }
 
-// TestReallocateGUTIReuseAndFree verifies that a retransmitted reallocation
-// trigger reuses the staged 5G-TMSI (TS 24.501 §5.4.4) and that tearing down
-// mid-reallocation returns both the current and staged 5G-TMSI to the allocator.
+// TS 24.501 §5.4.4
 func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	ue := addTestUE(t, amfInstance, "001010000000012", func(ue *amf.UeContext) {})
 
-	// Initial GUTI assignment: a fresh UE has no TMSI, so nothing is staged as old.
 	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
 		t.Fatalf("ReallocateGUTI (initial): %v", err)
 	}
 
-	// Staging reallocation: the current 5G-TMSI moves to old, a new one becomes current.
 	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
 		t.Fatalf("ReallocateGUTI (realloc): %v", err)
 	}
@@ -255,8 +247,6 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 		t.Fatal("both current and staged 5G-TMSI must be allocated during the reallocation window")
 	}
 
-	// A retransmitted trigger while the reallocation is in flight reuses the staged
-	// 5G-TMSI rather than allocating another.
 	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
 		t.Fatalf("ReallocateGUTI (retransmit): %v", err)
 	}
@@ -266,7 +256,6 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 			ue.TmsiForTest(), ue.OldTmsi(), current, old)
 	}
 
-	// Teardown mid-reallocation returns both 5G-TMSIs to the allocator.
 	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
 	if amfInstance.TmsiInUseForTest(current) || amfInstance.TmsiInUseForTest(old) {
@@ -274,9 +263,7 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	}
 }
 
-// TestPagingGuti_PrefersOldDuringRealloc verifies the AMF pages with the old 5G-GUTI
-// while an unacknowledged reallocation is pending, and the current GUTI otherwise
-// (TS 24.501 §5.4.4).
+// TS 24.501 §5.4.4
 func TestPagingGuti_PrefersOldDuringRealloc(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	guami := &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}
@@ -360,11 +347,7 @@ func TestDeregisterSubscriber(t *testing.T) {
 	}
 }
 
-// TestDeregisterSubscriberConnectedUnsecuredRemovesLocally checks that deleting a
-// subscriber whose UE is connected but has no security context removes the context
-// locally without signalling — a protected DEREGISTRATION REQUEST cannot be built,
-// so the UE is removed rather than left connected (TS 24.501 §5.5.2.3.1 local
-// de-registration). Mirrors the MME's DetachSubscriber.
+// TS 24.501 §5.5.2.3.1
 func TestDeregisterSubscriberConnectedUnsecuredRemovesLocally(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 

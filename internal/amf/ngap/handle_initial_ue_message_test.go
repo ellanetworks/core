@@ -52,8 +52,6 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 	}
 }
 
-// A SERVICE REQUEST Initial UE Message goes through the same HandleNAS entry point as any
-// other NAS message; a request that binds no context leaves no bare RAN connection behind.
 func TestHandleInitialUEMessage_ServiceRequestGoesThroughHandleNAS(t *testing.T) {
 	fakeNAS := &fakeNASHandler{LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
@@ -77,9 +75,6 @@ func TestHandleInitialUEMessage_ServiceRequestGoesThroughHandleNAS(t *testing.T)
 	}
 }
 
-// An Initial UE Message whose NAS never resolves to a UE context (undecodable, no
-// usable identity) must not leave a bare RAN connection behind, or an unauthenticated
-// peer could exhaust RAN-UE-NGAP-IDs.
 func TestHandleInitialUEMessage_UnresolvedNAS_ReleasesBareConn(t *testing.T) {
 	fakeNAS := &fakeNASHandler{LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
@@ -133,10 +128,6 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 	}
 }
 
-// TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach asserts TS 24.501:
-// an Initial UE Message that resolves to a known UE by 5G-S-TMSI but
-// is not integrity-verified against that context must not bind to it. The
-// message is still forwarded to NAS, which processes it on a fresh context.
 func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
@@ -226,8 +217,6 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
-	// The 5G-S-TMSI resolved to no UE and the NAS body established no context, so the
-	// bare connection is released (mirrors the MME's bare-connection release).
 	if amfInstance.FindUEByRanUeNgapID(ran, 1) != nil {
 		t.Error("bare UeConn was not released after an unknown-UE message established no context")
 	}
@@ -304,8 +293,6 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 		FiveGSTMSI:  &ngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
 	})
 
-	// Timer stop methods are safe to call even when timers are nil.
-	// The test verifies the handler reaches that code without panicking.
 	if len(fakeNAS.Calls) != 1 {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}

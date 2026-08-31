@@ -51,16 +51,13 @@ func TestInitialContextSetupCarriesEveryAllowedSlice(t *testing.T) {
 	}
 }
 
-// The IE is mandatory and reject criticality, so an empty list must not reach
-// the wire (TS 38.413 §9.2.2.1).
+// TS 38.413 §9.2.2.1
 func TestInitialContextSetupRejectsEmptyAllowedNSSAI(t *testing.T) {
 	if _, err := buildICS(t, nil, make([]byte, 32)); err == nil {
 		t.Fatal("built a request with no Allowed NSSAI")
 	}
 }
 
-// A SecurityKey is BIT STRING (SIZE(256)); anything else would put a K_gNB the
-// NG-RAN node cannot derive keys from on the wire.
 func TestInitialContextSetupRejectsShortSecurityKey(t *testing.T) {
 	allowed := []models.Snssai{{Sst: 1}}
 

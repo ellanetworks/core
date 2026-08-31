@@ -101,7 +101,7 @@ func TestMobilityRegistrationAfterAnArrivalFromEPSKeepsTheMappedContext(t *testi
 	}
 }
 
-// TS 24.501 §5.4.2.2, TS 33.501 §6.7.2
+// TS 24.501 §5.4.2.2
 func TestRegistrationRequestLeavesTheNgKSIAlone(t *testing.T) {
 	amfInstance := arrivedRegistrationAMF()
 

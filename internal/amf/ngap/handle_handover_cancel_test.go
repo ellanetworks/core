@@ -12,10 +12,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// TestHandleHandoverCancel_UnknownRanUeNgapID verifies that a HandoverCancel
-// with a RAN_UE_NGAP_ID that doesn't match any existing UE context is handled
-// gracefully — no panic, and an ErrorIndication is sent.
-// Regression test.
 func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -41,10 +37,6 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverCancel_UnknownAmfUeNgapID verifies that a HandoverCancel
-// whose AMF UE NGAP ID the AMF never allocated is treated as an unknown local AP
-// ID (TS 38.413): an Error Indication carrying the received AP IDs is sent,
-// with no acknowledge to the source and no release toward the target.
 func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -56,7 +48,7 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	msg := &ngap.HandoverCancel{
-		AMFUENGAPID: 999, // does not match the source UE's AmfUeNgapID (10)
+		AMFUENGAPID: 999,
 		RANUENGAPID: 1,
 		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
 	}
@@ -93,8 +85,6 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
-	// The target has acknowledged (hoPrepared): its RAN-UE-NGAP-ID is known, so a
-	// cancel releases it with a UE Context Release Command.
 	if _, ok := amfInstance.MarkHandoverPrepared(amfUe, nil); !ok {
 		t.Fatal("MarkHandoverPrepared")
 	}
@@ -125,10 +115,6 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverCancel_Preparing_NoTargetReleaseCommand verifies that a cancel
-// during hoPreparing clears the handover and acknowledges the source, but sends no
-// UE Context Release Command — the target's RAN-UE-NGAP-ID is not yet known, so it
-// is released when its crossing acknowledge arrives (mirrors the MME).
 func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -147,11 +133,8 @@ func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
-	// No MarkHandoverPrepared: the handover is still hoPreparing.
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 10, RANUENGAPID: 1})
 
-	// TS 38.413 §8.4.5: the target's reserved resources must be released even in the
-	// preparation window, so a cancel does not orphan the target context.
 	if len(targetSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand to the preparing target, got %d", len(targetSender.SentUEContextReleaseCommands))
 	}

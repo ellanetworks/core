@@ -41,7 +41,7 @@ func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf
 	return a, ue, supi, fakeSmf
 }
 
-// TS 23.501 §5.17.2.2.1, TS 23.502 §4.11.1.5.2 step 2
+// TS 23.501 §5.17.2.2.1
 func TestCancelRegistrationDropsTheFiveGSRegistration(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
@@ -109,7 +109,7 @@ func TestCancelRegistrationDefersToAHandoverToEPS(t *testing.T) {
 }
 
 func TestCancelRegistrationIsANoOpForASubscriberFiveGSNeverHeld(t *testing.T) {
-	a := New(nil, nil, nil)
+	a, ue, _, fakeSmf := registeredUE(t)
 
 	other, err := etsi.NewSUPIFromIMSI("001010000000002")
 	if err != nil {
@@ -117,6 +117,18 @@ func TestCancelRegistrationIsANoOpForASubscriberFiveGSNeverHeld(t *testing.T) {
 	}
 
 	a.CancelRegistration(context.Background(), other)
+
+	if _, ok := a.LookupUeBySupi(other); ok {
+		t.Error("cancelling an unknown SUPI materialised a UE context for it")
+	}
+
+	if state := ue.State(); state != Registered {
+		t.Errorf("5GMM state = %s, want Registered: the cancel hit the wrong subscriber", state)
+	}
+
+	if len(fakeSmf.releaseCalls) != 0 {
+		t.Errorf("released %v for a subscriber the cancel does not name", fakeSmf.releaseCalls)
+	}
 }
 
 func TestCancelRegistrationIsIdempotent(t *testing.T) {
@@ -135,10 +147,7 @@ func TestCancelRegistrationIsIdempotent(t *testing.T) {
 	}
 }
 
-// The UE status IE is not an opt-out. TS 24.501 §5.5.1.3.2 a) makes a
-// single-registration-mode UE moving from EPC set the same EMM registration status bit a
-// dual-registration-mode UE sets (§5.5.1.2.2), and with N26 wired TS 23.501 §5.17.2.2.1
-// leaves the network exactly one MM state either way.
+// TS 24.501 §5.5.1.3.2
 func TestSupersedeEPSRegistrationIgnoresTheUEStatusIE(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
@@ -169,8 +178,7 @@ func TestSupersedeEPSRegistrationDefersToARelocationArrivingFromEPS(t *testing.T
 	}
 }
 
-// The N2 connection of a UE that has moved to EPS has to go with the registration: nothing
-// else reaps it, because the AMF UE context deliberately outlives it (TS 38.413 §8.3.1).
+// TS 38.413 §8.3.1
 func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
@@ -192,7 +200,6 @@ func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 		t.Errorf("release action = %v, want UeContextReleaseToEPS", ueConn.ReleaseAction)
 	}
 
-	// The gNB answers the command; that Complete is what removes the connection.
 	a.ReleaseUeConn(context.Background(), ueConn)
 
 	a.mu.Lock()
@@ -213,8 +220,6 @@ func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	}
 }
 
-// A registration that cannot legally reach 5GMM-REGISTERED must not take the subscriber's
-// EPS registration with it: the UE would be left with neither.
 func TestMarkRegisteredLeavesEPSAloneWhenTheTransitionIsRejected(t *testing.T) {
 	a, ue, _, _ := registeredUE(t)
 

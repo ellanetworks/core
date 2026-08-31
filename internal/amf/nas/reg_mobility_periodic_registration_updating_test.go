@@ -18,7 +18,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// failingSubscriberDB is a fakeDBInstance variant that returns an error for GetSubscriber.
 type failingSubscriberDB struct {
 	Operator *db.Operator
 }
@@ -155,7 +154,6 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	}
 }
 
-// TS 24.501
 func TestMobilityReg_NilGMMCapability_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -320,7 +318,6 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
-	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	ue.Conn().UeContextRequest = true
@@ -335,7 +332,6 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 		t.Fatalf("expected amf.SmContextRef 'ref-2', got %q", fakeSmf.ActivateSmContextCalls[0].SmContextRef)
 	}
 
-	// UeContextRequest=true → sends InitialContextSetupRequest
 	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
 		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
 	}
@@ -362,7 +358,6 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	// UeContextRequest=false + non-empty suList → sends PDUSessionResourceSetupRequest
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
@@ -389,7 +384,6 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	// Even with error, the function continues and sends RegistrationAccept
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -406,7 +400,6 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
-	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x00, 0x00})
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
@@ -439,7 +432,6 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
-	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
@@ -464,13 +456,12 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
-	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]byte{0x00, 0x00}) // PSI 2 inactive → triggers release
+	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]byte{0x00, 0x00})
 
 	fakeSmf.ReleaseSmContextError = fmt.Errorf("release error")
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// A ReleaseSmContext failure aborts the update before any Registration Accept is sent.
 	if len(fakeSmf.ReleaseSmContextCalls) != 1 {
 		t.Fatalf("expected one ReleaseSmContext attempt, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
@@ -490,7 +481,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
-	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 	ue.Conn().UeContextRequest = false
 
@@ -533,8 +523,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	// No UplinkDataStatus → suList remains empty
-
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
@@ -542,7 +530,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		BinaryDataN2Information: nil,
 	})
 
-	// UeContextRequest=false so amf.SendRegistrationAccept sends DownlinkNasTransport
 	ue.Conn().UeContextRequest = false
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
@@ -565,7 +552,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 
-	// TS 24.501 §5.3.4 d)
 	regAccept, err := fgs.ParseRegistrationAccept(nmAccept)
 	if err != nil {
 		t.Fatalf("could not parse RegistrationAccept: %v", err)
@@ -604,7 +590,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai, "internet")
 
-	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]byte{0x08, 0x00}) // PSI 3
+	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]byte{0x08, 0x00})
 
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
@@ -617,7 +603,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// UeContextRequest=false + non-empty suList → PDUSessionResourceSetupRequest
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
@@ -861,9 +846,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 }
 
-// The fresh K_gNB and the {NH, NCC} anchored on it are one derivation
-// (TS 33.501 §6.9.2.1.1). Anchoring the chain on the replaced key hands every
-// later handover an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4).
+// TS 33.501 §6.9.2.1.1
 func TestMobilityReg_ReanchorsASKeyChain(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -1035,7 +1018,7 @@ func (p *fakeEPSPeer) MMContextAck(_ context.Context, supi etsi.SUPI, transferre
 	return nil
 }
 
-// TS 24.501 §5.5.1.3.2 d) / §5.5.1.3.4 and TS 23.502 §4.11.1.3.3 step 14
+// TS 24.501 §5.5.1.3.2
 func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
 	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 

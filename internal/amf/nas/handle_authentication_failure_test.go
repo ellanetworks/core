@@ -15,8 +15,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// buildTestAuthenticationFailure builds an AUTHENTICATION FAILURE with the given
-// 5GMM cause and optional authentication failure parameter (AUTS).
 func buildTestAuthenticationFailure(cause uint8, auts *[14]uint8) *fgs.AuthenticationFailure {
 	m := &fgs.AuthenticationFailure{Cause: fgs.GMMCause(cause)}
 	if auts != nil {
@@ -26,8 +24,6 @@ func buildTestAuthenticationFailure(cause uint8, auts *[14]uint8) *fgs.Authentic
 	return m
 }
 
-// An AUTHENTICATION FAILURE received outside the authentication exchange is ignored:
-// no downlink is emitted.
 func TestHandleAuthenticationFailure_WrongState_Error(t *testing.T) {
 	testcases := []struct {
 		name  string
@@ -304,8 +300,6 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 
 	msg := buildTestAuthenticationFailure(0x15, nil)
 
-	// A SynchFailure with a nil AUTS must not panic; it is dropped without emitting
-	// a downlink.
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -313,10 +307,7 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 	}
 }
 
-// TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored verifies an
-// AUTHENTICATION FAILURE carrying a cause outside the enumeration is ignored: the
-// authentication guard (T3560) is left armed and nothing is sent, so the UE is
-// not stranded (semantically incorrect message, TS 24.501 §7.8). Mirrors the MME.
+// TS 24.501 §7.8
 func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -328,8 +319,6 @@ func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) 
 	conn.AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	// #111 "protocol error, unspecified" is a valid 5GMM cause but not an
-	// AUTHENTICATION FAILURE cause.
 	msg := buildTestAuthenticationFailure(0x6f, nil)
 
 	handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
@@ -343,10 +332,7 @@ func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) 
 	}
 }
 
-// TestHandleAuthenticationFailure_NoChallengeInFlightIgnored verifies a spurious
-// AUTHENTICATION FAILURE in the identity sub-window of RegStepAuthenticating (no
-// challenge sent, so AuthenticationCtx is nil) is ignored and the UE is not
-// released (admissible without integrity, TS 24.501 §4.4.4.3). Mirrors the MME.
+// TS 24.501 §4.4.4.3
 func TestHandleAuthenticationFailure_NoChallengeInFlightIgnored(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -354,7 +340,6 @@ func TestHandleAuthenticationFailure_NoChallengeInFlightIgnored(t *testing.T) {
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	// No AuthenticationCtx: the identity sub-window, no challenge in flight.
 
 	msg := buildTestAuthenticationFailure(0x14, nil)
 

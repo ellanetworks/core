@@ -157,7 +157,6 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 
 	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
 	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
-	// No handover installed, so HandoverSource() is nil.
 
 	amfID := ngap.AMFUENGAPID(1)
 	ranID := ngap.RANUENGAPID(2)
@@ -331,7 +330,6 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 	msg := admittedAckMsg(t)
 
-	// First acknowledge advances hoPreparing→hoPrepared and sends the HANDOVER COMMAND.
 	HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
 
 	if len(sourceNGAPSender.SentHandoverCommands) != 1 {
@@ -397,7 +395,6 @@ func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 		t.Fatalf("expected to-release list to contain session 2 (TS 38.413), got %+v", cmd.PDUSessionResourceToReleaseList)
 	}
 
-	// The to-release item must carry a decodable HandoverPreparationUnsuccessfulTransfer.
 	relayed, err := ngap.ParseHandoverPreparationUnsuccessfulTransfer(cmd.PDUSessionResourceToReleaseList[0].Transfer)
 	if err != nil {
 		t.Fatalf("to-release transfer does not decode: %v", err)
