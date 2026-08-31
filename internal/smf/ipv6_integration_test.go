@@ -264,137 +264,95 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 	}
 }
 
-func TestCreateSmContext_DualStack_SendsTwoDownlinkPDRs(t *testing.T) {
-	pcf, store, upf, amfCb := dualStackFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-	supi := testSUPI()
-
-	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
-
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg, 0)
-	if err != nil {
-		t.Fatalf("CreateSmContext (IPv4v6) failed: %v", err)
+func TestCreateSmContext_DownlinkPDRsPerPDUSessionType(t *testing.T) {
+	tests := []struct {
+		name        string
+		fakes       func() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF)
+		sessionType fgs.PDUSessionType
+		wantPDRs    int
+		wantIPv4    bool
+		wantIPv6    bool
+	}{
+		{
+			name:        "IPv4 only",
+			fakes:       defaultFakes,
+			sessionType: fgs.PDUSessionTypeIPv4,
+			wantPDRs:    1,
+			wantIPv4:    true,
+		},
+		{
+			name:        "IPv6 only",
+			fakes:       ipv6Fakes,
+			sessionType: fgs.PDUSessionTypeIPv6,
+			wantPDRs:    1,
+			wantIPv6:    true,
+		},
+		{
+			name:        "dual stack",
+			fakes:       dualStackFakes,
+			sessionType: fgs.PDUSessionTypeIPv4v6,
+			wantPDRs:    2,
+			wantIPv4:    true,
+			wantIPv6:    true,
+		},
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pcf, store, upf, amfCb := tt.fakes()
+			s := newTestSMF(pcf, store, upf, amfCb)
 
-	if upf.lastEstablish == nil {
-		t.Fatal("expected PFCP establishment call")
-	}
+			n1Msg := buildPDUSessionEstRequestWithType(tt.sessionType)
 
-	req := upf.lastEstablish
+			_, _, err := s.CreateSmContext(context.Background(), testSUPI(), 1, testDNN, testSnssai,
+				fgs.RequestTypeInitialRequest, n1Msg, 0)
+			if err != nil {
+				t.Fatalf("CreateSmContext: %v", err)
+			}
 
-	var (
-		downlinkPDRCount int
-		downlinkUEIPs    []string
-	)
+			upf.mu.Lock()
+			defer upf.mu.Unlock()
 
-	for _, pdr := range req.PDRs {
-		if pdr.PDI.UEIPAddress.IsValid() && pdr.PDI.LocalFTEID == nil {
-			downlinkPDRCount++
+			if upf.lastEstablish == nil {
+				t.Fatal("expected PFCP establishment call")
+			}
 
-			downlinkUEIPs = append(downlinkUEIPs, pdr.PDI.UEIPAddress.String())
-		}
-	}
+			var (
+				count            int
+				hasIPv4, hasIPv6 bool
+			)
 
-	if downlinkPDRCount != 2 {
-		t.Fatalf("expected 2 downlink PDRs for dual-stack, got %d", downlinkPDRCount)
-	}
+			for _, pdr := range upf.lastEstablish.PDRs {
+				if !pdr.PDI.UEIPAddress.IsValid() || pdr.PDI.LocalFTEID != nil {
+					continue
+				}
 
-	hasIPv4 := false
-	hasIPv6 := false
+				count++
 
-	for _, ip := range downlinkUEIPs {
-		addr, err := netip.ParseAddr(ip)
-		if err != nil {
-			t.Fatalf("invalid UE IP in downlink PDR: %s", ip)
-		}
+				addr, err := netip.ParseAddr(pdr.PDI.UEIPAddress.String())
+				if err != nil {
+					t.Fatalf("invalid UE IP in downlink PDR: %s", pdr.PDI.UEIPAddress)
+				}
 
-		if addr.Is4() {
-			hasIPv4 = true
-		} else {
-			hasIPv6 = true
-		}
-	}
+				if addr.Is4() {
+					hasIPv4 = true
+				} else {
+					hasIPv6 = true
+				}
+			}
 
-	if !hasIPv4 {
-		t.Error("expected downlink PDR with IPv4 UE address")
-	}
+			if count != tt.wantPDRs {
+				t.Fatalf("downlink PDRs = %d, want %d", count, tt.wantPDRs)
+			}
 
-	if !hasIPv6 {
-		t.Error("expected downlink PDR with IPv6 UE address")
-	}
-}
+			if hasIPv4 != tt.wantIPv4 {
+				t.Errorf("downlink PDR with an IPv4 UE address = %v, want %v", hasIPv4, tt.wantIPv4)
+			}
 
-func TestCreateSmContext_IPv4Only_SendsOneDownlinkPDR(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-	supi := testSUPI()
-
-	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4)
-
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg, 0)
-	if err != nil {
-		t.Fatalf("CreateSmContext (IPv4) failed: %v", err)
-	}
-
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish == nil {
-		t.Fatal("expected PFCP establishment call")
-	}
-
-	req := upf.lastEstablish
-
-	var downlinkPDRCount int
-
-	for _, pdr := range req.PDRs {
-		if pdr.PDI.UEIPAddress.IsValid() && pdr.PDI.LocalFTEID == nil {
-			downlinkPDRCount++
-		}
-	}
-
-	if downlinkPDRCount != 1 {
-		t.Fatalf("expected 1 downlink PDR for IPv4-only, got %d", downlinkPDRCount)
-	}
-}
-
-func TestCreateSmContext_IPv6Only_SendsOneDownlinkPDR(t *testing.T) {
-	pcf, store, upf, amfCb := ipv6Fakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-	supi := testSUPI()
-
-	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
-
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg, 0)
-	if err != nil {
-		t.Fatalf("CreateSmContext (IPv6) failed: %v", err)
-	}
-
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish == nil {
-		t.Fatal("expected PFCP establishment call")
-	}
-
-	req := upf.lastEstablish
-
-	var downlinkPDRCount int
-
-	for _, pdr := range req.PDRs {
-		if pdr.PDI.UEIPAddress.IsValid() && pdr.PDI.LocalFTEID == nil {
-			downlinkPDRCount++
-		}
-	}
-
-	if downlinkPDRCount != 1 {
-		t.Fatalf("expected 1 downlink PDR for IPv6-only, got %d", downlinkPDRCount)
+			if hasIPv6 != tt.wantIPv6 {
+				t.Errorf("downlink PDR with an IPv6 UE address = %v, want %v", hasIPv6, tt.wantIPv6)
+			}
+		})
 	}
 }
 
