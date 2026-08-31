@@ -46,12 +46,10 @@ const (
 	ngSetupRequestWithoutGlobalRANNodeID = "001500190000020066000d00000000010002f839000000080015400140"
 	ngSetupRequestWithoutSupportedTAList = "00150014000002001b00080002f839100001020015400140"
 
-	// TargetID naming a targeteNB-ID, the alternative this AMF does not serve.
 	handoverRequiredTargetingENB = "000c0025000004000a00020001005500020002001d0001000069000d4002f8390000010002f8390001"
 )
 
-// A fatal NG SETUP REQUEST decode is rejected with NG SETUP FAILURE, not the
-// Error Indication other procedures fall back to (TS 38.413 §10.3.5).
+// TS 38.413 §10.3.5
 func TestHandleNGSetup_MissingMandatoryIESendsNGSetupFailure(t *testing.T) {
 	tests := []struct {
 		name string
@@ -90,14 +88,9 @@ func TestHandleNGSetup_MissingMandatoryIESendsNGSetupFailure(t *testing.T) {
 	}
 }
 
-// Ella prepares handovers only toward a 5GS RAN node, so a TargetID naming an
-// eNB is not comprehended. TargetID is reject criticality, and Handover
-// Preparation defines an unsuccessful outcome, so §10.3.4.2 answers with
-// HANDOVER PREPARATION FAILURE rather than an Error Indication.
 func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T) {
 	w := &capturingWriter{}
 	ran := newDecodeReportRadio(w)
-	// Anything but NG Setup is dropped before routing until the radio is set up.
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "000102", BitLength: 24}}
 
 	route(context.Background(), amf.New(nil, nil, nil), ran, mustDecodeHex(t, handoverRequiredTargetingENB),
@@ -122,8 +115,6 @@ func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T)
 		t.Fatalf("could not parse the failure: %v", err)
 	}
 
-	// §10.3.4.2 sends the outcome only because the UE IDs survived the rejected
-	// message; without them the fallback is an Error Indication.
 	if failure.AMFUENGAPID == nil || *failure.AMFUENGAPID != 1 ||
 		failure.RANUENGAPID == nil || *failure.RANUENGAPID != 2 {
 		t.Fatalf("failure names UE IDs %v/%v, want the ones the rejected message carried",
@@ -140,8 +131,6 @@ func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T)
 	}
 }
 
-// sentErrorIndication decodes a captured PDU and asserts it is an ERROR
-// INDICATION.
 func sentErrorIndication(t *testing.T, pkt []byte) *ngaplib.ErrorIndication {
 	t.Helper()
 
@@ -163,8 +152,7 @@ func sentErrorIndication(t *testing.T, pkt []byte) *ngaplib.ErrorIndication {
 	return ind
 }
 
-// TS 38.413 §10.2: the transfer-syntax Error Indication for an undecodable PDU
-// is cause-only — there is no procedure or IE to name.
+// TS 38.413 §10.2
 func TestSendProtocolErrorIndication(t *testing.T) {
 	w := &capturingWriter{}
 	ran := newDecodeReportRadio(w)
@@ -187,10 +175,7 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 	}
 }
 
-// TS 38.413 §10.3.4.1: an unknown Procedure Code is answered per its received
-// criticality — reject and ignore-and-notify draw an Error Indication carrying
-// the Procedure Code, Triggering Message and Procedure Criticality; ignore draws
-// no reply.
+// TS 38.413 §10.3.4.1
 func TestRespondToUnknownProcedure(t *testing.T) {
 	tests := []struct {
 		name      string

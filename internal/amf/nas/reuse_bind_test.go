@@ -54,9 +54,6 @@ func plainDeregistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 	return payload
 }
 
-// wrapIntegrityProtected wraps a plain inner NAS message in an
-// integrity-protected header with a MAC computed against the UE's current
-// security context, exactly as decodeProtectedNAS expects (TS 33.501).
 func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
@@ -79,10 +76,6 @@ func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn u
 	return pdu
 }
 
-// TestFetchUeContext_DeregistrationResolvesExistingContextByGuti guards the
-// GUTI-shadowing defect: an integrity-verified UE-originating DEREGISTRATION
-// citing a known GUTI must resolve to the existing context. A local guti that
-// shadows the outer guti leaves it invalid and forces a fresh context.
 func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
 		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
@@ -162,7 +155,7 @@ func securedUeForTest(t *testing.T, amfInstance *amf.AMF, imsi string, guti etsi
 	return ue
 }
 
-// TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)
+// TS 24.501 §5.5.1.3.2
 func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T) {
 	amfInstance := reuseTestAMF()
 
@@ -202,7 +195,6 @@ func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T)
 	}
 }
 
-// TS 24.501
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
 		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,

@@ -11,10 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 )
 
-// TestClaimICSExactlyOneWinner asserts the ICS claim is atomic: among many
-// concurrent claimers starting from ICSNotStarted, exactly one wins (and thus is
-// the sole sender of the InitialContextSetupRequest). This is the TOCTOU guarantee
-// the SMF N1N2 path relies on.
 func TestClaimICSExactlyOneWinner(t *testing.T) {
 	conn := &amf.UeConn{}
 
@@ -52,22 +48,17 @@ func TestClaimICSExactlyOneWinner(t *testing.T) {
 	}
 }
 
-// TestICSConcurrentAccessNoRace exercises the three goroutine contexts that touch
-// the ICS state — the SMF N1N2 claim, the NGAP-dispatch completion, and the
-// NAS-guard timer re-pend — concurrently on one connection. Its value is under
-// `-race`: on a plain (non-atomic) field this fails; through the atomic accessors
-// it is clean.
 func TestICSConcurrentAccessNoRace(t *testing.T) {
 	conn := &amf.UeConn{}
 
 	var wg sync.WaitGroup
 
 	for _, op := range []func(){
-		func() { conn.ClaimICS() },         // SMF N1N2 path
-		func() { conn.MarkICSCompleted() }, // NGAP dispatch (ICS response)
-		func() { conn.MarkICSPending() },   // NAS-guard timer re-pend
-		func() { _ = conn.ICS() },          // status read
-		func() { conn.ResetICS() },         // rollback on send failure
+		func() { conn.ClaimICS() },
+		func() { conn.MarkICSCompleted() },
+		func() { conn.MarkICSPending() },
+		func() { _ = conn.ICS() },
+		func() { conn.ResetICS() },
 	} {
 		wg.Add(1)
 

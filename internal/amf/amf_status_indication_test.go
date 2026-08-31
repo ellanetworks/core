@@ -37,7 +37,6 @@ func TestBuildAMFStatusIndication(t *testing.T) {
 		t.Fatalf("UnavailableGUAMIList = %+v, want one item", msg.UnavailableGUAMIList)
 	}
 
-	// AMF id cafe00 splits 8/10/6 into Region, Set and Pointer (TS 23.003 §2.10.1).
 	got := msg.UnavailableGUAMIList[0].GUAMI
 	if got.AMFRegionID != 0xca || got.AMFSetID != 0x3f8 || got.AMFPointer != 0 {
 		t.Errorf("GUAMI = %+v, want region ca / set 3f8 / pointer 0", got)
@@ -48,9 +47,6 @@ func TestBuildAMFStatusIndication(t *testing.T) {
 	}
 }
 
-// The Unavailable GUAMI List cannot be empty (SIZE(1..maxnoofServedGUAMIs)), so
-// a GUAMI that will not encode must fail loudly rather than produce a message
-// naming no one to reselect away from.
 func TestBuildAMFStatusIndicationRejectsUnusableGUAMI(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

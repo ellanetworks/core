@@ -11,11 +11,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// TS 38.413 §8.3.3.2: the command carries both identities where the RAN UE NGAP
-// ID is available and the AMF UE NGAP ID alone otherwise. A handover target that
-// has been reserved but not yet acknowledged holds RanUeNgapIDUnspecified, and
-// RAN-UE-NGAP-ID ::= INTEGER (0..4294967295) makes that a value the NG-RAN node
-// can itself assign, so the pair form would address another UE's context.
+// TS 38.413 §8.3.3.2
 func TestUEContextReleaseCommandSelectsIDAlternative(t *testing.T) {
 	cause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
 

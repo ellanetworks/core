@@ -11,15 +11,8 @@ import (
 	"github.com/ellanetworks/core/nas/nastest"
 )
 
-// TestDecodeCompliance_Section7 feeds adversarial plain 5GMM messages — built
-// with the fgs adversarial builder — through the decoder and asserts the
-// disposition matches the latitude TS 24.501 §7 grants the network: 5GMM STATUS #97
-// for an unknown/unimplemented message type (§7.4), STATUS #96 for a malformed
-// mandatory part of a defined type (§7.5.1), and an audited silence for a too-short
-// PDU (§7.2.1) or a well-formed message not permitted plain before secure exchange
-// (§4.4.4.3). It also proves the decoder never panics on these inputs.
+// TS 24.501 §7
 func TestDecodeCompliance_Section7(t *testing.T) {
-	// A valid-enough LV-E payload container for a well-formed UL NAS TRANSPORT.
 	smContainer := []byte{0x2e, 0x01, 0x00, 0xc1, 0xff, 0x00}
 
 	tests := []struct {
@@ -35,9 +28,6 @@ func TestDecodeCompliance_Section7(t *testing.T) {
 			action: nasreply.ActionStatus, domain: nasreply.DomainMM, cause: nasreply.CauseMessageTypeNotImplemented,
 		},
 		{
-			// A defined (assigned) downlink type decodes but is not on the plain-allowed
-			// whitelist, so it is silently discarded before §7.4 applies. (An
-			// *unassigned* type takes the STATUS #97 path above.)
 			name: "defined downlink type on uplink, plain -> silent (4.4.4.3)",
 			build: func() []byte {
 				return nastest.BuildGMMRaw(uint8(fgs.EPD5GMM), uint8(fgs.SHTPlain), uint8(fgs.MsgRegistrationAccept)).Bytes()
@@ -66,7 +56,7 @@ func TestDecodeCompliance_Section7(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ue := newDecoderTestUE(t)
-			ue.secured = false // fresh UE: the plain path is taken
+			ue.secured = false
 
 			_, err := DecodeNASMessage(ue, tt.build())
 			if err == nil {

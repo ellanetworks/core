@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// idlePageableUE returns a registered UE with no NAS connection, on an AMF with a gNB
-// serving its registration area.
 func idlePageableUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *fakeNGAPSender) {
 	t.Helper()
 
@@ -43,8 +41,7 @@ func idlePageableUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *fakeN
 	return amfInstance, ue, sender
 }
 
-// A DL Positioning message for a CM-IDLE UE is buffered as an N1 class LPP request and
-// the UE paged (TS 23.273 §6.11.1 steps 1-2).
+// TS 23.273 §6.11.1
 func TestTransferN1LPPMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 	amfInstance, ue, sender := idlePageableUE(t, "001010000000050")
 
@@ -83,8 +80,7 @@ func TestTransferN1LPPMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 	ue.StopPaging()
 }
 
-// A transfer with no correlation identifier is assigned one on the buffered path too
-// (TS 24.501 §5.4.5.3.1 NOTE 2).
+// TS 24.501 §5.4.5.3.1
 func TestTransferN1LPPMsg_IdleUE_AssignsCorrelationID(t *testing.T) {
 	amfInstance, ue, _ := idlePageableUE(t, "001010000000051")
 
@@ -104,8 +100,7 @@ func TestTransferN1LPPMsg_IdleUE_AssignsCorrelationID(t *testing.T) {
 	ue.StopPaging()
 }
 
-// The same for a Network Positioning message, buffered as N2 class NRPPa
-// (TS 23.273 §6.11.2 steps 1-2).
+// TS 23.273 §6.11.2
 func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 	amfInstance, ue, sender := idlePageableUE(t, "001010000000052")
 
@@ -136,7 +131,6 @@ func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Errorf("RoutingID = %d, want 7", req.RoutingID)
 	}
 
-	// Must not be mistaken for PDU session N2 information.
 	if req.PduSessionID != 0 || req.SNssai != nil {
 		t.Error("expected no PDU session scoping on a positioning request")
 	}
@@ -144,7 +138,6 @@ func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 	ue.StopPaging()
 }
 
-// A class-matched cancel leaves another consumer's buffer alone.
 func TestCancelBufferedN1N2_LeavesOtherClass(t *testing.T) {
 	amfInstance, ue, _ := idlePageableUE(t, "001010000000053")
 
@@ -161,7 +154,6 @@ func TestCancelBufferedN1N2_LeavesOtherClass(t *testing.T) {
 	ue.StopPaging()
 }
 
-// The connected path sends a DL NAS Transport and buffers nothing.
 func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	amfInstance := amf.New(nil, nil, &fakeSmf{})

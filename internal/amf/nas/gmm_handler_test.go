@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
@@ -13,20 +14,8 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestHandleGmmMessage_UnknownMessageType_NoOp verifies the default branch handles
-// an unrecognized message type without panicking (it answers with a 5GMM STATUS,
-// TS 24.501 §7.4) and is a no-op when the UE has no connection to answer on.
-func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
-	ue := amf.NewUeContext()
-	amfInstance := amf.New(nil, nil, nil)
-
-	HandleGmmMessage(context.Background(), amfInstance, ue, 0xFF, nil, true, false) // unassigned message type
-}
-
-// TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies HandleGmmMessage
-// routes a ConfigurationUpdateComplete to handleConfigurationUpdateComplete; a
-// amf.Registered UE lets the handler run its success path.
-func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) {
+// TS 24.501 §7.4
+func TestHandleGmmMessage_UnhandledMessageType_StatusNotImplemented(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -36,11 +25,43 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateComplete), nil, true, false)
+	got := HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateCommand), []byte{0x7e, 0x00, 0x54}, true, false)
+	if want := nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented); got != want {
+		t.Fatalf("disposition = %+v, want %+v", got, want)
+	}
 }
 
-// TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
-// GMMStatus to handleStatus5GMM; a amf.Registered UE lets the handler run its success path.
+func TestHandleGmmMessage_UndecodablePayload_StatusInvalidMandatoryInfo(t *testing.T) {
+	ue := amf.NewUeContext()
+	amfInstance := amf.New(nil, nil, nil)
+
+	got := HandleGmmMessage(context.Background(), amfInstance, ue, 0xFF, nil, true, false)
+	if want := nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo); got != want {
+		t.Fatalf("disposition = %+v, want %+v", got, want)
+	}
+}
+
+func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+	ue.Conn().NASGuardForTest().Arm(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	got := HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateComplete), []byte{0x7e, 0x00, 0x55}, true, false)
+	if got != nasreply.Handled() {
+		t.Fatalf("disposition = %+v, want %+v", got, nasreply.Handled())
+	}
+
+	if ue.Conn().NASGuardForTest().Active() {
+		t.Fatal("the completion must stop T3555")
+	}
+}
+
 func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -51,7 +72,10 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmmPlain(t), true, false)
+	got := HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmmPlain(t), true, false)
+	if got != nasreply.Handled() {
+		t.Fatalf("disposition = %+v, want %+v", got, nasreply.Handled())
+	}
 }
 
 func TestHandleGmmMessage_DispatchesToServiceRequest(t *testing.T) {

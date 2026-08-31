@@ -200,7 +200,7 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	}
 }
 
-// TS 24.501 §8.2.7.31, TS 23.502 §4.11.1.3.3 steps 17-18
+// TS 24.501 §8.2.7.31
 func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	amfInstance.EPS = &fakeEPSPeer{}
@@ -264,7 +264,6 @@ func TestBuildRegistrationAcceptRefusesAContextTheAMFDoesNotServe(t *testing.T) 
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.ue == served {
-				// A second context for the same SUPI displaces the first in the index.
 				buildServedTestUE(t, amfInstance, "001019756139905")
 			}
 

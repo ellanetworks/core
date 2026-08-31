@@ -88,7 +88,6 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	_ = ue.CreateSmContext(11, "11", &models.Snssai{}, "internet")
 	_ = ue.CreateSmContext(15, "15", &models.Snssai{}, "internet")
 
-	// Only PSI 11 is active, so the inactive sessions 1, 5, 8, 15 are released.
 	var psi [16]bool
 
 	psi[11] = true
@@ -109,8 +108,6 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	}
 }
 
-// buildTestNotificationResponse builds the plain NOTIFICATION RESPONSE wire bytes,
-// optionally carrying a PDU session status IE (IEI 0x50, TS 24.501 §8.2.24).
 func buildTestNotificationResponse(t *testing.T, pduSessionStatus []byte) *fgs.NotificationResponse {
 	t.Helper()
 
@@ -128,8 +125,6 @@ func buildTestNotificationResponse(t *testing.T, pduSessionStatus []byte) *fgs.N
 	return m
 }
 
-// mustBytes returns the octets of a Marshal call that must succeed, so encode
-// calls stay usable as expressions in test fixtures.
 func mustBytes(b []byte, err error) []byte {
 	if err != nil {
 		panic(err)

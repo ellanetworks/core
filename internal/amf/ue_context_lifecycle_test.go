@@ -12,10 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn verifies that superseding a
-// context leaves intact a UeConn that a restart-on-fresh re-registration has since
-// transferred to a new context (handleRegistrationRequest reuses the same radio). Only
-// a UeConn the superseded context still owns is torn down.
 func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	radio := &amf.Radio{Log: logger.AmfLog}
@@ -23,10 +19,8 @@ func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 
 	ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
 
-	// The old context owns the UeConn and is in the pool.
 	old := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) { ueConn.AMFForTest().AttachUeConn(u, ueConn) })
 
-	// A restart-on-fresh re-registration transfers the shared UeConn to a new context.
 	fresh := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(fresh, ueConn)
 
@@ -37,8 +31,6 @@ func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	}
 }
 
-// A freshly-constructed UeContext has NO connection yet — one is bound when a UeConn
-// attaches (2-level model).
 func TestNewUeContext_HasNoConn(t *testing.T) {
 	ue := amf.NewUeContext()
 
@@ -47,8 +39,6 @@ func TestNewUeContext_HasNoConn(t *testing.T) {
 	}
 }
 
-// AttachUeConn binds the single connection object, parented to the UeContext; NasConn
-// and UeConn return the same object.
 func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -65,7 +55,6 @@ func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 	}
 }
 
-// Release tears down the connection, clearing it from the UeContext.
 func TestUeConn_Release(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -80,8 +69,6 @@ func TestUeConn_Release(t *testing.T) {
 	}
 }
 
-// After Release, a subsequent AttachUeConn must restore the connection so handlers
-// don't dereference a nil NasConn.
 func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ranUe1 := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -108,8 +95,6 @@ func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 	}
 }
 
-// Reattaching a new UeConn replaces the connection and detaches the old, leaving the
-// per-registration context alive.
 func TestUeContext_AttachUeConn_ReplacesOld(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ranUe1 := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)

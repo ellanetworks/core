@@ -5,7 +5,7 @@ package amf
 
 import "testing"
 
-// TS 24.501 §4.4.3.2, TS 33.501 §6.4.3
+// TS 24.501 §4.4.3.2
 func TestNASUplinkReplayRejected(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
