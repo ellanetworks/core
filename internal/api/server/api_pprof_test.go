@@ -39,21 +39,7 @@ func getPprof(url string, client *http.Client, token string, endpoint string) (i
 }
 
 func TestGetPprof_Authorized(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName string

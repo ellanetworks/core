@@ -4,8 +4,6 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -110,169 +108,30 @@ type ListPolicyResponse struct {
 }
 
 func listPolicies(url string, client *http.Client, token string) (int, *ListPolicyResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/policies", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var policyResponse ListPolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&policyResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &policyResponse, nil
+	return apiDo[ListPolicyResponse](client, "GET", url+"/api/v1/policies", token, nil)
 }
 
 func getPolicy(url string, client *http.Client, token string, name string) (int, *GetPolicyResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/policies/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var policyResponse GetPolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&policyResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &policyResponse, nil
+	return apiDo[GetPolicyResponse](client, "GET", url+"/api/v1/policies/"+name, token, nil)
 }
 
 func createPolicy(url string, client *http.Client, token string, data *CreatePolicyParams) (int, *CreatePolicyResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/policies", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreatePolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreatePolicyResponse](client, "POST", url+"/api/v1/policies", token, data)
 }
 
 func editPolicy(url string, client *http.Client, name string, token string, data *UpdatePolicyParams) (int, *CreatePolicyResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/policies/"+name, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreatePolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreatePolicyResponse](client, "PUT", url+"/api/v1/policies/"+name, token, data)
 }
 
 func deletePolicy(url string, client *http.Client, token, name string) (int, *DeletePolicyResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/policies/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var deletePolicyResponse DeletePolicyResponse
-	if err := json.NewDecoder(res.Body).Decode(&deletePolicyResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &deletePolicyResponse, nil
+	return apiDo[DeletePolicyResponse](client, "DELETE", url+"/api/v1/policies/"+name, token, nil)
 }
 
 // This is an end-to-end test for the policies handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestAPIPoliciesEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List policies - 1", func(t *testing.T) {
 		statusCode, response, err := listPolicies(env.Server.URL, client, token)
@@ -552,24 +411,10 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 // TestUpdatePolicyPathBodyMismatch verifies that the path name is used
 // for the DB update instead of any name sent in the request body.
 func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create data network and policy.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {
@@ -656,21 +501,7 @@ func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
 }
 
 func TestCreatePolicyInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName            string
@@ -884,21 +715,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 }
 
 func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create a profile to hold all policies.
 	_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
@@ -1024,24 +841,10 @@ func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
 // TestUpdatePolicyDeletesRulesWhenNotProvided verifies that omitting the rules
 // field on an update request deletes all existing rules for the policy.
 func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create the data network first.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {
@@ -1184,23 +987,9 @@ func TestCreateMultiplePoliciesPerProfile(t *testing.T) {
 // changes to the database. Propagation of those rules to the local UPF
 // is covered by the upf settings reconciler tests.
 func TestUpdatePolicyPersistsRules(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	env, client, token := newAuthedTestEnv(t)
 
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize and login: %s", err)
-	}
-
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {

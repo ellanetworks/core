@@ -140,279 +140,39 @@ type ListAPITokensResponse struct {
 }
 
 func listUsers(url string, client *http.Client, token string, page int, perPage int) (int, *ListUsersResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/users?page=%d&per_page=%d", url, page, perPage), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var userResponse ListUsersResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&userResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &userResponse, nil
+	return apiDo[ListUsersResponse](client, "GET", fmt.Sprintf("%s/api/v1/users?page=%d&per_page=%d", url, page, perPage), token, nil)
 }
 
 func getUser(url string, client *http.Client, token string, name string) (int, *GetUserResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/users/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var userResponse GetUserResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&userResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &userResponse, nil
+	return apiDo[GetUserResponse](client, "GET", url+"/api/v1/users/"+name, token, nil)
 }
 
 func getLoggedInUser(url string, client *http.Client, token string) (int, *GetUserResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/users/me", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var userResponse GetUserResponse
-	if err := json.NewDecoder(res.Body).Decode(&userResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &userResponse, nil
+	return apiDo[GetUserResponse](client, "GET", url+"/api/v1/users/me", token, nil)
 }
 
 func createUser(url string, client *http.Client, token string, data *CreateUserParams) (int, *CreateUserResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/users", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateUserResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateUserResponse](client, "POST", url+"/api/v1/users", token, data)
 }
 
 func editUserPassword(url string, client *http.Client, token string, name string, data *UpdateUserPasswordParams) (int, *UpdateUserPasswordResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/"+name+"/password", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateUserPasswordResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateUserPasswordResponse](client, "PUT", url+"/api/v1/users/"+name+"/password", token, data)
 }
 
 func editMyUserPassword(url string, client *http.Client, token string, data *UpdateMyUserPasswordParams) (int, *UpdateUserPasswordResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/me/password", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateUserPasswordResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateUserPasswordResponse](client, "PUT", url+"/api/v1/users/me/password", token, data)
 }
 
 func editUser(url string, client *http.Client, token string, name string, data *UpdateUserParams) (int, *UpdateUserResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/"+name, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateUserResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateUserResponse](client, "PUT", url+"/api/v1/users/"+name, token, data)
 }
 
 func deleteUser(url string, client *http.Client, token string, name string) (int, *DeleteUserResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/users/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var deleteResponse DeleteUserResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &deleteResponse, nil
+	return apiDo[DeleteUserResponse](client, "DELETE", url+"/api/v1/users/"+name, token, nil)
 }
 
 func createAPIToken(url string, client *http.Client, token string, data *CreateAPITokenParams) (int, *CreateAPITokenResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/users/me/api-tokens", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateAPITokenResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateAPITokenResponse](client, "POST", url+"/api/v1/users/me/api-tokens", token, data)
 }
 
 func deleteAPIToken(url string, client *http.Client, token string, tokenID string) (int, error) {
@@ -442,52 +202,14 @@ func deleteAPIToken(url string, client *http.Client, token string, tokenID strin
 }
 
 func listAPITokens(url string, client *http.Client, token string, page int, perPage int) (int, *ListAPITokensResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/users/me/api-tokens?page=%d&per_page=%d", url, page, perPage), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var listResponse ListAPITokensResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&listResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &listResponse, nil
+	return apiDo[ListAPITokensResponse](client, "GET", fmt.Sprintf("%s/api/v1/users/me/api-tokens?page=%d&per_page=%d", url, page, perPage), token, nil)
 }
 
 // This is an end-to-end test for the users handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestAPIUsersEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. Create admin user", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
@@ -955,21 +677,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 }
 
 func TestUpdateMyPasswordWrongCurrentPassword(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	updateParams := &UpdateMyUserPasswordParams{
 		CurrentPassword: "wrongpassword",
@@ -991,21 +699,7 @@ func TestUpdateMyPasswordWrongCurrentPassword(t *testing.T) {
 }
 
 func TestUpdateMyPasswordMissingCurrentPassword(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	updateParams := &UpdateMyUserPasswordParams{
 		Password: "newpassword123",
@@ -1026,21 +720,7 @@ func TestUpdateMyPasswordMissingCurrentPassword(t *testing.T) {
 }
 
 func TestCreateUserInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		email    string
@@ -1109,21 +789,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 }
 
 func TestEditUnexistentUser(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	updateUserParams := &UpdateUserParams{
 		RoleID: RoleReadOnly,
@@ -1196,21 +862,7 @@ func TestUpdateUserInvalidRoleID(t *testing.T) {
 }
 
 func TestCreateTooManyUsers(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Insert users directly into DB to fill up to the limit (bypasses HTTP + bcrypt overhead)
 	for i := 0; i < 49; i++ { // 50 - 1 because init already created one user
@@ -1321,21 +973,7 @@ func TestCreateAPIToken(t *testing.T) {
 }
 
 func TestCreateAPITokenInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		name      string
@@ -1383,21 +1021,7 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 }
 
 func TestListUsersPagination(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	for i := 0; i < 10; i++ {
 		createUserParams := &CreateUserParams{
@@ -1542,21 +1166,7 @@ func TestListUsersPagination(t *testing.T) {
 }
 
 func TestGetLoggedInUser(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Success - get logged in user", func(t *testing.T) {
 		statusCode, response, err := getLoggedInUser(env.Server.URL, client, token)

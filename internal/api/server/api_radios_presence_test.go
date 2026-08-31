@@ -5,7 +5,6 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -33,84 +32,15 @@ func listRadiosPage(url string, client *http.Client, token string, page, perPage
 }
 
 func listRadiosQuery(url string, client *http.Client, token string, query string) (int, *ListRadiosResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/ran/radios?%s", url, query), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ListRadiosResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListRadiosResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios?%s", url, query), token, nil)
 }
 
 func getRadioDetail(url string, client *http.Client, token string, nodeType, id string) (int, *GetRadioResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response GetRadioResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[GetRadioResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), token, nil)
 }
 
 func forgetRadio(url string, client *http.Client, token string, nodeType, id string) (int, *ForgetRadioResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ForgetRadioResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ForgetRadioResponse](client, "DELETE", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), token, nil)
 }
 
 func connectAPIRadio(amfInstance *amf.AMF, name string) *amf.Radio {
