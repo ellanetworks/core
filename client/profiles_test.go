@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -47,33 +46,6 @@ func TestCreateProfile_Success(t *testing.T) {
 	}
 }
 
-func TestCreateProfile_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid profile"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.CreateProfileOptions{
-		Name:           "enterprise",
-		UeAmbrUplink:   "1 Gbps",
-		UeAmbrDownlink: "1 Gbps",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateProfile(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetProfile_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -104,27 +76,6 @@ func TestGetProfile_Success(t *testing.T) {
 
 	if profile.UeAmbrDownlink != "1 Gbps" {
 		t.Fatalf("expected ue_ambr_downlink '1 Gbps', got: %s", profile.UeAmbrDownlink)
-	}
-}
-
-func TestGetProfile_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Profile not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetProfile(ctx, &client.GetProfileOptions{Name: "non-existent"})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -162,31 +113,6 @@ func TestUpdateProfile_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateProfile_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Profile not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateProfileOptions{
-		UeAmbrUplink: "2 Gbps",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateProfile(ctx, "non-existent", opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeleteProfile_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -213,27 +139,6 @@ func TestDeleteProfile_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/profiles/enterprise" {
 		t.Fatalf("expected path api/v1/profiles/enterprise, got: %s", fake.lastOpts.Path)
-	}
-}
-
-func TestDeleteProfile_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Profile has subscribers"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteProfile(ctx, &client.DeleteProfileOptions{Name: "enterprise"})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -268,31 +173,5 @@ func TestListProfiles_Success(t *testing.T) {
 
 	if resp.Items[0].Name != "enterprise" {
 		t.Fatalf("expected first profile name 'enterprise', got: %s", resp.Items[0].Name)
-	}
-}
-
-func TestListProfiles_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListProfiles(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

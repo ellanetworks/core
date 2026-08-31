@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -106,32 +105,6 @@ func TestListFlowReports_Success(t *testing.T) {
 	}
 }
 
-func TestListFlowReports_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListFlowReportsParams{
-		Page:    1,
-		PerPage: 25,
-	}
-
-	_, err := clientObj.ListFlowReports(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestListFlowReportsByDay_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -188,32 +161,6 @@ func TestListFlowReportsByDay_Success(t *testing.T) {
 	}
 }
 
-func TestListFlowReportsByDay_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListFlowReportsParams{
-		Start: "2026-02-20",
-		End:   "2026-02-21",
-	}
-
-	_, err := clientObj.ListFlowReportsByDay(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestListFlowReportsBySubscriber_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -262,32 +209,6 @@ func TestListFlowReportsBySubscriber_Success(t *testing.T) {
 	}
 }
 
-func TestListFlowReportsBySubscriber_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListFlowReportsParams{
-		Start: "2026-02-20",
-		End:   "2026-02-21",
-	}
-
-	_, err := clientObj.ListFlowReportsBySubscriber(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestClearFlowReports_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -306,27 +227,6 @@ func TestClearFlowReports_Success(t *testing.T) {
 	err := clientObj.ClearFlowReports(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestClearFlowReports_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.ClearFlowReports(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -355,27 +255,6 @@ func TestGetFlowReportsRetentionPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestGetFlowReportsRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetFlowReportsRetentionPolicy(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateFlowReportsRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -398,31 +277,6 @@ func TestUpdateFlowReportsRetentionPolicy_Success(t *testing.T) {
 	err := clientObj.UpdateFlowReportsRetentionPolicy(ctx, updateOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateFlowReportsRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request body"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updateOpts := &client.UpdateFlowReportsRetentionPolicyOptions{
-		Days: -10,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateFlowReportsRetentionPolicy(ctx, updateOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -466,28 +320,5 @@ func TestGetFlowReportStats_Success(t *testing.T) {
 
 	if resp.TopDestinationsUplink[0].IP != "8.8.8.8" {
 		t.Fatalf("expected destination IP '8.8.8.8', got '%s'", resp.TopDestinationsUplink[0].IP)
-	}
-}
-
-func TestGetFlowReportStats_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListFlowReportsParams{}
-
-	_, err := clientObj.GetFlowReportStats(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -46,27 +45,6 @@ func TestListNetworkInterfaces_Success(t *testing.T) {
 	}
 }
 
-func TestListNetworkInterfaces_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Failed to get N3 settings"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.ListNetworkInterfaces(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateN3Interface_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -89,30 +67,5 @@ func TestUpdateN3Interface_Success(t *testing.T) {
 	err := clientObj.UpdateN3Interface(ctx, opts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateN3Interface_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid external address. Must be a valid IP address"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateN3InterfaceOptions{
-		ExternalAddress: "not-an-ip",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateN3Interface(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

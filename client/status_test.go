@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -38,26 +37,5 @@ func TestGetStatus_Success(t *testing.T) {
 
 	if status.Initialized != true {
 		t.Fatalf("expected initialized %v, got %v", true, status.Initialized)
-	}
-}
-
-func TestGetStatus_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Status not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetStatus(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

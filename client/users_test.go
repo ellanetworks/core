@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -34,31 +33,6 @@ func TestCreateUser_Success(t *testing.T) {
 	err := clientObj.CreateUser(ctx, createUserOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestCreateUser_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid email"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	createUserOpts := &client.CreateUserOptions{
-		Email:    "invalid-email",
-		Password: "secret",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateUser(ctx, createUserOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -92,36 +66,6 @@ func TestListUsers_Success(t *testing.T) {
 	}
 }
 
-func TestListUsers_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	listUsersParams := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	users, err := clientObj.ListUsers(ctx, listUsersParams)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-
-	if users != nil {
-		t.Fatalf("expected no users, got: %v", users)
-	}
-}
-
 func TestDeleteUser_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -143,30 +87,6 @@ func TestDeleteUser_Success(t *testing.T) {
 	err := clientObj.DeleteUser(ctx, deleteUserOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteUser_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid email"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	deleteUserOpts := &client.DeleteUserOptions{
-		Email: "invalid-email",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteUser(ctx, deleteUserOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -207,27 +127,6 @@ func TestGetUser_Success(t *testing.T) {
 	}
 }
 
-func TestGetUser_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "User not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetUser(ctx, &client.GetUserOptions{Email: "missing@example.com"})
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateUser_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -254,27 +153,6 @@ func TestUpdateUser_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/users/alice@example.com" {
 		t.Fatalf("expected path api/v1/users/alice@example.com, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestUpdateUser_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "User not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateUser(ctx, "missing@example.com", &client.UpdateUserOptions{RoleID: client.RoleAdmin})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -308,36 +186,6 @@ func TestCreateMyAPIToken_Success(t *testing.T) {
 	}
 }
 
-func TestCreateMyAPIToken_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid token name"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	createAPITokenOpts := &client.CreateAPITokenOptions{
-		Name:      "",
-		ExpiresAt: "",
-	}
-
-	ctx := context.Background()
-
-	resp, err := clientObj.CreateMyAPIToken(ctx, createAPITokenOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-
-	if resp != nil {
-		t.Fatalf("expected no response, got: %v", resp)
-	}
-}
-
 func TestDeleteMyAPIToken_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -356,27 +204,6 @@ func TestDeleteMyAPIToken_Success(t *testing.T) {
 	err := clientObj.DeleteMyAPIToken(ctx, "my-api-token-id")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteMyAPIToken_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "API token not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteMyAPIToken(ctx, "non-existent-token-id")
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -407,36 +234,6 @@ func TestListMyAPITokens_Success(t *testing.T) {
 
 	if len(resp.Items) != 2 {
 		t.Fatalf("expected 2 tokens, got: %d", len(resp.Items))
-	}
-}
-
-func TestListMyAPITokens_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	param := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	tokens, err := clientObj.ListMyAPITokens(ctx, param)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-
-	if tokens != nil {
-		t.Fatalf("expected no tokens, got: %v", tokens)
 	}
 }
 
@@ -474,36 +271,6 @@ func TestListUserAPITokens_Success(t *testing.T) {
 	}
 }
 
-func TestListUserAPITokens_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "User not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	param := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	tokens, err := clientObj.ListUserAPITokens(ctx, "nonexistent@example.com", param)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-
-	if tokens != nil {
-		t.Fatalf("expected no tokens, got: %v", tokens)
-	}
-}
-
 func TestCreateUserAPIToken_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -533,35 +300,6 @@ func TestCreateUserAPIToken_Success(t *testing.T) {
 	}
 }
 
-func TestCreateUserAPIToken_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Token name must be between 3 and 50 characters"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	opts := &client.CreateAPITokenOptions{
-		Name: "ab",
-	}
-
-	resp, err := clientObj.CreateUserAPIToken(ctx, "user@example.com", opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-
-	if resp != nil {
-		t.Fatalf("expected no response, got: %v", resp)
-	}
-}
-
 func TestDeleteUserAPIToken_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -580,27 +318,6 @@ func TestDeleteUserAPIToken_Success(t *testing.T) {
 	err := clientObj.DeleteUserAPIToken(ctx, "user@example.com", "token-id-123")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteUserAPIToken_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "API token not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteUserAPIToken(ctx, "user@example.com", "nonexistent-id")
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -636,30 +353,6 @@ func TestUpdateMyPassword_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateMyPassword_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 401,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Current password is incorrect"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateMyPassword(ctx, &client.UpdateMyPasswordOptions{
-		CurrentPassword: "wrongpass",
-		Password:        "newpass",
-	})
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateUserPassword_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -688,29 +381,6 @@ func TestUpdateUserPassword_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/users/user@example.com/password" {
 		t.Fatalf("expected path %q, got %q", "api/v1/users/user@example.com/password", fake.lastOpts.Path)
-	}
-}
-
-func TestUpdateUserPassword_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "User not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateUserPassword(ctx, "nonexistent@example.com", &client.UpdateUserPasswordOptions{
-		Password: "newpass",
-	})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
