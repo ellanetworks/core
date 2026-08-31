@@ -15,16 +15,11 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// targetGlobalENBID is the target eNB the handover scenarios route to; its
-// formatted id matches the key registered in m.radiosByID.
 var targetGlobalENBID = s1ap.GlobalENBID{
 	PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
 	ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 2},
 }
 
-// handoverUE builds a secured, registered UE on a source eNB with one PDN
-// connection, and registers a target eNB association. It returns the UE, the
-// source conn, and the target conn.
 func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captureConn) {
 	t.Helper()
 
@@ -97,8 +92,6 @@ func unsuccessfulValue(t *testing.T, b []byte) []byte {
 	return pdu.(*s1ap.UnsuccessfulOutcome).Value
 }
 
-// lastPDU unmarshals the most recently captured S1AP message on a conn, reading
-// under the conn lock so it is safe against a concurrent timer-driven send.
 func lastPDU(t *testing.T, cc *captureConn) s1ap.PDU {
 	t.Helper()
 
@@ -123,9 +116,6 @@ func lastPDU(t *testing.T, cc *captureConn) s1ap.PDU {
 	return pdu
 }
 
-// targetMMEUEID reads the MME-UE-S1AP-ID the MME assigned to the target connection
-// from the HANDOVER REQUEST it sent — the target's own id, distinct from the
-// source's (TS 36.413).
 func targetMMEUEID(t *testing.T, target *captureConn) s1ap.MMEUES1APID {
 	t.Helper()
 
@@ -142,9 +132,6 @@ func targetMMEUEID(t *testing.T, target *captureConn) s1ap.MMEUES1APID {
 	return hoReq.MMEUES1APID
 }
 
-// driveToPrepared runs HANDOVER REQUIRED then HANDOVER REQUEST ACKNOWLEDGE so the
-// handover reaches the prepared state, returning the target's MME-UE-S1AP-ID and
-// eNB-UE-S1AP-ID.
 func driveToPrepared(t *testing.T, m *mme.MME, ue *mme.UeContext, source, target *captureConn) (s1ap.MMEUES1APID, s1ap.ENBUES1APID) {
 	t.Helper()
 
@@ -174,10 +161,6 @@ func driveToPrepared(t *testing.T, m *mme.MME, ue *mme.UeContext, source, target
 	return targetMME, targetENBUEID
 }
 
-// TestHandoverHappyPath drives the full S1 handover: REQUIRED → REQUEST →
-// ACKNOWLEDGE → COMMAND → eNB STATUS TRANSFER → MME STATUS TRANSFER → NOTIFY,
-// asserting the user plane switches to the target only at notify and the source is
-// released.
 func TestHandoverHappyPath(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -190,8 +173,6 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// HANDOVER REQUIRED → HANDOVER REQUEST to the target, carrying the target's own
-	// fresh MME-UE-S1AP-ID.
 	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
@@ -215,12 +196,10 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatal("HANDOVER REQUEST carried the wrong Next Hop")
 	}
 
-	// The user plane must NOT be switched during preparation.
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
 		t.Fatalf("user plane switched during preparation: %+v", fsm.modifiedENB)
 	}
 
-	// HANDOVER REQUEST ACKNOWLEDGE (target id) → HANDOVER COMMAND to the source.
 	const targetENBUEID s1ap.ENBUES1APID = 55
 
 	ack := &s1ap.HandoverRequestAcknowledge{
@@ -245,12 +224,10 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("HANDOVER COMMAND addressed wrong source: %+v err %v", hoCmd, err)
 	}
 
-	// Still no user-plane switch before notify.
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
 		t.Fatalf("user plane switched before notify: %+v", fsm.modifiedENB)
 	}
 
-	// eNB STATUS TRANSFER (source id) → MME STATUS TRANSFER (target id) to the target.
 	st := &s1ap.ENBStatusTransfer{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB, Container: s1ap.StatusTransferContainer{0xde, 0xad}}
 	handleENBStatusTransfer(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, st.Marshal)))
 
@@ -264,7 +241,6 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("MME STATUS TRANSFER = %+v, err %v", parsedMST, err)
 	}
 
-	// HANDOVER NOTIFY (target id) → user-plane switch, association move, source release.
 	notify := &s1ap.HandoverNotify{
 		MMEUES1APID: targetMME,
 		ENBUES1APID: targetENBUEID,
@@ -278,7 +254,6 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
-	// The UE's active connection is now the target connection (its own id).
 	if ue.Conn().Conn() != target || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENBUEID || testPDN(ue).EnbFTEID != wantFTEID {
 		t.Fatalf("association not moved to the target connection: conn=%v mme-id=%d enb-id=%d", ue.Conn().Conn() == target, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
 	}
@@ -291,8 +266,6 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatal("handover context not cleared after notify")
 	}
 
-	// The source eNB received a UE Context Release Command addressed by the source's
-	// own id.
 	rel, ok := lastPDU(t, source).(*s1ap.InitiatingMessage)
 	if !ok || rel.ProcedureCode != s1ap.ProcUEContextRelease {
 		t.Fatalf("expected UE Context Release Command to source, got %T", lastPDU(t, source))
@@ -303,13 +276,10 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("source release addressed wrong id: %+v err %v", relCmd, err)
 	}
 
-	// A completed handover releases the source with "successful-handover" (value 2).
 	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 2}); relCmd.Cause == nil || *relCmd.Cause != want {
 		t.Fatalf("source release cause = %+v, want %+v (successful-handover)", relCmd.Cause, want)
 	}
 
-	// The source Release Complete (source id) removes the source connection without
-	// disturbing the moved UE, which is found under the target id.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(sourceMME), ENBUES1APID: s1ap.Ptr(sourceENB)}
 	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(source), successfulValue(t, mustMarshal(t, complete.Marshal)))
 
@@ -326,8 +296,6 @@ func TestHandoverHappyPath(t *testing.T) {
 	}
 }
 
-// TestHandoverRequiredNoSecurityFails checks a UE without a security context is
-// rejected with HANDOVER PREPARATION FAILURE and no HANDOVER REQUEST is sent.
 func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -354,14 +322,12 @@ func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 	}
 }
 
-// TestHandoverRequiredUnknownTargetFails checks an unresolvable target eNB yields
-// HANDOVER PREPARATION FAILURE with cause unknown-targetID.
 func TestHandoverRequiredUnknownTargetFails(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
 
 	req := sampleHandoverRequired(ue)
-	req.TargetID.TargeteNBID.GlobalENBID.ENBID.Value = 999 // not registered
+	req.TargetID.TargeteNBID.GlobalENBID.ENBID.Value = 999
 
 	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, req.Marshal)))
 
@@ -376,8 +342,6 @@ func TestHandoverRequiredUnknownTargetFails(t *testing.T) {
 	}
 }
 
-// TestHandoverConcurrentRefused checks a second HANDOVER REQUIRED while a handover
-// is in progress is rejected and does not disturb the first.
 func TestHandoverConcurrentRefused(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -399,9 +363,7 @@ func TestHandoverConcurrentRefused(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRefusedDuringHandover checks a Path Switch is refused while an S1
-// handover is advancing the key chain, so the two cannot derive a fresh NH from
-// the same base for different targets (TS 33.401 §7.2.8).
+// TS 33.401 §7.2.8
 func TestPathSwitchRefusedDuringHandover(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
@@ -428,13 +390,11 @@ func TestPathSwitchRefusedDuringHandover(t *testing.T) {
 	}
 }
 
-// TestHandoverRefusedWhileKeyChainBusy checks an S1 handover is refused while a
-// Path Switch holds the key chain — the symmetric guard of the shared marker.
 func TestHandoverRefusedWhileKeyChainBusy(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	ue.SetKeyChainBusyForTest(true) // a Path Switch is mid-advance
+	ue.SetKeyChainBusyForTest(true)
 
 	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
@@ -452,9 +412,6 @@ func TestHandoverRefusedWhileKeyChainBusy(t *testing.T) {
 	}
 }
 
-// TestHandoverGuardSurvivesContextRelease checks that freeing a UE's connection
-// mid-handover (e.g. a re-attach or detach) stops the handover guard timer, so its
-// later expiry does not dereference the freed connection.
 func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
@@ -471,14 +428,9 @@ func TestHandoverGuardSurvivesContextRelease(t *testing.T) {
 		t.Fatal("UE not idle after release")
 	}
 
-	// The orphaned supervision firing must not panic on the freed connection.
 	m.FireHandoverGuardForTest(ue)
 }
 
-// TestHandoverSupervisionTimeoutAbandons checks the handler arms supervision after the
-// HANDOVER REQUEST is sent and that it fires at the TS1RELOCoverall deadline (TS 36.413
-// §8.4). The S1Handover procedure is polled via the registry, lock-synchronised against
-// the timer goroutine.
 func TestHandoverSupervisionTimeoutAbandons(t *testing.T) {
 	m := newTestMME(t)
 	m.SetHandoverGuardTimeoutForTest(5 * time.Millisecond)
@@ -510,8 +462,6 @@ func hasS1HandoverProc(ue *mme.UeContext) bool {
 	return false
 }
 
-// TestHandoverFailureFailsToSource checks a HANDOVER FAILURE from the target ends
-// the handover with a HANDOVER PREPARATION FAILURE to the source, the UE intact.
 func TestHandoverFailureFailsToSource(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -530,8 +480,6 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 		t.Fatalf("expected HANDOVER PREPARATION FAILURE to source, got %T", lastPDU(t, source))
 	}
 
-	// The source's preparation failure relays the target's HANDOVER FAILURE cause
-	// (value 12), not a fixed one (TS 36.413 §8.4.1.3), mirroring the AMF.
 	prepFail, err := s1ap.ParseHandoverPreparationFailure(uo.Value)
 	if err != nil {
 		t.Fatalf("parse HANDOVER PREPARATION FAILURE: %v", err)
@@ -546,8 +494,6 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 	}
 }
 
-// TestHandoverCancelReleasesTarget checks a HANDOVER CANCEL after preparation
-// releases the target context and acknowledges, leaving the UE on the source.
 func TestHandoverCancelReleasesTarget(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -561,14 +507,11 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatal("handover not cleared after cancel")
 	}
 
-	// The target received a UE Context Release Command.
 	trel, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
 	if !ok || trel.ProcedureCode != s1ap.ProcUEContextRelease {
 		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
 	}
 
-	// The target release relays the source's HANDOVER CANCEL cause (value 5), not
-	// "successful-handover" (TS 36.413 §8.4.5).
 	relCmd, err := s1ap.ParseUEContextReleaseCommand(trel.Value)
 	if err != nil {
 		t.Fatalf("parse target release command: %v", err)
@@ -578,7 +521,6 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatalf("target release cause = %+v, want %+v (relayed cancel cause)", relCmd.Cause, want)
 	}
 
-	// The source received a HANDOVER CANCEL ACKNOWLEDGE.
 	ack, ok := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
 	if !ok || ack.ProcedureCode != s1ap.ProcHandoverCancel {
 		t.Fatalf("expected HANDOVER CANCEL ACKNOWLEDGE to source, got %T", lastPDU(t, source))
@@ -588,8 +530,6 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatal("UE association moved on a cancelled handover")
 	}
 
-	// The target's Release Complete (target id) does not disturb the UE, which stays
-	// on the source.
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(targetMME), ENBUES1APID: s1ap.Ptr(targetENBUEID)}
 	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, complete.Marshal)))
 
@@ -598,16 +538,11 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 	}
 }
 
-// TestHandoverCancelDuringPreparationReleasesTarget checks a HANDOVER CANCEL that
-// arrives before the target acknowledges still releases the target's reserved
-// resources (TS 36.413 §8.4.5), addressing it by MME-UE-S1AP-ID alone since its
-// eNB-UE-S1AP-ID has not yet arrived. Without this the target context is orphaned.
+// TS 36.413 §8.4.5
 func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	// Drive only to hoPreparing: HANDOVER REQUIRED processed and HANDOVER REQUEST sent
-	// to the target, but no HANDOVER REQUEST ACKNOWLEDGE yet.
 	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	if target.count() != 1 {
@@ -631,8 +566,6 @@ func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 		t.Fatalf("parse target release command: %v", err)
 	}
 
-	// A still-preparing target has no known eNB-UE-S1AP-ID, so the release addresses it
-	// by the MME-UE-S1AP-ID alone (the CHOICE's second alternative), not the pair.
 	if relCmd.UES1APIDs.Pair {
 		t.Error("a preparing target's release must use the MME-UE-S1AP-ID alone, not the pair")
 	}
@@ -651,14 +584,11 @@ func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 	}
 }
 
-// TestHandoverPartialAdmissionReleasesFailedPDN checks a multi-PDN UE whose target
-// rejects one PDN's default bearer keeps the admitted PDN and releases the
-// rejected one at notify (TS 23.401 §5.5.1.2.2 step 15).
+// TS 23.401 §5.5.1.2.2
 func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	// Second PDN connection on EBI 6.
 	second := ue.EnsurePDN(6)
 	second.Apn = "ims"
 	second.Qci, second.Arp = 5, 7
@@ -675,7 +605,6 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 
 	const targetENBUEID s1ap.ENBUES1APID = 55
 
-	// Target admits the default bearer (EBI 5), rejects EBI 6.
 	ack := &s1ap.HandoverRequestAcknowledge{
 		MMEUES1APID: s1ap.Ptr(targetMME),
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
@@ -689,7 +618,6 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	}
 	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
 
-	// HANDOVER COMMAND lists EBI 6 in the bearers-to-release list.
 	cmd, _ := s1ap.ParseHandoverCommand(lastPDU(t, source).(*s1ap.SuccessfulOutcome).Value)
 	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != 6 {
 		t.Fatalf("HANDOVER COMMAND release list = %+v", cmd.ERABToRelease)
@@ -703,7 +631,6 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	}
 	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
-	// The rejected PDN was released and dropped; the admitted one survives.
 	if fsm := m.Session.(*fakeSessionManager); !fsm.released {
 		t.Fatal("rejected PDN session not released")
 	}
@@ -717,16 +644,12 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 	}
 }
 
-// TestHandoverCancelDuringCommitIgnored checks a HANDOVER CANCEL that races in
-// after the UE has reached the target (the committing window) is acknowledged but
-// does not tear the handover down — the fix for the NOTIFY-vs-CANCEL race.
 func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
 	driveToPrepared(t, m, ue, source, target)
 
-	// Simulate the in-flight user-plane switch of HANDOVER NOTIFY.
 	ue.ForceHandoverCommittingForTest()
 
 	targetBefore := target.count()
@@ -748,9 +671,6 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 	}
 }
 
-// TestHandoverGuardTimerAbandons checks the supervision timer abandons a prepared
-// handover the target never completes, releasing the target and leaving the UE on
-// the source eNB.
 func TestHandoverGuardTimerAbandons(t *testing.T) {
 	m := newTestMME(t)
 	m.SetHandoverGuardTimeoutForTest(50 * time.Millisecond)
@@ -759,8 +679,6 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 
 	driveToPrepared(t, m, ue, source, target)
 
-	// The guard expiry clears the handover and then releases the target, so the
-	// target receives a second message (after the HANDOVER REQUEST).
 	deadline := time.Now().Add(2 * time.Second)
 	for target.count() < 2 {
 		if time.Now().After(deadline) {
@@ -786,8 +704,6 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
 	}
 
-	// The abandoned target is released with "tS1relocoverall-expiry" (value 8), not
-	// "successful-handover" (TS 36.413 §9.2.1.3).
 	relCmd, err := s1ap.ParseUEContextReleaseCommand(rel.Value)
 	if err != nil {
 		t.Fatalf("parse target release command: %v", err)
@@ -798,9 +714,7 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 	}
 }
 
-// TestHandoverPartialAdmissionPromotesDefault checks that when the target rejects
-// the UE's attach-default PDN but admits a secondary, the surviving PDN is promoted
-// to the default so the UE retains a default PDN connection (TS 23.401 §5.5.1.2.2).
+// TS 23.401 §5.5.1.2.2
 func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -816,7 +730,6 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 
 	const targetENBUEID s1ap.ENBUES1APID = 55
 
-	// Target admits the secondary (EBI 6), rejects the attach default (EBI 5).
 	ack := &s1ap.HandoverRequestAcknowledge{
 		MMEUES1APID: s1ap.Ptr(targetMME),
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
@@ -865,10 +778,7 @@ func handoverNotify(targetMME s1ap.MMEUES1APID, targetENB s1ap.ENBUES1APID) *s1a
 	}
 }
 
-// TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication checks that a HANDOVER
-// NOTIFY carrying an MME-UE-S1AP-ID the MME never allocated draws an ERROR
-// INDICATION with the received AP IDs and cause unknown-mme-ue-s1ap-id, and leaves
-// the in-flight handover intact (TS 36.413 §10.6).
+// TS 36.413 §10.6
 func TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -907,10 +817,7 @@ func TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 	}
 }
 
-// TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication checks that a
-// HANDOVER NOTIFY carrying the prepared target MME-UE-S1AP-ID but an eNB-UE-S1AP-ID
-// that matches no prepared handover draws an ERROR INDICATION carrying the received
-// AP IDs, and does not commit the handover (TS 36.413 §10.6).
+// TS 36.413 §10.6
 func TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -953,10 +860,7 @@ func TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication(t *testing.T)
 	}
 }
 
-// TestHandoverNotifyStaleDuplicateAfterCompletion checks that a HANDOVER NOTIFY
-// retransmitted after the handover has completed — its AP IDs now identify the UE's
-// active connection — is not answered with an ERROR INDICATION and does not release
-// the live UE (TS 36.413 §10.6).
+// TS 36.413 §10.6
 func TestHandoverNotifyStaleDuplicateAfterCompletion(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -983,9 +887,6 @@ func TestHandoverNotifyStaleDuplicateAfterCompletion(t *testing.T) {
 	}
 }
 
-// TestHandoverTargetConnLossAborts checks that losing the target eNB association
-// mid-handover aborts the handover and removes the target connection by its own
-// id, leaving the UE on its source.
 func TestHandoverTargetConnLossAborts(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -1011,9 +912,6 @@ func TestHandoverTargetConnLossAborts(t *testing.T) {
 	}
 }
 
-// TestHandoverSourceConnLossReclaims checks that losing the source eNB association
-// mid-handover reclaims the UE to ECM-IDLE and drops the prepared target
-// connection.
 func TestHandoverSourceConnLossReclaims(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -1035,12 +933,9 @@ func TestHandoverSourceConnLossReclaims(t *testing.T) {
 		t.Fatal("handover not cleared on source association loss")
 	}
 
-	m.RemoveUe(ue) // stop the default-duration mobile reachable timer
+	m.RemoveUe(ue)
 }
 
-// TestHandoverTargetResetAborts checks that an S1 Reset on the target eNB
-// mid-handover aborts the handover (the UE stays on its source) without
-// reclaiming the UE active on the source.
 func TestHandoverTargetResetAborts(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -1063,9 +958,6 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 	}
 }
 
-// TestHandoverSourceConnLossReleasesTarget checks that aborting a prepared handover
-// by source-connection loss explicitly releases the target eNB, like the guard
-// timer, without waiting for its own timeout.
 func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -1084,12 +976,9 @@ func TestHandoverSourceConnLossReleasesTarget(t *testing.T) {
 		t.Fatalf("expected UE Context Release Command to target, got %T", lastPDU(t, target))
 	}
 
-	m.RemoveUe(ue) // stop the default-duration mobile reachable timer
+	m.RemoveUe(ue)
 }
 
-// TestHandoverNotifyUEReleasedDuringSwitch checks the notify commit is guarded
-// against a concurrent release during the unlocked user-plane switch: the UE is
-// not resurrected onto the target.
 func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -1116,15 +1005,10 @@ func TestHandoverNotifyUEReleasedDuringSwitch(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE verifies
-// that a duplicate/stale HANDOVER REQUEST ACKNOWLEDGE resolving to a UE with no
-// matching handover preparation (e.g. one already handed over, whose association id
-// is now its active one) is dropped — NOT answered with a UE Context Release, which
-// would tear down a live UE. TS 36.413 §10.4 (response incompatible with receiver
-// state) calls for local error handling.
+// TS 36.413 §10.4
 func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t *testing.T) {
 	m := newTestMME(t)
-	ue, source, _ := handoverUE(t, m) // registered, connected UE; no handover started
+	ue, source, _ := handoverUE(t, m)
 
 	before := len(source.sent)
 
@@ -1165,7 +1049,6 @@ func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
 		t.Fatalf("NCC after preparation = %d, want %d", afterPrepareNCC, (ncc0+1)&0x07)
 	}
 
-	// Abandon it; the chain must stay where preparation left it.
 	m.FireHandoverGuardForTest(ue)
 
 	if ue.NHForTest() != afterPrepare || ue.NCCForTest() != afterPrepareNCC {

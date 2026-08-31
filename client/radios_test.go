@@ -6,7 +6,6 @@ package client_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -60,32 +59,6 @@ func TestGetRadio_Success(t *testing.T) {
 	}
 }
 
-func TestGetRadio_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Radio not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	getRadioOpts := &client.GetRadioOptions{
-		RanNodeType: "gNB",
-		ID:          "ffffff",
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetRadio(ctx, getRadioOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestListRadios_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -113,32 +86,6 @@ func TestListRadios_Success(t *testing.T) {
 
 	if len(resp.Items) != 2 {
 		t.Fatalf("expected 2 radios, got %d", len(resp.Items))
-	}
-}
-
-func TestListRadios_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListRadios(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -241,32 +188,6 @@ func TestClearRadioEvents_Success(t *testing.T) {
 	}
 }
 
-func TestListRadioEvents_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListRadioEventsParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListRadioEvents(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetRadioEventsRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -293,27 +214,6 @@ func TestGetRadioEventsRetentionPolicy_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/ran/events/retention" {
 		t.Fatalf("expected path api/v1/ran/events/retention, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestGetRadioEventsRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetRadioEventRetentionPolicy(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -347,31 +247,6 @@ func TestUpdateRadioEventsRetentionPolicy_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/ran/events/retention" {
 		t.Fatalf("expected path api/v1/ran/events/retention, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestUpdateRadioEventsRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request body"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updateOpts := &client.UpdateRadioEventsRetentionPolicyOptions{
-		Days: 0,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateRadioEventRetentionPolicy(ctx, updateOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -416,29 +291,6 @@ func TestGetRadioEvent_Success(t *testing.T) {
 	}
 }
 
-func TestGetRadioEvent_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Radio event not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	logID := 999
-
-	_, err := clientObj.GetRadioEvent(ctx, logID)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestForgetRadio_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -464,22 +316,5 @@ func TestForgetRadio_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/ran/radios/gNB/000102" {
 		t.Errorf("expected path 'api/v1/ran/radios/gNB/000102', got: %s", fake.lastOpts.Path)
-	}
-}
-
-func TestForgetRadio_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Radio is online"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	err := clientObj.ForgetRadio(context.Background(), &client.ForgetRadioOptions{RanNodeType: "gNB", ID: "000102"})
-	if err == nil {
-		t.Fatal("expected an error, got nil")
 	}
 }

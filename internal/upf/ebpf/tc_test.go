@@ -19,15 +19,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// TC verdicts (linux/pkt_cls.h). bpf_redirect returns TC_ACT_REDIRECT, which
-// is also the datapath's transmit-back verdict.
 const (
 	tcActOK       = 0
 	tcActShot     = 2
 	tcActRedirect = 7
 )
 
-// loadProgramConfig for the SCHED_CLS build.
 func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int) *N3N6EntrypointTcObjects { //nolint:unparam // signature mirrors loadProgramConfig
 	t.Helper()
 
@@ -94,9 +91,6 @@ func putTCPdrDownlink(t *testing.T, objs *N3N6EntrypointTcObjects, ueAddr [4]byt
 	}
 }
 
-// skbRunContext is the UAPI __sk_buff layout accepted as ctx_in by
-// BPF_PROG_TEST_RUN for SCHED_CLS; only the kernel-settable fields may be
-// non-zero (net/bpf/test_run.c convert___skb_to_skb).
 type skbRunContext struct {
 	Len, PktType, Mark, QueueMapping, Protocol, VlanPresent uint32
 	VlanTci, VlanProto, Priority, IngressIfindex, Ifindex   uint32
@@ -119,8 +113,6 @@ type skbRunContext struct {
 func runTC(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	t.Helper()
 
-	// ingress_ifindex 1 (loopback) mirrors what XDP BPF_PROG_TEST_RUN
-	// provides, so bpf_fib_lookup resolves identically in both builds.
 	opts := &ebpf.RunOptions{
 		Data:    packet,
 		DataOut: make([]byte, len(packet)+256),
@@ -139,12 +131,8 @@ func runTC(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	return action, opts.DataOut
 }
 
-// Presents the skb as CHECKSUM_COMPLETE and recomputes skb->csum after the
-// run, returning EBADMSG when the program's rewrites did not carry the running
-// sum along. The default CHECKSUM_NONE cannot tell the two apart.
 const bpfFTestSKBChecksumComplete = 1 << 2
 
-// A kernel without the flag rejects the run with EINVAL.
 func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	t.Helper()
 
@@ -171,8 +159,6 @@ func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uin
 	return action, opts.DataOut
 }
 
-// TC folds TX and REDIRECT into TC_ACT_REDIRECT, and ABORTED into
-// TC_ACT_SHOT. That loss is why the counters are keyed on the action.
 func verdictsEquivalent(xdpAction, tcAction uint32) bool {
 	switch xdpAction {
 	case ActionPass:
@@ -186,8 +172,6 @@ func verdictsEquivalent(xdpAction, tcAction uint32) bool {
 	return false
 }
 
-// The two builds' statistics are distinct generated types with the same
-// layout, so each caller passes its own reader.
 func actionCounters(t *testing.T, read func(*ebpf.Map) [UPFMaxAction]uint64, uplink, downlink *ebpf.Map) [UPFMaxAction]uint64 {
 	t.Helper()
 
@@ -284,7 +268,6 @@ func formatActions(d [UPFMaxAction]uint64) string {
 	return strings.Join(b, " ")
 }
 
-// The verifier gate for the SCHED_CLS build.
 func TestTCObjectsLoad(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -303,8 +286,6 @@ func TestTCObjectsLoad(t *testing.T) {
 	}
 }
 
-// Pins the TC build to the XDP build: the same frames against the same map
-// state must come out byte-identical, with equivalent verdicts.
 func TestTCMatchesXDPOutput(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -334,7 +315,7 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 
 	pscPDR := ipv4OuterDownlinkPDR(dlTEID, local, remote, qfi)
 	s1uPDR := ipv4OuterDownlinkPDR(dlTEID, local, remote, 0)
-	s1uPDR.Far.OuterHeaderCreation |= 0x10 // OHC_NO_PSC
+	s1uPDR.Far.OuterHeaderCreation |= 0x10
 	v6PDR := ipv6OuterDownlinkPDR(dlTEID, testUPFN3v6, testGNBv6, qfi)
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
@@ -375,7 +356,6 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 				t.Errorf("verdicts diverge: XDP %d, TC %d", xdpAction, tcAction)
 			}
 
-			// The verdicts may differ; the recorded action may not.
 			xdpDelta := actionDelta(xdpBefore, xdpActionCounters(t, xdpObj))
 			tcDelta := actionDelta(tcBefore, tcActionCounters(t, tcObjs))
 
@@ -392,8 +372,6 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 	}
 }
 
-// Same, for destination NAT: the TC build reaches the same bytes through
-// bpf_l4_csum_replace.
 func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -420,8 +398,6 @@ func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 
 	putTCPdrDownlink(t, tcObjs, ueIP, pdr)
 
-	// The NAT-side conntrack entry as the uplink path would have created it:
-	// keyed by the reply tuple, peering back to the UE's original tuple.
 	key := natFiveTuple(natPublicIP, serverIP, natPort, srvPort, 17)
 	entry := N3N6EntrypointNatEntry{
 		Peer: natFiveTuple(ueIP, serverIP, uePort, srvPort, 17),
@@ -454,8 +430,6 @@ func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 		t.Fatalf("translated downlink packet dropped (XDP action %d)", xdpAction)
 	}
 
-	// The rewrites must be visible inside the encapsulated frame: inner
-	// destination is the UE address and port again.
 	innerIP := xdpOut[ethHdrLen+gtpV4EncapLen:]
 	if !bytes.Equal(innerIP[16:20], ueIP[:]) {
 		t.Errorf("inner daddr = %v, want %v", innerIP[16:20], ueIP)
@@ -466,9 +440,6 @@ func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 	}
 }
 
-// The QinQ guard: the kernel keeps at most one tag out of band, so a frame
-// whose bytes still carry a VLAN ethertype belongs to the stack — which is
-// also where the XDP build's parser leaves it.
 func TestTCInBandVLANPassedToStack(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -476,7 +447,7 @@ func TestTCInBandVLANPassedToStack(t *testing.T) {
 
 	for name, etherType := range map[string]uint16{"8021q": 0x8100, "8021ad": 0x88a8} {
 		t.Run(name, func(t *testing.T) {
-			tag := []byte{0x00, 0x64, 0x08, 0x00} // VID 100, inner IPv4
+			tag := []byte{0x00, 0x64, 0x08, 0x00}
 			frame := ethFrame(etherType, append(tag, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)...))
 
 			action, out := runTC(t, tcObjs.UpfEntryFunc, frame)
@@ -492,9 +463,6 @@ func TestTCInBandVLANPassedToStack(t *testing.T) {
 	}
 }
 
-// Rewriting the source address moves the L4 checksum without a compensating
-// change in the bytes skb->csum covers, so the update has to reach the kernel
-// through bpf_l4_csum_replace for the running sum to stay valid.
 func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -525,8 +493,6 @@ func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 	}
 }
 
-// gso_segs 0 is what a virtio, tap or vhost source produces, and the datapath
-// must still see the buffer as merged.
 func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uint32) uint32 {
 	t.Helper()
 
@@ -548,8 +514,6 @@ func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uin
 	return action
 }
 
-// Segmentation replays the tunnel headers verbatim and decapsulation strips
-// only the first datagram's, so both directions drop the frame and say so.
 func TestTCMergedFramesDropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -600,7 +564,6 @@ func TestTCMergedFramesDropped(t *testing.T) {
 			objs := loadTCProgramConfig(t, false, 0, 1)
 			tc.setup(objs)
 
-			// The virtio case reports no segment count at all.
 			gsoSize := uint32(len(tc.frame) / 2)
 
 			for _, segs := range []uint32{4, 0} {

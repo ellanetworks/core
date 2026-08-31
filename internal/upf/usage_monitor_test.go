@@ -9,16 +9,9 @@ import (
 	"time"
 )
 
-// At shutdown the counters since the last tick must be drained, and the poller
-// must be finished before Close tears down the maps it reads.
-
-// TestStopUsageMonitorWaitsForExit: Close depends on this ordering, since a
-// select with both a ready tick and a ready stop picks uniformly.
 func TestStopUsageMonitorWaitsForExit(t *testing.T) {
 	u := &UPF{ctx: context.Background()}
 
-	// A long interval, so the only thing that ends the poller is the stop —
-	// which is what the wait has to observe.
 	u.startUsageMonitor(context.Background(), time.Hour)
 
 	done := u.usageDone
@@ -38,8 +31,6 @@ func TestStopUsageMonitorWaitsForExit(t *testing.T) {
 	}
 }
 
-// TestStopUsageMonitorWithoutStart checks the nil case: Close runs even when
-// Start bailed before the poller was launched.
 func TestStopUsageMonitorWithoutStart(t *testing.T) {
 	u := &UPF{}
 
@@ -58,9 +49,6 @@ func TestStopUsageMonitorWithoutStart(t *testing.T) {
 	}
 }
 
-// TestMonitorUsageReturnsWithinTheFlushBudget pins that the shutdown flush
-// cannot hang. It does not assert the counters drained: with no session engine
-// there is nothing observable to drain.
 func TestMonitorUsageReturnsWithinTheFlushBudget(t *testing.T) {
 	u := &UPF{ctx: context.Background()}
 

@@ -57,7 +57,6 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Must not panic or create a context for an unknown MME-UE-S1AP-ID.
 	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
@@ -65,8 +64,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 	}
 }
 
-// TS 36.413 §10.3.5: UE Radio Capability is mandatory/ignore, so a message
-// omitting it is delivered, and must leave the stored capability standing.
+// TS 36.413 §10.3.5
 func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -75,8 +73,6 @@ func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 	stored := []byte{0x01, 0x02, 0x03, 0x04}
 	ue.RadioCapability = stored
 
-	// Only the two UE S1AP IDs; the encoder refuses to omit a required IE, so
-	// the container is built as a peer would send it.
 	body, err := hex.DecodeString("000002" + "00004002" + "0001" + "00084002" + "0007")
 	if err != nil {
 		t.Fatal(err)

@@ -6,27 +6,11 @@ package server_test
 import (
 	"context"
 	"net/http"
-	"path/filepath"
 	"testing"
 )
 
 func TestSubscriberUsageLimitParam(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	cases := []struct {
 		name   string

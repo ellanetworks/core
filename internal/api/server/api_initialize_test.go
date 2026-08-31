@@ -4,8 +4,6 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -28,34 +26,7 @@ type InitializeParams struct {
 }
 
 func initialize(url string, client *http.Client, data *InitializeParams) (int, *InitializeResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/init", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var initResponse InitializeResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&initResponse); err != nil {
-		return res.StatusCode, nil, err
-	}
-
-	return res.StatusCode, &initResponse, nil
+	return apiDo[InitializeResponse](client, "POST", url+"/api/v1/init", "", data)
 }
 
 func TestInitializeInvalidInput(t *testing.T) {

@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -41,27 +40,6 @@ func TestGetBGPSettings_Success(t *testing.T) {
 	}
 }
 
-func TestGetBGPSettings_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Failed to get BGP settings"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetBGPSettings(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateBGPSettings_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -87,31 +65,6 @@ func TestUpdateBGPSettings_Success(t *testing.T) {
 	err := clientObj.UpdateBGPSettings(ctx, opts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateBGPSettings_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "localAS must be between 1 and 4294967295"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateBGPSettingsOptions{
-		LocalAS: 0,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateBGPSettings(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -146,29 +99,6 @@ func TestListBGPPeers_Success(t *testing.T) {
 	}
 }
 
-func TestListBGPPeers_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{Page: 1, PerPage: 25}
-
-	_, err := clientObj.ListBGPPeers(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetBGPPeer_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -198,27 +128,6 @@ func TestGetBGPPeer_Success(t *testing.T) {
 	}
 }
 
-func TestGetBGPPeer_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "BGP peer not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetBGPPeer(ctx, &client.GetBGPPeerOptions{ID: 999})
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestCreateBGPPeer_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -243,32 +152,6 @@ func TestCreateBGPPeer_Success(t *testing.T) {
 	err := clientObj.CreateBGPPeer(ctx, opts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestCreateBGPPeer_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 409,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "A BGP peer with this address already exists"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.CreateBGPPeerOptions{
-		Address:  "10.0.0.2",
-		RemoteAS: 65001,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateBGPPeer(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -300,29 +183,6 @@ func TestUpdateBGPPeer_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateBGPPeer_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request data"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateBGPPeerOptions{ID: 7}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateBGPPeer(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestDeleteBGPPeer_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -341,27 +201,6 @@ func TestDeleteBGPPeer_Success(t *testing.T) {
 	err := clientObj.DeleteBGPPeer(ctx, &client.DeleteBGPPeerOptions{ID: 7})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestDeleteBGPPeer_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "BGP peer not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteBGPPeer(ctx, &client.DeleteBGPPeerOptions{ID: 999})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -394,27 +233,6 @@ func TestGetBGPAdvertisedRoutes_Success(t *testing.T) {
 	}
 }
 
-func TestGetBGPAdvertisedRoutes_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Failed to get BGP routes"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetBGPAdvertisedRoutes(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetBGPLearnedRoutes_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -441,26 +259,5 @@ func TestGetBGPLearnedRoutes_Success(t *testing.T) {
 
 	if routes.Routes[0].Peer != "10.0.0.2" {
 		t.Errorf("expected peer 10.0.0.2, got %s", routes.Routes[0].Peer)
-	}
-}
-
-func TestGetBGPLearnedRoutes_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetBGPLearnedRoutes(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

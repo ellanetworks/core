@@ -17,11 +17,6 @@ import (
 	upfebpf "github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-// The SDF index allocator is LIFO, so the slot a release frees is the very next
-// one installFilter hands out: a session resolving an index while that release
-// walks the session list is missed by the propagation and left enforcing another
-// policy's rules on its subscriber's traffic. A lock-ordering mistake between
-// filterMu and Session.opMu shows up here as a test timeout.
 func TestFilterReleaseVsSessionApplyNoSlotReuse(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"

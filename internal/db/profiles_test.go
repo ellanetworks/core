@@ -1,31 +1,17 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestProfilesEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	// Default profile is created during initialization
 	res, total, err := database.ListProfilesPage(context.Background(), 1, 10)
@@ -159,38 +145,16 @@ func TestProfilesEndToEnd(t *testing.T) {
 }
 
 func TestProfileGetNotFound(t *testing.T) {
-	tempDir := t.TempDir()
+	database := setupTestDB(t)
 
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	_, err = database.GetProfile(context.Background(), "nonexistent")
+	_, err := database.GetProfile(context.Background(), "nonexistent")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
 	}
 }
 
 func TestProfileDuplicateName(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	profile := &db.Profile{
 		Name:           "duplicate-profile",
@@ -198,7 +162,7 @@ func TestProfileDuplicateName(t *testing.T) {
 		UeAmbrDownlink: "100 Mbps",
 	}
 
-	err = database.CreateProfile(context.Background(), profile)
+	err := database.CreateProfile(context.Background(), profile)
 	if err != nil {
 		t.Fatalf("Couldn't complete first CreateProfile: %s", err)
 	}
@@ -210,18 +174,7 @@ func TestProfileDuplicateName(t *testing.T) {
 }
 
 func TestProfileSubscriberCount(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	profile := &db.Profile{
 		Name:           "count-profile",
@@ -229,7 +182,7 @@ func TestProfileSubscriberCount(t *testing.T) {
 		UeAmbrDownlink: "100 Mbps",
 	}
 
-	err = database.CreateProfile(context.Background(), profile)
+	err := database.CreateProfile(context.Background(), profile)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateProfile: %s", err)
 	}

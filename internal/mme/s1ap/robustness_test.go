@@ -11,9 +11,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestHandleParseError_EmitsErrorIndication asserts that an undecodable
-// UE-associated S1AP message draws an ERROR INDICATION carrying Criticality
-// Diagnostics that name the procedure (TS 36.413 §10.4).
+// TS 36.413 §10.4
 func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -44,14 +42,9 @@ func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 	}
 }
 
-// TestNonAttachInitialUEMessageCreatesNoContext checks that an Initial UE Message
-// whose NAS is not an Attach Request binds no UE context and leaves no connection
-// behind (its bare connection is released), so an unauthenticated peer cannot
-// exhaust contexts (TS 24.301).
 func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 	m := newTestMME(t)
 
-	// A plain EMM STATUS — a valid EMM message that is not an Attach Request.
 	emmStatus := []byte{0x07, 0x60, 0x00}
 	for i := 0; i < 100; i++ {
 		HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(nil), initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))

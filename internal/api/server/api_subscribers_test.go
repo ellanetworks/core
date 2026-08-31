@@ -130,117 +130,19 @@ type DeleteSubscriberResponse struct {
 }
 
 func listSubscribers(url string, client *http.Client, token string, page int, perPage int) (int, *ListSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/subscribers?page=%d&per_page=%d", url, page, perPage), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var subscriberResponse ListSubscriberResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &subscriberResponse, nil
+	return apiDo[ListSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscribers?page=%d&per_page=%d", url, page, perPage), token, nil)
 }
 
 func getSubscriber(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+imsi, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var subscriberResponse GetSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &subscriberResponse, nil
+	return apiDo[GetSubscriberResponse](client, "GET", url+"/api/v1/subscribers/"+imsi, token, nil)
 }
 
 func createSubscriber(url string, client *http.Client, token string, data *CreateSubscriberParams) (int, *CreateSubscriberResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/subscribers", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateSubscriberResponse](client, "POST", url+"/api/v1/subscribers", token, data)
 }
 
 func deleteSubscriber(url string, client *http.Client, token string, imsi string) (int, *DeleteSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/subscribers/"+imsi, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var deleteResponse DeleteSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &deleteResponse, nil
+	return apiDo[DeleteSubscriberResponse](client, "DELETE", url+"/api/v1/subscribers/"+imsi, token, nil)
 }
 
 type UpdateSubscriberParams struct {
@@ -271,62 +173,11 @@ type GetSubscriberCredentialsResponse struct {
 }
 
 func getSubscriberCredentials(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberCredentialsResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+imsi+"/credentials", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var credsResponse GetSubscriberCredentialsResponse
-	if err := json.NewDecoder(res.Body).Decode(&credsResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &credsResponse, nil
+	return apiDo[GetSubscriberCredentialsResponse](client, "GET", url+"/api/v1/subscribers/"+imsi+"/credentials", token, nil)
 }
 
 func updateSubscriber(url string, client *http.Client, token string, imsi string, data *UpdateSubscriberParams) (int, *UpdateSubscriberResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/subscribers/"+imsi, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateSubscriberResponse](client, "PUT", url+"/api/v1/subscribers/"+imsi, token, data)
 }
 
 // mockSessionForSubscriber creates a mock PDU session for a subscriber in the AMF context.
@@ -365,21 +216,7 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestSubscribersApiEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. Create data network", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
@@ -966,21 +803,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 }
 
 func TestCreateSubscriberInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		imsi           string
@@ -1063,21 +886,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 }
 
 func TestCreateSubscriberValidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		mcc  string
@@ -1155,21 +964,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 }
 
 func TestCreateSubscriberRejectsEmptyMSIN(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	statusCode, _, err := updateOperatorID(env.Server.URL, client, token, &UpdateOperatorIDParams{Mcc: "001", Mnc: "001"})
 	if err != nil {
@@ -1201,21 +996,7 @@ func TestCreateSubscriberRejectsEmptyMSIN(t *testing.T) {
 }
 
 func TestCreateTooManySubscribers(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	createDataNetworkParams := &CreateDataNetworkParams{
 		Name:     "whatever",
@@ -1329,30 +1110,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 }
 
 func listSubscribersByDataNetwork(url string, client *http.Client, token, dn string) (int, *ListSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers?data_network="+dn, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out ListSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[ListSubscriberResponse](client, "GET", url+"/api/v1/subscribers?data_network="+dn, token, nil)
 }
 
 func TestListSubscribers_DataNetworkFilter(t *testing.T) {
@@ -1437,30 +1195,7 @@ func TestListSubscribers_DataNetworkFilter(t *testing.T) {
 }
 
 func listSubscribersWithQuery(url string, client *http.Client, token, query string) (int, *ListSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers?"+query, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out ListSubscriberResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[ListSubscriberResponse](client, "GET", url+"/api/v1/subscribers?"+query, token, nil)
 }
 
 func TestListSubscribers_SearchFilter(t *testing.T) {

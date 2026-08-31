@@ -576,7 +576,6 @@ func TestRelocationCancelAbandonsThePreparation(t *testing.T) {
 	}
 }
 
-// TS 36.413
 func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	m := New(nil, fakeBearerStore{}, sessions)
@@ -754,7 +753,7 @@ func TestTargetGlobalENBIDWidths(t *testing.T) {
 	}
 }
 
-// TS 36.413 §8.4.2.3, TS 38.413 §8.4.1.3
+// TS 36.413 §8.4.2.3
 func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	m := New(nil, fakeBearerStore{}, sessions)

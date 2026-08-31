@@ -545,3 +545,32 @@ func TestService_MintJoinToken_RefusesWithoutLocalLeaf(t *testing.T) {
 		t.Fatalf("mint with no local leaf: got %v, want ErrNotReady", err)
 	}
 }
+
+func TestService_MintJoinToken_NotReadyBeforeBootstrap(t *testing.T) {
+	store := newFakeStore(testClusterID)
+	preregisterLeader(t, store, 1)
+
+	cert, _, err := pki.GenerateNodeCert(1, testClusterID, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fp := pki.Fingerprint(cert)
+	svc := pkiissuer.New(store, func() string { return fp })
+
+	if _, err := svc.MintJoinToken(context.Background(), 5, 10*time.Minute); !errors.Is(err, pkiissuer.ErrNotReady) {
+		t.Fatalf("mint before the join hmac key commits: got %v, want ErrNotReady", err)
+	}
+
+	if err := svc.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := svc.RegisterCert(context.Background(), 1, pki.EncodeCertPEM(cert)); err != nil {
+		t.Fatalf("register leader cert: %v", err)
+	}
+
+	if _, err := svc.MintJoinToken(context.Background(), 5, 10*time.Minute); err != nil {
+		t.Fatalf("mint after bootstrap: %v", err)
+	}
+}

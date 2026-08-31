@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
@@ -80,18 +78,7 @@ func createDataNetworkAndPolicy(database *db.Database) (string, error) {
 }
 
 func TestSubscribersDbEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	res, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
@@ -204,18 +191,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 }
 
 func TestCountSubscribersInProfile(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	profileID, err := createDataNetworkAndPolicy(database)
 	if err != nil {

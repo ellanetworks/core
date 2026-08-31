@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
@@ -47,18 +45,7 @@ func createPolicyDeps(t *testing.T, database *db.Database, suffix string) (profi
 }
 
 func TestNetworkRulesCreateGetUpdate(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -158,18 +145,7 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 }
 
 func TestNetworkRulesDelete(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -233,18 +209,7 @@ func TestNetworkRulesDelete(t *testing.T) {
 }
 
 func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -309,18 +274,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 }
 
 func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -408,18 +362,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 }
 
 func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -478,18 +421,7 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 }
 
 func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -591,18 +523,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 }
 
 func TestListRulesForPolicy(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
@@ -723,23 +644,6 @@ func TestListRulesForPolicy(t *testing.T) {
 	if len(retrievedRules2) != 0 {
 		t.Fatalf("Expected 0 rules for policy 2, got %d", len(retrievedRules2))
 	}
-}
-
-func setupTestDB(t *testing.T) *db.Database {
-	tempDir := t.TempDir()
-
-	dbInstance, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	t.Cleanup(func() {
-		if err := dbInstance.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	})
-
-	return dbInstance
 }
 
 func createTestPolicy(t *testing.T, dbInstance *db.Database) *db.Policy {

@@ -5,9 +5,7 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -90,147 +88,26 @@ type UpdateOperatorCodeResponse struct {
 }
 
 func getOperator(url string, client *http.Client, token string) (int, *GetOperatorResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var operatorResponse GetOperatorResponse
-	if err := json.NewDecoder(res.Body).Decode(&operatorResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &operatorResponse, nil
+	return apiDo[GetOperatorResponse](client, "GET", url+"/api/v1/operator", token, nil)
 }
 
 func updateOperatorTracking(url string, client *http.Client, token string, data *UpdateOperatorTrackingParams) (int, *UpdateOperatorTrackingResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/tracking", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateOperatorTrackingResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateOperatorTrackingResponse](client, "PUT", url+"/api/v1/operator/tracking", token, data)
 }
 
 func updateOperatorID(url string, client *http.Client, token string, data *UpdateOperatorIDParams) (int, *UpdateOperatorIDResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/id", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateOperatorIDResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateOperatorIDResponse](client, "PUT", url+"/api/v1/operator/id", token, data)
 }
 
 func updateOperatorCode(url string, client *http.Client, token string, data *UpdateOperatorCodeParams) (int, *UpdateOperatorCodeResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/code", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateOperatorCodeResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateOperatorCodeResponse](client, "PUT", url+"/api/v1/operator/code", token, data)
 }
 
 // This is an end-to-end test for the operators handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestApiOperatorEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("7. Update operator tracking", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{
@@ -409,21 +286,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 }
 
 func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName      string
@@ -472,21 +335,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 }
 
 func TestUpdateOperatorIDInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName string
@@ -556,21 +405,7 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 }
 
 func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName     string
@@ -630,53 +465,11 @@ type UpdateOperatorNASSecurityResponse struct {
 }
 
 func updateOperatorNASSecurity(url string, client *http.Client, token string, data *UpdateOperatorNASSecurityParams) (int, *UpdateOperatorNASSecurityResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/nas-security", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateOperatorNASSecurityResponse
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateOperatorNASSecurityResponse](client, "PUT", url+"/api/v1/operator/nas-security", token, data)
 }
 
 func TestUpdateOperatorNASSecurity(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Default security algorithms returned via GET", func(t *testing.T) {
 		statusCode, response, err := getOperator(env.Server.URL, client, token)

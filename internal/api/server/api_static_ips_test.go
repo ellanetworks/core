@@ -5,10 +5,8 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -47,115 +45,19 @@ type messageResponse struct {
 }
 
 func listStaticIps(url string, client *http.Client, token string) (int, *listStaticIPsResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks/"+staticDN+"/static-ips", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out listStaticIPsResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[listStaticIPsResponse](client, "GET", url+"/api/v1/networking/data-networks/"+staticDN+"/static-ips", token, nil)
 }
 
 func createStaticIp(url string, client *http.Client, token, dn, imsi, address string) (int, *messageResponse, error) {
-	body, _ := json.Marshal(map[string]string{"imsi": imsi, "address": address})
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/data-networks/"+dn+"/static-ips", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out messageResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[messageResponse](client, "POST", url+"/api/v1/networking/data-networks/"+dn+"/static-ips", token, map[string]string{"imsi": imsi, "address": address})
 }
 
 func updateStaticIp(url string, client *http.Client, token, dn, imsi, ipVersion, address string) (int, *messageResponse, error) {
-	body, _ := json.Marshal(map[string]string{"address": address})
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/data-networks/"+dn+"/static-ips/"+imsi+"/"+ipVersion, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out messageResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[messageResponse](client, "PUT", url+"/api/v1/networking/data-networks/"+dn+"/static-ips/"+imsi+"/"+ipVersion, token, map[string]string{"address": address})
 }
 
 func deleteStaticIp(url string, client *http.Client, token, dn, imsi, ipVersion string) (int, *messageResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/networking/data-networks/"+dn+"/static-ips/"+imsi+"/"+ipVersion, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out messageResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[messageResponse](client, "DELETE", url+"/api/v1/networking/data-networks/"+dn+"/static-ips/"+imsi+"/"+ipVersion, token, nil)
 }
 
 func TestAPIStaticIPsEndToEnd(t *testing.T) {

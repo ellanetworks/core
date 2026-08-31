@@ -14,8 +14,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// pathSwitchValue marshals a PATH SWITCH REQUEST and returns the initiatingMessage
-// open-type payload the handler consumes.
 func pathSwitchValue(t *testing.T, req *s1ap.PathSwitchRequest) []byte {
 	t.Helper()
 
@@ -74,9 +72,6 @@ func parsePathSwitchFailure(t *testing.T, pdu []byte) *s1ap.PathSwitchRequestFai
 	return fail
 }
 
-// pathSwitchUE returns a secured UE seeded as if Initial Context Setup had run:
-// the X2 key chain is at NCC=1 with a known NH, and the UE network capability is
-// set so the replayed-capability comparison runs against real values.
 func pathSwitchUE(t *testing.T, m *mme.MME) *mme.UeContext {
 	t.Helper()
 
@@ -105,19 +100,15 @@ func switchedDLItem() s1ap.ERABToBeSwitchedDLItem {
 
 func samplePathSwitchRequest(ue *mme.UeContext) *s1ap.PathSwitchRequest {
 	return &s1ap.PathSwitchRequest{
-		ENBUES1APID:        42,
-		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{switchedDLItem()},
-		SourceMMEUES1APID:  ue.Conn().MMEUES1APID,
-		EUTRANCGI:          s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
-		TAI:                s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
-		// Matches the stored capabilities (EEA/EIA 0xe0, EEA0/EIA0 bit dropped).
+		ENBUES1APID:            42,
+		ERABToBeSwitchedDL:     []s1ap.ERABToBeSwitchedDLItem{switchedDLItem()},
+		SourceMMEUES1APID:      ue.Conn().MMEUES1APID,
+		EUTRANCGI:              s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
+		TAI:                    s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
 		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
 	}
 }
 
-// TestPathSwitchSwitchesDownlinkAndAcks drives the happy path: the downlink is
-// switched to the target eNB, the S1 association moves, the {NH, NCC} chain
-// advances, and a Path Switch Request Acknowledge is sent.
 func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
@@ -130,18 +121,15 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
-	// Downlink switched to the new eNB S1-U endpoint.
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
-	// S1 association moved to the target eNB.
 	if ue.Conn().Conn() != target || ue.Conn().ENBUES1APID != 42 || testPDN(ue).EnbFTEID != wantFTEID {
 		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.Conn().Conn() == target, ue.Conn().ENBUES1APID, testPDN(ue).EnbFTEID)
 	}
 
-	// Key chain advanced: NCC 1 -> 2 and NH = KDF(KASME, previous NH).
 	if ue.NCCForTest() != 2 || ue.NHForTest() != wantNH {
 		t.Fatalf("key chain not advanced: ncc=%d nh-match=%v", ue.NCCForTest(), ue.NHForTest() == wantNH)
 	}
@@ -165,8 +153,6 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	}
 }
 
-// TestPathSwitchUnknownUEFails checks an unresolvable Source MME UE S1AP ID is
-// rejected with cause unknown-mme-ue-s1ap-id and no UE state is touched.
 func TestPathSwitchUnknownUEFails(t *testing.T) {
 	m := newTestMME(t)
 
@@ -191,11 +177,10 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 	}
 }
 
-// TestPathSwitchNoSecurityContextFails checks a UE without a security context is
-// rejected with cause authentication-failure (TS 33.401 §7.2.8).
+// TS 33.401 §7.2.8
 func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	m := newTestMME(t)
-	ue := m.NewUe(&captureConn{}, 7) // not secured
+	ue := m.NewUe(&captureConn{}, 7)
 
 	target := &captureConn{}
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
@@ -208,15 +193,11 @@ func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 		t.Fatalf("cause = %+v, want authentication-failure", fail.Cause)
 	}
 
-	// The downlink must not have been switched.
 	if m.Session.(*fakeSessionManager).modifiedENB != (models.FTEID{}) {
 		t.Fatal("downlink switched despite missing security context")
 	}
 }
 
-// TestPathSwitchDuplicateERABFails checks a to-be-switched list repeating an
-// E-RAB ID is rejected with cause multiple-E-RAB-ID-instances (TS 36.413
-// §8.4.4.4).
 func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
@@ -236,15 +217,12 @@ func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	}
 }
 
-// TestPathSwitchUnknownERABFails checks that a request whose only E-RAB does not
-// resolve to a PDN connection switches nothing and is rejected (TS 36.413
-// §8.4.4.3), leaving the UE on the source eNB.
 func TestPathSwitchUnknownERABFails(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
 
 	req := samplePathSwitchRequest(ue)
-	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(mme.DefaultERABID + 1) // not the default bearer
+	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(mme.DefaultERABID + 1)
 
 	target := &captureConn{}
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
@@ -262,9 +240,6 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	}
 }
 
-// TestPathSwitchCapabilityMismatchReplaysStored checks that when the target eNB
-// reports UE security capabilities differing from the stored ones, the MME
-// replays its stored values in the Acknowledge and does not overwrite them.
 func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
@@ -283,9 +258,6 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	}
 }
 
-// TestPathSwitchUEReleasedDuringSwitch checks the commit is guarded against a
-// concurrent release that frees ue.active during the unlocked user-plane switch: the
-// path switch fails gracefully without dereferencing a nil connection.
 func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
@@ -307,17 +279,13 @@ func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	parsePathSwitchFailure(t, target.sent[0])
 }
 
-// TestPathSwitchPartialFailureReleasesUnswitchedERAB verifies that when the UP path
-// is switched for some but not all E-RABs, the PATH SWITCH REQUEST ACKNOWLEDGE lists
-// the ones it could not switch in the E-RAB To Be Released List so the eNB releases
-// their data radio bearers (TS 36.413 §8.4.4.2).
+// TS 36.413 §8.4.4.2
 func TestPathSwitchPartialFailureReleasesUnswitchedERAB(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
 
 	req := samplePathSwitchRequest(ue)
 
-	// A second E-RAB the MME has no PDN for: it cannot be switched.
 	const unknownERAB = s1ap.ERABID(mme.DefaultERABID + 1)
 
 	req.ERABToBeSwitchedDL = append(req.ERABToBeSwitchedDL, s1ap.ERABToBeSwitchedDLItem{
@@ -329,7 +297,6 @@ func TestPathSwitchPartialFailureReleasesUnswitchedERAB(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
-	// The default bearer switched, so the path switch succeeds with an Acknowledge.
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Acknowledge), got %d", target.count())
 	}

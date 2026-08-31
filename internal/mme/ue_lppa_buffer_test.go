@@ -38,8 +38,6 @@ func TestLPPaBuffer_SetThenPop(t *testing.T) {
 	}
 }
 
-// ClearLPPaBufferedIf discards only the measurement it names, so one request cannot drop
-// another's.
 func TestLPPaBuffer_ClearIfMatchesMeasurementID(t *testing.T) {
 	ue := NewUeContext()
 

@@ -23,24 +23,26 @@ const (
 	PKIMintJoinTokenAction = "pki_mint_join_token" // #nosec G101 -- audit action name
 )
 
-// A leader that has just been promoted registers its own cluster
-// certificate as part of leader init; minting before that commit
-// lands would embed a stale pin, so the handler waits it out rather
-// than failing a request that is about to become serviceable.
-const (
+// A leader that has just been promoted seeds the join-HMAC key and
+// registers its own cluster certificate as part of leader init;
+// minting before those commits land would fail or embed a stale pin,
+// so the handler waits it out rather than failing a request that is
+// about to become serviceable.
+var (
 	mintReadyWait = 15 * time.Second
 	mintReadyPoll = 100 * time.Millisecond
 )
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
 // dispatches to build. Returns 503 until the issuer service has been
-// installed by runtime and its join-HMAC key is committed.
+// installed by runtime.
 func pkiAdminEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		svc := loadPKIIssuer()
-		if svc == nil || !svc.Ready(r.Context()) {
+		if svc == nil {
+			w.Header().Set("Retry-After", "1")
 			writeError(r.Context(), w, http.StatusServiceUnavailable,
-				"pki issuer not yet ready", nil, logger.APILog)
+				"pki issuer not yet installed", nil, logger.APILog)
 
 			return
 		}
@@ -133,7 +135,7 @@ func mintWhenReady(ctx context.Context, svc *pkiissuer.Service, nodeID int, ttl 
 
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return "", err
 		case <-time.After(mintReadyPoll):
 		}
 	}

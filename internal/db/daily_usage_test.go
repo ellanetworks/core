@@ -1,13 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -94,22 +91,11 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (s
 }
 
 func TestGetUsagePerDay_1Sub(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi := "001010100007487"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, imsi)
+	_, err := createDataNetworkPolicyAndSubscriber(database, imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -153,22 +139,11 @@ func TestGetUsagePerDay_1Sub(t *testing.T) {
 }
 
 func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi := "001010100007487"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, imsi)
+	_, err := createDataNetworkPolicyAndSubscriber(database, imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -199,18 +174,7 @@ func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
 }
 
 func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007487"
 
@@ -282,22 +246,11 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 }
 
 func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007487"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, imsi1)
+	_, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -367,18 +320,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 }
 
 func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007487"
 
@@ -450,18 +392,7 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 }
 
 func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007487"
 
@@ -557,22 +488,11 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 }
 
 func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007488"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, imsi1)
+	_, err := createDataNetworkPolicyAndSubscriber(database, imsi1)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -615,18 +535,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 }
 
 func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsi1 := "001010100007487"
 
@@ -752,24 +661,13 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 }
 
 func TestClearDailyUsage(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	date := time.Now()
 
 	testImsi := "001010100007487"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, testImsi)
+	_, err := createDataNetworkPolicyAndSubscriber(database, testImsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -809,22 +707,11 @@ func TestClearDailyUsage(t *testing.T) {
 }
 
 func TestDeleteOldDailyUsage(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	testImsi := "001010100007487"
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, testImsi)
+	_, err := createDataNetworkPolicyAndSubscriber(database, testImsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete createDataNetworkPolicyAndSubscriber: %s", err)
 	}
@@ -877,18 +764,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 }
 
 func TestGetUsagePerSubscriber_Limit(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	imsis := []string{"001010100007501", "001010100007502", "001010100007503"}
 

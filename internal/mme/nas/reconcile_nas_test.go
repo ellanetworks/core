@@ -12,8 +12,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// CONTEXT ACCEPT through handleNAS (exercising ESM routing) and verifies the MME
-// releases the session and the S1 context so the UE re-attaches.
 func TestDeactivateBearerAcceptReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -82,13 +80,6 @@ func TestDeactivateBearerAcceptKeepsAUEWithAnotherPDN(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkModifiesDNSOnly verifies a DNS-only change is applied
-// in place with a MODIFY EPS BEARER CONTEXT REQUEST (no deactivation), mirroring
-// the 5G PDU Session Modification path, and that dnConfig is committed only when
-// the UE accepts.
-
-// through handleNAS and verifies the pending data-network fingerprint is
-// committed and the bearer stays up (no release).
 func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -123,6 +114,3 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 		t.Fatalf("modification accept must not trigger downlink S1AP, got %d", len(cc.sent))
 	}
 }
-
-// TestReconcileUEIdleNoPanic checks reconciling a UE that has moved to ECM-IDLE
-// returns without dereferencing the freed S1 connection.

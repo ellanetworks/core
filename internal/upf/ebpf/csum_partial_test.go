@@ -11,9 +11,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// sendWithIPOptions sends a datagram carrying IPv4 options, so the inner header
-// has ihl > 5. A local UDP socket over veth leaves the frame
-// CHECKSUM_PARTIAL, which is the combination that matters here.
 func sendWithIPOptions(t *testing.T, f *gsoFixture, size int) {
 	t.Helper()
 
@@ -24,7 +21,6 @@ func sendWithIPOptions(t *testing.T, f *gsoFixture, size int) {
 
 	defer func() { _ = unix.Close(fd) }()
 
-	// NOP, NOP, NOP, End-of-list: four bytes, so ihl becomes 6.
 	if err := unix.SetsockoptString(fd, unix.IPPROTO_IP, unix.IP_OPTIONS,
 		string([]byte{1, 1, 1, 0})); err != nil {
 		t.Skipf("IP_OPTIONS unsupported here: %v", err)
@@ -40,11 +36,6 @@ func sendWithIPOptions(t *testing.T, f *gsoFixture, size int) {
 	}
 }
 
-// TestTCXIPv6OuterInnerIPOptions: an inner packet carrying IPv4 options used to
-// decline the header-only path, falling back to summing the bytes present at
-// encapsulation. On a CHECKSUM_PARTIAL frame the inner check field is still the
-// pseudo-header sum at that moment, so the outer checksum was computed over
-// bytes the kernel had not finished writing and the gNB dropped the frame.
 func TestTCXIPv6OuterInnerIPOptions(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -71,17 +62,12 @@ func TestTCXIPv6OuterInnerIPOptions(t *testing.T) {
 			t.Errorf("frame %d: outer UDP checksum invalid", i)
 		}
 
-		// Confirms the test exercised what it claims to.
 		if inner := gtpInner(fr); len(inner) >= 20 && inner[0]&0x0f == 5 {
 			t.Errorf("frame %d: inner ihl is 5, the options were not applied", i)
 		}
 	}
 }
 
-// TestTCXIPv6OuterInnerICMPv4: ICMPv4 has no pseudo-header, so the substituted
-// region sums to ~fold(0) = 0xFFFF rather than to a pseudo-header sum. It used
-// to decline the header-only path entirely, which made every ICMP toward a UE
-// copy the whole datagram into scratch and sum it. This pins the identity.
 func TestTCXIPv6OuterInnerICMPv4(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -106,7 +92,6 @@ func TestTCXIPv6OuterInnerICMPv4(t *testing.T) {
 		t.Fatalf("bind: %v", err)
 	}
 
-	// Echo request: type 8, code 0, zero checksum (the kernel fills it in).
 	echo := make([]byte, 64)
 	echo[0] = 8
 

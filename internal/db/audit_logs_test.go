@@ -1,17 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/google/uuid"
@@ -29,18 +25,7 @@ func newAuditLogID(t *testing.T) string {
 }
 
 func TestAuditLogsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -122,18 +107,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	logger.SetDb(database)
 
@@ -219,23 +193,12 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 func TestListAuditLogsByActorPage(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %v", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
 	// Insert logs from different actors
-	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+	err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T12:00:00Z",
 		Level:     "info",

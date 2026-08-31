@@ -10,11 +10,6 @@ import (
 	"testing"
 )
 
-// QER gate enforcement. A non-open gate must drop the packet before it is
-// forwarded. The QFI marking is asserted by the encapsulation tests; the
-// delivered bit rate is asserted in qer_rate_test.go.
-
-// TestQERGateUplinkClosed checks that a closed uplink QER gate drops the packet.
 func TestQERGateUplinkClosed(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -24,8 +19,8 @@ func TestQERGateUplinkClosed(t *testing.T) {
 
 	pdr := PdrInfo{
 		IMSI: "001010000000001",
-		Far:  FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:  QerInfo{GateStatusUL: 1 /* GATE_STATUS_CLOSED */, MaxBitrateUL: 0},
+		Far:  FarInfo{Action: 0x02},
+		Qer:  QerInfo{GateStatusUL: 1, MaxBitrateUL: 0},
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
@@ -38,8 +33,6 @@ func TestQERGateUplinkClosed(t *testing.T) {
 	}
 }
 
-// TestQERGateDownlinkClosed checks that a closed downlink QER gate drops the
-// packet.
 func TestQERGateDownlinkClosed(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -54,7 +47,7 @@ func TestQERGateDownlinkClosed(t *testing.T) {
 
 	pdr := ipv4OuterDownlinkPDR(teid, [4]byte{192, 168, 100, 1}, [4]byte{192, 168, 100, 9}, qfi)
 
-	pdr.Qer.GateStatusDL = 1 // GATE_STATUS_CLOSED
+	pdr.Qer.GateStatusDL = 1
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
@@ -68,8 +61,6 @@ func TestQERGateDownlinkClosed(t *testing.T) {
 	}
 }
 
-// TestQERGateDownlinkClosedIPv6 checks that a closed downlink gate drops an IPv6
-// packet on the separate IPv6 downlink code path.
 func TestQERGateDownlinkClosedIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -81,7 +72,7 @@ func TestQERGateDownlinkClosedIPv6(t *testing.T) {
 	obj := loadProgram(t, 1, 0)
 
 	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
-	pdr.Qer.GateStatusDL = 1 // GATE_STATUS_CLOSED
+	pdr.Qer.GateStatusDL = 1
 
 	if err := obj.PutPdrDownlink(netip.MustParseAddr("2001:db8::"), pdr); err != nil {
 		t.Fatalf("install downlink IPv6 PDR: %v", err)

@@ -17,10 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestEstablishSessionStampsUplinkUEAddresses asserts that establishing a
-// dual-stack session records both UE source addresses on the session and stamps
-// them onto the uplink PDR programmed into pdrs_uplink (anti-spoofing). The IPv6
-// address is stored as the /64 base. Requires root/CAP_BPF.
 func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
@@ -53,10 +49,8 @@ func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 	}
 
 	ueV4 := netip.MustParseAddr("10.45.0.1")
-	ueV6 := netip.MustParseAddr("2001:db8:1::") // /64 base
+	ueV6 := netip.MustParseAddr("2001:db8:1::")
 
-	// PDRs arrive uplink-first, IPv6 downlink last — the order that makes a
-	// per-PDR (rather than pre-scan) population miss the IPv6 /64.
 	req := &models.EstablishRequest{
 		SEID: 1,
 		IMSI: "001010000000001",
@@ -87,8 +81,6 @@ func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 		t.Errorf("session UE IPv6 = %v, want %v", gotV6, ueV6)
 	}
 
-	// Read the single uplink PDR back from the map and confirm both families are
-	// stamped (IPv4 as ::ffff-mapped, IPv6 as the /64 base).
 	var (
 		teid  uint32
 		pi    ebpf.N3N6EntrypointPdrInfo

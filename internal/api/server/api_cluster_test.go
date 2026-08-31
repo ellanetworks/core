@@ -62,44 +62,11 @@ type ListClusterMembersResponse struct {
 }
 
 func listClusterMembers(url string, client *http.Client, token string) (int, *ListClusterMembersResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/cluster/members", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	var response ListClusterMembersResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListClusterMembersResponse](client, "GET", url+"/api/v1/cluster/members", token, nil)
 }
 
 func TestClusterMembersEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List cluster members (empty)", func(t *testing.T) {
 		statusCode, response, err := listClusterMembers(env.Server.URL, client, token)
@@ -118,21 +85,7 @@ func TestClusterMembersEndToEnd(t *testing.T) {
 }
 
 func TestListClusterMembers_IncludesHAFields(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	member := &db.ClusterMember{
 		NodeID:        7,

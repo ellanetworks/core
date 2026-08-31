@@ -13,9 +13,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestInitialContextSetupResponseRelaysENBFTEID checks the MME extracts the
-// eNB S1-U F-TEID from the Initial Context Setup Response and hands it to the
-// anchor via ModifyEPSSession, completing the downlink path.
 func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -61,9 +58,6 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	}
 }
 
-// TestInitialContextSetupResponseENBTransportFamily checks the MME accepts an eNB
-// S1-U endpoint reported as IPv4, IPv6, or dual-stack (TS 36.413), preferring the
-// IPv6 endpoint when both are offered — matching the 5G N3 handling.
 func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 	v6 := netip.MustParseAddr("2001:db8:3::3")
 	v6Octets := v6.As16()
@@ -115,18 +109,15 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 	}
 }
 
-// TestInitialContextSetupResponseMultipleERABs checks the MME records the eNB S1-U
-// F-TEID for every E-RAB in the response, not only the first — a UE re-established
-// from ECM-IDLE with multiple PDN connections sets up all its bearers at once.
 func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := m.NewUe(cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 
-	p1 := testPDN(ue) // default bearer, EBI 5
+	p1 := testPDN(ue)
 	p1.Apn = "internet"
-	p2 := ue.EnsurePDN(6) // second PDN connection, EBI 6
+	p2 := ue.EnsurePDN(6)
 	p2.Apn = "ims"
 
 	resp := &s1ap.InitialContextSetupResponse{
@@ -170,19 +161,16 @@ func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 	}
 }
 
-// TestInitialContextSetupResponseReleasesFailedERAB verifies the MME tears down a
-// bearer the eNB reports in the E-RAB Failed to Setup list of the Initial Context
-// Setup Response — releasing its anchor session and dropping the PDN — while
-// keeping the bearers the eNB did set up (TS 36.413 §8.3.1.2).
+// TS 36.413 §8.3.1.2
 func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := m.NewUe(cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 
-	p1 := testPDN(ue) // default bearer, EBI 5 — set up successfully
+	p1 := testPDN(ue)
 	p1.Apn = "internet"
-	p2 := ue.EnsurePDN(6) // second PDN connection, EBI 6 — the eNB fails to set up
+	p2 := ue.EnsurePDN(6)
 	p2.Apn = "ims"
 
 	resp := &s1ap.InitialContextSetupResponse{
@@ -224,7 +212,6 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 		t.Fatal("failed E-RAB's anchor session must be released")
 	}
 
-	// The bearer the eNB did set up is retained with its eNB S1-U F-TEID.
 	if m.LookupPDN(ue, mme.DefaultERABID) == nil {
 		t.Fatal("successfully set up bearer must be retained")
 	}
@@ -234,10 +221,7 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 	}
 }
 
-// TestInitialContextSetupFailureAbortsUE verifies that an INITIAL CONTEXT SETUP
-// FAILURE for an attaching UE aborts the incomplete registration locally — the UE is
-// removed and no UE Context Release Command is sent, since the eNB already released
-// its side (TS 36.413 §8.3.1.3; mirrors the AMF).
+// TS 36.413 §8.3.1.3
 func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

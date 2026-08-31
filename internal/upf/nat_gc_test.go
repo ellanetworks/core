@@ -96,11 +96,11 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	}
 
 	want := map[ebpf.N3N6EntrypointFiveTuple]bool{
-		deadUEKey:      true, // 3h > 7440s established timeout; pair goes together
+		deadUEKey:      true,
 		deadNATKey:     true,
-		closedUEKey:    true, // 30s > 10s closed timeout
+		closedUEKey:    true,
 		closedNATKey:   true,
-		udpProbeUEKey:  true, // 60s > 30s unreplied timeout
+		udpProbeUEKey:  true,
 		udpProbeNATKey: true,
 	}
 
@@ -117,8 +117,6 @@ func TestNatExpiredKeysPairsAndTimeouts(t *testing.T) {
 	}
 }
 
-// TestNatExpiredKeysPartialSnapshot verifies that a partial snapshot skips
-// orphan reaping while still expiring complete pairs.
 func TestNatExpiredKeysPartialSnapshot(t *testing.T) {
 	nowNs := uint64(100 * time.Hour.Nanoseconds())
 
@@ -167,12 +165,9 @@ func TestNatExpiredKeysOrphans(t *testing.T) {
 	staleOrphanKey := natTuple(100, 1000, protoTCP)
 	staleOrphan := ebpf.N3N6EntrypointNatEntry{Peer: ueKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}
 
-	// Inside the grace period: a pair whose second insert is in flight.
 	newOrphanKey := natTuple(100, 2000, protoTCP)
 	newOrphan := ebpf.N3N6EntrypointNatEntry{Peer: natTuple(2, 2000, protoTCP), RefreshTs: nowNs - uint64(time.Second.Nanoseconds())}
 
-	// Partner exists but references a different NAT-side tuple after a port
-	// remap.
 	mismatchedKey := natTuple(100, 3000, protoTCP)
 	mismatchedUEKey := natTuple(3, 3000, protoTCP)
 	mismatched := ebpf.N3N6EntrypointNatEntry{Peer: mismatchedUEKey, RefreshTs: nowNs - uint64((2 * natOrphanGrace).Nanoseconds())}

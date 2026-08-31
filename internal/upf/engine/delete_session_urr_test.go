@@ -19,10 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestDeleteSessionRemovesURR asserts that deleting a session removes its
-// urr_map entry, keyed by (SEID, URR ID). The per-session key means a released
-// session leaves no orphan counter for a later session to inherit. Requires root
-// to load the eBPF maps.
 func TestDeleteSessionRemovesURR(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
