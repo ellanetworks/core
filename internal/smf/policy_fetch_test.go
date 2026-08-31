@@ -6,18 +6,27 @@ package smf_test
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/pkg/runtime"
 )
 
-func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
-	tempDir := t.TempDir()
+const (
+	policyFixtureDNN  = "test-dnn"
+	policyFixtureIMSI = "310410000000001"
+)
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.FastTestConfig())
+func setupPolicyFixture(t *testing.T, ambrUplink, ambrDownlink string) (*db.Database, *db.Policy) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	database, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "db.sqlite3"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("couldn't create test database: %s", err)
 	}
@@ -26,319 +35,165 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("database never became ready: %v", err)
 	}
 
-	defer func() {
+	t.Cleanup(func() {
 		if err := database.Close(); err != nil {
 			t.Fatalf("couldn't close database: %s", err)
 		}
-	}()
+	})
 
-	ctx := context.Background()
-
-	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
-	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
+	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{Name: policyFixtureDNN, IPv4Pool: "10.1.0.0/24"}); err != nil {
 		t.Fatalf("couldn't create test data network: %s", err)
 	}
 
-	testDataNetwork, err := database.GetDataNetwork(ctx, "test-dnn")
+	dataNetwork, err := database.GetDataNetwork(ctx, policyFixtureDNN)
 	if err != nil {
 		t.Fatalf("couldn't get test data network: %s", err)
 	}
 
-	testProfile := &db.Profile{Name: "test-profile", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"}
-	if err := database.CreateProfile(ctx, testProfile); err != nil {
+	if err := database.CreateProfile(ctx, &db.Profile{
+		Name: "test-profile", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps",
+	}); err != nil {
 		t.Fatalf("couldn't create test profile: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(ctx, "test-profile")
+	profile, err := database.GetProfile(ctx, "test-profile")
 	if err != nil {
 		t.Fatalf("couldn't get test profile: %s", err)
 	}
 
-	testSlice := &db.NetworkSlice{Name: "test-slice", Sst: 1}
-	if err := database.CreateNetworkSlice(ctx, testSlice); err != nil {
+	if err := database.CreateNetworkSlice(ctx, &db.NetworkSlice{Name: "test-slice", Sst: 1}); err != nil {
 		t.Fatalf("couldn't create test slice: %s", err)
 	}
 
-	createdSlice, err := database.GetNetworkSlice(ctx, "test-slice")
+	slice, err := database.GetNetworkSlice(ctx, "test-slice")
 	if err != nil {
 		t.Fatalf("couldn't get test slice: %s", err)
 	}
 
-	policy := &db.Policy{
+	if err := database.CreatePolicy(ctx, &db.Policy{
 		Name:                "test-policy",
-		SessionAmbrUplink:   "100 Mbps",
-		SessionAmbrDownlink: "200 Mbps",
+		SessionAmbrUplink:   ambrUplink,
+		SessionAmbrDownlink: ambrDownlink,
 		Var5qi:              9,
 		Arp:                 1,
-		DataNetworkID:       testDataNetwork.ID,
-		ProfileID:           createdProfile.ID,
-		SliceID:             createdSlice.ID,
-	}
-
-	err = database.CreatePolicy(ctx, policy)
-	if err != nil {
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           profile.ID,
+		SliceID:             slice.ID,
+	}); err != nil {
 		t.Fatalf("couldn't create test policy: %s", err)
 	}
 
-	createdPolicy, err := database.GetPolicy(ctx, "test-policy")
+	policy, err := database.GetPolicy(ctx, "test-policy")
 	if err != nil {
 		t.Fatalf("couldn't get created policy: %s", err)
 	}
 
-	prefix1 := "192.168.0.0/24"
-	rule1 := &db.NetworkRule{
-		PolicyID:     createdPolicy.ID,
-		Description:  "rule-1",
-		Direction:    "uplink",
-		RemotePrefix: &prefix1,
-		Protocol:     6,
-		PortLow:      80,
-		PortHigh:     443,
-		Action:       "allow",
-		Precedence:   1,
-	}
-
-	id1, err := database.CreateNetworkRule(ctx, rule1)
-	if err != nil {
-		t.Fatalf("couldn't create rule 1: %s", err)
-	}
-
-	if id1 == "" {
-		t.Fatalf("expected non-empty rule ID")
-	}
-
-	prefix2 := "10.0.0.0/8"
-	rule2 := &db.NetworkRule{
-		PolicyID:     createdPolicy.ID,
-		Description:  "rule-2",
-		Direction:    "downlink",
-		RemotePrefix: &prefix2,
-		Protocol:     17,
-		PortLow:      5060,
-		PortHigh:     5060,
-		Action:       "deny",
-		Precedence:   2,
-	}
-
-	id2, err := database.CreateNetworkRule(ctx, rule2)
-	if err != nil {
-		t.Fatalf("couldn't create rule 2: %s", err)
-	}
-
-	if id2 == "" {
-		t.Fatalf("expected non-empty rule ID")
-	}
-
-	subscriber := &db.Subscriber{
-		Imsi:           "310410000000001",
+	if err := database.CreateSubscriber(ctx, &db.Subscriber{
+		Imsi:           policyFixtureIMSI,
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      createdPolicy.ProfileID,
-	}
-
-	err = database.CreateSubscriber(ctx, subscriber)
-	if err != nil {
+		ProfileID:      policy.ProfileID,
+	}); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
+	return database, policy
+}
+
+func fetchSessionPolicy(t *testing.T, database *db.Database) *smf.Policy {
+	t.Helper()
+
 	adapter := runtime.NewPCFDBAdapter(database)
 
-	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: ""}
-
-	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000001", snssai, "test-dnn")
+	policy, err := adapter.GetSessionPolicy(context.Background(), policyFixtureIMSI,
+		&models.Snssai{Sst: db.InitialSliceSst, Sd: ""}, policyFixtureDNN)
 	if err != nil {
 		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
-	if retrievedPolicy == nil {
-		t.Fatalf("expected non-nil policy")
+	if policy == nil {
+		t.Fatal("expected non-nil policy")
 	}
 
-	if !retrievedPolicy.Ambr.Uplink.Equal(models.MustParseBitRate("100 Mbps")) {
-		t.Fatalf("expected uplink 100 Mbps, got %s", retrievedPolicy.Ambr.Uplink)
-	}
+	return policy
+}
 
-	if len(retrievedPolicy.NetworkRules) != 2 {
-		t.Fatalf("expected 2 network rules, got %d", len(retrievedPolicy.NetworkRules))
-	}
+func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
+	database, created := setupPolicyFixture(t, "100 Mbps", "200 Mbps")
+	ctx := context.Background()
 
-	rule1Found := false
-	rule2Found := false
+	prefix1 := "192.168.0.0/24"
+	prefix2 := "10.0.0.0/8"
 
-	for _, r := range retrievedPolicy.NetworkRules {
-		if r.Description == "rule-1" {
-			rule1Found = true
-
-			if r.Direction != models.DirectionUplink {
-				t.Fatalf("rule-1 expected direction uplink, got %s", r.Direction)
-			}
-
-			if r.RemotePrefix == nil || *r.RemotePrefix != "192.168.0.0/24" {
-				t.Fatalf("rule-1 expected prefix 192.168.0.0/24, got %v", r.RemotePrefix)
-			}
-
-			if r.Protocol != 6 {
-				t.Fatalf("rule-1 expected protocol 6, got %d", r.Protocol)
-			}
-
-			if r.PortLow != 80 {
-				t.Fatalf("rule-1 expected port low 80, got %d", r.PortLow)
-			}
-
-			if r.PortHigh != 443 {
-				t.Fatalf("rule-1 expected port high 443, got %d", r.PortHigh)
-			}
-
-			if r.Action != "allow" {
-				t.Fatalf("rule-1 expected action allow, got %s", r.Action)
-			}
-
-			if r.Precedence != 1 {
-				t.Fatalf("rule-1 expected precedence 1, got %d", r.Precedence)
-			}
+	for _, rule := range []*db.NetworkRule{
+		{
+			PolicyID: created.ID, Description: "rule-1", Direction: "uplink",
+			RemotePrefix: &prefix1, Protocol: 6, PortLow: 80, PortHigh: 443,
+			Action: "allow", Precedence: 1,
+		},
+		{
+			PolicyID: created.ID, Description: "rule-2", Direction: "downlink",
+			RemotePrefix: &prefix2, Protocol: 17, PortLow: 5060, PortHigh: 5060,
+			Action: "deny", Precedence: 2,
+		},
+	} {
+		id, err := database.CreateNetworkRule(ctx, rule)
+		if err != nil {
+			t.Fatalf("couldn't create %s: %s", rule.Description, err)
 		}
 
-		if r.Description == "rule-2" {
-			rule2Found = true
-
-			if r.Direction != models.DirectionDownlink {
-				t.Fatalf("rule-2 expected direction downlink, got %s", r.Direction)
-			}
-
-			if r.RemotePrefix == nil || *r.RemotePrefix != "10.0.0.0/8" {
-				t.Fatalf("rule-2 expected prefix 10.0.0.0/8, got %v", r.RemotePrefix)
-			}
-
-			if r.Protocol != 17 {
-				t.Fatalf("rule-2 expected protocol 17, got %d", r.Protocol)
-			}
-
-			if r.PortLow != 5060 {
-				t.Fatalf("rule-2 expected port low 5060, got %d", r.PortLow)
-			}
-
-			if r.PortHigh != 5060 {
-				t.Fatalf("rule-2 expected port high 5060, got %d", r.PortHigh)
-			}
-
-			if r.Action != "deny" {
-				t.Fatalf("rule-2 expected action deny, got %s", r.Action)
-			}
-
-			if r.Precedence != 2 {
-				t.Fatalf("rule-2 expected precedence 2, got %d", r.Precedence)
-			}
+		if id == "" {
+			t.Fatalf("%s: expected non-empty rule ID", rule.Description)
 		}
 	}
 
-	if !rule1Found {
-		t.Fatalf("rule-1 not found in network rules")
+	policy := fetchSessionPolicy(t, database)
+
+	if !policy.Ambr.Uplink.Equal(models.MustParseBitRate("100 Mbps")) {
+		t.Fatalf("expected uplink 100 Mbps, got %s", policy.Ambr.Uplink)
 	}
 
-	if !rule2Found {
-		t.Fatalf("rule-2 not found in network rules")
+	want := map[string]smf.ResolvedNetworkRule{
+		"rule-1": {
+			Description: "rule-1", PolicyID: created.ID, Direction: models.DirectionUplink,
+			RemotePrefix: &prefix1, Protocol: 6, PortLow: 80, PortHigh: 443,
+			Action: "allow", Precedence: 1,
+		},
+		"rule-2": {
+			Description: "rule-2", PolicyID: created.ID, Direction: models.DirectionDownlink,
+			RemotePrefix: &prefix2, Protocol: 17, PortLow: 5060, PortHigh: 5060,
+			Action: "deny", Precedence: 2,
+		},
+	}
+
+	if len(policy.NetworkRules) != len(want) {
+		t.Fatalf("expected %d network rules, got %d", len(want), len(policy.NetworkRules))
+	}
+
+	for _, got := range policy.NetworkRules {
+		expected, ok := want[got.Description]
+		if !ok {
+			t.Errorf("unexpected network rule %q", got.Description)
+			continue
+		}
+
+		if !reflect.DeepEqual(*got, expected) {
+			t.Errorf("%s = %+v, want %+v", got.Description, *got, expected)
+		}
+
+		delete(want, got.Description)
+	}
+
+	for description := range want {
+		t.Errorf("%s not found in network rules", description)
 	}
 }
 
 func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
-	tempDir := t.TempDir()
+	database, _ := setupPolicyFixture(t, "50 Mbps", "100 Mbps")
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.FastTestConfig())
-	if err != nil {
-		t.Fatalf("couldn't create test database: %s", err)
-	}
-
-	if err := database.WaitUntilReady(t.Context()); err != nil {
-		t.Fatalf("database never became ready: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("couldn't close database: %s", err)
-		}
-	}()
-
-	ctx := context.Background()
-
-	testDN := &db.DataNetwork{Name: "test-dnn-2", IPv4Pool: "10.2.0.0/24"}
-	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
-		t.Fatalf("couldn't create test data network: %s", err)
-	}
-
-	testDataNetwork, err := database.GetDataNetwork(ctx, "test-dnn-2")
-	if err != nil {
-		t.Fatalf("couldn't get test data network: %s", err)
-	}
-
-	testProfile := &db.Profile{Name: "test-profile-2", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"}
-	if err := database.CreateProfile(ctx, testProfile); err != nil {
-		t.Fatalf("couldn't create test profile: %s", err)
-	}
-
-	createdProfile, err := database.GetProfile(ctx, "test-profile-2")
-	if err != nil {
-		t.Fatalf("couldn't get test profile: %s", err)
-	}
-
-	testSlice := &db.NetworkSlice{Name: "test-slice-2", Sst: 1}
-	if err := database.CreateNetworkSlice(ctx, testSlice); err != nil {
-		t.Fatalf("couldn't create test slice: %s", err)
-	}
-
-	createdSlice, err := database.GetNetworkSlice(ctx, "test-slice-2")
-	if err != nil {
-		t.Fatalf("couldn't get test slice: %s", err)
-	}
-
-	policy := &db.Policy{
-		Name:                "test-policy-no-rules",
-		SessionAmbrUplink:   "50 Mbps",
-		SessionAmbrDownlink: "100 Mbps",
-		Var5qi:              9,
-		Arp:                 1,
-		DataNetworkID:       testDataNetwork.ID,
-		ProfileID:           createdProfile.ID,
-		SliceID:             createdSlice.ID,
-	}
-
-	err = database.CreatePolicy(ctx, policy)
-	if err != nil {
-		t.Fatalf("couldn't create test policy: %s", err)
-	}
-
-	createdPolicy, err := database.GetPolicy(ctx, "test-policy-no-rules")
-	if err != nil {
-		t.Fatalf("couldn't get created policy: %s", err)
-	}
-
-	subscriber := &db.Subscriber{
-		Imsi:           "310410000000002",
-		SequenceNumber: "000000000002",
-		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
-		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      createdPolicy.ProfileID,
-	}
-
-	err = database.CreateSubscriber(ctx, subscriber)
-	if err != nil {
-		t.Fatalf("couldn't create subscriber: %s", err)
-	}
-
-	adapter := runtime.NewPCFDBAdapter(database)
-
-	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: ""}
-
-	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000002", snssai, "test-dnn-2")
-	if err != nil {
-		t.Fatalf("GetSessionPolicy failed: %v", err)
-	}
-
-	if retrievedPolicy == nil {
-		t.Fatalf("expected non-nil policy")
-	}
-
-	if len(retrievedPolicy.NetworkRules) != 0 {
-		t.Fatalf("expected 0 network rules, got %d", len(retrievedPolicy.NetworkRules))
+	if got := fetchSessionPolicy(t, database).NetworkRules; len(got) != 0 {
+		t.Fatalf("expected 0 network rules, got %d", len(got))
 	}
 }
