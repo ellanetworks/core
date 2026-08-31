@@ -21,9 +21,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// captureConn records the S1AP messages the MME sends, standing in for an eNB
-// SCTP association. WriteMsg is safe for concurrent use so timer-driven
-// retransmissions can be exercised under the race detector.
 type captureConn struct {
 	mu   sync.Mutex
 	sent [][]byte
@@ -37,7 +34,6 @@ func (c *captureConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
-// count returns how many messages have been sent. Safe for concurrent use.
 func (c *captureConn) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -80,14 +76,7 @@ func decodeProtectedDownlink(t *testing.T, ue *mme.UeContext, pdu []byte) []byte
 	return plain
 }
 
-// TestAttachAuthenticationAndSecurityMode drives the EMM engine through the
-// Attach → EPS-AKA → Security Mode exchange, with the test playing the UE.
-// TestAttachRecoveryAfterMMERestart reproduces the field case: after the MME
-// restarts and loses its in-memory security contexts, the UE returns with an
-// integrity-protected combined ATTACH REQUEST carrying the GUTI it still holds.
-// The MME cannot verify the MAC (no context), but per TS 24.301 §4.4.4.3 it must
-// still process the Attach Request, not drop it. With a GUTI it cannot
-// resolve, the MME recovers by requesting the UE's identity.
+// TS 24.301 §4.4.4.3
 func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -113,9 +102,6 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Wrap the plain Attach Request in an integrity-protected envelope (SHT=1) with
-	// a MAC the MME cannot reproduce, as the UE does after the MME lost its
-	// context: SHT|PD, 4-octet MAC, sequence, then the inner Attach Request.
 	pdu := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x04}, attachBytes...)
 
 	HandleNAS(context.Background(), m, ue.Conn(), pdu)
@@ -129,24 +115,18 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	}
 }
 
-// TestIdentityResponseRecoveryAfterMMERestart reproduces the field case where,
-// after the MME loses its security contexts on restart, the UE answers the
-// MME's IDENTITY REQUEST with an IDENTITY RESPONSE integrity-protected against a
-// context the network has lost. Per TS 24.301 §4.4.4.3 the MME must still
-// process it (the IMSI is in cleartext) and proceed to authentication, instead
-// of dropping it and looping on IDENTITY REQUEST.
+// TS 24.301 §4.4.4.3
 func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 8)
-	ue.TransitionTo(mme.EMMRegistrationInitiated) // attach in progress: authentication sub-phase
+	ue.TransitionTo(mme.EMMRegistrationInitiated)
 
 	idResp, err := (&eps.IdentityResponse{MobileIdentity: eps.MobileIMSI(eps.IMSI(testSubscriber.IMSI))}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	pdu := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x21}, idResp...)
 
 	HandleNAS(context.Background(), m, ue.Conn(), pdu)
@@ -164,9 +144,6 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	}
 }
 
-// nativeGUTIAttach builds an integrity-protected combined ATTACH REQUEST that
-// carries `ue`'s native GUTI, protected with `ue`'s NAS security context — the
-// message a returning UE sends when it still holds a context the MME assigned.
 func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 	t.Helper()
 
@@ -211,14 +188,11 @@ func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 	return wire
 }
 
-// TestAttachReusesContextForNativeGUTI checks that an Attach carrying a native
-// GUTI the MME still holds — with an integrity-protected message that verifies
-// against the stored context — reuses that context and skips authentication
-// (TS 23.401 §5.3.2.1).
+// TS 23.401 §5.3.2.1
 func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
-	existing.SetDLCountForTest(7) // a live downlink chain that reuse must continue, not reset
+	existing.SetDLCountForTest(7)
 
 	wire := nativeGUTIAttach(t, m, existing)
 
@@ -226,8 +200,6 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
-	// The held context is reused in place — the connection is rebound onto it and
-	// the transient context the Initial UE Message created is discarded.
 	if got, ok := m.LookupUeByIMSI(existing.IMSI()); !ok || got != existing {
 		t.Fatal("held context not reused in place")
 	}
@@ -244,9 +216,6 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
 	}
 
-	// NAS COUNTs continue (TS 24.301 §4.4.3, §5.4.3.3): a native context is reused,
-	// not re-derived, so the counts are never reset to zero — reusing them with the
-	// same keys would be a keystream reuse.
 	if existing.ULCount() != 1 {
 		t.Fatalf("uplink NAS COUNT = %d, want 1 (continued past the Attach)", existing.ULCount())
 	}
@@ -255,8 +224,6 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 		t.Fatalf("downlink NAS COUNT reset to %d on context reuse (keystream reuse)", existing.DLCountForTest())
 	}
 
-	// The security mode procedure is skipped: the only downlink is the Initial
-	// Context Setup carrying the Attach Accept, not a Security Mode Command.
 	if cc.count() != 1 {
 		t.Fatalf("expected one downlink (Initial Context Setup), got %d", cc.count())
 	}
@@ -264,15 +231,10 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 	parseInitialContextSetup(t, cc.sent[0])
 }
 
-// TestAttachReusesContextForNativeGUTI_ReleasesOldBearers asserts TS 24.301
-// §5.5.1.2.7 f): a genuine re-attach reuses the security context (§4.4.3, keys
-// kept) but the UE's OLD EPS bearer contexts are deleted — their anchor sessions
-// released, not preserved — before the new attach is progressed.
 func TestAttachReusesContextForNativeGUTI_ReleasesOldBearers(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
 
-	// The returning UE held a live PDN before the re-attach.
 	if existing.Pdns == nil {
 		existing.Pdns = map[uint8]*mme.PdnConnection{}
 	}
@@ -290,11 +252,7 @@ func TestAttachReusesContextForNativeGUTI_ReleasesOldBearers(t *testing.T) {
 	}
 }
 
-// TestAttachKeepsOldGUTIResolvableUntilComplete guards the two-phase GUTI
-// reallocation on attach: the M-TMSI the UE was addressed by stays resolvable
-// through the T3450 window (TS 24.301 §5.5.1.2.7 — the old GUTI is valid until
-// the UE acknowledges), and ATTACH COMPLETE commits the new GUTI and frees the
-// old.
+// TS 24.301 §5.5.1.2.7
 func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
@@ -306,9 +264,6 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 	fresh := newAttachUe(m, cc, 9)
 	HandleNAS(context.Background(), m, fresh.Conn(), wire)
 
-	// The Attach Accept has been sent but not yet acknowledged. The M-TMSI the UE
-	// presented must stay resolvable so a retransmitted Attach still finds the
-	// context, and the newly allocated one must resolve too.
 	newMTMSI := existing.TmsiForTest()
 	if newMTMSI == presented {
 		t.Fatal("attach did not reallocate the GUTI")
@@ -337,16 +292,13 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 	}
 }
 
-// TestAttachNativeGUTIBadMACFallsBackToAuth checks that when the Attach does not
-// verify against the resolved context (stale/spoofed GUTI), the MME does not
-// reuse it — it keeps the existing context and runs a normal attach.
 func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
 	oldID := existing.Conn().MMEUES1APID
 
 	wire := nativeGUTIAttach(t, m, existing)
-	wire[1] ^= 0xff // corrupt the MAC
+	wire[1] ^= 0xff
 
 	cc := &captureConn{}
 	fresh := newAttachUe(m, cc, 9)
@@ -361,14 +313,12 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 	}
 }
 
-// A replayed native-GUTI Attach with a stale uplink NAS COUNT must not remove the
-// live context (TS 24.301).
 func TestAttachNativeGUTIReplayDoesNotRemoveContext(t *testing.T) {
 	m := newTestMME(t)
 	existing, _ := securedUE(t, m)
 	oldID := existing.Conn().MMEUES1APID
 
-	wire := nativeGUTIAttach(t, m, existing) // protected at NASCount(0, 0)
+	wire := nativeGUTIAttach(t, m, existing)
 
 	existing.SetULCountForTest(50)
 
@@ -386,8 +336,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// 1. UE → Attach Request (IMSI), EEA2/EIA2 capable, with a PDN Connectivity
-	// Request in the ESM container.
 	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -408,7 +356,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), attachBytes)
 
-	// MME → Authentication Request.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 downlink (Authentication Request), got %d", len(cc.sent))
 	}
@@ -418,15 +365,10 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The MME assigns an eKSI distinct from the one already stored (0) and emits it,
-	// not the UE-reported "no key" value 7 (TS 24.301 §5.4.2.4).
 	if authReq.NASKeySetIdentifier.Value != 1 {
 		t.Fatalf("Authentication Request eKSI = %d, want 1 (cycled from stored 0)", authReq.NASKeySetIdentifier.Value)
 	}
 
-	// 2. UE side: compute RES from the MME's RAND (RES is independent of SQN) and
-	// reply. K_ASME is what the credential authority derived; read it from the UE
-	// context to mirror the UE for the rest of the exchange.
 	res := make([]byte, 8)
 	if err := udm.F2345(testSubscriber.OPc[:], testSubscriber.K[:], authReq.RAND[:],
 		res, make([]byte, 16), make([]byte, 16), make([]byte, 6), nil); err != nil {
@@ -442,9 +384,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), authResp)
 
-	// Authentication succeeded: the vector is dropped (its K_ASME is held in the security
-	// context) so no key material lingers and AuthVector==nil means "no challenge in
-	// flight"; the per-exchange resync budget is reset.
 	if ue.Conn().AuthVector != nil {
 		t.Fatal("AuthVector must be cleared on authentication success")
 	}
@@ -453,7 +392,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal("resyncTried must be reset on authentication success")
 	}
 
-	// MME → Security Mode Command (integrity protected with the new context).
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Security Mode Command, got %d downlinks", len(cc.sent))
 	}
@@ -484,20 +422,15 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("SMC algorithms eea=%d eia=%d, want 2/2", smc.CipheringAlgorithm, smc.IntegrityAlgorithm)
 	}
 
-	// The SECURITY MODE COMMAND carries the same eKSI as the Authentication Request,
-	// identifying the new EPS security context (TS 24.301 §4.4.2.1).
 	if smc.NASKeySetIdentifier != authReq.NASKeySetIdentifier {
 		t.Fatalf("SMC eKSI = %v, want %v (same as Authentication Request)", smc.NASKeySetIdentifier, authReq.NASKeySetIdentifier)
 	}
 
-	// The unprotected Attach is hashed into the SMC HashMME (TS 24.301 §5.4.3.2).
 	wantHash := sha256.Sum256(attachBytes)
 	if !bytes.Equal(smc.HASHMME, wantHash[:8]) {
 		t.Fatalf("SMC mme.HashMME = %x, want %x", smc.HASHMME, wantHash[:8])
 	}
 
-	// 3. UE → Security Mode Complete (integrity protected + ciphered), returning
-	// the IMEISV the Security Mode Command requested (TS 24.301 §5.4.3.2).
 	imeisv := eps.MobileIMEISV("0350638214365870")
 
 	smCompletePlain, err := (&eps.SecurityModeComplete{IMEISV: &imeisv}).MarshalBinary()
@@ -516,18 +449,14 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal("NAS security context not established after Security Mode Complete")
 	}
 
-	// The IMEISV is converted to a 15-digit IMEI for the status API.
 	if ue.Imei.IMEI() != "035063821436588" {
 		t.Fatalf("IMEI from IMEISV = %q, want 035063821436588", ue.Imei.IMEI())
 	}
 
-	// Initial Context Setup seeds the X2-handover key chain: NH(NCC=1) is ready
-	// for a later Path Switch (TS 33.401 §7.2.8.4).
 	if ue.NCCForTest() != 1 || ue.NHForTest() == ([32]byte{}) {
 		t.Fatalf("NH chain not seeded: ncc=%d nh-zero=%v", ue.NCCForTest(), ue.NHForTest() == ([32]byte{}))
 	}
 
-	// MME → Initial Context Setup Request (default bearer + Attach Accept).
 	if len(cc.sent) != 3 {
 		t.Fatalf("expected Initial Context Setup Request, got %d downlinks", len(cc.sent))
 	}
@@ -538,8 +467,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("unexpected Initial Context Setup Request: %+v", ics)
 	}
 
-	// K_eNB uses the uplink NAS COUNT of the Security Mode Complete (one less
-	// than the next-expected count).
 	wantKeNB, err := epskeys.DeriveKeNB(kasme, ue.ULCount()-1)
 	if err != nil {
 		t.Fatal(err)
@@ -555,7 +482,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("unexpected E-RAB: %+v", erab)
 	}
 
-	// The Attach Accept (the E-RAB's NAS-PDU) carries the UE's assigned IP.
 	acceptWire := []byte(erab.NASPDU)
 
 	acceptPlain, err := unprotected(eps.Unprotect(acceptWire, nas.MakeCount(0, acceptWire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc)))
@@ -568,8 +494,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The Attach Accept assigns a GUTI (TS 24.301 §5.5.1.2.4) and the UE is
-	// indexed by its M-TMSI for later S-TMSI-addressed procedures.
 	if accept.GUTI == nil || accept.GUTI.GUTI == nil {
 		t.Fatal("Attach Accept did not assign a GUTI")
 	}
@@ -600,7 +524,6 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatalf("assigned UE IP = %v, want %v", pdn.IPv4, testUEIP.As4())
 	}
 
-	// 4. UE → Attach Complete reaches EMM-REGISTERED.
 	completePlain, err := (&eps.AttachComplete{ESMMessageContainer: []byte{uint8(activate.EPSBearerIdentity)<<4 | 0x02, uint8(activate.PTI), 0xc2}}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -618,17 +541,12 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	}
 }
 
-// TestSecurityModeRejectReleasesUE checks that a SECURITY MODE REJECT — sent
-// unprotected by the UE (TS 24.301 §5.4.3.5) — aborts the security mode control
-// procedure and releases the UE's S1 context. Cause #23 (UE security
-// capabilities mismatch) is the reject a misbuilt replayed UE security
-// capability provokes.
+// TS 24.301 §5.4.3.5
 func TestSecurityModeRejectReleasesUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// A security mode exchange is in flight (the command was sent).
 	if !m.TryClaimKeyChain(ue) {
 		t.Fatal("could not claim the security mode exchange")
 	}
@@ -654,18 +572,14 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[0])
 }
 
-// TestIdentityResponseIgnoredAfterAuthStarted verifies an out-of-order IDENTITY
-// RESPONSE (authentication already in progress) does not re-set the IMSI or
-// restart authentication — the message is admissible without integrity
-// (TS 24.301 §4.4.4.3). Mirrors the AMF's RegStep gating.
+// TS 24.301 §4.4.4.3
 func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
-	ue.Conn().AuthVector = &udm.EPSAV{} // authentication already in progress
+	ue.Conn().AuthVector = &udm.EPSAV{}
 
-	// An IDENTITY RESPONSE carrying a different identity (type-of-identity = IMSI).
 	resp := &eps.IdentityResponse{MobileIdentity: eps.MobileIMSI("123456789")}
 
 	handleIdentityResponse(context.Background(), m, ue, ue.Conn(), resp)
@@ -675,16 +589,12 @@ func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 	}
 }
 
-// TestSecurityModeRejectIgnoredOutsideExchange verifies an out-of-order SECURITY
-// MODE REJECT (no security mode exchange in flight) does not release the UE — the
-// message is admissible without integrity (TS 24.301 §4.4.4.3), so a spurious one
-// must not tear down a UE. Mirrors the AMF's RegStep gating.
+// TS 24.301 §4.4.4.3
 func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// No security mode exchange is claimed.
 	plain, err := (&eps.SecurityModeReject{Cause: 23}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -701,28 +611,19 @@ func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 	}
 }
 
-// TestSecurityModeCompleteRecoversReplayedAttach verifies the anti-tamper
-// recovery: when SECURITY MODE COMPLETE carries a Replayed NAS message container,
-// the MME re-ingests the genuine ATTACH REQUEST it holds, not the
-// (possibly tampered) parameters from the initial plain Attach (TS 24.301
-// §5.4.3.4).
 func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	// A security mode exchange is in flight (the command was sent).
 	if !m.TryClaimKeyChain(ue) {
 		t.Fatal("could not claim the security mode exchange")
 	}
 
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
-	// A tampered initial Attach was ingested before the security context existed.
 	ue.CombinedAttach = true
 	ue.RequestedAPN = "tampered-apn"
 
-	// The UE's HASHMME check failed, so it replays the genuine plain Attach it sent:
-	// a plain EPS attach with no APN.
 	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -773,15 +674,12 @@ func parseInitialContextSetup(t *testing.T, pdu []byte) *s1ap.InitialContextSetu
 	return ics
 }
 
-// TestDispatchEMM_UnhandledMessageReturnsEMMStatus verifies that an unhandled EMM message
-// type resolves to an EMM STATUS #97 disposition, which the ingress finalizer sends so the UE
-// is not left waiting (TS 24.301 §5.7, §7.4; mirrors the AMF's 5GMM STATUS #97).
+// TS 24.301 §5.7
 func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// A plain EMM message (SHT=plain, PD=EMM) carrying an unassigned message type.
 	plain := []byte{0x07, 0x70}
 
 	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
@@ -791,16 +689,12 @@ func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	}
 }
 
-// TestDispatchESM_UnhandledMessageReturnsESMStatus verifies the MME closes the ESM gap: an
-// unhandled ESM message type resolves to an ESM STATUS #97 disposition (the MME hosts ESM, so
-// unlike the AMF it emits the STATUS itself). TS 24.301 §7.4, §8.3.13.
+// TS 24.301 §7.4
 func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// A plain NAS message with the ESM protocol discriminator and an ESM type the MME does
-	// not handle (bearer 0/PTI in octet 1, unhandled message type in octet 3).
 	plain := []byte{0x02, 0x00, 0x55}
 
 	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
@@ -810,10 +704,7 @@ func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
 	}
 }
 
-// TestDispatchEMM_EMMStatusHandledNoReply verifies that an inbound EMM STATUS is
-// handled locally with no state change and no reply (TS 24.301 §5.7) — in
-// particular it must not fall through to the unhandled-message path that would send
-// an EMM STATUS back.
+// TS 24.301 §5.7
 func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -831,9 +722,7 @@ func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 	}
 }
 
-// TestAttachDuplicateIdenticalIEsResendsAccept verifies a duplicate ATTACH REQUEST
-// with identical IEs while awaiting ATTACH COMPLETE resends the ATTACH ACCEPT without
-// re-authenticating or releasing the UE (TS 24.301 §5.5.1.2.7 case d).
+// TS 24.301 §5.5.1.2.7
 func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -851,7 +740,6 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The attach being served, and the accept last sent.
 	ue.Conn().AttachRequestPlain = plain
 	ue.Conn().AttachAcceptPlain = []byte{0x07, 0x42, 0x01}
 
@@ -870,8 +758,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	}
 }
 
-// An identical retransmission during authentication is ignored, not restarted
-// (TS 24.301 §5.5.1.2.7 case e).
+// TS 24.301 §5.5.1.2.7
 func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -902,8 +789,7 @@ func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 	}
 }
 
-// An identical retransmission during the security mode procedure is ignored, not
-// restarted (TS 24.301 §5.5.1.2.7 case e).
+// TS 24.301 §5.5.1.2.7
 func TestAttachDuplicatePreAcceptSecurityModeIdenticalIEsIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -934,9 +820,7 @@ func TestAttachDuplicatePreAcceptSecurityModeIdenticalIEsIgnored(t *testing.T) {
 	}
 }
 
-// TestAttachDuplicateDifferingIEsProgresses verifies an ATTACH REQUEST with differing
-// IEs while awaiting ATTACH COMPLETE aborts the previous attach and progresses the new
-// one — here re-identifying via authentication (TS 24.301 §5.5.1.2.7 case d).
+// TS 24.301 §5.5.1.2.7
 func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -954,14 +838,11 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A different prior request, so the incoming one differs and the attach progresses.
 	ue.Conn().AttachRequestPlain = []byte{0x07, 0x41, 0x99}
 	ue.Conn().AttachAcceptPlain = []byte{0x07, 0x42, 0x01}
 
 	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
-	// Progressing an IMSI attach re-authenticates: it enters the authentication
-	// sub-phase and sends an AUTHENTICATION REQUEST, not a resent accept.
 	if ue.RegStep() != mme.RegStepAuthenticating {
 		t.Fatalf("a differing duplicate must abort and progress the attach; RegStep = %s", ue.RegStep())
 	}
@@ -980,9 +861,7 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 	}
 }
 
-// TestAttachIgnoredDuringNetworkInitiatedDetach verifies that an ATTACH REQUEST
-// colliding with a network-initiated ("re-attach not required") detach is ignored,
-// not superseding the detach (TS 24.301 §5.5.2.3.4 case d).
+// TS 24.301 §5.5.2.3.4
 func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -1012,7 +891,7 @@ func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.1.2.4, §5.5.1.2.7 f
+// TS 24.301 §5.5.1.2.4
 func TestAuthenticationSuccessMakesTheMMEServeTheUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}

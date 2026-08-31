@@ -9,13 +9,11 @@ import (
 	"testing"
 )
 
-// TestGUTIReallocationCommitsOnComplete verifies the old M-TMSI stays resolvable until
-// GUTI REALLOCATION COMPLETE commits the new GUTI and frees the old one (TS 24.301 §5.4.1).
+// TS 24.301 §5.4.1
 func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	// Give the UE an initial committed GUTI so the reallocation has an old M-TMSI.
 	plmn, err := m.OperatorPLMN(context.Background())
 	if err != nil {
 		t.Fatal(err)

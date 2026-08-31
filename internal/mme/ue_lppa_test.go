@@ -26,7 +26,6 @@ func TestLPPaMessageRingBuffer(t *testing.T) {
 		t.Fatalf("buffer kept %d messages, want 16", len(msgs))
 	}
 
-	// The oldest four (0..3) are evicted; the window is 4..19.
 	if msgs[0].Payload[0] != 4 || msgs[15].Payload[0] != 19 {
 		t.Fatalf("window = [%d..%d], want [4..19]", msgs[0].Payload[0], msgs[15].Payload[0])
 	}
@@ -51,7 +50,7 @@ func TestRadioMeasurementsCopy(t *testing.T) {
 		t.Fatal("expected nil measurements initially")
 	}
 
-	ue.SetRadioMeasurements(nil) // no-op
+	ue.SetRadioMeasurements(nil)
 
 	if ue.GetRadioMeasurements() != nil {
 		t.Fatal("SetRadioMeasurements(nil) should be a no-op")
@@ -65,7 +64,6 @@ func TestRadioMeasurementsCopy(t *testing.T) {
 		t.Fatalf("measurements = %+v", got)
 	}
 
-	// Each Get returns a distinct struct so a caller cannot mutate the stored one.
 	if other := ue.GetRadioMeasurements(); other == got {
 		t.Fatal("GetRadioMeasurements returned the same struct pointer")
 	}

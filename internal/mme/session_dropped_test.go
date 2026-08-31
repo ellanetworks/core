@@ -188,11 +188,7 @@ func TestMMContextAckReleasesPDNsFiveGSDidNotAdopt(t *testing.T) {
 	}
 }
 
-// TS 23.401 §5.5.1.2.2 steps 14 and 19: the source eNB is released once, after
-// Forward Relocation Complete and with the successful-handover cause. Releasing
-// again from the user-plane switch (step 8) draws an S1AP ERROR INDICATION for a
-// UE-associated logical connection the eNB has already torn down
-// (TS 36.413 §10.6).
+// TS 23.401 §5.5.1.2.2
 func TestSessionDroppedLeavesTheReleaseToACommittingRelocationToFiveGS(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

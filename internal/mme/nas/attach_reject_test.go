@@ -58,15 +58,12 @@ func TestAttachTransientCredentialFailureReleasesWithoutRejecting(t *testing.T) 
 	parseUEContextReleaseCommand(t, cc.sent[0])
 }
 
-// TestAttachTrackingAreaNotAllowed checks an Attach from a serving cell outside the
-// served area is rejected with ATTACH REJECT #12 and the S1 context released, without
-// authenticating (TS 24.301 §5.5.1.2.5).
+// TS 24.301 §5.5.1.2.5
 func TestAttachTrackingAreaNotAllowed(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 7)
 
-	// Served PLMN 001/01 but TAC 2, which the operator does not serve (it serves TAC 1).
 	ue.Conn().ServingTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 2}
 
 	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
@@ -105,16 +102,13 @@ func TestAttachTrackingAreaNotAllowed(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 
-// TestAttachProtocolError checks an ATTACH REQUEST whose mandatory IEs are absent is
-// answered with ATTACH REJECT #96 and the S1 context released (TS 24.301 §5.5.1.2.7 b).
+// TS 24.301 §5.5.1.2.7
 func TestAttachProtocolError(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		nas  []byte
 	}{
 		{name: "header only", nas: []byte{0x07, 0x41}},
-		// The trailing bytes are consumed as a malformed mandatory IE (an LV length
-		// overrun), not tolerated as optional-tail garbage.
 		{name: "malformed mandatory IE", nas: []byte{0x07, 0x41, 0xff, 0xff, 0xff}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,9 +136,6 @@ func TestAttachProtocolError(t *testing.T) {
 	}
 }
 
-// TestAttachUnknownIMSI checks that an Attach Request from an unprovisioned IMSI
-// is rejected with ATTACH REJECT #3 ("Illegal UE") and the S1 context
-// is released, without starting authentication.
 func TestAttachUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -183,7 +174,6 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseIllegalUE)
 	}
 
-	// The reject carries the T3402 back-off (12 min), mirroring the AMF's T3502.
 	wantT3402, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff)
 	if err != nil {
 		t.Fatal(err)

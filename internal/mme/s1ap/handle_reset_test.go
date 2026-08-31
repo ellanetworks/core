@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// resetValue marshals a Reset and returns the initiatingMessage open-type
-// payload handleReset consumes.
 func resetValue(t *testing.T, r *s1ap.Reset) []byte {
 	t.Helper()
 
@@ -29,7 +27,6 @@ func resetValue(t *testing.T, r *s1ap.Reset) []byte {
 	return pdu.(*s1ap.InitiatingMessage).Value
 }
 
-// parseResetAcknowledge decodes the single Reset Acknowledge the capture holds.
 func parseResetAcknowledge(t *testing.T, pdu []byte) *s1ap.ResetAcknowledge {
 	t.Helper()
 
@@ -51,9 +48,6 @@ func parseResetAcknowledge(t *testing.T, pdu []byte) *s1ap.ResetAcknowledge {
 	return ack
 }
 
-// TestS1ResetWholeInterface confirms a whole-interface reset moves every
-// registered UE on the association to ECM-IDLE, acknowledges with no connection
-// list, and leaves a UE on another association untouched.
 func TestS1ResetWholeInterface(t *testing.T) {
 	m := newTestMME(t)
 
@@ -83,7 +77,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 			t.Fatalf("UE %q not in ECM-IDLE after S1 reset", ue.IMSI())
 		}
 
-		m.RemoveUe(ue) // stop the default-duration timer
+		m.RemoveUe(ue)
 	}
 
 	if got, ok := m.LookupUeByIMSI(other.IMSI()); !ok || !got.Connected() {
@@ -99,8 +93,6 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	}
 }
 
-// TestS1ResetPartOfInterface confirms a part-of-interface reset releases only
-// the listed UE and echoes the connection list in the acknowledge.
 func TestS1ResetPartOfInterface(t *testing.T) {
 	m := newTestMME(t)
 
@@ -146,13 +138,11 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	}
 }
 
-// TestS1ResetDropsMidAttachUE confirms a reset of a UE that never completed
-// registration drops the context and releases its session.
 func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(mme.EMMDeregistered) // attach not yet completed
+	ue.TransitionTo(mme.EMMDeregistered)
 	testPDN(ue).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}

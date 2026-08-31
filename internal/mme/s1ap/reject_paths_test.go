@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// outcomeOf decodes the single PDU a handler sent, failing if it sent none.
 func outcomeOf(t *testing.T, cc *captureConn) any {
 	t.Helper()
 
@@ -29,15 +28,11 @@ func outcomeOf(t *testing.T, cc *captureConn) any {
 	return pdu
 }
 
-// TS 36.413 §10.3.5: a rejected PATH SWITCH REQUEST draws the procedure's own
-// unsuccessful outcome, named with the source MME-UE-S1AP-ID it carries
-// (§9.1.5.8).
+// TS 36.413 §10.3.5
 func TestPathSwitchRequestRejectionAnswers(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	// Source MME-UE-S1AP-ID (88) and eNB-UE-S1AP-ID (8) only: the mandatory
-	// reject-criticality E-RAB list is absent.
 	body, err := hex.DecodeString("000002" + "00084002" + "0009" + "00584002" + "0007")
 	if err != nil {
 		t.Fatal(err)
@@ -70,15 +65,11 @@ func TestPathSwitchRequestRejectionAnswers(t *testing.T) {
 	}
 }
 
-// TS 36.413 §10.3.5: where the received information cannot build the
-// unsuccessful outcome, the receiver reports by Error Indication instead of
-// staying silent.
+// TS 36.413 §10.3.5
 func TestRejectionFallsBackToErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	// Undecodable octets: nothing is recovered, so no failure message can name
-	// the association.
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(cc), []byte{0x00, 0xff})
 
 	pdu := outcomeOf(t, cc)
@@ -93,13 +84,10 @@ func TestRejectionFallsBackToErrorIndication(t *testing.T) {
 	}
 }
 
-// A rejected ENB CONFIGURATION UPDATE draws the FAILURE its procedure defines.
 func TestENBConfigurationUpdateRejectionAnswers(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	// Default Paging DRX carried twice is a falsely constructed message
-	// (TS 36.413 §10.3.6).
 	body, err := hex.DecodeString("000002" + "00894001" + "00" + "00894001" + "00")
 	if err != nil {
 		t.Fatal(err)
@@ -128,9 +116,7 @@ func TestENBConfigurationUpdateRejectionAnswers(t *testing.T) {
 	}
 }
 
-// TS 36.413 §9.2.1.21: Criticality Diagnostics reports which message carried
-// the error, so a successful outcome must not be labelled an initiating
-// message.
+// TS 36.413 §9.2.1.21
 func TestReportOnResponseNamesTheOutcome(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -138,8 +124,6 @@ func TestReportOnResponseNamesTheOutcome(t *testing.T) {
 	mmeID := uint16(ue.Conn().MMEUES1APID)
 	enbID := uint16(ue.Conn().ENBUES1APID)
 
-	// The two UE IDs, then an IE this version does not model marked notify,
-	// which §10.3.4.2 obliges the receiver to report.
 	body, err := hex.DecodeString(fmt.Sprintf("000003"+"00004002%04x"+"00084002%04x"+"ea608001"+"00", mmeID, enbID))
 	if err != nil {
 		t.Fatal(err)
