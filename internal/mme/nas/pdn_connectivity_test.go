@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// findERABSetupRequest returns the last E-RAB SETUP REQUEST the capture holds.
 func findERABSetupRequest(t *testing.T, cc *captureConn) *s1ap.ERABSetupRequest {
 	t.Helper()
 
@@ -48,7 +47,6 @@ func findERABSetupRequest(t *testing.T, cc *captureConn) *s1ap.ERABSetupRequest 
 	return nil
 }
 
-// findERABReleaseCommand returns the last E-RAB RELEASE COMMAND the capture holds.
 func findERABReleaseCommand(t *testing.T, cc *captureConn) *s1ap.ERABReleaseCommand {
 	t.Helper()
 
@@ -79,8 +77,6 @@ func findERABReleaseCommand(t *testing.T, cc *captureConn) *s1ap.ERABReleaseComm
 	return nil
 }
 
-// lastDownlinkESM decodes the most recent protected downlink NAS message the MME
-// sent and returns its plaintext (e.g. a PDN Connectivity / Disconnect Reject).
 func lastDownlinkESM(t *testing.T, ue *mme.UeContext, cc *captureConn) []byte {
 	t.Helper()
 
@@ -94,10 +90,7 @@ func lastDownlinkESM(t *testing.T, ue *mme.UeContext, cc *captureConn) []byte {
 	return plain
 }
 
-// TestAdditionalPDNConnectionLifecycle drives the full multiple-PDN flow: a
-// registered UE opens a second PDN connection, the eNB sets up its radio leg, the
-// UE accepts the default bearer, then the UE disconnects the second PDN — leaving
-// the UE registered with only its first PDN (TS 24.301 §6.5).
+// TS 24.301 §6.5
 func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -169,16 +162,10 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
 	}
 
-	// TS 23.401 §5.4.4 (symmetric with 5G TS 23.502 §4.3.4.2 step 2): the UPF user plane
-	// is released at the start of the deactivation — before the UE's DEACTIVATE ACCEPT —
-	// so it stops forwarding immediately rather than until the handshake completes.
 	if !m.Session.(*fakeSessionManager).released {
 		t.Fatal("EPS session not released up front on the PDN disconnect request; the UPF would keep forwarding until the accept")
 	}
 
-	// The deactivation of an additional PDN releases the radio bearer via an
-	// E-RAB Release Command carrying the Deactivate NAS, so a real eNB tears the
-	// E-RAB down (TS 23.401 §5.10.3) — not a plain Downlink NAS Transport.
 	relCmd := findERABReleaseCommand(t, cc)
 	if len(relCmd.ERABToBeReleased) != 1 || relCmd.ERABToBeReleased[0].ERABID != 6 || len(relCmd.NASPDU) == 0 {
 		t.Fatalf("E-RAB Release Command malformed: %+v", relCmd)
@@ -222,8 +209,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	}
 }
 
-// TestAdditionalPDNActivationIsGuarded verifies T3485 guards a standalone additional-PDN
-// activation: armed on send, stopped on accept (TS 24.301 §6.4.1.6).
+// TS 24.301 §6.4.1.6
 func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -254,9 +240,7 @@ func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 	}
 }
 
-// TestAdditionalPDNActivationTimeoutReleasesPDN verifies that when the UE never answers,
-// T3485 exhaustion releases the half-open PDN. The send chokepoint swallows write
-// failures, so an unanswered activation would otherwise leak the PDN (TS 24.301 §6.4.1.6).
+// TS 24.301 §6.4.1.6
 func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
 	m := newTestMME(t)
 	m.SetESMGuardConfigForTest(5*time.Millisecond, 2)
@@ -275,7 +259,6 @@ func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
 		t.Fatal("second PDN connection not created")
 	}
 
-	// PDNCount takes the UE lock, so polling it is safe against the guard timer's release.
 	deadline := time.Now().Add(2 * time.Second)
 	for ue.PDNCount() > 1 && time.Now().Before(deadline) {
 		time.Sleep(2 * time.Millisecond)
@@ -286,8 +269,6 @@ func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
 	}
 }
 
-// TestConnectedSubscriberReportsAllPDNs confirms the status view lists every PDN
-// connection (ordered by EPS bearer identity), not just the default bearer.
 func TestConnectedSubscriberReportsAllPDNs(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -317,8 +298,6 @@ func TestConnectedSubscriberReportsAllPDNs(t *testing.T) {
 	}
 }
 
-// TestAdditionalPDNRejectedUnknownAPN confirms a PDN connectivity request for an
-// APN outside the subscriber's profile is rejected (TS 24.301 ESM cause #27).
 func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -346,9 +325,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	}
 }
 
-// TestPDNConnectivityRejectedInvalidHeader confirms the MME validates the ESM
-// header of a PDN Connectivity Request (TS 24.301 §7.3): an unassigned/reserved
-// PTI is rejected with ESM cause #81, a non-zero header EBI with #43.
+// TS 24.301 §7.3
 func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -384,8 +361,6 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 	}
 }
 
-// TestPDNDisconnectRejectedInvalidHeader confirms the same §7.3 header validation
-// for a PDN Disconnect Request, before the linked-bearer and last-PDN checks.
 func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -416,8 +391,6 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 	}
 }
 
-// TestLastPDNDisconnectRejected confirms the UE cannot disconnect its only PDN
-// connection (TS 24.301 ESM cause #49); it must detach instead.
 func TestLastPDNDisconnectRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)

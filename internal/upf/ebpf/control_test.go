@@ -14,13 +14,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-// GTP-U control-message handling and ICMPv6 Router Solicitation interception.
-// PMTU / frag-needed generation needs a small-MTU device and is deferred to the
-// netns harness.
-
-// assertEchoResponse checks gtp is a conformant GTP-U Echo Response: the S flag
-// set (TS 29.281 §5.1), a zero TEID, the request's sequence number echoed, and
-// the mandatory Recovery IE with a zero restart counter (§7.2.2, Table 7.2.2-1).
 func assertEchoResponse(t *testing.T, gtp []byte, wantSeq uint16) {
 	t.Helper()
 
@@ -41,8 +34,6 @@ func assertEchoResponse(t *testing.T, gtp []byte, wantSeq uint16) {
 		t.Errorf("GTP message type = %d, want %d (echo response)", gtp[1], gtpEchoResponse)
 	}
 
-	// Length counts everything after the 8-byte mandatory header: the optional
-	// word (4) and the Recovery IE (2).
 	if got := binary.BigEndian.Uint16(gtp[2:4]); got != 6 {
 		t.Errorf("GTP message length = %d, want 6", got)
 	}
@@ -64,9 +55,6 @@ func assertEchoResponse(t *testing.T, gtp []byte, wantSeq uint16) {
 	}
 }
 
-// TestGTPControlMessages checks GTP-U control-message dispatch: an echo request
-// is answered (ActionTx, addresses/ports swapped, type set to echo response);
-// other control messages are passed to the kernel.
 func TestGTPControlMessages(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -88,8 +76,6 @@ func TestGTPControlMessages(t *testing.T) {
 			t.Fatalf("got XDP action %d, want ActionTx (%d)", action, ActionTx)
 		}
 
-		// The request carries an 8-byte header; the response is the 12-byte
-		// header plus the 2-octet Recovery IE, so the frame grows by 6.
 		if want := len(in) + 6; len(out) != want {
 			t.Fatalf("frame length = %d, want %d", len(out), want)
 		}
@@ -127,14 +113,7 @@ func TestGTPControlMessages(t *testing.T) {
 	}
 }
 
-// TestGTPEchoRequestWithSequenceNumber checks that a GTP-U Echo Request carrying
-// a sequence number (S flag set) but no extension header is answered. This is a
-// conformant message (TS 29.281 §5.1, §7.2.1) and the form a real NG-RAN node
-// uses for N3 path supervision.
-//
-// It fails today: parse_gtp assumes a fixed 4-byte extension header is present
-// whenever any of E/S/PN is set (it skips sizeof(gtp_hdr_ext) + 4 = 8 bytes), so
-// it cannot parse the 12-byte header and drops the message instead of answering.
+// TS 29.281 §5.1
 func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -150,14 +129,10 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want ActionTx (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, ActionTx)
 	}
 
-	// The Echo Response repeats the request's sequence number (TS 29.281 §7.2.2).
 	assertEchoResponse(t, out[ethHdrLen+20+8:], 0x1234)
 }
 
-// TestGTPEchoResponseIPv6Checksum checks that the Echo Response to an IPv6 echo
-// request carries a valid UDP checksum. The checksum is mandatory over IPv6
-// (RFC 8200); changing the GTP message type must not leave it stale, or the
-// receiver drops the reply.
+// RFC 8200
 func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -173,23 +148,15 @@ func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 
 	assertEchoResponse(t, out[ethHdrLen+40+8:], 0)
 
-	// The Recovery IE grew the datagram, so the IPv6 payload length must have
-	// been refreshed alongside it.
 	if got := binary.BigEndian.Uint16(out[ethHdrLen+4 : ethHdrLen+6]); got != 8+14 {
 		t.Errorf("IPv6 payload length = %d, want %d (UDP header + Echo Response)", got, 8+14)
 	}
 
-	// The reflected response is UPF -> gNB; its UDP checksum must validate.
 	if !validUDPv6Checksum(testUPFN3v6, testGNBv6, out[ethHdrLen+40:]) {
 		t.Error("Echo Response UDP-over-IPv6 checksum does not validate (mandatory over IPv6)")
 	}
 }
 
-// TestRouterSolicitationIntercept checks that an inner ICMPv6 Router
-// Solicitation, after decapsulation, is intercepted: the packet is dropped AND
-// its TEID and UE source address are emitted to userspace on rs_event_map. The
-// event is the contract that drives the RA responder, so asserting it (not just
-// the drop) is what proves SLAAC would actually fire.
 func TestRouterSolicitationIntercept(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -231,7 +198,6 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 	}
 }
 
-// readRSEvent returns the RS event on the ring buffer, or nil if none arrives.
 func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
 	t.Helper()
 
@@ -250,7 +216,6 @@ func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
 	return &ev
 }
 
-// assertRSIntercepted requires inner to be intercepted as an RS from ueSrc.
 func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byte, ueSrc [16]byte) {
 	t.Helper()
 
@@ -279,10 +244,6 @@ func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byt
 	}
 }
 
-// TestRouterSolicitationInterceptWithN6VLAN: the inband tag on XDP leaves
-// eth | vlan | inner, moving the ICMPv6 header 4 bytes out. A fixed offset from
-// the frame start lands in the inner destination address, and no UE in this
-// configuration completes SLAAC.
 func TestRouterSolicitationInterceptWithN6VLAN(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -294,8 +255,6 @@ func TestRouterSolicitationInterceptWithN6VLAN(t *testing.T) {
 	assertRSIntercepted(t, obj, teid, innerIPv6ICMPv6RS(testUEv6), testUEv6)
 }
 
-// TestRouterSolicitationInterceptBehindExtensionHeader: the ICMPv6 header is
-// past the chain, and nexthdr names the option header.
 func TestRouterSolicitationInterceptBehindExtensionHeader(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -315,9 +274,6 @@ func TestRouterSolicitationInterceptBehindExtensionHeader(t *testing.T) {
 	assertRSIntercepted(t, obj, teid, inner, testUEv6)
 }
 
-// TestICMPv6EchoNotMisreadAsRouterSolicitation is the inverse: the untagged
-// offset lands on daddr byte 12, so a UE could have any ICMPv6 packet
-// intercepted, with a UE-chosen address reported.
 func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -325,7 +281,7 @@ func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
 		teid            = 0x52530004
 		protoICMPv6     = 58
 		icmpv6EchoReq   = 128
-		rsTypeOffsetDst = 12 // where the untagged read lands in the daddr
+		rsTypeOffsetDst = 12
 	)
 
 	obj := loadProgramConfig(t, false, false, 0, 1, 0, 100)
@@ -339,7 +295,7 @@ func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
 	defer func() { _ = rd.Close() }()
 
 	dst := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99}
-	dst[rsTypeOffsetDst] = 133 // Router Solicitation, as read at the wrong offset
+	dst[rsTypeOffsetDst] = 133
 
 	echo := []byte{icmpv6EchoReq, 0, 0, 0, 0, 0, 0, 0}
 	inner := ipv6Packet(testUEv6, dst, protoICMPv6, echo)

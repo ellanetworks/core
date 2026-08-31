@@ -24,8 +24,7 @@ func lppaTestSUPI(t *testing.T, ue *UeContext) etsi.SUPI {
 	return supi
 }
 
-// PageAndRetryLPPa buffers the payload and pages the UE, so it can be delivered when the
-// UE answers (TS 23.273 §6.11.2 step 2).
+// TS 23.273 §6.11.2
 func TestPageAndRetryLPPa_IdleUE_BuffersAndPages(t *testing.T) {
 	m := newTestMME(t)
 	m.pagingCfg.ExpireTime = time.Hour
@@ -73,7 +72,6 @@ func TestPageAndRetryLPPa_IdleUE_BuffersAndPages(t *testing.T) {
 	m.mu.Unlock()
 }
 
-// Unlike Page, a UE that needs no page is an error so the LMF can fall back at once.
 func TestPageAndRetryLPPa_RejectsUEThatNeedsNoPage(t *testing.T) {
 	t.Run("already connected", func(t *testing.T) {
 		m := newTestMME(t)
@@ -125,7 +123,6 @@ func TestPageAndRetryLPPa_RejectsUEThatNeedsNoPage(t *testing.T) {
 	})
 }
 
-// CancelBufferedLPPa discards only the measurement it names.
 func TestCancelBufferedLPPa(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
@@ -148,7 +145,6 @@ func TestCancelBufferedLPPa(t *testing.T) {
 	}
 }
 
-// lppaBuffered reports whether a payload is buffered, without consuming it.
 func lppaBuffered(ue *UeContext) bool {
 	ue.lppaBufMu.RLock()
 	defer ue.lppaBufMu.RUnlock()
@@ -156,7 +152,6 @@ func lppaBuffered(ue *UeContext) bool {
 	return ue.lppaBuf != nil
 }
 
-// abandonPaging is the backstop for a payload whose requester never cancelled.
 func TestAbandonPaging_DiscardsBufferedLPPa(t *testing.T) {
 	m := newTestMME(t)
 	m.pagingCfg.ExpireTime = 5 * time.Millisecond
@@ -168,8 +163,6 @@ func TestAbandonPaging_DiscardsBufferedLPPa(t *testing.T) {
 
 	m.armPaging(ue, []byte{0x00})
 
-	// The guard marks itself idle before running the abort callback, so wait on the effect
-	// rather than on pagingActive.
 	deadline := time.Now().Add(2 * time.Second)
 	for lppaBuffered(ue) {
 		if time.Now().After(deadline) {

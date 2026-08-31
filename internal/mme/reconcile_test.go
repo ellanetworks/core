@@ -16,8 +16,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// connectedBearerUE returns a secured, registered, ECM-CONNECTED UE with a
-// default bearer, ready for data-network reconciliation.
 func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	t.Helper()
 
@@ -25,8 +23,6 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	p := testPDN(ue)
 	p.Apn = "internet"
 
-	// Record the QoS a real activation would, so a reconcile against an unchanged
-	// policy is a no-op.
 	if qos, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), p.Apn); err == nil {
 		p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
 		p.SessAmbrULBps = qos.SessAmbrUL.Bps()
@@ -41,8 +37,6 @@ func TestReconcileDataNetworkReactivatesChangedBearer(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
-	// A fingerprint that differs from the current resolved config simulates a
-	// data-network reconfiguration applied while the bearer was up.
 	testPDN(ue).DnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
@@ -83,7 +77,7 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testPDN(ue).DnConfig = qos.DnFingerprint() // matches current → no change
+	testPDN(ue).DnConfig = qos.DnFingerprint()
 
 	m.ReconcileDataNetwork(context.Background())
 
@@ -96,14 +90,12 @@ func TestReconcileDataNetworkSkipsUnchanged(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkDeactivatesOnUnknownAPN checks that a bearer whose APN
-// is unbound from the subscriber's profile is torn down (TS 23.401 §5.4.4.1),
-// symmetric with the 5G release on an unresolvable policy.
+// TS 23.401 §5.4.4.1
 func TestReconcileDataNetworkDeactivatesOnUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
-	testPDN(ue).Apn = "removed-apn" // no policy binds this APN → ErrUnknownAPN
+	testPDN(ue).Apn = "removed-apn"
 
 	m.ReconcileDataNetwork(context.Background())
 
@@ -118,9 +110,7 @@ func TestReconcileDataNetworkDeactivatesOnUnknownAPN(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkReactivatesOnFramedRouteChange checks that a framed-
-// route change alone (data-network config unchanged) reactivates the bearer with
-// ESM cause #39, per TS 23.501 §5.6.14 / TS 24.301 §6.4.4.2.
+// TS 23.501 §5.6.14
 func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -130,7 +120,7 @@ func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testPDN(ue).DnConfig = qos.DnFingerprint() // data-network config matches; framed routes are the only change
+	testPDN(ue).DnConfig = qos.DnFingerprint()
 
 	m.Session.(*fakeSessionManager).framedChanged = true
 
@@ -147,9 +137,7 @@ func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkReactivatesOnStaticIPChange checks that a static-IP
-// reservation change alone (data-network config and framed routes unchanged)
-// reactivates the bearer with ESM cause #39, per TS 24.301 §6.4.4.2.
+// TS 24.301 §6.4.4.2.
 func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -159,7 +147,7 @@ func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testPDN(ue).DnConfig = qos.DnFingerprint() // config matches; the static IP is the only change
+	testPDN(ue).DnConfig = qos.DnFingerprint()
 
 	m.Session.(*fakeSessionManager).staticIPChanged = true
 
@@ -179,7 +167,7 @@ func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	m.FreeUeConn(ue) // an idle UE picks up the change on its next attach
+	m.FreeUeConn(ue)
 	testPDN(ue).DnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
@@ -189,7 +177,6 @@ func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	}
 }
 
-// TestDeactivateBearerAcceptReleases drives the uplink DEACTIVATE EPS BEARER
 func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -200,8 +187,6 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A fingerprint identical to the current one except the DNS field: only DNS
-	// changed, so the bearer is modified in place rather than reactivated.
 	parts := strings.Split(qos.DnFingerprint(), "|")
 	parts[2] = "9.9.9.9"
 	testPDN(ue).DnConfig = strings.Join(parts, "|")
@@ -239,10 +224,6 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkModifiesSessionAMBR verifies a Session-AMBR change is
-// applied in place with a MODIFY EPS BEARER CONTEXT REQUEST carrying the new
-// APN-AMBR, that the UPF QER is updated, and that the stored Session-AMBR is
-// committed only when the UE accepts.
 func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -257,7 +238,6 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	wantDL := qos.SessAmbrDL.Bps()
 	wantUL := qos.SessAmbrUL.Bps()
 
-	// DN config unchanged; only the stored Session-AMBR differs from the policy.
 	p.DnConfig = qos.DnFingerprint()
 	p.SessAmbrDLBps = wantDL / 2
 	p.SessAmbrULBps = wantUL / 2
@@ -310,10 +290,6 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkDefersAMBROnQERFailure verifies that when the UPF QER
-// update fails the modification is aborted rather than signalled to the UE: the
-// stored Session-AMBR is left stale so the next reconcile retries, avoiding a
-// silent UE/UPF divergence (AC4).
 func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -349,10 +325,6 @@ func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkModifiesQoSViaERABModify verifies a QCI/ARP change is
-// carried in an S1AP E-RAB Modify Request (not a Downlink NAS Transport) with the
-// new E-RAB QoS, that the piggybacked NAS-PDU is a Modify EPS Bearer Context
-// Request with the new EPS QoS, and that the stored QoS commits only on accept.
 func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -364,7 +336,6 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// DN and Session-AMBR unchanged; only the QCI/ARP differ from the stored values.
 	p.DnConfig = qos.DnFingerprint()
 	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
 	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
@@ -432,10 +403,6 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 	}
 }
 
-// TestReconcileDataNetworkModifiesQoSAndAMBRTogether verifies a combined QCI/ARP
-// and Session-AMBR change is carried in a single E-RAB Modify Request whose
-// piggybacked NAS-PDU contains both the new EPS QoS and the new APN-AMBR, and that
-// the UPF QER is updated for the new Session-AMBR.
 func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
@@ -451,9 +418,9 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 	wantUL := qos.SessAmbrUL.Bps()
 
 	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = wantDL / 2 // Session-AMBR changed
+	p.SessAmbrDLBps = wantDL / 2
 	p.SessAmbrULBps = wantUL / 2
-	p.Qci = qos.QCI + 1 // QoS changed
+	p.Qci = qos.QCI + 1
 	p.Arp = qos.ARP + 1
 
 	m.ReconcileDataNetwork(context.Background())
@@ -511,17 +478,24 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 	}
 }
 
-// TestModifyBearerAcceptCommitsConfig drives a MODIFY EPS BEARER CONTEXT ACCEPT
 func TestReconcileUEIdleNoPanic(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
+	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
 	m.FreeUeConn(ue)
 
 	m.ReconcileUE(context.Background(), ue)
+
+	if cc.count() != 0 {
+		t.Fatalf("an idle UE cannot be sent a reconfiguration, got %d messages", cc.count())
+	}
+
+	if ue.Conn() != nil {
+		t.Fatal("the freed connection was resurrected")
+	}
 }
 
-// TS 24.301 §8.3.18.9 and §8.3.18.13
+// TS 24.301 §8.3.18.9
 func TestModifyBearerFollowsTheConnectionsPCOElement(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
@@ -535,7 +509,6 @@ func TestModifyBearerFollowsTheConnectionsPCOElement(t *testing.T) {
 			m := newTestMME(t)
 			ue, cc := connectedBearerUE(t, m)
 
-			// The UE advertises ePCO support: UE network capability octet 8, bit 8.
 			ue.SetUESecurityCapability(eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x80, 0x20}}, nil, MintAuthProofForTrackingAreaUpdate())
 
 			p := testPDN(ue)

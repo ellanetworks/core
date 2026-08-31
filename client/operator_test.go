@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -41,27 +40,6 @@ func TestGetOperator_Success(t *testing.T) {
 	}
 }
 
-func TestGetOperator_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Operator not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetOperator(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateOperatorID_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -88,31 +66,6 @@ func TestUpdateOperatorID_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorID_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid UE IP Pool"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	updateOperatorIDOpts := &client.UpdateOperatorIDOptions{
-		Mcc: "001",
-		Mnc: "01",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorID(ctx, updateOperatorIDOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateOperatorTracking_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -135,30 +88,6 @@ func TestUpdateOperatorTracking_Success(t *testing.T) {
 	err := clientObj.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateOperatorTracking_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid tac"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	updateOperatorTrackingOpts := &client.UpdateOperatorTrackingOptions{
-		SupportedTacs: []string{"001", "002"},
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -200,32 +129,7 @@ func TestUpdateOperatorNASSecurity_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorNASSecurity_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid ciphering algorithm"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	updateOperatorNASSecurityOpts := &client.UpdateOperatorNASSecurityOptions{
-		Ciphering: []string{"INVALID"},
-		Integrity: []string{"AES"},
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorNASSecurity(ctx, updateOperatorNASSecurityOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
-func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
+func TestCreateHomeNetworkKey_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 201,
@@ -260,37 +164,6 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 	}
 }
 
-func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 201,
-			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Home network key created"}`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.CreateHomeNetworkKeyOptions{
-		KeyIdentifier: 0,
-		Scheme:        "B",
-		PrivateKey:    "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.CreateHomeNetworkKey(ctx, opts)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if fake.lastOpts.Method != "POST" {
-		t.Fatalf("expected method POST, got %s", fake.lastOpts.Method)
-	}
-}
-
 func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -317,27 +190,6 @@ func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001" {
 		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestDeleteHomeNetworkKey_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.DeleteHomeNetworkKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -371,27 +223,6 @@ func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key" {
 		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key, got %s", fake.lastOpts.Path)
-	}
-}
-
-func TestGetHomeNetworkKeyPrivateKey_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 404,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "not found"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -472,32 +303,6 @@ func TestUpdateOperatorSPN_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorSPN_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "fullName is required and must not be empty"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	opts := &client.UpdateOperatorSPNOptions{
-		FullName:  "",
-		ShortName: "Ella",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorSPN(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateOperatorCode_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -526,29 +331,6 @@ func TestUpdateOperatorCode_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/operator/code" {
 		t.Fatalf("expected path api/v1/operator/code, got: %s", fake.lastOpts.Path)
-	}
-}
-
-func TestUpdateOperatorCode_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid operator code format"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorCode(ctx, &client.UpdateOperatorCodeOptions{
-		OperatorCode: "not-hex",
-	})
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 

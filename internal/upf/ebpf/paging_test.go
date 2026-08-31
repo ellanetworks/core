@@ -5,8 +5,6 @@ package ebpf
 
 import "testing"
 
-// TestClearNotifiedForSEID asserts that clearing a SEID removes all of its
-// paging entries (any PdrID/QFI) and leaves other sessions' entries intact.
 func TestClearNotifiedForSEID(t *testing.T) {
 	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
 
@@ -29,9 +27,6 @@ func TestClearNotifiedForSEID(t *testing.T) {
 	}
 }
 
-// Suppression is marked when a page fails and cleared when the UE returns; a
-// policy change in between moves the PDR's QFI, and only the current one is
-// knowable at the clear.
 func TestClearNotifiedIsQFIAgnostic(t *testing.T) {
 	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
 

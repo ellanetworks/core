@@ -4,11 +4,8 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -88,170 +85,30 @@ type ListDataNetworkResponse struct {
 }
 
 func listDataNetworks(url string, client *http.Client, token string) (int, *ListDataNetworkResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var dataNetworkResponse ListDataNetworkResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&dataNetworkResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &dataNetworkResponse, nil
+	return apiDo[ListDataNetworkResponse](client, "GET", url+"/api/v1/networking/data-networks", token, nil)
 }
 
 func getDataNetwork(url string, client *http.Client, token string, name string) (int, *GetDataNetworkResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var dataNetworkResponse GetDataNetworkResponse
-	if err := json.NewDecoder(res.Body).Decode(&dataNetworkResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &dataNetworkResponse, nil
+	return apiDo[GetDataNetworkResponse](client, "GET", url+"/api/v1/networking/data-networks/"+name, token, nil)
 }
 
 func createDataNetwork(url string, client *http.Client, token string, data *CreateDataNetworkParams) (int, *CreateDataNetworkResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/data-networks", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateDataNetworkResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateDataNetworkResponse](client, "POST", url+"/api/v1/networking/data-networks", token, data)
 }
 
 func editDataNetwork(url string, client *http.Client, name string, token string, data *UpdateDataNetworkParams) (int, *CreateDataNetworkResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/data-networks/"+name, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateDataNetworkResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateDataNetworkResponse](client, "PUT", url+"/api/v1/networking/data-networks/"+name, token, data)
 }
 
 func deleteDataNetwork(url string, client *http.Client, token, name string) (int, *DeleteDataNetworkResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/networking/data-networks/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var deleteDataNetworkResponse DeleteDataNetworkResponse
-	if err := json.NewDecoder(res.Body).Decode(&deleteDataNetworkResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &deleteDataNetworkResponse, nil
+	return apiDo[DeleteDataNetworkResponse](client, "DELETE", url+"/api/v1/networking/data-networks/"+name, token, nil)
 }
 
 // This is an end-to-end test for the data networks handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestAPIDataNetworksEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List data networks - 1", func(t *testing.T) {
 		statusCode, response, err := listDataNetworks(env.Server.URL, client, token)
@@ -529,21 +386,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 }
 
 func TestEditInexistentDataNetwork(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	editDataNetworkParams := &UpdateDataNetworkParams{
 		IPv4Pool: IPv4Pool,
@@ -568,24 +411,10 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 // TestUpdateDataNetworkPathBodyMismatch verifies that the path name is used
 // for the DB update instead of any name sent in the request body.
 func TestUpdateDataNetworkPathBodyMismatch(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create a data network.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: "real-dn", IPv4Pool: IPv4Pool, DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
@@ -651,21 +480,7 @@ func TestUpdateDataNetworkPathBodyMismatch(t *testing.T) {
 }
 
 func TestCreateDataNetworkInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		testName string
@@ -782,21 +597,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 }
 
 func TestCreateTooManyDataNetworks(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	for i := range 11 { // We use 11 instead of 12 because the first data network is created by default
 		createDataNetworkParams := &CreateDataNetworkParams{
@@ -842,24 +643,10 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 }
 
 func TestCreateDataNetworkOverlappingPool(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create the first data network with a /24 pool.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: "dn-a", IPv4Pool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
@@ -953,48 +740,11 @@ type ListIPAllocationsResponse struct {
 func listIPv4Allocations(url string, client *http.Client, token string, name string, page, perPage int) (int, *ListIPAllocationsResponse, error) {
 	reqURL := fmt.Sprintf("%s/api/v1/networking/data-networks/%s/ipv4-allocations?page=%d&per_page=%d", url, name, page, perPage)
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", reqURL, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ListIPAllocationsResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListIPAllocationsResponse](client, "GET", reqURL, token, nil)
 }
 
 func TestListIPAllocationsEndpoint(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("empty allocations for default data network", func(t *testing.T) {
 		statusCode, response, err := listIPv4Allocations(env.Server.URL, client, token, "internet", 1, 25)
@@ -1062,24 +812,10 @@ func TestListIPAllocationsEndpoint(t *testing.T) {
 }
 
 func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create two data networks with non-overlapping pools.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: "dn-x", IPv4Pool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
@@ -1125,21 +861,7 @@ func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
 }
 
 func TestCreateDataNetworkWithIPv6Pool(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("create with valid IPv6 pool", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
@@ -1210,21 +932,7 @@ func TestCreateDataNetworkWithIPv6Pool(t *testing.T) {
 }
 
 func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	expectedErr := "invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60"
 
@@ -1305,24 +1013,10 @@ func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
 }
 
 func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create first data network with an IPv6 pool.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: "dn-v6-first", IPv4Pool: "10.80.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
@@ -1378,24 +1072,10 @@ func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
 }
 
 func TestUpdateDataNetworkIPv6PoolOverlap(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Create two data networks with non-overlapping IPv6 pools.
-	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+	_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
 		Name: "dn-v6-u1", IPv4Pool: "10.90.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {

@@ -12,7 +12,6 @@ func TestIPToIn6Addr_IPv4(t *testing.T) {
 	addr := netip.MustParseAddr("192.168.1.1")
 	got := IPToIn6Addr(addr)
 
-	// IPv4-mapped IPv6: bytes 0-9 = 0x00, bytes 10-11 = 0xff, bytes 12-15 = IPv4
 	want := [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 192, 168, 1, 1}
 	if got != want {
 		t.Errorf("IPToIn6Addr(IPv4): got %v, want %v", got, want)
@@ -22,8 +21,8 @@ func TestIPToIn6Addr_IPv4(t *testing.T) {
 func TestIPToIn6Addr_IPv6(t *testing.T) {
 	addr := netip.MustParseAddr("2001:db8::1")
 	got := IPToIn6Addr(addr)
-	want := addr.As16()
 
+	want := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
 	if got != want {
 		t.Errorf("IPToIn6Addr(IPv6): got %v, want %v", got, want)
 	}
@@ -40,12 +39,16 @@ func TestIn6AddrToIP_IPv4Mapped(t *testing.T) {
 }
 
 func TestIn6AddrToIP_IPv6Native(t *testing.T) {
-	want := netip.MustParseAddr("2001:db8::cafe")
-	in6 := IPToIn6Addr(want)
+	in6 := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xca, 0xfe}
 	got := In6AddrToIP(in6)
 
+	want := netip.MustParseAddr("2001:db8::cafe")
 	if got != want {
 		t.Errorf("In6AddrToIP(IPv6): got %v, want %v", got, want)
+	}
+
+	if got.Is4In6() || got.Is4() {
+		t.Errorf("In6AddrToIP(IPv6) unmapped a native IPv6 address: %v", got)
 	}
 }
 
@@ -67,9 +70,6 @@ func TestIPToIn6Addr_RoundTrip_IPv6(t *testing.T) {
 	}
 }
 
-// The conversion fills the identifiers first and the FAR and QER after, so
-// returning early on the IMSI leaves a rule with FAR action 0 — one that forwards
-// nowhere, on a session that looks established.
 func TestToN3N6EntrypointPdrInfoRejectsBadIMSI(t *testing.T) {
 	for _, imsi := range []string{"", "not-a-number", "00110070001234x"} {
 		if _, err := ToN3N6EntrypointPdrInfo(PdrInfo{

@@ -4,11 +4,8 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -70,48 +67,11 @@ type ListRadiosResponse struct {
 }
 
 func listRadios(url string, client *http.Client, token string, page int, perPage int) (int, *ListRadiosResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/ran/radios?page=%d&per_page=%d", url, page, perPage), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ListRadiosResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListRadiosResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios?page=%d&per_page=%d", url, page, perPage), token, nil)
 }
 
 func TestListRadios(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	amfInstance := env.AMF
 	ran1 := amf.Radio{}

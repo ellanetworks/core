@@ -5,15 +5,18 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
-	"strings"
+	"path/filepath"
+	"testing"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -392,18 +395,67 @@ type ListProfilesResponse struct {
 	Error  string                     `json:"error,omitempty"`
 }
 
-func createProfile(url string, client *http.Client, token string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
-	body, err := json.Marshal(data)
+type UpdateNATInfoParams struct {
+	Enabled bool `json:"enabled"`
+}
+
+type UpdateNATInfoResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateNATInfoResponse struct {
+	Result UpdateNATInfoResponseResult `json:"result"`
+	Error  string                      `json:"error,omitempty"`
+}
+
+func updateNATInfo(url string, client *http.Client, token string, enabled bool) (int, *UpdateNATInfoResponse, error) {
+	params := UpdateNATInfoParams{
+		Enabled: enabled,
+	}
+
+	return apiDo[UpdateNATInfoResponse](client, "PUT", url+"/api/v1/networking/nat", token, params)
+}
+
+func newAuthedTestEnv(t *testing.T) (testEnv, *http.Client, string) {
+	t.Helper()
+
+	env, err := setupServer(filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	t.Cleanup(env.Server.Close)
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	return env, client, token
+}
+
+func apiDo[T any](client *http.Client, method, url, token string, payload any) (int, *T, error) {
+	var reader io.Reader
+
+	if payload != nil {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		reader = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), method, url, reader)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/profiles", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
 
 	res, err := client.Do(req)
 	if err != nil {
@@ -416,12 +468,16 @@ func createProfile(url string, client *http.Client, token string, data *CreatePr
 		}
 	}()
 
-	var createResponse CreateProfileResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+	var decoded T
+	if err := json.NewDecoder(res.Body).Decode(&decoded); err != nil {
 		return 0, nil, err
 	}
 
-	return res.StatusCode, &createResponse, nil
+	return res.StatusCode, &decoded, nil
+}
+
+func createProfile(url string, client *http.Client, token string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
+	return apiDo[CreateProfileResponse](client, "POST", url+"/api/v1/profiles", token, data)
 }
 
 // ── Slice test helpers ──────────────────────────────────────────────────
@@ -506,261 +562,39 @@ type UpdateProfileResponse struct {
 // ── Profile CRUD helpers (continued) ────────────────────────────────────
 
 func listProfiles(url string, client *http.Client, token string) (int, *ListProfilesResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/profiles", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ListProfilesResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListProfilesResponse](client, "GET", url+"/api/v1/profiles", token, nil)
 }
 
 func getProfile(url string, client *http.Client, token string, name string) (int, *GetProfileResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/profiles/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response GetProfileResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[GetProfileResponse](client, "GET", url+"/api/v1/profiles/"+name, token, nil)
 }
 
 func editProfile(url string, client *http.Client, name string, token string, data *UpdateProfileParams) (int, *UpdateProfileResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response UpdateProfileResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[UpdateProfileResponse](client, "PUT", url+"/api/v1/profiles/"+name, token, data)
 }
 
 func deleteProfile(url string, client *http.Client, token string, name string) (int, *DeleteProfileResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/profiles/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response DeleteProfileResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[DeleteProfileResponse](client, "DELETE", url+"/api/v1/profiles/"+name, token, nil)
 }
 
 // ── Slice CRUD helpers ──────────────────────────────────────────────────
 
 func createSlice(url string, client *http.Client, token string, data *CreateSliceParams) (int, *CreateSliceResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/slices", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response CreateSliceResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[CreateSliceResponse](client, "POST", url+"/api/v1/slices", token, data)
 }
 
 func listSlices(url string, client *http.Client, token string) (int, *ListSlicesResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/slices", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response ListSlicesResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[ListSlicesResponse](client, "GET", url+"/api/v1/slices", token, nil)
 }
 
 func getSlice(url string, client *http.Client, token string, name string) (int, *GetSliceResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/slices/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response GetSliceResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[GetSliceResponse](client, "GET", url+"/api/v1/slices/"+name, token, nil)
 }
 
 func editSlice(url string, client *http.Client, name string, token string, data *UpdateSliceParams) (int, *UpdateSliceResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/slices/"+name, strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response UpdateSliceResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[UpdateSliceResponse](client, "PUT", url+"/api/v1/slices/"+name, token, data)
 }
 
 func deleteSlice(url string, client *http.Client, token string, name string) (int, *DeleteSliceResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/slices/"+name, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var response DeleteSliceResponse
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &response, nil
+	return apiDo[DeleteSliceResponse](client, "DELETE", url+"/api/v1/slices/"+name, token, nil)
 }

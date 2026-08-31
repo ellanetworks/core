@@ -18,8 +18,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// idleRegisteredUE returns a registered UE parked in ECM-IDLE — the state just
-// before a Service Request or paging.
 func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	t.Helper()
 
@@ -36,7 +34,6 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 		t.Fatal(err)
 	}
 
-	// A registered UE holds a registration area, assigned in ATTACH/TAU ACCEPT.
 	served, err := m.ServedTAIs(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +46,6 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	return ue
 }
 
-// Fixtures the fake session manager returns.
 var (
 	testUEIP         = netip.AddrFrom4([4]byte{10, 45, 0, 2})
 	testUEIPv6Prefix = netip.MustParseAddr("2001:db8:1::")
@@ -57,25 +53,23 @@ var (
 	testSGWFTEID     = models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
 )
 
-// fakeSessionManager stands in for the SMF+PGW-C anchor. CreateEPSSession honors
-// the requested PDN type so tests can drive IPv4/IPv6/IPv4v6.
 type fakeSessionManager struct {
 	idleTransfers   []idleEPSTransfer
 	idleTransferErr error
 	lastRequest     models.EPSBearerRequest
-	modifiedENB     models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
+	modifiedENB     models.FTEID
 	released        bool
 	deactivated     bool
 	ambrUpdated     bool
-	ambrUplink      models.BitRate // records the last UpdateEPSSessionAMBR uplink value
+	ambrUplink      models.BitRate
 	ambrDownlink    models.BitRate
-	ambrErr         error // when set, UpdateEPSSessionAMBR fails with it
-	framedChanged   bool  // EPSSubscriptionChanged reports this framed-route delta
-	staticIPChanged bool  // EPSSubscriptionChanged reports this static-IP delta
-	subscriptionErr error // when set, EPSSubscriptionChanged fails with it
+	ambrErr         error
+	framedChanged   bool
+	staticIPChanged bool
+	subscriptionErr error
 
-	suppressCalls         int // counts HandleEPSPagingFailure calls
-	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
+	suppressCalls         int
+	clearSuppressionCalls int
 }
 
 type idleEPSTransfer struct {
@@ -114,16 +108,16 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 
 	pdnType := req.RequestedPDNType
 	if pdnType == 0 {
-		pdnType = 1 // IPv4
+		pdnType = 1
 	}
 
 	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID}
 
-	if pdnType == 1 || pdnType == 3 { // IPv4 / IPv4v6
+	if pdnType == 1 || pdnType == 3 {
 		bearer.IPv4 = testUEIP
 	}
 
-	if pdnType == 2 || pdnType == 3 { // IPv6 / IPv4v6
+	if pdnType == 2 || pdnType == 3 {
 		bearer.IPv6Prefix = testUEIPv6Prefix
 		bearer.IPv6IID = testUEIPv6IID
 	}
@@ -179,8 +173,6 @@ func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string)
 	return models.SubscriptionDelta{FramedRoutes: f.framedChanged, StaticIP: f.staticIPChanged}, nil
 }
 
-// fakeBearerStore resolves a fixed default-bearer QoS (QCI 9, APN "internet",
-// 1 Gbps UE-AMBR) for any subscriber.
 type fakeBearerStore struct{}
 
 func (fakeBearerStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
@@ -229,9 +221,6 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 
 func (fakeBearerStore) NodeID() int { return 1 }
 
-// testSubscriber is the TS 35.208 test-set-1 key material used across the MME
-// tests (matching the fake credential store below), so a test acting as the UE
-// can recompute RES/AUTS from the same K/OPc.
 var testSubscriber = struct {
 	IMSI string
 	K    [16]byte
@@ -244,7 +233,6 @@ var testSubscriber = struct {
 	SQN:  [6]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 }
 
-// fakeCredStore is an in-memory udm.SubscriberStore seeded with testSubscriber.
 type fakeCredStore struct {
 	mu   sync.Mutex
 	subs map[string]*udm.Subscriber
@@ -287,21 +275,16 @@ func (f *fakeCredStore) UpdateSequenceNumber(_ context.Context, imsi, sqn string
 
 func noopKeyResolver(string, int) (string, error) { return "", nil }
 
-// newTestMME builds an MME backed by a credential authority over a fake store
-// seeded with testSubscriber.
 func newTestMME(t *testing.T) *MME {
 	t.Helper()
 
 	return New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &fakeSessionManager{})
 }
 
-// testPDN returns the UE's default PDN connection (on the default EPS bearer
-// identity), creating it if absent, so tests can set and read per-bearer fields.
 func testPDN(ue *UeContext) *PdnConnection {
 	return ue.EnsurePDN(DefaultERABID)
 }
 
-// mustSUPI builds a SUPI from a bare IMSI for test struct literals.
 func mustSUPI(imsi string) etsi.SUPI {
 	s, _ := etsi.NewSUPIFromIMSI(imsi)
 	return s

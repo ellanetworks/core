@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
@@ -15,18 +13,7 @@ import (
 )
 
 func TestJWTSecretInitialize(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	// NewDatabase calls Initialize which calls InitializeJWTSecret,
 	// so a secret should already exist.
@@ -56,22 +43,11 @@ func TestJWTSecretInitialize(t *testing.T) {
 }
 
 func TestJWTSecretSetAndGet(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	newSecret := []byte("my-custom-secret-key-for-testing!")
 
-	err = database.SetJWTSecret(context.Background(), newSecret)
+	err := database.SetJWTSecret(context.Background(), newSecret)
 	if err != nil {
 		t.Fatalf("Couldn't set JWT secret: %s", err)
 	}

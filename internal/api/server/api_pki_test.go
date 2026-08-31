@@ -141,7 +141,7 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 	}
 }
 
-func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
+func TestPKIAdminEndpoints_MintWaitsForLeaderInit(t *testing.T) {
 	env, err := setupServer(filepath.Join(t.TempDir(), "ella.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -149,11 +149,22 @@ func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 
 	defer func() { _ = env.DB.Close() }()
 
-	if err := env.DB.UpdateOperatorClusterID(context.Background(), "test-cluster"); err != nil {
+	ctx := context.Background()
+
+	if err := env.DB.UpdateOperatorClusterID(ctx, "test-cluster"); err != nil {
 		t.Fatal(err)
 	}
 
-	server.SetPKIIssuer(pkiissuer.New(env.DB, nil))
+	leaderCert, _, err := pki.GenerateNodeCert(1, "test-cluster", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	leaderFP := pki.Fingerprint(leaderCert)
+
+	issuer := pkiissuer.New(env.DB, func() string { return leaderFP })
+
+	server.SetPKIIssuer(issuer)
 	t.Cleanup(func() { server.SetPKIIssuer(nil) })
 
 	admin, err := initializeAndRefresh(env.Server.URL, env.Server.Client())
@@ -161,7 +172,17 @@ func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost,
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+
+		if err := issuer.Bootstrap(ctx); err != nil {
+			return
+		}
+
+		_, _, _ = issuer.RegisterCert(ctx, 1, pki.EncodeCertPEM(leaderCert))
+	}()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost,
 		env.Server.URL+"/api/v1/cluster/pki/join-tokens", strings.NewReader(`{"nodeID": 5}`))
 	req.Header.Set("Authorization", "Bearer "+admin)
 	req.Header.Set("Content-Type", "application/json")
@@ -173,7 +194,19 @@ func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("got %d, want 503 while the issuer is installed but not yet bootstrapped", resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("got %d, want 201 once leader init commits mid-request", resp.StatusCode)
+	}
+
+	var body struct {
+		Result server.MintJoinTokenResponse `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	if body.Result.Token == "" {
+		t.Fatal("empty token")
 	}
 }

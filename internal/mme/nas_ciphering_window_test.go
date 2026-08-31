@@ -116,7 +116,7 @@ func TestDecodeNASMessageDiscardsAnUncipheredSecurityModeRejectAfterCipheringSta
 	}
 }
 
-// TS 24.301 §5.4.3.3, table 9.3.1
+// TS 24.301 §5.4.3.3
 func TestDecodeNASMessageAcceptsASecurityModeCompleteWithTheNewContextHeaderType(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -132,7 +132,7 @@ func TestDecodeNASMessageAcceptsASecurityModeCompleteWithTheNewContextHeaderType
 	}
 }
 
-// TS 24.301 §5.4.3.3, table 9.3.1
+// TS 24.301 §5.4.3.3
 func TestDecodeNASMessageDiscardsASecurityModeCompleteWithoutTheNewContextHeaderType(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// parseOutboundErrorIndication decodes an ERROR INDICATION the MME sent.
 func parseOutboundErrorIndication(t *testing.T, pdu []byte) *s1ap.ErrorIndication {
 	t.Helper()
 
@@ -60,7 +59,7 @@ func TestResolveUEUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 
 func TestResolveUEInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
-	ue, conn := securedUE(t, m) // ENBUES1APID == 7
+	ue, conn := securedUE(t, m)
 
 	if got, gotConn, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, 99); ok || got != nil || gotConn != nil {
 		t.Fatalf("expected resolution to fail for a mismatched eNB-UE-S1AP-ID")
@@ -87,7 +86,7 @@ func TestResolveUEInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 
 func TestResolveUEValidPairResolves(t *testing.T) {
 	m := newTestMME(t)
-	ue, conn := securedUE(t, m) // ENBUES1APID == 7
+	ue, conn := securedUE(t, m)
 
 	got, gotConn, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
 	if !ok || got != ue {

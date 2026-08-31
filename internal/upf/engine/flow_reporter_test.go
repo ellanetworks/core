@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// helper function to create an in6_addr from an IPv4 address (IPv4-mapped format)
 func makeIPV4Mapped(b0, b1, b2, b3 byte) ebpf.N3N6EntrypointIn6Addr {
 	var addr ebpf.N3N6EntrypointIn6Addr
 
@@ -25,7 +24,6 @@ func makeIPV4Mapped(b0, b1, b2, b3 byte) ebpf.N3N6EntrypointIn6Addr {
 	return addr
 }
 
-// helper function to create an in6_addr from a 128-bit IPv6 address
 func makeIPV6(b ...byte) ebpf.N3N6EntrypointIn6Addr {
 	var addr ebpf.N3N6EntrypointIn6Addr
 	for i := 0; i < len(b) && i < 16; i++ {
@@ -35,8 +33,6 @@ func makeIPV6(b ...byte) ebpf.N3N6EntrypointIn6Addr {
 	return addr
 }
 
-// helper function to convert port from host byte order to network byte order
-// The actual code uses u16NtoHS which converts network -> host, so we reverse it
 func makePortUint16(port uint16) uint16 {
 	return (port >> 8) | (port << 8)
 }
@@ -57,7 +53,7 @@ func TestBuildFlowReportRequestBasic(t *testing.T) {
 		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
 		Dport: makePortUint16(53),
-		Proto: 17, // UDP
+		Proto: 17,
 	}
 
 	stats := ebpf.N3N6EntrypointFlowStats{
@@ -170,8 +166,6 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	}
 }
 
-// TestBuildFlowReportRequestTimestampAccuracy checks that a flow whose FirstTs
-// is the current monotonic reading maps back to within 250ms of now.
 func TestBuildFlowReportRequestTimestampAccuracy(t *testing.T) {
 	var ts unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
@@ -319,14 +313,13 @@ func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 }
 
 func TestBuildFlowReportRequestIPv6Addresses(t *testing.T) {
-	// Test that IPv6 addresses are correctly converted without the IPv4-mapped prefix
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  testIMSITag,
 		Saddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
 		Daddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
 		Sport: makePortUint16(54321),
 		Dport: makePortUint16(443),
-		Proto: 6, // TCP
+		Proto: 6,
 	}
 
 	stats := ebpf.N3N6EntrypointFlowStats{
@@ -360,14 +353,13 @@ func TestBuildFlowReportRequestIPv6Addresses(t *testing.T) {
 }
 
 func TestBuildFlowReportRequestMixedIPv4IPv6(t *testing.T) {
-	// Test that IPv4 addresses are correctly identified as IPv4-mapped
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(10, 0, 0, 1),
 		Daddr: makeIPV4Mapped(172, 16, 0, 1),
 		Sport: makePortUint16(8080),
 		Dport: makePortUint16(80),
-		Proto: 6, // TCP
+		Proto: 6,
 	}
 
 	stats := ebpf.N3N6EntrypointFlowStats{
@@ -387,7 +379,6 @@ func TestBuildFlowReportRequestMixedIPv4IPv6(t *testing.T) {
 		t.Fatalf("Expected destination IP 172.16.0.1, got %s", req.DestinationIP)
 	}
 
-	// Verify the address is treated as IPv4 (no brackets in string representation)
 	if netip.MustParseAddr(req.SourceIP).Is6() {
 		t.Fatal("Expected IPv4 address, got IPv6")
 	}

@@ -12,27 +12,19 @@ import (
 	"testing"
 )
 
-// gtpV4EncapLenS1U is the GTP-U/UDP/IPv4 overhead for a 4G S1-U bearer: IPv4 (20)
-// + UDP (8) + GTP-U (8), with no PDU session container.
 const gtpV4EncapLenS1U = 36
 
-// putDownlinkPDRS1U installs a downlink PDR that encapsulates into a plain,
-// PSC-less GTP-U/IPv4 tunnel — a 4G S1-U bearer (OHC_NO_PSC set).
 func putDownlinkPDRS1U(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [4]byte) {
 	t.Helper()
 
 	pdr := ipv4OuterDownlinkPDR(teid, local, remote, 0)
-	pdr.Far.OuterHeaderCreation |= 0x10 // OHC_NO_PSC
+	pdr.Far.OuterHeaderCreation |= 0x10
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
 		t.Fatalf("install S1-U downlink PDR: %v", err)
 	}
 }
 
-// TestGTPEncapsulationDownlinkS1U checks a 4G S1-U downlink packet is
-// encapsulated into a plain G-PDU: the GTP-U header has the E flag clear and no
-// PDU session container (8 bytes shorter than the 5G N3 case), and the inner
-// packet is preserved byte for byte.
 func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -61,7 +53,6 @@ func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 			len(out), ethHdrLen+gtpV4EncapLenS1U+len(inner))
 	}
 
-	// The GTP-U header follows eth + IPv4 (20) + UDP (8).
 	gtp := out[ethHdrLen+28:]
 
 	if gtp[0]&0x04 != 0 {
@@ -86,18 +77,9 @@ func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 	}
 }
 
-// TestGTPEncapsulationDownlinkIPv4 checks that a downlink IPv4 packet for a UE
-// is encapsulated into a GTP-U/UDP/IPv4 G-PDU: the outer header carries the
-// FAR's local/remote addresses and TEID, the PDU session container carries the
-// QER's QFI, the outer IPv4 checksum is valid, and the inner packet is preserved
-// byte for byte. The final action depends on the host routing table, so the
-// assertion is on the output packet.
 func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 	requireProgTestRun(t)
 
-	// n3_ifindex 1 (loopback) is the encapsulation egress and MTU-check device. A
-	// non-GTP IPv4 packet is routed to handle_n6_packet (downlink encap) by
-	// handle_ip4 regardless of the entrypoint's N3/N6 tag.
 	obj := loadProgram(t, 1, 0)
 
 	var (
@@ -168,9 +150,6 @@ func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 	}
 }
 
-// TestGTPEncapsulationDownlinkInnerIPv6 checks that a downlink IPv6 packet for a
-// UE (matched by its /64 prefix) is encapsulated into a GTP-U/UDP/IPv4 G-PDU
-// carrying the inner IPv6 packet unchanged.
 func TestGTPEncapsulationDownlinkInnerIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -225,10 +204,7 @@ func TestGTPEncapsulationDownlinkInnerIPv6(t *testing.T) {
 	}
 }
 
-// TestGTPEncapsulationDownlinkIPv6Transport checks that a downlink IPv4 packet
-// for a UE is encapsulated into a GTP-U over IPv6 transport: outer IPv6
-// src/dst from the FAR, TEID, QFI, the mandatory outer UDP checksum (RFC 6936)
-// valid, and the inner packet preserved.
+// RFC 6936
 func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -292,10 +268,6 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 	}
 }
 
-// The outer IP, UDP and GTP-U lengths are all derived from the inner packet's
-// declared length, so a frame that does not carry it would leave with headers
-// describing bytes that are not there. The header-derived outer checksum reads
-// no payload, so nothing else would catch it.
 func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -313,8 +285,6 @@ func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
 
 	putDownlinkPDRv6Outer(t, obj, ueIP, teid, local, remote, qfi)
 
-	// A non-zero inner UDP checksum is what puts the encapsulation on the
-	// header-derived path; a zero one falls back to summing the bytes.
 	inner := ipv4Packet(server, ueIP, 17,
 		udpDatagramChecksummed(server, ueIP, 4000, 4001, []byte{0x01, 0x02, 0x03, 0x04}))
 
@@ -335,15 +305,13 @@ func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
 	}
 }
 
-// TestTransportLevelMarking checks that a FAR's transport-level marking is
-// written to the outer IPv4 TOS byte of the encapsulated downlink packet.
 func TestTransportLevelMarking(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
 		teid    = 0x544F5301
 		qfi     = 5
-		wantTOS = 0xB8 // DSCP EF
+		wantTOS = 0xB8
 	)
 
 	obj := loadProgram(t, 1, 0)
@@ -371,23 +339,20 @@ func TestTransportLevelMarking(t *testing.T) {
 	}
 }
 
-// ipv4OuterDownlinkPDR builds a downlink PDR that forwards and encapsulates into
-// a GTP-U/IPv4 tunnel toward remote with the given TEID and QFI.
 func ipv4OuterDownlinkPDR(teid uint32, local, remote [4]byte, qfi uint8) PdrInfo {
 	return PdrInfo{
-		IMSI: "001010000000001", // non-numeric IMSI zeroes the FAR
+		IMSI: "001010000000001",
 		Far: FarInfo{
-			Action:              0x02, // FAR_FORW
-			OuterHeaderCreation: 0x01, // OHC_GTP_U_UDP_IPv4
+			Action:              0x02,
+			OuterHeaderCreation: 0x01,
 			TeID:                teid,
 			LocalIP:             IPToIn6Addr(netip.AddrFrom4(local)),
 			RemoteIP:            IPToIn6Addr(netip.AddrFrom4(remote)),
 		},
-		Qer: QerInfo{GateStatusDL: 0 /* GATE_STATUS_OPEN */, Qfi: qfi, MaxBitrateDL: 0 /* unlimited */},
+		Qer: QerInfo{GateStatusDL: 0, Qfi: qfi, MaxBitrateDL: 0},
 	}
 }
 
-// putDownlinkPDR installs a downlink PDR keyed by an IPv4 UE address.
 func putDownlinkPDR(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [4]byte, qfi uint8) {
 	t.Helper()
 
@@ -396,8 +361,6 @@ func putDownlinkPDR(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, lo
 	}
 }
 
-// putDownlinkPDRFiltered installs a downlink PDR (IPv4 UE) that applies the SDF
-// filter at filterIndex.
 func putDownlinkPDRFiltered(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [4]byte, qfi uint8, filterIndex uint32) {
 	t.Helper()
 
@@ -409,7 +372,6 @@ func putDownlinkPDRFiltered(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid ui
 	}
 }
 
-// putDownlinkPDRv6UE installs a downlink PDR keyed by a UE IPv6 /64 prefix.
 func putDownlinkPDRv6UE(t *testing.T, obj *BpfObjects, uePrefix netip.Addr, teid uint32, local, remote [4]byte, qfi uint8) {
 	t.Helper()
 
@@ -418,24 +380,20 @@ func putDownlinkPDRv6UE(t *testing.T, obj *BpfObjects, uePrefix netip.Addr, teid
 	}
 }
 
-// ipv6OuterDownlinkPDR builds a downlink PDR that forwards and encapsulates into
-// a GTP-U over IPv6 tunnel toward remote with the given TEID and QFI.
 func ipv6OuterDownlinkPDR(teid uint32, local, remote [16]byte, qfi uint8) PdrInfo {
 	return PdrInfo{
 		IMSI: "001010000000001",
 		Far: FarInfo{
-			Action:              0x02, // FAR_FORW
-			OuterHeaderCreation: 0x02, // OHC_GTP_U_UDP_IPv6
+			Action:              0x02,
+			OuterHeaderCreation: 0x02,
 			TeID:                teid,
 			LocalIP:             local,
 			RemoteIP:            remote,
 		},
-		Qer: QerInfo{GateStatusDL: 0 /* GATE_STATUS_OPEN */, Qfi: qfi, MaxBitrateDL: 0 /* unlimited */},
+		Qer: QerInfo{GateStatusDL: 0, Qfi: qfi, MaxBitrateDL: 0},
 	}
 }
 
-// putDownlinkPDRv6Outer installs a downlink PDR (IPv4 UE) that encapsulates into
-// an IPv6 transport.
 func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [16]byte, qfi uint8) { //nolint:unparam // signature mirrors putDownlinkPDR
 	t.Helper()
 
@@ -444,10 +402,6 @@ func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uin
 	}
 }
 
-// TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum pins the outer UDP
-// checksum for a chained inner packet. The header-only identity has no term for
-// the chain, whose bytes are part of the outer UDP payload, so a chain must
-// decline it; accepting one produces a checksum the peer drops.
 func TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -460,8 +414,6 @@ func TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum(t *testing.T) {
 	remote := netip.MustParseAddr("2001:db8:44::9").As16()
 	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
 
-	// A zero inner checksum gives the substitution nothing to work with and
-	// falls back either way.
 	udp := udpDatagramChecksummedV6(serverV6, testUEv6, 4000, 53, []byte{9, 9, 9, 9})
 
 	tests := []struct {
@@ -480,7 +432,7 @@ func TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum(t *testing.T) {
 			obj := loadProgram(t, 1, 0)
 
 			pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
-			pdr.Far.OuterHeaderCreation = 0x02 // OHC_GTP_U_UDP_IPv6
+			pdr.Far.OuterHeaderCreation = 0x02
 			pdr.Far.LocalIP = local
 			pdr.Far.RemoteIP = remote
 

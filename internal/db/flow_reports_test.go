@@ -6,7 +6,6 @@ package db_test
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,22 +14,11 @@ import (
 )
 
 func TestFlowReportsInsertAndRetrieve(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -97,22 +85,11 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 }
 
 func TestFlowReportsMultipleInsert(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -155,22 +132,11 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 }
 
 func TestFlowReportsBatchInsert(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -218,20 +184,9 @@ func TestFlowReportsBatchInsert(t *testing.T) {
 }
 
 func TestFlowReportsBatchInsertEmpty(t *testing.T) {
-	tempDir := t.TempDir()
+	database := setupTestDB(t)
 
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
-
-	err = database.InsertFlowReports(context.Background(), nil)
+	err := database.InsertFlowReports(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("empty batch insert should succeed: %s", err)
 	}
@@ -243,22 +198,11 @@ func TestFlowReportsBatchInsertEmpty(t *testing.T) {
 }
 
 func TestFlowReportsPagination(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -315,18 +259,7 @@ func TestFlowReportsPagination(t *testing.T) {
 }
 
 func TestFlowReportsFilterBySubscriber(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -404,22 +337,11 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 }
 
 func TestFlowReportsFilterByProtocol(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -477,18 +399,7 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 }
 
 func TestGetFlowReportStats_Empty(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -507,22 +418,11 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 }
 
 func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -598,22 +498,11 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 }
 
 func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -681,18 +570,7 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 }
 
 func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
@@ -775,22 +653,11 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 }
 
 func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -858,22 +725,11 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 }
 
 func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -947,22 +803,11 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 }
 
 func TestFlowReportsFilterByAction(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -1071,22 +916,11 @@ func TestFlowReportsFilterByAction(t *testing.T) {
 }
 
 func TestFlowReportsRetention(t *testing.T) {
-	tempDir := t.TempDir()
-
-	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
-	if err != nil {
-		t.Fatalf("Couldn't complete NewDatabase: %s", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("Couldn't complete Close: %s", err)
-		}
-	}()
+	database := setupTestDB(t)
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}

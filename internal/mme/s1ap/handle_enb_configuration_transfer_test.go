@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// goldenENBConfigTransfer is an ENB CONFIGURATION TRANSFER initiatingMessage value
-// (TS 36.413 §8.15) whose SON Configuration Transfer IE targets eNB 0x00abc
-// (PLMN 001/01, TAC 7), followed by opaque SON payload bytes.
 const goldenENBConfigTransfer = "000001008140110000f1100000abc000f1100007deadbeef"
 
 func targetENBID() s1ap.GlobalENBID {
@@ -27,11 +24,9 @@ func targetENBID() s1ap.GlobalENBID {
 func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 	m := newTestMME(t)
 
-	// Target eNB, resolvable by its Global eNB ID.
 	targetConn := &captureConn{}
 	m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID())
 
-	// A distinct source eNB initiates the transfer toward the target.
 	sourceConn := &captureConn{}
 
 	value, err := hex.DecodeString(goldenENBConfigTransfer)

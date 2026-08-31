@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// mustSecurityContext builds a NAS security context for a test.
 func mustSecurityContext(t *testing.T, ia nas.IntegrityAlgorithm, ca nas.CipheringAlgorithm, kInt nas.IntegrityKey, kEnc nas.CipherKey) *nas.SecurityContext {
 	t.Helper()
 
@@ -27,8 +26,6 @@ func mustSecurityContext(t *testing.T, ia nas.IntegrityAlgorithm, ca nas.Cipheri
 	return sc
 }
 
-// unprotected drops the security header type Unprotect reports, for a test that
-// only wants the plain message.
 func unprotected(plain []byte, _ interface{ String() string }, err error) ([]byte, error) {
 	return plain, err
 }

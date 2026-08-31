@@ -21,16 +21,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// A downlink flow large enough to be carried as one GSO super-frame, split so
-// the segments are well under the 1500-byte MTU once encapsulated.
 const (
 	gsoSegmentSize = 1000
 	gsoSegments    = 4
 )
 
-// The t2 topology with an IPv6 N3 transport. veth advertises
-// NETIF_F_GSO_SOFTWARE, so a peer's segmentation-offloaded send crosses as one
-// merged buffer with no GRO involved.
 type gsoFixture struct {
 	obj    *BpfObjects
 	n3Peer *net.Interface
@@ -86,12 +81,8 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	addAddr(t, n3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, n3Dev, testGNBIP, "02:00:00:00:00:aa")
 
-	// Segment on egress so the capture sees what a NIC without tunnel
-	// checksum offload would put on the wire.
 	ethtoolOff(t, n3Dev, "tso", "off", "gso", "off", "tx", "off")
 
-	// N6 side: the sender lives on the peer and routes to the UE through the
-	// datapath's N6 device.
 	srcIP := netip.AddrFrom4([4]byte{192, 0, 2, 9})
 
 	addAddr(t, n6Dev, addrCIDR(natPublicIP))
@@ -109,8 +100,6 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	}
 
 	if !senderGSO {
-		// The mitigation for a veth: the peer segments before
-		// transmitting, so nothing merged crosses.
 		ethtoolOff(t, n6Peer, "tso", "off", "gso", "off")
 	}
 
@@ -144,7 +133,6 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	}
 }
 
-// One datagram handed to the datapath as a single GSO super-frame.
 func sendSegmented(t *testing.T, f *gsoFixture, segmented bool) {
 	t.Helper()
 
@@ -175,9 +163,6 @@ func sendSegmented(t *testing.T, f *gsoFixture, segmented bool) {
 	}
 }
 
-// One datagram small enough to stay on the corked path, where it leaves the
-// socket CHECKSUM_PARTIAL: the inner check field holds the pseudo-header sum
-// until egress. Above roughly the MTU the path falls back to CHECKSUM_NONE.
 func sendPlain(t *testing.T, f *gsoFixture, size int) {
 	t.Helper()
 
@@ -198,7 +183,6 @@ func sendPlain(t *testing.T, f *gsoFixture, size int) {
 	}
 }
 
-// captureWindow is how long a capture waits for the frames one send produces.
 const captureWindow = 2 * time.Second
 
 func captureAll(fd int, match func([]byte) bool) [][]byte {
@@ -233,8 +217,6 @@ func isGTPv6Outer(fr []byte) bool {
 		binary.BigEndian.Uint16(fr[ethHdrLen+40+2:ethHdrLen+40+4]) == GTPUDPPort
 }
 
-// Encapsulation can be handed a frame larger than the MTU, which cannot leave
-// as well-formed GTP-U: the datapath drops it and nothing reaches the wire.
 func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -287,8 +269,6 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	gsoDrops := DropCount(f.obj, Downlink, "encap_gso")
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d", len(frames), gsoDrops)
 
-	// A frame on the wire is the regression this test exists to catch, so
-	// assert it before considering the run inconclusive.
 	if len(frames) != 0 {
 		t.Errorf("%d encapsulated frames reached the wire, want none: a merged frame must not be encapsulated", len(frames))
 	}
@@ -305,8 +285,6 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	}
 }
 
-// The control: with segmentation offload off, encapsulation only sees frames
-// at or below the MTU and every outer UDP checksum must be valid.
 func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -338,8 +316,6 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 	}
 }
 
-// A zero outer UDP checksum is legal over IPv4, but the GTP-U message length
-// is still the super-frame's, so the drop is not IPv6-specific.
 func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -373,10 +349,6 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	}
 }
 
-// The trigger leaves the sender CHECKSUM_PARTIAL, so at encapsulation the
-// inner check field still holds the pseudo-header sum and the kernel writes
-// the final value afterwards. An outer checksum summed from the bytes present
-// at that moment is stale on the wire, and an IPv6 peer drops the frame.
 func TestTCXIPv6OuterPartialInnerChecksum(t *testing.T) {
 	requireProgTestRun(t)
 

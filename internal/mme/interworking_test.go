@@ -27,7 +27,7 @@ func TestDerivedMMEGroupIDCarriesTheNodeTypeBit(t *testing.T) {
 	}
 }
 
-// TS 23.003 §2.10.2.1.3, TS 23.501 Annex B NOTE 2
+// TS 23.003 §2.10.2.1.3
 func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
 	m := newTestMME(t)
 
@@ -72,7 +72,6 @@ func TestNetworkFeatureSupportNeverAdvertisesInterworkingWithoutN26(t *testing.T
 		t.Error("IWK N26 advertised to a UE that did not indicate N1 mode")
 	}
 
-	// Octet 9 bit 6 is N1 mode; octet 8 bit 8 is ePCO.
 	nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x80, 0x20}})
 	if nfs.IWKN26 {
 		t.Error("IWK N26 advertised by an MME that supports N26")

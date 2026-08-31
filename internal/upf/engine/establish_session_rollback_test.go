@@ -18,10 +18,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestEstablishSessionRollsBackOnFailure asserts that a mid-establish failure
-// unwinds every datapath change applied so far, leaving no orphaned URR or PDR
-// entry — the session is never registered, so nothing else could reclaim them.
-// Requires root to load the eBPF maps.
 func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
@@ -55,9 +51,6 @@ func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
 
 	const seid = uint64(9)
 
-	// PDR 1 is a valid uplink PDR (allocates a TEID, applies to pdrs_uplink); PDR
-	// 2 has neither an F-TEID nor a UE IP, so ExtractPDR fails after PDR 1 and the
-	// URR are already installed.
 	req := &models.EstablishRequest{
 		SEID: seid,
 		IMSI: "001010000000001",

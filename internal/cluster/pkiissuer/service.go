@@ -24,8 +24,8 @@ import (
 )
 
 // ErrNotReady reports that this node cannot mint join tokens yet
-// because the cluster certificate it presents is not committed in
-// cluster_node_certs. Callers should retry.
+// because the join-HMAC key or the cluster certificate it presents
+// is not committed. Callers should retry.
 var ErrNotReady = errors.New("cluster pki not ready")
 
 // LocalLeafFunc reports the SHA-256 pin of the cluster certificate
@@ -100,8 +100,9 @@ func (s *Service) Ready(ctx context.Context) bool {
 
 // MintJoinToken emits a single-use HMAC token bound to nodeID with
 // the given TTL, embedding the pin set the joining node uses to
-// pin its bootstrap TLS handshake. Returns ErrNotReady until this
-// node's own certificate is committed cluster-wide.
+// pin its bootstrap TLS handshake. Returns ErrNotReady until the
+// join-HMAC key and this node's own certificate are committed
+// cluster-wide.
 func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration) (string, error) {
 	if ttl < pki.DefaultJoinTokenMinTTL || ttl > pki.DefaultJoinTokenMaxTTL {
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
@@ -113,6 +114,10 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return "", fmt.Errorf("%w: join hmac key is not committed yet", ErrNotReady)
+		}
+
 		return "", fmt.Errorf("get hmac key: %w", err)
 	}
 

@@ -15,7 +15,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Past this the program does not load and there is no datapath at all.
 const verifierInstructionBudget = 1_000_000
 
 const (
@@ -25,19 +24,12 @@ const (
 
 var processedInsns = regexp.MustCompile(`processed (\d+) insns`)
 
-// datapathConfig is the compile-time-constant configuration the verifier folds
-// branches on, so cost is a property of the configuration and not of the object
-// alone. Zero values are the cheapest, which is what a sweepless measurement
-// reports.
 type datapathConfig struct {
 	name       string
 	masquerade bool
 	flowact    bool
 }
 
-// Every combination of the two features that add paths. Split interfaces are
-// set throughout: with one ifindex zero the single-interface branch folds away
-// and the split-interface paths go unmeasured.
 var datapathConfigs = []datapathConfig{
 	{"plain", false, false},
 	{"masquerade", true, false},
@@ -45,9 +37,6 @@ var datapathConfigs = []datapathConfig{
 	{"masquerade+flowact", true, true},
 }
 
-// TestVerifierComplexityHeadroom loads each program on its own — so a failure
-// names the program — under every configuration, and fails any over
-// verifierBudgetCeiling.
 func TestVerifierComplexityHeadroom(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -60,9 +49,6 @@ func TestVerifierComplexityHeadroom(t *testing.T) {
 		t.Run(build, func(t *testing.T) {
 			for _, cfg := range datapathConfigs {
 				t.Run(cfg.name, func(t *testing.T) {
-					// Reloaded per configuration: the values
-					// are folded into the bytecode, so a spec
-					// cannot be set twice.
 					spec, err := load()
 					if err != nil {
 						t.Fatalf("load %s collection spec: %v", build, err)
@@ -85,10 +71,6 @@ func TestVerifierComplexityHeadroom(t *testing.T) {
 	}
 }
 
-// checkBudget fails only where the kernel is known. EBPF_REQUIRE_PRIVILEGED is
-// set by upf-ebpf-tests.yaml and nowhere else, so on a developer machine — which
-// may be on a kernel no runner image ships, and whose pruning is its own — the
-// same measurement is reported without failing the run.
 func checkBudget(t *testing.T, prog, cfg string, insns int) {
 	t.Helper()
 
@@ -117,8 +99,6 @@ func checkBudget(t *testing.T, prog, cfg string, insns int) {
 	}
 }
 
-// kernelRelease reports the running kernel, so a recorded measurement stays
-// interpretable and a runner-image kernel bump is visible rather than silent.
 func kernelRelease() string {
 	var u unix.Utsname
 
@@ -129,12 +109,9 @@ func kernelRelease() string {
 	return unix.ByteSliceToString(u.Release[:])
 }
 
-// loadOneProgram loads name from spec by itself and returns what the verifier
-// reported spending on it.
 func loadOneProgram(t *testing.T, spec *ebpf.CollectionSpec, name string, cfg datapathConfig) int {
 	t.Helper()
 
-	// Maps come along; siblings are dropped so their cost is not counted.
 	one := &ebpf.CollectionSpec{
 		Maps:      spec.Maps,
 		Programs:  map[string]*ebpf.ProgramSpec{name: spec.Programs[name]},
@@ -167,9 +144,6 @@ func loadOneProgram(t *testing.T, spec *ebpf.CollectionSpec, name string, cfg da
 		Programs: ebpf.ProgramOptions{LogLevel: ebpf.LogLevelStats},
 	})
 	if err != nil {
-		// A stats log ends with the per-subprogram stack depths, which
-		// surface as the error text and read like a stack limit. The
-		// instruction log carries the actual rejection.
 		if _, verbose := ebpf.NewCollectionWithOptions(one, ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{LogLevel: ebpf.LogLevelInstruction},
 		}); verbose != nil {

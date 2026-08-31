@@ -18,14 +18,12 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// idleRegisteredUE returns a secured, EMM-REGISTERED UE with an assigned GUTI,
-// parked in ECM-IDLE — the state a UE is in just before a Service Request.
 func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileIdentity) {
 	t.Helper()
 
 	ue, _ := securedUE(t, m)
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, mme.MintAuthProofForAttachRequest())
-	testPDN(ue).SgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
+	testPDN(ue).SgwFTEID = testSGWFTEID
 
 	guti, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
 	if err != nil {
@@ -37,8 +35,6 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 	return ue, guti
 }
 
-// serviceRequestNAS builds the 4-octet SERVICE REQUEST a UE would send at its
-// current uplink NAS COUNT.
 func serviceRequestNAS(t *testing.T, ue *mme.UeContext) []byte {
 	t.Helper()
 
@@ -88,22 +84,16 @@ func TestServiceRequestReestablishes(t *testing.T) {
 
 	ics := parseInitialContextSetup(t, cc.sent[0])
 
-	// The stored UE Radio Capability is replayed on reconnect (TS 23.401 §5.11.2).
 	if !bytes.Equal(ics.UERadioCapability, radioCap) {
 		t.Fatalf("ICS UE Radio Capability = %x, want %x", ics.UERadioCapability, radioCap)
 	}
 }
 
-// TestServiceRequestReactivatesAllBearers verifies a multi-PDN UE resuming from
-// ECM-IDLE has every active EPS bearer set up in one Initial Context Setup — there
-// is no per-bearer data-status IE in the S1 Service Request, so all active bearers
-// are reactivated (TS 23.401 §5.3.4.1). The Attach Accept NAS PDU is absent on a
-// Service Request, so no bearer carries one.
+// TS 23.401 §5.3.4.1
 func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	// A second PDN connection, as a UE with two APNs would hold across idle.
 	const secondEBI = mme.DefaultERABID + 1
 
 	second := ue.EnsurePDN(secondEBI)
@@ -152,10 +142,6 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	}
 }
 
-// TestServiceRequestS1UTransportFamily checks the S1-U endpoint the MME signals
-// to the eNB carries the S-GW N3 address family — IPv4 (4 octets), IPv6 (16), or
-// dual-stack (20, IPv4||IPv6) — per TS 36.413, matching the configured N3.
-// TS 24.301 5.6.1.5: a service request the MME cannot accept is answered with a SERVICE REJECT.
 func TestServiceRequestWithNoActiveBearersRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
@@ -238,9 +224,6 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 	}
 }
 
-// TestServiceRequestAllocatesFreshMMEUES1APID checks that a UE returning from
-// ECM-IDLE is bound to a fresh MME-UE-S1AP-ID and indexed under it (TS 36.413
-// §3.1); an idle UE holds no connection identity until it returns.
 func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
@@ -298,7 +281,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 	ue, guti := idleRegisteredUE(t, m)
 
 	pdu := serviceRequestNAS(t, ue)
-	pdu[3] ^= 0xff // corrupt the short MAC
+	pdu[3] ^= 0xff
 
 	cc := &captureConn{}
 	msg := &s1ap.InitialUEMessage{
@@ -318,13 +301,12 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 	}
 }
 
-// A malformed SERVICE REQUEST (protocol error) from a registered UE must be answered with
-// EMM cause #96 "invalid mandatory information", not #9 (TS 24.301 §5.6.1.7 b).
+// TS 24.301 §5.6.1.7
 func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
-	malformed := serviceRequestNAS(t, ue)[:2] // truncated → ParseServiceRequest fails
+	malformed := serviceRequestNAS(t, ue)[:2]
 
 	cc := &captureConn{}
 	msg := &s1ap.InitialUEMessage{
@@ -350,20 +332,18 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 		t.Fatalf("expected Service Reject, got message type %#x", mt)
 	}
 
-	// Plain SERVICE REJECT: header octet, message type, EMM cause.
 	if len(plain) < 3 || eps.EMMCause(plain[2]) != eps.EMMCauseInvalidMandatoryInformation {
 		t.Fatalf("EMM cause = %#x, want #96 (invalid mandatory information)", plain)
 	}
 }
 
-// A resume (protected Initial UE Message) with an invalid MAC, carrying a
-// victim's S-TMSI, must not move the victim's S1 binding (TS 24.301 §4.4.4.3).
+// TS 24.301 §4.4.4.3
 func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)
 
 	pdu := protectedUplink(t, ue, nas.MakeCount(0, 0).Value())
-	pdu[2] ^= 0xff // corrupt the MAC
+	pdu[2] ^= 0xff
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 
@@ -386,8 +366,7 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 	}
 }
 
-// A Service Request with an invalid short MAC, on a different association, must
-// not move the resolved UE's S1 binding (TS 24.301 §5.6.1).
+// TS 24.301 §5.6.1
 func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleRegisteredUE(t, m)

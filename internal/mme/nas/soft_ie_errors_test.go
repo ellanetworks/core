@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TestDecodedTreatsSoftErrorsAsUsable pins the §7.7.1 decision the handlers
-// share: a message whose only failures are syntactically incorrect optional IEs
-// is acted on, and anything else is refused.
 func TestDecodedTreatsSoftErrorsAsUsable(t *testing.T) {
 	cases := map[string]struct {
 		err  error
@@ -37,9 +34,7 @@ func TestDecodedTreatsSoftErrorsAsUsable(t *testing.T) {
 	}
 }
 
-// TestAttachRequestWithMalformedOptionalIEStillAttaches is the end-to-end shape
-// of TS 24.301 §7.7.1: a UE that sends an unusable optional element is not
-// rejected, the element is absent, and the rest of the request is honoured.
+// TS 24.301 §7.7.1
 func TestAttachRequestWithMalformedOptionalIEStillAttaches(t *testing.T) {
 	esm, err := (&eps.PDNConnectivityRequest{
 		PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4,
@@ -59,8 +54,6 @@ func TestAttachRequestWithMalformedOptionalIEStillAttaches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// An additional GUTI (IEI 0x50, TLV) that delimits cleanly but whose value is
-	// two octets where an EPS mobile identity needs eleven.
 	wire := append(base, 0x50, 0x02, 0xf6, 0x00)
 
 	req, err := eps.ParseAttachRequest(wire)

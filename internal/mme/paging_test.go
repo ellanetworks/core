@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// pagingActive reports whether a paging supervision timer is armed for the UE.
 func (m *MME) pagingActive(ue *UeContext) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -22,15 +21,11 @@ func (m *MME) pagingActive(ue *UeContext) bool {
 }
 
 func TestUEIdentityIndex(t *testing.T) {
-	// IMSI mod 1024 (TS 36.304 §7.1).
 	if got := ueIdentityIndex("001010000000444"); got != uint16(1010000000444%1024) {
 		t.Fatalf("ueIdentityIndex = %d, want %d", got, uint16(1010000000444%1024))
 	}
 }
 
-// TestBuildPaging checks the MME assembles a Paging with the UE's S-TMSI, the
-// IMSI-derived index, the PS domain, and the operator's tracking area, and that
-// it marshals to a valid S1AP Paging PDU.
 func TestBuildPaging(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
@@ -61,7 +56,6 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("TAI list length = %d, want 1", len(paging.TAIList))
 	}
 
-	// The paging TAI list is the UE's registration area — the served TAC (1).
 	if uint16(paging.TAIList[0].TAC) != 1 {
 		t.Fatalf("paging TAI TAC = %d, want 1 (served)", uint16(paging.TAIList[0].TAC))
 	}
@@ -81,18 +75,11 @@ func TestBuildPaging(t *testing.T) {
 	}
 }
 
-// TestBuildPagingOldMTMSISentinel pins the M-TMSI "unset" sentinel handling: 0 is
-// a legal, allocatable M-TMSI — only the all-ones value is reserved as "no valid
-// M-TMSI" (TS 23.003 §2.4). So a GUTI reallocation whose OLD M-TMSI is 0 must still
-// page on that 0 (the identity the UE currently answers to), and a UE with no
-// reallocation in flight (old M-TMSI == InvalidTMSI) must page on its current one.
-// When 0 doubled as "unset" the first case wrongly paged on the new M-TMSI.
+// TS 23.003 §2.4
 func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	// Mid-reallocation: new M-TMSI staged, UE still answers to the old one, which
-	// happens to be the legal value 0.
 	ue.SetTmsiForTest(0x1234)
 	ue.SetOldTmsiForTest(0)
 
@@ -105,8 +92,6 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 		t.Fatalf("paged on M-TMSI %#x, want 0 (the old M-TMSI the UE still listens on)", paging.STMSI.MTMSI)
 	}
 
-	// No reallocation in flight: the old M-TMSI is the InvalidTMSI sentinel, so
-	// paging uses the current M-TMSI.
 	ue.SetOldTmsiForTest(0xFFFFFFFF)
 
 	paging, err = m.buildPaging(t.Context(), ue)
@@ -119,8 +104,6 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 	}
 }
 
-// TestPageNoENBs checks Page builds and broadcasts without error when a UE is
-// idle (and no eNBs are connected, so the broadcast is a no-op).
 func TestPageNoENBs(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
@@ -130,9 +113,7 @@ func TestPageNoENBs(t *testing.T) {
 	}
 }
 
-// TestPageFiltersByServedTAI verifies Paging reaches only eNBs whose broadcast TAIs
-// intersect the network's served tracking area, not one broadcasting only a foreign
-// TAC (TS 23.401 §5.3.4: page within the registered tracking area).
+// TS 23.401 §5.3.4
 func TestPageFiltersByServedTAI(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
@@ -144,7 +125,6 @@ func TestPageFiltersByServedTAI(t *testing.T) {
 
 	p := plmn
 
-	// The test operator serves TAC 1 ("000001").
 	served := &captureConn{}
 	m.IndexRadioForTest(served, []SupportedTAI{{Tai: models.Tai{PlmnID: &p, Tac: "000001"}}})
 
@@ -172,10 +152,6 @@ func TestPageUnknownIMSI(t *testing.T) {
 	}
 }
 
-// TestPagingRetransmitsThenAbandons confirms the MME supervises paging with a
-// timer (T3413): when the UE never responds, the Paging is retransmitted a
-// bounded number of times and the procedure is then abandoned (TS 24.301
-// §5.6.2).
 func TestPagingRetransmitsThenAbandons(t *testing.T) {
 	m := newTestMME(t)
 	m.pagingCfg.ExpireTime = 5 * time.Millisecond
@@ -201,11 +177,9 @@ func TestPagingRetransmitsThenAbandons(t *testing.T) {
 	}
 }
 
-// TestPagingStoppedOnReconnect confirms the paging supervision is cancelled when
-// the UE returns from ECM-IDLE on a new S1 connection (the paging response).
 func TestPagingStoppedOnReconnect(t *testing.T) {
 	m := newTestMME(t)
-	m.pagingCfg.ExpireTime = time.Hour // long enough not to fire during the test
+	m.pagingCfg.ExpireTime = time.Hour
 
 	ue := idleRegisteredUE(t, m)
 

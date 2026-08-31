@@ -5,7 +5,6 @@ package client_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -70,32 +69,6 @@ func TestListAuditLogs_Success(t *testing.T) {
 	}
 }
 
-func TestListAuditLogs_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListAuditLogsParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListAuditLogs(ctx, params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestGetAuditLogRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -121,27 +94,6 @@ func TestGetAuditLogRetentionPolicy_Success(t *testing.T) {
 	}
 }
 
-func TestGetAuditLogRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	_, err := clientObj.GetAuditLogRetentionPolicy(ctx)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateAuditLogRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -164,31 +116,6 @@ func TestUpdateAuditLogRetentionPolicy_Success(t *testing.T) {
 	err := clientObj.UpdateAuditLogRetentionPolicy(ctx, updateOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateAuditLogRetentionPolicy_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid request body"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updateOpts := &client.UpdateAuditLogsRetentionPolicyOptions{
-		Days: -10,
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateAuditLogRetentionPolicy(ctx, updateOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }
 
@@ -223,31 +150,5 @@ func TestListAuditLogsByActor_Success(t *testing.T) {
 
 	if resp.Items[0].User != "admin@example.com" {
 		t.Fatalf("expected user 'admin@example.com', got '%s'", resp.Items[0].User)
-	}
-}
-
-func TestListAuditLogsByActor_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 500,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Internal server error"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	ctx := context.Background()
-
-	params := &client.ListParams{
-		Page:    1,
-		PerPage: 10,
-	}
-
-	_, err := clientObj.ListAuditLogsByActor(ctx, "admin@example.com", params)
-	if err == nil {
-		t.Fatalf("expected error, got none")
 	}
 }

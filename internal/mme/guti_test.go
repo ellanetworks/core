@@ -53,11 +53,7 @@ func TestReallocateGUTI(t *testing.T) {
 	}
 }
 
-// TestReallocateGUTITwoPhase checks the two-phase GUTI reallocation used by both
-// attach and TAU: reallocating over an existing M-TMSI stages the new one while
-// the old stays resolvable (TS 24.301 §5.5.1.2.7, §5.5.3.2.4 — the old GUTI is
-// valid until completion), and CommitGUTIRealloc frees the old only on the UE's
-// acknowledgement.
+// TS 24.301 §5.5.1.2.7
 func TestReallocateGUTITwoPhase(t *testing.T) {
 	m := newTestMME(t)
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
@@ -83,7 +79,6 @@ func TestReallocateGUTITwoPhase(t *testing.T) {
 		t.Fatal("reallocation reused the same M-TMSI")
 	}
 
-	// Both M-TMSIs resolve to the UE until the reallocation is committed.
 	if got, ok := m.LookupUeByMTMSI(first); !ok || got != ue {
 		t.Fatal("old M-TMSI must stay resolvable until the UE acknowledges")
 	}

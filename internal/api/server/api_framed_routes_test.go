@@ -64,30 +64,7 @@ func doFramedMessageRequest(client *http.Client, method, path, token, body strin
 }
 
 func listFramedRoutes(url string, client *http.Client, token string) (int, *framedListResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/data-networks/"+framedDN+"/framed-routes", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var out framedListResponse
-	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &out, nil
+	return apiDo[framedListResponse](client, "GET", url+"/api/v1/networking/data-networks/"+framedDN+"/framed-routes", token, nil)
 }
 
 func createFramedRoute(url string, client *http.Client, token, dn, imsi string, ipv4, ipv6 []string) (int, *messageResponse, error) {
