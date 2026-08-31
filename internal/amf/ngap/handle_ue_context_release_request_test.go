@@ -74,9 +74,6 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	}
 }
 
-// TestSendUEContextReleaseCommand_Idempotent verifies a second UE Context Release
-// Command is suppressed for the same RAN UE, so an eNB-initiated release racing a
-// NAS-guard timeout does not send a duplicate (mirrors the MME's claimRelease).
 func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	sender := ran.Conn.(*fakeNGAPSender)

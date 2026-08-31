@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// Conformance tests for 5GS interworking without N26
 func movingFromEPCRequest() *fgs.RegistrationRequest {
 	return &fgs.RegistrationRequest{
 		GMMCapability: &fgs.GMMCapability{},
@@ -246,7 +245,6 @@ func TestHandoverMarkOutlivesARegistrationThatDidNotComplete(t *testing.T) {
 	}
 }
 
-// S 24.501 §5.5.1.2.8 f)
 func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 	for _, tc := range []struct {
 		typ           fgs.RegistrationType
@@ -292,7 +290,7 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.2.8 a)
+// TS 24.501 §5.5.1.2.8
 func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 

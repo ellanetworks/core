@@ -10,11 +10,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// wrapIntegrityProtected wraps a plain inner NAS message in a security-protected
-// header (EPD, security header type, 4-byte MAC, sequence number) with a MAC
-// computed over [sqn || inner] against the UE's current security context, with
-// the sequence number folded into the count exactly as decodeProtectedNAS does
-// (TS 33.501).
 func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 
@@ -85,7 +80,7 @@ func TestNasIntegrityVerified_GenuineMessageVerifies(t *testing.T) {
 func TestNasIntegrityVerified_TamperedMacRejected(t *testing.T) {
 	ue := newSecuredUE(t)
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)
-	pdu[3] ^= 0xff // flip a MAC byte
+	pdu[3] ^= 0xff
 
 	if ue.NasIntegrityVerified(pdu) {
 		t.Fatal("a tampered MAC must not verify")
@@ -110,8 +105,6 @@ func TestNasIntegrityVerified_NoSecurityContextRejected(t *testing.T) {
 	}
 }
 
-// TestNasIntegrityVerified_DoesNotMutateCount asserts the check is read-only:
-// the uplink count must be untouched so a hostile message cannot advance it.
 func TestNasIntegrityVerified_DoesNotMutateCount(t *testing.T) {
 	ue := newSecuredUE(t)
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)
@@ -124,10 +117,6 @@ func TestNasIntegrityVerified_DoesNotMutateCount(t *testing.T) {
 	}
 }
 
-// TestReuseForInboundNAS_PlainInitialRegistrationDiverted is the core
-// regression for the GUTI-spoof DoS: a plain (unauthenticated) initial
-// registration that resolved to an existing context must NOT reuse it
-// (TS 24.501).
 func TestReuseForInboundNAS_PlainInitialRegistrationDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -136,8 +125,6 @@ func TestReuseForInboundNAS_PlainInitialRegistrationDiverted(t *testing.T) {
 	}
 }
 
-// TestReuseForInboundNAS_IntegrityVerifiedRegistrationReuses confirms a genuine
-// integrity-protected registration still reuses the context (no forced re-auth).
 func TestReuseForInboundNAS_IntegrityVerifiedRegistrationReuses(t *testing.T) {
 	ue := newSecuredUE(t)
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)
@@ -147,10 +134,6 @@ func TestReuseForInboundNAS_IntegrityVerifiedRegistrationReuses(t *testing.T) {
 	}
 }
 
-// TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted confirms the gate
-// diverts every unverified message that resolved to a committed context —
-// service request and deregistration included — so none can act on it. Each is
-// handled correctly on a fresh context (TS 24.501).
 func TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -163,10 +146,6 @@ func TestReuseForInboundNAS_UnverifiedNonEmergencyDiverted(t *testing.T) {
 	}
 }
 
-// TestReuseForInboundNAS_PlainEmergencyDiverted confirms context resolution is
-// uniform: even a plain emergency registration does not reuse a committed
-// context — it is processed on a fresh one, so the committed context is never
-// mutated by an unverified message (TS 24.501).
 func TestReuseForInboundNAS_PlainEmergencyDiverted(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -175,16 +154,13 @@ func TestReuseForInboundNAS_PlainEmergencyDiverted(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount asserts that a message
-// failing the integrity check does not advance the committed uplink count (so an
-// attacker cannot desync a genuine UE), while a verified message does.
 func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	ue := newSecuredUE(t)
 
 	pdu := wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 7)
 
 	bad := append([]byte(nil), pdu...)
-	bad[3] ^= 0xff // corrupt the MAC
+	bad[3] ^= 0xff
 
 	before := ue.ulCount
 
@@ -205,10 +181,6 @@ func TestDecodeNASMessage_MacFailedDoesNotAdvanceULCount(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain asserts TS 24.501:
-// plain NAS is admitted while bootstrapping, a verified message
-// establishes secure exchange for the connection, and after that a plain
-// message is discarded.
 func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -233,9 +205,6 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsPlain(t *testing.T) 
 	}
 }
 
-// TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed asserts that
-// once secure exchange is established, a message failing the integrity check is
-// discarded rather than admitted as mac-failed (TS 24.501).
 func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -248,22 +217,14 @@ func TestDecodeNASMessage_SecureExchangeEstablished_DiscardsMacFailed(t *testing
 	}
 
 	bad := wrapIntegrityProtected(t, ue, encodePlainServiceRequest(t), 4)
-	bad[3] ^= 0xff // corrupt the MAC
+	bad[3] ^= 0xff
 
 	if _, err := DecodeNASMessage(ue, bad); err == nil {
 		t.Fatal("a mac-failed message must be discarded once secure exchange is established (TS 24.501)")
 	}
 }
 
-// TestDecodeProtectedNAS_NewContextOutsideSecurityMode pins the window in which
-// the new-context security header type is accepted. TS 24.501 §4.4.4.3 reserves
-// it for the SECURITY MODE COMPLETE answering a command in flight; accepting it
-// at any other time let an attacker replay that captured message under unchanged
-// keys, roll the uplink NAS COUNT back to zero, and replay everything captured
-// after it.
-//
-// It decodes through DecodeNASMessage rather than the unexported handler, so the
-// guard runs under the lock DecodeNASMessage holds, as it does in production.
+// TS 24.501 §4.4.4.3
 func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -282,14 +243,12 @@ func TestDecodeProtectedNAS_NewContextOutsideSecurityMode(t *testing.T) {
 		t.Fatalf("protect SECURITY MODE COMPLETE: %v", err)
 	}
 
-	// Registered: the security mode procedure has long finished.
 	ue.ForceRegStepForTest(RegStepContextSetup)
 
 	if _, err := DecodeNASMessage(ue, wire); err == nil {
 		t.Fatal("a new-context message outside the security mode procedure was accepted")
 	}
 
-	// In the security mode procedure it is the expected answer.
 	ue.ForceRegStepForTest(RegStepSecurityMode)
 
 	if _, err := DecodeNASMessage(ue, wire); err != nil {

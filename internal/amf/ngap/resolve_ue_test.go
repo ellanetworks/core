@@ -13,8 +13,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// assertSingleErrorIndication checks that exactly one Error Indication was sent
-// with the given radio-network cause, and returns it.
 func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause int) *ngap.ErrorIndication {
 	t.Helper()
 
@@ -32,8 +30,6 @@ func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause
 	return errInd
 }
 
-// assertErrorIndicationEchoesIDs checks the Error Indication carries the received
-// AP IDs (TS 38.413).
 func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ngap.ErrorIndication, wantAmf ngap.AMFUENGAPID, wantRan ngap.RANUENGAPID) {
 	t.Helper()
 
@@ -46,11 +42,6 @@ func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ngap.ErrorIndication, 
 	}
 }
 
-// setupCrossRadioScenario creates:
-//   - legitimateRan: the radio the UE is actually registered on
-//   - attackerRan: a different radio that will try to claim the UE
-//   - ueConn: the UE context living on legitimateRan
-//   - amfInstance: the AMF with both radios registered
 func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radio, ueConn *amf.UeConn, amfInstance *amf.AMF) {
 	t.Helper()
 
@@ -70,9 +61,6 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 	return legitimateRan, attackerRan, ueConn, amfInstance
 }
 
-// TestCrossRadio_PDUSessionResourceSetupResponse verifies that a rogue radio
-// cannot claim a UE by sending a PDUSessionResourceSetupResponse with a valid
-// AMF-UE-NGAP-ID that belongs to a UE on a different radio.
 func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 	legitimateRan, attackerRan, ueConn, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -96,8 +84,6 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_PDUSessionResourceModifyResponse verifies cross-radio
-// rejection for PDUSessionResourceModifyResponse.
 func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -112,8 +98,6 @@ func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_UEContextReleaseRequest verifies cross-radio
-// rejection for UEContextReleaseRequest.
 func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -132,8 +116,6 @@ func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_UEContextReleaseComplete verifies cross-radio
-// rejection for UEContextReleaseComplete.
 func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -150,8 +132,6 @@ func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_HandoverRequestAcknowledge verifies cross-radio
-// rejection for HandoverRequestAcknowledge.
 func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -173,8 +153,6 @@ func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_HandoverFailure verifies cross-radio
-// rejection for HandoverFailure.
 func TestCrossRadio_HandoverFailure(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
@@ -188,9 +166,6 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 	}
 }
 
-// TestResolveUE_UnknownAmfUeNgapID verifies that an AMF UE NGAP ID the AMF never
-// allocated is reported as an unknown local AP ID (TS 38.413), with the
-// received AP IDs echoed back.
 func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)
@@ -204,9 +179,6 @@ func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
 }
 
-// TestResolveUE_InconsistentRanUeNgapID verifies that a known AMF UE NGAP ID with
-// a RAN UE NGAP ID different from the stored one is reported as an inconsistent
-// remote AP ID (TS 38.413), with the received AP IDs echoed back.
 func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)

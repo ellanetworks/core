@@ -25,14 +25,10 @@ func buildPathSwitchRequestTransfer(teid uint32, ip []byte) (ngap.TransferContai
 			TransportLayerAddress: ngap.TransportLayerAddress(ip),
 			GTPTEID:               ngap.GTPTEID(teid),
 		}},
-		// QosFlowAcceptedList is mandatory.
 		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
 }
 
-// buildPathSwitchRequest assembles a PATH SWITCH REQUEST. UserLocationInformation
-// is always set: it is mandatory, and the handler reads it to update the UE's
-// recorded location.
 func buildPathSwitchRequest(
 	sourceAmfUeNgapID *ngap.AMFUENGAPID,
 	ranUeNgapID *ngap.RANUENGAPID,
@@ -102,7 +98,7 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngap.Ptr(ngap.AMFUENGAPID(999)), // no UE with this AMF UE NGAP ID
+		ngap.Ptr(ngap.AMFUENGAPID(999)),
 		ngap.Ptr(ngap.RANUENGAPID(1)),
 		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
@@ -134,7 +130,6 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 		Conn: sourceNGAPSender,
 	}
 
-	// UeConn exists but UeContext is nil
 	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -179,7 +174,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
-	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 7}) // ngKSI "no key is available" (TS 24.501 §9.11.3.32)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 7})
 
 	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
@@ -225,7 +220,6 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	}
 
 	amfUe := newValidUeContext()
-	// SmContextList is empty — no PDU session ID 1
 
 	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
@@ -267,8 +261,6 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
 	}
 
-	// TS 38.413: the failure must name the unswitched session in its
-	// mandatory PDU Session Resource Released List.
 	released := targetNGAPSender.SentPathSwitchRequestFailures[0].PDUSessionResourceReleased
 	if released == nil || len(released) != 1 {
 		t.Fatalf("failure must carry a released list naming the unswitched session (TS 38.413); got %v", released)
@@ -449,10 +441,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequest_RejectedWhileKeyChainBusy verifies the {NH,NCC} chain claim
-// (TS 33.501 §6.9.5): while an N2 handover holds the key chain, a path switch is
-// rejected with a Path Switch Failure — without touching the SMF or advancing the
-// chain — so the two cannot double-advance the one {NH,NCC} counter.
+// TS 33.501 §6.9.5
 func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 	const (
 		pduSessionID      = uint8(1)
@@ -484,7 +473,6 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 	targetRan.BindAMFForTest(amfInstance)
 
-	// A concurrent N2 handover holds the key chain.
 	if err := amfUe.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("failed to begin N2Handover: %v", err)
 	}
@@ -513,21 +501,15 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 		t.Fatalf("expected no PathSwitchRequestAcknowledge, got %d", len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
 	}
 
-	// The SMF must not be touched: a rejected path switch changes nothing.
 	if len(fakeSmf.PathSwitchCalls) != 0 {
 		t.Fatalf("expected no SMF PathSwitch call on a rejected path switch, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// The UE stays on its source RAN; the key chain was not advanced.
 	if sourceUe.Radio() != sourceRan {
 		t.Error("expected UeConn to stay on sourceRan after a rejected path switch")
 	}
 }
 
-// TestPathSwitchRequest_DuplicatePDUSessionIDs verifies TS 38.413: a
-// to-be-switched downlink list that repeats a PDU Session ID is rejected with a
-// Path Switch Request Failure, even for an otherwise-switchable UE context, and
-// neither the SMF nor an acknowledge is invoked.
 func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 	const (
 		pduSessionID      = uint8(1)
@@ -569,7 +551,6 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	// PDU Session ID 1 listed twice.
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(sourceAmfUeNgapID)),
 		ngap.Ptr(ngap.RANUENGAPID(targetRanUeNgapID)),
@@ -595,8 +576,6 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RANUENGAPID)
 	}
 
-	// The duplicated PDU Session ID appears once in the mandatory released list
-	// (TS 38.413).
 	if failure.PDUSessionResourceReleased == nil || len(failure.PDUSessionResourceReleased) != 1 {
 		t.Fatalf("failure must carry a deduplicated released list (TS 38.413); got %v", failure.PDUSessionResourceReleased)
 	}
@@ -622,7 +601,6 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	}
 
 	amfUe := newValidUeContext()
-	// Session 1 has a context, session 2 does not
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -660,7 +638,7 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		ngap.Ptr(ngap.RANUENGAPID(2)),
 		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer1},
-			{PDUSessionID: 2, Transfer: transfer2}, // No SmContext for this
+			{PDUSessionID: 2, Transfer: transfer2},
 		},
 		nil, nil,
 	)
@@ -671,7 +649,6 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
 	}
 
-	// A path switch with at least one switched session is acknowledged, not failed.
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -767,9 +744,6 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten verifies the
-// AMF keeps its stored UE 5G security capabilities when the target gNB
-// reports different values in a PathSwitchRequest (TS 33.501).
 func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
@@ -861,9 +835,6 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequest_UESecurityCapabilitiesMatching exercises the
-// happy path where the target gNB reports the same capabilities the AMF
-// has stored.
 func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
@@ -901,8 +872,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	}
 
 	matchingCaps := &ngap.UESecurityCapabilities{
-		NREncryptionAlgorithms:          0x8000, // EA1
-		NRIntegrityProtectionAlgorithms: 0x4000, // IA2
+		NREncryptionAlgorithms:          0x8000,
+		NRIntegrityProtectionAlgorithms: 0x4000,
 	}
 
 	msg := buildPathSwitchRequest(
@@ -945,13 +916,6 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequest_EmptySecurityCapabilityBytes covers a
-// PathSwitchRequest whose UESecurityCapabilities IE has empty NR
-// bitstrings: the handler must not panic, must leave stored capabilities
-// The in-house UESecurityCapabilities carries four plain uint16 algorithm
-// masks, so the empty-bitstring case the reference codec could represent is
-// unrepresentable here and needs no test.
-
 func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 	const (
 		switchedID        = uint8(1)
@@ -966,8 +930,6 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 
 	amfUe := newValidUeContext()
 	amfUe.SetKamfForTest(kamfHex)
-	// Only the switched session has an SM context; the other resolves to
-	// SmContext-not-found and must be reported in the released list.
 	amfUe.SmContextList[switchedID] = &amf.SmContext{Ref: "imsi-001010000000001-1", Snssai: &models.Snssai{Sst: 1}}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)

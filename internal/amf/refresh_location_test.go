@@ -14,9 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// A location refresh for a CM-IDLE UE pages it (TS 23.273 §6.5.1 step 11) and sends no
-// LocationReportingControl: the Initial UE Message carries the location the AMF answers
-// from (step 12).
+// TS 23.273 §6.5.1
 func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
@@ -59,7 +57,6 @@ func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 	ue.StopPaging()
 }
 
-// Paging already in progress is reported as success, without a second Paging.
 func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
@@ -94,8 +91,7 @@ func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	}
 }
 
-// The CM-CONNECTED path uses the NG-RAN location reporting procedure
-// (TS 23.273 §6.5.1 step 12).
+// TS 23.273 §6.5.1
 func TestRefreshLocation_ConnectedUE_SendsLocationReportingControl(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	amfInstance := amf.New(nil, nil, &fakeSmf{})

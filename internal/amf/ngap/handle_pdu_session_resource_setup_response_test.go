@@ -19,10 +19,6 @@ func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
-	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
-	// dropped without a reply.
 	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{})
 
 	if len(sender.SentErrorIndications) != 0 {
@@ -47,11 +43,6 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	}
 }
 
-// An absent AMF UE NGAP ID leaves nothing to look the connection up by, and the
-// IE's ignore criticality makes it unreportable (§9.3.1.3), so the message is
-// dropped. Contrast TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID,
-// where the id is present but names no connection: that is the unknown local AP
-// ID of §10.6, which does draw an Error Indication.
 func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -134,9 +125,7 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 	}
 }
 
-// The NG-RAN node may report the UE's serving cell with the setup outcome; the
-// AMF records it so a later location query is answered from where the UE is
-// (TS 38.413 §9.2.1.2).
+// TS 38.413 §9.2.1.2
 func TestHandlePDUSessionResourceSetupResponse_RecordsUserLocation(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)

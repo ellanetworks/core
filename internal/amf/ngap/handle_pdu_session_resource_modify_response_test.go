@@ -13,9 +13,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-// reaches the handler; without them the AMF cannot address a UE context and
-// reports the fault (TS 38.413 §10.3.5).
+// TS 38.413 §10.3.5
 func TestPDUSessionResourceModifyResponse_BothIDsNil(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -30,11 +28,16 @@ func TestPDUSessionResourceModifyResponse_BothIDsNil(t *testing.T) {
 
 func TestPDUSessionResourceModifyResponse_RanUeNgapIDNotFound(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceModifyResponse{
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(99)),
 	})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("a resolvable connection with no UE context must be dropped silently, got %d error indications", len(sender.SentErrorIndications))
+	}
 }
 
 func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
@@ -44,7 +47,6 @@ func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	// A different radio claims the same AMF-UE-NGAP-ID — must be rejected.
 	attackerRan := newTestRadio(newTestAMF())
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 	HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, &ngap.PDUSessionResourceModifyResponse{

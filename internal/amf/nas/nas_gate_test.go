@@ -15,9 +15,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// A SERVICE REQUEST that resolves no 5GMM context (e.g. the UE deregistered, or an unknown
-// 5G-S-TMSI) must be answered with a SERVICE REJECT #9, never dropped
-// (TS 24.501 §5.6.1.5, §4.4.4.3). The mint gate never mints a context for one.
+// TS 24.501 §5.6.1.5
 func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	ngapSender := &fakeNGAPSender{}
 	amfInstance := amf.New(&fakeDBInstance{
@@ -51,11 +49,9 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	}
 }
 
-// A recognizable but malformed SERVICE REQUEST (truncated — a protocol error) must still be
-// classified by message type and answered with SERVICE REJECT #96 "invalid mandatory
-// information", never dropped (TS 24.501 §5.6.1.8 b).
+// TS 24.501 §5.6.1.8
 func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
-	malformed := []byte{0x7e, 0x00, 0x4c} // plain 5GMM, message type ServiceRequest, no IEs
+	malformed := []byte{0x7e, 0x00, 0x4c}
 
 	if !isServiceRequest(malformed) {
 		t.Fatal("a truncated plain SERVICE REQUEST must still be recognized by message type")
@@ -106,9 +102,6 @@ func encodePlainServiceRequest(t *testing.T) []byte {
 	return payload
 }
 
-// A plain NAS message on a fresh connection that is not a REGISTRATION REQUEST cannot
-// establish a context; HandleNAS must reject it (error) and bind no UE context, so the
-// NGAP layer releases the bare RAN connection and leaks no per-message context.
 func TestHandleNAS_PlainNonRegistration_BindsNoContext(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ue := &amf.UeConn{}
@@ -120,16 +113,13 @@ func TestHandleNAS_PlainNonRegistration_BindsNoContext(t *testing.T) {
 	}
 }
 
-// TS 24.501 §7.4: a message type the AMF does not implement inbound resolves to a 5GMM
-// STATUS #97 disposition from the dispatcher, which the ingress finalizer sends. Mirrors the
-// MME's EMM dispatch default.
+// TS 24.501 §7.4
 func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// a downlink type never handled inbound
 	reject, err := (&fgs.RegistrationReject{Cause: fgs.GMMCausePLMNNotAllowed}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -142,9 +132,7 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 	}
 }
 
-// TS 24.501 §7.4: a fresh-connection 5GMM message with an undefined message type is
-// answered with a 5GMM STATUS #97, whereas a defined type whose body is malformed draws
-// #96 (§7.5.1).
+// TS 24.501 §7.4
 func TestDispositionForUnresolved_UnknownTypeStatus97(t *testing.T) {
 	tests := []struct {
 		name   string

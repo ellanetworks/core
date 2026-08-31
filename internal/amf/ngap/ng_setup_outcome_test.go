@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// The response is encoded and read back with the in-house library. What it pins
-// is the wire form of an absent slice differentiator: it must stay absent
-// rather than encode as three zero octets, which are a valid but different SD.
 func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 	guami := &models.Guami{
 		PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
@@ -66,7 +63,6 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 	}
 }
 
-// operatorFor builds the operator view NG Setup validates against.
 func operatorFor(mcc, mnc, tac string) *amf.OperatorInfo {
 	plmn := models.PlmnID{Mcc: mcc, Mnc: mnc}
 

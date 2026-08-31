@@ -162,8 +162,6 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 		t.Fatalf("expected pdu_sessions to be empty, got %d entries", len(pduSessions))
 	}
 
-	// The export shows the AMF-configured timer values (amf.New defaults) regardless
-	// of UE state, mirroring the MME's export of T3412PeriodicTAU.
 	timers := jsonMap(t, ueExport, "timers")
 	if t3512, ok := timers["t3512_value_seconds"].(float64); !ok || t3512 != 3600 {
 		t.Fatalf("expected timers.t3512_value_seconds to be 3600, got %v", timers["t3512_value_seconds"])
@@ -451,7 +449,6 @@ func TestExportJSON_NilTimers(t *testing.T) {
 func TestExportJSON_NilUeConn(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	addTestUE(t, amfInstance, "001010000000004", func(ue *amf.UeContext) {
-		// UeConn is nil by default
 	})
 
 	result := exportAndMarshal(t, amfInstance)

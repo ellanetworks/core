@@ -34,8 +34,6 @@ func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.UeC
 	return ue, ueConn
 }
 
-// A UE re-attaching on a new connection releases its previous connection toward the gNB
-// and keeps it detached (its AMF-UE-NGAP-ID reserved) until the Release Complete reaps it.
 func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 	radio := newTestRadioForUeConn()
 
@@ -60,7 +58,6 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 		t.Fatal("new UeConn is not the UE's active connection after re-attach")
 	}
 
-	// A Release Complete reaps the detached connection and frees its AMF-UE-NGAP-ID.
 	first.StopReleaseGuard()
 	amfInstance.ReleaseUeConn(context.Background(), first)
 
@@ -69,8 +66,6 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 	}
 }
 
-// Per TS 24.501, ongoing NAS procedures shall be aborted on lower-layer
-// failure.
 func TestReleaseNasConnection_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, ueConn := newBoundUeContext(t, radio)
@@ -122,9 +117,6 @@ func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
 	})
 }
 
-// After the AMF UE is rebound to a new UeConn, a release for the old
-// UeConn (handover or any stale path) must be a no-op for both the
-// procedure set and the current binding.
 func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, sourceUeConn := newBoundUeContext(t, radio)
@@ -148,8 +140,6 @@ func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 	}
 }
 
-// Verifies the target-match guard: a release for a stale UeConn must not
-// detach the current one.
 func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
@@ -163,7 +153,6 @@ func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 	}
 }
 
-// SCTP disconnect aborts procedures across all UEs on the radio.
 func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
@@ -179,8 +168,6 @@ func TestRemoveAllUeInRan_AbortsProcedures(t *testing.T) {
 	})
 }
 
-// Mid-registration UEs are deregistered on lower-layer failure
-// (TS 24.501).
 func TestRemoveAllUeInRan_MidAuthentication_Deregisters(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
@@ -217,8 +204,6 @@ func TestRemoveAllUeInRan_MidContextSetup_Deregisters(t *testing.T) {
 	}
 }
 
-// Registered UEs keep their state and start the mobile reachable timer
-// (TS 24.501).
 func TestRemoveAllUeInRan_Registered_StaysRegistered(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)

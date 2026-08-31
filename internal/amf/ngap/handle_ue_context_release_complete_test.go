@@ -13,9 +13,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe verifies that
-// after a handover failure, the target UE (which only has SourceUe set, not
-// TargetUe) can be cleanly released without panicking.
 func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -51,9 +48,6 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 	}
 }
 
-// TestHandleUEContextReleaseComplete_SmContextNotFound verifies that a
-// UEContextReleaseComplete referencing a PDU session ID that has no SmContext
-// does NOT panic.
 func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -81,9 +75,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	}
 }
 
-// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-// reaches the handler. The procedure has no unsuccessful outcome, so the
-// rejection is reported with an ERROR INDICATION (TS 38.413 §10.3.5).
+// TS 38.413 §10.3.5
 func TestHandleUEContextReleaseComplete_MissingUENGAPIDs(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
