@@ -4,11 +4,7 @@
 package server_test
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/config"
@@ -62,31 +58,7 @@ type UpdateN3InfoResponse struct {
 }
 
 func listNetworkInterfaces(url string, client *http.Client, token string) (int, *GetNetworkInterfaceInfoResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/interfaces", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp GetNetworkInterfaceInfoResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[GetNetworkInterfaceInfoResponse](client, "GET", url+"/api/v1/networking/interfaces", token, nil)
 }
 
 func updateN3Info(url string, client *http.Client, token string, externalAddress string) (int, *UpdateN3InfoResponse, error) {
@@ -94,37 +66,7 @@ func updateN3Info(url string, client *http.Client, token string, externalAddress
 		ExternalAddress: externalAddress,
 	}
 
-	payloadBytes, err := json.Marshal(params)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/interfaces/n3", bytes.NewReader(payloadBytes))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var updateResponse UpdateN3InfoResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &updateResponse, nil
+	return apiDo[UpdateN3InfoResponse](client, "PUT", url+"/api/v1/networking/interfaces/n3", token, params)
 }
 
 func TestNetworkInteraces_EndToEnd(t *testing.T) {
@@ -142,22 +84,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 		config.GetInterfaceIPsFunc = originalGetInterfaceIPsFunc
 	})
 
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List network interfaces", func(t *testing.T) {
 		statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)

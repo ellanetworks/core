@@ -4,12 +4,8 @@
 package server_test
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -72,137 +68,26 @@ type ListRouteResponse struct {
 }
 
 func listRoutes(url string, client *http.Client, token string, page int, perPage int) (int, *ListRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/networking/routes?page=%d&per_page=%d", url, page, perPage), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var routeResponse ListRouteResponse
-	if err := json.NewDecoder(res.Body).Decode(&routeResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &routeResponse, nil
+	return apiDo[ListRouteResponse](client, "GET", fmt.Sprintf("%s/api/v1/networking/routes?page=%d&per_page=%d", url, page, perPage), token, nil)
 }
 
 func getRoute(url string, client *http.Client, token string, id int64) (int, *GetRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var routeResponse GetRouteResponse
-	if err := json.NewDecoder(res.Body).Decode(&routeResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &routeResponse, nil
+	return apiDo[GetRouteResponse](client, "GET", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), token, nil)
 }
 
 func createRoute(url string, client *http.Client, token string, data *CreateRouteParams) (int, *CreateRouteResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/routes", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var createResponse CreateRouteResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &createResponse, nil
+	return apiDo[CreateRouteResponse](client, "POST", url+"/api/v1/networking/routes", token, data)
 }
 
 func deleteRoute(url string, client *http.Client, token string, id int64) (int, *DeleteRouteResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var deleteRouteResponse DeleteRouteResponse
-	if err := json.NewDecoder(res.Body).Decode(&deleteRouteResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &deleteRouteResponse, nil
+	return apiDo[DeleteRouteResponse](client, "DELETE", fmt.Sprintf("%s/api/v1/networking/routes/%d", url, id), token, nil)
 }
 
 // This is an end-to-end test for the routes handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
 func TestAPIRoutesEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List routes - 0", func(t *testing.T) {
 		statusCode, response, err := listRoutes(env.Server.URL, client, token, 1, 10)
@@ -363,21 +248,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 }
 
 func TestCreateRouteInvalidInput(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		destination      string
@@ -456,21 +327,7 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 }
 
 func TestCreateRouteIPv6(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("create route with IPv6 destination and gateway", func(t *testing.T) {
 		createRouteParams := &CreateRouteParams{
@@ -578,21 +435,7 @@ func TestCreateRouteIPv6(t *testing.T) {
 }
 
 func TestCreateInvalidIPv6(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	tests := []struct {
 		name             string
@@ -670,21 +513,7 @@ func TestCreateInvalidIPv6(t *testing.T) {
 }
 
 func TestCreateTooManyRoutes(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	for i := 0; i < 12; i++ {
 		createRouteParams := &CreateRouteParams{

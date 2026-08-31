@@ -53,88 +53,15 @@ type LoookupTokenResponse struct {
 }
 
 func login(url string, client *http.Client, data *LoginParams) (int, *LoginResponse, error) {
-	body, err := json.Marshal(data)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/login", strings.NewReader(string(body)))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var loginResponse LoginResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&loginResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &loginResponse, nil
+	return apiDo[LoginResponse](client, "POST", url+"/api/v1/auth/login", "", data)
 }
 
 func refresh(url string, client *http.Client) (int, *RefreshResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/refresh", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var refreshResponse RefreshResponse
-	if err := json.NewDecoder(res.Body).Decode(&refreshResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &refreshResponse, nil
+	return apiDo[RefreshResponse](client, "POST", url+"/api/v1/auth/refresh", "", nil)
 }
 
 func lookupToken(url string, client *http.Client, token string) (int, *LoookupTokenResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/lookup-token", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var lookupResponse LoookupTokenResponse
-	if err := json.NewDecoder(res.Body).Decode(&lookupResponse); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &lookupResponse, nil
+	return apiDo[LoookupTokenResponse](client, "POST", url+"/api/v1/auth/lookup-token", token, nil)
 }
 
 func logout(url string, client *http.Client) (int, error) {
@@ -935,21 +862,7 @@ func TestLookupToken(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't initialize and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Success - logout with valid session", func(t *testing.T) {
 		statusCode, err := logout(env.Server.URL, client)
@@ -1036,7 +949,7 @@ func TestLogout(t *testing.T) {
 	})
 
 	// Need to login again since we logged out
-	_, _, err = login(env.Server.URL, client, &LoginParams{
+	_, _, err := login(env.Server.URL, client, &LoginParams{
 		Email:    FirstUserEmail,
 		Password: "password123",
 	})

@@ -4,12 +4,8 @@
 package server_test
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"testing"
 )
@@ -131,217 +127,31 @@ type DeleteBGPPeerResponse struct {
 // Helper functions
 
 func getBGPSettings(url string, client *http.Client, token string) (int, *GetBGPSettingsResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/bgp", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp GetBGPSettingsResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[GetBGPSettingsResponse](client, "GET", url+"/api/v1/networking/bgp", token, nil)
 }
 
 func updateBGPSettings(url string, client *http.Client, token string, params *UpdateBGPSettingsParams) (int, *UpdateBGPSettingsResponse, error) {
-	payloadBytes, err := json.Marshal(params)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/bgp", bytes.NewReader(payloadBytes))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp UpdateBGPSettingsResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[UpdateBGPSettingsResponse](client, "PUT", url+"/api/v1/networking/bgp", token, params)
 }
 
 func listBGPPeers(url string, client *http.Client, token string) (int, *ListBGPPeersResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/bgp/peers", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp ListBGPPeersResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[ListBGPPeersResponse](client, "GET", url+"/api/v1/networking/bgp/peers", token, nil)
 }
 
 func getBGPPeerByID(url string, client *http.Client, token string, id int) (int, *GetBGPPeerResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp GetBGPPeerResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[GetBGPPeerResponse](client, "GET", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), token, nil)
 }
 
 func createBGPPeer(url string, client *http.Client, token string, params *CreateBGPPeerParams) (int, *CreateBGPPeerResponse, error) {
-	payloadBytes, err := json.Marshal(params)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/networking/bgp/peers", bytes.NewReader(payloadBytes))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp CreateBGPPeerResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[CreateBGPPeerResponse](client, "POST", url+"/api/v1/networking/bgp/peers", token, params)
 }
 
 func updateBGPPeerByID(url string, client *http.Client, token string, id int, params *UpdateBGPPeerTestParams) (int, *UpdateBGPPeerResponse, error) {
-	payloadBytes, err := json.Marshal(params)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), bytes.NewReader(payloadBytes))
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp UpdateBGPPeerResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[UpdateBGPPeerResponse](client, "PUT", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), token, params)
 }
 
 func deleteBGPPeerByID(url string, client *http.Client, token string, id int) (int, *DeleteBGPPeerResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp DeleteBGPPeerResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[DeleteBGPPeerResponse](client, "DELETE", url+"/api/v1/networking/bgp/peers/"+strconv.Itoa(id), token, nil)
 }
 
 // BGP Routes response types
@@ -377,80 +187,17 @@ type GetBGPLearnedRoutesResponse struct {
 }
 
 func getBGPAdvertisedRoutes(url string, client *http.Client, token string) (int, *GetBGPAdvertisedRoutesResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/bgp/advertised-routes", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp GetBGPAdvertisedRoutesResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[GetBGPAdvertisedRoutesResponse](client, "GET", url+"/api/v1/networking/bgp/advertised-routes", token, nil)
 }
 
 func getBGPLearnedRoutes(url string, client *http.Client, token string) (int, *GetBGPLearnedRoutesResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/networking/bgp/learned-routes", nil)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	defer func() {
-		if err := res.Body.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
-	var resp GetBGPLearnedRoutesResponse
-
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return 0, nil, err
-	}
-
-	return res.StatusCode, &resp, nil
+	return apiDo[GetBGPLearnedRoutesResponse](client, "GET", url+"/api/v1/networking/bgp/learned-routes", token, nil)
 }
 
 // Tests
 
 func TestApiBGPSettingsEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. Get BGP settings (default)", func(t *testing.T) {
 		statusCode, resp, err := getBGPSettings(env.Server.URL, client, token)
@@ -582,22 +329,7 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 }
 
 func TestApiBGPSettingsToggleCycling(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	// Cycle BGP on/off/on/off/on rapidly
 	for i := 0; i < 5; i++ {
@@ -647,22 +379,7 @@ func TestApiBGPSettingsToggleCycling(t *testing.T) {
 }
 
 func TestApiBGPSettingsValidation(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Invalid localAS (0)", func(t *testing.T) {
 		params := &UpdateBGPSettingsParams{
@@ -699,22 +416,7 @@ func TestApiBGPSettingsValidation(t *testing.T) {
 }
 
 func TestApiBGPPeersEndToEnd(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("1. List peers (empty)", func(t *testing.T) {
 		statusCode, resp, err := listBGPPeers(env.Server.URL, client, token)
@@ -962,22 +664,7 @@ func TestApiBGPPeersEndToEnd(t *testing.T) {
 }
 
 func TestApiBGPPeerValidation(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Missing address", func(t *testing.T) {
 		params := &CreateBGPPeerParams{
@@ -1100,22 +787,7 @@ func TestApiBGPPeerValidation(t *testing.T) {
 }
 
 func TestApiBGPAdvertisedRoutesEndpoint(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Advertised routes returns empty when BGP not running", func(t *testing.T) {
 		statusCode, resp, err := getBGPAdvertisedRoutes(env.Server.URL, client, token)
@@ -1134,22 +806,7 @@ func TestApiBGPAdvertisedRoutesEndpoint(t *testing.T) {
 }
 
 func TestApiBGPLearnedRoutesEndpoint(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Learned routes returns empty when BGP not running", func(t *testing.T) {
 		statusCode, resp, err := getBGPLearnedRoutes(env.Server.URL, client, token)
@@ -1168,22 +825,7 @@ func TestApiBGPLearnedRoutesEndpoint(t *testing.T) {
 }
 
 func TestApiBGPPeersIPv6(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	client := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, client)
-	if err != nil {
-		t.Fatalf("couldn't create first user and login: %s", err)
-	}
+	env, client, token := newAuthedTestEnv(t)
 
 	t.Run("Create a peer with IPv6 address", func(t *testing.T) {
 		params := &CreateBGPPeerParams{
