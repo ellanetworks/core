@@ -13,12 +13,6 @@ import (
 	"unsafe"
 )
 
-// TestSDFFilterEnforcement checks that uplink SDF rules drop denied traffic and
-// pass everything else.
-//
-// A deny returns ActionDrop before routing. An allowed packet continues into
-// the routing tail, which returns anything but ActionDrop absent blackhole or
-// unreachable routes, and its inner packet must be intact.
 func TestSDFFilterEnforcement(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -82,10 +76,6 @@ func TestSDFFilterEnforcement(t *testing.T) {
 	}
 }
 
-// TestSDFRuleMatching exercises the uplink SDF rule-matching dimensions:
-// protocol (wildcard/match/mismatch), port range, address prefix (CIDR and
-// wildcard), and first-match ordering. Deny => ActionDrop; allow => forwarded with
-// the inner packet intact.
 func TestSDFRuleMatching(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -147,8 +137,6 @@ func TestSDFRuleMatching(t *testing.T) {
 	}
 }
 
-// TestSDFDownlinkDirection checks that downlink SDF matches the remote (the
-// packet source), the opposite of the uplink direction.
 func TestSDFDownlinkDirection(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -192,7 +180,6 @@ func TestSDFDownlinkDirection(t *testing.T) {
 	})
 }
 
-// TestSDFIPv6 checks IPv6 prefix matching (uplink, inner IPv6).
 func TestSDFIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -204,7 +191,7 @@ func TestSDFIPv6(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putForwardingUplinkPDR(t, obj, teid, filterIndex)
 
-	dst := testUEv6 // inner daddr is the SDF remote on uplink
+	dst := testUEv6
 	other := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
 	inner := innerIPv6UDP(dst, 53)
 
@@ -243,8 +230,6 @@ func TestSDFIPv6(t *testing.T) {
 	}
 }
 
-// TestSDFDownlinkIPv6 checks IPv6 downlink SDF matching on the remote (the
-// packet source), the IPv6 counterpart to TestSDFDownlinkDirection.
 func TestSDFDownlinkIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -292,9 +277,6 @@ func TestSDFDownlinkIPv6(t *testing.T) {
 	})
 }
 
-// TestSDFPortRangeStartingAtZero: only low == high == 0 is the wildcard, so a
-// range starting at 0 is still a range. Gating on port_low alone drops
-// port_high, and a rule for the well-known ports then matches every port.
 func TestSDFPortRangeStartingAtZero(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -360,8 +342,6 @@ func TestSDFPortRangeStartingAtZero(t *testing.T) {
 	}
 }
 
-// sdfRuleIPv4 builds an SDF rule for an IPv4 remote prefix, port range, and
-// protocol. A prefixLen or port bound of 0 is a wildcard in the data plane.
 func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
 	return SdfRule{
 		RemoteIP:  IPToIn6Addr(netip.AddrFrom4(remote)),
@@ -373,7 +353,6 @@ func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, prot
 	}
 }
 
-// sdfRuleIPv6 builds an SDF rule for a native IPv6 remote prefix.
 func sdfRuleIPv6(remote [16]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule { //nolint:unparam // general-purpose builder; port bounds vary across callers
 	return SdfRule{
 		RemoteIP:  remote,
@@ -398,9 +377,6 @@ func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) 
 	}
 }
 
-// TestSdfFilterListRoundTrip: a slot reads back as written, and releasing it
-// zeroes it — a released slot keeping its rules would enforce them for whichever
-// policy is handed the index next.
 func TestSdfFilterListRoundTrip(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -442,9 +418,6 @@ func TestSdfFilterListRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSdfFilterListLayout pins the Go mirror of struct sdf_filter_list under
-// both views: writes go through unsafe.Pointer, reads through encoding/binary,
-// which ignores implicit padding and fails with "doesn't consume all data".
 func TestSdfFilterListLayout(t *testing.T) {
 	var (
 		rule SdfRule
@@ -452,8 +425,8 @@ func TestSdfFilterListLayout(t *testing.T) {
 	)
 
 	const (
-		ruleSize = 32                       // sizeof(struct sdf_rule)
-		listSize = 4 + MaxRulesPerFilter*32 // sizeof(struct sdf_filter_list)
+		ruleSize = 32
+		listSize = 4 + MaxRulesPerFilter*32
 	)
 
 	if got := unsafe.Sizeof(rule); got != ruleSize {

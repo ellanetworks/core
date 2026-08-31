@@ -14,20 +14,17 @@ import (
 	"time"
 )
 
-// natProto describes one transport protocol for the NAT tests: the UE-side L4
-// ports, how to build an inner L4 segment, and how to validate its checksum.
 type natProto struct {
 	name  string
 	num   uint8
-	sport uint16 // UE source port (uplink); 0 for ICMP
-	dport uint16 // server port (uplink destination); 0 for ICMP
+	sport uint16
+	dport uint16
 	build func(src, dst [4]byte, sport, dport uint16, payload []byte) []byte
 	valid func(src, dst [4]byte, l4 []byte) bool
 }
 
 const natICMPID = 0xbeef
 
-// Mirrors NAT_CT_CLOSED in nat.h.
 const natClosed = 0x1
 
 var natProtos = []natProto{
@@ -59,25 +56,19 @@ var natProtos = []natProto{
 	},
 }
 
-// l4ChecksumOffset returns the byte offset of the L4 checksum field for proto,
-// or -1 if not applicable.
 func l4ChecksumOffset(num uint8) int {
 	switch num {
 	case 6:
-		return 16 // TCP
+		return 16
 	case 17:
-		return 6 // UDP
+		return 6
 	case 1:
-		return 2 // ICMP
+		return 2
 	default:
 		return -1
 	}
 }
 
-// l4PreservedExceptChecksum reports whether got equals orig once the L4
-// checksum field (the only L4 byte source-NAT legitimately rewrites) is masked.
-// It catches corruption of ports, sequence numbers, flags, or payload that a
-// checksum-only assertion would miss.
 func l4PreservedExceptChecksum(num uint8, got, orig []byte) bool {
 	if len(got) != len(orig) {
 		return false
@@ -94,13 +85,8 @@ func l4PreservedExceptChecksum(num uint8, got, orig []byte) bool {
 	return bytes.Equal(g, o)
 }
 
-// payloadSizes brackets the historical bpf_csum_diff 512-byte limit and pushes
-// past a typical MTU, so a size-dependent checksum defect cannot hide.
 var payloadSizes = []int{0, 100, 500, 512, 600, 1000, 1400}
 
-// TestSourceNATUplink verifies uplink source-NAT across protocols and payload
-// sizes: the decapsulated inner packet leaves the N6 side with its source
-// rewritten to the egress address and valid IPv4 and L4 checksums.
 func TestSourceNATUplink(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -131,10 +117,6 @@ func TestSourceNATUplink(t *testing.T) {
 	}
 }
 
-// TestNATRoundTrip verifies the full NAT conntrack cycle: an uplink packet
-// establishes the mapping, then the matching downlink reply is destination-NAT'd
-// back to the UE address, re-encapsulated toward the gNB, and leaves the N3 side
-// with valid checksums and the UE as the inner destination.
 func TestNATRoundTrip(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -151,14 +133,11 @@ func TestNATRoundTrip(t *testing.T) {
 	for _, proto := range natProtos {
 		for _, size := range []int{40, 1000} {
 			t.Run(proto.name+"/"+sizeLabel(size), func(t *testing.T) {
-				// Uplink first: establish the conntrack mapping.
 				uplinkInner := ipv4Packet(ueIP, serverIP, proto.num, proto.build(ueIP, serverIP, proto.sport, proto.dport, bytesOf(40)))
 				f.injectUplink(t, uplinkGPDU(ulTEID, uplinkInner))
 
 				time.Sleep(100 * time.Millisecond)
 
-				// Capture on N3 only after the uplink egress (which lands on N6)
-				// has drained, so this socket sees only the downlink reply.
 				capFD := f.captureN3(t)
 
 				reply := ipv4Packet(serverIP, natPublicIP, proto.num, downlinkReply(proto, bytesOf(size)))
@@ -179,15 +158,12 @@ func TestNATRoundTrip(t *testing.T) {
 	}
 }
 
-// TestNATIPv6PassThrough checks that with NAT enabled, an uplink IPv6 packet is
-// decapsulated unchanged: IPv6 traffic is never source-NAT'd (each UE owns its
-// own /64). This is a T1 verdict/transform check; routing is host-dependent.
 func TestNATIPv6PassThrough(t *testing.T) {
 	requireProgTestRun(t)
 
-	const teid = 0x4E363650 // "N66P"
+	const teid = 0x4E363650
 
-	obj := loadProgramConfig(t, false, true /* masquerade */, 0, 1, 0, 0)
+	obj := loadProgramConfig(t, false, true, 0, 1, 0, 0)
 	putForwardingUplinkPDR(t, obj, teid, 0)
 
 	inner := innerIPv6UDP(testUEv6, 53)
@@ -202,9 +178,6 @@ func TestNATIPv6PassThrough(t *testing.T) {
 	}
 }
 
-// TestNATPortCollision checks source-port remapping: when two UEs use the same
-// source port to the same destination, the second flow is rewritten to a
-// different egress port (the first keeps its port).
 func TestNATPortCollision(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -271,9 +244,6 @@ func TestNATPortCollision(t *testing.T) {
 	}
 }
 
-// TestNATICMPError checks that an inbound ICMP error (destination unreachable)
-// is destination-NAT'd: the outer destination and the embedded original packet
-// are both rewritten to the UE so the UE can match the error to its flow.
 func TestNATICMPError(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -289,7 +259,6 @@ func TestNATICMPError(t *testing.T) {
 	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
-	// Establish the conntrack mapping with an uplink UDP packet.
 	uplinkInner := ipv4Packet(ueIP, serverIP, 17, udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{9, 9}))
 	f.injectUplink(t, uplinkGPDU(ulTEID, uplinkInner))
 
@@ -297,14 +266,12 @@ func TestNATICMPError(t *testing.T) {
 
 	capFD := f.captureN3(t)
 
-	// Server returns an ICMP port-unreachable embedding the NAT'd packet
-	// (src = the public address, the UDP header the server saw).
 	embeddedUDP := udpDatagramChecksummed(natPublicIP, serverIP, ueSP, srvDP, nil)
 	embeddedIP := ipv4Packet(natPublicIP, serverIP, 17, embeddedUDP)
 
 	icmpErr := make([]byte, 8+len(embeddedIP))
-	icmpErr[0] = 3 // destination unreachable
-	icmpErr[1] = 3 // port unreachable
+	icmpErr[0] = 3
+	icmpErr[1] = 3
 	copy(icmpErr[8:], embeddedIP)
 	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
 
@@ -313,7 +280,7 @@ func TestNATICMPError(t *testing.T) {
 	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
 		inner := gtpInner(fr)
 
-		return inner != nil && inner[9] == 1 // ICMP
+		return inner != nil && inner[9] == 1
 	})
 	if got == nil {
 		t.Fatal("did not capture a re-encapsulated ICMP error on the N3 side")
@@ -334,8 +301,6 @@ func TestNATICMPError(t *testing.T) {
 		t.Error("ICMP checksum invalid after NAT")
 	}
 
-	// The embedded original packet's source must be rewritten to the UE, and
-	// its destination (the server) left untouched.
 	embedded := icmp[8:]
 	if len(embedded) < 28 || !bytes.Equal(embedded[12:16], ueIP[:]) {
 		t.Fatalf("embedded packet source not rewritten to the UE: %x", embedded)
@@ -354,8 +319,6 @@ func TestNATICMPError(t *testing.T) {
 	}
 }
 
-// TestNATUnsolicitedInboundDrop verifies that with masquerade enabled a downlink
-// packet to the UE address with no conntrack entry is dropped.
 func TestNATUnsolicitedInboundDrop(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -389,8 +352,6 @@ func TestNATUnsolicitedInboundDrop(t *testing.T) {
 	}
 }
 
-// TestUnsolicitedInboundForwardedWithoutNAT verifies that with masquerade
-// disabled a downlink packet to the UE address is forwarded to N3.
 func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -421,8 +382,6 @@ func TestUnsolicitedInboundForwardedWithoutNAT(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromRouter checks that an ICMP error from an intermediate hop
-// is translated to the UE by the flow quoted in the error.
 func TestNATICMPErrorFromRouter(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -450,7 +409,7 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	embeddedIP := ipv4Packet(natPublicIP, serverIP, 17, embeddedUDP)
 
 	icmpErr := make([]byte, 8+len(embeddedIP))
-	icmpErr[0] = 11 // time exceeded
+	icmpErr[0] = 11
 	copy(icmpErr[8:], embeddedIP)
 	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
 
@@ -490,13 +449,7 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromUETranslatesQuote: a UE-originated ICMP error is
-// source-NAT'd along with the datagram it quotes. Untranslated, the quote
-// publishes the UE's private address and port, and the peer cannot match the
-// error to a socket (RFC 5508 §3.2).
-//
-// Above the masquerade range, so the mapping cannot keep the UE's own port and
-// the quoted port has to change.
+// RFC 5508 §3.2
 func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -509,8 +462,6 @@ func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 	f := setupT2(t, true)
 	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 
-	// Establish the mapping the quoted packet belongs to, and learn the port
-	// it was mapped to.
 	establishCap := f.captureN6(t)
 
 	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 17,
@@ -530,14 +481,12 @@ func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 
 	capFD := f.captureN6(t)
 
-	// What the UE received: the peer's datagram as the downlink delivered it,
-	// addressed to the UE's private address and port.
 	quotedUDP := udpDatagramChecksummed(serverIP, ueIP, srvDP, ueSP, nil)
 	quoted := ipv4Packet(serverIP, ueIP, 17, quotedUDP)
 
 	icmpErr := make([]byte, 8+len(quoted))
-	icmpErr[0] = 3 // destination unreachable
-	icmpErr[1] = 3 // port unreachable
+	icmpErr[0] = 3
+	icmpErr[1] = 3
 	copy(icmpErr[8:], quoted)
 	binary.BigEndian.PutUint16(icmpErr[2:4], onesComplement16(icmpErr))
 
@@ -570,8 +519,6 @@ func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 		t.Fatalf("quote truncated: %x", embedded)
 	}
 
-	// The quoted datagram travelled toward the UE, so it is its destination
-	// that carried the private address.
 	if !bytes.Equal(embedded[16:20], natPublicIP[:]) {
 		t.Errorf("quote destination = %v, want %v: the subscriber's address is still on the wire",
 			embedded[16:20], natPublicIP)
@@ -585,15 +532,11 @@ func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 		t.Errorf("quote destination port = %d, want %d (the mapped port)", port, natPort)
 	}
 
-	// Restored to what the peer originally sent, so the quoted checksum has to
-	// be valid over the public tuple.
 	if !validIPv4L4Checksum([4]byte(embedded[12:16]), [4]byte(embedded[16:20]), 17, embedded[20:]) {
 		t.Error("quoted UDP checksum invalid after translation")
 	}
 }
 
-// asFragment marks an IPv4 packet as a non-first fragment (offset 185, more
-// fragments set) and fixes the header checksum.
 func asFragment(pkt []byte) []byte {
 	binary.BigEndian.PutUint16(pkt[6:8], 0x2000|185)
 	binary.BigEndian.PutUint16(pkt[10:12], 0)
@@ -602,7 +545,6 @@ func asFragment(pkt []byte) []byte {
 	return pkt
 }
 
-// asFirstFragment marks pkt as the offset-0 fragment.
 func asFirstFragment(pkt []byte, id uint16) []byte {
 	binary.BigEndian.PutUint16(pkt[4:6], id)
 	binary.BigEndian.PutUint16(pkt[6:8], 0x2000)
@@ -612,7 +554,6 @@ func asFirstFragment(pkt []byte, id uint16) []byte {
 	return pkt
 }
 
-// asLaterFragment marks pkt as a fragment past the first.
 func asLaterFragment(pkt []byte, id uint16) []byte {
 	binary.BigEndian.PutUint16(pkt[4:6], id)
 	binary.BigEndian.PutUint16(pkt[6:8], 185)
@@ -622,9 +563,7 @@ func asLaterFragment(pkt []byte, id uint16) []byte {
 	return pkt
 }
 
-// TestNATTranslatesFragments: both fragments leave, the later one translated on
-// its recorded ports, under one identification this device issued — the UE's
-// would collide with another subscriber's at the peer (RFC 6864 §5.3.1).
+// RFC 6864 §5.3.1
 func TestNATTranslatesFragments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -676,7 +615,6 @@ func TestNATTranslatesFragments(t *testing.T) {
 	}
 }
 
-// TestNATDropsUnresolvedFragments: no recorded ports, nothing to translate on.
 func TestNATDropsUnresolvedFragments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -730,7 +668,6 @@ func TestNATDropsUnresolvedFragments(t *testing.T) {
 		}
 	})
 
-	// A fragment addressed to this host belongs to the stack.
 	t.Run("downlink to host", func(t *testing.T) {
 		before := DropCount(f.obj, Downlink, "nat_fragment")
 
@@ -745,8 +682,6 @@ func TestNATDropsUnresolvedFragments(t *testing.T) {
 	})
 }
 
-// TestNATPreservesIPOptions verifies that source-NAT leaves a valid header
-// checksum on a packet carrying IP options.
 func TestNATPreservesIPOptions(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -761,11 +696,10 @@ func TestNATPreservesIPOptions(t *testing.T) {
 
 	capFD := f.captureN6(t)
 
-	// Record-route option (type 7), 8 bytes, so ihl becomes 7.
 	l4 := udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{1, 2, 3, 4})
 	opts := []byte{7, 8, 4, 0, 0, 0, 0, 0}
 	inner := ipv4Packet(ueIP, serverIP, 17, append(append([]byte{}, opts...), l4...))
-	inner[0] = 0x40 | 7 // version 4, ihl 7
+	inner[0] = 0x40 | 7
 	binary.BigEndian.PutUint16(inner[10:12], 0)
 	binary.BigEndian.PutUint16(inner[10:12], ipv4HeaderChecksum(inner[:28]))
 
@@ -793,8 +727,6 @@ func TestNATPreservesIPOptions(t *testing.T) {
 	}
 }
 
-// natFiveTuple builds a nat_ct key as the datapath stores it: addresses and
-// ports in network byte order, protocol as a plain value.
 func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6EntrypointFiveTuple { //nolint:unparam // general key builder; ports are configurable
 	return N3N6EntrypointFiveTuple{
 		Saddr: binary.NativeEndian.Uint32(saddr[:]),
@@ -805,14 +737,12 @@ func natFiveTuple(saddr, daddr [4]byte, sport, dport uint16, proto uint16) N3N6E
 	}
 }
 
-// tcpSegmentWithFlags builds a checksummed 20-byte TCP segment with the given
-// flag byte (FIN=0x01, SYN=0x02, RST=0x04, ACK=0x10).
 func tcpSegmentWithFlags(src, dst [4]byte, sport, dport uint16, flags byte) []byte {
 	seg := make([]byte, 20)
 
 	binary.BigEndian.PutUint16(seg[0:2], sport)
 	binary.BigEndian.PutUint16(seg[2:4], dport)
-	seg[12] = 0x50 // data offset = 5
+	seg[12] = 0x50
 	seg[13] = flags
 	binary.BigEndian.PutUint16(seg[16:18], ipv4L4Checksum(src, dst, 6, seg))
 
@@ -830,8 +760,6 @@ func lookupNatEntry(t *testing.T, f *t2, key N3N6EntrypointFiveTuple) N3N6Entryp
 	return val
 }
 
-// TestNATConntrackDirectionAndState verifies the conntrack pair layout and the
-// TCP state transitions across a full connection.
 func TestNATConntrackDirectionAndState(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -918,9 +846,6 @@ func TestNATConntrackDirectionAndState(t *testing.T) {
 	}
 }
 
-// TestNATInboundResetDoesNotClose verifies that an inbound FIN or RST leaves the
-// mapping open; neither is sequence-validated, so only the subscriber's own
-// close counts.
 func TestNATInboundResetDoesNotClose(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -962,25 +887,23 @@ func TestNATInboundResetDoesNotClose(t *testing.T) {
 		}
 	}
 
-	sendUplink(0x02)   // SYN
-	sendDownlink(0x12) // SYN|ACK
-	sendUplink(0x10)   // ACK
+	sendUplink(0x02)
+	sendDownlink(0x12)
+	sendUplink(0x10)
 
-	sendDownlink(0x04) // an unvalidated inbound RST
+	sendDownlink(0x04)
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != 0 {
 		t.Errorf("after inbound RST: closed = %#x, want 0", ue.Closed)
 	}
 
-	sendUplink(0x11) // the subscriber's own FIN
+	sendUplink(0x11)
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.Closed != natClosed {
 		t.Errorf("after UE FIN: closed=%#x, want %#x", ue.Closed, natClosed)
 	}
 }
 
-// TestNATSynOnEstablishedKeepsState verifies that a duplicate SYN on a flow
-// carrying traffic both ways leaves it established.
 func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1010,7 +933,7 @@ func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 		}
 	}
 
-	sendUplink(0x02) // SYN
+	sendUplink(0x02)
 
 	capFD := f.captureN3(t)
 	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6,
@@ -1020,13 +943,13 @@ func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 		t.Fatal("downlink SYN-ACK did not egress on N3")
 	}
 
-	sendUplink(0x10) // ACK establishes the flow
+	sendUplink(0x10)
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.State != 1 {
 		t.Fatalf("flow did not establish: state=%d", ue.State)
 	}
 
-	sendUplink(0x02) // a stray SYN on the live flow
+	sendUplink(0x02)
 
 	if ue := lookupNatEntry(t, f, ueKey); ue.State != 1 || ue.Replied != 1 {
 		t.Errorf("after a duplicate SYN: state=%d replied=%d, want state=1 replied=1",
@@ -1034,9 +957,6 @@ func TestNATSynOnEstablishedKeepsState(t *testing.T) {
 	}
 }
 
-// TestNATRemapsOnChangedEgressAddress verifies that a mapping made against a
-// different egress address is discarded; replies to the old address match
-// nothing.
 func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1054,7 +974,6 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
 	staleNAT := natFiveTuple([4]byte{192, 0, 2, 99}, serverIP, ueSP, srvDP, 6)
 
-	// A pair keyed on an address this UPF does not send from.
 	stale := N3N6EntrypointNatEntry{Peer: staleNAT, UeSide: 1, State: 1, Replied: 1}
 	if err := f.obj.NatCt.Put(&ueKey, &stale); err != nil {
 		t.Fatalf("seed stale mapping: %v", err)
@@ -1088,9 +1007,6 @@ func TestNATRemapsOnChangedEgressAddress(t *testing.T) {
 	}
 }
 
-// TestNATChangedEgressKeepsForeignReservation verifies that discarding a mapping
-// made against a different egress address leaves a NAT-side tuple another flow
-// has since taken intact.
 func TestNATChangedEgressKeepsForeignReservation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1114,7 +1030,6 @@ func TestNATChangedEgressKeepsForeignReservation(t *testing.T) {
 		t.Fatalf("seed stale mapping: %v", err)
 	}
 
-	// The NAT-side half was evicted and another flow took the tuple.
 	if err := f.obj.NatCt.Put(&staleNAT, &N3N6EntrypointNatEntry{Peer: foreignKey}); err != nil {
 		t.Fatalf("seed foreign reservation: %v", err)
 	}
@@ -1139,8 +1054,6 @@ func TestNATChangedEgressKeepsForeignReservation(t *testing.T) {
 	}
 }
 
-// TestNATSynRetransmitDoesNotRenew verifies that a SYN on a flow the remote has
-// never answered leaves refresh_ts unchanged.
 func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1179,8 +1092,6 @@ func TestNATSynRetransmitDoesNotRenew(t *testing.T) {
 	}
 }
 
-// TestNATRejectsMalformedSegments verifies that a segment with inconsistent
-// headers is dropped and creates no state.
 func TestNATRejectsMalformedSegments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1201,7 +1112,7 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 		}},
 		{"doff past payload", func() []byte {
 			seg := tcpSegmentWithFlags(ueIP, serverIP, 2003, 80, 0x02)
-			seg[12] = 0xF0 // data offset 15 words = 60 bytes, payload holds 20
+			seg[12] = 0xF0
 
 			return ipv4Packet(ueIP, serverIP, 6, seg)
 		}},
@@ -1213,8 +1124,6 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 		}},
 		{"icmp header past tot_len", func() []byte {
 			p := ipv4Packet(ueIP, serverIP, 1, icmpEchoRequest(2005, 1, nil))
-			// The datagram ends at the IP header, leaving the ICMP
-			// header as frame padding.
 			binary.BigEndian.PutUint16(p[2:4], 20)
 			binary.BigEndian.PutUint16(p[10:12], 0)
 			binary.BigEndian.PutUint16(p[10:12], ipv4HeaderChecksum(p[:20]))
@@ -1246,9 +1155,6 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 	}
 }
 
-// TestNATRemapOnForeignReservation verifies that a flow whose NAT-side tuple is
-// held by another flow is remapped to a fresh port, leaving that reservation
-// intact.
 func TestNATRemapOnForeignReservation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1297,8 +1203,6 @@ func TestNATRemapOnForeignReservation(t *testing.T) {
 	}
 }
 
-// TestNATRepairEvictedNATSideEntry verifies that an uplink packet restores a
-// NAT-side entry removed by LRU eviction.
 func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1348,8 +1252,6 @@ func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 	}
 }
 
-// downlinkReply builds the L4 segment of a server→UE reply: ports are the
-// mirror of the uplink segment so the conntrack reverse lookup matches.
 func downlinkReply(proto natProto, payload []byte) []byte {
 	switch proto.num {
 	case 6:
@@ -1361,9 +1263,6 @@ func downlinkReply(proto natProto, payload []byte) []byte {
 	}
 }
 
-// assertSourceNATd checks an uplink source-NAT egress packet: the source is
-// rewritten to the egress address, the destination and the whole L4 segment
-// (beyond the checksum) are preserved, and both checksums are valid.
 func assertSourceNATd(t *testing.T, frame []byte, proto natProto, origL4 []byte) {
 	t.Helper()
 
@@ -1391,11 +1290,6 @@ func assertSourceNATd(t *testing.T, frame []byte, proto natProto, origL4 []byte)
 	}
 }
 
-// assertDestinationNATd checks a downlink destination-NAT egress packet (inside
-// the re-encapsulated GTP frame): the destination is rewritten to the UE, the
-// source (server) is preserved, the L4 port semantics hold (server source port
-// preserved; destination port restored to the UE's original source port), and
-// the checksums are valid.
 func assertDestinationNATd(t *testing.T, frame []byte, proto natProto) {
 	t.Helper()
 
@@ -1439,8 +1333,6 @@ func assertDestinationNATd(t *testing.T, frame []byte, proto natProto) {
 	}
 }
 
-// isInnerIPv4 reports whether frame is an Ethernet/IPv4 packet of the given
-// protocol addressed to dst.
 func isInnerIPv4(frame []byte, proto uint8, dst [4]byte) bool {
 	if len(frame) < ethHdrLen+20 || frame[12] != 0x08 || frame[13] != 0x00 {
 		return false
@@ -1451,8 +1343,6 @@ func isInnerIPv4(frame []byte, proto uint8, dst [4]byte) bool {
 	return ip[9] == proto && bytes.Equal(ip[16:20], dst[:])
 }
 
-// gtpInner returns the inner IPv4 packet of a captured GTP-U/IPv4 G-PDU frame,
-// or nil if frame is not one.
 func gtpInner(frame []byte) []byte {
 	const headersLen = ethHdrLen + gtpV4EncapLen
 	if len(frame) < headersLen+20 || frame[12] != 0x08 || frame[13] != 0x00 {
@@ -1477,10 +1367,6 @@ func bytesOf(n int) []byte {
 
 func sizeLabel(n int) string { return strconv.Itoa(n) + "B" }
 
-// TestNATTranslatesDownlinkFragments: a fragmented reply is recovered on the
-// address it arrived on. frag_resolve4 runs ahead of destination_nat_apply, so
-// the first fragment has to be recorded under the public address rather than
-// the UE's — otherwise every later fragment misses and drops.
 func TestNATTranslatesDownlinkFragments(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1497,9 +1383,6 @@ func TestNATTranslatesDownlinkFragments(t *testing.T) {
 	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
-	// Uplink first: without a conntrack mapping there is nothing to
-	// translate the reply onto. Wait for its egress rather than sleeping,
-	// so the mapping is known to exist before the reply arrives.
 	n6 := f.captureN6(t)
 
 	f.injectUplink(t, uplinkGPDU(ulTEID,
@@ -1540,12 +1423,6 @@ func TestNATTranslatesDownlinkFragments(t *testing.T) {
 	}
 }
 
-// TestNATReusedFragmentIDKeepsOneIdentification: when a UE reuses an
-// identification while the datagram's entry is still live, every fragment has
-// to keep leaving under whichever identification the map holds. Generating one
-// and storing it are separate outcomes — a first fragment stamped with an
-// identification the map does not hold splits the datagram in two and the peer
-// cannot reassemble either half.
 func TestNATReusedFragmentIDKeepsOneIdentification(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -1574,22 +1451,16 @@ func TestNATReusedFragmentIDKeepsOneIdentification(t *testing.T) {
 		return binary.BigEndian.Uint16(out[ethHdrLen+4 : ethHdrLen+6])
 	}
 
-	// First datagram: establishes the entry and its translated identification.
 	f.injectUplink(t, uplinkGPDU(ulTEID, asFirstFragment(
 		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))), reused)))
 
 	first := egressID("first datagram's first fragment")
 
-	// Second datagram under the same identification, so it collides with the
-	// live entry. Its own first fragment carries an L4 header, so it takes
-	// the generate-a-new-one path.
 	f.injectUplink(t, uplinkGPDU(ulTEID, asFirstFragment(
 		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP+1, srvDP, bytesOf(64))), reused)))
 
 	second := egressID("second datagram's first fragment")
 
-	// A later fragment resolves out of the map, so it carries whatever the
-	// entry holds. Both first fragments must agree with it.
 	f.injectUplink(t, uplinkGPDU(ulTEID, asLaterFragment(
 		ipv4Packet(ueIP, serverIP, 6, bytesOf(64)), reused)))
 

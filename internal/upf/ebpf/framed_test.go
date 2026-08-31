@@ -11,14 +11,9 @@ import (
 	"testing"
 )
 
-// framedUEIP is the owning session's downlink UE address that framed routes in
-// these tests redirect to.
 var framedUEIP = netip.AddrFrom4([4]byte{10, 0, 0, 1})
 
-// TestFramedRouteDownlinkIPv4 checks that a downlink packet destined to an
-// address inside a framed route (not a UE address) misses the exact-match table,
-// redirects through the framed LPM table to the owning UE's downlink PDR, and is
-// encapsulated toward that session (TS 23.501 §5.6.14, TS 29.244 §5.16).
+// TS 23.501 §5.6.14
 func TestFramedRouteDownlinkIPv4(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -66,10 +61,7 @@ func TestFramedRouteDownlinkIPv4(t *testing.T) {
 	}
 }
 
-// TestFramedRouteDownlinkIPv6 checks the IPv6 datapath: a downlink packet
-// destined inside a framed prefix misses the UE /64 exact-match table, redirects
-// through the framed LPM to the owning UE prefix's downlink PDR, and is
-// encapsulated toward that session (TS 23.501 §5.6.14, TS 29.244 §5.16).
+// TS 23.501 §5.6.14
 func TestFramedRouteDownlinkIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -112,11 +104,6 @@ func TestFramedRouteDownlinkIPv6(t *testing.T) {
 	}
 }
 
-// TestFramedRouteFollowsDownlinkPDRUpdate is the core guarantee of the redirect
-// design: a framed route reflects a later change to the owning downlink PDR
-// without being re-installed. The downlink FAR starts as drop (as at 5G
-// establishment, before the gNB downlink F-TEID is known) and later becomes
-// forward (session modification); the framed route must follow both.
 func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -132,9 +119,8 @@ func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 		qfi  = 9
 	)
 
-	// Downlink PDR present but not yet forwarding (FAR = drop).
 	dropPdr := ipv4OuterDownlinkPDR(teid, local, remote, qfi)
-	dropPdr.Far.Action = 0x01 // FAR_DROP
+	dropPdr.Far.Action = 0x01
 
 	if err := obj.PutPdrDownlink(framedUEIP, dropPdr); err != nil {
 		t.Fatalf("install drop downlink PDR: %v", err)
@@ -152,8 +138,6 @@ func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 		t.Fatalf("framed downlink forwarded while owning FAR was drop (action %d)", action)
 	}
 
-	// Session modification flips the owning downlink PDR to forward. The framed
-	// route is NOT touched.
 	if err := obj.PutPdrDownlink(framedUEIP, ipv4OuterDownlinkPDR(teid, local, remote, qfi)); err != nil {
 		t.Fatalf("update downlink PDR to forward: %v", err)
 	}
@@ -169,10 +153,6 @@ func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 	}
 }
 
-// TestFramedRouteDownlinkSurvivesReload checks that framed forwarding still works
-// after a map-preserving reload (LoadWithMapReplacements), as happens when NAT is
-// toggled. Both the framed LPM map and the pdrs_downlink map it redirects to must
-// be in the preserved set; otherwise the datapath reads a fresh empty map.
 func TestFramedRouteDownlinkSurvivesReload(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -216,8 +196,6 @@ func TestFramedRouteDownlinkSurvivesReload(t *testing.T) {
 	}
 }
 
-// TestFramedRouteDownlinkMiss checks that a downlink address matching neither a
-// UE address nor any framed route is passed through unchanged.
 func TestFramedRouteDownlinkMiss(t *testing.T) {
 	requireProgTestRun(t)
 

@@ -52,8 +52,6 @@ func tcxProgramCount(t *testing.T, ifindex int) int {
 	return len(res.Programs)
 }
 
-// The loaded object has to carry the program type the hook accepts, or the
-// attach fails with EINVAL at startup.
 func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	requireRoot(t)
 
@@ -64,7 +62,6 @@ func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 		{config.DatapathTCX, cebpf.SchedCLS},
 		{config.DatapathXDPNative, cebpf.XDP},
 		{config.DatapathXDPGeneric, cebpf.XDP},
-		// The chain starts at native XDP and reloads only if it falls back.
 		{config.DatapathChain, cebpf.XDP},
 	}
 
@@ -89,8 +86,6 @@ func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	}
 }
 
-// The link owns the attachment and Close detaches it; a second attach on an
-// occupied hook is refused rather than stacking a second datapath.
 func TestTCXAttachRefusesToStack(t *testing.T) {
 	requireRoot(t)
 
@@ -128,7 +123,6 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 		t.Fatalf("TCX programs on hook = %d, want 1", got)
 	}
 
-	// TCX would otherwise accept the attach and run both.
 	if _, err := attachTCX(obj.UpfEntryFunc, iface.Index, tcxTestDev); err == nil {
 		t.Error("second attach on an occupied hook succeeded, want refusal")
 	}
@@ -145,7 +139,6 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 		t.Fatalf("TCX programs on hook after Close = %d, want 0", got)
 	}
 
-	// The GRO probe backing the TCX attach warning must read this interface.
 	if _, err := interfaceGROEnabled(tcxTestDev); err != nil {
 		t.Fatalf("read GRO state: %v", err)
 	}
