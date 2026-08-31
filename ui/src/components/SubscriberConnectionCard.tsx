@@ -158,8 +158,8 @@ const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
     <Chip
       size="small"
       label={connected ? "Connected" : "Idle"}
-      color={connected ? "success" : "info"}
-      variant={connected ? "filled" : "outlined"}
+      color={connected ? "success" : "default"}
+      variant="filled"
     />
   );
 };

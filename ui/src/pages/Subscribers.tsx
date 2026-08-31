@@ -246,8 +246,8 @@ const SubscriberPage: React.FC = () => {
             <Chip
               size="small"
               label={connected ? "Connected" : "Idle"}
-              color={connected ? "success" : "info"}
-              variant={connected ? "filled" : "outlined"}
+              color={connected ? "success" : "default"}
+              variant="filled"
             />
           );
         },
