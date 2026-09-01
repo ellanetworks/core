@@ -257,7 +257,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue.Conn().RegistrationRequest.FOR = false
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
 	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{}, "internet")
-	ue.SetSmContextActive(1)
+	ue.Conn().SetN2SessionActive(1)
 
 	amfInstance := newTestAMF()
 

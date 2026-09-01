@@ -167,11 +167,13 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
-	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2", N2: amf.N2Active}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.SetN2SessionActive(1)
+	sourceUe.SetN2SessionActive(2)
 
 	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
 	targetRan.BindAMFForTest(amfInstance)
@@ -197,12 +199,11 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 		t.Fatalf("a session the target did not accept must not be released: %v", fakeSmf.ReleaseSmContextCalls)
 	}
 
-	sc, ok := amfUe.SmContextFindByPDUSessionID(2)
-	if !ok {
+	if _, ok := amfUe.SmContextFindByPDUSessionID(2); !ok {
 		t.Fatal("the rejected session must survive as an inactive session")
 	}
 
-	if !sc.Inactive() {
+	if !targetUe.N2SessionInactive(2) {
 		t.Error("the rejected session must be marked user-plane inactive")
 	}
 
@@ -221,10 +222,11 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.SetN2SessionActive(1)
 
 	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
 	targetRan.BindAMFForTest(amfInstance)
@@ -269,10 +271,11 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	amfUe := amf.NewUeContext()
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.SetN2SessionActive(1)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{

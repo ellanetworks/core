@@ -135,7 +135,7 @@ func TestHandleServiceRequest_AlreadySetUpSession_DoesNotActivateTheSmContext(t 
 	smf := &fakeSmf{}
 	f := connectedModeUe(t, smf)
 
-	f.ue.SetSmContextActive(12)
+	f.conn().SetN2SessionActive(12)
 	f.conn().UeContextRequest = false
 	f.conn().MarkICSCompleted()
 
@@ -154,7 +154,7 @@ func TestHandleServiceRequest_AlreadySetUpSession_DoesNotActivateTheSmContext(t 
 func TestHandleServiceRequest_AlreadyEstablishedSession_IsNotReportedAsAReactivationFailure(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
-	f.ue.SetSmContextActive(12)
+	f.conn().SetN2SessionActive(12)
 	f.conn().UeContextRequest = false
 	f.conn().MarkICSCompleted()
 

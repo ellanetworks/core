@@ -71,13 +71,12 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 		t.Errorf("DeactivateSmContext ref = %q, want %q", fakeSmf.DeactivateSmContextCalls[0], "ref-session-1")
 	}
 
-	sc := amfUe.SmContextList[1]
-	if sc == nil {
+	if amfUe.SmContextList[1] == nil {
 		t.Fatal("SmContext was removed instead of marked inactive")
 	}
 
-	if !sc.Inactive() {
-		t.Error("expected SmContext to be marked inactive")
+	if !ueConn.N2SessionInactive(1) {
+		t.Error("expected the session to be marked inactive on the connection")
 	}
 }
 
