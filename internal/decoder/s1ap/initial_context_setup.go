@@ -6,8 +6,8 @@ package s1ap
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/ellanetworks/core/internal/decoder/rrc"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"github.com/ellanetworks/core/s1ap"
 )
 

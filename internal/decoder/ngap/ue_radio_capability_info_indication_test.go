@@ -5,9 +5,9 @@ package ngap
 
 import (
 	"encoding/hex"
-	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	lib "github.com/ellanetworks/core/ngap"
 )
 

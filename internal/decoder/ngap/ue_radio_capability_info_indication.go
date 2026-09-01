@@ -5,8 +5,8 @@ package ngap
 
 import (
 	"fmt"
-	"github.com/ellanetworks/core/internal/decoder/rrc"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"github.com/ellanetworks/core/ngap"
 )
 

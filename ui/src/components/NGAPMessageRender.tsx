@@ -180,6 +180,37 @@ const getLppaHeader = (lppaPdu: any): string => {
   return decoded.kind || "Unknown";
 };
 
+const isRrcPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "RRC";
+
+const getRrcHeader = (rrcPdu: any): string => {
+  const decoded = rrcPdu?.decoded;
+  if (!decoded) return "undecoded";
+  if (decoded.error) return "decode error";
+
+  const parts: string[] = [];
+  if (decoded.nr) {
+    const bands = (decoded.nr.bands ?? [])
+      .map((b: any) => `n${b.band}`)
+      .join(", ");
+    parts.push(
+      `NR ${decoded.nr.access_stratum_release ?? "?"}${bands ? ` \u00B7 ${bands}` : ""}`,
+    );
+  }
+  if (decoded.eutra) {
+    const bands = (decoded.eutra.bands ?? [])
+      .map((b: any) => `B${b.band}`)
+      .join(", ");
+    const cat = decoded.eutra.ue_category
+      ? ` cat${decoded.eutra.ue_category}`
+      : "";
+    parts.push(
+      `E-UTRA ${decoded.eutra.access_stratum_release ?? "?"}${cat}${bands ? ` \u00B7 ${bands}` : ""}`,
+    );
+  }
+  return parts.length ? parts.join("  |  ") : "no capability containers";
+};
+
 const isLppPdu = (v: unknown): boolean =>
   !!v && typeof v === "object" && (v as any).protocol === "LPP";
 
@@ -235,6 +266,20 @@ const ProtocolPduBlock: React.FC<{
     </>
   );
 };
+
+const RrcPduBlock: React.FC<{ rrcPdu: any; depth: number; title: string }> = ({
+  rrcPdu,
+  depth,
+  title,
+}) => (
+  <ProtocolPduBlock
+    pdu={rrcPdu}
+    depth={depth}
+    title={title}
+    header={getRrcHeader(rrcPdu)}
+    accentColor="success.main"
+  />
+);
 
 const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
   nasPdu,
@@ -332,6 +377,15 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <NasPduBlock nasPdu={value} depth={depth} title={title} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  if (isRrcPdu(value)) {
+    return (
+      <>
+        <RrcPduBlock rrcPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -539,6 +593,16 @@ const CollapsibleObject: React.FC<{
                   <NasPduBlock
                     key={k}
                     nasPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
+              if (isRrcPdu(v)) {
+                return (
+                  <RrcPduBlock
+                    key={k}
+                    rrcPdu={v}
                     depth={childDepth}
                     title={k}
                   />
