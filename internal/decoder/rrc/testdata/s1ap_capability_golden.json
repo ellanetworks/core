@@ -1,5 +1,5 @@
 {
-  "uecap_s1ap_eutra.bin": {
+  "eutraRel16Cat4": {
     "eutra": {
       "access_stratum_release": "rel16",
       "ue_category": 4,

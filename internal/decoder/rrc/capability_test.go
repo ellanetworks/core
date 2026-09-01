@@ -4,53 +4,45 @@
 package rrc_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"os"
-	"path/filepath"
-	"sort"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/rrc"
 )
 
-// Regenerate with: go test ./internal/decoder/rrc/ -run TestNGAPCapabilityGolden -update
+// Regenerate with: go test ./internal/decoder/rrc/ -update
 var updateGolden = flag.Bool("update", false, "regenerate UE radio capability golden fixtures")
 
-func fixtures(t *testing.T, pattern string) []string {
+func decodeCapture(t *testing.T, name, capture string) []byte {
 	t.Helper()
 
-	paths, err := filepath.Glob(pattern)
+	raw, err := hex.DecodeString(capture)
 	if err != nil {
-		t.Fatalf("glob fixtures: %v", err)
+		t.Fatalf("%s: decode capture: %v", name, err)
 	}
 
-	if len(paths) == 0 {
-		t.Fatalf("no capability fixtures matched %s", pattern)
-	}
-
-	sort.Strings(paths)
-
-	return paths
+	return raw
 }
 
-func decodeFixtures(t *testing.T, pattern string, parse func([]byte) (*rrc.Capability, error)) map[string]*rrc.Capability {
+func decodeCaptures(t *testing.T, captures map[string]string, parse func([]byte) (*rrc.Capability, error)) map[string]*rrc.Capability {
 	t.Helper()
 
-	got := map[string]*rrc.Capability{}
+	if len(captures) == 0 {
+		t.Fatal("no captures to decode")
+	}
 
-	for _, p := range fixtures(t, pattern) {
-		raw, err := os.ReadFile(p)
+	got := make(map[string]*rrc.Capability, len(captures))
+
+	for name, capture := range captures {
+		capability, err := parse(decodeCapture(t, name, capture))
 		if err != nil {
-			t.Fatalf("read %s: %v", p, err)
+			t.Fatalf("%s: %v", name, err)
 		}
 
-		capability, err := parse(raw)
-		if err != nil {
-			t.Fatalf("%s: %v", filepath.Base(p), err)
-		}
-
-		got[filepath.Base(p)] = capability
+		got[name] = capability
 	}
 
 	return got
@@ -86,15 +78,15 @@ func checkGolden(t *testing.T, path string, got map[string]*rrc.Capability) {
 
 func TestNGAPCapabilityGolden(t *testing.T) {
 	checkGolden(t, "testdata/ngap_capability_golden.json",
-		decodeFixtures(t, "testdata/uecap_ngap_*.bin", rrc.ParseNGAPUERadioCapability))
+		decodeCaptures(t, ngapCapabilityCaptures, rrc.ParseNGAPUERadioCapability))
 }
 
 func TestS1APCapabilityGolden(t *testing.T) {
 	checkGolden(t, "testdata/s1ap_capability_golden.json",
-		decodeFixtures(t, "testdata/uecap_s1ap_*.bin", rrc.ParseS1APUERadioCapability))
+		decodeCaptures(t, s1apCapabilityCaptures, rrc.ParseS1APUERadioCapability))
 }
 
-func TestNGAPCapabilityRejectsGarbage(t *testing.T) {
+func TestCapabilityRejectsGarbage(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		in   []byte
@@ -105,35 +97,30 @@ func TestNGAPCapabilityRejectsGarbage(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, err := rrc.ParseNGAPUERadioCapability(tc.in); err == nil {
-				t.Fatal("expected an error, got nil")
+				t.Error("ParseNGAPUERadioCapability: expected an error, got nil")
+			}
+
+			if _, err := rrc.ParseS1APUERadioCapability(tc.in); err == nil {
+				t.Error("ParseS1APUERadioCapability: expected an error, got nil")
 			}
 		})
 	}
 }
 
 func TestNGAPCapabilityBandsAreSane(t *testing.T) {
-	for _, p := range fixtures(t, "testdata/uecap_ngap_*.bin") {
-		raw, err := os.ReadFile(p)
-		if err != nil {
-			t.Fatalf("read %s: %v", p, err)
-		}
-
-		capability, err := rrc.ParseNGAPUERadioCapability(raw)
-		if err != nil {
-			t.Fatalf("%s: %v", filepath.Base(p), err)
-		}
-
+	for name, capability := range decodeCaptures(t, ngapCapabilityCaptures, rrc.ParseNGAPUERadioCapability) {
 		if capability.NR == nil {
-			t.Fatalf("%s: no NR capability", filepath.Base(p))
+			t.Errorf("%s: no NR capability", name)
+			continue
 		}
 
 		if capability.NR.AccessStratumRelease == "" {
-			t.Errorf("%s: empty NR access stratum release", filepath.Base(p))
+			t.Errorf("%s: empty NR access stratum release", name)
 		}
 
 		for _, b := range capability.NR.Bands {
 			if b.Band < 1 || b.Band > 1024 {
-				t.Errorf("%s: NR band %d out of range", filepath.Base(p), b.Band)
+				t.Errorf("%s: NR band %d out of range", name, b.Band)
 			}
 		}
 
@@ -143,7 +130,7 @@ func TestNGAPCapabilityBandsAreSane(t *testing.T) {
 
 		for _, b := range capability.EUTRA.Bands {
 			if b.Band < 1 || b.Band > 256 {
-				t.Errorf("%s: E-UTRA band %d out of range", filepath.Base(p), b.Band)
+				t.Errorf("%s: E-UTRA band %d out of range", name, b.Band)
 			}
 		}
 	}
