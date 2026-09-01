@@ -94,3 +94,41 @@ func TestLastSeenStore(t *testing.T) {
 		}
 	})
 }
+
+func TestLastSeenStoreRefreshDoesNotResurrectAForgottenSubscriber(t *testing.T) {
+	var (
+		attach   = time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
+		teardown = time.Date(2026, 8, 17, 10, 5, 0, 0, time.UTC)
+		imsi     = "001010000000002"
+	)
+
+	t.Run("a deregistration completing after forget leaves nothing behind", func(t *testing.T) {
+		var store lastSeenStore
+
+		store.record(imsi, "id-gnb-01", "gnb-01", attach)
+		store.forget(imsi)
+
+		store.refresh(imsi, "id-gnb-01", "gnb-01", teardown)
+		store.refresh(imsi, "", "", teardown)
+
+		if entry, ok := store.get(imsi); ok {
+			t.Errorf("refresh resurrected the record as %+v", entry)
+		}
+	})
+
+	t.Run("refresh still updates a live record", func(t *testing.T) {
+		var store lastSeenStore
+
+		store.record(imsi, "id-gnb-01", "gnb-01", attach)
+		store.refresh(imsi, "id-gnb-02", "gnb-02", teardown)
+
+		got, ok := store.get(imsi)
+		if !ok {
+			t.Fatal("refresh dropped a live record")
+		}
+
+		if got.RadioName != "gnb-02" || !got.At.Equal(teardown) {
+			t.Errorf("record = %q/%v, want gnb-02/%v", got.RadioName, got.At, teardown)
+		}
+	})
+}

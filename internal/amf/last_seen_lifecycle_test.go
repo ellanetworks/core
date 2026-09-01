@@ -28,13 +28,13 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 	})
 	amfInstance.AttachUeConn(ue, ueConn)
 
-	if snap, _, _, ok := amfInstance.LookupSubscriber(supi); !ok || !snap.Connected {
+	if snap, _, ok := amfInstance.LookupSubscriber(supi); !ok || !snap.Connected {
 		t.Fatalf("connected UE: found=%v Connected=%v, want true/true", ok, snap.Connected)
 	}
 
 	amfInstance.ReleaseUeConn(context.Background(), ueConn)
 
-	snap, _, _, ok := amfInstance.LookupSubscriber(supi)
+	snap, _, ok := amfInstance.LookupSubscriber(supi)
 	if !ok {
 		t.Fatal("idle UE missing from LookupSubscriber")
 	}
@@ -49,7 +49,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 
 	amfInstance.DeregisterSubscriber(context.Background(), supi)
 
-	if _, _, _, ok := amfInstance.LookupSubscriber(supi); ok {
+	if _, _, ok := amfInstance.LookupSubscriber(supi); ok {
 		t.Fatal("deregistered UE still reported as registered")
 	}
 
@@ -179,7 +179,7 @@ func TestRegisteringUEIsReportedAsConnectedButNotRegistered(t *testing.T) {
 		t.Error("Connected = false for a UE holding an NGAP UE association")
 	}
 
-	snap, _, _, ok := amfInstance.LookupSubscriber(newSUPI(t, imsi))
+	snap, _, ok := amfInstance.LookupSubscriber(newSUPI(t, imsi))
 	if !ok {
 		t.Fatal("a UE part-way through registration is missing from LookupSubscriber")
 	}
@@ -252,5 +252,65 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 
 	if seen, ok := amfInstance.LastSeen(imsi); !ok || seen.RadioName != "gnb-b" {
 		t.Errorf("last-seen radio = %q (found %v), want gnb-b", seen.RadioName, ok)
+	}
+}
+
+func TestLastSeenRadioIsRecordedWhenTheSupiArrivesAfterTheBind(t *testing.T) {
+	const imsi = "001010000000027"
+
+	amfInstance := amf.New(nil, nil, nil)
+	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+
+	ue := amf.NewUeContext()
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	if _, ok := amfInstance.LastSeen(imsi); ok {
+		t.Fatal("a record exists before the SUPI is known")
+	}
+
+	ue.SetSupi(newSUPI(t, imsi))
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	t.Cleanup(func() { amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue) })
+
+	seen, ok := amfInstance.LastSeen(imsi)
+	if !ok {
+		t.Fatal("no record after CommitUEIdentity; a UE registering with a SUCI is never captured")
+	}
+
+	if seen.RadioName != "gnb-a" {
+		t.Errorf("RadioName = %q, want gnb-a", seen.RadioName)
+	}
+}
+
+func TestDeregistrationInitiatedStillReportsRegistered(t *testing.T) {
+	const imsi = "001010000000028"
+
+	amfInstance := amf.New(nil, nil, nil)
+	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+
+	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
+		ue.ForceStateForTest(amf.Registered)
+	})
+	amfInstance.AttachUeConn(ue, ueConn)
+
+	ue.ForceStateForTest(amf.DeregistrationInitiated)
+
+	cs, ok := amfInstance.ConnectedSubscribers()[imsi]
+	if !ok {
+		t.Fatal("a UE mid network-initiated deregistration is missing from ConnectedSubscribers")
+	}
+
+	if !cs.Registered {
+		t.Error("Registered = false while the deregistration procedure is still in flight")
+	}
+
+	if !cs.Connected {
+		t.Error("Connected = false for a UE still holding an NGAP UE association")
 	}
 }

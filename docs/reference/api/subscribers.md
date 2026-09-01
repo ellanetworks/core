@@ -20,7 +20,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
-| `radio`    | query | str  |         |         | Filter by radio name. Returns only subscribers connected to the specified radio. |
+| `radio`    | query | str  |         |         | Filter by radio name. Returns registered subscribers whose last-seen radio is this one, so an idle subscriber still matches the radio that last served it. |
 | `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
 | `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. Case is ignored for ASCII letters only. |
 
@@ -36,8 +36,11 @@ This path returns the list of network subscribers, ordered by IMSI.
                 "description": "Warehouse gate reader",
                 "status": {
                     "registered": true,
+                    "connection_state": "connected",
                     "radio_access_types": ["5G"],
-                    "num_sessions": 1
+                    "num_sessions": 1,
+                    "last_seen_at": "2026-03-16T12:34:56Z",
+                    "last_seen_radio": "gNB-1"
                 }
             }
         ],
@@ -49,6 +52,10 @@ This path returns the list of network subscribers, ordered by IMSI.
 ```
 
 `description` is omitted from an item when that subscriber has no note.
+
+`connection_state` is `connected` while the device holds a signalling connection to the core and `idle` otherwise. It is independent of `registered`: a device part-way through registration is `connected` while `registered` is still `false`. It is omitted when the core holds no context for the device.
+
+`last_seen_radio` is the radio that last served the device. The core knows the serving radio only while the device is connected, so on an idle or deregistered device this is last known and may be stale. It is held in memory by the serving node, not shared across cluster nodes, and reset on restart.
 
 ## Create a Subscriber
 
@@ -122,6 +129,7 @@ None
     "description": "Warehouse gate reader",
     "status": {
       "registered": true,
+      "connection_state": "connected",
       "radio_access_types": ["5G"],
       "imei": "359881234567890",
       "ciphering_algorithm": "SNOW3G",

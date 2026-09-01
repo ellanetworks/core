@@ -454,13 +454,7 @@ func (ueConn *UeConn) TouchLastSeen() {
 		return
 	}
 
-	now := time.Now()
-	ue.lastSeen.Store(now.UnixNano())
-
-	if supi := ue.Supi(); supi.IsIMSI() && ueConn.amf != nil {
-		radioID, radioName := ueConn.radioIDName()
-		ueConn.amf.lastSeen.record(supi.IMSI(), radioID, radioName, now)
-	}
+	ue.TouchLastSeen()
 }
 
 // sendTarget resolves the AMF and radio this RAN UE sends through.
@@ -665,7 +659,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	ueConn.RanUeNgapID = ranUeNgapID
 
 	if supi := ue.Supi(); supi.IsIMSI() {
-		a.lastSeen.record(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
+		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
 	}
 
 	ue.mu.Lock()
@@ -696,10 +690,11 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 		conn:        radio.Conn,
 		amf:         radio.amf,
 	}
-	ueConn.setRadio(radioIDOf(radio), radio.name)
 	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()
+
+	ueConn.setRadio(radioIDOf(radio), radio.name)
 
 	radio.amf.conns[int64(amfUeNgapID)] = ueConn
 	if radio.Conn != nil {

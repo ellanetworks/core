@@ -385,7 +385,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	target.ICS = ICSCompleted
 
 	ue.active.Store(target)
-	m.recordLastSeenLocked(ue, target)
+	m.refreshLastSeenLocked(ue, target)
 
 	if source == nil {
 		m.clearHandoverLocked(ue)
@@ -473,7 +473,7 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 	ue.Conn().ENBUES1APID = enbUEID
 	ue.Conn().setLog(m.nodeLogLocked(conn).With(logger.MMEUeS1apID(uint32(ue.Conn().MMEUES1APID))))
 
-	m.recordLastSeenLocked(ue, ue.Conn())
+	m.refreshLastSeenLocked(ue, ue.Conn())
 
 	ue.mu.Lock()
 	ue.nh = newNH

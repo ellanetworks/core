@@ -217,6 +217,16 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	superseded = superseded && old != ue
 	amf.UEs[ue.supi] = ue
 	ue.smf = amf.Session
+
+	if ue.supi.IsIMSI() {
+		var radioID, radioName string
+		if conn := ue.active.Load(); conn != nil {
+			radioID, radioName = conn.radioIDName()
+		}
+
+		amf.lastSeen.record(ue.supi.IMSI(), radioID, radioName, ue.lastSeenTime())
+	}
+
 	amf.mu.Unlock()
 
 	if superseded {
@@ -310,7 +320,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	}
 
 	if supi := ue.Supi(); supi.IsIMSI() {
-		amf.lastSeen.record(supi.IMSI(), "", "", ue.lastSeenTime())
+		amf.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 	}
 
 	amf.mu.Lock()
@@ -737,10 +747,10 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		conn:        radio.Conn,
 		amf:         a,
 	}
-	ueConn.setRadio(radioIDOf(radio), radio.name)
 	ueConn.setLog(radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)))
 
 	a.mu.Lock()
+	ueConn.setRadio(radioIDOf(radio), radio.name)
 	a.conns[int64(amfUeNgapID)] = ueConn
 	a.mu.Unlock()
 

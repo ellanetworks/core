@@ -51,7 +51,7 @@ func TestCancelRegistrationDropsTheFiveGSRegistration(t *testing.T) {
 		t.Errorf("5GMM state = %s after the UE attached in EPS, want Deregistered: the subscriber holds two MM states on one 3GPP access", state)
 	}
 
-	if _, _, _, found := a.LookupSubscriber(supi); found {
+	if _, _, found := a.LookupSubscriber(supi); found {
 		t.Error("the subscriber still reports a 5GS registration, so the API reports it on both 4G and 5G")
 	}
 }

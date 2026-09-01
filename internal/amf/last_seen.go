@@ -20,6 +20,14 @@ type lastSeenStore struct {
 }
 
 func (s *lastSeenStore) record(imsi string, radioID, radioName string, at time.Time) {
+	s.write(imsi, radioID, radioName, at, true)
+}
+
+func (s *lastSeenStore) refresh(imsi string, radioID, radioName string, at time.Time) {
+	s.write(imsi, radioID, radioName, at, false)
+}
+
+func (s *lastSeenStore) write(imsi string, radioID, radioName string, at time.Time, create bool) {
 	if imsi == "" {
 		return
 	}
@@ -27,11 +35,14 @@ func (s *lastSeenStore) record(imsi string, radioID, radioName string, at time.T
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	entry, known := s.entries[imsi]
+	if !known && !create {
+		return
+	}
+
 	if s.entries == nil {
 		s.entries = make(map[string]LastSeen)
 	}
-
-	entry := s.entries[imsi]
 
 	if radioID != "" || radioName != "" {
 		entry.RadioID, entry.RadioName = radioID, radioName

@@ -751,12 +751,20 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	m.endRelocationLocked(ue.supi, ue)
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
-		m.lastSeen.record(supi.IMSI(), "", "", ue.lastSeenTime())
+		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
 	}
 }
 
 func (m *MME) recordLastSeenLocked(ue *UeContext, c *UeConn) {
+	m.writeLastSeenLocked(ue, c, true)
+}
+
+func (m *MME) refreshLastSeenLocked(ue *UeContext, c *UeConn) {
+	m.writeLastSeenLocked(ue, c, false)
+}
+
+func (m *MME) writeLastSeenLocked(ue *UeContext, c *UeConn, create bool) {
 	supi := ue.supi
 	if !supi.IsIMSI() {
 		return
@@ -769,7 +777,13 @@ func (m *MME) recordLastSeenLocked(ue *UeContext, c *UeConn) {
 		radioName = s.name
 	}
 
-	m.lastSeen.record(supi.IMSI(), radioID, radioName, ue.lastSeenTime())
+	if create {
+		m.lastSeen.record(supi.IMSI(), radioID, radioName, ue.lastSeenTime())
+
+		return
+	}
+
+	m.lastSeen.refresh(supi.IMSI(), radioID, radioName, ue.lastSeenTime())
 }
 
 // UeConnected reports whether the UE currently holds a UE-associated S1

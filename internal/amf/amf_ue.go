@@ -313,7 +313,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 		Connected:          ue.active.Load() != nil,
-		Registered:         ue.state == Registered,
+		Registered:         ue.state == Registered || ue.state == DeregistrationInitiated,
 	}
 
 	return snap

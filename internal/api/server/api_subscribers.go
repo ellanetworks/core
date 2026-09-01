@@ -481,7 +481,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, _, pduSessions, found := amfInstance.LookupSubscriber(supi)
+		snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
 		var (
 			cs   mme.ConnectedSubscriber

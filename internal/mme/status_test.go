@@ -49,10 +49,6 @@ func TestConnectedSubscribers(t *testing.T) {
 		t.Fatalf("registered subscriber missing from %+v", got)
 	}
 
-	if st.RadioName != "enb-a" {
-		t.Fatalf("RadioName = %q, want %q", st.RadioName, "enb-a")
-	}
-
 	if st.NumSessions != 1 {
 		t.Fatalf("NumSessions = %d, want 1", st.NumSessions)
 	}
@@ -101,13 +97,8 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 		t.Fatalf("idle registered subscriber not counted: got %d", got)
 	}
 
-	cs, ok := m.LookupSubscriber("001010000000001")
-	if !ok {
+	if _, ok := m.LookupSubscriber("001010000000001"); !ok {
 		t.Fatal("idle registered subscriber not found by LookupSubscriber")
-	}
-
-	if cs.RadioName != "" {
-		t.Fatalf("idle subscriber RadioName = %q, want empty", cs.RadioName)
 	}
 
 	if _, ok := m.ConnectedSubscribers()["001010000000001"]; !ok {
@@ -140,13 +131,8 @@ func TestLookupSubscriber(t *testing.T) {
 		t.Fatal("LookupSubscriber found an unknown IMSI")
 	}
 
-	cs, ok := m.LookupSubscriber("001010000000001")
-	if !ok {
+	if _, ok := m.LookupSubscriber("001010000000001"); !ok {
 		t.Fatal("LookupSubscriber did not find the registered IMSI")
-	}
-
-	if cs.RadioName != "enb-a" {
-		t.Fatalf("RadioName = %q, want enb-a", cs.RadioName)
 	}
 }
 

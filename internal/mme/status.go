@@ -16,7 +16,6 @@ import (
 // ConnectedSubscriber is a runtime view of a UE with an EMM context for the API
 // layer.
 type ConnectedSubscriber struct {
-	RadioName          string
 	NumSessions        int
 	Imei               string    // 15-digit IMEI from the UE's IMEISV, empty if unknown
 	LastSeenAt         time.Time // most recent evidence the UE was present, zero if none
@@ -45,20 +44,11 @@ type SubscriberSession struct {
 
 // connectedSubscriber builds the runtime view of a UE. The caller must hold m.mu.
 func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
-	radioName := ""
-
-	if ue.Conn() != nil {
-		if s, ok := m.reg.Radio(ue.Conn().Conn()); ok {
-			radioName = s.name
-		}
-	}
-
 	snap := ue.Snapshot()
 
 	cs := ConnectedSubscriber{
-		RadioName:          radioName,
 		Connected:          ue.Connected(),
-		Registered:         ue.EMMState() == EMMRegistered,
+		Registered:         ue.EMMState() == EMMRegistered || ue.EMMState() == EMMDeregistrationInitiated,
 		Imei:               snap.Imei,
 		LastSeenAt:         snap.LastSeenAt,
 		CipheringAlgorithm: snap.CipheringAlgorithm,
