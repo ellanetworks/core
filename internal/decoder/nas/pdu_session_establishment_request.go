@@ -36,6 +36,7 @@ type ExtendedProtocolConfigurationOptions struct {
 	DNSServerIPv4AddressRequestUL                                 *bool `json:"dns_server_ipv4_address_request_ul,omitempty"`
 	MSISDNRequestUL                                               *bool `json:"msisdn_request_ul,omitempty"`
 	IFOMSupportRequestUL                                          *bool `json:"ifom_support_request_ul,omitempty"`
+	IPv4LinkMTURequestUL                                          *bool `json:"ipv4_link_mtu_request_ul,omitempty"`
 	MSSupportOfLocalAddressInTFTIndicatorUL                       *bool `json:"ms_support_of_local_address_in_tft_indicator_ul,omitempty"`
 	PCSCFReSelectionSupportUL                                     *bool `json:"pcscf_re_selection_support_ul,omitempty"`
 	NBIFOMRequestIndicatorUL                                      *bool `json:"nbifom_request_indicator_ul,omitempty"`
@@ -146,6 +147,7 @@ var pcoContainerFlags = map[uint16]func(*ExtendedProtocolConfigurationOptions){
 	0x000d: func(o *ExtendedProtocolConfigurationOptions) { o.DNSServerIPv4AddressRequestUL = ptr(true) },
 	0x000e: func(o *ExtendedProtocolConfigurationOptions) { o.MSISDNRequestUL = ptr(true) },
 	0x000f: func(o *ExtendedProtocolConfigurationOptions) { o.IFOMSupportRequestUL = ptr(true) },
+	0x0010: func(o *ExtendedProtocolConfigurationOptions) { o.IPv4LinkMTURequestUL = ptr(true) },
 	0x0011: func(o *ExtendedProtocolConfigurationOptions) { o.MSSupportOfLocalAddressInTFTIndicatorUL = ptr(true) },
 	0x0012: func(o *ExtendedProtocolConfigurationOptions) { o.PCSCFReSelectionSupportUL = ptr(true) },
 	0x0013: func(o *ExtendedProtocolConfigurationOptions) { o.NBIFOMRequestIndicatorUL = ptr(true) },
