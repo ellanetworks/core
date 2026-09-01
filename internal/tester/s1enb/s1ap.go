@@ -220,6 +220,25 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	return e.SendMessage(b, true)
 }
 
+func (e *ENB) SendUECapabilityInfoIndication(mmeUEID, enbUEID int64, capability []byte) error {
+	if len(capability) == 0 {
+		return fmt.Errorf("s1enb: UE Radio Capability is required to build UE Capability Info Indication")
+	}
+
+	ind := &s1ap.UECapabilityInfoIndication{
+		MMEUES1APID:       s1ap.MMEUES1APID(mmeUEID),
+		ENBUES1APID:       s1ap.ENBUES1APID(enbUEID),
+		UERadioCapability: s1ap.UERadioCapability(capability),
+	}
+
+	b, err := ind.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build UE Capability Info Indication: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
+
 // WaitForUEContextReleaseCommand waits for the MME's UE CONTEXT RELEASE COMMAND
 // targeting enbUEID.
 func (e *ENB) WaitForUEContextReleaseCommand(enbUEID int64, timeout time.Duration) (*s1ap.UEContextReleaseCommand, error) {

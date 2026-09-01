@@ -77,8 +77,6 @@ func (r *recordingDownlinkSender) SendDownlinkNAS(nasPDU []byte, _, _ int64) err
 
 func (r *recordingDownlinkSender) RRCRelease() {}
 
-func (r *recordingDownlinkSender) ActivePDUSessionIDs() []uint8 { return nil }
-
 func (r *recordingDownlinkSender) snapshot() [][]byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()

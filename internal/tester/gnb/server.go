@@ -285,6 +285,20 @@ func (g *GnodeB) pduSessionsFor(ranUeID int64) []PDUSessionInformation {
 	return sessions
 }
 
+func (g *GnodeB) dropRadioCapabilityReport(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.radioCapReported, ranUeID)
+}
+
+func (g *GnodeB) dropPDUSessions(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.pduSessions, ranUeID)
+}
+
 func (g *GnodeB) removePDUSession(ranUeID int64, pduSessionID int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

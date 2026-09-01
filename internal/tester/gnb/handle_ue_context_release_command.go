@@ -38,9 +38,9 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 
 	var released [16]bool
 
-	for _, id := range ue.ActivePDUSessionIDs() {
-		if int(id) < len(released) {
-			released[id] = true
+	for _, session := range gnb.pduSessionsFor(ranUEID) {
+		if session.PDUSessionID >= 0 && int(session.PDUSessionID) < len(released) {
+			released[session.PDUSessionID] = true
 		}
 	}
 
@@ -58,6 +58,9 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
 	}
+
+	gnb.dropPDUSessions(ranUEID)
+	gnb.dropRadioCapabilityReport(ranUEID)
 
 	logger.GnbLogger.Debug(
 		"Sent UE Context Release Complete",
