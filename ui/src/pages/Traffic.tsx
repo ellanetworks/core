@@ -28,7 +28,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { type GridColDef, type GridRowParams } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { BarChart } from "@mui/x-charts/BarChart";
-import { PieChart } from "@mui/x-charts/PieChart";
+import { PieChart, pieClasses } from "@mui/x-charts/PieChart";
 import {
   getUsage,
   getUsageRetentionPolicy,
@@ -328,6 +328,25 @@ const Traffic: React.FC = () => {
   // disabled query keeps serving its last, now stale, result.
   const protocolOptionsData = appliedProtocol
     ? (protocolOptionsRaw ?? flowStatsData)
+    : flowStatsData;
+
+  const filtersWithoutDestination: FlowReportFilters = useMemo(() => {
+    const { destination: _ignored, ...rest } = activeFlowFilters;
+    return rest;
+  }, [activeFlowFilters]);
+
+  const { data: destinationOptionsRaw } = useQuery<FlowReportStatsResponse>({
+    queryKey: ["flowReportDestinationOptions", filtersWithoutDestination],
+    queryFn: () =>
+      getFlowReportStats(accessToken || "", filtersWithoutDestination),
+    enabled:
+      authReady && !!accessToken && !!appliedDestination && dateRangeReady,
+    placeholderData: (prev) => prev,
+    refetchInterval: 5000,
+  });
+
+  const destinationOptionsData = appliedDestination
+    ? (destinationOptionsRaw ?? flowStatsData)
     : flowStatsData;
 
   const { data: flowAccountingInfo } = useQuery<FlowAccountingInfo>({
@@ -703,8 +722,9 @@ const Traffic: React.FC = () => {
   const topDestinationsPieData = useMemo(() => {
     const destinations = flowStatsData?.top_destinations_uplink ?? [];
     if (!destinations.length) return [];
+    const options = destinationOptionsData?.top_destinations_uplink ?? [];
     const colorMap = buildDestinationColorMap(
-      destinations.map((d) => d.ip),
+      [...options, ...destinations].map((d) => d.ip),
       theme.palette.chart.series,
     );
     return destinations.map((d, i) => ({
@@ -713,7 +733,7 @@ const Traffic: React.FC = () => {
       label: d.ip,
       color: colorMap.get(d.ip)!,
     }));
-  }, [flowStatsData, theme]);
+  }, [flowStatsData, destinationOptionsData, theme]);
 
   const handleProtocolPieClick = useCallback(
     (dataIndex: number) => {
@@ -1093,7 +1113,7 @@ const Traffic: React.FC = () => {
                           ]}
                           height={300}
                           sx={{
-                            "& .MuiPieArc-root": {
+                            [`& .${pieClasses.arc}`]: {
                               transitionProperty: "opacity, filter",
                             },
                           }}
@@ -1145,7 +1165,7 @@ const Traffic: React.FC = () => {
                           ]}
                           height={300}
                           sx={{
-                            "& .MuiPieArc-root": {
+                            [`& .${pieClasses.arc}`]: {
                               transitionProperty: "opacity, filter",
                             },
                           }}

@@ -50,6 +50,7 @@ import {
   formatDateTime,
   formatMemory,
   formatProtocol,
+  buildProtocolColorMap,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
@@ -294,11 +295,15 @@ const Dashboard = () => {
 
   const protocolPieData = useMemo(() => {
     if (!flowStatsQuery.data?.protocols?.length) return [];
-    return flowStatsQuery.data.protocols.map((p, i) => ({
+    const colorMap = buildProtocolColorMap(
+      flowStatsQuery.data.protocols.map((p) => p.protocol),
+      theme.palette.chart,
+    );
+    return flowStatsQuery.data.protocols.map((p) => ({
       id: p.protocol,
       value: p.count,
       label: formatProtocol(p.protocol),
-      color: theme.palette.chart.series[i % theme.palette.chart.series.length],
+      color: colorMap.get(p.protocol) ?? theme.palette.chart.series[0],
     }));
   }, [flowStatsQuery.data, theme]);
 

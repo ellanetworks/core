@@ -15,7 +15,10 @@ import {
   flowStats,
   usageBySubscriber,
 } from "@/test/fixtures";
-import type { FlowReport } from "@/queries/flow_reports";
+import type {
+  FlowReport,
+  FlowReportStatsResponse,
+} from "@/queries/flow_reports";
 import type { UsageResult } from "@/queries/usage";
 import Traffic from "./Traffic";
 
@@ -33,6 +36,7 @@ type Seed = {
   usageBySub?: UsageResult;
   usagePerDay?: UsageResult;
   imsis?: string[];
+  stats?: (params: URLSearchParams) => FlowReportStatsResponse;
 };
 
 const seedApi = ({
@@ -41,6 +45,7 @@ const seedApi = ({
   usageBySub = usageBySubscriber({ [IMSI_A]: 4_000 }),
   usagePerDay = usageBySubscriber({ "2026-08-01": 4_000 }),
   imsis = [IMSI_A, IMSI_B],
+  stats,
 }: Seed = {}) => {
   api.get(USAGE_PATH, ({ params }) =>
     params.get("group_by") === "day" ? usagePerDay : usageBySub,
@@ -50,7 +55,9 @@ const seedApi = ({
     flowReportPage(flows, { total_count: totalCount ?? flows.length }),
   );
   api.get("/api/v1/flow-reports/retention", () => ({ days: 30 }));
-  api.get("/api/v1/flow-reports/stats", () => flowStats());
+  api.get("/api/v1/flow-reports/stats", ({ params }) =>
+    stats ? stats(params) : flowStats(),
+  );
   api.get("/api/v1/networking/flow-accounting", () => ({ enabled: true }));
   api.get("/api/v1/subscribers", () => ({
     items: imsis.map((imsi) => ({
@@ -717,5 +724,91 @@ describe("Traffic usage chart", () => {
     expect(
       await screen.findByText(/Daily data usage \(all subscribers\) in KB/),
     ).toBeVisible();
+  });
+});
+
+const pieArcs = (title: string) => {
+  const heading = screen.getByRole("heading", { name: title });
+  const container = heading.parentElement as HTMLElement;
+  return Array.from(
+    container.querySelectorAll<SVGPathElement>("path.MuiPieChart-arc"),
+  );
+};
+
+const protocolArcs = () => pieArcs("Protocols (by flow count)");
+const destinationArcs = () =>
+  pieArcs("Top 10 Destinations (uplink, by flow count)");
+
+const fillsOf = (arcs: SVGPathElement[]) =>
+  arcs.map((arc) => arc.getAttribute("fill"));
+
+const TCP_BLUE = "#2196F3";
+const UDP_GREEN = "#4CAF50";
+
+describe("Traffic pie chart selection", () => {
+  const statsResolver = (params: URLSearchParams): FlowReportStatsResponse => {
+    const protocol = params.get("protocol");
+    const destination = params.get("destination");
+    if (protocol) {
+      return flowStats({
+        protocols: [{ protocol: Number(protocol), count: 30 }],
+        top_destinations_uplink: [{ ip: "1.1.1.1", count: 30 }],
+      });
+    }
+    if (destination) {
+      return flowStats({
+        protocols: [{ protocol: 6, count: 5 }],
+        top_destinations_uplink: [{ ip: destination, count: 5 }],
+      });
+    }
+    return flowStats({
+      top_destinations_uplink: [
+        { ip: "1.1.1.1", count: 90 },
+        { ip: "8.8.8.8", count: 50 },
+        { ip: "93.184.216.34", count: 10 },
+      ],
+    });
+  };
+
+  beforeEach(() => {
+    seedApi({ stats: statsResolver });
+  });
+
+  it("keeps the selected protocol slice at its own color", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+
+    await waitFor(() => expect(protocolArcs()).toHaveLength(2));
+    expect(fillsOf(protocolArcs())).toEqual([TCP_BLUE, UDP_GREEN]);
+
+    await user.click(protocolArcs()[1]);
+
+    await waitFor(() => expect(protocolArcs()).toHaveLength(1));
+    expect(protocolArcs()[0]).toHaveAttribute("fill", UDP_GREEN);
+  });
+
+  it("does not transition the fill of a pie slice", async () => {
+    await renderTraffic();
+
+    await waitFor(() => expect(protocolArcs()).toHaveLength(2));
+
+    for (const arc of [...protocolArcs(), ...destinationArcs()]) {
+      expect(window.getComputedStyle(arc).transitionProperty).not.toContain(
+        "fill",
+      );
+    }
+  });
+
+  it("keeps the selected destination slice at its own color", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+
+    await waitFor(() => expect(destinationArcs()).toHaveLength(3));
+    const selected = fillsOf(destinationArcs())[1];
+
+    await user.click(destinationArcs()[1]);
+
+    await waitFor(() => expect(destinationArcs()).toHaveLength(1));
+    expect(destinationArcs()[0]).toHaveAttribute("fill", selected);
   });
 });
