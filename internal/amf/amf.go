@@ -161,6 +161,7 @@ type AMF struct {
 	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
 	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
+	lastSeen                 lastSeenStore
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -216,6 +217,16 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	superseded = superseded && old != ue
 	amf.UEs[ue.supi] = ue
 	ue.smf = amf.Session
+
+	if ue.supi.IsIMSI() {
+		var radioID, radioName string
+		if conn := ue.active.Load(); conn != nil {
+			radioID, radioName = conn.radioIDName()
+		}
+
+		amf.lastSeen.record(ue.supi.IMSI(), radioID, radioName, ue.lastSeenTime())
+	}
+
 	amf.mu.Unlock()
 
 	if superseded {
@@ -306,6 +317,10 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
+	}
+
+	if supi := ue.Supi(); supi.IsIMSI() {
+		amf.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 	}
 
 	amf.mu.Lock()
@@ -412,6 +427,15 @@ func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
 	}
 
 	return "", false
+}
+
+func radioIDOf(radio *Radio) string {
+	key, ok := radio.IDKey()
+	if !ok {
+		return ""
+	}
+
+	return key
 }
 
 func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
@@ -721,12 +745,12 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		AmfUeNgapID: amfUeNgapID,
 		RanUeNgapID: ranUeNgapID,
 		conn:        radio.Conn,
-		radioName:   radio.name,
 		amf:         a,
 	}
 	ueConn.setLog(radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)))
 
 	a.mu.Lock()
+	ueConn.setRadio(radioIDOf(radio), radio.name)
 	a.conns[int64(amfUeNgapID)] = ueConn
 	a.mu.Unlock()
 

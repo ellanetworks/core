@@ -157,7 +157,7 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("Status.Registered: got true, want false (subscriber never attached)")
 	}
 
-	if got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
+	if got.Status.ConnectionState != "" || got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
 		got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
 		got.Status.LastSeenRadio != "" {
 		t.Fatalf("Status: expected zero-valued strings on a never-attached subscriber, got %+v", got.Status)

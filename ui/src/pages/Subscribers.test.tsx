@@ -333,3 +333,67 @@ describe("Subscribers description column", () => {
     ).toHaveTextContent(DESCRIPTIONS[IMSIS[0]]);
   });
 });
+
+describe("Subscribers connection state", () => {
+  const seedStatuses = (statuses: Record<string, Record<string, unknown>>) => {
+    api.get(SUBSCRIBERS_PATH, () => ({
+      items: Object.entries(statuses).map(([imsi, status]) => ({
+        imsi,
+        profile_name: "default",
+        status,
+      })),
+      page: 1,
+      per_page: 25,
+      total_count: Object.keys(statuses).length,
+    }));
+  };
+
+  const cellOf = (imsi: string, field: string) =>
+    screen
+      .getByText(imsi)
+      .closest(".MuiDataGrid-row")
+      ?.querySelector(`[data-field="${field}"]`);
+
+  it("shows registration and connection as separate cells", async () => {
+    seedStatuses({
+      [IMSIS[0]]: {
+        registered: true,
+        connection_state: "connected",
+        last_seen_radio: "gnb-01",
+      },
+      [IMSIS[1]]: {
+        registered: true,
+        connection_state: "idle",
+        last_seen_radio: "gnb-01",
+      },
+      [IMSIS[2]]: { registered: false },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(cellOf(IMSIS[0], "registration")).toHaveTextContent("Registered");
+    expect(cellOf(IMSIS[0], "connection")).toHaveTextContent("Connected");
+
+    expect(cellOf(IMSIS[1], "registration")).toHaveTextContent("Registered");
+    expect(cellOf(IMSIS[1], "connection")).toHaveTextContent("Idle");
+
+    expect(cellOf(IMSIS[2], "registration")).toHaveTextContent("Deregistered");
+    expect(cellOf(IMSIS[2], "connection")).toHaveTextContent("—");
+  });
+
+  it("keeps the last radio on an idle subscriber", async () => {
+    seedStatuses({
+      [IMSIS[0]]: {
+        registered: true,
+        connection_state: "idle",
+        last_seen_radio: "gnb-01",
+      },
+      [IMSIS[1]]: { registered: false },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(cellOf(IMSIS[0], "last_seen_radio")).toHaveTextContent("gnb-01");
+    expect(cellOf(IMSIS[1], "last_seen_radio")).toHaveTextContent("—");
+  });
+});

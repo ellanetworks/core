@@ -204,13 +204,13 @@ type UeContext struct {
 	lppaBuf   *LPPaBuffered
 }
 
-// TouchLastSeen records the current time as the UE's most recent uplink NAS
-// activity. Safe for concurrent use.
+// TouchLastSeen records the current time as the most recent evidence the UE was
+// present. Safe for concurrent use.
 func (ue *UeContext) TouchLastSeen() {
 	ue.lastSeen.Store(time.Now().UnixNano())
 }
 
-// lastSeenTime returns the UE's most recent uplink NAS activity, or the zero
+// lastSeenTime returns the most recent evidence the UE was present, or the zero
 // time if none has been recorded. Safe for concurrent use.
 func (ue *UeContext) lastSeenTime() time.Time {
 	ns := ue.lastSeen.Load()
@@ -259,6 +259,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	}
 
 	m.UEs[supi] = ue
+	m.recordLastSeenLocked(ue, ue.Conn())
 	m.mu.Unlock()
 
 	// TS 24.301 §5.5.1.2.7 f): a genuine re-attach supersedes the old context and
@@ -645,6 +646,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
+	m.recordLastSeenLocked(ue, c)
 
 	return superseded
 }
@@ -749,8 +751,39 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	m.endRelocationLocked(ue.supi, ue)
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
+		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
 	}
+}
+
+func (m *MME) recordLastSeenLocked(ue *UeContext, c *UeConn) {
+	m.writeLastSeenLocked(ue, c, true)
+}
+
+func (m *MME) refreshLastSeenLocked(ue *UeContext, c *UeConn) {
+	m.writeLastSeenLocked(ue, c, false)
+}
+
+func (m *MME) writeLastSeenLocked(ue *UeContext, c *UeConn, create bool) {
+	supi := ue.supi
+	if !supi.IsIMSI() {
+		return
+	}
+
+	var radioID, radioName string
+
+	if s, ok := m.reg.Radio(c.Conn()); ok {
+		radioID, _ = s.IDKey()
+		radioName = s.name
+	}
+
+	if create {
+		m.lastSeen.record(supi.IMSI(), radioID, radioName, ue.lastSeenTime())
+
+		return
+	}
+
+	m.lastSeen.refresh(supi.IMSI(), radioID, radioName, ue.lastSeenTime())
 }
 
 // UeConnected reports whether the UE currently holds a UE-associated S1

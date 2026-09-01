@@ -248,24 +248,18 @@ func (amf *AMF) ExportUEs(ctx context.Context) ([]UeContextExport, error) {
 	return exports, nil
 }
 
-// LookupSubscriber returns the snapshot, live radio name, and PDU sessions of a
-// Registered UE by SUPI (ok is false for an unknown or not-yet-Registered UE), so the
+// LookupSubscriber returns the snapshot and PDU sessions of a UE with a 5GMM context
+// by SUPI (ok is false for an unknown or Deregistered UE), so the
 // views cannot tear across separate registry lookups. Session detail is built after the
 // session refs are copied out from under the UE lock, because it reaches the SMF
 // (SMF-delegated sessions, TS 23.501) and must not run under the registry lock.
-func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, string, []PDUSessionExport, bool) {
+func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport, bool) {
 	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok || ue.State() != Registered {
-		return UESnapshot{}, "", nil, false
+	if !ok || ue.State() == Deregistered {
+		return UESnapshot{}, nil, false
 	}
 
 	snap := ue.Snapshot()
-
-	// The radio is the UE's live connection (an idle UE reports none).
-	radioName := ""
-	if conn := ue.Conn(); conn != nil {
-		radioName = conn.radioName
-	}
 
 	ue.mu.Lock()
 
@@ -287,7 +281,7 @@ func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, string, []PDUSessi
 		result = append(result, s)
 	}
 
-	return snap, radioName, result, true
+	return snap, result, true
 }
 
 // smContextCopy is a local copy of AMF SmContext fields used to avoid holding the UE lock while querying SMF.
@@ -402,13 +396,13 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 
 	if r := ue.active.Load(); r != nil {
 		// The last-seen radio is the UE's live connection (an idle UE is on none).
-		export.LastActivity.RadioNode = r.radioName
+		export.LastActivity.RadioNode = r.radioName()
 
 		rc := &RANConnectionExport{
 			RanUeNgapID: int64(r.RanUeNgapID),
 			AmfUeNgapID: int64(r.AmfUeNgapID),
 			RanTai:      r.Tai,
-			RadioName:   r.radioName,
+			RadioName:   r.radioName(),
 		}
 
 		export.RANConnection = rc

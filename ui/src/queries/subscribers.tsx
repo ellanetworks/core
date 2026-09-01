@@ -6,18 +6,21 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 // Mirrors MaxDescriptionLength in internal/api/server/api_subscribers.go.
 export const MAX_DESCRIPTION_LENGTH = 64;
 
+export type ConnectionState = "idle" | "connected";
+
 export type SubscriberListStatus = {
   registered?: boolean;
+  connection_state?: ConnectionState;
   radio_access_types?: string[];
   num_sessions?: number;
   last_seen_at?: string;
+  last_seen_radio?: string;
 };
 
 export type APISubscriberSummary = {
   imsi: string;
   profile_name: string;
   description?: string;
-  radio?: string;
   status: SubscriberListStatus;
 };
 
@@ -30,6 +33,7 @@ export type ListSubscribersResponse = {
 
 export type SubscriberDetailStatus = {
   registered?: boolean;
+  connection_state?: ConnectionState;
   radio_access_types?: string[];
   imei?: string;
   ciphering_algorithm?: string;

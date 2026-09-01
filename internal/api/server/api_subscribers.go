@@ -39,16 +39,17 @@ type UpdateSubscriberParams struct {
 
 type SubscriberStatus struct {
 	Registered       bool     `json:"registered"`
+	ConnectionState  string   `json:"connection_state,omitempty"`
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
 	NumSessions      int      `json:"num_sessions"`
 	LastSeenAt       string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
 }
 
 type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
 	Description string           `json:"description,omitempty"`
-	Radio       string           `json:"radio,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
 
@@ -61,6 +62,7 @@ type ListSubscribersResponse struct {
 
 type SubscriberDetailStatus struct {
 	Registered         bool     `json:"registered"`
+	ConnectionState    string   `json:"connection_state,omitempty"`
 	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
 	Imei               string   `json:"imei"`
 	CipheringAlgorithm string   `json:"ciphering_algorithm"`
@@ -172,13 +174,15 @@ func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool 
 
 // accessView is what one access — 4G or 5G — knows about a subscriber.
 type accessView struct {
-	rat        string
-	present    bool
-	radioName  string
-	imei       string
-	ciphering  string
-	integrity  string
-	lastSeenAt time.Time
+	rat           string
+	present       bool
+	registered    bool
+	connected     bool
+	imei          string
+	ciphering     string
+	integrity     string
+	lastSeenAt    time.Time
+	lastSeenRadio string
 }
 
 func (v accessView) newerThan(other accessView) bool {
@@ -186,26 +190,35 @@ func (v accessView) newerThan(other accessView) bool {
 }
 
 type mergedAccess struct {
-	RATs       []string
-	RadioName  string
-	Imei       string
-	Ciphering  string
-	Integrity  string
-	LastSeenAt time.Time
+	RATs          []string
+	Registered    bool
+	Connected     bool
+	Imei          string
+	Ciphering     string
+	Integrity     string
+	LastSeenAt    time.Time
+	LastSeenRadio string
 }
 
 func mergeAccesses(views ...accessView) mergedAccess {
 	var (
-		merged  mergedAccess
-		serving accessView
+		merged   mergedAccess
+		serving  accessView
+		retained accessView
 	)
 
 	for _, v := range views {
+		if v.lastSeenAt.After(retained.lastSeenAt) {
+			retained = v
+		}
+
 		if !v.present {
 			continue
 		}
 
 		merged.RATs = append(merged.RATs, v.rat)
+		merged.Registered = merged.Registered || v.registered
+		merged.Connected = merged.Connected || v.connected
 
 		if merged.Imei == "" {
 			merged.Imei = v.imei
@@ -216,11 +229,34 @@ func mergeAccesses(views ...accessView) mergedAccess {
 		}
 	}
 
-	merged.RadioName = serving.radioName
+	answering := serving
+	if !answering.present {
+		answering = retained
+	}
+
 	merged.Ciphering, merged.Integrity = serving.ciphering, serving.integrity
-	merged.LastSeenAt = serving.lastSeenAt
+	merged.LastSeenAt, merged.LastSeenRadio = answering.lastSeenAt, answering.lastSeenRadio
 
 	return merged
+}
+
+func lastSeenAt(present bool, live, retained time.Time) time.Time {
+	if present && !live.IsZero() {
+		return live
+	}
+
+	return retained
+}
+
+func connectionState(present, connected bool) string {
+	switch {
+	case !present:
+		return ""
+	case connected:
+		return "connected"
+	default:
+		return "idle"
+	}
 }
 
 func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
@@ -257,6 +293,14 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		amf5GStatus := amfInstance.ConnectedSubscribers()
 
+		amf5GLastSeen := amfInstance.LastSeenAll()
+
+		var mmeLastSeen map[string]mme.LastSeen
+
+		if mmeInstance != nil {
+			mmeLastSeen = mmeInstance.LastSeenAll()
+		}
+
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
@@ -268,14 +312,14 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 			radioIMSIs = make(map[string]struct{})
 
-			for imsi, cs := range amf5GStatus {
-				if cs.RadioName == radioFilter {
+			for imsi := range amf5GStatus {
+				if amf5GLastSeen[imsi].RadioName == radioFilter {
 					radioIMSIs[imsi] = struct{}{}
 				}
 			}
 
-			for imsi, st := range mmeStatus {
-				if st.RadioName == radioFilter {
+			for imsi := range mmeStatus {
+				if mmeLastSeen[imsi].RadioName == radioFilter {
 					radioIMSIs[imsi] = struct{}{}
 				}
 			}
@@ -346,14 +390,24 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
 
 			merged := mergeAccesses(
-				accessView{rat: "4G", present: on4G, radioName: mme4G.RadioName, lastSeenAt: mme4G.LastSeenAt},
-				accessView{rat: "5G", present: on5G, radioName: amf5G.RadioName, lastSeenAt: amf5G.LastSeenAt},
+				accessView{
+					rat: "4G", present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
+					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
+					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
+				},
+				accessView{
+					rat: "5G", present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
+					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
+					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
+				},
 			)
 
 			subscriberStatus := SubscriberStatus{
-				Registered:       on5G || on4G,
+				Registered:       merged.Registered,
+				ConnectionState:  connectionState(on5G || on4G, merged.Connected),
 				RadioAccessTypes: merged.RATs,
 				NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
+				LastSeenRadio:    merged.LastSeenRadio,
 			}
 
 			if !merged.LastSeenAt.IsZero() {
@@ -364,7 +418,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
 				Description: dbSubscriber.Description,
-				Radio:       merged.RadioName,
 				Status:      subscriberStatus,
 			})
 		}
@@ -428,7 +481,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		snap, radioName, pduSessions, found := amfInstance.LookupSubscriber(supi)
+		snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
 		var (
 			cs   mme.ConnectedSubscriber
@@ -439,21 +492,32 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			cs, on4G = mmeInstance.LookupSubscriber(imsi)
 		}
 
+		var mmeLastSeen mme.LastSeen
+
+		if mmeInstance != nil {
+			mmeLastSeen, _ = mmeInstance.LastSeen(imsi)
+		}
+
+		amfLastSeen, _ := amfInstance.LastSeen(imsi)
+
 		merged := mergeAccesses(
 			accessView{
-				rat: "4G", present: on4G, radioName: cs.RadioName, imei: cs.Imei,
-				ciphering: cs.CipheringAlgorithm, integrity: cs.IntegrityAlgorithm, lastSeenAt: cs.LastSeenAt,
+				rat: "4G", present: on4G, registered: cs.Registered, connected: cs.Connected, imei: cs.Imei,
+				ciphering: cs.CipheringAlgorithm, integrity: cs.IntegrityAlgorithm,
+				lastSeenAt: lastSeenAt(on4G, cs.LastSeenAt, mmeLastSeen.At), lastSeenRadio: mmeLastSeen.RadioName,
 			},
 			accessView{
-				rat: "5G", present: found, radioName: radioName, imei: snap.Imei,
-				ciphering: snap.CipheringAlgorithm, integrity: snap.IntegrityAlgorithm, lastSeenAt: snap.LastSeenAt,
+				rat: "5G", present: found, registered: snap.Registered, connected: snap.Connected, imei: snap.Imei,
+				ciphering: snap.CipheringAlgorithm, integrity: snap.IntegrityAlgorithm,
+				lastSeenAt: lastSeenAt(found, snap.LastSeenAt, amfLastSeen.At), lastSeenRadio: amfLastSeen.RadioName,
 			},
 		)
 
 		subscriberStatus := SubscriberDetailStatus{
-			Registered:         on4G || found,
+			Registered:         merged.Registered,
+			ConnectionState:    connectionState(on4G || found, merged.Connected),
 			RadioAccessTypes:   merged.RATs,
-			LastSeenRadio:      merged.RadioName,
+			LastSeenRadio:      merged.LastSeenRadio,
 			Imei:               merged.Imei,
 			CipheringAlgorithm: merged.Ciphering,
 			IntegrityAlgorithm: merged.Integrity,
@@ -778,9 +842,11 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 		}
 
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
+		amfInstance.ForgetSubscriber(imsi)
 
 		if mmeInstance != nil {
 			mmeInstance.DetachSubscriber(r.Context(), imsi)
+			mmeInstance.ForgetSubscriber(imsi)
 		}
 
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {

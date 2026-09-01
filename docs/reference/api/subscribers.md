@@ -20,7 +20,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
-| `radio`    | query | str  |         |         | Filter by radio name. Returns only subscribers connected to the specified radio. |
+| `radio`    | query | str  |         |         | Filter by radio name. Returns registered subscribers whose last-seen radio is this one, so an idle subscriber still matches the radio that last served it. |
 | `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
 | `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. Case is ignored for ASCII letters only. |
 
@@ -36,8 +36,11 @@ This path returns the list of network subscribers, ordered by IMSI.
                 "description": "Warehouse gate reader",
                 "status": {
                     "registered": true,
+                    "connection_state": "connected",
                     "radio_access_types": ["5G"],
-                    "num_sessions": 1
+                    "num_sessions": 1,
+                    "last_seen_at": "2026-03-16T12:34:56Z",
+                    "last_seen_radio": "gNB-1"
                 }
             }
         ],
@@ -122,6 +125,7 @@ None
     "description": "Warehouse gate reader",
     "status": {
       "registered": true,
+      "connection_state": "connected",
       "radio_access_types": ["5G"],
       "imei": "359881234567890",
       "ciphering_algorithm": "SNOW3G",

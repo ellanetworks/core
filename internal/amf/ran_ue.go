@@ -61,9 +61,9 @@ type UeConn struct {
 	// conn is the NGAP association this UE sends through and the key into the AMF's
 	// radios index for node metadata (looked up via amf.radioFor(conn)).
 	conn NGAPWriter
-	// radioName is the node name captured at bind, for hot-path last-seen tagging without
-	// a registry lookup. Immutable after bind.
-	radioName string
+	// radio is the serving node's ID and name, for hot-path last-seen tagging without a
+	// registry lookup. Atomic: written under amf.mu, read off it on the dispatch path.
+	radio atomic.Pointer[radioRef]
 	// amf is the owning registry; connection-lifecycle methods reach amf.mu through it.
 	// Always set at creation.
 	amf              *AMF
@@ -140,6 +140,29 @@ func (a *EPSArrival) ArrivingSessions() *interworking.ArrivingSessions {
 	}
 
 	return a.Sessions
+}
+
+type radioRef struct {
+	id   string
+	name string
+}
+
+func (ueConn *UeConn) setRadio(id, name string) {
+	ueConn.radio.Store(&radioRef{id: id, name: name})
+}
+
+func (ueConn *UeConn) radioIDName() (string, string) {
+	if r := ueConn.radio.Load(); r != nil {
+		return r.id, r.name
+	}
+
+	return "", ""
+}
+
+func (ueConn *UeConn) radioName() string {
+	_, name := ueConn.radioIDName()
+
+	return name
 }
 
 func (ueConn *UeConn) Log() *zap.Logger {
@@ -426,9 +449,12 @@ func (ueConn *UeConn) TouchLastSeen() {
 		return
 	}
 
-	if ue := ueConn.ue.Load(); ue != nil {
-		ue.TouchLastSeen()
+	ue := ueConn.ue.Load()
+	if ue == nil {
+		return
 	}
+
+	ue.TouchLastSeen()
 }
 
 // sendTarget resolves the AMF and radio this RAN UE sends through.
@@ -629,8 +655,12 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	}
 
 	ueConn.conn = ran.Conn
-	ueConn.radioName = ran.name
+	ueConn.setRadio(radioIDOf(ran), ran.name)
 	ueConn.RanUeNgapID = ranUeNgapID
+
+	if supi := ue.Supi(); supi.IsIMSI() {
+		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
+	}
 
 	ue.mu.Lock()
 	ue.nh = nh
@@ -658,12 +688,13 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 		RanUeNgapID: ranUeNgapID,
 		AmfUeNgapID: amfUeNgapID,
 		conn:        radio.Conn,
-		radioName:   radio.name,
 		amf:         radio.amf,
 	}
 	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()
+
+	ueConn.setRadio(radioIDOf(radio), radio.name)
 
 	radio.amf.conns[int64(amfUeNgapID)] = ueConn
 	if radio.Conn != nil {

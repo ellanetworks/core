@@ -47,8 +47,6 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 
 	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
-	ue.TouchLastSeen()
-
 	fields := []zap.Field{
 		zap.String("imsi", ue.IMSI()),
 		zap.String("cause", mme.S1apCauseName(&cause)),
