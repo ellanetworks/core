@@ -117,14 +117,16 @@ type GnodeB struct {
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
-	receivedFrames map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	mu             sync.Mutex
-	cond           *sync.Cond
-	N3Address      netip.Addr
-	pduSessions    map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
-	sessionGen     uint64                                     // bumped on every store; see awaitPDUSession
-	UEAmbr         map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
-	dispatcher     *dispatcher                                // per-UE frame queues; see dispatch.go
+	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
+	mu                sync.Mutex
+	cond              *sync.Cond
+	N3Address         netip.Addr
+	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
+	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
+	UERadioCapability []byte
+	radioCapReported  map[int64]bool
+	dispatcher        *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
 	// maintains exactly one active SCTP association at a time, starting
@@ -221,6 +223,29 @@ type UEAmbrInformation struct {
 	DownlinkBps int64
 }
 
+var DefaultUERadioCapability = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
+
+func (g *GnodeB) claimRadioCapabilityReport(ranUeId int64) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if len(g.UERadioCapability) == 0 {
+		return false
+	}
+
+	if g.radioCapReported == nil {
+		g.radioCapReported = make(map[int64]bool)
+	}
+
+	if g.radioCapReported[ranUeId] {
+		return false
+	}
+
+	g.radioCapReported[ranUeId] = true
+
+	return true
+}
+
 func (g *GnodeB) StoreUEAmbr(ranUeId int64, ambr *UEAmbrInformation) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -260,11 +285,51 @@ func (g *GnodeB) pduSessionsFor(ranUeID int64) []PDUSessionInformation {
 	return sessions
 }
 
+func (g *GnodeB) dropRadioCapabilityReport(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.radioCapReported, ranUeID)
+}
+
+func (g *GnodeB) dropPDUSessions(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.pduSessions, ranUeID)
+}
+
 func (g *GnodeB) removePDUSession(ranUeID int64, pduSessionID int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	delete(g.pduSessions[ranUeID], pduSessionID)
+	g.cond.Broadcast()
+}
+
+// awaitPDUSessionRelease blocks until the gNB no longer holds resources for
+// pduSessionID, which it drops when the AMF asks for them back in a PDU SESSION
+// RESOURCE RELEASE COMMAND.
+func (g *GnodeB) awaitPDUSessionRelease(ranUeID, pduSessionID int64, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	defer timer.Stop()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for {
+		if _, ok := g.pduSessions[ranUeID][pduSessionID]; !ok {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for the release of PDU session %d of RAN UE NGAP ID %d", pduSessionID, ranUeID)
+		}
+
+		g.cond.Wait()
+	}
 }
 
 func (g *GnodeB) updatePDUSessionQoS(ranUeID int64, pduSessionID int64, info *PDUSessionModifyInfo) {
@@ -403,17 +468,18 @@ func NewGnodeB(
 	n3Address netip.Addr,
 ) *GnodeB {
 	g := &GnodeB{
-		GnbID:     gnbID,
-		MCC:       mcc,
-		MNC:       mnc,
-		SST:       sst,
-		SD:        sd,
-		DNN:       dnn,
-		TAC:       tac,
-		Name:      name,
-		N3Conn:    n3Conn,
-		tunnels:   make(map[uint32]*Tunnel),
-		N3Address: n3Address,
+		UERadioCapability: DefaultUERadioCapability,
+		GnbID:             gnbID,
+		MCC:               mcc,
+		MNC:               mnc,
+		SST:               sst,
+		SD:                sd,
+		DNN:               dnn,
+		TAC:               tac,
+		Name:              name,
+		N3Conn:            n3Conn,
+		tunnels:           make(map[uint32]*Tunnel),
+		N3Address:         n3Address,
 		n2Peers: []*n2Peer{{
 			address: "pre-dialed",
 			conn:    n2Conn,
@@ -492,22 +558,23 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 	}
 
 	g := &GnodeB{
-		GnbID:     opts.GnbID,
-		MCC:       opts.MCC,
-		MNC:       opts.MNC,
-		SST:       opts.SST,
-		SD:        opts.SD,
-		Slices:    opts.Slices,
-		DNN:       opts.DNN,
-		TAC:       opts.TAC,
-		Name:      opts.Name,
-		N3Conn:    n3Conn,
-		tunnels:   make(map[uint32]*Tunnel),
-		N3Address: gnbN3IPAddress,
-		n2Local:   local,
-		n2Peers:   peers,
-		n2Active:  -1,
-		n2Change:  make(chan struct{}),
+		UERadioCapability: DefaultUERadioCapability,
+		GnbID:             opts.GnbID,
+		MCC:               opts.MCC,
+		MNC:               opts.MNC,
+		SST:               opts.SST,
+		SD:                opts.SD,
+		Slices:            opts.Slices,
+		DNN:               opts.DNN,
+		TAC:               opts.TAC,
+		Name:              opts.Name,
+		N3Conn:            n3Conn,
+		tunnels:           make(map[uint32]*Tunnel),
+		N3Address:         gnbN3IPAddress,
+		n2Local:           local,
+		n2Peers:           peers,
+		n2Active:          -1,
+		n2Change:          make(chan struct{}),
 		n2SetupOpts: NGSetupRequestOpts{
 			GnbID:  opts.GnbID,
 			Mcc:    opts.MCC,

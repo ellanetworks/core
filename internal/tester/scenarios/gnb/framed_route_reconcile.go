@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
@@ -134,5 +135,5 @@ func runFramedRouteReconcile(ctx context.Context, env scenarios.Env, p *framedRe
 
 	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	return gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
+	return gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, gnb.CauseUserInactivity, releaseTimeout)
 }

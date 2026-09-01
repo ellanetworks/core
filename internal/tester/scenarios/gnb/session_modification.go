@@ -265,7 +265,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
 	}

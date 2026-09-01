@@ -36,15 +36,31 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("cannot find UE for UEContextReleaseCommand message: %v", err)
 	}
 
+	var released [16]bool
+
+	for _, session := range gnb.pduSessionsFor(ranUEID) {
+		if session.PDUSessionID >= 0 && int(session.PDUSessionID) < len(released) {
+			released[session.PDUSessionID] = true
+		}
+	}
+
 	ue.RRCRelease()
 
 	err = gnb.SendUEContextReleaseComplete(&UEContextReleaseCompleteOpts{
-		AMFUENGAPID: amfUEID,
-		RANUENGAPID: ranUEID,
+		AMFUENGAPID:   amfUEID,
+		RANUENGAPID:   ranUEID,
+		PDUSessionIDs: released,
+		Mcc:           gnb.MCC,
+		Mnc:           gnb.MNC,
+		GnbID:         gnb.GnbID,
+		Tac:           gnb.TAC,
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
 	}
+
+	gnb.dropPDUSessions(ranUEID)
+	gnb.dropRadioCapabilityReport(ranUEID)
 
 	logger.GnbLogger.Debug(
 		"Sent UE Context Release Complete",

@@ -4,6 +4,7 @@
 package gnb_test
 
 import (
+	"bytes"
 	"net/netip"
 	"testing"
 
@@ -266,6 +267,7 @@ func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 	t.Run("release", func(t *testing.T) {
 		pdu, err := gnb.BuildPDUSessionResourceReleaseResponse(&gnb.PDUSessionResourceReleaseResponseOpts{
 			AMFUENGAPID: 1, RANUENGAPID: 2, PDUSessionIDs: []int64{6},
+			Mcc: testMCC, Mnc: testMNC, GnbID: testGnbID, Tac: testTAC,
 		})
 		if err != nil {
 			t.Fatalf("build: %v", err)
@@ -275,6 +277,8 @@ func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse: %v", err)
 		}
+
+		assertUserLocation(t, msg.UserLocationInformation)
 
 		if len(msg.PDUSessionResourceReleased) != 1 || msg.PDUSessionResourceReleased[0].PDUSessionID != 6 {
 			t.Fatalf("released sessions = %+v, want one with id 6", msg.PDUSessionResourceReleased)
@@ -307,5 +311,98 @@ func TestBuildUplinkRANStatusTransferRoundTrips(t *testing.T) {
 
 	if string(msg.Container) != string([]byte{0x5A, 0x71, 0x03, 0x11}) {
 		t.Errorf("container = %x, want 5a710311", msg.Container)
+	}
+}
+
+func TestBuildUEContextReleaseCompleteRoundTrips(t *testing.T) {
+	var sessions [16]bool
+
+	sessions[1] = true
+	sessions[5] = true
+
+	pdu, err := gnb.BuildUEContextReleaseComplete(&gnb.UEContextReleaseCompleteOpts{
+		AMFUENGAPID: 21, RANUENGAPID: 22,
+		PDUSessionIDs: sessions,
+		Mcc:           testMCC, Mnc: testMNC, GnbID: testGnbID, Tac: testTAC,
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	msg, err := ngap.ParseUEContextReleaseComplete(successfulValue(t, pdu, ngap.ProcUEContextRelease))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.AMFUENGAPID == nil || *msg.AMFUENGAPID != 21 {
+		t.Errorf("AMF UE NGAP ID = %v, want 21", msg.AMFUENGAPID)
+	}
+
+	if msg.RANUENGAPID == nil || *msg.RANUENGAPID != 22 {
+		t.Errorf("RAN UE NGAP ID = %v, want 22", msg.RANUENGAPID)
+	}
+
+	assertUserLocation(t, msg.UserLocationInformation)
+
+	got := make([]uint8, 0, len(msg.PDUSessionResourceList))
+	for _, item := range msg.PDUSessionResourceList {
+		got = append(got, uint8(item.PDUSessionID))
+	}
+
+	if len(got) != 2 || got[0] != 1 || got[1] != 5 {
+		t.Errorf("released PDU sessions = %v, want [1 5]", got)
+	}
+}
+
+func TestBuildUEContextReleaseCompleteWithoutPDUSessions(t *testing.T) {
+	pdu, err := gnb.BuildUEContextReleaseComplete(&gnb.UEContextReleaseCompleteOpts{
+		AMFUENGAPID: 21, RANUENGAPID: 22,
+		Mcc: testMCC, Mnc: testMNC, GnbID: testGnbID, Tac: testTAC,
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	msg, err := ngap.ParseUEContextReleaseComplete(successfulValue(t, pdu, ngap.ProcUEContextRelease))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	assertUserLocation(t, msg.UserLocationInformation)
+
+	if len(msg.PDUSessionResourceList) != 0 {
+		t.Errorf("released PDU sessions = %v, want none", msg.PDUSessionResourceList)
+	}
+}
+
+func TestBuildUERadioCapabilityInfoIndicationRoundTrips(t *testing.T) {
+	capability := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+
+	pdu, err := gnb.BuildUERadioCapabilityInfoIndication(&gnb.UERadioCapabilityInfoIndicationOpts{
+		AMFUENGAPID: 31, RANUENGAPID: 32, UERadioCapability: capability,
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	msg, err := ngap.ParseUERadioCapabilityInfoIndication(initiatingValue(t, pdu, ngap.ProcUERadioCapabilityInfoIndication))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.AMFUENGAPID != 31 || msg.RANUENGAPID != 32 {
+		t.Errorf("AP ids = (%d, %d), want (31, 32)", msg.AMFUENGAPID, msg.RANUENGAPID)
+	}
+
+	if !bytes.Equal([]byte(msg.UERadioCapability), capability) {
+		t.Errorf("UE radio capability = %x, want %x", msg.UERadioCapability, capability)
+	}
+}
+
+func TestBuildUERadioCapabilityInfoIndicationRequiresCapability(t *testing.T) {
+	if _, err := gnb.BuildUERadioCapabilityInfoIndication(&gnb.UERadioCapabilityInfoIndicationOpts{
+		AMFUENGAPID: 31, RANUENGAPID: 32,
+	}); err == nil {
+		t.Error("expected an error when the UE radio capability is empty")
 	}
 }

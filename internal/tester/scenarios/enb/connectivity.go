@@ -269,7 +269,7 @@ func runEnbConnectivityTest(
 
 	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = ngeNB.ReleaseContext(newUE, ranUENGAPID, pduSessionStatus, releaseTimeout)
+	err = ngeNB.ReleaseContext(newUE, ranUENGAPID, pduSessionStatus, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UE context release procedure failed: %v", err)
 	}

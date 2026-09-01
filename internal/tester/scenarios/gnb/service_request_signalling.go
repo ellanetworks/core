@@ -8,31 +8,28 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
-	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/registration/periodic/signalling",
+		Name:      "gnb/service_request/signalling",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runRegistrationPeriodicSignalling(ctx, env, params)
+			return runServiceRequestSignalling(ctx, env, params)
 		},
-		Fixture: fixtureRegistrationPeriodicSignalling,
+		Fixture: fixtureServiceRequestSignalling,
 	})
 }
 
-func fixtureRegistrationPeriodicSignalling(env scenarios.Env) scenarios.FixtureSpec {
+func fixtureServiceRequestSignalling(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
 }
 
-func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ any) error {
+func runServiceRequestSignalling(_ context.Context, env scenarios.Env, _ any) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
 		return err
@@ -49,12 +46,7 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 
 	_, err = gNodeB.Register(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("InitialRegistrationProcedure failed: %v", err)
-	}
-
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
-	if err != nil {
-		return fmt.Errorf("did not receive SCTP frame: %v", err)
+		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
 	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
@@ -64,22 +56,20 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
 
-	err = newUE.SendRegistrationRequest(int64(scenarios.DefaultRANUENGAPID), uint8(fgs.RegistrationTypePeriodicUpdating))
+	err = gNodeB.ServiceRequestSignalling(newUE, int64(scenarios.DefaultRANUENGAPID), registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("could not send Registration Request for periodic update: %v", err)
+		return fmt.Errorf("signalling service request procedure failed: %v", err)
 	}
 
-	_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), registrationTimeout)
+	err = gNodeB.ReleaseContext(newUE, int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
-		return fmt.Errorf("did not receive Registration Accept for periodic update: %v", err)
+		return fmt.Errorf("UEContextReleaseProcedure after the signalling service request failed: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
+	_, err = gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("did not receive SCTP frame: %v", err)
+		return fmt.Errorf("the PDU session did not survive the signalling service request: %v", err)
 	}
-
-	logger.UeLogger.Debug("Received Registration Accept for periodic update")
 
 	err = gNodeB.Deregister(newUE, int64(scenarios.DefaultRANUENGAPID), releaseTimeout)
 	if err != nil {

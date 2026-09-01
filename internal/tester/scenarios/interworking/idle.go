@@ -170,7 +170,7 @@ func goIdleOnNR(gNodeB *gnb.GnodeB, u *ue.UE) error {
 func goIdleOnNRConnection(gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) error {
 	sessions := []uint8{movedPDUSessionID}
 
-	if err := gNodeB.ReleaseContext(u, ranUENGAPID, sessions, releaseTimeout); err != nil {
+	if err := gNodeB.ReleaseContext(u, ranUENGAPID, sessions, gnb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release the NR connection before the inter-system change: %w", err)
 	}
 

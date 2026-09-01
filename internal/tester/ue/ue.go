@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -106,6 +107,7 @@ type UE struct {
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
 	requestedReactivation  bool
+	lastPTI                uint8
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -114,6 +116,46 @@ func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
 
 	ue.pduSessions[pduSession.PDUSessionID] = pduSession
 	ue.cond.Broadcast()
+}
+
+// DropPDUSession forgets a PDU session the network released, so the PDU
+// session status the UE reports on its next Service Request or Registration
+// Request (TS 24.501 §9.11.3.44) no longer claims it.
+func (ue *UE) DropPDUSession(pduSessionID uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	delete(ue.pduSessions, pduSessionID)
+	ue.cond.Broadcast()
+}
+
+// nextPTI allocates the procedure transaction identity for a UE-requested 5GSM
+// procedure, skipping the unassigned (0) and reserved (255) values of
+// TS 24.007 §11.2.3.1a.
+func (ue *UE) nextPTI() uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.lastPTI++
+	if ue.lastPTI == 0 || ue.lastPTI == 0xff {
+		ue.lastPTI = 1
+	}
+
+	return ue.lastPTI
+}
+
+func (ue *UE) ActivePDUSessionIDs() []uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ids := make([]uint8, 0, len(ue.pduSessions))
+	for id := range ue.pduSessions {
+		ids = append(ids, id)
+	}
+
+	slices.Sort(ids)
+
+	return ids
 }
 
 func (ue *UE) GetPDUSession(pduSessionID uint8) PDUSessionInfo {
@@ -350,6 +392,15 @@ func reverse(s string) string {
 	return aux
 }
 
+// ErrMACFailure and ErrSQNOutOfRange are the two AUTN checks a UE runs on an
+// AUTHENTICATION REQUEST (TS 33.501 §6.1.3.2). Each has its own 5GMM cause in
+// the AUTHENTICATION FAILURE that answers it, and the sequence-number one
+// carries an AUTS for the network to resynchronise from.
+var (
+	ErrMACFailure    = errors.New("milenage MAC failure")
+	ErrSQNOutOfRange = errors.New("sequence number out of range")
+)
+
 func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND []byte, snName string, AUTN []byte) ([]byte, error) {
 	OPC, err := hex.DecodeString(authSubs.EncOpcKey)
 	if err != nil {
@@ -368,16 +419,16 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND [
 
 	sqnHn, AK, IK, CK, RES, err := milenage.GenerateKeysWithAUTN(OPC, K, RAND, AUTN)
 	if err != nil {
-		return nil, errors.New("milenage MAC failure")
+		return nil, ErrMACFailure
 	}
 
 	if bytes.Compare(sqnUe, sqnHn) > 0 {
 		auts, err := milenage.GenerateAUTS(OPC, K, RAND, sqnUe)
 		if err != nil {
-			return auts, fmt.Errorf("AUTS generation error: %v", err)
+			return nil, fmt.Errorf("AUTS generation error: %v", err)
 		}
 
-		return auts, errors.New("sequence number out of range")
+		return auts, ErrSQNOutOfRange
 	}
 
 	authSubs.SequenceNumber = &SequenceNumber{
@@ -732,6 +783,22 @@ func (ue *UE) setRequestedReactivation(requested bool) {
 	ue.requestedReactivation = requested
 }
 
+// followOnRequestPending reports what the UE puts in the Follow-On Request bit
+// of a REGISTRATION REQUEST (TS 24.501 §9.11.3.14): the bit claims the UE has
+// more NAS signalling to send, which for this UE means the PDU SESSION
+// ESTABLISHMENT REQUEST it follows a registration with. A UE that establishes
+// no session, and one that is asking for its user plane back through the uplink
+// data status instead, both leave it clear; with it clear and nothing else
+// pending the AMF releases the connection on the Registration Complete
+// (TS 24.501 §5.5.1.2.4).
+//
+// The handsets on the reference network agree: initial registrations set the
+// bit, mobility registration updates — which carry their PDU session status
+// instead — clear it.
+func (ue *UE) followOnRequestPending(uplinkDataStatus *[16]bool) bool {
+	return !ue.NoAutoPDUSession && uplinkDataStatus == nil
+}
+
 func (ue *UE) skipAutoPDUSession() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -756,6 +823,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 
 	nasPDU, complete, err := buildRegistrationRequest(&RegistrationRequestOpts{
 		RegistrationType:      regType,
+		FollowOnRequest:       ue.followOnRequestPending(uplinkDataStatus),
 		RequestedNSSAI:        nil,
 		UplinkDataStatus:      uplinkDataStatus,
 		IncludeCapability:     regType != uint8(fgs.RegistrationTypePeriodicUpdating),
@@ -820,8 +888,12 @@ func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, s
 	}
 
 	establishmentCause := ngap.RRCCauseMOData
-	if fgs.ServiceType(serviceType) == fgs.ServiceTypeMobileTerminatedServices {
+
+	switch fgs.ServiceType(serviceType) {
+	case fgs.ServiceTypeMobileTerminatedServices:
 		establishmentCause = ngap.RRCCauseMTAccess
+	case fgs.ServiceTypeSignalling, fgs.ServiceTypeElevatedSignalling:
+		establishmentCause = ngap.RRCCauseMOSignalling
 	}
 
 	var gutiIE []byte
@@ -878,6 +950,46 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 
 func (ue *UE) MovePDUSessionFromEPC(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
 	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeExistingPDUSession)
+}
+
+// SendPDUSessionReleaseRequest starts a UE-requested PDU session release
+// (TS 23.502 §4.3.4.2, TS 24.501 §6.4.3.2). The network answers with a PDU
+// SESSION RELEASE COMMAND carrying the PTI allocated here, which
+// handlePDUSessionReleaseCommand completes.
+func (ue *UE) SendPDUSessionReleaseRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8) (uint8, error) {
+	pti := ue.nextPTI()
+
+	release, err := BuildPDUSessionReleaseRequest(&PDUSessionReleaseRequestOpts{
+		PDUSessionID: pduSessionID,
+		PTI:          pti,
+		Cause:        fgs.GSMCauseRegularDeactivation,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("could not build PDU Session Release Request: %v", err)
+	}
+
+	uplink, err := BuildUplinkNasTransportSM(pduSessionID, release)
+	if err != nil {
+		return 0, fmt.Errorf("could not build Uplink NAS Transport for PDU Session Release: %v", err)
+	}
+
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(uplink, uint8(fgs.SHTIntegrityProtectedCiphered))
+	if err != nil {
+		return 0, fmt.Errorf("error encoding %s IMSI UE NAS Uplink NAS Transport for PDU Session Release Msg", ue.UeSecurity.Supi)
+	}
+
+	if err := ue.Gnb.SendUplinkNAS(encodedPdu, amfUENGAPID, ranUENGAPID); err != nil {
+		return 0, fmt.Errorf("could not send UplinkNASTransport for PDU Session Release: %v", err)
+	}
+
+	logger.UeLogger.Debug(
+		"Sent PDU Session Release Request",
+		zap.String("IMSI", ue.UeSecurity.Supi),
+		zap.Uint8("PDU Session ID", pduSessionID),
+		zap.Uint8("PTI", pti),
+	)
+
+	return pti, nil
 }
 
 func (ue *UE) sendPDUSessionRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai, requestType fgs.RequestType) error {
