@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -114,6 +115,20 @@ func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
 
 	ue.pduSessions[pduSession.PDUSessionID] = pduSession
 	ue.cond.Broadcast()
+}
+
+func (ue *UE) ActivePDUSessionIDs() []uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ids := make([]uint8, 0, len(ue.pduSessions))
+	for id := range ue.pduSessions {
+		ids = append(ids, id)
+	}
+
+	slices.Sort(ids)
+
+	return ids
 }
 
 func (ue *UE) GetPDUSession(pduSessionID uint8) PDUSessionInfo {
@@ -820,8 +835,12 @@ func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, s
 	}
 
 	establishmentCause := ngap.RRCCauseMOData
-	if fgs.ServiceType(serviceType) == fgs.ServiceTypeMobileTerminatedServices {
+
+	switch fgs.ServiceType(serviceType) {
+	case fgs.ServiceTypeMobileTerminatedServices:
 		establishmentCause = ngap.RRCCauseMTAccess
+	case fgs.ServiceTypeSignalling, fgs.ServiceTypeElevatedSignalling:
+		establishmentCause = ngap.RRCCauseMOSignalling
 	}
 
 	var gutiIE []byte

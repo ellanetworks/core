@@ -22,7 +22,16 @@ func init() {
 		Name:      "gnb/context/release",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runUEContextRelease(ctx, env, params)
+			return runUEContextRelease(ctx, env, params, true)
+		},
+		Fixture: fixtureUEContextRelease,
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name:      "gnb/context/release_no_pdu_sessions",
+		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runUEContextRelease(ctx, env, params, false)
 		},
 		Fixture: fixtureUEContextRelease,
 	})
@@ -34,7 +43,7 @@ func fixtureUEContextRelease(env scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
+func runUEContextRelease(_ context.Context, env scenarios.Env, _ any, reportPDUSessions bool) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
 		return err
@@ -55,13 +64,15 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	pduSessionStatus := [16]bool{}
-	pduSessionStatus[scenarios.DefaultPDUSessionID] = true
+	if reportPDUSessions {
+		pduSessionStatus[scenarios.DefaultPDUSessionID] = true
+	}
 
 	err = gNodeB.SendUEContextReleaseRequest(&gnb.UEContextReleaseRequestOpts{
 		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
 		RANUENGAPID:   int64(scenarios.DefaultRANUENGAPID),
 		PDUSessionIDs: pduSessionStatus,
-		Cause:         ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkReleaseDueToNGRANGeneratedReason},
+		Cause:         gnb.CauseUserInactivity,
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
@@ -71,7 +82,7 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		"Sent UE Context Release Request",
 		zap.Int64("AMF UE NGAP ID", gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID))),
 		zap.Int64("RAN UE NGAP ID", int64(scenarios.DefaultRANUENGAPID)),
-		zap.String("Cause", "ReleaseDueToNgranGeneratedReason"),
+		zap.String("Cause", "UserInactivity"),
 	)
 
 	fr, err := gNodeB.WaitForMessage(gnb.Initiating, ngaplib.ProcUEContextRelease, 500*time.Millisecond)
@@ -79,10 +90,7 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	err = validateUEContextReleaseCommand(fr, ngaplib.Cause{
-		Group: ngaplib.CauseGroupRadioNetwork,
-		Value: ngaplib.CauseRadioNetworkReleaseDueToNGRANGeneratedReason,
-	})
+	err = validateUEContextReleaseCommand(fr, gnb.CauseUserInactivity)
 	if err != nil {
 		return fmt.Errorf("UEContextRelease validation failed: %v", err)
 	}

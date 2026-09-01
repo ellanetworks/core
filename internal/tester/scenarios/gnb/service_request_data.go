@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
 )
@@ -50,7 +51,7 @@ func runServiceRequestData(_ context.Context, env scenarios.Env, _ any) error {
 
 	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = gNodeB.ReleaseContext(newUE, int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, releaseTimeout)
+	err = gNodeB.ReleaseContext(newUE, int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}

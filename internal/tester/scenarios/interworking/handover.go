@@ -267,7 +267,7 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE) (gnb.PDUSessionResult, error) {
 	sessions := []uint8{movedPDUSessionID}
 
-	if err := gNodeB.ReleaseContext(u, int64(scenarios.DefaultRANUENGAPID), sessions, releaseTimeout); err != nil {
+	if err := gNodeB.ReleaseContext(u, int64(scenarios.DefaultRANUENGAPID), sessions, gnb.CauseUserInactivity, releaseTimeout); err != nil {
 		return gnb.PDUSessionResult{}, fmt.Errorf("release the connection before the mobility registration update: %w", err)
 	}
 

@@ -97,6 +97,21 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 		}
 	}
 
+	if gnb.claimRadioCapabilityReport(ranUEID) {
+		err = gnb.SendUERadioCapabilityInfoIndication(&UERadioCapabilityInfoIndicationOpts{
+			AMFUENGAPID:       amfUEID,
+			RANUENGAPID:       ranUEID,
+			UERadioCapability: gnb.UERadioCapability,
+		})
+		if err != nil {
+			return fmt.Errorf("could not send UERadioCapabilityInfoIndication: %v", err)
+		}
+
+		logger.GnbLogger.Debug("Sent UE Radio Capability Info Indication",
+			zap.Int64("RAN UE NGAP ID", ranUEID),
+		)
+	}
+
 	err = gnb.SendInitialContextSetupResponse(&InitialContextSetupResponseOpts{
 		AMFUENGAPID: amfUEID,
 		RANUENGAPID: ranUEID,

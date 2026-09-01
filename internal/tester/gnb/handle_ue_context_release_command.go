@@ -36,11 +36,24 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("cannot find UE for UEContextReleaseCommand message: %v", err)
 	}
 
+	var released [16]bool
+
+	for _, id := range ue.ActivePDUSessionIDs() {
+		if int(id) < len(released) {
+			released[id] = true
+		}
+	}
+
 	ue.RRCRelease()
 
 	err = gnb.SendUEContextReleaseComplete(&UEContextReleaseCompleteOpts{
-		AMFUENGAPID: amfUEID,
-		RANUENGAPID: ranUEID,
+		AMFUENGAPID:   amfUEID,
+		RANUENGAPID:   ranUEID,
+		PDUSessionIDs: released,
+		Mcc:           gnb.MCC,
+		Mnc:           gnb.MNC,
+		GnbID:         gnb.GnbID,
+		Tac:           gnb.TAC,
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)

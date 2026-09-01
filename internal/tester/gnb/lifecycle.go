@@ -195,10 +195,34 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	}, nil
 }
 
+func (g *GnodeB) ServiceRequestSignalling(u *ue.UE, ranUENGAPID int64, timeout time.Duration) error {
+	var status [16]bool
+
+	for _, id := range u.ActivePDUSessionIDs() {
+		if int(id) < len(status) {
+			status[id] = true
+		}
+	}
+
+	if err := u.SendServiceRequest(ranUENGAPID, status, uint8(fgs.ServiceTypeSignalling)); err != nil {
+		return fmt.Errorf("send signalling Service Request: %w", err)
+	}
+
+	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), timeout); err != nil {
+		return fmt.Errorf("await Service Accept: %w", err)
+	}
+
+	return nil
+}
+
+var CauseUserInactivity = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}
+
+var CauseRadioConnectionWithUELost = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost}
+
 // ReleaseContext performs a gNB-initiated UE context release (TS 23.502
 // §4.2.6), dropping the UE to CM-IDLE. ENB.ReleaseContext is its EPS
 // counterpart.
-func (g *GnodeB) ReleaseContext(u *ue.UE, ranUENGAPID int64, pduSessionIDs []uint8, timeout time.Duration) error {
+func (g *GnodeB) ReleaseContext(u *ue.UE, ranUENGAPID int64, pduSessionIDs []uint8, cause ngap.Cause, timeout time.Duration) error {
 	var status [16]bool
 
 	for _, id := range pduSessionIDs {
@@ -209,7 +233,7 @@ func (g *GnodeB) ReleaseContext(u *ue.UE, ranUENGAPID int64, pduSessionIDs []uin
 		AMFUENGAPID:   g.GetAMFUENGAPID(ranUENGAPID),
 		RANUENGAPID:   ranUENGAPID,
 		PDUSessionIDs: status,
-		Cause:         ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueToNGRANGeneratedReason},
+		Cause:         cause,
 	})
 	if err != nil {
 		return fmt.Errorf("send UE Context Release Request: %w", err)
