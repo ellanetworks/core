@@ -304,6 +304,32 @@ func (g *GnodeB) removePDUSession(ranUeID int64, pduSessionID int64) {
 	defer g.mu.Unlock()
 
 	delete(g.pduSessions[ranUeID], pduSessionID)
+	g.cond.Broadcast()
+}
+
+// awaitPDUSessionRelease blocks until the gNB no longer holds resources for
+// pduSessionID, which it drops when the AMF asks for them back in a PDU SESSION
+// RESOURCE RELEASE COMMAND.
+func (g *GnodeB) awaitPDUSessionRelease(ranUeID, pduSessionID int64, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	defer timer.Stop()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for {
+		if _, ok := g.pduSessions[ranUeID][pduSessionID]; !ok {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for the release of PDU session %d of RAN UE NGAP ID %d", pduSessionID, ranUeID)
+		}
+
+		g.cond.Wait()
+	}
 }
 
 func (g *GnodeB) updatePDUSessionQoS(ranUeID int64, pduSessionID int64, info *PDUSessionModifyInfo) {

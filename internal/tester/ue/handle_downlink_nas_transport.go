@@ -29,7 +29,7 @@ func handleDLNASTransport(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAPID i
 	case fgs.PayloadContainerTypeLPP:
 		return handleLPPPayload(ue, msg.PayloadContainer, amfUENGAPID, ranUENGAPID)
 	case fgs.PayloadContainerTypeN1SMInfo:
-		return handle5GSMPayload(ue, msg.PayloadContainer)
+		return handle5GSMPayload(ue, msg.PayloadContainer, amfUENGAPID, ranUENGAPID)
 	default:
 		logger.UeLogger.Warn("Unknown payload container type in DL NAS Transport",
 			zap.Uint8("type", uint8(msg.PayloadContainerType)))
@@ -156,7 +156,7 @@ func handleLPPLocationRequest(ue *UE, transactionID byte, amfUENGAPID int64, ran
 	return nil
 }
 
-func handle5GSMPayload(ue *UE, payload []byte) error {
+func handle5GSMPayload(ue *UE, payload []byte, amfUENGAPID int64, ranUENGAPID int64) error {
 	if len(payload) < 4 {
 		return fmt.Errorf("could not decode 5GSM payload: message too short")
 	}
@@ -173,6 +173,11 @@ func handle5GSMPayload(ue *UE, payload []byte) error {
 		err := handlePDUSessionEstablishmentReject(ue, payload)
 		if err != nil {
 			return fmt.Errorf("could not handle PDU Session Establishment Reject: %v", err)
+		}
+	case fgs.MsgPDUSessionReleaseCommand:
+		err := handlePDUSessionReleaseCommand(ue, payload, amfUENGAPID, ranUENGAPID)
+		if err != nil {
+			return fmt.Errorf("could not handle PDU Session Release Command: %v", err)
 		}
 	default:
 		logger.UeLogger.Warn("5GSM message type not implemented", zap.String("Message Type", getGSMMessageName(pcMsgType)))

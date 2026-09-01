@@ -13,6 +13,10 @@ type PDUSessionResourceReleaseResponseOpts struct {
 	AMFUENGAPID   int64
 	RANUENGAPID   int64
 	PDUSessionIDs []int64
+	Mcc           string
+	Mnc           string
+	GnbID         string
+	Tac           string
 }
 
 // BuildPDUSessionResourceReleaseResponse encodes a PDU SESSION RESOURCE RELEASE
@@ -23,9 +27,15 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 		return nil, fmt.Errorf("PDUSessionResourceReleaseResponseOpts is nil")
 	}
 
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	if err != nil {
+		return nil, err
+	}
+
 	msg := &ngap.PDUSessionResourceReleaseResponse{
-		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
-		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+		AMFUENGAPID:             ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID:             ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+		UserLocationInformation: &uli,
 	}
 
 	for _, pduSessionID := range opts.PDUSessionIDs {

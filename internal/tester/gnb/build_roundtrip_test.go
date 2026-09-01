@@ -267,6 +267,7 @@ func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 	t.Run("release", func(t *testing.T) {
 		pdu, err := gnb.BuildPDUSessionResourceReleaseResponse(&gnb.PDUSessionResourceReleaseResponseOpts{
 			AMFUENGAPID: 1, RANUENGAPID: 2, PDUSessionIDs: []int64{6},
+			Mcc: testMCC, Mnc: testMNC, GnbID: testGnbID, Tac: testTAC,
 		})
 		if err != nil {
 			t.Fatalf("build: %v", err)
@@ -276,6 +277,8 @@ func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse: %v", err)
 		}
+
+		assertUserLocation(t, msg.UserLocationInformation)
 
 		if len(msg.PDUSessionResourceReleased) != 1 || msg.PDUSessionResourceReleased[0].PDUSessionID != 6 {
 			t.Fatalf("released sessions = %+v, want one with id 6", msg.PDUSessionResourceReleased)

@@ -6,6 +6,7 @@ package gnb
 import (
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestPDUSessionsForReportsTheRANSideView(t *testing.T) {
@@ -69,5 +70,32 @@ func TestRadioCapabilityReportDisabledWhenEmpty(t *testing.T) {
 
 	if g.claimRadioCapabilityReport(7) {
 		t.Error("an empty capability must disable the report")
+	}
+}
+
+func TestAwaitPDUSessionReleaseReturnsWhenTheSessionIsDropped(t *testing.T) {
+	g := &GnodeB{}
+	g.cond = sync.NewCond(&g.mu)
+
+	g.storePDUSession(7, &PDUSessionInformation{PDUSessionID: 1})
+
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		g.removePDUSession(7, 1)
+	}()
+
+	if err := g.awaitPDUSessionRelease(7, 1, time.Second); err != nil {
+		t.Fatalf("awaitPDUSessionRelease: %v", err)
+	}
+}
+
+func TestAwaitPDUSessionReleaseTimesOutWhileTheSessionStands(t *testing.T) {
+	g := &GnodeB{}
+	g.cond = sync.NewCond(&g.mu)
+
+	g.storePDUSession(7, &PDUSessionInformation{PDUSessionID: 1})
+
+	if err := g.awaitPDUSessionRelease(7, 1, 50*time.Millisecond); err == nil {
+		t.Error("expected a timeout while the gNB still holds the PDU session")
 	}
 }

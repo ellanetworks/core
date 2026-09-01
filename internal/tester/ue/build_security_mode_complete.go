@@ -17,8 +17,12 @@ type SecurityModeCompleteOpts struct {
 }
 
 func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
+	// Only reached when the caller has no Replay to hand: the production path
+	// always replays the REGISTRATION REQUEST the UE actually sent, which is
+	// what TS 33.501 §6.7.2 asks the container to carry.
 	regReqOpts := &RegistrationRequestOpts{
 		RegistrationType:  uint8(fgs.RegistrationTypeInitial),
+		FollowOnRequest:   true,
 		RequestedNSSAI:    nil,
 		UplinkDataStatus:  nil,
 		IncludeCapability: true,

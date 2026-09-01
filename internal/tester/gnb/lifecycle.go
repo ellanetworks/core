@@ -98,10 +98,62 @@ func (g *GnodeB) Register(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeo
 	}, nil
 }
 
+// RegisterWithoutSession drives an initial registration for a UE that
+// establishes no PDU session. Its REGISTRATION REQUEST carries no Follow-On
+// Request and no uplink data status, so once the Registration Complete lands
+// the AMF has nothing left to keep the NAS signalling connection open for and
+// releases it itself (TS 24.501 §5.5.1.2.4). Register is the counterpart that
+// brings up the UE's default PDU session and holds the connection.
+func (g *GnodeB) RegisterWithoutSession(u *ue.UE, ranUENGAPID int64, timeout time.Duration) error {
+	if err := u.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeInitial)); err != nil {
+		return fmt.Errorf("send Registration Request: %w", err)
+	}
+
+	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout); err != nil {
+		return fmt.Errorf("await Registration Accept: %w", err)
+	}
+
+	return nil
+}
+
 // EstablishPDUSession opens an additional PDU session on a registered UE
 // (TS 23.502 §4.3.2.2.1). ENB.OpenPDN is its EPS counterpart.
 func (g *GnodeB) EstablishPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai, timeout time.Duration) (*PDUSessionResult, error) {
 	return g.openPDUSession(u, ranUENGAPID, pduSessionID, dnn, snssai, timeout, u.SendPDUSessionEstablishmentRequest)
+}
+
+// ReleasePDUSession drives a UE-requested PDU session release (TS 23.502
+// §4.3.4.2). The network runs it as a network-requested release carrying the
+// UE's own PTI (TS 24.501 §6.4.3.3): the SMF answers with a PDU SESSION RELEASE
+// COMMAND over N1 and a PDU SESSION RESOURCE RELEASE COMMAND over N2, and the
+// procedure only ends once both the UE's PDU SESSION RELEASE COMPLETE, sent by
+// the UE handler, and the gNB's PDU SESSION RESOURCE RELEASE RESPONSE have
+// reached the SMF.
+func (g *GnodeB) ReleasePDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration) error {
+	pti, err := u.SendPDUSessionReleaseRequest(g.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, pduSessionID)
+	if err != nil {
+		return fmt.Errorf("send PDU Session Release Request for session %d: %w", pduSessionID, err)
+	}
+
+	command, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionReleaseCommand), timeout)
+	if err != nil {
+		return fmt.Errorf("await PDU Session Release Command for session %d: %w", pduSessionID, err)
+	}
+
+	release, err := fgs.ParsePDUSessionReleaseCommand(command)
+	if err != nil {
+		return fmt.Errorf("parse PDU Session Release Command for session %d: %w", pduSessionID, err)
+	}
+
+	if uint8(release.PTI) != pti {
+		return fmt.Errorf("PDU Session Release Command for session %d carries PTI %d, want the requested %d", pduSessionID, release.PTI, pti)
+	}
+
+	if err := g.awaitPDUSessionRelease(ranUENGAPID, int64(pduSessionID), timeout); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // MovePDUSessionFromEPS requests an existing EPS PDN connection over NR as a PDU
@@ -218,6 +270,10 @@ func (g *GnodeB) ServiceRequestSignalling(u *ue.UE, ranUENGAPID int64, timeout t
 var CauseUserInactivity = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}
 
 var CauseRadioConnectionWithUELost = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost}
+
+// CauseNASNormalRelease is the cause the AMF releases a UE context with when it
+// has no reason to hold the NAS signalling connection any longer.
+var CauseNASNormalRelease = ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
 
 // ReleaseContext performs a gNB-initiated UE context release (TS 23.502
 // §4.2.6), dropping the UE to CM-IDLE. ENB.ReleaseContext is its EPS

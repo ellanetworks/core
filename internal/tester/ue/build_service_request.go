@@ -66,7 +66,20 @@ func BuildServiceRequest(opts *ServiceRequestOpts) ([]byte, error) {
 		return nil, fmt.Errorf("error encrypting NAS message: %w", err)
 	}
 
-	m.NASMessageContainer = container
+	outer := cleartextServiceRequestIEs(m)
+	outer.NASMessageContainer = container
 
-	return m.MarshalBinary()
+	return outer.MarshalBinary()
+}
+
+// cleartextServiceRequestIEs keeps only the IEs TS 24.501 §4.4.6 lets a SERVICE
+// REQUEST carry outside the NAS message container. The PDU session status and
+// uplink data status are not among them: they travel ciphered in the container
+// alone, which is what the handsets on the reference network send.
+func cleartextServiceRequestIEs(m *fgs.ServiceRequest) *fgs.ServiceRequest {
+	return &fgs.ServiceRequest{
+		ServiceType:    m.ServiceType,
+		NgKSI:          m.NgKSI,
+		MobileIdentity: m.MobileIdentity,
+	}
 }

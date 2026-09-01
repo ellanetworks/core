@@ -255,7 +255,21 @@ func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType
 }
 
 func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) (*ue.UE, error) {
-	return ue.NewUE(&ue.UEOpts{
+	return ue.NewUE(defaultUEOpts(gNodeB, msin, k, opc, sqn, pduSessionType))
+}
+
+// newSignallingOnlyUE builds a UE that registers without establishing its
+// default PDU session, the way a handset registers when it has nothing to send
+// yet.
+func newSignallingOnlyUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) (*ue.UE, error) {
+	opts := defaultUEOpts(gNodeB, msin, k, opc, sqn, pduSessionType)
+	opts.NoAutoPDUSession = true
+
+	return ue.NewUE(opts)
+}
+
+func defaultUEOpts(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) *ue.UEOpts {
+	return &ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
 		PDUSessionType: fgs.PDUSessionType(pduSessionType),
 		GnodeB:         gNodeB,
@@ -284,7 +298,7 @@ func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType u
 				Nea2: true,
 			},
 		}),
-	})
+	}
 }
 
 func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, dnn string, exp *validate.ExpectedPDUSessionEstablishmentAccept, pduSessionType uint8) error {
