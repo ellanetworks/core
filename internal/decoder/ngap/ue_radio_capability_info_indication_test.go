@@ -96,31 +96,31 @@ func TestDecodeNGAPMessage_UERadioCapabilityInfoIndication(t *testing.T) {
 		t.Fatalf("UERadioCapability decode error: %s", ueRadioCapability.Decoded.Error)
 	}
 
-	if ueRadioCapability.Decoded.NR == nil {
+	if ueRadioCapability.Decoded.Summary.NR == nil {
 		t.Fatal("UERadioCapability carries no NR capability")
 	}
 
-	if ueRadioCapability.Decoded.NR.AccessStratumRelease != "rel15" {
-		t.Errorf("accessStratumRelease = %q, want rel15", ueRadioCapability.Decoded.NR.AccessStratumRelease)
+	if ueRadioCapability.Decoded.Summary.NR.AccessStratumRelease != "rel15" {
+		t.Errorf("accessStratumRelease = %q, want rel15", ueRadioCapability.Decoded.Summary.NR.AccessStratumRelease)
 	}
 
 	wantBands := []int64{28, 78, 20, 7, 3, 1, 77, 41, 40, 38, 8, 5}
-	if len(ueRadioCapability.Decoded.NR.Bands) != len(wantBands) {
-		t.Fatalf("got %d NR bands, want %d", len(ueRadioCapability.Decoded.NR.Bands), len(wantBands))
+	if len(ueRadioCapability.Decoded.Summary.NR.Bands) != len(wantBands) {
+		t.Fatalf("got %d NR bands, want %d", len(ueRadioCapability.Decoded.Summary.NR.Bands), len(wantBands))
 	}
 
 	for i, want := range wantBands {
-		if ueRadioCapability.Decoded.NR.Bands[i].Band != want {
-			t.Errorf("band[%d] = %d, want %d", i, ueRadioCapability.Decoded.NR.Bands[i].Band, want)
+		if ueRadioCapability.Decoded.Summary.NR.Bands[i].Band != want {
+			t.Errorf("band[%d] = %d, want %d", i, ueRadioCapability.Decoded.Summary.NR.Bands[i].Band, want)
 		}
 	}
 
-	if ueRadioCapability.Decoded.EUTRA == nil {
+	if ueRadioCapability.Decoded.Summary.EUTRA == nil {
 		t.Fatal("UERadioCapability carries no E-UTRA capability")
 	}
 
-	if ueRadioCapability.Decoded.EUTRA.UECategory != 4 {
-		t.Errorf("ue-Category = %d, want 4", ueRadioCapability.Decoded.EUTRA.UECategory)
+	if ueRadioCapability.Decoded.Summary.EUTRA.UECategory != 4 {
+		t.Errorf("ue-Category = %d, want 4", ueRadioCapability.Decoded.Summary.EUTRA.UECategory)
 	}
 
 	expectedUERadioCapability := "BE1JCDIumgUABXT1oDFkADAkAsEmLAAzh6BgmyDDnzDHlCwOCYBAYjgWUHwb1gjCGggQeIBElsmCoJHHkOfGOfMMeULA4HDwJ/QAAAH9AAAAqDYm6wRhDQQIOkAiy2TBUNDnxHHoGfYE+Mc+YY8oWBwOHguAAvgA4AC+AASQDgA2UAAFAAABQfBPWCMIaCBB4gESWyYKgkceQ58Y58wx5QsDgcPAn8AAAAfwAAAAoPgNrBGENBAg8QCJLZMFQSOPIc+Mc+YY8oWBwOHgT+AAAAP4AAAAUHwC1gjCGggQeIBElsmCoJHHkOfGOfMMeULA4HDwJ/AAAAH8AAAAKD4AawRhDQQIPEAiS2TBUEjjyHPjHPmGPKFgcDh4E/sAAAD+wAAAVBsTNYIwhoIEHSARZbJgqGhz4jj0DPsCfGOfMMeULA4HDwXAAWwAcABbAAJABwOg2FGBrBGENBAg6QCLLZMFQ0OfEcegZ9gT4xz5hjyhYHA4eC4AC+ADgAL4ABJAOADZQAAUAAAFBsJ9YIwhoIEHSARZbJgqGhz4jj0DPsCfGOfMMeULA4HDwnAAXwAcABfAAoNhLrBGENBAg6QCLLZMFQ0OfEcegZ9gT4xz5hjyhYHA4eE4ACwADgALAAFB8B9YIwhoIEHiARJbJgqCRx5DnxjnzDHlCwOBw8CfwAAAB/AAAACg+AmsEYQ0ECDxAIktkwVBI48hz4xz5hjyhYHA4eBP4AAAA/gAAAACEHEwAAAAAICYCoNAMCFsc+GBQEZ6B4A+ACgcDAOBgCoDgAMBIAIDAfA0AQAAAACAAAEAQAABACAAAEAQAABgCAAAQAQAACgCAAAYAQAADgCAAAgAQAAEgCAAAoAQAAFgCAAAwDGCl5U1gZWBtYMVlTWUtZM1grWDNYCVgLWUNAgEAAAllJAQAAGWUkBAAApZSQEAADllJAQAASWUkBAABZZSQEAAGllJAQAAeWUkBAACJZSQCNKoqgsVQOKoNFUqiqUxVJoqgMVSiKBhKAawCAwCAwGAQCAQGAwGAwCAAAAAIBwCiVCAAAgQIDA4mNj5CSkxOUFJUhoQBQ0Du3AKIAhgh8mCAB0ptCmTqFKp+Qof//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/3/P/r6IKAIyFOGU6VJcfwFhOAAAAAvQAACBnfAAAAAuggBEAMAKAEQAwAwAwAoIQwAwQBggDBAGCAMEIYIQwQhghCggDBAGCAMEAYIAwQBghDBCGCEMAMEAYIAwAwAwAwAwgBDCAEMIAQwgBDCAEMIAQwgBDCAEMIAQwgBDCAEMIAQwghDCCEMIIQwghDCCEEIIAwgBDCCEEIIAwgBDCCEEIIAwgBDCAEMIAQwgBDCAEMIAQwgBDADADADADADACWn1UaFIAKAGCAAgAYwACCBiAAIAC+EADTAAQAMIABBAwAAEEDHAAQAOUABBA2wAEADhAAQAOYABAA5wAEEDoAAQQOkABBA6gAEED/AAQAcYABBRgggYwACSDtgAICMEEFbCBjAAIIOmAAgIwQQVMIGMAAgg4wACChBBBRgg4QACCDjAAIKAEEFGCDgAAIIK+EDTAAQAdMABAQgggqYQMIABBB0wAEBACCCphAwAAEEHbAAQEIIIK2EDCAAQQcIABBQggg4QACCgBBBQgg4AACCBhAAJIO2AAgIAQQVsIGAAAggYAACSBygAJIHOAAkgdAACSFtgAICMEFCCCEthAxgAEFCCCEthARgg4QACCFtgAICMEFACCEthAxgAEFACCEthARgg4AACCFpgAICMEFCCCEphAxgAEFCCCEphARgg4QACCFpgAICMEFACCEphAxgAEFACCEphARgg4AACCFjAAIKMEFCCCEjBBRgg4QACCFjAAIKEEFCCCEjBBwgAEFCCCFjAAIKEEFACAFjAAIKEEBACCFjAAICEEFACCEjBBwgAEFACAEjBBwgAEBACCEjBAwgAEFACCEjBBQgg4AACAEjBBQggYAACCEjBAQgg4AACCFpgAICEEFACCEphAwgAEFACCEphAQgg4AACCFtgAICEEFACCEthAwgAEFACCEthAQgg4AACCBjAIJIGEAgkgYACCSBygIJIHOAgkgdACCTQof//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/fOwAAI6AAAI/i8PDxeLw8PDw8PDw5Dw8Xh4dDw8Oh4/EXi8Xh4eHi8Xi8PDw8PDw8PDw8PDw8OBF0Oh4/9AAAAAAAAAAAAAAAAAAAAAAAQMEAAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAABAEAAAAAAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAAAAAAAACYIA8ZeaBAFKH9////5pS7xwDoAFggAZJKEAEAAlhQgCQBIAggCQBIAkASAJAEEASAJAEgCQBIAkBQIAkBQICCQFAgIJAUCAgkBQICCQEEgKBAQSAoEBBICgQEEgKBAUCAgkASAoEBBIAkASAJAEgSAECBAgQAkCQAgQIECAEgSAECBAgQAkCQAgQIECAEgSAECAEgSAECBAgSAECQAgSAECBAgQIECBAgQAkCAEgQAkCQAgQIECAEgSAECBAgQAkAIHACBwAgcAIHACBwAgYglTwLAAAgEAYBwTBsJQnCgTBNEACIBBQwYYFgAAQCAMA4Jg2EoThQJgmiAAA=="

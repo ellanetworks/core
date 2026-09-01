@@ -194,7 +194,9 @@ const ChildSection: React.FC<{
           {title}
         </Box>
       </TreeRow>
-      <Collapse in={open}>{children}</Collapse>
+      <Collapse in={open} unmountOnExit>
+        {children}
+      </Collapse>
     </>
   );
 };
@@ -259,20 +261,21 @@ const getRrcHeader = (rrcPdu: any): string => {
   if (!decoded) return "undecoded";
   if (decoded.error) return "decode error";
 
+  const summary = decoded.summary ?? {};
   const parts: string[] = [];
-  if (decoded.nr) {
-    const bands = summariseBands(decoded.nr.bands ?? [], "n");
+  if (summary.nr) {
+    const bands = summariseBands(summary.nr.bands ?? [], "n");
     parts.push(
-      `NR ${decoded.nr.access_stratum_release ?? "?"}${bands ? ` \u00B7 ${bands}` : ""}`,
+      `NR ${summary.nr.access_stratum_release ?? "?"}${bands ? ` \u00B7 ${bands}` : ""}`,
     );
   }
-  if (decoded.eutra) {
-    const bands = summariseBands(decoded.eutra.bands ?? [], "B");
-    const cat = decoded.eutra.ue_category
-      ? ` cat${decoded.eutra.ue_category}`
+  if (summary.eutra) {
+    const bands = summariseBands(summary.eutra.bands ?? [], "B");
+    const cat = summary.eutra.ue_category
+      ? ` cat${summary.eutra.ue_category}`
       : "";
     parts.push(
-      `E-UTRA ${decoded.eutra.access_stratum_release ?? "?"}${cat}${bands ? ` \u00B7 ${bands}` : ""}`,
+      `E-UTRA ${summary.eutra.access_stratum_release ?? "?"}${cat}${bands ? ` \u00B7 ${bands}` : ""}`,
     );
   }
   return parts.length ? parts.join("  |  ") : "no capability containers";
@@ -296,8 +299,9 @@ const ProtocolPduBlock: React.FC<{
   title: string;
   header: string;
   accentColor: string;
-}> = ({ pdu, depth, title, header, accentColor }) => {
-  const [open, setOpen] = React.useState(true);
+  defaultOpen?: boolean;
+}> = ({ pdu, depth, title, header, accentColor, defaultOpen = true }) => {
+  const [open, setOpen] = React.useState(defaultOpen);
 
   return (
     <>
@@ -321,7 +325,7 @@ const ProtocolPduBlock: React.FC<{
           {header}
         </Box>
       </TreeRow>
-      <Collapse in={open}>
+      <Collapse in={open} unmountOnExit>
         <Box
           sx={{
             borderLeft: 3,
@@ -349,6 +353,7 @@ const RrcPduBlock: React.FC<{ rrcPdu: any; depth: number; title: string }> = ({
     title={title}
     header={getRrcHeader(rrcPdu)}
     accentColor="success.main"
+    defaultOpen={false}
   />
 );
 

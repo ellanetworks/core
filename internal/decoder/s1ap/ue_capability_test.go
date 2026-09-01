@@ -30,26 +30,26 @@ func TestDecodeUECapabilityInfoIndication(t *testing.T) {
 		t.Fatalf("UERadioCapability decode error: %s", radioCap.Decoded.Error)
 	}
 
-	if radioCap.Decoded.EUTRA == nil {
+	if radioCap.Decoded.Summary.EUTRA == nil {
 		t.Fatal("UERadioCapability carries no E-UTRA capability")
 	}
 
-	if radioCap.Decoded.EUTRA.AccessStratumRelease != "rel16" {
-		t.Errorf("accessStratumRelease = %q, want rel16", radioCap.Decoded.EUTRA.AccessStratumRelease)
+	if radioCap.Decoded.Summary.EUTRA.AccessStratumRelease != "rel16" {
+		t.Errorf("accessStratumRelease = %q, want rel16", radioCap.Decoded.Summary.EUTRA.AccessStratumRelease)
 	}
 
-	if radioCap.Decoded.EUTRA.UECategory != 4 {
-		t.Errorf("ue-Category = %d, want 4", radioCap.Decoded.EUTRA.UECategory)
+	if radioCap.Decoded.Summary.EUTRA.UECategory != 4 {
+		t.Errorf("ue-Category = %d, want 4", radioCap.Decoded.Summary.EUTRA.UECategory)
 	}
 
 	wantBands := []int64{7, 4, 64, 29, 2, 13, 5, 30, 64, 25, 12, 14, 17, 38, 41, 53}
-	if len(radioCap.Decoded.EUTRA.Bands) != len(wantBands) {
-		t.Fatalf("got %d E-UTRA bands, want %d", len(radioCap.Decoded.EUTRA.Bands), len(wantBands))
+	if len(radioCap.Decoded.Summary.EUTRA.Bands) != len(wantBands) {
+		t.Fatalf("got %d E-UTRA bands, want %d", len(radioCap.Decoded.Summary.EUTRA.Bands), len(wantBands))
 	}
 
 	for i, want := range wantBands {
-		if radioCap.Decoded.EUTRA.Bands[i].Band != want {
-			t.Errorf("band[%d] = %d, want %d", i, radioCap.Decoded.EUTRA.Bands[i].Band, want)
+		if radioCap.Decoded.Summary.EUTRA.Bands[i].Band != want {
+			t.Errorf("band[%d] = %d, want %d", i, radioCap.Decoded.Summary.EUTRA.Bands[i].Band, want)
 		}
 	}
 }

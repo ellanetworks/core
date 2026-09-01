@@ -34,7 +34,9 @@ describe("NGAPMessageView RRC container", () => {
     render(
       <NGAPMessageView
         decoded={withRadioCapability({
-          nr: { access_stratum_release: "rel16", bands: [{ band: 77 }] },
+          summary: {
+            nr: { access_stratum_release: "rel16", bands: [{ band: 77 }] },
+          },
         })}
       />,
     );
@@ -47,12 +49,14 @@ describe("NGAPMessageView RRC container", () => {
     render(
       <NGAPMessageView
         decoded={withRadioCapability({
-          eutra: {
-            access_stratum_release: "rel16",
-            ue_category: 4,
-            bands: [2, 4, 5, 7, 12, 13, 25, 29, 30, 41, 1, 3].map((band) => ({
-              band,
-            })),
+          summary: {
+            eutra: {
+              access_stratum_release: "rel16",
+              ue_category: 4,
+              bands: [2, 4, 5, 7, 12, 13, 25, 29, 30, 41, 1, 3].map((band) => ({
+                band,
+              })),
+            },
           },
         })}
       />,
@@ -68,11 +72,13 @@ describe("NGAPMessageView RRC container", () => {
     render(
       <NGAPMessageView
         decoded={withRadioCapability({
-          nr: { access_stratum_release: "rel16", bands: [{ band: 77 }] },
-          eutra: {
-            access_stratum_release: "rel16",
-            ue_category: 4,
-            bands: [{ band: 2 }, { band: 5 }],
+          summary: {
+            nr: { access_stratum_release: "rel16", bands: [{ band: 77 }] },
+            eutra: {
+              access_stratum_release: "rel16",
+              ue_category: 4,
+              bands: [{ band: 2 }, { band: 5 }],
+            },
           },
         })}
       />,
@@ -96,7 +102,13 @@ describe("NGAPMessageView RRC container", () => {
   it("keeps the raw hex to one line and copies the whole value", async () => {
     const user = userEvent.setup();
 
-    render(<NGAPMessageView decoded={withRadioCapability({ nr: {} })} />);
+    render(
+      <NGAPMessageView
+        decoded={withRadioCapability({ summary: { nr: {} } })}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Expand"));
 
     const hex = screen.getByText(rawHex);
     expect(hex).toHaveStyle({ whiteSpace: "nowrap", overflow: "hidden" });

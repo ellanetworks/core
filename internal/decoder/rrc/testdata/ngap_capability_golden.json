@@ -1,838 +1,873 @@
 {
   "nrRel15MultiBand": {
-    "nr": {
-      "access_stratum_release": "rel15",
-      "bands": [
-        {
-          "band": 28,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 78,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 20,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 7,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 3,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 1,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 41,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 40,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 38,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 8,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 5,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel15",
+        "bands": [
+          {
+            "band": 28,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 78,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 20,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 7,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 3,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 1,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 41,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 40,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 38,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 8,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 5,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel15",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 7
+          },
+          {
+            "band": 2
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 32
+          },
+          {
+            "band": 20
+          },
+          {
+            "band": 3
+          },
+          {
+            "band": 1
+          },
+          {
+            "band": 8
+          },
+          {
+            "band": 28
+          },
+          {
+            "band": 34
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 39
+          },
+          {
+            "band": 40
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 42
+          },
+          {
+            "band": 43
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel15",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 7
-        },
-        {
-          "band": 2
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 32
-        },
-        {
-          "band": 20
-        },
-        {
-          "band": 3
-        },
-        {
-          "band": 1
-        },
-        {
-          "band": 8
-        },
-        {
-          "band": 28
-        },
-        {
-          "band": 34
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 39
-        },
-        {
-          "band": 40
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 42
-        },
-        {
-          "band": 43
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 753,
+    "eutra_nodes": 8048,
+    "tree_sha256": "e617fba83e21553f51b4d0e6ab32f67000d57088826f1bf08c887d978a2a421a"
   },
   "nrRel15MultiBandVariantA": {
-    "nr": {
-      "access_stratum_release": "rel15",
-      "bands": [
-        {
-          "band": 28,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 78,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 20,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 7,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 3,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 1,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 41,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 40,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 38,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 8,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 5,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel15",
+        "bands": [
+          {
+            "band": 28,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 78,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 20,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 7,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 3,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 1,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 41,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 40,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 38,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 8,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 5,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel15",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 2
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 7
+          },
+          {
+            "band": 32
+          },
+          {
+            "band": 20
+          },
+          {
+            "band": 3
+          },
+          {
+            "band": 1
+          },
+          {
+            "band": 8
+          },
+          {
+            "band": 28
+          },
+          {
+            "band": 34
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 39
+          },
+          {
+            "band": 40
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 42
+          },
+          {
+            "band": 43
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel15",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 2
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 7
-        },
-        {
-          "band": 32
-        },
-        {
-          "band": 20
-        },
-        {
-          "band": 3
-        },
-        {
-          "band": 1
-        },
-        {
-          "band": 8
-        },
-        {
-          "band": 28
-        },
-        {
-          "band": 34
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 39
-        },
-        {
-          "band": 40
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 42
-        },
-        {
-          "band": 43
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 753,
+    "eutra_nodes": 8049,
+    "tree_sha256": "dfe503d1632a794acddcabfb78eeaeccdab1d97968a269b27fb66ebad7a044d9"
   },
   "nrRel15MultiBandVariantB": {
-    "nr": {
-      "access_stratum_release": "rel15",
-      "bands": [
-        {
-          "band": 28,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 78,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 20,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 7,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 3,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 1,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 41,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 40,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 38,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 8,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 5,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel15",
+        "bands": [
+          {
+            "band": 28,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 78,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 20,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 7,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 3,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 1,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 41,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 40,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 38,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 8,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 5,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel15",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 2
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 7
+          },
+          {
+            "band": 32
+          },
+          {
+            "band": 20
+          },
+          {
+            "band": 3
+          },
+          {
+            "band": 1
+          },
+          {
+            "band": 8
+          },
+          {
+            "band": 28
+          },
+          {
+            "band": 34
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 39
+          },
+          {
+            "band": 40
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 42
+          },
+          {
+            "band": 43
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel15",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 2
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 7
-        },
-        {
-          "band": 32
-        },
-        {
-          "band": 20
-        },
-        {
-          "band": 3
-        },
-        {
-          "band": 1
-        },
-        {
-          "band": 8
-        },
-        {
-          "band": 28
-        },
-        {
-          "band": 34
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 39
-        },
-        {
-          "band": 40
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 42
-        },
-        {
-          "band": 43
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 756,
+    "eutra_nodes": 8049,
+    "tree_sha256": "bd4856c5033891fd8ba4808203a77c527cd7d33e2885d8bc8acea954300ee249"
   },
   "nrRel15Standalone": {
-    "nr": {
-      "access_stratum_release": "rel15",
-      "bands": [
-        {
-          "band": 71,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 78,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 66,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 25,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 7,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 5,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 2,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 30,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 14,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 12,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 70,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 48,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 41,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 29,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 26,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
-    }
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel15",
+        "bands": [
+          {
+            "band": 71,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 78,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 66,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 25,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 7,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 5,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 2,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 30,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 14,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 12,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 70,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 48,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 41,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 29,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 26,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      }
+    },
+    "nr_nodes": 811,
+    "eutra_nodes": 1,
+    "tree_sha256": "68a68c55d7898153ef7f959c056d8dffa928b36bd9dbdb811a983bf9f08c0d1a"
   },
   "nrRel16Band77": {
-    "nr": {
-      "access_stratum_release": "rel16",
-      "bands": [
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel16",
+        "bands": [
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel16",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 1
+          },
+          {
+            "band": 2
+          },
+          {
+            "band": 3
+          },
+          {
+            "band": 4
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 7
+          },
+          {
+            "band": 8
+          },
+          {
+            "band": 12
+          },
+          {
+            "band": 13
+          },
+          {
+            "band": 14
+          },
+          {
+            "band": 17
+          },
+          {
+            "band": 20
+          },
+          {
+            "band": 25
+          },
+          {
+            "band": 26
+          },
+          {
+            "band": 28
+          },
+          {
+            "band": 29
+          },
+          {
+            "band": 30
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 48
+          },
+          {
+            "band": 64
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel16",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 1
-        },
-        {
-          "band": 2
-        },
-        {
-          "band": 3
-        },
-        {
-          "band": 4
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 7
-        },
-        {
-          "band": 8
-        },
-        {
-          "band": 12
-        },
-        {
-          "band": 13
-        },
-        {
-          "band": 14
-        },
-        {
-          "band": 17
-        },
-        {
-          "band": 20
-        },
-        {
-          "band": 25
-        },
-        {
-          "band": 26
-        },
-        {
-          "band": 28
-        },
-        {
-          "band": 29
-        },
-        {
-          "band": 30
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 48
-        },
-        {
-          "band": 64
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 288,
+    "eutra_nodes": 10844,
+    "tree_sha256": "d73dc9627f2e3ebd9a2977cbd2cc216b036eec23d2774a7941b1d5400e0bcde1"
   },
   "nrRel16Band77Variant": {
-    "nr": {
-      "access_stratum_release": "rel16",
-      "bands": [
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel16",
+        "bands": [
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel16",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 2
+          },
+          {
+            "band": 4
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 7
+          },
+          {
+            "band": 12
+          },
+          {
+            "band": 13
+          },
+          {
+            "band": 14
+          },
+          {
+            "band": 17
+          },
+          {
+            "band": 25
+          },
+          {
+            "band": 26
+          },
+          {
+            "band": 29
+          },
+          {
+            "band": 30
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 48
+          },
+          {
+            "band": 64
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel16",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 2
-        },
-        {
-          "band": 4
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 7
-        },
-        {
-          "band": 12
-        },
-        {
-          "band": 13
-        },
-        {
-          "band": 14
-        },
-        {
-          "band": 17
-        },
-        {
-          "band": 25
-        },
-        {
-          "band": 26
-        },
-        {
-          "band": 29
-        },
-        {
-          "band": 30
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 48
-        },
-        {
-          "band": 64
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 283,
+    "eutra_nodes": 9057,
+    "tree_sha256": "1ddf86a5e30aa3cb152a8cebf65e9f533e33e3e658ade0a8e36e8dfaf652d89b"
   },
   "nrRel16MultiBand": {
-    "nr": {
-      "access_stratum_release": "rel16",
-      "bands": [
-        {
-          "band": 2,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 5,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 41,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 66,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 71,
-          "power_class": "pc3",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 77,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        },
-        {
-          "band": 78,
-          "power_class": "pc2",
-          "pusch_256qam": true,
-          "channel_bw_dl": "fr1",
-          "channel_bw_ul": "fr1"
-        }
-      ]
+    "summary": {
+      "nr": {
+        "access_stratum_release": "rel16",
+        "bands": [
+          {
+            "band": 2,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 5,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 41,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 66,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 71,
+            "power_class": "pc3",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 77,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          },
+          {
+            "band": 78,
+            "power_class": "pc2",
+            "pusch_256qam": true,
+            "channel_bw_dl": "fr1",
+            "channel_bw_ul": "fr1"
+          }
+        ]
+      },
+      "eutra": {
+        "access_stratum_release": "rel16",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 2
+          },
+          {
+            "band": 4
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 7
+          },
+          {
+            "band": 12
+          },
+          {
+            "band": 13
+          },
+          {
+            "band": 25
+          },
+          {
+            "band": 29
+          },
+          {
+            "band": 30
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 1
+          },
+          {
+            "band": 3
+          },
+          {
+            "band": 20
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 39
+          },
+          {
+            "band": 40
+          },
+          {
+            "band": 64
+          },
+          {
+            "band": 64
+          }
+        ]
+      }
     },
-    "eutra": {
-      "access_stratum_release": "rel16",
-      "ue_category": 4,
-      "bands": [
-        {
-          "band": 2
-        },
-        {
-          "band": 4
-        },
-        {
-          "band": 5
-        },
-        {
-          "band": 7
-        },
-        {
-          "band": 12
-        },
-        {
-          "band": 13
-        },
-        {
-          "band": 25
-        },
-        {
-          "band": 29
-        },
-        {
-          "band": 30
-        },
-        {
-          "band": 41
-        },
-        {
-          "band": 1
-        },
-        {
-          "band": 3
-        },
-        {
-          "band": 20
-        },
-        {
-          "band": 38
-        },
-        {
-          "band": 39
-        },
-        {
-          "band": 40
-        },
-        {
-          "band": 64
-        },
-        {
-          "band": 64
-        }
-      ]
-    }
+    "nr_nodes": 486,
+    "eutra_nodes": 9642,
+    "tree_sha256": "1bb9ff89a8f4dd3608a1939fa00d862c39a596f34c543eadc91c97ec394cf1a1"
   }
 }

@@ -24,7 +24,6 @@ type field struct {
 type sequence struct {
 	fields     []field
 	extensible bool
-	stopAfter  string
 }
 
 type choice struct {
@@ -141,10 +140,6 @@ func (s sequence) decode(r *per.Reader) (any, error) {
 		}
 
 		out[f.name] = v
-
-		if s.stopAfter != "" && f.name == s.stopAfter {
-			return out, nil
-		}
 	}
 
 	if extended {
@@ -261,14 +256,6 @@ func (s sequenceOf) decode(r *per.Reader) (any, error) {
 
 func (boolean) decode(r *per.Reader) (any, error) {
 	return per.DecodeBoolean(r, enc)
-}
-
-type unsupported struct {
-	name string
-}
-
-func (u unsupported) decode(*per.Reader) (any, error) {
-	return nil, fmt.Errorf("rrc: %s is beyond the decoded prefix", u.name)
 }
 
 type null struct{}

@@ -4,6 +4,7 @@
 package rrc_test
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -25,6 +26,52 @@ func decodeCapture(t *testing.T, name, capture string) []byte {
 	}
 
 	return raw
+}
+
+type capabilityDigest struct {
+	Summary  *rrc.Summary `json:"summary"`
+	NRNodes  int          `json:"nr_nodes"`
+	EUNodes  int          `json:"eutra_nodes"`
+	TreeHash string       `json:"tree_sha256"`
+}
+
+func countNodes(v any) int {
+	switch t := v.(type) {
+	case map[string]any:
+		n := 1
+		for _, child := range t {
+			n += countNodes(child)
+		}
+
+		return n
+	case []any:
+		n := 1
+		for _, child := range t {
+			n += countNodes(child)
+		}
+
+		return n
+	default:
+		return 1
+	}
+}
+
+func digest(t *testing.T, c *rrc.Capability) capabilityDigest {
+	t.Helper()
+
+	tree, err := json.Marshal(map[string]any{"nr": c.NR, "eutra": c.EUTRA})
+	if err != nil {
+		t.Fatalf("marshal tree: %v", err)
+	}
+
+	sum := sha256.Sum256(tree)
+
+	return capabilityDigest{
+		Summary:  c.Summary,
+		NRNodes:  countNodes(c.NR),
+		EUNodes:  countNodes(c.EUTRA),
+		TreeHash: hex.EncodeToString(sum[:]),
+	}
 }
 
 func decodeCaptures(t *testing.T, captures map[string]string, parse func([]byte) (*rrc.Capability, error)) map[string]*rrc.Capability {
@@ -51,7 +98,12 @@ func decodeCaptures(t *testing.T, captures map[string]string, parse func([]byte)
 func checkGolden(t *testing.T, path string, got map[string]*rrc.Capability) {
 	t.Helper()
 
-	encoded, err := json.MarshalIndent(got, "", "  ")
+	digests := make(map[string]capabilityDigest, len(got))
+	for name, capability := range got {
+		digests[name] = digest(t, capability)
+	}
+
+	encoded, err := json.MarshalIndent(digests, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -109,26 +161,26 @@ func TestCapabilityRejectsGarbage(t *testing.T) {
 
 func TestNGAPCapabilityBandsAreSane(t *testing.T) {
 	for name, capability := range decodeCaptures(t, ngapCapabilityCaptures, rrc.ParseNGAPUERadioCapability) {
-		if capability.NR == nil {
+		if capability.NR == nil || capability.Summary == nil || capability.Summary.NR == nil {
 			t.Errorf("%s: no NR capability", name)
 			continue
 		}
 
-		if capability.NR.AccessStratumRelease == "" {
+		if capability.Summary.NR.AccessStratumRelease == "" {
 			t.Errorf("%s: empty NR access stratum release", name)
 		}
 
-		for _, b := range capability.NR.Bands {
+		for _, b := range capability.Summary.NR.Bands {
 			if b.Band < 1 || b.Band > 1024 {
 				t.Errorf("%s: NR band %d out of range", name, b.Band)
 			}
 		}
 
-		if capability.EUTRA == nil {
+		if capability.Summary.EUTRA == nil {
 			continue
 		}
 
-		for _, b := range capability.EUTRA.Bands {
+		for _, b := range capability.Summary.EUTRA.Bands {
 			if b.Band < 1 || b.Band > 256 {
 				t.Errorf("%s: E-UTRA band %d out of range", name, b.Band)
 			}

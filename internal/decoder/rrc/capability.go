@@ -33,10 +33,16 @@ type EUTRACapability struct {
 	Bands                []EUTRABand `json:"bands,omitempty"`
 }
 
-type Capability struct {
+type Summary struct {
 	NR    *NRCapability    `json:"nr,omitempty"`
 	EUTRA *EUTRACapability `json:"eutra,omitempty"`
-	Error string           `json:"error,omitempty"`
+}
+
+type Capability struct {
+	Summary *Summary       `json:"summary,omitempty"`
+	NR      map[string]any `json:"nr,omitempty"`
+	EUTRA   map[string]any `json:"eutra,omitempty"`
+	Error   string         `json:"error,omitempty"`
 }
 
 type ratContainer struct {
@@ -50,7 +56,38 @@ func decodeWith(reg map[string]node, name string, b []byte) (any, error) {
 		return nil, fmt.Errorf("rrc: undefined type %q", name)
 	}
 
-	return n.decode(per.NewReader(b))
+	r := per.NewReader(b)
+
+	v, err := n.decode(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := checkFullyConsumed(r); err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+
+	return v, nil
+}
+
+func checkFullyConsumed(r *per.Reader) error {
+	left := r.Bits()
+	if left >= 8 {
+		return fmt.Errorf("rrc: %d bits left after decoding", left)
+	}
+
+	for range left {
+		bit, err := r.ReadBit()
+		if err != nil {
+			return err
+		}
+
+		if bit {
+			return fmt.Errorf("rrc: non-zero padding after decoding")
+		}
+	}
+
+	return nil
 }
 
 func asMap(v any) map[string]any {
@@ -119,10 +156,10 @@ func parseContainerList(reg map[string]node, b []byte) ([]ratContainer, error) {
 	return containersFrom(items), nil
 }
 
-func parseUENRCapability(b []byte) (*NRCapability, error) {
+func parseUENRCapability(b []byte) (map[string]any, *NRCapability, error) {
 	v, err := decodeWith(nrTypes, "UE-NR-Capability", b)
 	if err != nil {
-		return nil, fmt.Errorf("UE-NR-Capability: %w", err)
+		return nil, nil, fmt.Errorf("UE-NR-Capability: %w", err)
 	}
 
 	root := asMap(v)
@@ -153,13 +190,13 @@ func parseUENRCapability(b []byte) (*NRCapability, error) {
 		out.Bands = append(out.Bands, band)
 	}
 
-	return out, nil
+	return root, out, nil
 }
 
-func parseUEEUTRACapability(b []byte) (*EUTRACapability, error) {
+func parseUEEUTRACapability(b []byte) (map[string]any, *EUTRACapability, error) {
 	v, err := decodeWith(eutraTypes, "UE-EUTRA-Capability", b)
 	if err != nil {
-		return nil, fmt.Errorf("UE-EUTRA-Capability: %w", err)
+		return nil, nil, fmt.Errorf("UE-EUTRA-Capability: %w", err)
 	}
 
 	root := asMap(v)
@@ -190,28 +227,28 @@ func parseUEEUTRACapability(b []byte) (*EUTRACapability, error) {
 		out.Bands = append(out.Bands, band)
 	}
 
-	return out, nil
+	return root, out, nil
 }
 
 func capabilityFromContainers(containers []ratContainer) (*Capability, error) {
-	out := &Capability{}
+	out := &Capability{Summary: &Summary{}}
 
 	for _, c := range containers {
 		switch c.ratType {
 		case "nr":
-			nr, err := parseUENRCapability(c.payload)
+			tree, summary, err := parseUENRCapability(c.payload)
 			if err != nil {
 				return nil, err
 			}
 
-			out.NR = nr
+			out.NR, out.Summary.NR = tree, summary
 		case "eutra":
-			eutra, err := parseUEEUTRACapability(c.payload)
+			tree, summary, err := parseUEEUTRACapability(c.payload)
 			if err != nil {
 				return nil, err
 			}
 
-			out.EUTRA = eutra
+			out.EUTRA, out.Summary.EUTRA = tree, summary
 		}
 	}
 
