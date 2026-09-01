@@ -6,6 +6,7 @@ package ngap
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
@@ -173,7 +174,7 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 	}
 
 	if m.UERadioCapability != nil {
-		ies = append(ies, ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)))
+		ies = append(ies, ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, rrc.DescribeNGAP(m.UERadioCapability)))
 	}
 
 	if m.UERadioCapabilityForPaging != nil {

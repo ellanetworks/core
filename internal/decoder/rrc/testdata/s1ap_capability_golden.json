@@ -1,0 +1,58 @@
+{
+  "uecap_s1ap_eutra.bin": {
+    "eutra": {
+      "access_stratum_release": "rel16",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 7
+        },
+        {
+          "band": 4
+        },
+        {
+          "band": 64
+        },
+        {
+          "band": 29
+        },
+        {
+          "band": 2
+        },
+        {
+          "band": 13
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 30
+        },
+        {
+          "band": 64
+        },
+        {
+          "band": 25
+        },
+        {
+          "band": 12
+        },
+        {
+          "band": 14
+        },
+        {
+          "band": 17
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 53
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,838 @@
+{
+  "uecap_ngap_0bcb55dcef.bin": {
+    "nr": {
+      "access_stratum_release": "rel16",
+      "bands": [
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel16",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 1
+        },
+        {
+          "band": 2
+        },
+        {
+          "band": 3
+        },
+        {
+          "band": 4
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 7
+        },
+        {
+          "band": 8
+        },
+        {
+          "band": 12
+        },
+        {
+          "band": 13
+        },
+        {
+          "band": 14
+        },
+        {
+          "band": 17
+        },
+        {
+          "band": 20
+        },
+        {
+          "band": 25
+        },
+        {
+          "band": 26
+        },
+        {
+          "band": 28
+        },
+        {
+          "band": 29
+        },
+        {
+          "band": 30
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 48
+        },
+        {
+          "band": 64
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  },
+  "uecap_ngap_2246f67131.bin": {
+    "nr": {
+      "access_stratum_release": "rel15",
+      "bands": [
+        {
+          "band": 28,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 78,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 20,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 7,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 3,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 1,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 41,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 40,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 38,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 8,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 5,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel15",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 7
+        },
+        {
+          "band": 2
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 32
+        },
+        {
+          "band": 20
+        },
+        {
+          "band": 3
+        },
+        {
+          "band": 1
+        },
+        {
+          "band": 8
+        },
+        {
+          "band": 28
+        },
+        {
+          "band": 34
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 39
+        },
+        {
+          "band": 40
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 42
+        },
+        {
+          "band": 43
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  },
+  "uecap_ngap_3375c1c48e.bin": {
+    "nr": {
+      "access_stratum_release": "rel15",
+      "bands": [
+        {
+          "band": 28,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 78,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 20,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 7,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 3,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 1,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 41,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 40,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 38,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 8,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 5,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel15",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 2
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 7
+        },
+        {
+          "band": 32
+        },
+        {
+          "band": 20
+        },
+        {
+          "band": 3
+        },
+        {
+          "band": 1
+        },
+        {
+          "band": 8
+        },
+        {
+          "band": 28
+        },
+        {
+          "band": 34
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 39
+        },
+        {
+          "band": 40
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 42
+        },
+        {
+          "band": 43
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  },
+  "uecap_ngap_787f558390.bin": {
+    "nr": {
+      "access_stratum_release": "rel15",
+      "bands": [
+        {
+          "band": 28,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 78,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 20,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 7,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 3,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 1,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 41,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 40,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 38,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 8,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 5,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel15",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 2
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 7
+        },
+        {
+          "band": 32
+        },
+        {
+          "band": 20
+        },
+        {
+          "band": 3
+        },
+        {
+          "band": 1
+        },
+        {
+          "band": 8
+        },
+        {
+          "band": 28
+        },
+        {
+          "band": 34
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 39
+        },
+        {
+          "band": 40
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 42
+        },
+        {
+          "band": 43
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  },
+  "uecap_ngap_c1eefb4272.bin": {
+    "nr": {
+      "access_stratum_release": "rel15",
+      "bands": [
+        {
+          "band": 71,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 78,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 66,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 25,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 7,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 5,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 2,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 30,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 14,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 12,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 70,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 48,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 41,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 29,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 26,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    }
+  },
+  "uecap_ngap_c59520ba57.bin": {
+    "nr": {
+      "access_stratum_release": "rel16",
+      "bands": [
+        {
+          "band": 2,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 5,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 41,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 66,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 71,
+          "power_class": "pc3",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        },
+        {
+          "band": 78,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel16",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 2
+        },
+        {
+          "band": 4
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 7
+        },
+        {
+          "band": 12
+        },
+        {
+          "band": 13
+        },
+        {
+          "band": 25
+        },
+        {
+          "band": 29
+        },
+        {
+          "band": 30
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 1
+        },
+        {
+          "band": 3
+        },
+        {
+          "band": 20
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 39
+        },
+        {
+          "band": 40
+        },
+        {
+          "band": 64
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  },
+  "uecap_ngap_ef083a9ed8.bin": {
+    "nr": {
+      "access_stratum_release": "rel16",
+      "bands": [
+        {
+          "band": 77,
+          "power_class": "pc2",
+          "pusch_256qam": true,
+          "channel_bw_dl": "fr1",
+          "channel_bw_ul": "fr1"
+        }
+      ]
+    },
+    "eutra": {
+      "access_stratum_release": "rel16",
+      "ue_category": 4,
+      "bands": [
+        {
+          "band": 2
+        },
+        {
+          "band": 4
+        },
+        {
+          "band": 5
+        },
+        {
+          "band": 7
+        },
+        {
+          "band": 12
+        },
+        {
+          "band": 13
+        },
+        {
+          "band": 14
+        },
+        {
+          "band": 17
+        },
+        {
+          "band": 25
+        },
+        {
+          "band": 26
+        },
+        {
+          "band": 29
+        },
+        {
+          "band": 30
+        },
+        {
+          "band": 38
+        },
+        {
+          "band": 41
+        },
+        {
+          "band": 48
+        },
+        {
+          "band": 64
+        },
+        {
+          "band": 64
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@ package s1ap
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -107,7 +108,7 @@ func buildInitialContextSetupRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	if len(m.UERadioCapability) > 0 {
-		ies = append(ies, ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)))
+		ies = append(ies, ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, rrc.DescribeS1AP(m.UERadioCapability)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

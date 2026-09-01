@@ -58,7 +58,158 @@
           "label": "ignore",
           "unknown": false
         },
-        "value": "BE1JCDIumgUABXT1oDFkADAkAsEmLAAzh6BgmyDDnzDHlCwOCYBAYjgWUHwb1gjCGggQeIBElsmCoJHHkOfGOfMMeULA4HDwJ/QAAAH9AAAAqDYm6wRhDQQIOkAiy2TBUNDnxHHoGfYE+Mc+YY8oWBwOHguAAvgA4AC+AASQDgA2UAAFAAABQfBPWCMIaCBB4gESWyYKgkceQ58Y58wx5QsDgcPAn8AAAAfwAAAAoPgNrBGENBAg8QCJLZMFQSOPIc+Mc+YY8oWBwOHgT+AAAAP4AAAAUHwC1gjCGggQeIBElsmCoJHHkOfGOfMMeULA4HDwJ/AAAAH8AAAAKD4AawRhDQQIPEAiS2TBUEjjyHPjHPmGPKFgcDh4E/sAAAD+wAAAVBsTNYIwhoIEHSARZbJgqGhz4jj0DPsCfGOfMMeULA4HDwXAAWwAcABbAAJABwOg2FGBrBGENBAg6QCLLZMFQ0OfEcegZ9gT4xz5hjyhYHA4eC4AC+ADgAL4ABJAOADZQAAUAAAFBsJ9YIwhoIEHSARZbJgqGhz4jj0DPsCfGOfMMeULA4HDwnAAXwAcABfAAoNhLrBGENBAg6QCLLZMFQ0OfEcegZ9gT4xz5hjyhYHA4eE4ACwADgALAAFB8B9YIwhoIEHiARJbJgqCRx5DnxjnzDHlCwOBw8CfwAAAB/AAAACg+AmsEYQ0ECDxAIktkwVBI48hz4xz5hjyhYHA4eBP4AAAA/gAAAACEHEwAAAAAICYCoNAMCFsc+GBQEZ6B4A+ACgcDAOBgCoDgAMBIAIDAfA0AQAAAACAAAEAQAABACAAAEAQAABgCAAAQAQAACgCAAAYAQAADgCAAAgAQAAEgCAAAoAQAAFgCAAAwDGCl5U1gZWBtYMVlTWUtZM1grWDNYCVgLWUNAgEAAAllJAQAAGWUkBAAApZSQEAADllJAQAASWUkBAABZZSQEAAGllJAQAAeWUkBAACJZSQCNKoqgsVQOKoNFUqiqUxVJoqgMVSiKBhKAawCAwCAwGAQCAQGAwGAwCAAAAAIBwCiVCAAAgQIDA4mNj5CSkxOUFJUhoQBQ0Du3AKIAhgh8mCAB0ptCmTqFKp+Qof//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/3/P/r6IKAIyFOGU6VJcfwFhOAAAAAvQAACBnfAAAAAuggBEAMAKAEQAwAwAwAoIQwAwQBggDBAGCAMEIYIQwQhghCggDBAGCAMEAYIAwQBghDBCGCEMAMEAYIAwAwAwAwAwgBDCAEMIAQwgBDCAEMIAQwgBDCAEMIAQwgBDCAEMIAQwghDCCEMIIQwghDCCEEIIAwgBDCCEEIIAwgBDCCEEIIAwgBDCAEMIAQwgBDCAEMIAQwgBDADADADADADACWn1UaFIAKAGCAAgAYwACCBiAAIAC+EADTAAQAMIABBAwAAEEDHAAQAOUABBA2wAEADhAAQAOYABAA5wAEEDoAAQQOkABBA6gAEED/AAQAcYABBRgggYwACSDtgAICMEEFbCBjAAIIOmAAgIwQQVMIGMAAgg4wACChBBBRgg4QACCDjAAIKAEEFGCDgAAIIK+EDTAAQAdMABAQgggqYQMIABBB0wAEBACCCphAwAAEEHbAAQEIIIK2EDCAAQQcIABBQggg4QACCgBBBQgg4AACCBhAAJIO2AAgIAQQVsIGAAAggYAACSBygAJIHOAAkgdAACSFtgAICMEFCCCEthAxgAEFCCCEthARgg4QACCFtgAICMEFACCEthAxgAEFACCEthARgg4AACCFpgAICMEFCCCEphAxgAEFCCCEphARgg4QACCFpgAICMEFACCEphAxgAEFACCEphARgg4AACCFjAAIKMEFCCCEjBBRgg4QACCFjAAIKEEFCCCEjBBwgAEFCCCFjAAIKEEFACAFjAAIKEEBACCFjAAICEEFACCEjBBwgAEFACAEjBBwgAEBACCEjBAwgAEFACCEjBBQgg4AACAEjBBQggYAACCEjBAQgg4AACCFpgAICEEFACCEphAwgAEFACCEphAQgg4AACCFtgAICEEFACCEthAwgAEFACCEthAQgg4AACCBjAIJIGEAgkgYACCSBygIJIHOAgkgdACCTQof//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/of//J/+h//8n/6H//yf/fOwAAI6AAAI/i8PDxeLw8PDw8PDw5Dw8Xh4dDw8Oh4/EXi8Xh4eHi8Xi8PDw8PDw8PDw8PDw8OBF0Oh4/9AAAAAAAAAAAAAAAAAAAAAAAQMEAAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAABAEAAAAAAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAIAAAAAAAACYIA8ZeaBAFKH9////5pS7xwDoAFggAZJKEAEAAlhQgCQBIAggCQBIAkASAJAEEASAJAEgCQBIAkBQIAkBQICCQFAgIJAUCAgkBQICCQEEgKBAQSAoEBBICgQEEgKBAUCAgkASAoEBBIAkASAJAEgSAECBAgQAkCQAgQIECAEgSAECBAgQAkCQAgQIECAEgSAECAEgSAECBAgSAECQAgSAECBAgQIECBAgQAkCAEgQAkCQAgQIECAEgSAECBAgQAkAIHACBwAgcAIHACBwAgYglTwLAAAgEAYBwTBsJQnCgTBNEACIBBQwYYFgAAQCAMA4Jg2EoThQJgmiAAA=="
+        "value": {
+          "protocol": "RRC",
+          "raw_hex": "044d4908322e9a05000574f5a0316400302402c1262c003387a0609b20c39f30c7942c0e098040623816507c1bd608c21a081078804496c982a091c790e7c639f30c7942c0e070f027f4000001fd000000a83626eb04610d04083a4022cb64c150d0e7c471e819f604f8c73e618f28581c0e1e0b8002f800e000be0004900e003650000500000141f04f582308682041e201125b260a82471e439f18e7cc31e50b0381c3c09fc0000007f0000000a0f80dac1184341020f100892d930541238f21cf8c73e618f28581c0e1e04fe0000003f8000000507c02d608c21a081078804496c982a091c790e7c639f30c7942c0e070f027f0000001fc000000283e006b04610d04083c40224b64c15048e3c873e31cf9863ca16070387813fb000000fec00000541b133582308682041d201165b260a86873e238f40cfb027c639f30c7942c0e070f05c0016c0070005b0002400703a0d85181ac1184341020e9008b2d930543439f11c7a067d813e31cf9863ca1607038782e000be0038002f80012403800d940001400000506c27d608c21a081074804596c982a1a1cf88e3d033ec09f18e7cc31e50b0381c3c270005f001c0017c00283612eb04610d04083a4022cb64c150d0e7c471e819f604f8c73e618f28581c0e1e138002c000e000b000141f01f582308682041e201125b260a82471e439f18e7cc31e50b0381c3c09fc0000007f0000000a0f809ac1184341020f100892d930541238f21cf8c73e618f28581c0e1e04fe0000003f8000000021071300000000080980a834030216c73e18140467a07803e00281c0c0381802a0380030120020301f0340100000000800001004000010020000040100000600800004004000028020000180100000e0080000800400004802000028010000160080000c03182979535819581b58315953594b5933582b58335809580b594340804000025949010000196524040000a594901000039652404000125949010000596524040001a594901000079652404000225949008d2a8aa0b1540e2a834552a8aa531549a2a80c55288a0612806b0080c02030180402010180c06030080000000201c0289508000081020303898d8f9092931394149521a10050d03bb700a20086087c982001d29b42993a852a9f90a1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ff7fcffebe8828023214e194e9525c7f0161380000000bd00000819df00000002e82004400c00a004400c00c00c00a084300304018200c1006080304218210c108608428200c1006080304018200c1006084304218210c00c1006080300300300300308010c2004308010c2004308010c2004308010c2004308010c2004308010c2004308210c2084308210c208430821042080308010c2084108200c200430821042080308010c2004308010c2004308010c2004308010c00c00c00c00c00c00969f551a14800a006080020018c000820620002000be1000d3000400308001040c000041031c001000e500041036c001000e1000400398001000e70004103a0001040e90004103a8001040ff000400718001051820818c000920ed8002023041056c20630002083a6000808c1041530818c000820e300020a1041051820e100020838c000828010414608380000820af840d300040074c00101082082a610308001041d300040400820a9840c000041076c00101082082b610308001041c200041420820e100020a0041050820e0000208184000920ed8002020041056c2060000208180000920728002481ce000920740002485b6000808c105082084b61031800105082084b61011820e10002085b6000808c105002084b61031800105002084b61011820e00002085a6000808c105082084a61031800105082084a61011820e10002085a6000808c105002084a61031800105002084a61011820e000020858c000828c1050820848c1051820e100020858c00082841050820848c10708001050820858c00082841050020058c00082841010020858c00080841050020848c10708001050020048c10708001010020848c10308001050020848c1050820e000020048c10508206000020848c1010820e00002085a60008084105002084a61030800105002084a61010820e00002085b60008084105002084b61030800105002084b61010820e000020818c02092061008248180020920728082481ce0209207400824d0a1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ffa1ffff27ff7cec00008e8000023f8bc3c3c5e2f0f0f0f0f0f0f0e43c3c5e1e1d0f0f0e878fc45e2f178787878bc5e2f0f0f0f0f0f0f0f0f0f0f0f0f0e045d0e878ffd00000000000000000000000000000000001030400010040100401004010040100401004010040100401004000100400000000020020020020020020020020020020020020020020020020020020020020020020020020020020020020020020020000000000000260803c65e681005287f7ffffff9a52ef1c03a00160800649284004000961420090048020802401200900480240104012009004802401200901408024050202090140808240502020901408082404120281010480a0404120281010480a040502020900480a040412009004802401204801020408100240900204081020048120040810204009024008102040801204801020048120040810204801024008120040810204081020408100240801204009024008102040801204801020408100240081c0081c0081c0081c0081c008188254f02c00008040180704c1b094270a04c1344002201050c18605800010080300e098361284e140982688000",
+          "decoded": {
+            "nr": {
+              "access_stratum_release": "rel15",
+              "bands": [
+                {
+                  "band": 28,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 78,
+                  "power_class": "pc2",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 20,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 7,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 3,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 1,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 77,
+                  "power_class": "pc2",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 41,
+                  "power_class": "pc2",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 40,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 38,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 8,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                },
+                {
+                  "band": 5,
+                  "power_class": "pc3",
+                  "pusch_256qam": true,
+                  "channel_bw_dl": "fr1",
+                  "channel_bw_ul": "fr1"
+                }
+              ]
+            },
+            "eutra": {
+              "access_stratum_release": "rel15",
+              "ue_category": 4,
+              "bands": [
+                {
+                  "band": 2
+                },
+                {
+                  "band": 7
+                },
+                {
+                  "band": 5
+                },
+                {
+                  "band": 32
+                },
+                {
+                  "band": 20
+                },
+                {
+                  "band": 3
+                },
+                {
+                  "band": 1
+                },
+                {
+                  "band": 8
+                },
+                {
+                  "band": 38
+                },
+                {
+                  "band": 28
+                },
+                {
+                  "band": 34
+                },
+                {
+                  "band": 39
+                },
+                {
+                  "band": 40
+                },
+                {
+                  "band": 41
+                },
+                {
+                  "band": 42
+                },
+                {
+                  "band": 43
+                },
+                {
+                  "band": 64
+                }
+              ]
+            }
+          }
+        }
       }
     ]
   }
