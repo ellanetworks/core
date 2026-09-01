@@ -30,7 +30,7 @@ import QueryState from "@/components/QueryState";
 import AccessChip from "@/components/AccessChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useDebouncedState } from "@/hooks/useDebouncedState";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -44,8 +44,8 @@ const SubscriberPage: React.FC = () => {
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const [searchInput, setSearchInput] = useState("");
-  const appliedSearch = useDebouncedValue(searchInput).trim();
+  const [searchInput, debouncedSearch, setSearchInput] = useDebouncedState();
+  const appliedSearch = debouncedSearch.trim();
 
   const [paginationModel, setPaginationModel] = useFilteredPagination({
     search: appliedSearch,
