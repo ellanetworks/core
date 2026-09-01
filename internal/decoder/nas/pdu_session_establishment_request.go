@@ -36,6 +36,7 @@ type ExtendedProtocolConfigurationOptions struct {
 	DNSServerIPv4AddressRequestUL                                 *bool `json:"dns_server_ipv4_address_request_ul,omitempty"`
 	MSISDNRequestUL                                               *bool `json:"msisdn_request_ul,omitempty"`
 	IFOMSupportRequestUL                                          *bool `json:"ifom_support_request_ul,omitempty"`
+	IPv4LinkMTURequestUL                                          *bool `json:"ipv4_link_mtu_request_ul,omitempty"`
 	MSSupportOfLocalAddressInTFTIndicatorUL                       *bool `json:"ms_support_of_local_address_in_tft_indicator_ul,omitempty"`
 	PCSCFReSelectionSupportUL                                     *bool `json:"pcscf_re_selection_support_ul,omitempty"`
 	NBIFOMRequestIndicatorUL                                      *bool `json:"nbifom_request_indicator_ul,omitempty"`
@@ -66,8 +67,8 @@ type PDUSessionEstablishmentRequest struct {
 	Capability5GSM                       *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
 	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 
-	MaximumNumberOfSupportedPacketFilters *UnsupportedIE `json:"maximum_number_of_supported_packet_filters,omitempty"`
-	AlwaysonPDUSessionRequested           *UnsupportedIE `json:"alwayson_pdu_session_requested,omitempty"`
+	MaximumNumberOfSupportedPacketFilters *uint16        `json:"maximum_number_of_supported_packet_filters,omitempty"`
+	AlwaysonPDUSessionRequested           *bool          `json:"alwayson_pdu_session_requested,omitempty"`
 	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
 }
 
@@ -96,9 +97,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		}
 	}
 
-	if msg.AlwaysOnRequested != nil {
-		out.AlwaysonPDUSessionRequested = makeUnsupportedIE()
-	}
+	out.AlwaysonPDUSessionRequested = msg.AlwaysOnRequested
 
 	if msg.ExtendedPCO != nil {
 		out.ExtendedProtocolConfigurationOptions = extendedPCOFromNAS(*msg.ExtendedPCO)
@@ -107,7 +106,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 	for _, ie := range msg.Unrecognized {
 		switch ie.IEI {
 		case ieiMaxPacketFilters:
-			out.MaximumNumberOfSupportedPacketFilters = makeUnsupportedIE()
+			out.MaximumNumberOfSupportedPacketFilters = maxSupportedPacketFilters(ie.Value)
 		case ieiSMPDUDNRequest:
 			out.SMPDUDNRequestContainer = makeUnsupportedIE()
 		case ieiExtendedPCO:
@@ -146,6 +145,7 @@ var pcoContainerFlags = map[uint16]func(*ExtendedProtocolConfigurationOptions){
 	0x000d: func(o *ExtendedProtocolConfigurationOptions) { o.DNSServerIPv4AddressRequestUL = ptr(true) },
 	0x000e: func(o *ExtendedProtocolConfigurationOptions) { o.MSISDNRequestUL = ptr(true) },
 	0x000f: func(o *ExtendedProtocolConfigurationOptions) { o.IFOMSupportRequestUL = ptr(true) },
+	0x0010: func(o *ExtendedProtocolConfigurationOptions) { o.IPv4LinkMTURequestUL = ptr(true) },
 	0x0011: func(o *ExtendedProtocolConfigurationOptions) { o.MSSupportOfLocalAddressInTFTIndicatorUL = ptr(true) },
 	0x0012: func(o *ExtendedProtocolConfigurationOptions) { o.PCSCFReSelectionSupportUL = ptr(true) },
 	0x0013: func(o *ExtendedProtocolConfigurationOptions) { o.NBIFOMRequestIndicatorUL = ptr(true) },
@@ -187,4 +187,17 @@ func extendedPCOFromNAS(opts nas.ProtocolConfigurationOptions) *ExtendedProtocol
 	}
 
 	return out
+}
+
+// maxSupportedPacketFilters reads the 11-bit count TS 24.501 §9.11.4.9 spreads
+// over two octets: bit 8 of the first is the most significant bit and bit 6 of
+// the second the least, leaving the low five bits of the second spare.
+func maxSupportedPacketFilters(v []byte) *uint16 {
+	if len(v) != 2 {
+		return nil
+	}
+
+	n := uint16(v[0])<<3 | uint16(v[1])>>5
+
+	return &n
 }

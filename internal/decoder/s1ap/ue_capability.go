@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -19,7 +20,7 @@ func buildUECapabilityInfoIndication(value []byte) (S1APMessageValue, string) {
 	ies := []IE{
 		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
 		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)),
+		ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, rrc.DescribeS1AP(m.UERadioCapability)),
 	}
 
 	if len(m.UERadioCapabilityForPaging) > 0 {

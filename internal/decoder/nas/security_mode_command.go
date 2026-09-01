@@ -4,6 +4,9 @@
 package nas
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -49,7 +52,7 @@ type SecurityModeCommand struct {
 	EAPMessage                       []byte                            `json:"eap_message,omitempty"`
 	ABBA                             []uint8                           `json:"abba,omitempty"`
 
-	ReplayedS1UESecurityCapabilities *UnsupportedIE `json:"replayed_s1_ue_security_capabilities,omitempty"`
+	ReplayedS1UESecurityCapabilities *S1UESecurityCapability `json:"replayed_s1_ue_security_capabilities,omitempty"`
 }
 
 func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand {
@@ -84,7 +87,7 @@ func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand
 	}
 
 	if msg.ReplayedS1UESecurityCapability != nil {
-		out.ReplayedS1UESecurityCapabilities = makeUnsupportedIE()
+		out.ReplayedS1UESecurityCapabilities = s1UESecurityCapability(msg.ReplayedS1UESecurityCapability)
 	}
 
 	return out
@@ -115,4 +118,57 @@ func getIntegrity(value uint8) utils.EnumField {
 
 func getCiphering(value uint8) utils.EnumField {
 	return utils.NamedEnum(value, fgs.CipheringAlgorithmName(nas.CipheringAlgorithm(value)))
+}
+
+// S1UESecurityCapability is the S1 UE security capability the AMF replays
+// (TS 24.501 §9.11.3.48A, which defers to TS 24.301 §9.9.3.36). Hex keeps the
+// bytes the UE compares against what it sent (TS 33.501 §6.7.2); the algorithm
+// lists are a reading of them, not a substitute.
+type S1UESecurityCapability struct {
+	Hex   string   `json:"hex"`
+	EEA   []string `json:"eea,omitempty"`
+	EIA   []string `json:"eia,omitempty"`
+	UEA   []string `json:"uea,omitempty"`
+	UIA   []string `json:"uia,omitempty"`
+	GEA   []string `json:"gea,omitempty"`
+	Error string   `json:"error,omitempty"`
+}
+
+func algorithmNames(prefix string, set nas.AlgorithmSet) []string {
+	identities := set.Identities()
+	if len(identities) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(identities))
+	for _, n := range identities {
+		names = append(names, fmt.Sprintf("%s%d", prefix, n))
+	}
+
+	return names
+}
+
+func s1UESecurityCapability(b []byte) *S1UESecurityCapability {
+	out := &S1UESecurityCapability{Hex: hex.EncodeToString(b)}
+
+	capability, err := eps.ParseUESecurityCapability(b)
+	if err != nil {
+		out.Error = err.Error()
+
+		return out
+	}
+
+	out.EEA = algorithmNames("EEA", capability.EEA)
+	out.EIA = algorithmNames("EIA", capability.EIA)
+
+	if capability.HasUMTS {
+		out.UEA = algorithmNames("UEA", capability.UEA)
+		out.UIA = algorithmNames("UIA", capability.UIA)
+	}
+
+	if capability.HasGERAN {
+		out.GEA = algorithmNames("GEA", capability.GEA)
+	}
+
+	return out
 }

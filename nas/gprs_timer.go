@@ -189,6 +189,31 @@ func (t GPRSTimer2) String() string {
 	return gprsTimerString(t.Deactivated(), t.Unit, t.Value, t.Duration)
 }
 
+// UnitName returns the name TS 24.008 §10.5.7.4a gives the timer's unit, or the
+// empty string for a unit the table does not name.
+func (t GPRSTimer3) UnitName() string {
+	switch t.Unit {
+	case GPRSTimer3Unit10Minutes:
+		return "10 minutes"
+	case GPRSTimer3Unit1Hour:
+		return "1 hour"
+	case GPRSTimer3Unit10Hours:
+		return "10 hours"
+	case GPRSTimer3Unit2Seconds:
+		return "2 seconds"
+	case GPRSTimer3Unit30Seconds:
+		return "30 seconds"
+	case GPRSTimer3Unit1Minute:
+		return "1 minute"
+	case GPRSTimer3Unit320Hours:
+		return "320 hours"
+	case GPRSTimerUnitDeactivated:
+		return "deactivated"
+	default:
+		return ""
+	}
+}
+
 // String renders the timer for logs: its duration, or "deactivated".
 func (t GPRSTimer3) String() string {
 	return gprsTimerString(t.Deactivated(), t.Unit, t.Value, t.Duration)

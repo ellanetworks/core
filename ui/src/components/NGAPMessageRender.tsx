@@ -6,6 +6,7 @@ import { Box, IconButton, Tooltip, Divider, Collapse } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
+  ContentCopy as CopyIcon,
 } from "@mui/icons-material";
 import type { DecodedNGAPMessage } from "@/queries/radio_events";
 
@@ -105,7 +106,10 @@ const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
   v,
 }) => (
   <TreeRow depth={depth}>
-    <Box component="span" sx={{ color: "text.secondary", whiteSpace: "pre" }}>
+    <Box
+      component="span"
+      sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
+    >
       {k + ": "}
     </Box>
     <Box component="span" sx={{ wordBreak: "break-word", minWidth: 0 }}>
@@ -113,6 +117,63 @@ const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
     </Box>
   </TreeRow>
 );
+
+const RawHexLine: React.FC<{ depth: number; hex: string }> = ({
+  depth,
+  hex,
+}) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(hex);
+    setCopied(true);
+  };
+
+  React.useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <TreeRow depth={depth}>
+      <Box
+        component="span"
+        sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
+      >
+        {"raw_hex: "}
+      </Box>
+      <Box
+        component="span"
+        sx={{
+          minWidth: 0,
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {hex}
+      </Box>
+      <Box
+        component="span"
+        sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
+      >
+        {` (${hex.length / 2} bytes)`}
+      </Box>
+      <Tooltip title={copied ? "Copied" : "Copy raw hex"}>
+        <IconButton
+          size="small"
+          onClick={copy}
+          aria-label="Copy raw hex"
+          sx={{ p: 0.25, ml: 0.5, flexShrink: 0 }}
+        >
+          <CopyIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Tooltip>
+    </TreeRow>
+  );
+};
 
 const ChildSection: React.FC<{
   depth: number;
@@ -133,7 +194,9 @@ const ChildSection: React.FC<{
           {title}
         </Box>
       </TreeRow>
-      <Collapse in={open}>{children}</Collapse>
+      <Collapse in={open} unmountOnExit>
+        {children}
+      </Collapse>
     </>
   );
 };
@@ -180,6 +243,44 @@ const getLppaHeader = (lppaPdu: any): string => {
   return decoded.kind || "Unknown";
 };
 
+const isRrcPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "RRC";
+
+const MAX_SUMMARY_BANDS = 6;
+
+const summariseBands = (bands: any[], prefix: string): string => {
+  const names = bands.map((b) => `${prefix}${b.band}`);
+  if (names.length <= MAX_SUMMARY_BANDS) return names.join(", ");
+  return `${names.slice(0, MAX_SUMMARY_BANDS).join(", ")} +${
+    names.length - MAX_SUMMARY_BANDS
+  } more`;
+};
+
+const getRrcHeader = (rrcPdu: any): string => {
+  const decoded = rrcPdu?.decoded;
+  if (!decoded) return "undecoded";
+  if (decoded.error) return "decode error";
+
+  const summary = decoded.summary ?? {};
+  const parts: string[] = [];
+  if (summary.nr) {
+    const bands = summariseBands(summary.nr.bands ?? [], "n");
+    parts.push(
+      `NR ${summary.nr.access_stratum_release ?? "?"}${bands ? ` \u00B7 ${bands}` : ""}`,
+    );
+  }
+  if (summary.eutra) {
+    const bands = summariseBands(summary.eutra.bands ?? [], "B");
+    const cat = summary.eutra.ue_category
+      ? ` cat${summary.eutra.ue_category}`
+      : "";
+    parts.push(
+      `E-UTRA ${summary.eutra.access_stratum_release ?? "?"}${cat}${bands ? ` \u00B7 ${bands}` : ""}`,
+    );
+  }
+  return parts.length ? parts.join("  |  ") : "no capability containers";
+};
+
 const isLppPdu = (v: unknown): boolean =>
   !!v && typeof v === "object" && (v as any).protocol === "LPP";
 
@@ -198,8 +299,9 @@ const ProtocolPduBlock: React.FC<{
   title: string;
   header: string;
   accentColor: string;
-}> = ({ pdu, depth, title, header, accentColor }) => {
-  const [open, setOpen] = React.useState(true);
+  defaultOpen?: boolean;
+}> = ({ pdu, depth, title, header, accentColor, defaultOpen = true }) => {
+  const [open, setOpen] = React.useState(defaultOpen);
 
   return (
     <>
@@ -209,15 +311,21 @@ const ProtocolPduBlock: React.FC<{
         open={open}
         onToggle={() => setOpen((s) => !s)}
       >
-        <Box component="span" sx={{ color: "text.secondary" }}>
+        <Box
+          component="span"
+          sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
+        >
           {title}
           {" \u2014\u00A0"}
         </Box>
-        <Box component="span" sx={{ fontWeight: 600 }}>
+        <Box
+          component="span"
+          sx={{ fontWeight: 600, minWidth: 0, wordBreak: "break-word" }}
+        >
           {header}
         </Box>
       </TreeRow>
-      <Collapse in={open}>
+      <Collapse in={open} unmountOnExit>
         <Box
           sx={{
             borderLeft: 3,
@@ -226,15 +334,28 @@ const ProtocolPduBlock: React.FC<{
             pl: 1.5,
           }}
         >
-          {pdu.raw_hex && (
-            <KVLine depth={0} k="raw_hex" v={String(pdu.raw_hex)} />
-          )}
+          {pdu.raw_hex && <RawHexLine depth={0} hex={String(pdu.raw_hex)} />}
           {pdu.decoded && <GenericNode value={pdu.decoded} depth={0} />}
         </Box>
       </Collapse>
     </>
   );
 };
+
+const RrcPduBlock: React.FC<{ rrcPdu: any; depth: number; title: string }> = ({
+  rrcPdu,
+  depth,
+  title,
+}) => (
+  <ProtocolPduBlock
+    pdu={rrcPdu}
+    depth={depth}
+    title={title}
+    header={getRrcHeader(rrcPdu)}
+    accentColor="success.main"
+    defaultOpen={false}
+  />
+);
 
 const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
   nasPdu,
@@ -332,6 +453,15 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <NasPduBlock nasPdu={value} depth={depth} title={title} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  if (isRrcPdu(value)) {
+    return (
+      <>
+        <RrcPduBlock rrcPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -539,6 +669,16 @@ const CollapsibleObject: React.FC<{
                   <NasPduBlock
                     key={k}
                     nasPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
+              if (isRrcPdu(v)) {
+                return (
+                  <RrcPduBlock
+                    key={k}
+                    rrcPdu={v}
                     depth={childDepth}
                     title={k}
                   />

@@ -88,3 +88,20 @@ func decodePDUSessionStatus(bitmap *fgs.PSIBitmap) []PDUSessionStatusPDU {
 
 	return out
 }
+
+// decodePDUSessionReactivationResult renders the per-session outcome of the
+// reactivation the network attempted (TS 24.501 §9.11.3.42).
+func decodePDUSessionReactivationResult(bitmap *fgs.PSIBitmap) []PDUSessionReactivateResultPDU {
+	if bitmap == nil {
+		return nil
+	}
+
+	psi := bitmap.PSI
+	out := []PDUSessionReactivateResultPDU{}
+
+	for i := range 16 {
+		out = append(out, PDUSessionReactivateResultPDU{PDUSessionID: i, Active: psi[i]})
+	}
+
+	return out
+}

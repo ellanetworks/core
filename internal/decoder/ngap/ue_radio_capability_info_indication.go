@@ -6,6 +6,7 @@ package ngap
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -21,7 +22,7 @@ func buildUERadioCapabilityInfoIndication(value []byte) NGAPMessageValue {
 	ies := []IE{
 		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
 		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
-		ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)),
+		ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, rrc.DescribeNGAP(m.UERadioCapability)),
 	}
 
 	if m.UERadioCapabilityForPaging != nil {

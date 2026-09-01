@@ -211,7 +211,7 @@
                           ],
                           "extended_protocol_configuration_options": {
                             "dns_server_ipv4_address_request_ul": true,
-                            "error": "unknown container ID 16"
+                            "ipv4_link_mtu_request_ul": true
                           },
                           "dnn": "internet"
                         }

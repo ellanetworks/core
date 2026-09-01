@@ -6,6 +6,7 @@ package s1ap
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/decoder/rrc"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -20,9 +21,36 @@ func TestDecodeUECapabilityInfoIndication(t *testing.T) {
 		t.Fatal("UE id mismatch")
 	}
 
-	radioCap, ok := mustIE(t, msg, s1ap.IDUERadioCapability).Value.(string)
-	if !ok || radioCap == "" {
+	radioCap, ok := mustIE(t, msg, s1ap.IDUERadioCapability).Value.(rrc.PDU)
+	if !ok {
 		t.Fatalf("UERadioCapability = %v", mustIE(t, msg, s1ap.IDUERadioCapability).Value)
+	}
+
+	if radioCap.Decoded.Error != "" {
+		t.Fatalf("UERadioCapability decode error: %s", radioCap.Decoded.Error)
+	}
+
+	if radioCap.Decoded.Summary.EUTRA == nil {
+		t.Fatal("UERadioCapability carries no E-UTRA capability")
+	}
+
+	if radioCap.Decoded.Summary.EUTRA.AccessStratumRelease != "rel16" {
+		t.Errorf("accessStratumRelease = %q, want rel16", radioCap.Decoded.Summary.EUTRA.AccessStratumRelease)
+	}
+
+	if radioCap.Decoded.Summary.EUTRA.UECategory != 4 {
+		t.Errorf("ue-Category = %d, want 4", radioCap.Decoded.Summary.EUTRA.UECategory)
+	}
+
+	wantBands := []int64{7, 4, 64, 29, 2, 13, 5, 30, 64, 25, 12, 14, 17, 38, 41, 53}
+	if len(radioCap.Decoded.Summary.EUTRA.Bands) != len(wantBands) {
+		t.Fatalf("got %d E-UTRA bands, want %d", len(radioCap.Decoded.Summary.EUTRA.Bands), len(wantBands))
+	}
+
+	for i, want := range wantBands {
+		if radioCap.Decoded.Summary.EUTRA.Bands[i].Band != want {
+			t.Errorf("band[%d] = %d, want %d", i, radioCap.Decoded.Summary.EUTRA.Bands[i].Band, want)
+		}
 	}
 }
 
