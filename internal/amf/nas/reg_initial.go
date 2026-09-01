@@ -159,5 +159,5 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-	amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+	_ = amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 }

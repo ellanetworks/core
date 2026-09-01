@@ -1150,17 +1150,24 @@ func TestMobilityReg_AcceptedRegistrationCanReceiveAnN1N2Transfer(t *testing.T) 
 }
 
 func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
-	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
+
+	setTestUESecurityCapability(ue)
+	ue.SetKgnbForTest(make([]byte, 32))
 
 	conn := ue.Conn()
 	conn.UeContextRequest = true
 	conn.RegistrationRequest.UplinkDataStatus = &fgs.PSIBitmap{PSI: [16]bool{1: true}}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
+	}
 
 	if !conn.N2SetupOpen(amf.N2SetupInitialContext) {
 		t.Fatal("the initial context setup transaction is not open; the claim key and the terminal disagree")
@@ -1180,5 +1187,31 @@ func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
 
 	if !conn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
 		t.Error("PDU session 1 is still claimed after the transaction closed")
+	}
+}
+
+func TestMobilityReg_InitialContextSetupNotSent_ReleasesTheClaim(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	conn := ue.Conn()
+	conn.UeContextRequest = true
+	conn.RegistrationRequest.UplinkDataStatus = &fgs.PSIBitmap{PSI: [16]bool{1: true}}
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentInitialContextSetupRequest) != 0 {
+		t.Fatalf("initial context setup requests = %d, want 0 for this fixture", len(ngapSender.SentInitialContextSetupRequest))
+	}
+
+	if conn.N2SetupOpen(amf.N2SetupInitialContext) {
+		t.Error("no initial context setup reached the NG-RAN node, so nothing should be supervised")
+	}
+
+	if !conn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+		t.Error("the PDU session is still claimed although no setup was sent")
 	}
 }

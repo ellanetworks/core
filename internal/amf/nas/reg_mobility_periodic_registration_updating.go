@@ -218,8 +218,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-					armOrEndN2Setup(n2Setup, ueConn, amfInstance.N2SetupGuardCfg)
+					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+					} else {
+						n2Setup.End()
+					}
 
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
@@ -278,8 +281,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if ueConn.UeContextRequest {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
-		n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+		} else {
+			n2Setup.End()
+		}
 
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 

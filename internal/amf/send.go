@@ -275,10 +275,10 @@ func SendRegistrationAccept(
 	pduSessionResourceSetupList ngap.PDUSessionResourceSetupListCxtReq,
 	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
-) {
+) bool {
 	if ue == nil {
 		logger.AmfLog.Error("cannot send Registration Accept: ue is nil")
-		return
+		return false
 	}
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
@@ -292,20 +292,20 @@ func SendRegistrationAccept(
 	guti, err := amfInstance.Guti(supportedGUAMI, ue)
 	if err != nil {
 		ReportProtectFailure(ctx, ue, "5G-GUTI for registration accept", err)
-		return
+		return false
 	}
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Error("cannot send Registration Accept: ueConn is nil")
-		return
+		return false
 	}
 
 	plain, err := BuildRegistrationAccept(amfInstance, ue, guti, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, equivalentPlmnID)
 	if err != nil {
 		ReportProtectFailure(ctx, ue, "registration accept", err)
 
-		return
+		return false
 	}
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
@@ -315,6 +315,8 @@ func SendRegistrationAccept(
 	}
 
 	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
+
+	initialContextSetupSent := false
 
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 		if ueConn.UeContextRequest {
@@ -335,6 +337,8 @@ func SendRegistrationAccept(
 			); err != nil {
 				logger.From(ctx, logger.AmfLog).Warn("failed to send initial context setup request", zap.Error(err))
 			} else {
+				initialContextSetupSent = true
+
 				logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request")
 			}
 
@@ -351,7 +355,7 @@ func SendRegistrationAccept(
 	}); err != nil {
 		ReportProtectFailure(ctx, ue, "registration accept", err)
 
-		return
+		return false
 	}
 
 	if amfInstance.NASGuardCfg.Enable {
@@ -409,6 +413,8 @@ func SendRegistrationAccept(
 			ue.ClearRegistrationRequestData()
 		})
 	}
+
+	return initialContextSetupSent
 }
 
 func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
