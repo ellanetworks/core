@@ -93,7 +93,7 @@
                   "dl_nas_transport": {
                     "spare_half_octet_and_payload_container_type": 1,
                     "payload_container": {
-                      "raw": "LgEBwhEACf8ABjH/AQH/CQYGAMgGAMgpBQEKLQACIgQBECAweQAQASBDAQEJBAMGAMgFAwYAyHsADYAADQQICAgIABACBXglCQhpbnRlcm5ldA==",
+                      "raw_hex": "2e0101c2110009ff000631ff0101ff09060600c80600c82905010a2d000222040110203079001001204301010904030600c805030600c87b000d80000d04080808080010020578250908696e7465726e6574",
                       "gsm_message": {
                         "gsm_header": {
                           "message_type": {

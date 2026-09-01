@@ -14,6 +14,8 @@ type ServiceReject struct {
 	PDUSessionStatus []PDUSessionStatusPDU `json:"pdu_session_status,omitempty"`
 	T3346Value       *uint8                `json:"t3346_value,omitempty"`
 	EAPMessage       []byte                `json:"eap_message,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildServiceReject(msg *fgs.ServiceReject) *ServiceReject {
@@ -26,6 +28,8 @@ func buildServiceReject(msg *fgs.ServiceReject) *ServiceReject {
 	if msg.PDUSessionStatus != nil {
 		out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

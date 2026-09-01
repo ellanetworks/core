@@ -14,6 +14,8 @@ type AuthenticationFailure struct {
 	Cause5GMM utils.EnumField `json:"cause"`
 
 	AuthenticationFailureParameter *string `json:"authentication_failure_parameter,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildAuthenticationFailure(msg *fgs.AuthenticationFailure) *AuthenticationFailure {
@@ -25,6 +27,8 @@ func buildAuthenticationFailure(msg *fgs.AuthenticationFailure) *AuthenticationF
 		s := hex.EncodeToString(msg.AUTS)
 		out.AuthenticationFailureParameter = &s
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

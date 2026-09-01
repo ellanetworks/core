@@ -53,6 +53,8 @@ type SecurityModeCommand struct {
 	ABBA                             []uint8                           `json:"abba,omitempty"`
 
 	ReplayedS1UESecurityCapabilities *S1UESecurityCapability `json:"replayed_s1_ue_security_capabilities,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand {
@@ -89,6 +91,8 @@ func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand
 	if msg.ReplayedS1UESecurityCapability != nil {
 		out.ReplayedS1UESecurityCapabilities = s1UESecurityCapability(msg.ReplayedS1UESecurityCapability)
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

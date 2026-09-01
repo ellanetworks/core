@@ -14,7 +14,7 @@ import (
 )
 
 type PayloadContainer struct {
-	Raw        []byte      `json:"raw"`
+	RawHex     string      `json:"raw_hex"`
 	GsmMessage *GsmMessage `json:"gsm_message,omitempty"`
 	LppMessage *lpp.PDU    `json:"lpp_message,omitempty"`
 
@@ -31,6 +31,8 @@ type ULNASTransport struct {
 	DNN                                   *string          `json:"dnn,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
@@ -66,6 +68,8 @@ func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
 		out.AdditionalInformation = makeUnsupportedIE()
 	}
 
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+
 	return out
 }
 
@@ -75,7 +79,7 @@ func requestTypeEnum(rt uint8) utils.EnumField {
 
 func buildULPayloadContainer(containerType fgs.PayloadContainerType, contents []byte) PayloadContainer {
 	payloadContainer := PayloadContainer{
-		Raw: contents,
+		RawHex: hex.EncodeToString(contents),
 	}
 
 	switch containerType {

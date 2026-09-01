@@ -79,7 +79,21 @@
                   "label": "TA updating",
                   "unknown": false
                 },
-                "active_flag": false
+                "active_flag": false,
+                "unrecognized_ies": [
+                  {
+                    "iei": 82,
+                    "hex": "99f9100001"
+                  },
+                  {
+                    "iei": 93,
+                    "hex": "06"
+                  },
+                  {
+                    "iei": 192,
+                    "hex": "01"
+                  }
+                ]
               }
             },
             "encrypted": false

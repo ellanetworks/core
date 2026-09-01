@@ -58,6 +58,8 @@ type ServiceRequest struct {
 	PDUSessionStatus        []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
 	AllowedPDUSessionStatus []AllowedPDUSessionStatus `json:"allowed_pdu_session_status,omitempty"`
 	NASMessageContainer     []byte                    `json:"nas_message_container,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildServiceRequest(msg *fgs.ServiceRequest) *ServiceRequest {
@@ -96,6 +98,8 @@ func buildServiceRequest(msg *fgs.ServiceRequest) *ServiceRequest {
 
 		out.AllowedPDUSessionStatus = aps
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }
