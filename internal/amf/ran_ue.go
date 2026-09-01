@@ -11,6 +11,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -486,6 +487,10 @@ func (ueConn *UeConn) StopReleaseGuard() {
 }
 
 func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
+	a.ReleaseUeConnServedBy(ctx, ueConn, nil)
+}
+
+func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
@@ -497,6 +502,10 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 
 	if amfUe.State() == Registered {
 		for _, sr := range amfUe.SmContextRefs() {
+			if served != nil && !slices.Contains(served, sr.PduSessionID) {
+				continue
+			}
+
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
 				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 			}
