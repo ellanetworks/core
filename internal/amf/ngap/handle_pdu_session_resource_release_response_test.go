@@ -55,12 +55,11 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 		t.Errorf("SmContextRef = %q, want %q", fakeSmf.PduResRelRspCalls[0], "ref-session-1")
 	}
 
-	smCtx, ok := amfUe.SmContextFindByPDUSessionID(1)
-	if !ok {
+	if _, ok := amfUe.SmContextFindByPDUSessionID(1); !ok {
 		t.Fatal("expected SmContext to still exist")
 	}
 
-	if !smCtx.Inactive() {
-		t.Error("expected the session to be N2Inactive")
+	if !ueConn.N2SessionInactive(1) {
+		t.Error("expected the session to hold no AN resources on the connection")
 	}
 }

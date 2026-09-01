@@ -60,7 +60,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 			continue
 		}
 
-		amfUe.SetSmContextInactive(pduSessionID)
+		ueConn.SetN2SessionInactive(pduSessionID)
 
 		logger.WithTrace(ctx, ueConn.Log()).Info("deactivated PDU session released by gNB", zap.Uint8("PduSessionID", pduSessionID))
 	}

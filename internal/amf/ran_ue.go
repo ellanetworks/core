@@ -75,6 +75,7 @@ type UeConn struct {
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
 	ics        atomic.Int32
 	n2Setups   n2SetupTxns
+	n2Sessions n2Sessions
 	inboundNAS atomic.Uint32
 	log        atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
@@ -502,7 +503,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 
 	if amfUe.State() == Registered {
 		for _, sr := range amfUe.SmContextRefs() {
-			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && sr.Inactive {
+			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && ueConn.N2SessionInactive(sr.PduSessionID) {
 				continue
 			}
 

@@ -98,11 +98,12 @@ func TestHandleUEContextReleaseComplete_DeactivatesOnlyTheSessionsTheRANReported
 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
-	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2", N2: amf.N2Inactive}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := ngap.AMFUENGAPID(100)
@@ -127,11 +128,13 @@ func TestHandleUEContextReleaseComplete_DeactivatesASessionTheRANStoppedReportin
 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
-	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2", N2: amf.N2Active}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
+	ueConn.SetN2SessionActive(2)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := ngap.AMFUENGAPID(100)
@@ -156,11 +159,13 @@ func TestHandleUEContextReleaseComplete_NoReportedListDeactivatesEverySession(t 
 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
-	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
-	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2", N2: amf.N2Active}
+	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
+	ueConn.SetN2SessionActive(2)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
 	amfID := ngap.AMFUENGAPID(100)

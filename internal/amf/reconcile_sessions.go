@@ -32,15 +32,19 @@ type RANSessionResult struct {
 	Deactivated []uint8
 }
 
+// ReconcileSessionsToRAN converges the PDU sessions of ue onto ueConn, the
+// UE-associated logical NG-connection whose AN resources the caller just negotiated,
+// and records the resulting user-plane state on it.
 func (a *AMF) ReconcileSessionsToRAN(
 	ctx context.Context,
 	ue *UeContext,
+	ueConn *UeConn,
 	want RANSessions,
 	apply func(ctx context.Context, ref string, transfer []byte) ([]byte, error),
 ) RANSessionResult {
 	var result RANSessionResult
 
-	if ue == nil {
+	if ue == nil || ueConn == nil {
 		return result
 	}
 
@@ -67,13 +71,13 @@ func (a *AMF) ReconcileSessionsToRAN(
 
 			result.Failed = append(result.Failed, s.PduSessionID)
 
-			a.deactivateSession(ctx, ue, smContext.Ref, s.PduSessionID)
+			a.deactivateSession(ctx, ueConn, smContext.Ref, s.PduSessionID)
 			result.Deactivated = append(result.Deactivated, s.PduSessionID)
 
 			continue
 		}
 
-		ue.SetSmContextActive(s.PduSessionID)
+		ueConn.SetN2SessionActive(s.PduSessionID)
 
 		result.Applied = append(result.Applied, AppliedSession{PduSessionID: s.PduSessionID, Transfer: n2Rsp})
 	}
@@ -86,7 +90,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 			continue
 		}
 
-		a.deactivateSession(ctx, ue, smContext.Ref, id)
+		a.deactivateSession(ctx, ueConn, smContext.Ref, id)
 		result.Deactivated = append(result.Deactivated, id)
 	}
 
@@ -100,14 +104,14 @@ func (a *AMF) ReconcileSessionsToRAN(
 				continue
 			}
 
-			if sr.Inactive {
+			if ueConn.N2SessionInactive(sr.PduSessionID) {
 				continue
 			}
 
 			logger.From(ctx, logger.AmfLog).Info("deactivating a PDU session the RAN did not report",
 				logger.SUPI(ue.Supi().String()), zap.Uint8("pdu-session-id", sr.PduSessionID))
 
-			a.deactivateSession(ctx, ue, sr.Ref, sr.PduSessionID)
+			a.deactivateSession(ctx, ueConn, sr.Ref, sr.PduSessionID)
 			result.Deactivated = append(result.Deactivated, sr.PduSessionID)
 		}
 	}
@@ -115,7 +119,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 	return result
 }
 
-func (a *AMF) deactivateSession(ctx context.Context, ue *UeContext, ref string, pduSessionID uint8) {
+func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string, pduSessionID uint8) {
 	if err := a.Session.DeactivateSmContext(ctx, ref); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to deactivate a PDU session",
 			zap.String("smContextRef", ref), zap.Uint8("pdu-session-id", pduSessionID), zap.Error(err))
@@ -123,5 +127,5 @@ func (a *AMF) deactivateSession(ctx context.Context, ue *UeContext, ref string, 
 		return
 	}
 
-	ue.SetSmContextInactive(pduSessionID)
+	ueConn.SetN2SessionInactive(pduSessionID)
 }
