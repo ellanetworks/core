@@ -31,6 +31,23 @@ if (!window.matchMedia) {
     }) as MediaQueryList;
 }
 
+const nativeGetComputedStyle = window.getComputedStyle.bind(window);
+window.getComputedStyle = ((
+  element: Element,
+  pseudoElement?: string | null,
+) => {
+  const style = nativeGetComputedStyle(element, pseudoElement ?? undefined);
+  if (!element.classList?.contains("MuiChartsSurface-root")) return style;
+  return new Proxy(style, {
+    get(target, property) {
+      if (property === "width") return "500px";
+      if (property === "height") return "300px";
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}) as typeof window.getComputedStyle;
+
 if (!globalThis.IntersectionObserver) {
   globalThis.IntersectionObserver = class {
     root = null;
