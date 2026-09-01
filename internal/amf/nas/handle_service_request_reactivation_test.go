@@ -126,7 +126,7 @@ func TestHandleServiceRequest_ItemBuildFailure_DoesNotStrandTheClaim(t *testing.
 		t.Error("a transaction that sent no setup request must not stay open")
 	}
 
-	if !f.conn().ClaimN2SetupSession(amf.N2SetupPDUSession, 12) {
+	if !f.conn().N2Setup(amf.N2SetupPDUSession).ClaimSession(12) {
 		t.Error("the PDU session is still claimed although no setup request reached the RAN")
 	}
 }

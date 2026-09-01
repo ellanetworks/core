@@ -17,6 +17,7 @@ type N2SetupProcedure uint8
 const (
 	N2SetupInitialContext N2SetupProcedure = iota
 	N2SetupPDUSession
+	N2SetupHandover
 )
 
 func (p N2SetupProcedure) String() string {
@@ -25,14 +26,15 @@ func (p N2SetupProcedure) String() string {
 		return "InitialContextSetup"
 	case N2SetupPDUSession:
 		return "PDUSessionResourceSetup"
+	case N2SetupHandover:
+		return "HandoverResourceAllocation"
 	default:
 		return "unknown"
 	}
 }
 
 type n2SetupTxn struct {
-	sessions []uint8
-	guard    *guard.Guard
+	guard *guard.Guard
 }
 
 type n2SetupTxns struct {
@@ -49,24 +51,16 @@ func (ueConn *UeConn) N2Setup(proc N2SetupProcedure) N2Setup {
 	return N2Setup{conn: ueConn, proc: proc}
 }
 
-func (s N2Setup) Claim(ids []uint8) []uint8 {
-	return s.conn.ClaimN2Setup(s.proc, ids)
-}
-
 func (s N2Setup) ClaimSession(id uint8) bool {
-	return s.conn.ClaimN2SetupSession(s.proc, id)
-}
-
-func (s N2Setup) Arm(cfg guard.TimerValue) {
-	s.conn.ArmN2Setup(s.proc, cfg)
+	return len(s.Claim([]uint8{id})) == 1
 }
 
 func (s N2Setup) End() {
 	s.conn.EndN2Setup(s.proc)
 }
 
-func (ueConn *UeConn) ClaimN2Setup(proc N2SetupProcedure, ids []uint8) []uint8 {
-	ue := ueConn.UeContext()
+func (s N2Setup) Claim(ids []uint8) []uint8 {
+	ue := s.conn.UeContext()
 	if ue == nil {
 		return nil
 	}
@@ -74,7 +68,7 @@ func (ueConn *UeConn) ClaimN2Setup(proc N2SetupProcedure, ids []uint8) []uint8 {
 	claimed := make([]uint8, 0, len(ids))
 
 	for _, id := range ids {
-		if ue.ClaimSmContextN2(id) {
+		if ue.ClaimSmContextN2(s.proc, id) {
 			claimed = append(claimed, id)
 		}
 	}
@@ -83,43 +77,35 @@ func (ueConn *UeConn) ClaimN2Setup(proc N2SetupProcedure, ids []uint8) []uint8 {
 		return nil
 	}
 
-	ueConn.n2Setups.mu.Lock()
-	defer ueConn.n2Setups.mu.Unlock()
+	s.conn.n2Setups.mu.Lock()
+	defer s.conn.n2Setups.mu.Unlock()
 
-	if ueConn.n2Setups.open == nil {
-		ueConn.n2Setups.open = make(map[N2SetupProcedure]*n2SetupTxn)
+	if s.conn.n2Setups.open == nil {
+		s.conn.n2Setups.open = make(map[N2SetupProcedure]*n2SetupTxn)
 	}
 
-	txn, ok := ueConn.n2Setups.open[proc]
-	if !ok {
-		txn = &n2SetupTxn{guard: &guard.Guard{}}
-		ueConn.n2Setups.open[proc] = txn
+	if _, ok := s.conn.n2Setups.open[s.proc]; !ok {
+		s.conn.n2Setups.open[s.proc] = &n2SetupTxn{guard: &guard.Guard{}}
 	}
-
-	txn.sessions = append(txn.sessions, claimed...)
 
 	return claimed
 }
 
-func (ueConn *UeConn) ClaimN2SetupSession(proc N2SetupProcedure, id uint8) bool {
-	return len(ueConn.ClaimN2Setup(proc, []uint8{id})) == 1
-}
-
-func (ueConn *UeConn) ArmN2Setup(proc N2SetupProcedure, cfg guard.TimerValue) {
+func (s N2Setup) Arm(cfg guard.TimerValue) {
 	if !cfg.Enable {
 		return
 	}
 
-	ueConn.n2Setups.mu.Lock()
-	defer ueConn.n2Setups.mu.Unlock()
+	s.conn.n2Setups.mu.Lock()
+	defer s.conn.n2Setups.mu.Unlock()
 
-	txn, ok := ueConn.n2Setups.open[proc]
+	txn, ok := s.conn.n2Setups.open[s.proc]
 	if !ok {
 		return
 	}
 
 	txn.guard.ArmOnce(cfg.ExpireTime, func() {
-		ueConn.expireN2Setup(proc, txn)
+		s.conn.expireN2Setup(s.proc, txn)
 	})
 }
 
@@ -179,9 +165,9 @@ func (ueConn *UeConn) endN2SetupTxn(proc N2SetupProcedure, want *n2SetupTxn) []u
 		return nil
 	}
 
-	released := make([]uint8, 0, len(txn.sessions))
+	var released []uint8
 
-	for _, id := range txn.sessions {
+	for _, id := range ue.PendingSmContextsFor(proc) {
 		if ue.ReleaseSmContextN2IfPending(id) {
 			released = append(released, id)
 		}
@@ -198,14 +184,14 @@ func (ueConn *UeConn) AbortN2Setups() {
 
 	ue := ueConn.UeContext()
 
-	for _, txn := range open {
+	for proc, txn := range open {
 		txn.guard.Stop()
 
 		if ue == nil {
 			continue
 		}
 
-		for _, id := range txn.sessions {
+		for _, id := range ue.PendingSmContextsFor(proc) {
 			ue.ReleaseSmContextN2IfPending(id)
 		}
 	}

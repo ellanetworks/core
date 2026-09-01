@@ -130,7 +130,7 @@ func sendServiceAccept(
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 
-			ueConn.ArmN2Setup(amf.N2SetupInitialContext, guardCfg)
+			ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
 
 			logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
 		case len(suList) != 0:
@@ -144,7 +144,7 @@ func sendServiceAccept(
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
 
-			ueConn.ArmN2Setup(amf.N2SetupPDUSession, guardCfg)
+			ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
 
 			logger.From(ctx, logger.AmfLog).Info("sent service accept")
 		default:
@@ -178,7 +178,7 @@ func stagePendingN1(
 ) error {
 	stage := func(nasPdu []byte) error {
 		conn := ue.Conn()
-		if conn == nil || !conn.ClaimN2SetupSession(n2SetupProcedure(initialContextSetup), pending.pduSessionID) {
+		if conn == nil || !conn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pending.pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("delivering buffered N1 without a duplicate PDU session setup",
 				zap.Uint8("pdu_session_id", pending.pduSessionID))
 
@@ -411,7 +411,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			errCause = append(errCause, uint8(fgs.GMMCauseProtocolErrorUnspecified))
 		}
 
-		if !ueConn.ClaimN2SetupSession(n2SetupProcedure(initialContextSetup), pduSessionID) {
+		if !ueConn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
 				zap.Uint8("pdu_session_id", pduSessionID))
 

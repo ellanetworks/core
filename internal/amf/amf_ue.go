@@ -11,6 +11,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +46,8 @@ type SmContext struct {
 	Dnn    string
 	EBI    uint8
 	N2     N2State
+
+	n2Proc N2SetupProcedure
 }
 
 func (sc *SmContext) Inactive() bool {
@@ -579,16 +582,7 @@ func (ue *UeContext) SetSmContextActive(pduSessionID uint8) {
 	}
 }
 
-func (ue *UeContext) SetSmContextPending(pduSessionID uint8) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.N2 = N2Pending
-	}
-}
-
-func (ue *UeContext) ClaimSmContextN2(pduSessionID uint8) bool {
+func (ue *UeContext) ClaimSmContextN2(proc N2SetupProcedure, pduSessionID uint8) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -602,17 +596,26 @@ func (ue *UeContext) ClaimSmContextN2(pduSessionID uint8) bool {
 	}
 
 	sc.N2 = N2Pending
+	sc.n2Proc = proc
 
 	return true
 }
 
-func (ue *UeContext) ReleaseSmContextN2(pduSessionID uint8) {
+func (ue *UeContext) PendingSmContextsFor(proc N2SetupProcedure) []uint8 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.N2 = N2Inactive
+	var ids []uint8
+
+	for id, sc := range ue.SmContextList {
+		if sc.N2 == N2Pending && sc.n2Proc == proc {
+			ids = append(ids, id)
+		}
 	}
+
+	slices.Sort(ids)
+
+	return ids
 }
 
 func (ue *UeContext) ReleaseSmContextN2IfPending(pduSessionID uint8) bool {

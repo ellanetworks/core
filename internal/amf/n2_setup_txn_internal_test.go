@@ -21,7 +21,7 @@ func newTxnTestConn() *UeConn {
 func TestEndN2SetupTxnOnlyClosesTheTransactionItNames(t *testing.T) {
 	conn := newTxnTestConn()
 
-	first := conn.ClaimN2Setup(N2SetupPDUSession, []uint8{1})
+	first := conn.N2Setup(N2SetupPDUSession).Claim([]uint8{1})
 	if len(first) != 1 {
 		t.Fatalf("claimed %v, want PDU session 1", first)
 	}
@@ -32,7 +32,7 @@ func TestEndN2SetupTxnOnlyClosesTheTransactionItNames(t *testing.T) {
 
 	conn.EndN2Setup(N2SetupPDUSession)
 
-	if len(conn.ClaimN2Setup(N2SetupPDUSession, []uint8{2})) != 1 {
+	if len(conn.N2Setup(N2SetupPDUSession).Claim([]uint8{2})) != 1 {
 		t.Fatal("could not open a second transaction")
 	}
 
@@ -48,7 +48,7 @@ func TestArmN2SetupDoesNotOrphanAGuardAcrossEnd(t *testing.T) {
 
 	for range 60 {
 		conn := newTxnTestConn()
-		conn.ClaimN2Setup(N2SetupPDUSession, []uint8{1})
+		conn.N2Setup(N2SetupPDUSession).Claim([]uint8{1})
 
 		var wg sync.WaitGroup
 
@@ -57,7 +57,7 @@ func TestArmN2SetupDoesNotOrphanAGuardAcrossEnd(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			conn.ArmN2Setup(N2SetupPDUSession, cfg)
+			conn.N2Setup(N2SetupPDUSession).Arm(cfg)
 		}()
 
 		go func() {
@@ -68,7 +68,7 @@ func TestArmN2SetupDoesNotOrphanAGuardAcrossEnd(t *testing.T) {
 
 		wg.Wait()
 
-		conn.ClaimN2Setup(N2SetupPDUSession, []uint8{2})
+		conn.N2Setup(N2SetupPDUSession).Claim([]uint8{2})
 
 		time.Sleep(12 * time.Millisecond)
 
@@ -90,18 +90,18 @@ func TestAbortN2SetupsReleasesItsOwnClaims(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if got := conn.ClaimN2Setup(N2SetupInitialContext, []uint8{1}); len(got) != 1 {
+	if got := conn.N2Setup(N2SetupInitialContext).Claim([]uint8{1}); len(got) != 1 {
 		t.Fatalf("claimed %v, want PDU session 1", got)
 	}
 
-	if got := conn.ClaimN2Setup(N2SetupPDUSession, []uint8{2}); len(got) != 1 {
+	if got := conn.N2Setup(N2SetupPDUSession).Claim([]uint8{2}); len(got) != 1 {
 		t.Fatalf("claimed %v, want PDU session 2", got)
 	}
 
 	conn.AbortN2Setups()
 
 	for _, id := range []uint8{1, 2} {
-		if !ue.ClaimSmContextN2(id) {
+		if !ue.ClaimSmContextN2(N2SetupPDUSession, id) {
 			t.Errorf("PDU session %d is still claimed after the transactions were aborted", id)
 		}
 	}
@@ -115,14 +115,14 @@ func TestAbortN2SetupsLeavesConfirmedSessionsAlone(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if got := conn.ClaimN2Setup(N2SetupPDUSession, []uint8{1}); len(got) != 1 {
+	if got := conn.N2Setup(N2SetupPDUSession).Claim([]uint8{1}); len(got) != 1 {
 		t.Fatalf("claimed %v, want PDU session 1", got)
 	}
 
 	ue.SetSmContextActive(1)
 	conn.AbortN2Setups()
 
-	if ue.ClaimSmContextN2(1) {
+	if ue.ClaimSmContextN2(N2SetupPDUSession, 1) {
 		t.Error("a session the NG-RAN node confirmed must not be released by aborting a transaction")
 	}
 }

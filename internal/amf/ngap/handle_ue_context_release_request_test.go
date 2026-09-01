@@ -151,7 +151,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Fatal("could not open an initial context setup transaction")
 	}
 

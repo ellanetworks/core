@@ -798,11 +798,11 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if !ue.ClaimSmContextN2(1) {
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Fatal("the first claim must succeed")
 	}
 
-	if ue.ClaimSmContextN2(1) {
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Fatal("a second claim must fail while the setup is outstanding")
 	}
 
@@ -813,7 +813,7 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 
 	amfInstance.ReleaseNasConnection(ue, ueConn)
 
-	if !ue.ClaimSmContextN2(1) {
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Fatal("the UE dropping to CM-IDLE must clear the outstanding setup")
 	}
 }
@@ -839,17 +839,17 @@ func TestSmContextN2StateTransitions(t *testing.T) {
 		t.Error("a session with no RAN resources must not count as active")
 	}
 
-	if !ue.ClaimSmContextN2(1) {
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Fatal("an inactive session must be claimable")
 	}
 
-	if ue.ClaimSmContextN2(1) {
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Error("a pending session must not be claimable")
 	}
 
 	ue.SetSmContextActive(1)
 
-	if ue.ClaimSmContextN2(1) {
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Error("an active session must not be claimable")
 	}
 
@@ -857,9 +857,9 @@ func TestSmContextN2StateTransitions(t *testing.T) {
 		t.Error("a session the RAN confirmed must count as active")
 	}
 
-	ue.ReleaseSmContextN2(1)
+	ue.SetSmContextInactive(1)
 
-	if !ue.ClaimSmContextN2(1) {
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Error("a released session must be claimable again")
 	}
 }
@@ -879,11 +879,11 @@ func TestN2SetupTransaction_GuardExpiryReleasesTheClaim(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ueConn.ArmN2Setup(amf.N2SetupPDUSession, guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for ueConn.N2SetupOpen(amf.N2SetupPDUSession) && time.Now().Before(deadline) {
@@ -894,7 +894,7 @@ func TestN2SetupTransaction_GuardExpiryReleasesTheClaim(t *testing.T) {
 		t.Fatal("the transaction is still open after the guard timer expired")
 	}
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Error("an NG-RAN node that never answers must not hold the claim forever")
 	}
 }
@@ -914,14 +914,14 @@ func TestN2SetupTransaction_TerminalKeepsConfirmedSessions(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
 	ue.SetSmContextActive(1)
 	ueConn.EndN2Setup(amf.N2SetupPDUSession)
 
-	if ue.ClaimSmContextN2(1) {
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
 		t.Error("a session the NG-RAN node confirmed must stay active when its transaction closes")
 	}
 }
@@ -1030,11 +1030,11 @@ func TestN2SetupGuardExpiry_DeactivatesTheSessionAtTheSMF(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ueConn.ArmN2Setup(amf.N2SetupPDUSession, guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for len(smfStub.deactivated()) == 0 && time.Now().Before(deadline) {
@@ -1063,7 +1063,7 @@ func TestN2SetupTerminal_DoesNotDeactivateAConfirmedSession(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 

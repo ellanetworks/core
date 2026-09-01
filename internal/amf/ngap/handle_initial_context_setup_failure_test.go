@@ -144,7 +144,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateForEverySession(t *t
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	if got := ueConn.ClaimN2Setup(amf.N2SetupInitialContext, []uint8{1, 2}); len(got) != 2 {
+	if got := ueConn.N2Setup(amf.N2SetupInitialContext).Claim([]uint8{1, 2}); len(got) != 2 {
 		t.Fatalf("claimed %v, want both PDU sessions", got)
 	}
 
@@ -162,7 +162,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateForEverySession(t *t
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 
 	for _, id := range []uint8{1, 2} {
-		if !ueConn.ClaimN2SetupSession(amf.N2SetupInitialContext, id) {
+		if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(id) {
 			t.Errorf("PDU session %d is still claimed after the NG-RAN node failed to establish the UE context", id)
 		}
 	}
@@ -183,7 +183,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateWithoutAFailedList(t
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
@@ -195,7 +195,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateWithoutAFailedList(t
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 
-	if !ueConn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Error("a failure carrying no PDU session list must still clear the NG-RAN state")
 	}
 }

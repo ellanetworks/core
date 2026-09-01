@@ -1174,7 +1174,7 @@ func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
 	}
 
 	amfInstance.N2SetupGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond}
-	conn.ArmN2Setup(amf.N2SetupInitialContext, amfInstance.N2SetupGuardCfg)
+	conn.N2Setup(amf.N2SetupInitialContext).Arm(amfInstance.N2SetupGuardCfg)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for conn.N2SetupOpen(amf.N2SetupInitialContext) && time.Now().Before(deadline) {
@@ -1185,7 +1185,7 @@ func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
 		t.Fatal("the guard did not close the transaction")
 	}
 
-	if !conn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+	if !conn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Error("PDU session 1 is still claimed after the transaction closed")
 	}
 }
@@ -1211,7 +1211,7 @@ func TestMobilityReg_InitialContextSetupNotSent_ReleasesTheClaim(t *testing.T) {
 		t.Error("no initial context setup reached the NG-RAN node, so nothing should be supervised")
 	}
 
-	if !conn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+	if !conn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Error("the PDU session is still claimed although no setup was sent")
 	}
 }
