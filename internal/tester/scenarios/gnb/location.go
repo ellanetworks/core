@@ -216,7 +216,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Cleanup: Deregister UE ---
 	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
 	}

@@ -85,6 +85,8 @@ type StartOpts struct {
 }
 
 // ENB is a connected S1AP eNB. Its methods are safe for concurrent use.
+var DefaultUERadioCapability = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
+
 type ENB struct {
 	enbID  uint32
 	name   string
@@ -108,6 +110,9 @@ type ENB struct {
 
 	nextENBUEID int64
 	nextTEID    uint32
+
+	UERadioCapability  []byte
+	capabilityReported map[int64]bool
 
 	// S1-MME peer management. Ordered list of MME endpoints; the eNB keeps
 	// exactly one active SCTP association at a time, starting with index 0
@@ -180,19 +185,20 @@ func Start(opts *StartOpts) (*ENB, error) {
 	}
 
 	e := &ENB{
-		enbID:          opts.ENBID,
-		name:           opts.Name,
-		plmn:           plmn,
-		tac:            tac,
-		n3Addr:         n3IP,
-		tunnels:        make(map[uint32]*tunnel),
-		receivedFrames: make(map[Category]map[s1ap.ProcedureCode][]Frame),
-		nextENBUEID:    1,
-		nextTEID:       1,
-		mmeLocal:       local,
-		peers:          peers,
-		active:         -1,
-		mmeChange:      make(chan struct{}),
+		UERadioCapability: DefaultUERadioCapability,
+		enbID:             opts.ENBID,
+		name:              opts.Name,
+		plmn:              plmn,
+		tac:               tac,
+		n3Addr:            n3IP,
+		tunnels:           make(map[uint32]*tunnel),
+		receivedFrames:    make(map[Category]map[s1ap.ProcedureCode][]Frame),
+		nextENBUEID:       1,
+		nextTEID:          1,
+		mmeLocal:          local,
+		peers:             peers,
+		active:            -1,
+		mmeChange:         make(chan struct{}),
 	}
 	e.cond = sync.NewCond(&e.mu)
 
@@ -459,6 +465,34 @@ func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCod
 // SendMessage writes a marshalled S1AP PDU to the active MME peer. ueAssociated
 // selects the SCTP stream (0 for non-UE procedures, 1 for UE-associated),
 // matching the NGAP tester's convention.
+func (e *ENB) claimCapabilityReport(enbUEID int64) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if len(e.UERadioCapability) == 0 {
+		return false
+	}
+
+	if e.capabilityReported == nil {
+		e.capabilityReported = make(map[int64]bool)
+	}
+
+	if e.capabilityReported[enbUEID] {
+		return false
+	}
+
+	e.capabilityReported[enbUEID] = true
+
+	return true
+}
+
+func (e *ENB) dropCapabilityReport(enbUEID int64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	delete(e.capabilityReported, enbUEID)
+}
+
 func (e *ENB) SendMessage(pdu []byte, ueAssociated bool) error {
 	e.mmeMu.RLock()
 

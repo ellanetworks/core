@@ -14,6 +14,7 @@ import (
 
 type RegistrationRequestOpts struct {
 	RegistrationType       uint8
+	FollowOnRequest        bool
 	RequestedNSSAI         fgs.NSSAI
 	IncludeCapability      bool
 	UESecurity             *UESecurity
@@ -83,7 +84,7 @@ func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.Registratio
 
 	m := &fgs.RegistrationRequest{
 		RegistrationType: fgs.RegistrationType(opts.RegistrationType),
-		FOR:              true,
+		FOR:              opts.FollowOnRequest,
 		NgKSI: nas.KeySetIdentifier{
 			Value:  uint8(opts.UESecurity.NgKsi.Ksi),
 			Mapped: opts.UESecurity.NgKsi.Tsc == models.ScTypeMapped,

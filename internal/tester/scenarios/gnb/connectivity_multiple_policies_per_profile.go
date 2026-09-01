@@ -197,7 +197,7 @@ func runConnectivityTestWithDNN(
 
 	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionStatus, releaseTimeout)
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionStatus, gnb.CauseUserInactivity, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}

@@ -133,6 +133,12 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	dlTEID := e.allocTEID()
 
+	if e.claimCapabilityReport(enbUEID) {
+		if err := e.SendUECapabilityInfoIndication(mmeUEID, enbUEID, e.UERadioCapability); err != nil {
+			return nil, fmt.Errorf("send UE Capability Info Indication: %w", err)
+		}
+	}
+
 	if err := e.sendInitialContextSetupResponse(ics, enbUEID, dlTEID); err != nil {
 		return nil, err
 	}

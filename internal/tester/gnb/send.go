@@ -36,6 +36,7 @@ const (
 	NGAPProcedureHandoverCancel                    NGAPProcedure = "HandoverCancel"
 	NGAPProcedureUplinkRANStatusTransfer           NGAPProcedure = "UplinkRANStatusTransfer"
 	NGAPProcedureUplinkNRPPaTransport              NGAPProcedure = "UplinkNRPPaTransport"
+	NGAPProcedureUERadioCapabilityInfoIndication   NGAPProcedure = "UERadioCapabilityInfoIndication"
 )
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
@@ -51,7 +52,8 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedureHandoverRequired, NGAPProcedureHandoverRequestAcknowledge,
 		NGAPProcedureHandoverNotify, NGAPProcedureHandoverFailure,
 		NGAPProcedureHandoverCancel, NGAPProcedureUplinkRANStatusTransfer,
-		NGAPProcedureUplinkNRPPaTransport:
+		NGAPProcedureUplinkNRPPaTransport,
+		NGAPProcedureUERadioCapabilityInfoIndication:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)
@@ -168,6 +170,19 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 		zap.Int64("RAN UE NGAP ID", opts.RANUENGAPID),
 		zap.Int64("Source AMF UE NGAP ID", opts.SourceAMFUENGAPID),
 	)
+
+	return nil
+}
+
+func (g *GnodeB) SendUERadioCapabilityInfoIndication(opts *UERadioCapabilityInfoIndicationOpts) error {
+	pkt, err := BuildUERadioCapabilityInfoIndication(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build UERadioCapabilityInfoIndication: %s", err.Error())
+	}
+
+	if err := g.SendToRan(pkt, NGAPProcedureUERadioCapabilityInfoIndication); err != nil {
+		return fmt.Errorf("couldn't send UERadioCapabilityInfoIndication: %s", err.Error())
+	}
 
 	return nil
 }

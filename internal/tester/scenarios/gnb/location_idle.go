@@ -197,7 +197,7 @@ func locateIdleUE(
 // releaseToIdle takes the UE to CM-IDLE, keeping its PDU session so the location
 // request that follows has something to page for.
 func releaseToIdle(gNodeB *gnb.GnodeB, newUE *ue.UE, ranUENGAPID int64, pduSessionID uint8) error {
-	return gNodeB.ReleaseContext(newUE, ranUENGAPID, []uint8{pduSessionID}, releaseTimeout)
+	return gNodeB.ReleaseContext(newUE, ranUENGAPID, []uint8{pduSessionID}, gnb.CauseUserInactivity, releaseTimeout)
 }
 
 func validateIdleResult(result *common.LocationData, method string) error {

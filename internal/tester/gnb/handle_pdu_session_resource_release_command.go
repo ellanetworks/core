@@ -56,6 +56,10 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, value []byte) error {
 		AMFUENGAPID:   amfUeNgapID,
 		RANUENGAPID:   ranUeNgapID,
 		PDUSessionIDs: ids,
+		Mcc:           gnb.MCC,
+		Mnc:           gnb.MNC,
+		GnbID:         gnb.GnbID,
+		Tac:           gnb.TAC,
 	}); err != nil {
 		return fmt.Errorf("failed to send PDUSessionResourceReleaseResponse: %w", err)
 	}

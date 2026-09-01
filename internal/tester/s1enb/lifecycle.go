@@ -214,5 +214,7 @@ func (e *ENB) completeContextRelease(enbUEID int64, timeout time.Duration) error
 		return fmt.Errorf("UE Context Release Command carries no eNB UE S1AP ID")
 	}
 
+	e.dropCapabilityReport(int64(cmd.UES1APIDs.ENBUES1APID))
+
 	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
 }
