@@ -53,10 +53,6 @@ This path returns the list of network subscribers, ordered by IMSI.
 
 `description` is omitted from an item when that subscriber has no note.
 
-`connection_state` is `connected` while the device holds a signalling connection to the core and `idle` otherwise. It is independent of `registered`: a device part-way through registration is `connected` while `registered` is still `false`. It is omitted when the core holds no context for the device.
-
-`last_seen_radio` is the radio that last served the device. The core knows the serving radio only while the device is connected, so on an idle or deregistered device this is last known and may be stale. It is held in memory by the serving node, not shared across cluster nodes, and reset on restart.
-
 ## Create a Subscriber
 
 This path creates a new network subscriber.
