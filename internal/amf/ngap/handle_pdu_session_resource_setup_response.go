@@ -49,6 +49,8 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf
 				continue
 			}
 
+			amfUe.SetSmContextActive(pduSessionID)
+
 			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
@@ -78,6 +80,8 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf
 
 	// A UE whose user plane was just (re)established applies any policy change deferred
 	// while it was idle.
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
 	if amfUe.State() == amf.Registered {
 		amfInstance.ReconcileSessionsForUE(ctx, amfUe)
 	}

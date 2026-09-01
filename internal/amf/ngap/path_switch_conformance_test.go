@@ -158,7 +158,7 @@ func TestPathSwitchFailedSessionDeactivatesUserPlane(t *testing.T) {
 		t.Fatal("the PDU session must survive a failed switch")
 	}
 
-	if !sc.PduSessionInactive {
+	if !sc.Inactive() {
 		t.Error("the PDU session must be marked user-plane inactive")
 	}
 }

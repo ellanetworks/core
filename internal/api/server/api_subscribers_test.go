@@ -211,6 +211,8 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 		return fmt.Errorf("failed to create SmContext: %w", err)
 	}
 
+	ue.SetSmContextActive(pduSessionID)
+
 	return nil
 }
 

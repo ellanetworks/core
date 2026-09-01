@@ -4,8 +4,10 @@
 package amf_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -101,7 +103,17 @@ func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Po
 
 func (f *fakeDBInstance) NodeID() int { return 0 }
 
-type fakeSmf struct{}
+type fakeSmf struct {
+	mu              sync.Mutex
+	DeactivateCalls []string
+}
+
+func (f *fakeSmf) deactivated() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.DeactivateCalls...)
+}
 
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
 func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
@@ -109,8 +121,15 @@ func (f *fakeSmf) SessionCount() int                     { return 0 }
 func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
 	return "", nil, nil
 }
-func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error)   { return nil, nil }
-func (f *fakeSmf) DeactivateSmContext(context.Context, string) error           { return nil }
+func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
+func (f *fakeSmf) DeactivateSmContext(_ context.Context, ref string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.DeactivateCalls = append(f.DeactivateCalls, ref)
+
+	return nil
+}
 func (f *fakeSmf) HandlePagingFailure(context.Context, etsi.SUPI, uint8) error { return nil }
 
 func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
@@ -730,4 +749,328 @@ func (*cancelCountingEPSPeer) MMContext(context.Context, interworking.MMContextR
 
 func (*cancelCountingEPSPeer) MMContextAck(context.Context, etsi.SUPI, []uint8) error {
 	return nil
+}
+
+func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000021", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+	})
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.MarkICSPending()
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+		t.Fatalf("first transfer: %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 1 {
+		t.Fatalf("PDUSessionResourceSetupRequest count = %d, want 1", sender.pduSessionSetupCalls)
+	}
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+		t.Fatalf("second transfer: %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 1 {
+		t.Fatalf("PDUSessionResourceSetupRequest count = %d after a repeat N2 transfer, want 1", sender.pduSessionSetupCalls)
+	}
+}
+
+func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000022", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+	})
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Fatal("the first claim must succeed")
+	}
+
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Fatal("a second claim must fail while the setup is outstanding")
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	amfInstance.ReleaseNasConnection(ue, ueConn)
+
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Fatal("the UE dropping to CM-IDLE must clear the outstanding setup")
+	}
+}
+
+func TestSmContextN2StateTransitions(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	ue := addUE(t, amfInstance, "001010000000023", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc, ok := ue.SmContextFindByPDUSessionID(1)
+	if !ok {
+		t.Fatal("SM context not found")
+	}
+
+	if !sc.Inactive() {
+		t.Error("a session the RAN has not set up must start inactive")
+	}
+
+	if ue.HasActivePduSessions() {
+		t.Error("a session with no RAN resources must not count as active")
+	}
+
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Fatal("an inactive session must be claimable")
+	}
+
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Error("a pending session must not be claimable")
+	}
+
+	ue.SetSmContextActive(1)
+
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Error("an active session must not be claimable")
+	}
+
+	if !ue.HasActivePduSessions() {
+		t.Error("a session the RAN confirmed must count as active")
+	}
+
+	ue.SetSmContextInactive(1)
+
+	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Error("a released session must be claimable again")
+	}
+}
+
+func TestN2SetupTransaction_GuardExpiryReleasesTheClaim(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000024", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for ueConn.N2SetupOpen(amf.N2SetupPDUSession) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if ueConn.N2SetupOpen(amf.N2SetupPDUSession) {
+		t.Fatal("the transaction is still open after the guard timer expired")
+	}
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Error("an NG-RAN node that never answers must not hold the claim forever")
+	}
+}
+
+func TestN2SetupTransaction_TerminalKeepsConfirmedSessions(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000025", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ue.SetSmContextActive(1)
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
+	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+		t.Error("a session the NG-RAN node confirmed must stay active when its transaction closes")
+	}
+}
+
+func TestTransferN1N2Message_SessionAlreadySetUp_ReleasesTheICSClaim(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000026", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+
+		u.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+		u.SetKgnbForTest(make([]byte, 32))
+	})
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetSmContextActive(1)
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.ResetICS()
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sender.initialContextSetupCalls != 0 {
+		t.Fatalf("InitialContextSetupRequest count = %d, want 0", sender.initialContextSetupCalls)
+	}
+
+	if !ueConn.ClaimICS() {
+		t.Error("the initial context setup claim was not released, so the UE context can never be set up on this connection")
+	}
+}
+
+func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+	amfInstance.ClearRadiosForTest()
+
+	ue := addUE(t, amfInstance, "001010000000027", func(u *amf.UeContext) {
+		u.ForceStateForTest(amf.Registered)
+		u.SetGutiForTest(testGUTI(t))
+		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+	})
+
+	if conn := ue.Conn(); conn != nil {
+		conn.Release()
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	amfInstance.UpdateRadioSupportedTAIs(radio, []amf.SupportedTAI{{
+		Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+	}})
+
+	first := newReq()
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), first); err != nil {
+		t.Fatalf("first transfer: %v", err)
+	}
+
+	if !ue.PagingActiveForTest() {
+		t.Fatal("expected paging supervision to be running")
+	}
+
+	buffered := ue.N1N2Message()
+	if buffered == nil {
+		t.Fatal("the first transfer was not buffered")
+	}
+
+	second := newReq()
+	second.BinaryDataN2Information = []byte{0xAA, 0xBB}
+
+	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), second)
+	if err == nil {
+		t.Fatal("a second transfer while paging must be rejected (TS 23.502 4.2.3.3 step 3b)")
+	}
+
+	if got := ue.N1N2Message(); got == nil || !bytes.Equal(got.BinaryDataN2Information, buffered.BinaryDataN2Information) {
+		t.Error("the buffered request was displaced; the SMF will never resend the 5GSM message it carried")
+	}
+}
+
+func TestN2SetupGuardExpiry_DeactivatesTheSessionAtTheSMF(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	smfStub := &fakeSmf{}
+	amfInstance := amf.New(nil, nil, smfStub)
+
+	ue := addUE(t, amfInstance, "001010000000028", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for len(smfStub.deactivated()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	got := smfStub.deactivated()
+	if len(got) != 1 || got[0] != "ref-1" {
+		t.Fatalf("DeactivateSmContext calls = %v, want [ref-1]: an unanswered setup leaves the SMF activating (TS 23.502 4.2.3.2 steps 12/16)", got)
+	}
+}
+
+func TestN2SetupTerminal_DoesNotDeactivateAConfirmedSession(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	smfStub := &fakeSmf{}
+	amfInstance := amf.New(nil, nil, smfStub)
+
+	ue := addUE(t, amfInstance, "001010000000029", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ue.SetSmContextActive(1)
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
+	if got := smfStub.deactivated(); len(got) != 0 {
+		t.Errorf("DeactivateSmContext calls = %v, want none: the NG-RAN node confirmed the session", got)
+	}
 }

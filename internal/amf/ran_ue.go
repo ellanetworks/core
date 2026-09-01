@@ -11,6 +11,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -73,6 +74,7 @@ type UeConn struct {
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
 	ics        atomic.Int32
+	n2Setups   n2SetupTxns
 	inboundNAS atomic.Uint32
 	log        atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
@@ -338,6 +340,11 @@ func (ueConn *UeConn) ResetICS() {
 	ueConn.ics.Store(int32(ICSNotStarted))
 }
 
+func (ueConn *UeConn) AbortICS() {
+	ueConn.ResetICS()
+	ueConn.EndN2Setup(N2SetupInitialContext)
+}
+
 // The registration/auth status fields (RegistrationType5GS, IdentityTypeUsedForRegistration,
 // RetransmissionOfInitialNASMsg, resyncTried) are written on the NAS goroutine and read by
 // the status export from another goroutine. The setters below publish them under the parent
@@ -480,6 +487,10 @@ func (ueConn *UeConn) StopReleaseGuard() {
 }
 
 func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
+	a.ReleaseUeConnServedBy(ctx, ueConn, nil)
+}
+
+func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
@@ -491,6 +502,10 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 
 	if amfUe.State() == Registered {
 		for _, sr := range amfUe.SmContextRefs() {
+			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && sr.Inactive {
+				continue
+			}
+
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
 				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 			}

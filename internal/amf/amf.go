@@ -170,6 +170,7 @@ type AMF struct {
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
 	T3513Cfg                 guard.TimerValue
 	NASGuardCfg              guard.TimerValue
+	N2SetupGuardCfg          guard.TimerValue
 	handoverGuardTimeout     time.Duration
 	Session                  SmfSbi
 	NAS                      NASHandler
@@ -713,6 +714,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		T3512Value:               3600 * time.Second,
 		T3513Cfg:                 defaultTimerCfg,
 		NASGuardCfg:              defaultTimerCfg,
+		N2SetupGuardCfg:          defaultN2SetupGuardCfg,
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
@@ -727,6 +729,11 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
 // procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
+
+var defaultN2SetupGuardCfg = guard.TimerValue{
+	Enable:     true,
+	ExpireTime: 10 * time.Second,
+}
 
 var defaultTimerCfg = guard.TimerValue{
 	Enable:        true,
