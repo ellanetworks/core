@@ -18,7 +18,6 @@ import (
 type SmContextRef struct {
 	Ref          string
 	PduSessionID uint8
-	Inactive     bool
 }
 
 // SmContextRefs returns a locked snapshot of the UE's PDU session SM context
@@ -33,7 +32,7 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 
 	refs := make([]SmContextRef, 0, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {
-		refs = append(refs, SmContextRef{Ref: sc.Ref, PduSessionID: id, Inactive: sc.Inactive()})
+		refs = append(refs, SmContextRef{Ref: sc.Ref, PduSessionID: id})
 	}
 
 	return refs

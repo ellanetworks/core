@@ -62,7 +62,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 				}
 			}
 
-			amfUe.SetSmContextInactive(pduSessionID)
+			ueConn.SetN2SessionInactive(pduSessionID)
 		}
 	}
 }

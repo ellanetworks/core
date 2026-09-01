@@ -263,12 +263,14 @@ func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport
 
 	ue.mu.Lock()
 
+	conn := ue.active.Load()
+
 	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
-	for _, sc := range ue.SmContextList {
+	for id, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
-			inactive: sc.Inactive(),
+			inactive: conn.N2SessionInactive(id),
 		})
 	}
 
@@ -386,15 +388,15 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 	}
 
 	smCopies := make([]smContextCopy, 0, len(ue.SmContextList))
-	for _, sc := range ue.SmContextList {
+	for id, sc := range ue.SmContextList {
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
-			inactive: sc.Inactive(),
+			inactive: conn.N2SessionInactive(id),
 		})
 	}
 
-	if r := ue.active.Load(); r != nil {
+	if r := conn; r != nil {
 		// The last-seen radio is the UE's live connection (an idle UE is on none).
 		export.LastActivity.RadioNode = r.radioName()
 

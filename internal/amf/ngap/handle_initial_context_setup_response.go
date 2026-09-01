@@ -45,7 +45,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 				continue
 			}
 
-			amfUe.SetSmContextActive(pduSessionID)
+			ueConn.SetN2SessionActive(pduSessionID)
 
 			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {

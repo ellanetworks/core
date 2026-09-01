@@ -659,10 +659,24 @@ func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
 	m.mu.Unlock()
 
 	if superseded != nil {
+		m.deactivateSupersededUserPlane(context.Background(), ue)
 		m.releaseSupersededConn(context.Background(), superseded)
 	}
 
 	m.clearPagingSuppression(context.Background(), ue)
+}
+
+// deactivateSupersededUserPlane buffers the downlink of the bearers the superseded
+// connection was carrying, before its release command goes out, so a concurrent downlink
+// is buffered for paging instead of being forwarded to an eNB that is letting the UE go
+// (TS 23.401 §5.3.5). Deciding here rather than when the eNB answers that command keeps
+// the outcome independent of whether the answer arrives at all.
+func (m *MME) deactivateSupersededUserPlane(ctx context.Context, ue *UeContext) {
+	if m.Session == nil || ue.EMMState() != EMMRegistered {
+		return
+	}
+
+	m.DeactivateAllSessions(ctx, ue)
 }
 
 // clearPagingSuppression runs outside the registry lock: the anchor must not be

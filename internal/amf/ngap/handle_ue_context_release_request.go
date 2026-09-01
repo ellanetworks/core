@@ -94,7 +94,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 				logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
 				for _, sr := range amfUe.SmContextRefs() {
-					if sr.Inactive {
+					if ueConn.N2SessionInactive(sr.PduSessionID) {
 						logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
 						continue
 					}

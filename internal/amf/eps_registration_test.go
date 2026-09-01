@@ -71,7 +71,7 @@ func TestCancelRegistrationKeepsTheFiveGSecurityContextForAReturn(t *testing.T) 
 func TestCancelRegistrationReleasesSessionsEPSDidNotAdopt(t *testing.T) {
 	a, ue, supi, fakeSmf := registeredUE(t)
 
-	ue.SmContextList[3] = &SmContext{Ref: "stranded-ref", N2: N2Active}
+	ue.SmContextList[3] = &SmContext{Ref: "stranded-ref"}
 
 	a.CancelRegistration(context.Background(), supi)
 

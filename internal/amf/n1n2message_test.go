@@ -798,27 +798,27 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
-		t.Fatal("the first claim must succeed")
-	}
-
-	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
-		t.Fatal("a second claim must fail while the setup is outstanding")
-	}
-
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
+		t.Fatal("the first claim must succeed")
+	}
+
+	if ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
+		t.Fatal("a second claim must fail while the setup is outstanding")
+	}
+
 	amfInstance.ReleaseNasConnection(ue, ueConn)
 
-	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Fatal("the UE dropping to CM-IDLE must clear the outstanding setup")
 	}
 }
 
-func TestSmContextN2StateTransitions(t *testing.T) {
+func TestN2SessionStateTransitions(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 	ue := addUE(t, amfInstance, "001010000000023", nil)
 
@@ -826,41 +826,71 @@ func TestSmContextN2StateTransitions(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	sc, ok := ue.SmContextFindByPDUSessionID(1)
-	if !ok {
-		t.Fatal("SM context not found")
-	}
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if !sc.Inactive() {
+	if !ueConn.N2SessionInactive(1) {
 		t.Error("a session the RAN has not set up must start inactive")
 	}
 
-	if ue.HasActivePduSessions() {
+	if ueConn.HasActiveN2Sessions() {
 		t.Error("a session with no RAN resources must not count as active")
 	}
 
-	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Fatal("an inactive session must be claimable")
 	}
 
-	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Error("a pending session must not be claimable")
 	}
 
-	ue.SetSmContextActive(1)
+	ueConn.SetN2SessionActive(1)
 
-	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Error("an active session must not be claimable")
 	}
 
-	if !ue.HasActivePduSessions() {
+	if !ueConn.HasActiveN2Sessions() {
 		t.Error("a session the RAN confirmed must count as active")
 	}
 
-	ue.SetSmContextInactive(1)
+	ueConn.SetN2SessionInactive(1)
 
-	if !ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Error("a released session must be claimable again")
+	}
+}
+
+// TS 23.501 §5.3.3.2.4: the AN resources a PDU session holds belong to the NG-connection
+// they were set up on, so a UE arriving on a new one holds none of them there.
+func TestN2SessionStateDoesNotFollowTheUEToANewConnection(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	ue := addUE(t, amfInstance, "001010000000024", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	radio.BindAMFForTest(amfInstance)
+
+	first := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	first.AMFForTest().AttachUeConn(ue, first)
+	first.SetN2SessionActive(1)
+
+	// The UE turns up on a second connection before the first one is released.
+	second := amf.NewUeConnForTest(radio, 2, 2, zap.NewNop())
+	second.AMFForTest().AttachUeConn(ue, second)
+
+	if !second.N2SessionInactive(1) {
+		t.Error("the new connection must not inherit the AN resources of the old one")
+	}
+
+	if !second.ClaimN2Session(amf.N2SetupPDUSession, 1) {
+		t.Error("the session must be claimable on the new connection")
 	}
 }
 
@@ -918,10 +948,10 @@ func TestN2SetupTransaction_TerminalKeepsConfirmedSessions(t *testing.T) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ue.SetSmContextActive(1)
+	ueConn.SetN2SessionActive(1)
 	ueConn.EndN2Setup(amf.N2SetupPDUSession)
 
-	if ue.ClaimSmContextN2(amf.N2SetupPDUSession, 1) {
+	if ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Error("a session the NG-RAN node confirmed must stay active when its transaction closes")
 	}
 }
@@ -944,13 +974,12 @@ func TestTransferN1N2Message_SessionAlreadySetUp_ReleasesTheICSClaim(t *testing.
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	ue.SetSmContextActive(1)
-
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.ResetICS()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.SetN2SessionActive(1)
 
 	if err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1067,10 +1096,110 @@ func TestN2SetupTerminal_DoesNotDeactivateAConfirmedSession(t *testing.T) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ue.SetSmContextActive(1)
+	ueConn.SetN2SessionActive(1)
 	ueConn.EndN2Setup(amf.N2SetupPDUSession)
 
 	if got := smfStub.deactivated(); len(got) != 0 {
 		t.Errorf("DeactivateSmContext calls = %v, want none: the NG-RAN node confirmed the session", got)
+	}
+}
+
+// A PDU session identity handed to a new SM context starts with no AN resources on the
+// connection: what it recorded under that identity belonged to the session it replaced.
+// A UE that repeats a PDU Session Establishment Request makes the SMF replace the
+// session, and the replacement has to reach the NG-RAN node.
+func TestCreateSmContext_ClearsTheConnectionRecordForThatSession(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	ue := addUE(t, amfInstance, "001010000000030", nil)
+
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ueConn.SetN2SessionActive(1)
+
+	if err := ue.CreateSmContext(1, "ref-2", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext (replacement): %v", err)
+	}
+
+	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
+		t.Error("the replacement session cannot be set up on the NG-RAN node: the connection still holds the record of the session it replaced")
+	}
+}
+
+func TestDeleteSmContext_ClearsTheConnectionRecordForThatSession(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	ue := addUE(t, amfInstance, "001010000000031", nil)
+
+	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ueConn.SetN2SessionActive(1)
+	ue.DeleteSmContext(1)
+
+	if !ueConn.N2SessionInactive(1) {
+		t.Error("a released PDU session still counts as set up on the connection")
+	}
+}
+
+// A UE that repeats a PDU Session Establishment Request has its session released and
+// re-established under the same identity (TS 24.501). The replacement's resources have
+// to reach the NG-RAN node: the ones it holds point at a session that no longer exists.
+func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000032", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+	})
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.MarkICSPending()
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+		t.Fatalf("first transfer: %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 1 {
+		t.Fatalf("PDUSessionResourceSetupRequest count = %d, want 1", sender.pduSessionSetupCalls)
+	}
+
+	// handle_ul_nas_transport releases the session on the duplicate identity, then the
+	// SMF establishes the replacement and transfers it — the AMF only records the new SM
+	// context once that transfer has returned.
+	ue.DeleteSmContext(1)
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+		t.Fatalf("transfer for the replacement session: %v", err)
+	}
+
+	if err := ue.CreateSmContext(1, "ref-2", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext (replacement): %v", err)
+	}
+
+	if sender.pduSessionSetupCalls != 2 {
+		t.Errorf("PDUSessionResourceSetupRequest count = %d, want 2: the replacement session never reached the NG-RAN node", sender.pduSessionSetupCalls)
 	}
 }

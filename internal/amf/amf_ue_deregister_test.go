@@ -146,8 +146,8 @@ func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models
 
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
 	fakeSmf := &deregisterTestSmf{}
 	relockCount := 0
@@ -201,9 +201,11 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.SetN2SessionActive(1)
+	ueConn.SetN2SessionActive(2)
 	ue.ForceStateForTest(Registered)
 
 	radio.amf.RemoveAllUeInRan(context.Background(), radio)
@@ -235,8 +237,9 @@ func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.SetN2SessionActive(1)
 	ue.ForceStateForTest(Registered)
 
 	if err := radio.amf.RemoveUe(context.Background(), ueConn); err != nil {
@@ -274,7 +277,7 @@ func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 	amfInstance := New(nil, nil, fakeSmf)
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 
 	amfInstance.ReconcileSessionsForUE(context.Background(), ue)
 
@@ -308,8 +311,8 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
 	a.AttachUeConn(ue, ueConn)
 
@@ -324,12 +327,66 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 	a.Session = fake
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
 	a.abandonPaging(ue)
 
 	if fake.suppressCalls != 2 {
 		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)
+	}
+}
+
+// TS 23.502 §4.2.6: a UE establishing another NAS signalling connection releases the old
+// one, and that release deactivates the UP connections it carried.
+func TestAttachUeConn_DeactivatesTheDisplacedConnectionsUserPlane(t *testing.T) {
+	fake := &deregisterTestSmf{}
+	a := New(nil, nil, nil)
+	a.Session = fake
+
+	radio := &Radio{Log: logger.AmfLog}
+	radio.BindAMFForTest(a)
+
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.ForceStateForTest(Registered)
+
+	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	a.AttachUeConn(ue, first)
+	first.SetN2SessionActive(1)
+
+	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	a.AttachUeConn(ue, second)
+
+	if got := fake.deactivateCalls; len(got) != 1 || got[0] != "ref-1" {
+		t.Errorf("DeactivateSmContext calls = %v, want only ref-1: the user plane of the displaced connection is left pointing at a released NG-RAN context", got)
+	}
+
+	if !first.N2SessionInactive(1) {
+		t.Error("the displaced connection still claims to hold the AN resources it just gave up")
+	}
+}
+
+func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed(t *testing.T) {
+	fake := &deregisterTestSmf{}
+	a := New(nil, nil, nil)
+	a.Session = fake
+
+	radio := &Radio{Log: logger.AmfLog}
+	radio.BindAMFForTest(a)
+
+	ue := NewUeContext()
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.ForceStateForTest(Registered)
+
+	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	a.AttachUeConn(ue, first)
+
+	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	a.AttachUeConn(ue, second)
+
+	if got := fake.deactivateCalls; len(got) != 0 {
+		t.Errorf("DeactivateSmContext calls = %v, want none: the displaced connection held no AN resources", got)
 	}
 }

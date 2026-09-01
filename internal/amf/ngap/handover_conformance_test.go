@@ -61,11 +61,15 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 
 	for _, id := range sessions {
-		amfUe.SmContextList[id] = &amf.SmContext{Ref: smContextRefFor(id), Snssai: &models.Snssai{Sst: 1}, N2: amf.N2Active}
+		amfUe.SmContextList[id] = &amf.SmContext{Ref: smContextRefFor(id), Snssai: &models.Snssai{Sst: 1}}
 	}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, sourceRanUeNgapID, sourceAmfUeNgapID, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	for _, id := range sessions {
+		sourceUe.SetN2SessionActive(id)
+	}
 
 	return &n2Env{
 		amf:       amfInstance,
@@ -647,12 +651,11 @@ func TestN2HandoverNotifyDeactivatesTheSessionTheTargetRefused(t *testing.T) {
 		t.Errorf("the refused PDU session was released where 23.502 asks for deactivation: %v", fakeSmf.ReleaseSmContextCalls)
 	}
 
-	sc, kept := env.ue.SmContextFindByPDUSessionID(2)
-	if !kept {
+	if _, kept := env.ue.SmContextFindByPDUSessionID(2); !kept {
 		t.Fatal("the refused PDU session must survive the handover")
 	}
 
-	if !sc.Inactive() {
+	if !env.ue.Conn().N2SessionInactive(2) {
 		t.Error("the refused PDU session must be marked user-plane inactive")
 	}
 }
