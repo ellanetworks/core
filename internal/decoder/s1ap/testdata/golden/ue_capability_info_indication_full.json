@@ -58,7 +58,13 @@
           "label": "ignore",
           "unknown": false
         },
-        "value": "0102"
+        "value": {
+          "protocol": "RRC",
+          "raw_hex": "0102",
+          "decoded": {
+            "error": "UERadioAccessCapabilityInformation: criticalExtensions: c1: ueRadioAccessCapabilityInformation-r8: ue-RadioAccessCapabilityInfo: per: truncated input"
+          }
+        }
       },
       {
         "id": {

@@ -58,27 +58,27 @@ type RegistrationAccept struct {
 	AllowedNSSAI             []SNSSAI                  `json:"allowed_nssai,omitempty"`
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
 
-	RejectedNSSAI                            *UnsupportedIE `json:"rejected_nssai,omitempty"`
-	ConfiguredNSSAI                          *UnsupportedIE `json:"configured_nssai,omitempty"`
-	PDUSessionStatus                         *UnsupportedIE `json:"pdu_session_status,omitempty"`
-	PDUSessionReactivationResult             *UnsupportedIE `json:"pdu_session_reactivation_result,omitempty"`
-	PDUSessionReactivationResultErrorCause   *UnsupportedIE `json:"pdu_session_reactivation_result_error_cause,omitempty"`
-	LADNInformation                          *UnsupportedIE `json:"ladn_information,omitempty"`
-	MICOIndication                           *UnsupportedIE `json:"mico_indication,omitempty"`
-	NetworkSlicingIndication                 *UnsupportedIE `json:"network_slicing_indication,omitempty"`
-	ServiceAreaList                          *UnsupportedIE `json:"service_area_list,omitempty"`
-	T3512Value                               *UnsupportedIE `json:"t3512_value,omitempty"`
-	Non3GppDeregistrationTimerValue          *UnsupportedIE `json:"non_3gpp_deregistration_timer_value,omitempty"`
-	T3502Value                               *UnsupportedIE `json:"t3502_value,omitempty"`
-	EmergencyNumberList                      *UnsupportedIE `json:"emergency_number_list,omitempty"`
-	ExtendedEmergencyNumberList              *UnsupportedIE `json:"extended_emergency_number_list,omitempty"`
-	SORTransparentContainer                  *UnsupportedIE `json:"sor_transparent_container,omitempty"`
-	EAPMessage                               *UnsupportedIE `json:"eap_message,omitempty"`
-	NSSAIInclusionMode                       *UnsupportedIE `json:"nssai_inclusion_mode,omitempty"`
-	OperatordefinedAccessCategoryDefinitions *UnsupportedIE `json:"operatordefined_access_category_definitions,omitempty"`
-	NegotiatedDRXParameters                  *UnsupportedIE `json:"negotiated_drx_parameters,omitempty"`
-	Non3GppNwPolicies                        *UnsupportedIE `json:"non_3gpp_nw_policies,omitempty"`
-	EPSBearerContextStatus                   *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
+	RejectedNSSAI                            *UnsupportedIE                  `json:"rejected_nssai,omitempty"`
+	ConfiguredNSSAI                          *UnsupportedIE                  `json:"configured_nssai,omitempty"`
+	PDUSessionStatus                         []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
+	PDUSessionReactivationResult             []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
+	PDUSessionReactivationResultErrorCause   *UnsupportedIE                  `json:"pdu_session_reactivation_result_error_cause,omitempty"`
+	LADNInformation                          *UnsupportedIE                  `json:"ladn_information,omitempty"`
+	MICOIndication                           *UnsupportedIE                  `json:"mico_indication,omitempty"`
+	NetworkSlicingIndication                 *UnsupportedIE                  `json:"network_slicing_indication,omitempty"`
+	ServiceAreaList                          *UnsupportedIE                  `json:"service_area_list,omitempty"`
+	T3512Value                               *GPRSTimer3Value                `json:"t3512_value,omitempty"`
+	Non3GppDeregistrationTimerValue          *UnsupportedIE                  `json:"non_3gpp_deregistration_timer_value,omitempty"`
+	T3502Value                               *UnsupportedIE                  `json:"t3502_value,omitempty"`
+	EmergencyNumberList                      *UnsupportedIE                  `json:"emergency_number_list,omitempty"`
+	ExtendedEmergencyNumberList              *UnsupportedIE                  `json:"extended_emergency_number_list,omitempty"`
+	SORTransparentContainer                  *UnsupportedIE                  `json:"sor_transparent_container,omitempty"`
+	EAPMessage                               *UnsupportedIE                  `json:"eap_message,omitempty"`
+	NSSAIInclusionMode                       *UnsupportedIE                  `json:"nssai_inclusion_mode,omitempty"`
+	OperatordefinedAccessCategoryDefinitions *UnsupportedIE                  `json:"operatordefined_access_category_definitions,omitempty"`
+	NegotiatedDRXParameters                  *UnsupportedIE                  `json:"negotiated_drx_parameters,omitempty"`
+	Non3GppNwPolicies                        *UnsupportedIE                  `json:"non_3gpp_nw_policies,omitempty"`
+	EPSBearerContextStatus                   *UnsupportedIE                  `json:"eps_bearer_context_status,omitempty"`
 }
 
 func registrationResult5GSEnum(value fgs.RegistrationResult) utils.EnumField {
@@ -113,20 +113,21 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 		out.NetworkFeatureSupport5GS = &nfs
 	}
 
+	out.T3512Value = gprsTimer3(msg.T3512)
+	out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
+	out.PDUSessionReactivationResult = decodePDUSessionReactivationResult(msg.PDUSessionReactivationResult)
+
 	presence := []struct {
 		set  bool
 		dest **UnsupportedIE
 	}{
 		{hasPreservedIE(msg.Unrecognized, ieiRejectedNSSAI), &out.RejectedNSSAI},
 		{msg.ConfiguredNSSAI != nil, &out.ConfiguredNSSAI},
-		{msg.PDUSessionStatus != nil, &out.PDUSessionStatus},
-		{msg.PDUSessionReactivationResult != nil, &out.PDUSessionReactivationResult},
 		{hasPreservedIE(msg.Unrecognized, ieiPDUReactErrCause), &out.PDUSessionReactivationResultErrorCause},
 		{hasPreservedIE(msg.Unrecognized, ieiLADNInformation), &out.LADNInformation},
 		{msg.MICOIndication != nil, &out.MICOIndication},
 		{hasPreservedIE(msg.Unrecognized, ieiNetworkSlicingIndication), &out.NetworkSlicingIndication},
 		{hasPreservedIE(msg.Unrecognized, ieiServiceAreaList), &out.ServiceAreaList},
-		{msg.T3512 != nil, &out.T3512Value},
 		{msg.Non3GppDeregistrationTimer != nil, &out.Non3GppDeregistrationTimerValue},
 		{msg.T3502 != nil, &out.T3502Value},
 		{hasPreservedIE(msg.Unrecognized, ieiEmergencyNumberList), &out.EmergencyNumberList},

@@ -35,16 +35,7 @@ func buildServiceAccept(msg *fgs.ServiceAccept) *ServiceAccept {
 		out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	}
 
-	if msg.PDUSessionReactivationResult != nil {
-		psi := msg.PDUSessionReactivationResult.PSI
-		rr := []PDUSessionReactivateResultPDU{}
-
-		for i := range 16 {
-			rr = append(rr, PDUSessionReactivateResultPDU{PDUSessionID: i, Active: psi[i]})
-		}
-
-		out.PDUSessionReactivationResult = rr
-	}
+	out.PDUSessionReactivationResult = decodePDUSessionReactivationResult(msg.PDUSessionReactivationResult)
 
 	if msg.ReactivationResultErrorCause != nil {
 		pduSessionIDs, causes := bufToPDUSessionReactivationResultErrorCause(msg.ReactivationResultErrorCause)

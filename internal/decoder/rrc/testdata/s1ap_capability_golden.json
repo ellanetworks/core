@@ -1,0 +1,63 @@
+{
+  "eutraRel16Cat4": {
+    "summary": {
+      "eutra": {
+        "access_stratum_release": "rel16",
+        "ue_category": 4,
+        "bands": [
+          {
+            "band": 7
+          },
+          {
+            "band": 4
+          },
+          {
+            "band": 64
+          },
+          {
+            "band": 29
+          },
+          {
+            "band": 2
+          },
+          {
+            "band": 13
+          },
+          {
+            "band": 5
+          },
+          {
+            "band": 30
+          },
+          {
+            "band": 64
+          },
+          {
+            "band": 25
+          },
+          {
+            "band": 12
+          },
+          {
+            "band": 14
+          },
+          {
+            "band": 17
+          },
+          {
+            "band": 38
+          },
+          {
+            "band": 41
+          },
+          {
+            "band": 53
+          }
+        ]
+      }
+    },
+    "nr_nodes": 1,
+    "eutra_nodes": 8352,
+    "tree_sha256": "5e2c79c40e70b0e908ab98c8478f8bf53fc1685c0d519a34f2a68e4acc160d50"
+  }
+}
