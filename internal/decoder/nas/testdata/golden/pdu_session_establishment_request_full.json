@@ -58,12 +58,8 @@
               "pcscf_ipv6_address_request_ul": true,
               "msisdn_request_ul": true
             },
-            "maximum_number_of_supported_packet_filters": {
-              "status": "Unsupported"
-            },
-            "alwayson_pdu_session_requested": {
-              "status": "Unsupported"
-            },
+            "maximum_number_of_supported_packet_filters": 0,
+            "alwayson_pdu_session_requested": true,
             "smpdu_dn_request_container": {
               "status": "Unsupported"
             }

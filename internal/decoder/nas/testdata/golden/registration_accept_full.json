@@ -70,7 +70,15 @@
         "status": "Unsupported"
       },
       "t3512_value": {
-        "status": "Unsupported"
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "10 minutes",
+          "unknown": false
+        },
+        "value": 5,
+        "duration": "50m0s",
+        "seconds": 3000
       },
       "eap_message": {
         "status": "Unsupported"

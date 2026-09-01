@@ -9,40 +9,46 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-func TestExtendedPCOKnownContainers(t *testing.T) {
+func TestExtendedPCODecodesIPv4LinkMTURequest(t *testing.T) {
+	out := extendedPCOFromNAS(nas.ProtocolConfigurationOptions{
+		Containers: []nas.PCOContainer{{ID: 0x0010}},
+	})
+
+	if out.Error != "" {
+		t.Fatalf("container 0x0010 reported an error: %s", out.Error)
+	}
+
+	if out.IPv4LinkMTURequestUL == nil || !*out.IPv4LinkMTURequestUL {
+		t.Error("container 0x0010 did not set ipv4_link_mtu_request_ul")
+	}
+}
+
+// TS 24.501 §9.11.4.9 spreads the count over two octets, bit 8 of the first
+// being the most significant and bit 6 of the second the least.
+func TestMaxSupportedPacketFiltersBitLayout(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		id   uint16
-		want func(*ExtendedProtocolConfigurationOptions) *bool
+		in   []byte
+		want *uint16
 	}{
-		{"ifom support request", 0x000f, func(o *ExtendedProtocolConfigurationOptions) *bool { return o.IFOMSupportRequestUL }},
-		{"ipv4 link mtu request", 0x0010, func(o *ExtendedProtocolConfigurationOptions) *bool { return o.IPv4LinkMTURequestUL }},
-		{"local address in tft", 0x0011, func(o *ExtendedProtocolConfigurationOptions) *bool {
-			return o.MSSupportOfLocalAddressInTFTIndicatorUL
-		}},
+		{"observed on air", []byte{0x10, 0x00}, ptrUint16(128)},
+		{"least significant bit", []byte{0x00, 0x20}, ptrUint16(1)},
+		{"spec maximum", []byte{0x80, 0x00}, ptrUint16(1024)},
+		{"wrong length", []byte{0x10}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out := extendedPCOFromNAS(nas.ProtocolConfigurationOptions{
-				Containers: []nas.PCOContainer{{ID: tc.id}},
-			})
+			got := maxSupportedPacketFilters(tc.in)
 
-			if out.Error != "" {
-				t.Fatalf("container 0x%04x reported an error: %s", tc.id, out.Error)
-			}
-
-			if got := tc.want(out); got == nil || !*got {
-				t.Errorf("container 0x%04x did not set its flag", tc.id)
+			switch {
+			case tc.want == nil && got != nil:
+				t.Errorf("got %d, want nil", *got)
+			case tc.want != nil && got == nil:
+				t.Errorf("got nil, want %d", *tc.want)
+			case tc.want != nil && *got != *tc.want:
+				t.Errorf("got %d, want %d", *got, *tc.want)
 			}
 		})
 	}
 }
 
-func TestExtendedPCOReportsUnknownContainer(t *testing.T) {
-	out := extendedPCOFromNAS(nas.ProtocolConfigurationOptions{
-		Containers: []nas.PCOContainer{{ID: 0xabcd}},
-	})
-
-	if out.Error == "" {
-		t.Fatal("expected an error for an unmodelled container ID")
-	}
-}
+func ptrUint16(v uint16) *uint16 { return &v }

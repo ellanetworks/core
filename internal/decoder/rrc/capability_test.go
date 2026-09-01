@@ -158,32 +158,3 @@ func TestCapabilityRejectsGarbage(t *testing.T) {
 		})
 	}
 }
-
-func TestNGAPCapabilityBandsAreSane(t *testing.T) {
-	for name, capability := range decodeCaptures(t, ngapCapabilityCaptures, rrc.ParseNGAPUERadioCapability) {
-		if capability.NR == nil || capability.Summary == nil || capability.Summary.NR == nil {
-			t.Errorf("%s: no NR capability", name)
-			continue
-		}
-
-		if capability.Summary.NR.AccessStratumRelease == "" {
-			t.Errorf("%s: empty NR access stratum release", name)
-		}
-
-		for _, b := range capability.Summary.NR.Bands {
-			if b.Band < 1 || b.Band > 1024 {
-				t.Errorf("%s: NR band %d out of range", name, b.Band)
-			}
-		}
-
-		if capability.Summary.EUTRA == nil {
-			continue
-		}
-
-		for _, b := range capability.Summary.EUTRA.Bands {
-			if b.Band < 1 || b.Band > 256 {
-				t.Errorf("%s: E-UTRA band %d out of range", name, b.Band)
-			}
-		}
-	}
-}

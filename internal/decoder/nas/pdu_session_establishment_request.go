@@ -67,8 +67,8 @@ type PDUSessionEstablishmentRequest struct {
 	Capability5GSM                       *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
 	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 
-	MaximumNumberOfSupportedPacketFilters *UnsupportedIE `json:"maximum_number_of_supported_packet_filters,omitempty"`
-	AlwaysonPDUSessionRequested           *UnsupportedIE `json:"alwayson_pdu_session_requested,omitempty"`
+	MaximumNumberOfSupportedPacketFilters *uint16        `json:"maximum_number_of_supported_packet_filters,omitempty"`
+	AlwaysonPDUSessionRequested           *bool          `json:"alwayson_pdu_session_requested,omitempty"`
 	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
 }
 
@@ -97,9 +97,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		}
 	}
 
-	if msg.AlwaysOnRequested != nil {
-		out.AlwaysonPDUSessionRequested = makeUnsupportedIE()
-	}
+	out.AlwaysonPDUSessionRequested = msg.AlwaysOnRequested
 
 	if msg.ExtendedPCO != nil {
 		out.ExtendedProtocolConfigurationOptions = extendedPCOFromNAS(*msg.ExtendedPCO)
@@ -108,7 +106,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 	for _, ie := range msg.Unrecognized {
 		switch ie.IEI {
 		case ieiMaxPacketFilters:
-			out.MaximumNumberOfSupportedPacketFilters = makeUnsupportedIE()
+			out.MaximumNumberOfSupportedPacketFilters = maxSupportedPacketFilters(ie.Value)
 		case ieiSMPDUDNRequest:
 			out.SMPDUDNRequestContainer = makeUnsupportedIE()
 		case ieiExtendedPCO:
@@ -189,4 +187,17 @@ func extendedPCOFromNAS(opts nas.ProtocolConfigurationOptions) *ExtendedProtocol
 	}
 
 	return out
+}
+
+// maxSupportedPacketFilters reads the 11-bit count TS 24.501 §9.11.4.9 spreads
+// over two octets: bit 8 of the first is the most significant bit and bit 6 of
+// the second the least, leaving the low five bits of the second spare.
+func maxSupportedPacketFilters(v []byte) *uint16 {
+	if len(v) != 2 {
+		return nil
+	}
+
+	n := uint16(v[0])<<3 | uint16(v[1])>>5
+
+	return &n
 }
