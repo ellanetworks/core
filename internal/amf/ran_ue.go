@@ -502,7 +502,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 
 	if amfUe.State() == Registered {
 		for _, sr := range amfUe.SmContextRefs() {
-			if served != nil && !slices.Contains(served, sr.PduSessionID) {
+			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && sr.Inactive {
 				continue
 			}
 

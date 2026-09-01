@@ -65,6 +65,16 @@ func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
 	return out
 }
 
+func armOrEndN2Setup(setup amf.N2Setup, ueConn *amf.UeConn, cfg guard.TimerValue) {
+	if ueConn.UeContextRequest {
+		setup.Arm(cfg)
+
+		return
+	}
+
+	setup.End()
+}
+
 func n2SetupProcedure(initialContextSetup bool) amf.N2SetupProcedure {
 	if initialContextSetup {
 		return amf.N2SetupInitialContext

@@ -108,6 +108,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	appendPendingN1 := func(uint8) error { return nil }
 
+	n2Setup := ueConn.N2Setup(n2SetupProcedure(ueConn.UeContextRequest))
+
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
 		reactivationResult = new([16]bool)
@@ -116,7 +118,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			pduSessionID := uint8(idx)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if hasUplinkData {
-					if !ueConn.ClaimN2SetupSession(n2SetupProcedure(ueConn.UeContextRequest), pduSessionID) {
+					if !n2Setup.ClaimSession(pduSessionID) {
 						logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
 							zap.Uint8("pdu_session_id", pduSessionID))
 
@@ -196,12 +198,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 							wire,
 							suList,
 						); err != nil {
-							ueConn.EndN2Setup(amf.N2SetupPDUSession)
+							n2Setup.End()
 
 							return err
 						}
 
-						ueConn.ArmN2Setup(amf.N2SetupPDUSession, amfInstance.N2SetupGuardCfg)
+						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 
 						return nil
 					}); err != nil {
@@ -214,11 +216,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
-					ueConn.EndN2Setup(amf.N2SetupPDUSession)
-
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+					armOrEndN2Setup(n2Setup, ueConn, amfInstance.N2SetupGuardCfg)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
@@ -278,6 +279,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+		n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 
@@ -309,17 +311,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					wire,
 					suList,
 				); err != nil {
-					ueConn.EndN2Setup(amf.N2SetupPDUSession)
+					n2Setup.End()
 
 					return err
 				}
 
-				ueConn.ArmN2Setup(amf.N2SetupPDUSession, amfInstance.N2SetupGuardCfg)
+				n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 
 				return nil
 			}
 
-			ueConn.EndN2Setup(amf.N2SetupPDUSession)
+			n2Setup.End()
 
 			return ueConn.SendDownlinkNASTransport(ctx, wire)
 		}); err != nil {

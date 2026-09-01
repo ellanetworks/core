@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -102,7 +103,17 @@ func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Po
 
 func (f *fakeDBInstance) NodeID() int { return 0 }
 
-type fakeSmf struct{}
+type fakeSmf struct {
+	mu              sync.Mutex
+	DeactivateCalls []string
+}
+
+func (f *fakeSmf) deactivated() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.DeactivateCalls...)
+}
 
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
 func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
@@ -110,8 +121,15 @@ func (f *fakeSmf) SessionCount() int                     { return 0 }
 func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
 	return "", nil, nil
 }
-func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error)   { return nil, nil }
-func (f *fakeSmf) DeactivateSmContext(context.Context, string) error           { return nil }
+func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error) { return nil, nil }
+func (f *fakeSmf) DeactivateSmContext(_ context.Context, ref string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.DeactivateCalls = append(f.DeactivateCalls, ref)
+
+	return nil
+}
 func (f *fakeSmf) HandlePagingFailure(context.Context, etsi.SUPI, uint8) error { return nil }
 
 func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
@@ -993,5 +1011,66 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 
 	if got := ue.N1N2Message(); got == nil || !bytes.Equal(got.BinaryDataN2Information, buffered.BinaryDataN2Information) {
 		t.Error("the buffered request was displaced; the SMF will never resend the 5GSM message it carried")
+	}
+}
+
+func TestN2SetupGuardExpiry_DeactivatesTheSessionAtTheSMF(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	smfStub := &fakeSmf{}
+	amfInstance := amf.New(nil, nil, smfStub)
+
+	ue := addUE(t, amfInstance, "001010000000028", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ueConn.ArmN2Setup(amf.N2SetupPDUSession, guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for len(smfStub.deactivated()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	got := smfStub.deactivated()
+	if len(got) != 1 || got[0] != "ref-1" {
+		t.Fatalf("DeactivateSmContext calls = %v, want [ref-1]: an unanswered setup leaves the SMF activating (TS 23.502 4.2.3.2 steps 12/16)", got)
+	}
+}
+
+func TestN2SetupTerminal_DoesNotDeactivateAConfirmedSession(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	smfStub := &fakeSmf{}
+	amfInstance := amf.New(nil, nil, smfStub)
+
+	ue := addUE(t, amfInstance, "001010000000029", nil)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	if !ueConn.ClaimN2SetupSession(amf.N2SetupPDUSession, 1) {
+		t.Fatal("could not claim the PDU session")
+	}
+
+	ue.SetSmContextActive(1)
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
+	if got := smfStub.deactivated(); len(got) != 0 {
+		t.Errorf("DeactivateSmContext calls = %v, want none: the NG-RAN node confirmed the session", got)
 	}
 }

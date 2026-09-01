@@ -615,13 +615,17 @@ func (ue *UeContext) ReleaseSmContextN2(pduSessionID uint8) {
 	}
 }
 
-func (ue *UeContext) ReleaseSmContextN2IfPending(pduSessionID uint8) {
+func (ue *UeContext) ReleaseSmContextN2IfPending(pduSessionID uint8) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	if sc, ok := ue.SmContextList[pduSessionID]; ok && sc.N2 == N2Pending {
 		sc.N2 = N2Inactive
+
+		return true
 	}
+
+	return false
 }
 
 func (ue *UeContext) ReleaseAllSmContextN2() {

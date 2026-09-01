@@ -25,6 +25,10 @@ func keepsConnectionForPendingDownlink(cause ngap.Cause, amfUe *amf.UeContext, u
 		return true
 	}
 
+	if ueConn.N2SetupOpen(amf.N2SetupInitialContext) || ueConn.N2SetupOpen(amf.N2SetupPDUSession) {
+		return true
+	}
+
 	return ueConn.NASGuardActive()
 }
 

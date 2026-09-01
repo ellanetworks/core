@@ -139,3 +139,40 @@ func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic
 			len(sender.SentUEContextReleaseCommands))
 	}
 }
+
+func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	if !ueConn.ClaimN2SetupSession(amf.N2SetupInitialContext, 1) {
+		t.Fatal("could not open an initial context setup transaction")
+	}
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 0 {
+		t.Errorf("UEContextReleaseCommand count = %d, want 0: an outstanding PDU session resource setup is downlink signalling (TS 38.413 8.3.2.2)",
+			len(sender.SentUEContextReleaseCommands))
+	}
+
+	ueConn.EndN2Setup(amf.N2SetupInitialContext)
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Errorf("UEContextReleaseCommand count = %d, want 1 once the setup has finished", len(sender.SentUEContextReleaseCommands))
+	}
+}
