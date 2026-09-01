@@ -62,17 +62,32 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	if !ueConn.ClaimICS() {
 		// Context already set up (or in progress): deliver the PDU session standalone.
+		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
+
 		return ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+			if !n2Setup.ClaimSession(req.PduSessionID) {
+				logger.From(ctx, logger.AmfLog).Debug("delivering N1 without a duplicate PDU session setup",
+					zap.Uint8("pdu_session_id", req.PduSessionID))
+
+				return ueConn.SendDownlinkNASTransport(ctx, wire)
+			}
+
 			item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
 			if err != nil {
+				n2Setup.End()
+
 				return fmt.Errorf("could not build PDU session setup item: %w", err)
 			}
 
 			list := ngap.PDUSessionResourceSetupListSUReq{item}
 
 			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list); err != nil {
+				n2Setup.End()
+
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
+
+			n2Setup.Arm(amf.N2SetupGuardCfg)
 
 			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
@@ -89,9 +104,22 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
 
+	n2Setup := ueConn.N2Setup(N2SetupInitialContext)
+
 	err = ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+		if !n2Setup.ClaimSession(req.PduSessionID) {
+			ueConn.ResetICS()
+
+			logger.From(ctx, logger.AmfLog).Debug("delivering N1 without a duplicate PDU session setup",
+				zap.Uint8("pdu_session_id", req.PduSessionID))
+
+			return ueConn.SendDownlinkNASTransport(ctx, wire)
+		}
+
 		item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
 		if err != nil {
+			n2Setup.End()
+
 			return fmt.Errorf("could not build PDU session setup item: %w", err)
 		}
 
@@ -110,15 +138,19 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			list,
 			operatorInfo.Guami,
 		); err != nil {
+			n2Setup.End()
+
 			return fmt.Errorf("send initial context setup request error: %v", err)
 		}
+
+		n2Setup.Arm(amf.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
 		return nil
 	})
 	if err != nil {
-		ueConn.ResetICS()
+		ueConn.AbortICS()
 
 		return err
 	}
@@ -295,8 +327,18 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	if !ueConn.ClaimICS() {
 		// Context already set up (or in progress): deliver the PDU session standalone.
+		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
+		if !n2Setup.ClaimSession(req.PduSessionID) {
+			logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
+				zap.Uint8("pdu_session_id", req.PduSessionID))
+
+			return nil
+		}
+
 		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 		if err != nil {
+			n2Setup.End()
+
 			return fmt.Errorf("could not build PDU session setup item: %w", err)
 		}
 
@@ -304,8 +346,12 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
+			n2Setup.End()
+
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
+
+		n2Setup.Arm(amf.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
@@ -319,9 +365,20 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
+	n2Setup := ueConn.N2Setup(N2SetupInitialContext)
+	if !n2Setup.ClaimSession(req.PduSessionID) {
+		ueConn.ResetICS()
+
+		logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
+			zap.Uint8("pdu_session_id", req.PduSessionID))
+
+		return nil
+	}
+
 	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 	if err != nil {
-		ueConn.ResetICS()
+		ueConn.AbortICS()
+
 		return fmt.Errorf("could not build PDU session setup item: %w", err)
 	}
 
@@ -341,9 +398,12 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		operatorInfo.Guami,
 	)
 	if err != nil {
-		ueConn.ResetICS()
+		ueConn.AbortICS()
+
 		return fmt.Errorf("send initial context setup request error: %v", err)
 	}
+
+	n2Setup.Arm(amf.N2SetupGuardCfg)
 
 	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 

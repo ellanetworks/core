@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -1144,5 +1146,72 @@ func TestMobilityReg_AcceptedRegistrationCanReceiveAnN1N2Transfer(t *testing.T) 
 	})
 	if err != nil && err.Error() == "ue context not found" {
 		t.Fatal("the SMF cannot reach a UE the AMF has just accepted: no PDU session can ever be established")
+	}
+}
+
+func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	setTestUESecurityCapability(ue)
+	ue.SetKgnbForTest(make([]byte, 32))
+
+	conn := ue.Conn()
+	conn.UeContextRequest = true
+	conn.RegistrationRequest.UplinkDataStatus = &fgs.PSIBitmap{PSI: [16]bool{1: true}}
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
+	}
+
+	if !conn.N2SetupOpen(amf.N2SetupInitialContext) {
+		t.Fatal("the initial context setup transaction is not open; the claim key and the terminal disagree")
+	}
+
+	amfInstance.N2SetupGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond}
+	conn.N2Setup(amf.N2SetupInitialContext).Arm(amfInstance.N2SetupGuardCfg)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for conn.N2SetupOpen(amf.N2SetupInitialContext) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if conn.N2SetupOpen(amf.N2SetupInitialContext) {
+		t.Fatal("the guard did not close the transaction")
+	}
+
+	if !conn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
+		t.Error("PDU session 1 is still claimed after the transaction closed")
+	}
+}
+
+func TestMobilityReg_InitialContextSetupNotSent_ReleasesTheClaim(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	conn := ue.Conn()
+	conn.UeContextRequest = true
+	conn.RegistrationRequest.UplinkDataStatus = &fgs.PSIBitmap{PSI: [16]bool{1: true}}
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentInitialContextSetupRequest) != 0 {
+		t.Fatalf("initial context setup requests = %d, want 0 for this fixture", len(ngapSender.SentInitialContextSetupRequest))
+	}
+
+	if conn.N2SetupOpen(amf.N2SetupInitialContext) {
+		t.Error("no initial context setup reached the NG-RAN node, so nothing should be supervised")
+	}
+
+	if !conn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
+		t.Error("the PDU session is still claimed although no setup was sent")
 	}
 }

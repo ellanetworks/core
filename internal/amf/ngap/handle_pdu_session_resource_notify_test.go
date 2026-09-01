@@ -76,7 +76,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 		t.Fatal("SmContext was removed instead of marked inactive")
 	}
 
-	if !sc.PduSessionInactive {
+	if !sc.Inactive() {
 		t.Error("expected SmContext to be marked inactive")
 	}
 }

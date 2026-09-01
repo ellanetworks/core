@@ -146,8 +146,8 @@ func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models
 
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
 
 	fakeSmf := &deregisterTestSmf{}
 	relockCount := 0
@@ -201,8 +201,8 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 	ue.ForceStateForTest(Registered)
 
@@ -235,7 +235,7 @@ func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 	ue.ForceStateForTest(Registered)
 
@@ -274,7 +274,7 @@ func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 	amfInstance := New(nil, nil, fakeSmf)
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
 
 	amfInstance.ReconcileSessionsForUE(context.Background(), ue)
 
@@ -308,8 +308,8 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
 
 	a.AttachUeConn(ue, ueConn)
 
@@ -324,8 +324,8 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 	a.Session = fake
 
 	ue := NewUeContext()
-	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
+	ue.SmContextList[1] = &SmContext{Ref: "ref-1", N2: N2Active}
+	ue.SmContextList[2] = &SmContext{Ref: "ref-2", N2: N2Active}
 
 	a.abandonPaging(ue)
 

@@ -16,6 +16,22 @@ import (
 // CauseRadioNetwork "unspecified").
 var causeReleaseUnspecified = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
 
+func keepsConnectionForPendingDownlink(cause ngap.Cause, amfUe *amf.UeContext, ueConn *amf.UeConn) bool {
+	if cause.Group != ngap.CauseGroupRadioNetwork || cause.Value != ngap.CauseRadioNetworkUserInactivity {
+		return false
+	}
+
+	if amfUe != nil && amfUe.N1N2Message() != nil {
+		return true
+	}
+
+	if ueConn.N2SetupOpen(amf.N2SetupInitialContext) || ueConn.N2SetupOpen(amf.N2SetupPDUSession) {
+		return true
+	}
+
+	return ueConn.NASGuardActive()
+}
+
 // HandleUEContextReleaseRequest handles an NG-RAN-initiated UE Context Release
 // Request (inactivity or radio-link failure), starting the release procedure
 // (TS 38.413 §8.3.2).
@@ -46,6 +62,13 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 	}
 
 	amfUe := ueConn.UeContext()
+
+	if keepsConnectionForPendingDownlink(cause, amfUe, ueConn) {
+		logger.WithTrace(ctx, ueConn.Log()).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
+
+		return
+	}
+
 	if amfUe != nil {
 		if amfUe.State() == amf.Registered {
 			logger.WithTrace(ctx, ueConn.Log()).Info("Ue Context in GMM-Registered")

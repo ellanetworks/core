@@ -45,6 +45,8 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 				continue
 			}
 
+			amfUe.SetSmContextActive(pduSessionID)
+
 			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
@@ -77,6 +79,8 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 	// A UE returning to CM-CONNECTED applies any policy change deferred while it was
 	// idle. Skipped mid-registration: the session was just established with the
 	// current policy and the UE is not yet Registered.
+	ueConn.EndN2Setup(amf.N2SetupInitialContext)
+
 	if amfUe.State() == amf.Registered {
 		amfInstance.ReconcileSessionsForUE(ctx, amfUe)
 	}

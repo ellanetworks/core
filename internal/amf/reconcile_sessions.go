@@ -73,6 +73,8 @@ func (a *AMF) ReconcileSessionsToRAN(
 			continue
 		}
 
+		ue.SetSmContextActive(s.PduSessionID)
+
 		result.Applied = append(result.Applied, AppliedSession{PduSessionID: s.PduSessionID, Transfer: n2Rsp})
 	}
 

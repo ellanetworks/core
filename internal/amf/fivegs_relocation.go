@@ -267,6 +267,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 			continue
 		}
 
+		ue.ClaimSmContextN2(N2SetupHandover, c.PDUSessionID)
 		ue.SetEPSBearerIdentity(c.PDUSessionID, c.EPSBearerIdentity)
 
 		sessions = append(sessions, item)

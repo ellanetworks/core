@@ -11,6 +11,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,12 +32,26 @@ import (
 	"go.uber.org/zap"
 )
 
+type N2State uint8
+
+const (
+	N2Inactive N2State = iota
+	N2Pending
+	N2Active
+)
+
 type SmContext struct {
-	Ref                string
-	Snssai             *models.Snssai
-	Dnn                string
-	EBI                uint8
-	PduSessionInactive bool
+	Ref    string
+	Snssai *models.Snssai
+	Dnn    string
+	EBI    uint8
+	N2     N2State
+
+	n2Proc N2SetupProcedure
+}
+
+func (sc *SmContext) Inactive() bool {
+	return sc == nil || sc.N2 == N2Inactive
 }
 
 type UeContext struct {
@@ -554,7 +569,7 @@ func (ue *UeContext) SetSmContextInactive(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.PduSessionInactive = true
+		sc.N2 = N2Inactive
 	}
 }
 
@@ -563,7 +578,65 @@ func (ue *UeContext) SetSmContextActive(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.PduSessionInactive = false
+		sc.N2 = N2Active
+	}
+}
+
+func (ue *UeContext) ClaimSmContextN2(proc N2SetupProcedure, pduSessionID uint8) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	sc, ok := ue.SmContextList[pduSessionID]
+	if !ok {
+		return true
+	}
+
+	if sc.N2 != N2Inactive {
+		return false
+	}
+
+	sc.N2 = N2Pending
+	sc.n2Proc = proc
+
+	return true
+}
+
+func (ue *UeContext) PendingSmContextsFor(proc N2SetupProcedure) []uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	var ids []uint8
+
+	for id, sc := range ue.SmContextList {
+		if sc.N2 == N2Pending && sc.n2Proc == proc {
+			ids = append(ids, id)
+		}
+	}
+
+	slices.Sort(ids)
+
+	return ids
+}
+
+func (ue *UeContext) ReleaseSmContextN2IfPending(pduSessionID uint8) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if sc, ok := ue.SmContextList[pduSessionID]; ok && sc.N2 == N2Pending {
+		sc.N2 = N2Inactive
+
+		return true
+	}
+
+	return false
+}
+
+func (ue *UeContext) ReleaseAllSmContextN2() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for _, sc := range ue.SmContextList {
+		sc.N2 = N2Inactive
 	}
 }
 
@@ -572,7 +645,7 @@ func (ue *UeContext) HasActivePduSessions() bool {
 	defer ue.mu.Unlock()
 
 	for _, smContext := range ue.SmContextList {
-		if !smContext.PduSessionInactive {
+		if smContext.N2 == N2Active {
 			return true
 		}
 	}
@@ -641,6 +714,9 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	if detached == nil {
 		return
 	}
+
+	detached.AbortN2Setups()
+	ue.ReleaseAllSmContextN2()
 
 	ue.endKeyChainProcs()
 	ue.StopProcedureTimers()
