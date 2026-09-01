@@ -20,10 +20,16 @@ type MobileIdentity struct {
 
 type IdentityResponse struct {
 	MobileIdentity MobileIdentity `json:"mobile_identity"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildIdentityResponse(msg *fgs.IdentityResponse) *IdentityResponse {
-	return &IdentityResponse{
+	out := &IdentityResponse{
 		MobileIdentity: buildMobileIdentity(msg.MobileIdentity),
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+
+	return out
 }

@@ -26,7 +26,7 @@
     "dl_nas_transport": {
       "spare_half_octet_and_payload_container_type": 1,
       "payload_container": {
-        "raw": "LgEAwRH/",
+        "raw_hex": "2e0100c111ff",
         "gsm_message": {
           "gsm_header": {
             "message_type": {

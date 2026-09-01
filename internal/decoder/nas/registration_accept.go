@@ -79,6 +79,8 @@ type RegistrationAccept struct {
 	NegotiatedDRXParameters                  *UnsupportedIE                  `json:"negotiated_drx_parameters,omitempty"`
 	Non3GppNwPolicies                        *UnsupportedIE                  `json:"non_3gpp_nw_policies,omitempty"`
 	EPSBearerContextStatus                   *UnsupportedIE                  `json:"eps_bearer_context_status,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func registrationResult5GSEnum(value fgs.RegistrationResult) utils.EnumField {
@@ -146,6 +148,8 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 			*p.dest = makeUnsupportedIE()
 		}
 	}
+
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiEmergencyNumberList, ieiEquivalentPLMNs, ieiExtEmergencyNumberList, ieiLADNInformation, ieiNetworkSlicingIndication, ieiNon3GppNwPolicies, ieiNSSAIInclusionMode, ieiOperatorAccessCategory, ieiPDUReactErrCause, ieiRejectedNSSAI, ieiServiceAreaList)
 
 	return out
 }

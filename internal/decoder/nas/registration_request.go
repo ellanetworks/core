@@ -34,6 +34,8 @@ type RegistrationRequest struct {
 	NetworkSlicingIndication            *UnsupportedIE `json:"network_slicing_indication,omitempty"`
 	UpdateType5GS                       *UnsupportedIE `json:"update_type_5gs,omitempty"`
 	EPSBearerContextStatus              *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest {
@@ -108,6 +110,8 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 			out.NetworkSlicingIndication = makeUnsupportedIE()
 		}
 	}
+
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiNoncurrentNativeNASKSI, ieiS1UENetworkCapability, ieiUesUsageSetting, ieiLastVisitedTAI, ieiEPSBearerContextStatus, ieiEPSNASMessageContainer, ieiLADNIndication, ieiAdditionalGUTI, ieiPayloadContainer, ieiNetworkSlicingIndication)
 
 	return out
 }

@@ -90,7 +90,7 @@
               "ul_nas_transport": {
                 "spare_half_octet_and_payload_container_type": 1,
                 "payload_container": {
-                  "raw": "LgEA1lE=",
+                  "raw_hex": "2e0100d651",
                   "gsm_message": {
                     "gsm_header": {
                       "message_type": {

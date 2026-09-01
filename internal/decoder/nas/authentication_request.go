@@ -3,7 +3,10 @@
 
 package nas
 
-import "github.com/ellanetworks/core/nas/fgs"
+import (
+	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/nas/fgs"
+)
 
 type AuthenticationRequest struct {
 	SpareHalfOctetAndNgksi      uint8     `json:"spare_half_octet_and_ngksi"`
@@ -11,6 +14,8 @@ type AuthenticationRequest struct {
 	AuthenticationParameterAUTN [16]uint8 `json:"authentication_parameter_autn,omitempty"`
 	AuthenticationParameterRAND [16]uint8 `json:"authentication_parameter_rand,omitempty"`
 	EAPMessage                  []byte    `json:"eap_message,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildAuthenticationRequest(msg *fgs.AuthenticationRequest) *AuthenticationRequest {
@@ -27,6 +32,8 @@ func buildAuthenticationRequest(msg *fgs.AuthenticationRequest) *AuthenticationR
 	if msg.AUTN != nil {
 		out.AuthenticationParameterAUTN = *msg.AUTN
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

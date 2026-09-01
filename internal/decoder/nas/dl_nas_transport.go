@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"encoding/hex"
 	"time"
 
 	"github.com/ellanetworks/core/internal/decoder/lpp"
@@ -19,6 +20,8 @@ type DLNASTransport struct {
 	BackoffTimerSeconds                   *uint32          `json:"backoff_timer_seconds,omitempty"`
 
 	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
@@ -47,12 +50,14 @@ func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
 		out.Cause5GMM = &cause
 	}
 
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+
 	return out
 }
 
 func buildDLPayloadContainer(containerType fgs.PayloadContainerType, contents []byte) PayloadContainer {
 	payloadContainer := PayloadContainer{
-		Raw: contents,
+		RawHex: hex.EncodeToString(contents),
 	}
 
 	switch containerType {

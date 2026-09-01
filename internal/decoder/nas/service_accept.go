@@ -24,6 +24,8 @@ type ServiceAccept struct {
 	PDUSessionReactivationResult           []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
 	PDUSessionReactivationResultErrorCause []PDUSessionCause               `json:"pdu_session_reactivation_result_error_cause,omitempty"`
 	EAPMessage                             []byte                          `json:"eap_message,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildServiceAccept(msg *fgs.ServiceAccept) *ServiceAccept {
@@ -54,6 +56,8 @@ func buildServiceAccept(msg *fgs.ServiceAccept) *ServiceAccept {
 			out.PDUSessionReactivationResultErrorCause = pduSessionCauses
 		}
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

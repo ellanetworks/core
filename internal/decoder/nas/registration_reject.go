@@ -14,6 +14,8 @@ type RegistrationReject struct {
 	T3346Value *UnsupportedIE `json:"t3346_value,omitempty"`
 	T3502Value *UnsupportedIE `json:"t3502_value,omitempty"`
 	EAPMessage *UnsupportedIE `json:"eap_message,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildRegistrationReject(msg *fgs.RegistrationReject) *RegistrationReject {
@@ -32,6 +34,8 @@ func buildRegistrationReject(msg *fgs.RegistrationReject) *RegistrationReject {
 	if msg.EAP != nil {
 		out.EAPMessage = makeUnsupportedIE()
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

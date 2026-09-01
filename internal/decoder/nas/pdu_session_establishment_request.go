@@ -70,6 +70,8 @@ type PDUSessionEstablishmentRequest struct {
 	MaximumNumberOfSupportedPacketFilters *uint16        `json:"maximum_number_of_supported_packet_filters,omitempty"`
 	AlwaysonPDUSessionRequested           *bool          `json:"alwayson_pdu_session_requested,omitempty"`
 	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest) *PDUSessionEstablishmentRequest {
@@ -116,6 +118,8 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 			}
 		}
 	}
+
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiMaxPacketFilters, ieiSMPDUDNRequest, ieiExtendedPCO)
 
 	return out
 }

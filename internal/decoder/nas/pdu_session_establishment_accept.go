@@ -40,6 +40,8 @@ type PDUSessionEstablishmentAccept struct {
 	RQTimerValue                 *UnsupportedIE `json:"rq_timer_value,omitempty"`
 	AlwaysonPDUSessionIndication *UnsupportedIE `json:"alwayson_pdu_session_indication,omitempty"`
 	EAPMessage                   *UnsupportedIE `json:"eap_message,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) *PDUSessionEstablishmentAccept {
@@ -98,6 +100,8 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		name := string(*msg.DNN)
 		estAcc.DNN = &name
 	}
+
+	estAcc.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return estAcc
 }

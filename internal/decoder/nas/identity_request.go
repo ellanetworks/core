@@ -10,10 +10,16 @@ import (
 
 type IdentityRequest struct {
 	TypeOfIdentity utils.EnumField `json:"type_of_identity"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildIdentityRequest(msg *fgs.IdentityRequest) *IdentityRequest {
-	return &IdentityRequest{
+	out := &IdentityRequest{
 		TypeOfIdentity: buildTypeOfIdentityEnum(uint8(msg.IdentityType)),
 	}
+
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+
+	return out
 }

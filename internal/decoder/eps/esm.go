@@ -32,11 +32,15 @@ type ESMMessage struct {
 type PDNConnectivityRequest struct {
 	RequestType utils.EnumField `json:"request_type"`
 	PDNType     utils.EnumField `json:"pdn_type"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 type ActivateDefaultBearer struct {
 	AccessPointName string      `json:"access_point_name,omitempty"`
 	PDNAddress      *PDNAddress `json:"pdn_address,omitempty"`
+
+	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 // PDNAddress is the decoded PDN address IE (TS 24.301 §9.9.4.9): the assigned UE
@@ -73,11 +77,15 @@ func buildESMMessage(b []byte) *ESMMessage {
 			RequestType: requestTypeToEnum(uint8(msg.RequestType)),
 			PDNType:     pdnTypeToEnum(msg.PDNType),
 		}
+
+		m.PDNConnectivityRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 	case *eps.ActivateDefaultEPSBearerContextRequest:
 		m.ActivateDefaultBearer = &ActivateDefaultBearer{
 			AccessPointName: string(msg.AccessPointName),
 			PDNAddress:      pdnAddress(msg.PDNAddress),
 		}
+
+		m.ActivateDefaultBearer.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 	}
 
 	return m
