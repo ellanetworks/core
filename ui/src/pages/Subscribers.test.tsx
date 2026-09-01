@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -88,12 +88,14 @@ describe("Subscribers search", () => {
 
   it("issues one request for a burst of keystrokes, not one per character", async () => {
     seedApi();
-    const user = userEvent.setup();
     await renderSubscribers();
     await waitForRequests(1);
 
     const before = api.requests(SUBSCRIBERS_PATH).length;
-    await user.type(searchBox(), "0748");
+    const box = searchBox();
+    for (const value of ["0", "07", "074", "0748"]) {
+      fireEvent.change(box, { target: { value } });
+    }
 
     await waitFor(() => expect(lastParams().get("search")).toBe("0748"), {
       timeout: 2000,
