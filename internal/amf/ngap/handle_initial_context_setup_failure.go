@@ -38,6 +38,8 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
+	ueConn.AbortICS()
+
 	if conn := amfUe.Conn(); conn != nil && conn.NASGuardActive() {
 		conn.StopNASGuard()
 

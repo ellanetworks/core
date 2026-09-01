@@ -518,9 +518,9 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	addTestUE(t, amfInstance, "001010000000007", func(ue *amf.UeContext) {
 		ue.SmContextList[1] = &amf.SmContext{
-			Ref:                "nonexistent-ref",
-			Snssai:             &models.Snssai{Sst: 1, Sd: "000001"},
-			PduSessionInactive: true,
+			Ref:    "nonexistent-ref",
+			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
+			N2:     amf.N2Inactive,
 		}
 	})
 

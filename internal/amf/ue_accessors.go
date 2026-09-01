@@ -33,7 +33,7 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 
 	refs := make([]SmContextRef, 0, len(ue.SmContextList))
 	for id, sc := range ue.SmContextList {
-		refs = append(refs, SmContextRef{Ref: sc.Ref, PduSessionID: id, Inactive: sc.PduSessionInactive})
+		refs = append(refs, SmContextRef{Ref: sc.Ref, PduSessionID: id, Inactive: sc.Inactive()})
 	}
 
 	return refs

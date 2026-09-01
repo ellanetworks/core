@@ -51,7 +51,7 @@ func TestInterworkingRegistrationWithoutUEStatusStaysOnTheMobilityPath(t *testin
 	req := &fgs.RegistrationRequest{GMMCapability: &fgs.GMMCapability{}}
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 
-	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
 
 	contextSetup(context.TODO(), amfInstance, ue, req, nil)
 
@@ -109,7 +109,7 @@ func TestInterworkingRegistrationAcceptReportsSessionsTheAMFDoesNotHold(t *testi
 func TestInterworkingRegistrationAcceptReportsSessionsThatSurvivedTheHandover(t *testing.T) {
 	ue, ngapSender, smfStub, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
 	arrivedByHandover(ue)
 
 	req := movingFromEPCRequest()
@@ -140,7 +140,7 @@ func TestInterworkingPeriodicUpdateWithUEStatusIsNotTreatedAsInitial(t *testing.
 	req := movingFromEPCRequest()
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypePeriodicUpdating
 
-	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1", N2: amf.N2Active}
 
 	contextSetup(context.TODO(), amfInstance, ue, req, nil)
 

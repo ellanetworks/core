@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
@@ -64,8 +65,17 @@ func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
 	return out
 }
 
+func n2SetupProcedure(initialContextSetup bool) amf.N2SetupProcedure {
+	if initialContextSetup {
+		return amf.N2SetupInitialContext
+	}
+
+	return amf.N2SetupPDUSession
+}
+
 func sendServiceAccept(
 	ctx context.Context,
+	guardCfg guard.TimerValue,
 	ue *amf.UeContext,
 	ueConn *amf.UeConn,
 	initialContextSetup bool,
@@ -120,6 +130,8 @@ func sendServiceAccept(
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 
+			ueConn.ArmN2Setup(amf.N2SetupInitialContext, guardCfg)
+
 			logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
 		case len(suList) != 0:
 			if err := ueConn.SendPDUSessionResourceSetupRequest(
@@ -132,8 +144,12 @@ func sendServiceAccept(
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
 
+			ueConn.ArmN2Setup(amf.N2SetupPDUSession, guardCfg)
+
 			logger.From(ctx, logger.AmfLog).Info("sent service accept")
 		default:
+			ueConn.EndN2Setup(n2SetupProcedure(initialContextSetup))
+
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}
@@ -161,6 +177,18 @@ func stagePendingN1(
 	suList *ngap.PDUSessionResourceSetupListSUReq,
 ) error {
 	stage := func(nasPdu []byte) error {
+		conn := ue.Conn()
+		if conn == nil || !conn.ClaimN2SetupSession(n2SetupProcedure(initialContextSetup), pending.pduSessionID) {
+			logger.From(ctx, logger.AmfLog).Debug("delivering buffered N1 without a duplicate PDU session setup",
+				zap.Uint8("pdu_session_id", pending.pduSessionID))
+
+			if len(nasPdu) == 0 || conn == nil {
+				return nil
+			}
+
+			return conn.SendDownlinkNASTransport(ctx, nasPdu)
+		}
+
 		if initialContextSetup {
 			item, err := amf.PDUSessionSetupItem(pending.pduSessionID, pending.snssai, nasPdu, pending.n2Info)
 			if err != nil {
@@ -337,7 +365,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		activate[buffered.pduSessionID] = true
 	}
 
-	var requestedPsi []uint8
+	var (
+		requestedPsi    []uint8
+		alreadyOnTheRAN [16]bool
+	)
 
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := msg.UplinkDataStatus.PSI
@@ -380,14 +411,23 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			errCause = append(errCause, uint8(fgs.GMMCauseProtocolErrorUnspecified))
 		}
 
+		if !ueConn.ClaimN2SetupSession(n2SetupProcedure(initialContextSetup), pduSessionID) {
+			logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
+				zap.Uint8("pdu_session_id", pduSessionID))
+
+			if int(pduSessionID) < len(alreadyOnTheRAN) {
+				alreadyOnTheRAN[pduSessionID] = true
+			}
+
+			continue
+		}
+
 		binaryDataN2SmInformation, err := amfInstance.Session.ActivateSmContext(ctx, smContext.Ref)
 		if err != nil {
 			failed(err)
 
 			continue
 		}
-
-		ue.SetSmContextActive(pduSessionID)
 
 		if initialContextSetup {
 			item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
@@ -433,23 +473,34 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
-	if len(requestedPsi) != 0 && buffered.stage == nil && len(ctxList) == 0 && len(suList) == 0 {
-		logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them",
-			logger.SUPI(ue.Supi().String()), zap.Uint8s("pdu_session_ids", requestedPsi))
+	if buffered.stage == nil && len(ctxList) == 0 && len(suList) == 0 {
+		var unestablished []uint8
 
 		for _, pduSessionID := range requestedPsi {
+			if int(pduSessionID) < len(alreadyOnTheRAN) && alreadyOnTheRAN[pduSessionID] {
+				continue
+			}
+
+			unestablished = append(unestablished, pduSessionID)
 			reactivationResult[pduSessionID] = true
+		}
+
+		if len(unestablished) != 0 {
+			logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them",
+				logger.SUPI(ue.Supi().String()), zap.Uint8s("pdu_session_ids", unestablished))
 		}
 	}
 
 	accept := func(pending *pendingN1) error {
-		err := sendServiceAccept(ctx, ue, ueConn, initialContextSetup, ctxList, suList, acceptPduSessionPsi,
+		err := sendServiceAccept(ctx, amfInstance.N2SetupGuardCfg, ue, ueConn, initialContextSetup, ctxList, suList, acceptPduSessionPsi,
 			reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, pending)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 
 			if initialContextSetup {
-				ueConn.ResetICS()
+				ueConn.AbortICS()
+			} else {
+				ueConn.EndN2Setup(amf.N2SetupPDUSession)
 			}
 		}
 
@@ -460,14 +511,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		ue.ClearN1N2Message()
 
 		if initialContextSetup {
-			ueConn.ResetICS()
+			ueConn.AbortICS()
 		}
 
 		return nasreply.Silent(nasreply.ReasonNoContext)
-	}
-
-	if buffered.stage != nil {
-		ue.SetSmContextActive(buffered.stage.pduSessionID)
 	}
 
 	if err := accept(buffered.stage); err != nil {

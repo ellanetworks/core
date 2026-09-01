@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -84,5 +85,57 @@ func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))
+	}
+}
+
+func TestHandleUEContextReleaseRequest_UserInactivityWithPendingMTTraffic(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+	amfUe.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 0 {
+		t.Errorf("UEContextReleaseCommand count = %d, want 0: the AMF is aware of pending MT traffic (TS 23.502 4.2.6 step 1)",
+			len(sender.SentUEContextReleaseCommands))
+	}
+}
+
+func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+	amfUe.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Errorf("UEContextReleaseCommand count = %d, want 1: only user inactivity is conditional on pending downlink",
+			len(sender.SentUEContextReleaseCommands))
 	}
 }

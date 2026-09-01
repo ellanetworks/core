@@ -268,7 +268,7 @@ func (amf *AMF) LookupSubscriber(supi etsi.SUPI) (UESnapshot, []PDUSessionExport
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
-			inactive: sc.PduSessionInactive,
+			inactive: sc.Inactive(),
 		})
 	}
 
@@ -390,7 +390,7 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 		smCopies = append(smCopies, smContextCopy{
 			ref:      sc.Ref,
 			snssai:   copyPtr(sc.Snssai),
-			inactive: sc.PduSessionInactive,
+			inactive: sc.Inactive(),
 		})
 	}
 

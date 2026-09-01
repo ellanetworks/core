@@ -61,7 +61,7 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 
 	for _, id := range sessions {
-		amfUe.SmContextList[id] = &amf.SmContext{Ref: smContextRefFor(id), Snssai: &models.Snssai{Sst: 1}}
+		amfUe.SmContextList[id] = &amf.SmContext{Ref: smContextRefFor(id), Snssai: &models.Snssai{Sst: 1}, N2: amf.N2Active}
 	}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, sourceRanUeNgapID, sourceAmfUeNgapID, logger.AmfLog)
@@ -652,7 +652,7 @@ func TestN2HandoverNotifyDeactivatesTheSessionTheTargetRefused(t *testing.T) {
 		t.Fatal("the refused PDU session must survive the handover")
 	}
 
-	if !sc.PduSessionInactive {
+	if !sc.Inactive() {
 		t.Error("the refused PDU session must be marked user-plane inactive")
 	}
 }

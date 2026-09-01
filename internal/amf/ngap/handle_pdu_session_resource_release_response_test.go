@@ -60,7 +60,7 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 		t.Fatal("expected SmContext to still exist")
 	}
 
-	if !smCtx.PduSessionInactive {
-		t.Error("expected PduSessionInactive to be true")
+	if !smCtx.Inactive() {
+		t.Error("expected the session to be N2Inactive")
 	}
 }
