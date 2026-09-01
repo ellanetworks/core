@@ -3,19 +3,21 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { useEffect, useState } from "react";
-import { useDebouncedValue } from "./useDebouncedValue";
+import { useEffect } from "react";
+import { useDebouncedState } from "./useDebouncedState";
 
 let setValue: (v: string) => void;
+let applyNow: (v: string) => void;
 
 const Probe = ({ delay }: { delay?: number }) => {
-  const [value, setState] = useState("");
+  const [, applied, setState, apply] = useDebouncedState("", delay);
 
   useEffect(() => {
     setValue = setState;
-  }, []);
+    applyNow = apply;
+  }, [setState, apply]);
 
-  return <span data-testid="debounced">{useDebouncedValue(value, delay)}</span>;
+  return <span data-testid="debounced">{applied}</span>;
 };
 
 const debounced = () => screen.getByTestId("debounced").textContent;
@@ -35,7 +37,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("useDebouncedValue", () => {
+describe("useDebouncedState", () => {
   it("starts at the initial value", () => {
     render(<Probe />);
     expect(debounced()).toBe("");
@@ -74,5 +76,36 @@ describe("useDebouncedValue", () => {
     advance(400);
 
     expect(debounced()).toBe("");
+  });
+
+  it("applies a value at once when asked, without waiting for the delay", () => {
+    render(<Probe delay={400} />);
+
+    act(() => applyNow("001"));
+
+    expect(debounced()).toBe("001");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("supersedes a pending debounce with the value applied at once", () => {
+    render(<Probe delay={400} />);
+
+    type("001");
+    advance(399);
+    act(() => applyNow("999"));
+    advance(400);
+
+    expect(debounced()).toBe("999");
+  });
+
+  it("cancels a pending debounce when it unmounts", () => {
+    const view = render(<Probe delay={400} />);
+
+    type("001");
+    expect(vi.getTimerCount()).toBe(1);
+
+    view.unmount();
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

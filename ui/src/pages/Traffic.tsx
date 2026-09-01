@@ -1,13 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, {
-  useMemo,
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   Autocomplete,
   Box,
@@ -81,6 +75,7 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
+import { useDebouncedState } from "@/hooks/useDebouncedState";
 
 const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
@@ -147,8 +142,6 @@ type UsagePerDayRow = {
 
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
-const FILTER_DEBOUNCE_MS = 400;
-
 const DATE_ERROR_ID = "traffic-date-range-error";
 
 const Traffic: React.FC = () => {
@@ -186,38 +179,18 @@ const Traffic: React.FC = () => {
   const [isEditUsageRetentionOpen, setEditUsageRetentionOpen] = useState(false);
   const [isUsageClearModalOpen, setUsageClearModalOpen] = useState(false);
 
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [destinationFilter, setDestinationFilter] = useState("");
+  const [sourceFilter, appliedSource, setSourceFilter] = useDebouncedState();
+  const [
+    destinationFilter,
+    appliedDestination,
+    setDestinationFilter,
+    applyDestinationNow,
+  ] = useDebouncedState();
   const [appliedProtocol, setAppliedProtocol] = useState("");
-  const [appliedSource, setAppliedSource] = useState("");
-  const [appliedDestination, setAppliedDestination] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
-
-  const sourceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const destinationDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const scheduleDebounce = (
-    ref: React.RefObject<ReturnType<typeof setTimeout> | null>,
-    setter: React.Dispatch<React.SetStateAction<string>>,
-    value: string,
-  ) => {
-    if (ref.current) clearTimeout(ref.current);
-    ref.current = setTimeout(() => setter(value), FILTER_DEBOUNCE_MS);
-  };
-
-  useEffect(
-    () => () => {
-      if (sourceDebounceRef.current) clearTimeout(sourceDebounceRef.current);
-      if (destinationDebounceRef.current)
-        clearTimeout(destinationDebounceRef.current);
-    },
-    [],
-  );
 
   const dateRangeError =
     !startDate || !endDate
@@ -761,16 +734,19 @@ const Traffic: React.FC = () => {
           directionFilter === "uplink" && appliedDestination === clicked.label;
         if (isActive) {
           setDirectionFilter("");
-          setDestinationFilter("");
-          setAppliedDestination("");
+          applyDestinationNow("");
         } else {
           setDirectionFilter("uplink");
-          setDestinationFilter(clicked.label);
-          setAppliedDestination(clicked.label);
+          applyDestinationNow(clicked.label);
         }
       }
     },
-    [topDestinationsPieData, directionFilter, appliedDestination],
+    [
+      topDestinationsPieData,
+      directionFilter,
+      appliedDestination,
+      applyDestinationNow,
+    ],
   );
 
   const handleConfirmClearUsage = async () => {
@@ -1255,14 +1231,7 @@ const Traffic: React.FC = () => {
                 <TextField
                   label="Source"
                   value={sourceFilter}
-                  onChange={(e) => {
-                    setSourceFilter(e.target.value);
-                    scheduleDebounce(
-                      sourceDebounceRef,
-                      setAppliedSource,
-                      e.target.value,
-                    );
-                  }}
+                  onChange={(e) => setSourceFilter(e.target.value)}
                   size="small"
                   sx={{ minWidth: 140 }}
                   placeholder="e.g. 1.2.3.4:443"
@@ -1270,14 +1239,7 @@ const Traffic: React.FC = () => {
                 <TextField
                   label="Destination"
                   value={destinationFilter}
-                  onChange={(e) => {
-                    setDestinationFilter(e.target.value);
-                    scheduleDebounce(
-                      destinationDebounceRef,
-                      setAppliedDestination,
-                      e.target.value,
-                    );
-                  }}
+                  onChange={(e) => setDestinationFilter(e.target.value)}
                   size="small"
                   sx={{ minWidth: 140 }}
                   placeholder="e.g. 1.2.3.4:443"

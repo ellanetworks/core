@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   renderWithProviders,
@@ -691,22 +691,6 @@ describe("Traffic usage pagination", () => {
     await chooseSubscriber(user, IMSI_B);
 
     await waitFor(() => expect(footer()).toMatch(/1–25/));
-  });
-});
-
-describe("Traffic unmount", () => {
-  it("sends no request after the page is unmounted mid-debounce", async () => {
-    const view = await renderTraffic();
-    await waitForFlowRequests(1);
-
-    const before = flowRequests().length;
-    fireEvent.change(screen.getByLabelText("Source"), {
-      target: { value: "10.45.0.1" },
-    });
-    view.unmount();
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    expect(flowRequests().length).toBe(before);
   });
 });
 
