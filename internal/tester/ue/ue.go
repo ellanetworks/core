@@ -392,6 +392,15 @@ func reverse(s string) string {
 	return aux
 }
 
+// ErrMACFailure and ErrSQNOutOfRange are the two AUTN checks a UE runs on an
+// AUTHENTICATION REQUEST (TS 33.501 §6.1.3.2). Each has its own 5GMM cause in
+// the AUTHENTICATION FAILURE that answers it, and the sequence-number one
+// carries an AUTS for the network to resynchronise from.
+var (
+	ErrMACFailure    = errors.New("milenage MAC failure")
+	ErrSQNOutOfRange = errors.New("sequence number out of range")
+)
+
 func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND []byte, snName string, AUTN []byte) ([]byte, error) {
 	OPC, err := hex.DecodeString(authSubs.EncOpcKey)
 	if err != nil {
@@ -410,16 +419,16 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND [
 
 	sqnHn, AK, IK, CK, RES, err := milenage.GenerateKeysWithAUTN(OPC, K, RAND, AUTN)
 	if err != nil {
-		return nil, errors.New("milenage MAC failure")
+		return nil, ErrMACFailure
 	}
 
 	if bytes.Compare(sqnUe, sqnHn) > 0 {
 		auts, err := milenage.GenerateAUTS(OPC, K, RAND, sqnUe)
 		if err != nil {
-			return auts, fmt.Errorf("AUTS generation error: %v", err)
+			return nil, fmt.Errorf("AUTS generation error: %v", err)
 		}
 
-		return auts, errors.New("sequence number out of range")
+		return auts, ErrSQNOutOfRange
 	}
 
 	authSubs.SequenceNumber = &SequenceNumber{
