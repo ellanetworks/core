@@ -80,7 +80,7 @@
       "eap_message": "AgAABQE=",
       "abba": "AAA=",
       "replayed_s1_ue_security_capabilities": {
-        "status": "Unsupported"
+        "hex": "00000000"
       }
     }
   },
