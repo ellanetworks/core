@@ -178,6 +178,10 @@ func (a *AMF) relocateFromEPS(
 		return none, fmt.Errorf("amf: could not prepare a handover from EPS for %s", ue.Supi())
 	}
 
+	for _, c := range candidates {
+		targetUe.ClaimN2Session(N2SetupHandover, uint8(c.PDUSessionID))
+	}
+
 	logger.From(ctx, logger.AmfLog).Info("Handover Request (EPS to 5GS)",
 		logger.SUPI(ue.Supi().String()),
 		zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)),
@@ -267,7 +271,6 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 			continue
 		}
 
-		ue.ClaimSmContextN2(N2SetupHandover, c.PDUSessionID)
 		ue.SetEPSBearerIdentity(c.PDUSessionID, c.EPSBearerIdentity)
 
 		sessions = append(sessions, item)

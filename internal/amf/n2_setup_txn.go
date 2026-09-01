@@ -34,7 +34,8 @@ func (p N2SetupProcedure) String() string {
 }
 
 type n2SetupTxn struct {
-	guard *guard.Guard
+	guard   *guard.Guard
+	closing bool
 }
 
 type n2SetupTxns struct {
@@ -60,15 +61,10 @@ func (s N2Setup) End() {
 }
 
 func (s N2Setup) Claim(ids []uint8) []uint8 {
-	ue := s.conn.UeContext()
-	if ue == nil {
-		return nil
-	}
-
 	claimed := make([]uint8, 0, len(ids))
 
 	for _, id := range ids {
-		if ue.ClaimSmContextN2(s.proc, id) {
+		if s.conn.ClaimN2Session(s.proc, id) {
 			claimed = append(claimed, id)
 		}
 	}
@@ -146,29 +142,35 @@ func (ueConn *UeConn) endN2SetupTxn(proc N2SetupProcedure, want *n2SetupTxn) []u
 	ueConn.n2Setups.mu.Lock()
 
 	txn, ok := ueConn.n2Setups.open[proc]
-	if ok && (want == nil || txn == want) {
+	if !ok || txn.closing || (want != nil && txn != want) {
+		ueConn.n2Setups.mu.Unlock()
+		return nil
+	}
+
+	txn.closing = true
+
+	ueConn.n2Setups.mu.Unlock()
+
+	released := ueConn.releaseN2SetupTxn(proc, txn)
+
+	ueConn.n2Setups.mu.Lock()
+
+	if cur, ok := ueConn.n2Setups.open[proc]; ok && cur == txn {
 		delete(ueConn.n2Setups.open, proc)
-	} else {
-		ok = false
 	}
 
 	ueConn.n2Setups.mu.Unlock()
 
-	if !ok {
-		return nil
-	}
+	return released
+}
 
+func (ueConn *UeConn) releaseN2SetupTxn(proc N2SetupProcedure, txn *n2SetupTxn) []uint8 {
 	txn.guard.Stop()
-
-	ue := ueConn.UeContext()
-	if ue == nil {
-		return nil
-	}
 
 	var released []uint8
 
-	for _, id := range ue.PendingSmContextsFor(proc) {
-		if ue.ReleaseSmContextN2IfPending(id) {
+	for _, id := range ueConn.pendingN2SessionsFor(proc) {
+		if ueConn.releaseN2SessionIfPending(id) {
 			released = append(released, id)
 		}
 	}
@@ -178,23 +180,33 @@ func (ueConn *UeConn) endN2SetupTxn(proc N2SetupProcedure, want *n2SetupTxn) []u
 
 func (ueConn *UeConn) AbortN2Setups() {
 	ueConn.n2Setups.mu.Lock()
-	open := ueConn.n2Setups.open
-	ueConn.n2Setups.open = nil
-	ueConn.n2Setups.mu.Unlock()
 
-	ue := ueConn.UeContext()
+	open := make(map[N2SetupProcedure]*n2SetupTxn, len(ueConn.n2Setups.open))
 
-	for proc, txn := range open {
-		txn.guard.Stop()
-
-		if ue == nil {
+	for proc, txn := range ueConn.n2Setups.open {
+		if txn.closing {
 			continue
 		}
 
-		for _, id := range ue.PendingSmContextsFor(proc) {
-			ue.ReleaseSmContextN2IfPending(id)
+		txn.closing = true
+		open[proc] = txn
+	}
+
+	ueConn.n2Setups.mu.Unlock()
+
+	for proc, txn := range open {
+		ueConn.releaseN2SetupTxn(proc, txn)
+	}
+
+	ueConn.n2Setups.mu.Lock()
+
+	for proc, txn := range open {
+		if cur, ok := ueConn.n2Setups.open[proc]; ok && cur == txn {
+			delete(ueConn.n2Setups.open, proc)
 		}
 	}
+
+	ueConn.n2Setups.mu.Unlock()
 }
 
 func (ueConn *UeConn) N2SetupOpen(proc N2SetupProcedure) bool {

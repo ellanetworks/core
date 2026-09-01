@@ -520,7 +520,6 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 		ue.SmContextList[1] = &amf.SmContext{
 			Ref:    "nonexistent-ref",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
-			N2:     amf.N2Inactive,
 		}
 	})
 

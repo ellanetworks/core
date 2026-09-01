@@ -31,3 +31,22 @@ func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 		t.Fatalf("second release sent %d messages, want 1 UE Context Release Command: the claim from the first release outlived the connection it claimed, so nothing is ever commanded again", len(second.sent))
 	}
 }
+
+// TS 23.401 §5.3.5: the release of a superseded S1 connection buffers the downlink of
+// the bearers it was carrying, so data arriving meanwhile pages the UE instead of being
+// forwarded to an eNB that is releasing it.
+func TestAttachUeConn_DeactivatesTheSupersededConnectionsUserPlane(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	testPDN(ue).Apn = "internet"
+
+	fake := m.Session.(*fakeSessionManager)
+	fake.deactivated = false
+
+	second := m.NewUeConn(&captureConn{}, 9)
+	m.AttachUeConn(ue, second)
+
+	if !fake.deactivated {
+		t.Error("the superseded connection's user plane was left pointing at a released eNB context")
+	}
+}

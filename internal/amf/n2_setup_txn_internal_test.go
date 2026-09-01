@@ -101,7 +101,7 @@ func TestAbortN2SetupsReleasesItsOwnClaims(t *testing.T) {
 	conn.AbortN2Setups()
 
 	for _, id := range []uint8{1, 2} {
-		if !ue.ClaimSmContextN2(N2SetupPDUSession, id) {
+		if !conn.ClaimN2Session(N2SetupPDUSession, id) {
 			t.Errorf("PDU session %d is still claimed after the transactions were aborted", id)
 		}
 	}
@@ -119,10 +119,10 @@ func TestAbortN2SetupsLeavesConfirmedSessionsAlone(t *testing.T) {
 		t.Fatalf("claimed %v, want PDU session 1", got)
 	}
 
-	ue.SetSmContextActive(1)
+	conn.SetN2SessionActive(1)
 	conn.AbortN2Setups()
 
-	if ue.ClaimSmContextN2(N2SetupPDUSession, 1) {
+	if conn.ClaimN2Session(N2SetupPDUSession, 1) {
 		t.Error("a session the NG-RAN node confirmed must not be released by aborting a transaction")
 	}
 }

@@ -39,6 +39,8 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
+	targetUe.AdoptN2SessionsFrom(sourceUe)
+
 	var present []amf.RANSession
 
 	for _, sr := range amfUe.SmContextRefs() {
@@ -51,7 +53,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	amfInstance.ReconcileSessionsToRAN(ctx, amfUe, amf.RANSessions{
+	amfInstance.ReconcileSessionsToRAN(ctx, amfUe, targetUe, amf.RANSessions{
 		Present:       present,
 		Authoritative: true,
 	}, func(ctx context.Context, ref string, _ []byte) ([]byte, error) {

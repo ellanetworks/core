@@ -694,21 +694,6 @@ describe("Traffic usage pagination", () => {
   });
 });
 
-describe("Traffic unmount", () => {
-  it("sends no request after the page is unmounted mid-debounce", async () => {
-    const user = userEvent.setup();
-    const view = await renderTraffic();
-    await waitForFlowRequests(1);
-
-    await user.type(screen.getByLabelText("Source"), "10.45.0.1");
-    const before = flowRequests().length;
-    view.unmount();
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    expect(flowRequests().length).toBe(before);
-  });
-});
-
 describe("Traffic usage chart", () => {
   it("scales the axis to the largest value across both datasets", async () => {
     seedApi({

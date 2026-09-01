@@ -153,12 +153,11 @@ func TestPathSwitchFailedSessionDeactivatesUserPlane(t *testing.T) {
 		t.Errorf("session was released where 3GPP asks for UP deactivation: %v", fakeSmf.ReleaseSmContextCalls)
 	}
 
-	sc, still := amfUe.SmContextFindByPDUSessionID(1)
-	if !still {
+	if _, still := amfUe.SmContextFindByPDUSessionID(1); !still {
 		t.Fatal("the PDU session must survive a failed switch")
 	}
 
-	if !sc.Inactive() {
+	if !amfUe.Conn().N2SessionInactive(1) {
 		t.Error("the PDU session must be marked user-plane inactive")
 	}
 }

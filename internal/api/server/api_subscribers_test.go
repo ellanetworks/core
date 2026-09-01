@@ -211,8 +211,6 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 		return fmt.Errorf("failed to create SmContext: %w", err)
 	}
 
-	ue.SetSmContextActive(pduSessionID)
-
 	return nil
 }
 
@@ -800,8 +798,10 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected connection_state 'idle' for a registered UE with no NGAP association, got %q", got)
 		}
 
-		if session.Status != "active" {
-			t.Fatalf("expected session status 'active', got %q", session.Status)
+		// The UE holds no NG connection, so the PDU session survives with its user
+		// plane deactivated (TS 23.501 §5.3.3.2.4).
+		if session.Status != "inactive" {
+			t.Fatalf("expected session status 'inactive' for a UE with no NGAP association, got %q", session.Status)
 		}
 
 		if response.Error != "" {

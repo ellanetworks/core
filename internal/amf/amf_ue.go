@@ -11,7 +11,6 @@ package amf
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,26 +31,11 @@ import (
 	"go.uber.org/zap"
 )
 
-type N2State uint8
-
-const (
-	N2Inactive N2State = iota
-	N2Pending
-	N2Active
-)
-
 type SmContext struct {
 	Ref    string
 	Snssai *models.Snssai
 	Dnn    string
 	EBI    uint8
-	N2     N2State
-
-	n2Proc N2SetupProcedure
-}
-
-func (sc *SmContext) Inactive() bool {
-	return sc == nil || sc.N2 == N2Inactive
 }
 
 type UeContext struct {
@@ -252,11 +236,38 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	a.mu.Unlock()
 
 	if displaced != nil {
+		a.deactivateDisplacedUserPlane(context.Background(), ue, displaced)
+
 		displaced.SendUEContextReleaseCommand(context.Background(),
 			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
 
 	a.clearPagingSuppression(context.Background(), ue)
+}
+
+// deactivateDisplacedUserPlane buffers the user plane the displaced connection was
+// carrying, before its release command goes out, so a concurrent downlink is buffered for
+// paging instead of being forwarded to a RAN endpoint that is going away (TS 23.502
+// §4.2.6). Deciding here rather than when the NG-RAN node answers that command keeps the
+// outcome independent of whether the answer arrives at all.
+func (a *AMF) deactivateDisplacedUserPlane(ctx context.Context, ue *UeContext, displaced *UeConn) {
+	if a.Session == nil {
+		return
+	}
+
+	for _, pduSessionID := range displaced.activeN2Sessions() {
+		smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			continue
+		}
+
+		displaced.SetN2SessionInactive(pduSessionID)
+
+		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+			logger.From(ctx, displaced.Log()).Warn("could not deactivate the user plane of a displaced connection",
+				zap.Error(err), logger.PDUSessionID(pduSessionID))
+		}
+	}
 }
 
 func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
@@ -522,6 +533,10 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 		Dnn:    dnn,
 	}
 
+	// Whatever the connection recorded under this PDU session identity belongs to the
+	// session that held it before, not to this one.
+	ue.active.Load().SetN2SessionInactive(pduSessionID)
+
 	return nil
 }
 
@@ -553,6 +568,7 @@ func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.SmContextList, pduSessionID)
+	ue.active.Load().SetN2SessionInactive(pduSessionID)
 }
 
 func (ue *UeContext) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
@@ -562,95 +578,6 @@ func (ue *UeContext) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext
 	smContext, ok := ue.SmContextList[pduSessionID]
 
 	return smContext, ok
-}
-
-func (ue *UeContext) SetSmContextInactive(pduSessionID uint8) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.N2 = N2Inactive
-	}
-}
-
-func (ue *UeContext) SetSmContextActive(pduSessionID uint8) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if sc, ok := ue.SmContextList[pduSessionID]; ok {
-		sc.N2 = N2Active
-	}
-}
-
-func (ue *UeContext) ClaimSmContextN2(proc N2SetupProcedure, pduSessionID uint8) bool {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	sc, ok := ue.SmContextList[pduSessionID]
-	if !ok {
-		return true
-	}
-
-	if sc.N2 != N2Inactive {
-		return false
-	}
-
-	sc.N2 = N2Pending
-	sc.n2Proc = proc
-
-	return true
-}
-
-func (ue *UeContext) PendingSmContextsFor(proc N2SetupProcedure) []uint8 {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	var ids []uint8
-
-	for id, sc := range ue.SmContextList {
-		if sc.N2 == N2Pending && sc.n2Proc == proc {
-			ids = append(ids, id)
-		}
-	}
-
-	slices.Sort(ids)
-
-	return ids
-}
-
-func (ue *UeContext) ReleaseSmContextN2IfPending(pduSessionID uint8) bool {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if sc, ok := ue.SmContextList[pduSessionID]; ok && sc.N2 == N2Pending {
-		sc.N2 = N2Inactive
-
-		return true
-	}
-
-	return false
-}
-
-func (ue *UeContext) ReleaseAllSmContextN2() {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	for _, sc := range ue.SmContextList {
-		sc.N2 = N2Inactive
-	}
-}
-
-func (ue *UeContext) HasActivePduSessions() bool {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	for _, smContext := range ue.SmContextList {
-		if smContext.N2 == N2Active {
-			return true
-		}
-	}
-
-	return false
 }
 
 func protectDownlink(plain []byte, sht uint8, count nas.Count, sc *nas.SecurityContext) ([]byte, error) {
@@ -716,7 +643,7 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	}
 
 	detached.AbortN2Setups()
-	ue.ReleaseAllSmContextN2()
+	detached.releaseAllN2Sessions()
 
 	ue.endKeyChainProcs()
 	ue.StopProcedureTimers()
@@ -802,6 +729,8 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
 
+	ue.active.Load().releaseAllN2Sessions()
+
 	if ue.smf != nil {
 		for _, smContextRef := range smContextRefs {
 			err := ue.smf.ReleaseSmContext(ctx, smContextRef)
@@ -836,6 +765,8 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
+
+	ue.active.Load().releaseAllN2Sessions()
 
 	if ue.smf == nil {
 		return
@@ -877,6 +808,7 @@ func (ue *UeContext) DeleteSmContextRef(pduSessionID uint8, ref string) bool {
 	}
 
 	delete(ue.SmContextList, pduSessionID)
+	ue.active.Load().SetN2SessionInactive(pduSessionID)
 
 	return true
 }

@@ -44,7 +44,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	udsHasPending := conn.RegistrationRequest.UplinkDataStatus != nil
 
-	hasActiveSessions := ue.HasActivePduSessions()
+	hasActiveSessions := conn.HasActiveN2Sessions()
 
 	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
