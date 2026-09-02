@@ -183,6 +183,75 @@ func TestFlowReportsBatchInsert(t *testing.T) {
 	}
 }
 
+func TestFlowReportsBatchInsertSkipsDeletedSubscriber(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	profileID, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	err = database.CreateSubscriber(ctx, &db.Subscriber{
+		Imsi:           "460123456789013",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      profileID,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create second subscriber: %s", err)
+	}
+
+	if err := database.DeleteSubscriber(ctx, "460123456789013"); err != nil {
+		t.Fatalf("couldn't delete second subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	report := func(imsi string, port uint16) *dbwriter.FlowReport {
+		return &dbwriter.FlowReport{
+			SubscriberID:    imsi,
+			SourceIP:        "192.168.1.100",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      port,
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         3,
+			Bytes:           354,
+			StartTime:       now.Add(-time.Minute).Format(time.RFC3339),
+			EndTime:         now.Format(time.RFC3339),
+			Direction:       "downlink",
+		}
+	}
+
+	batch := []*dbwriter.FlowReport{
+		report("460123456789012", 10001),
+		report("460123456789013", 10002),
+		report("460123456789012", 10003),
+	}
+
+	if err := database.InsertFlowReports(ctx, batch); err != nil {
+		t.Fatalf("batch insert should not fail on an orphaned report: %s", err)
+	}
+
+	reports, total, err := database.ListFlowReports(ctx, 1, 20, nil)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports: %s", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("Expected the 2 live-subscriber reports to survive, but got %d", total)
+	}
+
+	for _, r := range reports {
+		if r.SubscriberID != "460123456789012" {
+			t.Fatalf("Expected only reports for the live subscriber, got %s", r.SubscriberID)
+		}
+	}
+}
+
 func TestFlowReportsBatchInsertEmpty(t *testing.T) {
 	database := setupTestDB(t)
 
