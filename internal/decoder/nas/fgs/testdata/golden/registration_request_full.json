@@ -1,0 +1,169 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 65,
+        "label": "REGISTRATION REQUEST",
+        "unknown": false
+      }
+    },
+    "registration_request": {
+      "nas_key_set_identifier": {
+        "value": 7,
+        "mapped": false,
+        "no_key": true
+      },
+      "registration_type_5gs": {
+        "type": "enum",
+        "value": 1,
+        "label": "Initial registration",
+        "unknown": false
+      },
+      "follow_on_request_pending": true,
+      "mobile_identity_5gs": {
+        "identity_type": {
+          "type": "enum",
+          "value": 2,
+          "label": "5G-GUTI",
+          "unknown": false
+        },
+        "guti": "0010101020304050607"
+      },
+      "ue_security_capability": {
+        "integrity_algorithm": {
+          "nia0": true,
+          "nia1": true,
+          "nia2": true,
+          "nia3": false
+        },
+        "ciphering_algorithm": {
+          "nea0": true,
+          "nea1": true,
+          "nea2": true,
+          "nea3": false
+        }
+      },
+      "nas_message_container": {
+        "protocol": "NAS",
+        "raw_hex": "2e01",
+        "decoded": {
+          "security_header": {
+            "protocol_discriminator": {
+              "type": "enum",
+              "value": 46,
+              "label": "5GSM",
+              "unknown": false
+            },
+            "security_header_type": {
+              "type": "enum",
+              "value": 1,
+              "label": "integrity protected",
+              "unknown": false
+            },
+            "sequence_number": 0
+          },
+          "encrypted": false,
+          "error": "security-protected NAS message too short"
+        }
+      },
+      "capability_5gmm": {
+        "sgc": false,
+        "hc_cp_ciot": false,
+        "n3_data": true,
+        "cp_ciot": false,
+        "restrict_ec": false,
+        "lpp": false,
+        "ho_attach": false,
+        "s1_mode": true
+      },
+      "requested_nssai": [
+        {
+          "sst": 1
+        }
+      ],
+      "pdu_session_status": [
+        {
+          "pdu_session_id": 1,
+          "active": true
+        },
+        {
+          "pdu_session_id": 2,
+          "active": false
+        },
+        {
+          "pdu_session_id": 3,
+          "active": false
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
+      "mico_indication": {
+        "raai": true,
+        "sprti": false
+      }
+    }
+  },
+  "encrypted": false
+}

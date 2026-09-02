@@ -72,13 +72,18 @@
                 }
               },
               "registration_request": {
-                "nas_key_set_identifier": 7,
+                "nas_key_set_identifier": {
+                  "value": 7,
+                  "mapped": false,
+                  "no_key": true
+                },
                 "registration_type_5gs": {
                   "type": "enum",
                   "value": 1,
                   "label": "Initial registration",
                   "unknown": false
                 },
+                "follow_on_request_pending": true,
                 "mobile_identity_5gs": {
                   "identity_type": {
                     "type": "enum",

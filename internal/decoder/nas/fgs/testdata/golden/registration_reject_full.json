@@ -1,0 +1,61 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 68,
+        "label": "REGISTRATION REJECT",
+        "unknown": false
+      }
+    },
+    "registration_reject": {
+      "cause_5gmm": {
+        "type": "enum",
+        "value": 11,
+        "label": "PLMN not allowed",
+        "unknown": false
+      },
+      "t3346_value": {
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "2 seconds",
+          "unknown": false
+        },
+        "value": 10,
+        "duration": "20s",
+        "seconds": 20
+      },
+      "t3502_value": {
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "2 seconds",
+          "unknown": false
+        },
+        "value": 11,
+        "duration": "22s",
+        "seconds": 22
+      },
+      "eap_message": {
+        "hex": "0200000501"
+      }
+    }
+  },
+  "encrypted": false
+}

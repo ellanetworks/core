@@ -6,7 +6,7 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
+	fgsdec "github.com/ellanetworks/core/internal/decoder/nas/fgs"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -102,7 +102,7 @@ func buildNGAPSummary(msg NGAPMessage) string {
 	return summary
 }
 
-func nasMessageTypeName(msg *nas.NASMessage) string {
+func nasMessageTypeName(msg *fgsdec.NASMessage) string {
 	if msg.Encrypted {
 		return "Encrypted"
 	}

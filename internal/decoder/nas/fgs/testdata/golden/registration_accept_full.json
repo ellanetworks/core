@@ -1,0 +1,149 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 66,
+        "label": "REGISTRATION ACCEPT",
+        "unknown": false
+      }
+    },
+    "registration_accept": {
+      "registration_result_5gs": {
+        "type": "enum",
+        "value": 1,
+        "label": "3GPP access",
+        "unknown": false
+      },
+      "guti_5g": {
+        "mcc": "001",
+        "mnc": "01",
+        "amf_region_id": 1,
+        "amf_set_id": 8,
+        "amf_pointer": 3,
+        "tmsi": "04050607"
+      },
+      "tai_list": [
+        {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "tac": "000001"
+        }
+      ],
+      "allowed_nssai": [
+        {
+          "sst": 1
+        }
+      ],
+      "network_feature_support_5gs": {
+        "emc": 0,
+        "emc_n3": 0,
+        "emf": 0,
+        "ims_vops": 0,
+        "iwk_n26": 0,
+        "mcsi": 0,
+        "mpsi": 0,
+        "ims_vops_3gpp": 1,
+        "ims_vops_n3gpp": 0
+      },
+      "pdu_session_status": [
+        {
+          "pdu_session_id": 1,
+          "active": true
+        },
+        {
+          "pdu_session_id": 2,
+          "active": false
+        },
+        {
+          "pdu_session_id": 3,
+          "active": false
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
+      "mico_indication": {
+        "raai": true,
+        "sprti": false
+      },
+      "t3512_value": {
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "10 minutes",
+          "unknown": false
+        },
+        "value": 5,
+        "duration": "50m0s",
+        "seconds": 3000
+      },
+      "eap_message": {
+        "hex": "0200000501"
+      }
+    }
+  },
+  "encrypted": false
+}

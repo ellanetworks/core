@@ -1,0 +1,278 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 76,
+        "label": "SERVICE REQUEST",
+        "unknown": false
+      }
+    },
+    "service_request": {
+      "service_type_and_ngksi": {
+        "service_type": {
+          "type": "enum",
+          "value": 1,
+          "label": "Data",
+          "unknown": false
+        },
+        "tsc": {
+          "type": "enum",
+          "value": 1,
+          "label": "Mapped",
+          "unknown": false
+        },
+        "nas_key_set_identifier": 2
+      },
+      "tmsi_5gs": {
+        "type_of_identity": {
+          "type": "enum",
+          "value": 4,
+          "label": "5G-S-TMSI",
+          "unknown": false
+        },
+        "amf_set_id": 4,
+        "amf_pointer": 2,
+        "tmsi_5g": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "uplink_data_status": [
+        {
+          "pdu_session_id": 0,
+          "active": false
+        },
+        {
+          "pdu_session_id": 1,
+          "active": true
+        },
+        {
+          "pdu_session_id": 2,
+          "active": false
+        },
+        {
+          "pdu_session_id": 3,
+          "active": false
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
+      "pdu_session_status": [
+        {
+          "pdu_session_id": 1,
+          "active": false
+        },
+        {
+          "pdu_session_id": 2,
+          "active": true
+        },
+        {
+          "pdu_session_id": 3,
+          "active": false
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
+      "allowed_pdu_session_status": [
+        {
+          "pdu_session_id": 0,
+          "active": false
+        },
+        {
+          "pdu_session_id": 1,
+          "active": false
+        },
+        {
+          "pdu_session_id": 2,
+          "active": false
+        },
+        {
+          "pdu_session_id": 3,
+          "active": true
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
+      "nas_message_container": {
+        "protocol": "NAS",
+        "raw_hex": "2e01",
+        "decoded": {
+          "security_header": {
+            "protocol_discriminator": {
+              "type": "enum",
+              "value": 46,
+              "label": "5GSM",
+              "unknown": false
+            },
+            "security_header_type": {
+              "type": "enum",
+              "value": 1,
+              "label": "integrity protected",
+              "unknown": false
+            },
+            "sequence_number": 0
+          },
+          "encrypted": false,
+          "error": "security-protected NAS message too short"
+        }
+      }
+    }
+  },
+  "encrypted": false
+}

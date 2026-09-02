@@ -1,0 +1,63 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 94,
+        "label": "SECURITY MODE COMPLETE",
+        "unknown": false
+      }
+    },
+    "security_mode_complete": {
+      "imeisv": "imeisv-1234567890123456",
+      "nas_message_container": {
+        "protocol": "NAS",
+        "raw_hex": "7e0041",
+        "decoded": {
+          "security_header": {
+            "protocol_discriminator": {
+              "type": "enum",
+              "value": 126,
+              "label": "5GMM",
+              "unknown": false
+            },
+            "security_header_type": {
+              "type": "enum",
+              "value": 0,
+              "label": "plain",
+              "unknown": false
+            },
+            "sequence_number": 0
+          },
+          "gmm_message": {
+            "gmm_header": {
+              "message_type": {
+                "type": "enum",
+                "value": 65,
+                "label": "REGISTRATION REQUEST",
+                "unknown": false
+              }
+            }
+          },
+          "encrypted": false
+        }
+      }
+    }
+  },
+  "encrypted": false
+}

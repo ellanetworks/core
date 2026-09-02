@@ -1,0 +1,33 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 67,
+        "label": "REGISTRATION COMPLETE",
+        "unknown": false
+      }
+    },
+    "registration_complete": {
+      "sor_transparent_container": {
+        "hex": "1111111111111111111111111111111111"
+      }
+    }
+  },
+  "encrypted": false
+}

@@ -120,4 +120,57 @@ describe("NGAPMessageView RRC container", () => {
       expect(await navigator.clipboard.readText()).toBe(rawHex),
     );
   });
+
+  it("truncates a raw_hex nested anywhere in the tree, not just on a PDU block", () => {
+    const containerHex = "2e02d4c211000901000631310101ff01".repeat(6);
+
+    render(
+      <NGAPMessageView
+        decoded={
+          {
+            pdu_type: "InitiatingMessage",
+            procedure_code: {
+              label: "UplinkNASTransport",
+              value: 46,
+              type: "enum",
+            },
+            criticality: { label: "ignore", value: 1, type: "enum" },
+            value: {
+              ies: [
+                {
+                  id: { label: "NAS-PDU", value: 38, type: "enum" },
+                  criticality: { label: "reject", value: 0, type: "enum" },
+                  value: {
+                    protocol: "NAS",
+                    raw_hex: "7e00",
+                    decoded: {
+                      gmm_message: {
+                        ul_nas_transport: {
+                          payload_container: { raw_hex: containerHex },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          } as unknown as DecodedNGAPMessage
+        }
+      />,
+    );
+
+    const hex = screen.getByText(containerHex);
+    expect(hex).toHaveStyle({ whiteSpace: "nowrap", overflow: "hidden" });
+    expect(screen.getByText(/96 bytes/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Copy raw hex").length).toBeGreaterThan(1);
+  });
+
+  it("says byte, not bytes, for a single octet", () => {
+    render(
+      <NGAPMessageView
+        decoded={withRadioCapability({ summary: { nr: {} } })}
+      />,
+    );
+    expect(screen.queryByText(/ 1 bytes/)).not.toBeInTheDocument();
+  });
 });

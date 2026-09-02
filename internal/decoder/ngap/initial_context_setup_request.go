@@ -78,13 +78,19 @@ type QosFlowSetupRequest struct {
 	GBRQosInformation *GBRQosInfo `json:"gbr_qos_information,omitempty"`
 }
 
+type SecurityIndication struct {
+	IntegrityProtectionIndication       utils.EnumField  `json:"integrity_protection_indication"`
+	ConfidentialityProtectionIndication utils.EnumField  `json:"confidentiality_protection_indication"`
+	MaximumIntegrityProtectedDataRateUL *utils.EnumField `json:"maximum_integrity_protected_data_rate_ul,omitempty"`
+}
+
 type PDUSessionResourceSetupRequestTransfer struct {
 	ULNGUUPTNLInformation   *ULNGUUPTNLInformation `json:"ul_ng_u_up_tnl_information,omitempty"`
 	QosFlowSetupRequestList []QosFlowSetupRequest  `json:"qos_flow_setup_request_list,omitempty"`
 	PduSType                *utils.EnumField       `json:"pdu_s_type,omitempty"`
 	MaximumBitRate          *MaximumBitRate        `json:"maximum_bit_rate,omitempty"`
-	SecurityIndication      *UnsupportedIE         `json:"security_indication,omitempty"`
-	UnsupportedIEs          []string               `json:"unsupported_ies,omitempty"`
+	SecurityIndication      *SecurityIndication    `json:"security_indication,omitempty"`
+	UnrecognizedIEs         []IE                   `json:"unrecognized_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {
