@@ -110,6 +110,22 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		return nil, err
 	}
 
+	if ue.deferESMInfo {
+		esmReq, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
+		if err != nil {
+			return nil, fmt.Errorf("await ESM Information Request: %w", err)
+		}
+
+		esmResp, err := ue.handleESMInformationRequest(esmReq)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, esmResp); err != nil {
+			return nil, err
+		}
+	}
+
 	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Initial Context Setup Request: %w", err)
