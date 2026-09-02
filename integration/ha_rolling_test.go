@@ -493,6 +493,8 @@ type writerReport struct {
 	unknown []string
 }
 
+const subscriberWriteTimeout = 30 * time.Second
+
 // startSubscriberWriter creates subscribers round-robin at ~5/s.
 // Transient errors (see isTransientWriteError) are counted; any other
 // error fails stopAndReport. imsiBase must be a 15-digit IMSI not
@@ -535,42 +537,37 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 
 			w.attempts.Add(1)
 
-			err = c.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+			writeCtx, writeCancel := context.WithTimeout(context.Background(), subscriberWriteTimeout)
+			err = c.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
 				Imsi:           imsi,
 				Key:            "0eefb0893e6f1c2855a3a244c6db1277",
 				OPc:            "98da19bbc55e2a5b53857d10557b1d26",
 				SequenceNumber: "000000000022",
 				ProfileName:    "default",
 			})
-			if err == nil {
+
+			writeCancel()
+
+			switch {
+			case err == nil:
 				w.success.Add(1)
 				w.acked = append(w.acked, imsi)
 				w.recordSuccess(time.Now())
 
-				if ctx.Err() != nil {
-					return
-				}
-
-				continue
-			}
-
-			if ctx.Err() != nil {
+			case isTransientWriteError(err) || isOutcomeUnknownWriteError(err):
+				w.transient.Add(1)
 				w.unknown = append(w.unknown, imsi)
+
+			default:
+				e := fmt.Errorf("subscriber %s: %w", imsi, err)
+				w.fatalErr.Store(&e)
 
 				return
 			}
 
-			if isTransientWriteError(err) || isOutcomeUnknownWriteError(err) {
-				w.transient.Add(1)
-				w.unknown = append(w.unknown, imsi)
-
-				continue
+			if ctx.Err() != nil {
+				return
 			}
-
-			e := fmt.Errorf("subscriber %s: %w", imsi, err)
-			w.fatalErr.Store(&e)
-
-			return
 		}
 	}()
 
