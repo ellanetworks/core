@@ -216,12 +216,12 @@
                               {
                                 "id": 13,
                                 "name": "DNS Server IPv4 Address",
-                                "hex": "08080808"
+                                "value": "8.8.8.8"
                               },
                               {
                                 "id": 16,
                                 "name": "IPv4 Link MTU",
-                                "hex": "0578"
+                                "value": "1400"
                               }
                             ]
                           },

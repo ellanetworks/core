@@ -162,3 +162,43 @@ func protocolContainerName(id uint16) string {
 		return ""
 	}
 }
+
+// PCOSelectedBearerControlModeName names the mode a Selected Bearer Control Mode
+// container carries (TS 24.008 §10.5.6.3), or the empty string for a value the
+// spec does not name.
+func PCOSelectedBearerControlModeName(v uint8) string {
+	switch v {
+	case 0x01:
+		return "MS only"
+	case 0x02:
+		return "MS/NW"
+	default:
+		return ""
+	}
+}
+
+// PCONBIFOMModeName names the mode an NBIFOM mode container carries
+// (TS 24.008 §10.5.6.3).
+func PCONBIFOMModeName(v uint8) string {
+	switch v {
+	case 0x00:
+		return "UE-initiated"
+	case 0x01:
+		return "network-initiated"
+	default:
+		return ""
+	}
+}
+
+// PCOPSDataOffStatusName names the status a 3GPP PS data off UE status container
+// carries (TS 24.008 §10.5.6.3).
+func PCOPSDataOffStatusName(v uint8) string {
+	switch v {
+	case 0x01:
+		return "deactivated"
+	case 0x02:
+		return "activated"
+	default:
+		return ""
+	}
+}
