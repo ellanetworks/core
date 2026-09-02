@@ -29,6 +29,7 @@ type ProtocolConfigurationOptions struct {
 	DNSIPv4Request     bool
 	DNSIPv6Request     bool
 	IPv4LinkMTURequest bool
+	ProtocolRequests   []nas.PCOContainer
 }
 
 // PDUSessionAddresses holds the address information for a PDU session.
@@ -108,25 +109,33 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		m.MappedEPSBearerContexts = mapped
 	}
 
-	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
-		var dnsServers [][]byte
+	var dnsServers [][]byte
 
-		if pco.DNSIPv4Request || pco.DNSIPv6Request {
-			addr, _ := netip.AddrFromSlice(dns)
-			dnsServers = nas.DNSServers(addr)
-		}
+	dnsAddr, _ := netip.AddrFromSlice(dns)
 
-		// No meaning on a session with no IPv4, matching the PDN-type guard both
-		// EPS builders apply. The IPv6 link MTU rides the RA instead (TS 24.501).
-		var linkMTU uint16
-		if pco.IPv4LinkMTURequest &&
-			(pduSessionType == fgs.PDUSessionTypeIPv4 || pduSessionType == fgs.PDUSessionTypeIPv4v6) {
-			linkMTU = mtu
-		}
+	if pco.DNSIPv4Request || pco.DNSIPv6Request {
+		dnsServers = nas.DNSServers(dnsAddr)
+	}
 
-		if opts := nas.NewProtocolConfigurationOptions(dnsServers, linkMTU); !opts.Empty() {
-			m.ExtendedPCO = &opts
-		}
+	// No meaning on a session with no IPv4, matching the PDN-type guard both
+	// EPS builders apply. The IPv6 link MTU rides the RA instead (TS 24.501).
+	var linkMTU uint16
+	if pco.IPv4LinkMTURequest &&
+		(pduSessionType == fgs.PDUSessionTypeIPv4 || pduSessionType == fgs.PDUSessionTypeIPv4v6) {
+		linkMTU = mtu
+	}
+
+	var ueIPv4 netip.Addr
+
+	if addrs != nil {
+		ueIPv4, _ = netip.AddrFromSlice(addrs.IPv4Address)
+	}
+
+	opts := nas.NewProtocolConfigurationOptions(dnsServers, linkMTU)
+	opts.PrependProtocolOptions(nas.AnswerProtocolOptions(pco.ProtocolRequests, dnsAddr, ueIPv4))
+
+	if !opts.Empty() {
+		m.ExtendedPCO = &opts
 	}
 
 	return m.MarshalBinary()
