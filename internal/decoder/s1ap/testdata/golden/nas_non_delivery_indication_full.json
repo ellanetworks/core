@@ -1,0 +1,131 @@
+{
+  "summary": "NAS Non Delivery Indication (MME-UE 4, eNB-UE 9)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 16,
+    "label": "NASNonDeliveryIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 4
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 9
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 26,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "074b09",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 7,
+                "label": "EMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              }
+            },
+            "emm_message": {
+              "emm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 75,
+                  "label": "TRACKING AREA UPDATE REJECT",
+                  "unknown": false
+                }
+              },
+              "tracking_area_update_reject": {
+                "emm_cause": {
+                  "type": "enum",
+                  "value": 9,
+                  "label": "UE identity cannot be derived by the network",
+                  "unknown": false
+                }
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 27,
+            "label": "invalid-qos-combination",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

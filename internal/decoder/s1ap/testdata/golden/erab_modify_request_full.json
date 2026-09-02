@@ -1,0 +1,132 @@
+{
+  "summary": "E-RAB Modify Request (MME-UE 1, eNB-UE 2, 1 E-RAB)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 6,
+    "label": "ERABModify",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 66,
+          "label": "uEaggregateMaximumBitrate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "dl": 200000000,
+          "ul": 100000000
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 30,
+          "label": "E-RABToBeModifiedListBearerModReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 5,
+            "qci": 9,
+            "arp": {
+              "priority_level": 15,
+              "preemption_capability": 0,
+              "preemption_vulnerability": 0
+            },
+            "nas_pdu": {
+              "protocol": "NAS",
+              "raw_hex": "074b09",
+              "decoded": {
+                "security_header": {
+                  "protocol_discriminator": {
+                    "type": "enum",
+                    "value": 7,
+                    "label": "EMM",
+                    "unknown": false
+                  },
+                  "security_header_type": {
+                    "type": "enum",
+                    "value": 0,
+                    "label": "plain",
+                    "unknown": false
+                  }
+                },
+                "emm_message": {
+                  "emm_header": {
+                    "message_type": {
+                      "type": "enum",
+                      "value": 75,
+                      "label": "TRACKING AREA UPDATE REJECT",
+                      "unknown": false
+                    }
+                  },
+                  "tracking_area_update_reject": {
+                    "emm_cause": {
+                      "type": "enum",
+                      "value": 9,
+                      "label": "UE identity cannot be derived by the network",
+                      "unknown": false
+                    }
+                  }
+                },
+                "encrypted": false
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

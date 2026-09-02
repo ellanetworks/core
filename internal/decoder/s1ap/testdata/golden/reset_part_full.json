@@ -1,0 +1,73 @@
+{
+  "summary": "Reset (2 connection(s))",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 14,
+    "label": "Reset",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 1,
+            "label": "transport",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 0,
+            "label": "transport-resource-unavailable",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 92,
+          "label": "ResetType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "part_of_s1_interface": [
+            {
+              "mme_ue_s1ap_id": 7,
+              "enb_ue_s1ap_id": 3
+            },
+            {
+              "enb_ue_s1ap_id": 4
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
