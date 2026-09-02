@@ -57,6 +57,10 @@ func containerValue(id uint16, dir naslib.PCODirection, b []byte) string {
 		return naslib.PCONBIFOMModeName(b[0])
 	}
 
+	if s := naslib.PCOProtocolOptionSummary(id, b); s != "" {
+		return s
+	}
+
 	switch dir {
 	case naslib.PCONetworkToMS:
 		return downlinkContainerValue(id, b)

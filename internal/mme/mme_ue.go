@@ -147,6 +147,7 @@ type UeContext struct {
 	RequestedAPN          string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
 	RequestedPDUSessionID uint8
 	RequestedType         eps.RequestType
+	RequestedProtocolOpts []nas.PCOContainer
 	tmsi                  etsi.TMSI
 	oldTmsi               etsi.TMSI
 	Location              models.UserLocation

@@ -278,7 +278,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesEPCO(p))
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesEPCO(p), ue.RequestedProtocolOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func sendNITZ(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.Ue
 	ueConn.SendDownlinkProtected(ctx, info)
 }
 
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, useEPCO bool) ([]byte, error) {
+func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -461,6 +461,15 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 		}
 
 		pco.Containers = append(pco.Containers, mapped...)
+	}
+
+	if answers := nas.AnswerProtocolOptions(protocolRequests, p.Dns, p.UeIP); len(answers) > 0 {
+		with := pco
+		with.PrependProtocolOptions(answers)
+
+		if useEPCO || with.FitsUnextended() {
+			pco = with
+		}
 	}
 
 	if useEPCO {

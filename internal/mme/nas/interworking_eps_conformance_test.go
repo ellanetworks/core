@@ -195,7 +195,7 @@ func TestEPSExtendedPCOIsAPropertyOfThePDNConnection(t *testing.T) {
 				SessAmbrDL: models.MustParseBitRate("1 Gbps"),
 			}
 
-			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p))
+			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil)
 			if err != nil {
 				t.Fatalf("build ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST: %v", err)
 			}

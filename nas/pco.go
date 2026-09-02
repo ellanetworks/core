@@ -306,6 +306,51 @@ func (p ProtocolConfigurationOptions) ContainerIDs() []uint16 {
 	return ids
 }
 
+// ProtocolOptions returns the units of the configuration protocol options list
+// this package answers — LCP, PAP, CHAP and IPCP, the four TS 24.008 §10.5.6.3
+// requires be supported — in wire order. Only an MS-to-network element carries a
+// request to answer.
+func (p ProtocolConfigurationOptions) ProtocolOptions() []PCOContainer {
+	if p.Direction != PCOMSToNetwork {
+		return nil
+	}
+
+	var out []PCOContainer
+
+	for _, c := range p.Containers {
+		switch c.ID {
+		case PCOProtocolIPCP, PCOProtocolLCP, PCOProtocolPAP, PCOProtocolCHAP:
+			out = append(out, c)
+		}
+	}
+
+	return out
+}
+
+// PrependProtocolOptions places cs ahead of every container already held. The
+// additional parameters list begins at the first unit bearing a container
+// identifier (TS 24.008 §10.5.6.3 NOTE 1), so a protocol identifier appended
+// after one is read as part of that list instead.
+func (p *ProtocolConfigurationOptions) PrependProtocolOptions(cs []PCOContainer) {
+	if len(cs) == 0 {
+		return
+	}
+
+	merged := make([]PCOContainer, 0, len(cs)+len(p.Containers))
+	merged = append(merged, cs...)
+	merged = append(merged, p.Containers...)
+	p.Containers = merged
+}
+
+// FitsUnextended reports whether the value fits the classic protocol
+// configuration options, a type 4 element of at most 253 octets (TS 24.008
+// §10.5.6.3). The extended element imposes no comparable bound.
+func (p ProtocolConfigurationOptions) FitsUnextended() bool {
+	b, err := p.MarshalBinary()
+
+	return err == nil && len(b) <= maxPCOLen
+}
+
 // DNSServers returns the DNS-server addresses carried, IPv4 and IPv6 together,
 // in wire order. A container whose content is not a 4- or 16-octet address is
 // skipped.
