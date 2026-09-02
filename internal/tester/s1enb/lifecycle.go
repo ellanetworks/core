@@ -75,11 +75,24 @@ type ServiceRequestResult struct {
 	UpfAddress  string // S-GW/UPF S1-U address (uplink target)
 	ULTEID      uint32 // S-GW/UPF uplink TEID
 	DLTEID      uint32 // eNB downlink TEID reported to the MME
+	// UERadioCapability is the capability the MME replayed in the Initial Context
+	// Setup Request, empty when it sent none (TS 36.413 §9.1.4.1).
+	UERadioCapability []byte
 }
 
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
 // ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer.
 func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
+	return e.serviceRequest(ue, guti, false, timeout)
+}
+
+// ServiceRequestAnsweringPage is ServiceRequest for a UE woken by a page, so the
+// INITIAL UE MESSAGE carries RRC establishment cause mt-Access.
+func (e *ENB) ServiceRequestAnsweringPage(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
+	return e.serviceRequest(ue, guti, true, timeout)
+}
+
+func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage bool, timeout time.Duration) (*ServiceRequestResult, error) {
 	if guti == nil {
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
@@ -91,7 +104,12 @@ func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.D
 		return nil, err
 	}
 
-	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), sr); err != nil {
+	send := e.SendInitialUEMessageWithSTMSI
+	if answeringPage {
+		send = e.SendPagingResponse
+	}
+
+	if err := send(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), sr); err != nil {
 		return nil, err
 	}
 
@@ -123,11 +141,12 @@ func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.D
 	}
 
 	return &ServiceRequestResult{
-		MMEUES1APID: int64(ics.MMEUES1APID),
-		ENBUES1APID: enbUEID,
-		UpfAddress:  upf.Unmap().String(),
-		ULTEID:      uint32(erab.GTPTEID),
-		DLTEID:      dlTEID,
+		UERadioCapability: []byte(ics.UERadioCapability),
+		MMEUES1APID:       int64(ics.MMEUES1APID),
+		ENBUES1APID:       enbUEID,
+		UpfAddress:        upf.Unmap().String(),
+		ULTEID:            uint32(erab.GTPTEID),
+		DLTEID:            dlTEID,
 	}, nil
 }
 

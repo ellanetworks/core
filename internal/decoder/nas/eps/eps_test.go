@@ -216,3 +216,80 @@ func TestDecodeInvalid(t *testing.T) {
 		t.Fatal("expected an error for a too-short message")
 	}
 }
+
+func TestDecodeTrackingAreaUpdateReject(t *testing.T) {
+	msg := decodeHex(t, "074b09")
+
+	rej := msg.EMMMessage.TrackingAreaUpdateReject
+	if rej == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if rej.EMMCause.Value != int64(eps.EMMCauseUEIdentityCannotBeDerived) {
+		t.Errorf("EMM cause = %d %q", rej.EMMCause.Value, rej.EMMCause.Label)
+	}
+
+	if rej.EMMCause.Label == "" {
+		t.Errorf("EMM cause carries no label")
+	}
+}
+
+func TestDecodeEMMInformation(t *testing.T) {
+	msg := decodeHex(t, "2701fb5493030761430d8545363b0c7296e9f7b77c3d0745058445363b0c")
+
+	info := msg.EMMMessage.EMMInformation
+	if info == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if info.FullNameForNetwork == nil || info.FullNameForNetwork.Name != "Ella Networks" {
+		t.Errorf("full network name = %+v", info.FullNameForNetwork)
+	}
+
+	if info.ShortNameForNetwork == nil || info.ShortNameForNetwork.Name != "Ella" {
+		t.Errorf("short network name = %+v", info.ShortNameForNetwork)
+	}
+}
+
+func TestDecodeESMInformationResponse(t *testing.T) {
+	msg := decodeHex(t, "27378dcac30102bbda280908696e7465726e6574")
+
+	resp := msg.ESMMessage.ESMInformationResponse
+	if resp == nil {
+		t.Fatalf("ESM = %+v", msg.ESMMessage)
+	}
+
+	if resp.AccessPointName == nil || *resp.AccessPointName != "internet" {
+		t.Errorf("APN = %v", resp.AccessPointName)
+	}
+}
+
+func TestDecodePDNDisconnectRequest(t *testing.T) {
+	msg := decodeHex(t, "274ce5c4670502bdd206")
+
+	req := msg.ESMMessage.PDNDisconnectRequest
+	if req == nil {
+		t.Fatalf("ESM = %+v", msg.ESMMessage)
+	}
+
+	if req.LinkedEPSBearerIdentity != 6 {
+		t.Errorf("linked EPS bearer identity = %d, want 6", req.LinkedEPSBearerIdentity)
+	}
+}
+
+func TestDecodeAttachCompleteCarriesESMContainer(t *testing.T) {
+	msg := decodeHex(t, "2735e4e44602074300035200c2")
+
+	complete := msg.EMMMessage.AttachComplete
+	if complete == nil || complete.ESMContainer == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if complete.ESMContainer.ESMHeader.MessageType.Value != int64(eps.MsgActivateDefaultEPSBearerContextAccept) {
+		t.Errorf("ESM container = %+v", complete.ESMContainer.ESMHeader)
+	}
+
+	if complete.ESMContainer.ESMHeader.EPSBearerIdentity != 5 {
+		t.Errorf("EPS bearer identity = %d, want 5", complete.ESMContainer.ESMHeader.EPSBearerIdentity)
+	}
+}

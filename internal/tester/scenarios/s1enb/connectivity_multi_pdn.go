@@ -175,7 +175,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	logger.GnbLogger.Info("second PDN connectivity verified; disconnecting it",
 		zap.String("apn", multiPDNEnterpriseDNN), zap.String("ue-ip", pdn.UEIPv4))
 
-	if err := e.DisconnectPDN(ue, res.MMEUES1APID, res.ENBUES1APID, uint8(pdn.ERABID), releaseTimeout); err != nil {
+	if _, err := e.DisconnectPDN(ue, res.MMEUES1APID, res.ENBUES1APID, uint8(pdn.ERABID), releaseTimeout); err != nil {
 		return fmt.Errorf("disconnect second PDN connection: %w", err)
 	}
 
