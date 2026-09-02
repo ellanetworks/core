@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const FlowReportsTableName = "flow_reports"
@@ -189,8 +191,15 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
 
+	orphaned := 0
+
 	for _, fr := range flowReports {
 		if err := tx.Query(ctx, db.insertFlowReportStmt, fr).Run(); err != nil {
+			if isForeignKeyError(err) {
+				orphaned++
+				continue
+			}
+
 			_ = tx.Rollback()
 
 			span.RecordError(err)
@@ -198,6 +207,14 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 			return fmt.Errorf("insert failed: %w", err)
 		}
+	}
+
+	if orphaned > 0 {
+		span.SetAttributes(attribute.Int("db.batch_orphaned", orphaned))
+		logger.DBLog.Warn("Dropped flow reports for deleted subscribers",
+			zap.Int("dropped", orphaned),
+			zap.Int("batch_size", len(flowReports)),
+		)
 	}
 
 	if err := tx.Commit(); err != nil {

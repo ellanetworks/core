@@ -36,3 +36,12 @@ func isUniqueNameError(err error) bool {
 
 	return false
 }
+
+func isForeignKeyError(err error) bool {
+	var se sqlite3.Error
+	if errors.As(err, &se) {
+		return se.ExtendedCode == sqlite3.ErrConstraintForeignKey
+	}
+
+	return false
+}
