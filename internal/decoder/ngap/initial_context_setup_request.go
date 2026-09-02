@@ -90,7 +90,12 @@ type PDUSessionResourceSetupRequestTransfer struct {
 	PduSType                *utils.EnumField       `json:"pdu_s_type,omitempty"`
 	MaximumBitRate          *MaximumBitRate        `json:"maximum_bit_rate,omitempty"`
 	SecurityIndication      *SecurityIndication    `json:"security_indication,omitempty"`
-	UnrecognizedIEs         []IE                   `json:"unrecognized_ies,omitempty"`
+	// AdditionalULNGUUPTNLInformation carries the further uplink endpoints a
+	// multi-homed or redundant session uses (TS 38.413 §9.3.1.1).
+	AdditionalULNGUUPTNLInformation []GTPTunnel `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
+	DataForwardingNotPossible       *bool       `json:"data_forwarding_not_possible,omitempty"`
+	NetworkInstance                 *uint16     `json:"network_instance,omitempty"`
+	UnrecognizedIEs                 []IE        `json:"unrecognized_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {
@@ -144,7 +149,7 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 				SNSSAI:       buildSNSSAIValue(item.SNSSAI),
 			}
 
-			transfer, err := libSetupRequestTransfer(item.Transfer)
+			transfer, err := libPDUSessionResourceSetupRequestTransfer(item.Transfer)
 			if err != nil {
 				entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
 			} else {

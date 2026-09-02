@@ -1,0 +1,62 @@
+{
+  "summary": "NGReset",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 20,
+    "label": "NGReset",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 111,
+          "label": "UE-associatedLogicalNG-connectionList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "amf_ue_ngap_id": 7,
+            "ran_ue_ngap_id": 3
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 19,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 20,
+            "label": "NGReset",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

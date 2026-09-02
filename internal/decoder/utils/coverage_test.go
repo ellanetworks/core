@@ -135,8 +135,12 @@ func readsPerMessage(files []*ast.File) map[string]map[string]bool {
 				continue
 			}
 
-			if strings.HasPrefix(fn.Name.Name, "build") {
-				add(strings.TrimPrefix(fn.Name.Name, "build"), selectorNames(fn.Body))
+			// A decoder names a message builder build<Message>, or lib<Message>
+			// where it renders a container carried inside another message.
+			for _, prefix := range []string{"build", "lib"} {
+				if strings.HasPrefix(fn.Name.Name, prefix) {
+					add(strings.TrimPrefix(fn.Name.Name, prefix), selectorNames(fn.Body))
+				}
 			}
 
 			for _, sw := range typeSwitches(fn.Body) {

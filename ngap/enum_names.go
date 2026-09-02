@@ -107,3 +107,19 @@ var pduSessionTypeNames = map[PDUSessionType]string{
 }
 
 func (t PDUSessionType) Name() string { return pduSessionTypeNames[t] }
+
+var integrityProtectionResultNames = map[IntegrityProtectionResult]string{
+	IntegrityProtectionPerformed:    "performed",
+	IntegrityProtectionNotPerformed: "not-performed",
+}
+
+func (i IntegrityProtectionResult) Name() string { return integrityProtectionResultNames[i] }
+
+var confidentialityProtectionResultNames = map[ConfidentialityProtectionResult]string{
+	ConfidentialityProtectionPerformed:    "performed",
+	ConfidentialityProtectionNotPerformed: "not-performed",
+}
+
+func (c ConfidentialityProtectionResult) Name() string {
+	return confidentialityProtectionResultNames[c]
+}

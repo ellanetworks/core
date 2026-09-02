@@ -89,6 +89,196 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		"invalid":                               {0xff, 0x00, 0x01},
 	}
 
+	psReqTransfer, err := (&lib.PathSwitchRequestTransfer{
+		DLNGUUPTNLInformation: lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x21},
+		},
+		QosFlowAccepted: lib.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Path Switch Request Transfer: %v", err)
+	}
+
+	psAckTransfer, err := (&lib.PathSwitchRequestAcknowledgeTransfer{
+		ULNGUUPTNLInformation: &lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 1}, GTPTEID: 0x31},
+		},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Path Switch Request Acknowledge Transfer: %v", err)
+	}
+
+	psFailTransfer, err := (&lib.PathSwitchRequestUnsuccessfulTransfer{
+		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Path Switch Request Unsuccessful Transfer: %v", err)
+	}
+
+	corpus["path_switch_request_full"] = mustMarshal(t, &lib.PathSwitchRequest{
+		RANUENGAPID:       3,
+		SourceAMFUENGAPID: 7,
+		UserLocationInformation: &lib.UserLocationInformation{
+			Kind:         lib.UserLocationNR,
+			PLMNIdentity: testPLMN,
+			CellIdentity: 0x000000010,
+			TAI:          testTAI,
+		},
+		UESecurityCapabilities: &lib.UESecurityCapabilities{
+			NREncryptionAlgorithms: 0xe000, NRIntegrityProtectionAlgorithms: 0xe000,
+			EUTRAEncryptionAlgorithms: 0xe000, EUTRAIntegrityProtectionAlgorithms: 0xe000,
+		},
+		PDUSessionResourceToBeSwitchedDLList: lib.PDUSessionResourceToBeSwitchedDLList{
+			{PDUSessionID: 1, Transfer: psReqTransfer},
+		},
+	})
+
+	corpus["path_switch_request_acknowledge_full"] = mustMarshal(t, &lib.PathSwitchRequestAcknowledge{
+		AMFUENGAPID:     lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:     lib.Ptr(lib.RANUENGAPID(3)),
+		SecurityContext: lib.SecurityContext{NextHopChainingCount: 3, NextHopNH: lib.SecurityKey{0x01, 0x02}},
+		PDUSessionResourceSwitchedList: lib.PDUSessionResourceSwitchedList{
+			{PDUSessionID: 1, Transfer: psAckTransfer},
+		},
+		PDUSessionResourceReleased: lib.PDUSessionResourceReleasedListPSAck{
+			{PDUSessionID: 2, Transfer: psFailTransfer},
+		},
+		AllowedNSSAI: lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
+	})
+
+	corpus["path_switch_request_failure_full"] = mustMarshal(t, &lib.PathSwitchRequestFailure{
+		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
+		PDUSessionResourceReleased: lib.PDUSessionResourceReleasedListPSFail{
+			{PDUSessionID: 1, Transfer: psFailTransfer},
+		},
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcPathSwitchRequest)},
+	})
+
+	modReqTransfer, err := (&lib.PDUSessionResourceModifyRequestTransfer{
+		PDUSessionAggregateMaximumBitRate: &lib.PDUSessionAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+		QosFlowAddOrModifyRequest: lib.QosFlowAddOrModifyRequestList{{
+			QosFlowIdentifier: 1,
+			QosFlowLevelQosParameters: &lib.QosFlowLevelQosParameters{
+				QosCharacteristics: lib.QosCharacteristics{
+					Kind:          lib.QosCharacteristicsNonDynamic5QI,
+					NonDynamic5QI: lib.NonDynamic5QIDescriptor{FiveQI: 9},
+				},
+				AllocationAndRetentionPriority: lib.AllocationAndRetentionPriority{PriorityLevelARP: 8},
+			},
+		}},
+		QosFlowToRelease: lib.QosFlowListWithCause{
+			{QosFlowIdentifier: 2, Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0}},
+		},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Modify Request Transfer: %v", err)
+	}
+
+	modRespTransfer, err := (&lib.PDUSessionResourceModifyResponseTransfer{
+		DLNGUUPTNLInformation: &lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x41},
+		},
+		QosFlowAddOrModifyResponse: lib.QosFlowAddOrModifyResponseList{{QosFlowIdentifier: 1}},
+		QosFlowFailedToAddOrModify: lib.QosFlowListWithCause{
+			{QosFlowIdentifier: 2, Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0}},
+		},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Modify Response Transfer: %v", err)
+	}
+
+	modIndTransfer, err := (&lib.PDUSessionResourceModifyIndicationTransfer{
+		DLQosFlowPerTNLInformation: lib.QosFlowPerTNLInformation{
+			UPTransportLayerInformation: lib.UPTransportLayerInformation{
+				GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 1}, GTPTEID: 0x51},
+			},
+			AssociatedQosFlowList: lib.AssociatedQosFlowList{{QosFlowIdentifier: 1}},
+		},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Modify Indication Transfer: %v", err)
+	}
+
+	modCfmTransfer, err := (&lib.PDUSessionResourceModifyConfirmTransfer{
+		QosFlowModifyConfirm: lib.QosFlowModifyConfirmList{{QosFlowIdentifier: 1}},
+		ULNGUUPTNLInformation: lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 47, 0, 1}, GTPTEID: 0x61},
+		},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Modify Confirm Transfer: %v", err)
+	}
+
+	modFailTransfer, err := (&lib.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
+		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Modify Indication Unsuccessful Transfer: %v", err)
+	}
+
+	corpus["pdu_session_resource_modify_request_full"] = mustMarshal(t, &lib.PDUSessionResourceModifyRequest{
+		AMFUENGAPID: 7,
+		RANUENGAPID: 3,
+		PDUSessionResourceModify: lib.PDUSessionResourceModifyListModReq{
+			{PDUSessionID: 1, NASPDU: &lib.NASPDU{0x7e, 0x00, 0x68}, Transfer: modReqTransfer},
+		},
+	})
+
+	corpus["pdu_session_resource_modify_response_full"] = mustMarshal(t, &lib.PDUSessionResourceModifyResponse{
+		AMFUENGAPID:              lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:              lib.Ptr(lib.RANUENGAPID(3)),
+		PDUSessionResourceModify: lib.PDUSessionResourceModifyListModRes{{PDUSessionID: 1, Transfer: modRespTransfer}},
+		PDUSessionResourceFailed: lib.PDUSessionResourceFailedToModifyListModRes{{PDUSessionID: 2, Transfer: modFailTransfer}},
+		CriticalityDiagnostics:   &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcPDUSessionResourceModify)},
+	})
+
+	corpus["pdu_session_resource_modify_indication_full"] = mustMarshal(t, &lib.PDUSessionResourceModifyIndication{
+		AMFUENGAPID:              7,
+		RANUENGAPID:              3,
+		PDUSessionResourceModify: lib.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: modIndTransfer}},
+	})
+
+	corpus["pdu_session_resource_modify_confirm_full"] = mustMarshal(t, &lib.PDUSessionResourceModifyConfirm{
+		AMFUENGAPID:              lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:              lib.Ptr(lib.RANUENGAPID(3)),
+		PDUSessionResourceModify: lib.PDUSessionResourceModifyListModCfm{{PDUSessionID: 1, Transfer: modCfmTransfer}},
+		PDUSessionResourceFailed: lib.PDUSessionResourceFailedToModifyListModCfm{{PDUSessionID: 2, Transfer: modFailTransfer}},
+	})
+
+	corpus["pdu_session_resource_notify_full"] = mustMarshal(t, &lib.PDUSessionResourceNotify{
+		AMFUENGAPID:              7,
+		RANUENGAPID:              3,
+		PDUSessionResourceNotify: lib.PDUSessionResourceNotifyList{{PDUSessionID: 1, Transfer: lib.TransferContainer{0x01, 0x02}}},
+	})
+
+	corpus["ng_reset_all_full"] = mustMarshal(t, &lib.NGReset{
+		Cause:     &lib.Cause{Group: lib.CauseGroupMisc, Value: 3},
+		ResetType: lib.ResetType{All: true},
+	})
+
+	corpus["ng_reset_part_full"] = mustMarshal(t, &lib.NGReset{
+		Cause: &lib.Cause{Group: lib.CauseGroupTransport, Value: 0},
+		ResetType: lib.ResetType{Part: lib.UEAssociatedLogicalNGConnectionList{
+			{AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)), RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3))},
+			{RANUENGAPID: lib.Ptr(lib.RANUENGAPID(4))},
+		}},
+	})
+
+	corpus["ng_reset_acknowledge_full"] = mustMarshal(t, &lib.NGResetAcknowledge{
+		ConnectionList: lib.UEAssociatedLogicalNGConnectionList{
+			{AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)), RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3))},
+		},
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcNGReset)},
+	})
+
+	corpus["nas_non_delivery_indication_full"] = mustMarshal(t, &lib.NASNonDeliveryIndication{
+		AMFUENGAPID: 7,
+		RANUENGAPID: 3,
+		NASPDU:      lib.NASPDU{0x7e, 0x00, 0x44},
+		Cause:       &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 27},
+	})
+
 	corpus["paging_full"] = mustMarshal(t, &lib.Paging{
 		FiveGSTMSI:       &lib.FiveGSTMSI{AMFSetID: 1, AMFPointer: 2, FiveGTMSI: 0x01020304},
 		PagingDRX:        lib.Ptr(lib.PagingDRXv128),
@@ -246,12 +436,17 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcDownlinkNonUEAssociatedNRPPaTransport,
 			lib.ProcUplinkNonUEAssociatedNRPPaTransport, lib.ProcErrorIndication,
 			lib.ProcLocationReport, lib.ProcLocationReportingControl,
+			lib.ProcNGReset, lib.ProcPathSwitchRequest, lib.ProcNASNonDeliveryIndication,
+			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
+			lib.ProcPDUSessionResourceNotify,
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
 			lib.ProcUEContextRelease, lib.ProcPDUSessionResourceRelease,
+			lib.ProcNGReset, lib.ProcPathSwitchRequest,
+			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
 		},
-		"UnsuccessfulOutcome": {lib.ProcNGSetup, lib.ProcInitialContextSetup},
+		"UnsuccessfulOutcome": {lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPathSwitchRequest},
 	}
 
 	covered := map[string]map[int64]bool{}

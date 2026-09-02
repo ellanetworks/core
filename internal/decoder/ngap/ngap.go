@@ -160,6 +160,18 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildLocationReport(m.Value)
 	case ngap.ProcLocationReportingControl:
 		return buildLocationReportingControl(m.Value)
+	case ngap.ProcNGReset:
+		return buildNGReset(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequest(m.Value)
+	case ngap.ProcNASNonDeliveryIndication:
+		return buildNASNonDeliveryIndication(m.Value)
+	case ngap.ProcPDUSessionResourceModify:
+		return buildPDUSessionResourceModifyRequest(m.Value)
+	case ngap.ProcPDUSessionResourceModifyIndication:
+		return buildPDUSessionResourceModifyIndication(m.Value)
+	case ngap.ProcPDUSessionResourceNotify:
+		return buildPDUSessionResourceNotify(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -177,6 +189,14 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildUEContextReleaseComplete(m.Value)
 	case ngap.ProcPDUSessionResourceRelease:
 		return buildPDUSessionResourceReleaseResponse(m.Value)
+	case ngap.ProcNGReset:
+		return buildNGResetAcknowledge(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequestAcknowledge(m.Value)
+	case ngap.ProcPDUSessionResourceModify:
+		return buildPDUSessionResourceModifyResponse(m.Value)
+	case ngap.ProcPDUSessionResourceModifyIndication:
+		return buildPDUSessionResourceModifyConfirm(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -188,6 +208,8 @@ func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
 		return buildNGSetupFailure(m.Value)
 	case ngap.ProcInitialContextSetup:
 		return buildInitialContextSetupFailure(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequestFailure(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
