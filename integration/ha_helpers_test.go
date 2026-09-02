@@ -731,15 +731,36 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		t.Fatal("writer acknowledged no writes; the durability check would be vacuous")
 	}
 
-	sets := make([]map[string]struct{}, len(clients))
+	// An unknown-outcome write may still be replicating when the check
+	// starts, so replica agreement is polled instead of sampled once;
+	// only a lasting disagreement is a durability violation.
+	const agreementDeadline = 15 * time.Second
 
-	for i, c := range clients {
-		imsis, err := subscriberIMSIsOn(ctx, c)
-		if err != nil {
-			t.Fatalf("collect subscribers from node %d: %v", i+1, err)
+	var (
+		sets     []map[string]struct{}
+		diverged []string
+	)
+
+	end := time.Now().Add(agreementDeadline)
+
+	for {
+		sets = make([]map[string]struct{}, len(clients))
+
+		for i, c := range clients {
+			imsis, err := subscriberIMSIsOn(ctx, c)
+			if err != nil {
+				t.Fatalf("collect subscribers from node %d: %v", i+1, err)
+			}
+
+			sets[i] = imsis
 		}
 
-		sets[i] = imsis
+		diverged = divergedUnknownWrites(sets, report.unknown)
+		if len(diverged) == 0 || !time.Now().Before(end) {
+			break
+		}
+
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	for i, set := range sets {
@@ -757,9 +778,22 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		}
 	}
 
+	if len(diverged) > 0 {
+		t.Errorf("%d unknown-outcome writes are still present on some replicas but not others after %s: %v",
+			len(diverged), agreementDeadline, diverged[:min(len(diverged), 5)])
+	}
+
+	HALogf(t, "durability: %d acknowledged writes present on all %d nodes; %d unknown-outcome writes agreed across replicas",
+		len(report.acked), len(clients), len(report.unknown))
+}
+
+// divergedUnknownWrites returns the unknown-outcome IMSIs that are present
+// on some replicas but not all; a write missing everywhere never landed and
+// is not a divergence.
+func divergedUnknownWrites(sets []map[string]struct{}, unknown []string) []string {
 	diverged := make([]string, 0)
 
-	for _, imsi := range report.unknown {
+	for _, imsi := range unknown {
 		present := 0
 
 		for _, set := range sets {
@@ -773,13 +807,7 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		}
 	}
 
-	if len(diverged) > 0 {
-		t.Errorf("%d unknown-outcome writes are present on some replicas but not others: %v",
-			len(diverged), diverged[:min(len(diverged), 5)])
-	}
-
-	HALogf(t, "durability: %d acknowledged writes present on all %d nodes; %d unknown-outcome writes agreed across replicas",
-		len(report.acked), len(clients), len(report.unknown))
+	return diverged
 }
 
 // assertMembershipConsistent fails if clients return different

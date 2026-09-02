@@ -493,6 +493,10 @@ type writerReport struct {
 	unknown []string
 }
 
+// subscriberWriteTimeout bounds a single create so stop() cannot block
+// forever waiting for an in-flight request to resolve.
+const subscriberWriteTimeout = 30 * time.Second
+
 // startSubscriberWriter creates subscribers round-robin at ~5/s.
 // Transient errors (see isTransientWriteError) are counted; any other
 // error fails stopAndReport. imsiBase must be a 15-digit IMSI not
@@ -535,42 +539,41 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 
 			w.attempts.Add(1)
 
-			err = c.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+			// The request runs on its own context so stop() never aborts an
+			// in-flight write: the server ignores client cancellation, so an
+			// aborted request would still land in the raft log after the
+			// caller has moved on to reading replicas.
+			writeCtx, writeCancel := context.WithTimeout(context.Background(), subscriberWriteTimeout)
+			err = c.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
 				Imsi:           imsi,
 				Key:            "0eefb0893e6f1c2855a3a244c6db1277",
 				OPc:            "98da19bbc55e2a5b53857d10557b1d26",
 				SequenceNumber: "000000000022",
 				ProfileName:    "default",
 			})
-			if err == nil {
+
+			writeCancel()
+
+			switch {
+			case err == nil:
 				w.success.Add(1)
 				w.acked = append(w.acked, imsi)
 				w.recordSuccess(time.Now())
 
-				if ctx.Err() != nil {
-					return
-				}
-
-				continue
-			}
-
-			if ctx.Err() != nil {
+			case isTransientWriteError(err) || isOutcomeUnknownWriteError(err):
+				w.transient.Add(1)
 				w.unknown = append(w.unknown, imsi)
+
+			default:
+				e := fmt.Errorf("subscriber %s: %w", imsi, err)
+				w.fatalErr.Store(&e)
 
 				return
 			}
 
-			if isTransientWriteError(err) || isOutcomeUnknownWriteError(err) {
-				w.transient.Add(1)
-				w.unknown = append(w.unknown, imsi)
-
-				continue
+			if ctx.Err() != nil {
+				return
 			}
-
-			e := fmt.Errorf("subscriber %s: %w", imsi, err)
-			w.fatalErr.Store(&e)
-
-			return
 		}
 	}()
 
