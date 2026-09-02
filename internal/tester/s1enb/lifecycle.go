@@ -75,6 +75,9 @@ type ServiceRequestResult struct {
 	UpfAddress  string // S-GW/UPF S1-U address (uplink target)
 	ULTEID      uint32 // S-GW/UPF uplink TEID
 	DLTEID      uint32 // eNB downlink TEID reported to the MME
+	// UERadioCapability is the capability the MME replayed in the Initial Context
+	// Setup Request, empty when it sent none (TS 36.413 §9.1.4.1).
+	UERadioCapability []byte
 }
 
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
@@ -138,11 +141,12 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 	}
 
 	return &ServiceRequestResult{
-		MMEUES1APID: int64(ics.MMEUES1APID),
-		ENBUES1APID: enbUEID,
-		UpfAddress:  upf.Unmap().String(),
-		ULTEID:      uint32(erab.GTPTEID),
-		DLTEID:      dlTEID,
+		UERadioCapability: []byte(ics.UERadioCapability),
+		MMEUES1APID:       int64(ics.MMEUES1APID),
+		ENBUES1APID:       enbUEID,
+		UpfAddress:        upf.Unmap().String(),
+		ULTEID:            uint32(erab.GTPTEID),
+		DLTEID:            dlTEID,
 	}, nil
 }
 

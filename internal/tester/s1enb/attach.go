@@ -23,6 +23,7 @@ type AttachResult struct {
 	GUTI                *eps.EPSMobileIdentity
 	AttachResultValue   eps.AttachResult
 	SecurityKey         s1ap.SecurityKey
+	UERadioCapability   []byte
 	UESecurityCaps      s1ap.UESecurityCapabilities
 	EMMCause            *eps.EMMCause
 	IdentityRequested   bool
@@ -190,6 +191,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	res := &AttachResult{
 		AttachResultValue: accept.EPSAttachResult,
 		SecurityKey:       ics.SecurityKey,
+		UERadioCapability: []byte(ics.UERadioCapability),
 		UESecurityCaps:    ics.UESecurityCapabilities,
 		EMMCause:          accept.Cause,
 		MMEUES1APID:       mmeUEID,
