@@ -123,3 +123,11 @@ var confidentialityProtectionResultNames = map[ConfidentialityProtectionResult]s
 func (c ConfidentialityProtectionResult) Name() string {
 	return confidentialityProtectionResultNames[c]
 }
+
+var handoverTypeNames = map[HandoverType]string{
+	HandoverTypeIntra5GS:    "intra5gs",
+	HandoverTypeFiveGSToEPS: "fivegs-to-eps",
+	HandoverTypeEPSToFiveGS: "eps-to-5gs",
+}
+
+func (h HandoverType) Name() string { return handoverTypeNames[h] }

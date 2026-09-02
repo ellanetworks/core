@@ -252,6 +252,197 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		PDUSessionResourceNotify: lib.PDUSessionResourceNotifyList{{PDUSessionID: 1, Transfer: lib.TransferContainer{0x01, 0x02}}},
 	})
 
+	hoRequiredTransfer, err := (&lib.HandoverRequiredTransfer{
+		DirectForwardingPathAvailability: lib.Ptr(lib.DirectForwardingPathAvailable),
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Handover Required Transfer: %v", err)
+	}
+
+	hoCommandTransfer, err := (&lib.HandoverCommandTransfer{
+		DLForwardingUPTNLInformation: &lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 9}, GTPTEID: 0x71},
+		},
+		QosFlowToBeForwarded: lib.QosFlowToBeForwardedList{{QosFlowIdentifier: 1}},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Handover Command Transfer: %v", err)
+	}
+
+	hoAckTransfer, err := (&lib.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 9}, GTPTEID: 0x81},
+		},
+		SecurityResult:       &lib.SecurityResult{IntegrityProtectionResult: lib.IntegrityProtectionPerformed},
+		QosFlowSetupResponse: lib.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Handover Request Acknowledge Transfer: %v", err)
+	}
+
+	hoAllocFailTransfer, err := (&lib.HandoverResourceAllocationUnsuccessfulTransfer{
+		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Handover Resource Allocation Unsuccessful Transfer: %v", err)
+	}
+
+	hoPrepFailTransfer, err := (&lib.HandoverPreparationUnsuccessfulTransfer{
+		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build Handover Preparation Unsuccessful Transfer: %v", err)
+	}
+
+	hoSetupTransfer, err := (&lib.PDUSessionResourceSetupRequestTransfer{
+		ULNGUUPTNLInformation: lib.UPTransportLayerInformation{
+			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 47, 0, 9}, GTPTEID: 0x91},
+		},
+		PDUSessionType: lib.PDUSessionTypeIPv4,
+		QosFlowSetupRequest: lib.QosFlowSetupRequestList{{
+			QosFlowIdentifier: 1,
+			QosFlowLevelQosParameters: lib.QosFlowLevelQosParameters{
+				QosCharacteristics: lib.QosCharacteristics{
+					Kind:          lib.QosCharacteristicsNonDynamic5QI,
+					NonDynamic5QI: lib.NonDynamic5QIDescriptor{FiveQI: 9},
+				},
+				AllocationAndRetentionPriority: lib.AllocationAndRetentionPriority{PriorityLevelARP: 8},
+			},
+		}},
+	}).Marshal()
+	if err != nil {
+		t.Fatalf("build HO setup transfer: %v", err)
+	}
+
+	corpus["handover_required_full"] = mustMarshal(t, &lib.HandoverRequired{
+		AMFUENGAPID:  7,
+		RANUENGAPID:  3,
+		HandoverType: lib.HandoverTypeIntra5GS,
+		Cause:        &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+		TargetID: lib.TargetID{TargetRANNodeID: &lib.TargetRANNodeID{
+			GlobalRANNodeID: lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 2, Bits: 22},
+			SelectedTAI:     testTAI,
+		}},
+		DirectForwardingPathAvailability: lib.Ptr(lib.DirectForwardingPathAvailable),
+		PDUSessionResourceListHORqd: lib.PDUSessionResourceListHORqd{
+			{PDUSessionID: 1, Transfer: hoRequiredTransfer},
+		},
+		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x01, 0x02},
+	})
+
+	corpus["handover_command_full"] = mustMarshal(t, &lib.HandoverCommand{
+		AMFUENGAPID:                    7,
+		RANUENGAPID:                    3,
+		HandoverType:                   lib.HandoverTypeIntra5GS,
+		PDUSessionResourceHandoverList: lib.PDUSessionResourceHandoverList{{PDUSessionID: 1, Transfer: hoCommandTransfer}},
+		PDUSessionResourceToReleaseList: lib.PDUSessionResourceToReleaseListHOCmd{
+			{PDUSessionID: 2, Transfer: hoPrepFailTransfer},
+		},
+		TargetToSourceTransparentContainer: lib.TargetToSourceTransparentContainer{0x03, 0x04},
+	})
+
+	corpus["handover_preparation_failure_full"] = mustMarshal(t, &lib.HandoverPreparationFailure{
+		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:            lib.Ptr(lib.RANUENGAPID(3)),
+		Cause:                  &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcHandoverPreparation)},
+	})
+
+	corpus["handover_request_full"] = mustMarshal(t, &lib.HandoverRequest{
+		AMFUENGAPID:               7,
+		HandoverType:              lib.HandoverTypeIntra5GS,
+		Cause:                     &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+		UEAggregateMaximumBitRate: lib.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+		UESecurityCapabilities: lib.UESecurityCapabilities{
+			NREncryptionAlgorithms: 0xe000, NRIntegrityProtectionAlgorithms: 0xe000,
+			EUTRAEncryptionAlgorithms: 0xe000, EUTRAIntegrityProtectionAlgorithms: 0xe000,
+		},
+		SecurityContext:                    lib.SecurityContext{NextHopChainingCount: 1, NextHopNH: lib.SecurityKey{0x0a}},
+		NewSecurityContextInd:              lib.Ptr(lib.NewSecurityContextIndTrue),
+		PDUSessionResourceSetupListHOReq:   lib.PDUSessionResourceSetupListHOReq{{PDUSessionID: 1, SNSSAI: lib.SNSSAI{SST: 1}, Transfer: hoSetupTransfer}},
+		AllowedNSSAI:                       lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
+		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x05, 0x06},
+		MobilityRestrictionList: &lib.MobilityRestrictionList{
+			ServingPLMN:     testPLMN,
+			EquivalentPLMNs: lib.EquivalentPLMNs{testPLMN},
+			RATRestrictions: lib.RATRestrictions{{PLMNIdentity: testPLMN, RATRestrictionInformation: lib.RATRestrictionEUTRA}},
+		},
+		GUAMI: lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 0},
+	})
+
+	corpus["handover_request_acknowledge_full"] = mustMarshal(t, &lib.HandoverRequestAcknowledge{
+		AMFUENGAPID:                    lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:                    lib.Ptr(lib.RANUENGAPID(3)),
+		PDUSessionResourceAdmittedList: lib.PDUSessionResourceAdmittedList{{PDUSessionID: 1, Transfer: hoAckTransfer}},
+		PDUSessionResourceFailedToSetup: lib.PDUSessionResourceFailedToSetupListHOAck{
+			{PDUSessionID: 2, Transfer: hoAllocFailTransfer},
+		},
+		TargetToSourceTransparentContainer: lib.TargetToSourceTransparentContainer{0x07, 0x08},
+	})
+
+	corpus["handover_failure_full"] = mustMarshal(t, &lib.HandoverFailure{
+		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(7)),
+		Cause:                  &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcHandoverResourceAllocation)},
+	})
+
+	corpus["handover_notify_full"] = mustMarshal(t, &lib.HandoverNotify{
+		AMFUENGAPID: 7,
+		RANUENGAPID: 3,
+		UserLocationInformation: &lib.UserLocationInformation{
+			Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, CellIdentity: 0x10, TAI: testTAI,
+		},
+		NotifySourceNGRANNode: lib.Ptr(lib.NotifySourceNGRANNodeNotifySource),
+	})
+
+	corpus["handover_cancel_full"] = mustMarshal(t, &lib.HandoverCancel{
+		AMFUENGAPID: 7, RANUENGAPID: 3,
+		Cause: &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+	})
+
+	corpus["handover_cancel_acknowledge_full"] = mustMarshal(t, &lib.HandoverCancelAcknowledge{
+		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:            lib.Ptr(lib.RANUENGAPID(3)),
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcHandoverCancel)},
+	})
+
+	corpus["ran_configuration_update_full"] = mustMarshal(t, &lib.RANConfigurationUpdate{
+		RANNodeName:      lib.Ptr("gnb01"),
+		SupportedTAList:  lib.SupportedTAList{{TAC: 1, BroadcastPLMNList: lib.BroadcastPLMNList{{PLMNIdentity: testPLMN, TAISliceSupportList: lib.SliceSupportList{{SNSSAI: lib.SNSSAI{SST: 1}}}}}}},
+		DefaultPagingDRX: lib.Ptr(lib.PagingDRXv128),
+		GlobalRANNodeID:  &lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 1, Bits: 22},
+		NGRANTNLAssociationToRemoveList: lib.NGRANTNLAssociationToRemoveList{{
+			TNLAssociationTransportLayerAddress:    lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 1}},
+			TNLAssociationTransportLayerAddressAMF: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+		}},
+	})
+
+	corpus["ran_configuration_update_acknowledge_full"] = mustMarshal(t, &lib.RANConfigurationUpdateAcknowledge{
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcRANConfigurationUpdate)},
+	})
+
+	corpus["ran_configuration_update_failure_full"] = mustMarshal(t, &lib.RANConfigurationUpdateFailure{
+		Cause:                  &lib.Cause{Group: lib.CauseGroupMisc, Value: 3},
+		TimeToWait:             lib.Ptr(lib.TimeToWaitV10s),
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcRANConfigurationUpdate)},
+	})
+
+	corpus["uplink_ran_configuration_transfer_full"] = mustMarshal(t, &lib.UplinkRANConfigurationTransfer{
+		SONConfigurationTransfer: lib.SONConfigurationTransfer{0x01, 0x02, 0x03},
+	})
+
+	corpus["downlink_ran_configuration_transfer_full"] = mustMarshal(t, &lib.DownlinkRANConfigurationTransfer{
+		SONConfigurationTransfer: lib.SONConfigurationTransfer{0x04, 0x05, 0x06},
+	})
+
+	corpus["uplink_ran_status_transfer_full"] = mustMarshal(t, &lib.UplinkRANStatusTransfer{
+		AMFUENGAPID: 7, RANUENGAPID: 3, Container: lib.StatusTransferContainer{0x0a, 0x0b},
+	})
+
+	corpus["downlink_ran_status_transfer_full"] = mustMarshal(t, &lib.DownlinkRANStatusTransfer{
+		AMFUENGAPID: 7, RANUENGAPID: 3, Container: lib.StatusTransferContainer{0x0c, 0x0d},
+	})
+
 	corpus["ng_reset_all_full"] = mustMarshal(t, &lib.NGReset{
 		Cause:     &lib.Cause{Group: lib.CauseGroupMisc, Value: 3},
 		ResetType: lib.ResetType{All: true},
@@ -438,15 +629,24 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcLocationReport, lib.ProcLocationReportingControl,
 			lib.ProcNGReset, lib.ProcPathSwitchRequest, lib.ProcNASNonDeliveryIndication,
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
-			lib.ProcPDUSessionResourceNotify,
+			lib.ProcPDUSessionResourceNotify, lib.ProcRANConfigurationUpdate,
+			lib.ProcUplinkRANConfigurationTransfer, lib.ProcDownlinkRANConfigurationTransfer,
+			lib.ProcUplinkRANStatusTransfer, lib.ProcDownlinkRANStatusTransfer,
+			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
+			lib.ProcHandoverNotification, lib.ProcHandoverCancel,
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
 			lib.ProcUEContextRelease, lib.ProcPDUSessionResourceRelease,
 			lib.ProcNGReset, lib.ProcPathSwitchRequest,
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
+			lib.ProcRANConfigurationUpdate, lib.ProcHandoverPreparation,
+			lib.ProcHandoverResourceAllocation, lib.ProcHandoverCancel,
 		},
-		"UnsuccessfulOutcome": {lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPathSwitchRequest},
+		"UnsuccessfulOutcome": {
+			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,
+			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
+		},
 	}
 
 	covered := map[string]map[int64]bool{}

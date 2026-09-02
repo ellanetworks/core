@@ -172,6 +172,24 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildPDUSessionResourceModifyIndication(m.Value)
 	case ngap.ProcPDUSessionResourceNotify:
 		return buildPDUSessionResourceNotify(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdate(m.Value)
+	case ngap.ProcUplinkRANConfigurationTransfer:
+		return buildUplinkRANConfigurationTransfer(m.Value)
+	case ngap.ProcDownlinkRANConfigurationTransfer:
+		return buildDownlinkRANConfigurationTransfer(m.Value)
+	case ngap.ProcUplinkRANStatusTransfer:
+		return buildUplinkRANStatusTransfer(m.Value)
+	case ngap.ProcDownlinkRANStatusTransfer:
+		return buildDownlinkRANStatusTransfer(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverRequired(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverRequest(m.Value)
+	case ngap.ProcHandoverNotification:
+		return buildHandoverNotify(m.Value)
+	case ngap.ProcHandoverCancel:
+		return buildHandoverCancel(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -197,6 +215,14 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildPDUSessionResourceModifyResponse(m.Value)
 	case ngap.ProcPDUSessionResourceModifyIndication:
 		return buildPDUSessionResourceModifyConfirm(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdateAcknowledge(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverCommand(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverRequestAcknowledge(m.Value)
+	case ngap.ProcHandoverCancel:
+		return buildHandoverCancelAcknowledge(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -210,6 +236,12 @@ func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
 		return buildInitialContextSetupFailure(m.Value)
 	case ngap.ProcPathSwitchRequest:
 		return buildPathSwitchRequestFailure(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdateFailure(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverPreparationFailure(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverFailure(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
