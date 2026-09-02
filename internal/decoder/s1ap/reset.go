@@ -10,14 +10,14 @@ import (
 )
 
 // UEAssociatedLogicalS1Connection names one UE-associated logical S1 connection
-// (TS 36.413 §9.2.3.19). Either identity may be absent: the sender names the
+// (TS 36.413 §9.1.8.1). Either identity may be absent: the sender names the
 // connection with whichever ids it holds.
 type UEAssociatedLogicalS1Connection struct {
 	MMEUES1APID *uint32 `json:"mme_ue_s1ap_id,omitempty"`
 	ENBUES1APID *uint32 `json:"enb_ue_s1ap_id,omitempty"`
 }
 
-// ResetType selects what the RESET covers (TS 36.413 §9.2.1.51): the whole S1
+// ResetType selects what the RESET covers (TS 36.413 §9.1.8.1): the whole S1
 // interface, or the listed UE-associated logical S1 connections.
 type ResetType struct {
 	S1Interface bool                              `json:"s1_interface,omitempty"`

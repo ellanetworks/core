@@ -10,7 +10,7 @@ import (
 )
 
 // ERABToBeSwitchedDL is an E-RAB whose downlink GTP endpoint the target eNB asks
-// the MME to switch to it (TS 36.413 §9.2.1.53).
+// the MME to switch to it (TS 36.413 §9.1.5.8).
 type ERABToBeSwitchedDL struct {
 	ERABID                uint8  `json:"erab_id"`
 	TransportLayerAddress string `json:"transport_layer_address"`

@@ -12,7 +12,7 @@ import (
 )
 
 // SecurityContext is the {NCC, NH} pair the AMF hands the target node so it can
-// derive the next access-stratum key (TS 38.413 §9.3.1.27).
+// derive the next access-stratum key (TS 38.413 §9.3.1.88).
 type SecurityContext struct {
 	NextHopChainingCount int64  `json:"next_hop_chaining_count"`
 	NextHopNH            string `json:"next_hop_nh"`
@@ -32,7 +32,7 @@ type UserPlaneSecurityInformation struct {
 }
 
 // PathSwitchRequestTransferDecoded is the per-session transfer the target node
-// sends to move the downlink tunnel to itself (TS 38.413 §9.3.4.10).
+// sends to move the downlink tunnel to itself (TS 38.413 §9.3.4.8).
 type PathSwitchRequestTransferDecoded struct {
 	DLNGUUPTNLInformation        GTPTunnel                     `json:"dl_ng_u_up_tnl_information"`
 	DLNGUTNLInformationReused    *bool                         `json:"dl_ng_u_tnl_information_reused,omitempty"`
@@ -41,7 +41,7 @@ type PathSwitchRequestTransferDecoded struct {
 }
 
 // PathSwitchRequestAcknowledgeTransferDecoded is the transfer the AMF returns per
-// switched session (TS 38.413 §9.3.4.11).
+// switched session (TS 38.413 §9.3.4.9).
 type PathSwitchRequestAcknowledgeTransferDecoded struct {
 	ULNGUUPTNLInformation *GTPTunnel          `json:"ul_ng_u_up_tnl_information,omitempty"`
 	SecurityIndication    *SecurityIndication `json:"security_indication,omitempty"`

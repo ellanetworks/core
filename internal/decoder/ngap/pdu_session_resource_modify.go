@@ -19,7 +19,7 @@ type QosFlowWithCause struct {
 
 // QosFlowAddOrModifyRequest is a QoS flow the AMF asks the RAN to add or change.
 // The QoS parameters are optional: a modify that only rebinds the E-RAB carries
-// none (TS 38.413 §9.3.1.14).
+// none (TS 38.413 §9.3.4.3).
 type QosFlowAddOrModifyRequest struct {
 	QosFlow *QosFlowSetupRequest `json:"qos_flow,omitempty"`
 
@@ -34,14 +34,14 @@ type ULNGUUPTNLModify struct {
 }
 
 // QosFlowPerTNLInformation is a tunnel endpoint and the QoS flows carried on it
-// (TS 38.413 §9.3.2.10).
+// (TS 38.413 §9.3.2.8).
 type QosFlowPerTNLInformation struct {
 	UPTransportLayerInformation GTPTunnel           `json:"up_transport_layer_information"`
 	AssociatedQosFlowList       []AssociatedQosFlow `json:"associated_qos_flow_list,omitempty"`
 }
 
 // PDUSessionResourceModifyRequestTransferDecoded is the per-session transfer the
-// AMF sends to change a session (TS 38.413 §9.3.4.4).
+// AMF sends to change a session (TS 38.413 §9.3.4.3).
 type PDUSessionResourceModifyRequestTransferDecoded struct {
 	MaximumBitRate                  *MaximumBitRate             `json:"maximum_bit_rate,omitempty"`
 	ULNGUUPTNLModify                []ULNGUUPTNLModify          `json:"ul_ng_u_up_tnl_modify,omitempty"`
@@ -52,7 +52,7 @@ type PDUSessionResourceModifyRequestTransferDecoded struct {
 }
 
 // PDUSessionResourceModifyResponseTransferDecoded is what the RAN reports back
-// per session (TS 38.413 §9.3.4.5).
+// per session (TS 38.413 §9.3.4.4).
 type PDUSessionResourceModifyResponseTransferDecoded struct {
 	DLNGUUPTNLInformation                *GTPTunnel                 `json:"dl_ng_u_up_tnl_information,omitempty"`
 	ULNGUUPTNLInformation                *GTPTunnel                 `json:"ul_ng_u_up_tnl_information,omitempty"`

@@ -11,14 +11,14 @@ import (
 )
 
 // NGRANTNLAssociationToRemove names a control-plane TNL association the RAN node
-// asks the AMF to drop (TS 38.413 §9.3.1.126).
+// asks the AMF to drop (TS 38.413 §9.2.6.4).
 type NGRANTNLAssociationToRemove struct {
 	TNLAssociationTransportLayerAddress    string  `json:"tnl_association_transport_layer_address"`
 	TNLAssociationTransportLayerAddressAMF *string `json:"tnl_association_transport_layer_address_amf,omitempty"`
 }
 
 // SONConfigurationTransfer is the SON container two RAN nodes exchange through
-// the AMF. Its content is Xn, opaque to NGAP (TS 38.413 §9.3.3.10).
+// the AMF. Its content is Xn, opaque to NGAP (TS 38.413 §9.3.3.6).
 type SONConfigurationTransfer struct {
 	Hex string `json:"hex"`
 }
@@ -140,7 +140,7 @@ func buildDownlinkRANConfigurationTransfer(value []byte) NGAPMessageValue {
 }
 
 // The RAN status transfer container is a transparent PDCP status container the
-// two RAN nodes exchange through the AMF (TS 38.413 §9.3.1.31); NGAP does not
+// two RAN nodes exchange through the AMF (TS 38.413 §9.3.1.108); NGAP does not
 // model its content.
 func ranStatusTransferValue(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, container ngap.StatusTransferContainer, unknown []ngap.RawIE) NGAPMessageValue {
 	ies := []IE{

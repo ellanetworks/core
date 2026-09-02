@@ -12,7 +12,7 @@ import (
 )
 
 // TargetID names the node a handover is aimed at: an NG-RAN node for an intra-5GS
-// handover, an ng-eNB for one leaving 5GS (TS 38.413 §9.3.1.15).
+// handover, an ng-eNB for one leaving 5GS (TS 38.413 §9.3.1.25).
 type TargetID struct {
 	TargetRANNodeID *TargetRANNodeID `json:"target_ran_node_id,omitempty"`
 	TargetENBID     *TargetENBID     `json:"target_enb_id,omitempty"`
@@ -39,7 +39,7 @@ type EPSTAI struct {
 }
 
 // DataForwardingResponseDRB is one DRB's forwarding endpoints, as the target
-// node reports them (TS 38.413 §9.3.1.35).
+// node reports them (TS 38.413 §9.3.1.77).
 type DataForwardingResponseDRB struct {
 	DRBID                        uint8      `json:"drb_id"`
 	DLForwardingUPTNLInformation *GTPTunnel `json:"dl_forwarding_up_tnl_information,omitempty"`
@@ -54,13 +54,13 @@ type QosFlowWithDataForwarding struct {
 }
 
 // HandoverRequiredTransferDecoded is the source node's per-session transfer
-// (TS 38.413 §9.3.4.15).
+// (TS 38.413 §9.3.4.14).
 type HandoverRequiredTransferDecoded struct {
 	DirectForwardingPathAvailability *bool `json:"direct_forwarding_path_availability,omitempty"`
 }
 
 // HandoverCommandTransferDecoded is the per-session forwarding plan the source
-// node is given (TS 38.413 §9.3.4.16).
+// node is given (TS 38.413 §9.3.4.10).
 type HandoverCommandTransferDecoded struct {
 	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
 	QosFlowToBeForwarded         []int64                     `json:"qos_flow_to_be_forwarded,omitempty"`
@@ -68,7 +68,7 @@ type HandoverCommandTransferDecoded struct {
 }
 
 // HandoverRequestAcknowledgeTransferDecoded is what the target node reports per
-// admitted session (TS 38.413 §9.3.4.13).
+// admitted session (TS 38.413 §9.3.4.11).
 type HandoverRequestAcknowledgeTransferDecoded struct {
 	DLNGUUPTNLInformation        GTPTunnel                   `json:"dl_ng_u_up_tnl_information"`
 	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
@@ -79,7 +79,7 @@ type HandoverRequestAcknowledgeTransferDecoded struct {
 }
 
 // HandoverResourceAllocationUnsuccessfulTransferDecoded says why the target node
-// refused one session (TS 38.413 §9.3.4.14).
+// refused one session (TS 38.413 §9.3.4.19).
 type HandoverResourceAllocationUnsuccessfulTransferDecoded struct {
 	Cause                  Cause                   `json:"cause"`
 	CriticalityDiagnostics *CriticalityDiagnostics `json:"criticality_diagnostics,omitempty"`

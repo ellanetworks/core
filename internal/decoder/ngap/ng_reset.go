@@ -10,14 +10,14 @@ import (
 )
 
 // UEAssociatedLogicalNGConnection names one UE-associated logical NG connection
-// (TS 38.413 §9.3.3.20). Either identity may be absent: the sender names the
+// (TS 38.413 §9.3.3.25). Either identity may be absent: the sender names the
 // connection with whichever ids it holds.
 type UEAssociatedLogicalNGConnection struct {
 	AMFUENGAPID *int64 `json:"amf_ue_ngap_id,omitempty"`
 	RANUENGAPID *int64 `json:"ran_ue_ngap_id,omitempty"`
 }
 
-// ResetType selects what the NG RESET covers (TS 38.413 §9.3.1.16): the whole NG
+// ResetType selects what the NG RESET covers (TS 38.413 §9.2.6.11): the whole NG
 // interface, or the listed UE-associated logical NG connections.
 type ResetType struct {
 	NGInterface bool                              `json:"ng_interface,omitempty"`

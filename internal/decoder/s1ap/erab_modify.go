@@ -10,7 +10,7 @@ import (
 )
 
 // ERABToBeModified is an E-RAB whose QoS the MME asks the eNB to change, with
-// the NAS message that tells the UE about it (TS 36.413 §9.2.1.30).
+// the NAS message that tells the UE about it (TS 36.413 §9.1.3.3).
 type ERABToBeModified struct {
 	ERABID uint8  `json:"erab_id"`
 	QCI    uint8  `json:"qci"`
@@ -18,13 +18,13 @@ type ERABToBeModified struct {
 	NASPDU NASPDU `json:"nas_pdu"`
 }
 
-// ERABModifiedItem is an E-RAB the eNB confirms modified (TS 36.413 §9.2.1.31).
+// ERABModifiedItem is an E-RAB the eNB confirms modified (TS 36.413 §9.1.3.4).
 type ERABModifiedItem struct {
 	ERABID uint8 `json:"erab_id"`
 }
 
 // ERABModifiedTunnel is an E-RAB whose downlink S1-U endpoint the eNB reports,
-// so the MME can move the tunnel (TS 36.413 §9.2.1.32).
+// so the MME can move the tunnel (TS 36.413 §9.1.3.8).
 type ERABModifiedTunnel struct {
 	ERABID                uint8  `json:"erab_id"`
 	TransportLayerAddress string `json:"transport_layer_address"`
