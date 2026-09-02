@@ -118,9 +118,12 @@ const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
   </TreeRow>
 );
 
-const RawHexLine: React.FC<{ depth: number; hex: string }> = ({
+const HEX_KEYS = new Set(["raw_hex", "hex"]);
+
+const RawHexLine: React.FC<{ depth: number; hex: string; label?: string }> = ({
   depth,
   hex,
+  label = "raw_hex",
 }) => {
   const [copied, setCopied] = React.useState(false);
 
@@ -141,7 +144,7 @@ const RawHexLine: React.FC<{ depth: number; hex: string }> = ({
         component="span"
         sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
       >
-        {"raw_hex: "}
+        {label + ": "}
       </Box>
       <Box
         component="span"
@@ -159,7 +162,7 @@ const RawHexLine: React.FC<{ depth: number; hex: string }> = ({
         component="span"
         sx={{ color: "text.secondary", whiteSpace: "pre", flexShrink: 0 }}
       >
-        {` (${hex.length / 2} bytes)`}
+        {` (${hex.length / 2} ${hex.length === 2 ? "byte" : "bytes"})`}
       </Box>
       <Tooltip title={copied ? "Copied" : "Copy raw hex"}>
         <IconButton
@@ -443,7 +446,11 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   if (isInline) {
     return (
       <>
-        <KVLine depth={depth} k={title} v={inlineDisplay!} />
+        {typeof value === "string" && HEX_KEYS.has(title) ? (
+          <RawHexLine depth={depth} hex={value} label={title} />
+        ) : (
+          <KVLine depth={depth} k={title} v={inlineDisplay!} />
+        )}
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -650,6 +657,11 @@ const CollapsibleObject: React.FC<{
                 return (
                   <KVLine key={k} depth={childDepth} k={k} v={formatEnum(v)} />
                 );
+              if (typeof v === "string" && HEX_KEYS.has(k)) {
+                return (
+                  <RawHexLine key={k} depth={childDepth} hex={v} label={k} />
+                );
+              }
               if (
                 v == null ||
                 typeof v === "string" ||

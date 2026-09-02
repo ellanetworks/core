@@ -9,15 +9,15 @@ import (
 )
 
 type SecurityModeComplete struct {
-	IMEISV              *string `json:"imeisv,omitempty"`
-	NASMessageContainer []byte  `json:"nas_message_container,omitempty"`
+	IMEISV              *string              `json:"imeisv,omitempty"`
+	NASMessageContainer *NASMessageContainer `json:"nas_message_container,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildSecurityModeComplete(msg *fgs.SecurityModeComplete) *SecurityModeComplete {
 	out := &SecurityModeComplete{
-		NASMessageContainer: msg.NASMessageContainer,
+		NASMessageContainer: nasMessageContainer(msg.NASMessageContainer),
 	}
 
 	if msg.IMEISV != nil {

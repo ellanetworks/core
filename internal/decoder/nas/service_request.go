@@ -57,7 +57,7 @@ type ServiceRequest struct {
 	UplinkDataStatus        []UplinkDataStatusPDU     `json:"uplink_data_status,omitempty"`
 	PDUSessionStatus        []PDUSessionStatusPDU     `json:"pdu_session_status,omitempty"`
 	AllowedPDUSessionStatus []AllowedPDUSessionStatus `json:"allowed_pdu_session_status,omitempty"`
-	NASMessageContainer     []byte                    `json:"nas_message_container,omitempty"`
+	NASMessageContainer     *NASMessageContainer      `json:"nas_message_container,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -70,7 +70,7 @@ func buildServiceRequest(msg *fgs.ServiceRequest) *ServiceRequest {
 			NasKeySetIdentifiler: msg.NgKSI.Value,
 		},
 		TMSI5GS:             buildTMSI5GS(msg.MobileIdentity),
-		NASMessageContainer: msg.NASMessageContainer,
+		NASMessageContainer: nasMessageContainer(msg.NASMessageContainer),
 	}
 
 	if msg.UplinkDataStatus != nil {

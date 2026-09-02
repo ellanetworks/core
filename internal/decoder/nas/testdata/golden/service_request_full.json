@@ -253,7 +253,29 @@
           "active": false
         }
       ],
-      "nas_message_container": "LgE="
+      "nas_message_container": {
+        "protocol": "NAS",
+        "raw_hex": "2e01",
+        "decoded": {
+          "security_header": {
+            "protocol_discriminator": {
+              "type": "enum",
+              "value": 46,
+              "label": "5GSM",
+              "unknown": false
+            },
+            "security_header_type": {
+              "type": "enum",
+              "value": 1,
+              "label": "integrity protected",
+              "unknown": false
+            },
+            "sequence_number": 0
+          },
+          "encrypted": false,
+          "error": "security-protected NAS message too short"
+        }
+      }
     }
   },
   "encrypted": false

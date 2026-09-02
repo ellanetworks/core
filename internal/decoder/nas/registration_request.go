@@ -13,7 +13,7 @@ type RegistrationRequest struct {
 	RegistrationType5GS  utils.EnumField       `json:"registration_type_5gs"`
 	MobileIdentity5GS    MobileIdentity        `json:"mobile_identity_5gs"`
 	UESecurityCapability *UESecurityCapability `json:"ue_security_capability,omitempty"`
-	NASMessageContainer  []byte                `json:"nas_message_container,omitempty"`
+	NASMessageContainer  *NASMessageContainer  `json:"nas_message_container,omitempty"`
 
 	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
 	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
@@ -43,7 +43,7 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 		NasKeySetIdentifier: msg.NgKSI.Value,
 		RegistrationType5GS: registrationType5GSEnum(msg.RegistrationType),
 		MobileIdentity5GS:   buildMobileIdentity(msg.MobileIdentity),
-		NASMessageContainer: msg.NASMessageContainer,
+		NASMessageContainer: nasMessageContainer(msg.NASMessageContainer),
 	}
 
 	if msg.UESecurityCapability != nil {
