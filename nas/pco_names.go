@@ -28,6 +28,8 @@ func pcoUplinkContainerName(id uint16) string {
 		return "IM CN Subsystem Signaling Flag"
 	case 0x0003:
 		return "DNS Server IPv6 Address Request"
+	case 0x0004:
+		return "Not Supported"
 	case 0x0005:
 		return "MS Support of Network Requested Bearer Control indicator"
 	case 0x0007:
@@ -76,6 +78,40 @@ func pcoUplinkContainerName(id uint16) string {
 		return "Unstructured Link MTU Request"
 	case 0x0022:
 		return "5GSM cause value"
+	case 0x0023:
+		return "QoS rules with the length of two octets support indicator"
+	case 0x0024:
+		return "QoS flow descriptions with the length of two octets support indicator"
+	case 0x0027:
+		return "ACS information request"
+	case 0x0030:
+		return "ATSSS request"
+	case 0x0031:
+		return "DNS server security information indicator"
+	case 0x0032:
+		return "ECS configuration information provisioning support indicator"
+	case 0x0036:
+		return "PVS information request"
+	case 0x0039:
+		return "DNS server security protocol support"
+	case 0x003a:
+		return "EAS rediscovery support indication"
+	case 0x0041:
+		return "Service-level-AA container with the length of two octets"
+	case 0x0047:
+		return "EDC support indicator"
+	case 0x004a:
+		return "MS support of MAC address range in 5GS indicator"
+	case 0x0050:
+		return "SDNAEPC support indicator"
+	case 0x0051:
+		return "SDNAEPC EAP message with the length of two octets"
+	case 0x0052:
+		return "SDNAEPC DN-specific identity"
+	case 0x0056:
+		return "UE policy container with the length of two octets"
+	case 0x0057:
+		return "URSP provisioning in EPS support indicator"
 	default:
 		return protocolContainerName(id)
 	}
@@ -141,6 +177,64 @@ func pcoDownlinkContainerName(id uint16) string {
 		return "Unstructured Link MTU"
 	case 0x0023:
 		return "QoS rules with the length of two octets"
+	case 0x0024:
+		return "QoS flow descriptions with the length of two octets"
+	case 0x0025:
+		return "Small data rate control parameters"
+	case 0x0026:
+		return "Additional small data rate control for exception data parameters"
+	case 0x0027:
+		return "ACS information"
+	case 0x0028:
+		return "Initial small data rate control parameters"
+	case 0x0029:
+		return "Initial additional small data rate control for exception data parameters"
+	case 0x002a:
+		return "Initial APN rate control parameters"
+	case 0x002b:
+		return "Initial additional APN rate control for exception data parameters"
+	case 0x0030:
+		return "ATSSS response with the length of two octets"
+	case 0x0031:
+		return "DNS server security information with length of two octets"
+	case 0x0032:
+		return "ECS address with the length of two octets"
+	case 0x0035:
+		return "ECSP identifier"
+	case 0x0036:
+		return "PVS IPv4 Address"
+	case 0x0037:
+		return "PVS IPv6 Address"
+	case 0x0038:
+		return "PVS name"
+	case 0x003a:
+		return "EAS rediscovery indication without indicated impact"
+	case 0x003b:
+		return "EAS rediscovery indication with impacted EAS IPv4 address range"
+	case 0x003c:
+		return "EAS rediscovery indication with impacted EAS IPv6 address range"
+	case 0x003d:
+		return "EAS rediscovery indication with impacted EAS FQDN"
+	case 0x003e:
+		return "Uplink data not allowed"
+	case 0x003f:
+		return "Uplink data allowed"
+	case 0x0040:
+		return "UAS services not allowed indication"
+	case 0x0041:
+		return "Service-level-AA container with the length of two octets"
+	case 0x0048:
+		return "EDC usage allowed indicator"
+	case 0x0049:
+		return "EDC usage required indicator"
+	case 0x004a:
+		return "Network support of MAC address range in 5GS indicator"
+	case 0x0051:
+		return "SDNAEPC EAP message with the length of two octets"
+	case 0x0056:
+		return "UE policy container with the length of two octets"
+	case 0x0057:
+		return "URSP provisioning in EPS support indicator"
 	default:
 		return protocolContainerName(id)
 	}

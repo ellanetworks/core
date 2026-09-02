@@ -42,14 +42,32 @@ type PCOContainer struct {
 	Hex string `json:"hex,omitempty"`
 }
 
-// containerValue reads the contents of the containers the spec gives a fixed
-// width and meaning. Reading is direction-scoped: uplink an identifier is an
-// empty request, downlink it carries the value being requested.
+// containerValue reads the contents of the containers TS 24.008 §10.5.6.3 gives
+// a fixed width and meaning. Which containers those are depends on the
+// direction: an identifier that carries an address downlink is an empty request
+// uplink, and 0017H is the reverse, carrying the UE's status uplink and nothing
+// downlink.
 func containerValue(id uint16, dir naslib.PCODirection, b []byte) string {
-	if dir != naslib.PCONetworkToMS || len(b) == 0 {
+	if len(b) == 0 {
 		return ""
 	}
 
+	// the same contents in either direction
+	if id == 0x0014 && len(b) == 1 {
+		return naslib.PCONBIFOMModeName(b[0])
+	}
+
+	switch dir {
+	case naslib.PCONetworkToMS:
+		return downlinkContainerValue(id, b)
+	case naslib.PCOMSToNetwork:
+		return uplinkContainerValue(id, b)
+	default:
+		return ""
+	}
+}
+
+func downlinkContainerValue(id uint16, b []byte) string {
 	switch id {
 	// one IPv4 address (RFC 791)
 	case 0x0009, 0x000c, 0x000d:
@@ -72,11 +90,24 @@ func containerValue(id uint16, dir naslib.PCODirection, b []byte) string {
 			return strconv.Itoa(int(binary.BigEndian.Uint16(b)))
 		}
 	case 0x0005:
-		return naslib.PCOSelectedBearerControlModeName(b[0])
-	case 0x0014:
-		return naslib.PCONBIFOMModeName(b[0])
+		if len(b) == 1 {
+			return naslib.PCOSelectedBearerControlModeName(b[0])
+		}
+	}
+
+	return ""
+}
+
+func uplinkContainerValue(id uint16, b []byte) string {
+	switch id {
 	case 0x0017:
-		return naslib.PCOPSDataOffStatusName(b[0])
+		if len(b) == 1 {
+			return naslib.PCOPSDataOffStatusName(b[0])
+		}
+	case 0x001a:
+		if len(b) == 1 {
+			return strconv.Itoa(int(b[0]))
+		}
 	}
 
 	return ""
