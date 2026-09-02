@@ -82,15 +82,18 @@ func decodePDUSessionStatus(bitmap *fgs.PSIBitmap) []PDUSessionStatusPDU {
 	psi := bitmap.PSI
 	out := []PDUSessionStatusPDU{}
 
-	for i := range 16 {
+	// PSI(0) is spare (TS 24.501 §9.11.3.44), so there is no session 0 to report.
+	for i := 1; i < 16; i++ {
 		out = append(out, PDUSessionStatusPDU{PDUSessionID: i, Active: psi[i]})
 	}
 
 	return out
 }
 
-// decodePDUSessionReactivationResult renders the per-session outcome of the
-// reactivation the network attempted (TS 24.501 §9.11.3.42).
+// decodePDUSessionReactivationResult renders the outcome of the user-plane
+// establishment the network attempted (TS 24.501 §9.11.3.42). The bitmap shares
+// the PDU session status shape but not its polarity: a set bit reports that
+// establishment was not successful, so it must not be rendered as activity.
 func decodePDUSessionReactivationResult(bitmap *fgs.PSIBitmap) []PDUSessionReactivateResultPDU {
 	if bitmap == nil {
 		return nil
@@ -99,8 +102,9 @@ func decodePDUSessionReactivationResult(bitmap *fgs.PSIBitmap) []PDUSessionReact
 	psi := bitmap.PSI
 	out := []PDUSessionReactivateResultPDU{}
 
-	for i := range 16 {
-		out = append(out, PDUSessionReactivateResultPDU{PDUSessionID: i, Active: psi[i]})
+	// PSI(0) is spare (TS 24.501 §9.11.3.42).
+	for i := 1; i < 16; i++ {
+		out = append(out, PDUSessionReactivateResultPDU{PDUSessionID: i, EstablishmentFailed: psi[i]})
 	}
 
 	return out

@@ -111,9 +111,10 @@ func epsBearerContextStatus(s *naslib.EPSBearerContextStatus) []EPSBearerContext
 		return nil
 	}
 
-	out := make([]EPSBearerContextStatusItem, 0, len(s.Active))
-	for i, active := range s.Active {
-		out = append(out, EPSBearerContextStatusItem{EPSBearerIdentity: i, Active: active})
+	// EBI(0) is spare (TS 24.301 §9.9.2.1), so there is no bearer 0 to report.
+	out := make([]EPSBearerContextStatusItem, 0, len(s.Active)-1)
+	for i := 1; i < len(s.Active); i++ {
+		out = append(out, EPSBearerContextStatusItem{EPSBearerIdentity: i, Active: s.Active[i]})
 	}
 
 	return out
@@ -139,13 +140,16 @@ func rawOctets(b []byte) *RawOctets {
 // can move it to S1 mode (TS 24.501 §9.11.3.48, deferring to TS 24.301
 // §9.9.3.34). Hex keeps the octets; the lists read them.
 type S1UENetworkCapability struct {
-	Hex   string   `json:"hex"`
-	EEA   []string `json:"eea,omitempty"`
-	EIA   []string `json:"eia,omitempty"`
-	UEA   []string `json:"uea,omitempty"`
-	UIA   []string `json:"uia,omitempty"`
-	UCS2  bool     `json:"ucs2,omitempty"`
-	Error string   `json:"error,omitempty"`
+	Hex string   `json:"hex"`
+	EEA []string `json:"eea,omitempty"`
+	EIA []string `json:"eia,omitempty"`
+	UEA []string `json:"uea,omitempty"`
+	UIA []string `json:"uia,omitempty"`
+	// UCS2NoPreference is the octet 6 bit 8 of TS 24.301 §9.9.3.34: set means the
+	// UE has no preference between the default alphabet and UCS2, clear means it
+	// prefers the default alphabet. It is not a statement of UCS2 support.
+	UCS2NoPreference bool   `json:"ucs2_no_preference,omitempty"`
+	Error            string `json:"error,omitempty"`
 }
 
 func s1UENetworkCapability(b []byte) *S1UENetworkCapability {
@@ -168,7 +172,7 @@ func s1UENetworkCapability(b []byte) *S1UENetworkCapability {
 	if capability.HasUMTS {
 		out.UEA = algorithmNames("UEA", capability.UEA)
 		out.UIA = algorithmNames("UIA", capability.UIA)
-		out.UCS2 = capability.UCS2
+		out.UCS2NoPreference = capability.UCS2
 	}
 
 	return out

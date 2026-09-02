@@ -32,10 +32,6 @@
       },
       "pdu_session_status": [
         {
-          "pdu_session_id": 0,
-          "active": false
-        },
-        {
           "pdu_session_id": 1,
           "active": true
         },

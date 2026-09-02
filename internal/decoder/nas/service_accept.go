@@ -15,8 +15,10 @@ type PDUSessionCause struct {
 }
 
 type PDUSessionReactivateResultPDU struct {
-	PDUSessionID int  `json:"pdu_session_id"`
-	Active       bool `json:"active"`
+	PDUSessionID int `json:"pdu_session_id"`
+	// EstablishmentFailed is the set bit of TS 24.501 §9.11.3.42: user-plane
+	// resources the UE asked for, or the network allowed, were not established.
+	EstablishmentFailed bool `json:"establishment_failed"`
 }
 
 type ServiceAccept struct {

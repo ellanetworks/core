@@ -198,7 +198,7 @@ func (t GPRSTimer2) UnitName() string {
 	case GPRSTimer2Unit1Minute:
 		return "1 minute"
 	case GPRSTimer2UnitDecihours:
-		return "6 minutes"
+		return "decihours"
 	case GPRSTimerUnitDeactivated:
 		return "deactivated"
 	default:

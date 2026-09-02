@@ -26,10 +26,6 @@
     "service_accept": {
       "pdu_session_status": [
         {
-          "pdu_session_id": 0,
-          "active": false
-        },
-        {
           "pdu_session_id": 1,
           "active": true
         },
@@ -92,68 +88,64 @@
       ],
       "pdu_session_reactivation_result": [
         {
-          "pdu_session_id": 0,
-          "active": false
-        },
-        {
           "pdu_session_id": 1,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 2,
-          "active": true
+          "establishment_failed": true
         },
         {
           "pdu_session_id": 3,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 4,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 5,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 6,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 7,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 8,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 9,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 10,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 11,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 12,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 13,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 14,
-          "active": false
+          "establishment_failed": false
         },
         {
           "pdu_session_id": 15,
-          "active": false
+          "establishment_failed": false
         }
       ],
       "pdu_session_reactivation_result_error_cause": [
