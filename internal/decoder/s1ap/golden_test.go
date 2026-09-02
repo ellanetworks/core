@@ -88,6 +88,38 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		"invalid":                       {0xff, 0x00, 0x01},
 	}
 
+	corpus["enb_configuration_update_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdate{
+		ENBName:          s1ap.Ptr("srsenb01"),
+		SupportedTAs:     s1ap.SupportedTAs{{TAC: 1, BroadcastPLMNs: s1ap.BPLMNs{testPLMN}}},
+		DefaultPagingDRX: s1ap.Ptr(s1ap.PagingDRXv128),
+	})
+
+	corpus["enb_configuration_update_acknowledge_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdateAcknowledge{
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcENBConfigurationUpdate)},
+	})
+
+	corpus["enb_configuration_update_failure_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdateFailure{
+		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified},
+		TimeToWait:             s1ap.Ptr(s1ap.TimeToWaitV10s),
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcENBConfigurationUpdate)},
+	})
+
+	corpus["enb_configuration_transfer_full"] = mustMarshal(t, &s1ap.ENBConfigurationTransfer{
+		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04},
+	})
+
+	corpus["mme_configuration_transfer_full"] = mustMarshal(t, &s1ap.MMEConfigurationTransfer{
+		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x05, 0x06, 0x07, 0x08},
+	})
+
+	corpus["location_report_full"] = mustMarshal(t, &s1ap.LocationReport{
+		MMEUES1APID: 1,
+		ENBUES1APID: 2,
+		EUTRANCGI:   s1ap.Ptr(testCGI),
+		TAI:         s1ap.Ptr(testTAI),
+		RequestType: &s1ap.RequestType{EventType: s1ap.EventTypeChangeOfServeCell, ReportArea: s1ap.ReportAreaECGI},
+	})
+
 	corpus["erab_modify_request_full"] = mustMarshal(t, &s1ap.ERABModifyRequest{
 		MMEUES1APID:               1,
 		ENBUES1APID:               2,
@@ -370,6 +402,16 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		t.Fatalf("build LPPa PDU: %v", err)
 	}
 
+	corpus["downlink_non_ue_associated_lppa_transport_full"] = mustMarshal(t, &s1ap.DownlinkNonUEAssociatedLPPaTransport{
+		RoutingID: 3,
+		LPPaPDU:   lppaPDU,
+	})
+
+	corpus["uplink_non_ue_associated_lppa_transport_full"] = mustMarshal(t, &s1ap.UplinkNonUEAssociatedLPPaTransport{
+		RoutingID: 3,
+		LPPaPDU:   lppaPDU,
+	})
+
 	corpus["downlink_ue_associated_lppa_transport"] = mustMarshal(t, &s1ap.DownlinkUEAssociatedLPPaTransport{
 		MMEUES1APID: 5,
 		ENBUES1APID: 7,
@@ -451,6 +493,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest, s1ap.ProcNASNonDeliveryIndication,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
+			s1ap.ProcENBConfigurationUpdate, s1ap.ProcENBConfigurationTransfer,
+			s1ap.ProcMMEConfigurationTransfer, s1ap.ProcLocationReport,
+			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease,
@@ -458,11 +503,12 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
+			s1ap.ProcENBConfigurationUpdate,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
-			s1ap.ProcPathSwitchRequest,
+			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate,
 		},
 	}
 

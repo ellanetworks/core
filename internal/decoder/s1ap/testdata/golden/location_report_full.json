@@ -1,0 +1,120 @@
+{
+  "summary": "Location Report (MME-UE 1, eNB-UE 2)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 33,
+    "label": "LocationReport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 100,
+          "label": "EUTRAN-CGI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "cell_id": "0019b01"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 67,
+          "label": "TAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "tac": 1
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 98,
+          "label": "RequestType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "event_type": {
+            "type": "enum",
+            "value": 1,
+            "label": "change-of-serve-cell",
+            "unknown": false
+          },
+          "report_area": {
+            "type": "enum",
+            "value": 0,
+            "label": "ecgi",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}
