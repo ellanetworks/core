@@ -42,10 +42,17 @@ func parseTAC(s string) (uint16, error) {
 	return uint16(v), nil
 }
 
-// eutranCellID is this eNB's cell 1. The library places the eNB ID and the cell
-// index at the widths its kind implies, so neither is shifted here.
+// eutranCellID is this eNB's first cell. The library places the eNB ID and the
+// cell index at the widths its kind implies, so neither is shifted here. A home
+// eNB ID already fills all 28 bits of the cell identity, leaving cell 0 as its
+// only cell.
 func (e *ENB) eutranCellID() uint32 {
-	id, err := e.enbNodeID().CellIdentity(1)
+	cell := uint32(1)
+	if e.enbIDKind == s1ap.ENBIDHome {
+		cell = 0
+	}
+
+	id, err := e.enbNodeID().CellIdentity(cell)
 	if err != nil {
 		// enbID is simulator configuration, not peer input.
 		panic(fmt.Sprintf("s1enb: cell identity for eNB %#x: %v", e.enbID, err))
@@ -55,7 +62,7 @@ func (e *ENB) eutranCellID() uint32 {
 }
 
 func (e *ENB) enbNodeID() s1ap.ENBID {
-	return s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID}
+	return s1ap.ENBID{Kind: e.enbIDKind, Value: e.enbID}
 }
 
 func (e *ENB) tai() s1ap.TAI {
