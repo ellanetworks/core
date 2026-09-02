@@ -8,8 +8,6 @@ import (
 
 	epsdec "github.com/ellanetworks/core/internal/decoder/eps"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	naslib "github.com/ellanetworks/core/nas"
-	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -99,83 +97,6 @@ func drxParameter(d *fgs.DRXParameter) *DRXParameter {
 	}
 
 	return &DRXParameter{Value: utils.NamedEnum(uint8(d.Value), d.Value.String())}
-}
-
-type EPSBearerContextStatusItem struct {
-	EPSBearerIdentity int  `json:"eps_bearer_identity"`
-	Active            bool `json:"active"`
-}
-
-func epsBearerContextStatus(s *naslib.EPSBearerContextStatus) []EPSBearerContextStatusItem {
-	if s == nil {
-		return nil
-	}
-
-	// EBI(0) is spare (TS 24.301 §9.9.2.1), so there is no bearer 0 to report.
-	out := make([]EPSBearerContextStatusItem, 0, len(s.Active)-1)
-	for i := 1; i < len(s.Active); i++ {
-		out = append(out, EPSBearerContextStatusItem{EPSBearerIdentity: i, Active: s.Active[i]})
-	}
-
-	return out
-}
-
-// RawOctets is an element carried through as bytes: its contents belong to
-// another protocol (an EAP packet, RFC 3748) or are a blob the network does not
-// interpret (the SOR container, additional information). Hex matches how every
-// other raw value in the decoders is rendered.
-type RawOctets struct {
-	Hex string `json:"hex"`
-}
-
-func rawOctets(b []byte) *RawOctets {
-	if len(b) == 0 {
-		return nil
-	}
-
-	return &RawOctets{Hex: hex.EncodeToString(b)}
-}
-
-// S1UENetworkCapability is the E-UTRA capability a 5GS UE replays so the network
-// can move it to S1 mode (TS 24.501 §9.11.3.48, deferring to TS 24.301
-// §9.9.3.34). Hex keeps the octets; the lists read them.
-type S1UENetworkCapability struct {
-	Hex string   `json:"hex"`
-	EEA []string `json:"eea,omitempty"`
-	EIA []string `json:"eia,omitempty"`
-	UEA []string `json:"uea,omitempty"`
-	UIA []string `json:"uia,omitempty"`
-	// UCS2NoPreference is the octet 6 bit 8 of TS 24.301 §9.9.3.34: set means the
-	// UE has no preference between the default alphabet and UCS2, clear means it
-	// prefers the default alphabet. It is not a statement of UCS2 support.
-	UCS2NoPreference bool   `json:"ucs2_no_preference,omitempty"`
-	Error            string `json:"error,omitempty"`
-}
-
-func s1UENetworkCapability(b []byte) *S1UENetworkCapability {
-	if len(b) == 0 {
-		return nil
-	}
-
-	out := &S1UENetworkCapability{Hex: hex.EncodeToString(b)}
-
-	capability, err := eps.ParseUENetworkCapability(b)
-	if err != nil {
-		out.Error = err.Error()
-
-		return out
-	}
-
-	out.EEA = algorithmNames("EEA", capability.EEA)
-	out.EIA = algorithmNames("EIA", capability.EIA)
-
-	if capability.HasUMTS {
-		out.UEA = algorithmNames("UEA", capability.UEA)
-		out.UIA = algorithmNames("UIA", capability.UIA)
-		out.UCS2NoPreference = capability.UCS2
-	}
-
-	return out
 }
 
 // EPSNASMessageContainer is the complete EPS NAS message a 5GS registration

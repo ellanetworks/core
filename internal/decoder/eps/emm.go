@@ -5,7 +5,6 @@ package eps
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -52,80 +51,6 @@ type MobileIdentity struct {
 	GUTI *GUTI  `json:"guti,omitempty"`
 }
 
-type AttachRequest struct {
-	AttachType     utils.EnumField `json:"attach_type"`
-	MobileIdentity MobileIdentity  `json:"mobile_identity"`
-	ESMContainer   *ESMMessage     `json:"esm_container,omitempty"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type AttachAccept struct {
-	AttachResult utils.EnumField `json:"attach_result"`
-	T3412        uint8           `json:"t3412"`
-	GUTI         *MobileIdentity `json:"guti,omitempty"`
-	EMMCause     *uint8          `json:"emm_cause,omitempty"`
-	ESMContainer *ESMMessage     `json:"esm_container,omitempty"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type IdentityRequest struct {
-	IdentityType uint8 `json:"identity_type"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type IdentityResponse struct {
-	MobileIdentity string `json:"mobile_identity"` // raw value, hex
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type AuthenticationRequest struct {
-	NASKeySetIdentifier uint8  `json:"nas_key_set_identifier"`
-	RAND                string `json:"rand"`
-	AUTN                string `json:"autn"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type AuthenticationResponse struct {
-	RES string `json:"res"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type SecurityModeCommand struct {
-	CipheringAlgorithm utils.EnumField `json:"ciphering_algorithm"`
-	IntegrityAlgorithm utils.EnumField `json:"integrity_algorithm"`
-	IMEISVRequested    bool            `json:"imeisv_requested"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type TrackingAreaUpdateRequest struct {
-	UpdateType utils.EnumField `json:"update_type"`
-	ActiveFlag bool            `json:"active_flag"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type TrackingAreaUpdateAccept struct {
-	UpdateResult utils.EnumField `json:"update_result"`
-	GUTI         *MobileIdentity `json:"guti,omitempty"`
-	EMMCause     *uint8          `json:"emm_cause,omitempty"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type DetachRequest struct {
-	SwitchOff  bool  `json:"switch_off"`
-	DetachType uint8 `json:"detach_type"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
 type ServiceRequest struct {
 	KSI      uint8 `json:"ksi"`
 	Sequence uint8 `json:"sequence"`
@@ -146,81 +71,26 @@ func buildEMMMessage(b []byte) *EMMMessage {
 	}
 
 	switch msg := msg.(type) {
-	case *eps.AttachRequest:
-		m.AttachRequest = &AttachRequest{
-			AttachType:     attachTypeToEnum(msg.EPSAttachType),
-			MobileIdentity: mobileIdentity(msg.EPSMobileIdentity),
-			ESMContainer:   decodeESMContainer(msg.ESMMessageContainer),
-		}
-
-		m.AttachRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.AttachAccept:
-		a := &AttachAccept{
-			AttachResult: attachResultToEnum(msg.EPSAttachResult),
-			T3412:        timerOctet(msg.T3412),
-			EMMCause:     emmCauseValue(msg.Cause),
-			ESMContainer: decodeESMContainer(msg.ESMMessageContainer),
-		}
-		if msg.GUTI != nil {
-			id := mobileIdentity(*msg.GUTI)
-			a.GUTI = &id
-		}
-
-		m.AttachAccept = a
-
-		m.AttachAccept.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.IdentityRequest:
-		m.IdentityRequest = &IdentityRequest{IdentityType: uint8(msg.IdentityType)}
-
-		m.IdentityRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.IdentityResponse:
-		m.IdentityResponse = &IdentityResponse{MobileIdentity: msg.MobileIdentity.String()}
-
-		m.IdentityResponse.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.AuthenticationRequest:
-		m.AuthenticationRequest = &AuthenticationRequest{
-			NASKeySetIdentifier: msg.NASKeySetIdentifier.HalfOctet(),
-			RAND:                hex.EncodeToString(msg.RAND[:]),
-			AUTN:                hex.EncodeToString(msg.AUTN[:]),
-		}
-
-		m.AuthenticationRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.AuthenticationResponse:
-		m.AuthenticationResponse = &AuthenticationResponse{RES: hex.EncodeToString(msg.RES)}
-
-		m.AuthenticationResponse.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.SecurityModeCommand:
-		m.SecurityModeCommand = &SecurityModeCommand{
-			CipheringAlgorithm: cipheringAlgToEnum(uint8(msg.CipheringAlgorithm)),
-			IntegrityAlgorithm: integrityAlgToEnum(uint8(msg.IntegrityAlgorithm)),
-			IMEISVRequested:    msg.IMEISVRequested != nil && msg.IMEISVRequested.Requested(),
-		}
-
-		m.SecurityModeCommand.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.TrackingAreaUpdateRequest:
-		m.TrackingAreaUpdateRequest = &TrackingAreaUpdateRequest{
-			UpdateType: updateTypeToEnum(msg.EPSUpdateType),
-			ActiveFlag: msg.ActiveFlag,
-		}
-
-		m.TrackingAreaUpdateRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
-	case *eps.TrackingAreaUpdateAccept:
-		a := &TrackingAreaUpdateAccept{
-			UpdateResult: updateResultToEnum(msg.EPSUpdateResult),
-			EMMCause:     emmCauseValue(msg.Cause),
-		}
-		if msg.GUTI != nil {
-			id := mobileIdentity(*msg.GUTI)
-			a.GUTI = &id
-		}
-
-		m.TrackingAreaUpdateAccept = a
-
-		m.TrackingAreaUpdateAccept.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 	case *eps.DetachRequestUE:
-		m.DetachRequest = &DetachRequest{SwitchOff: msg.SwitchOff, DetachType: uint8(msg.TypeOfDetach)}
-
-		m.DetachRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+		m.DetachRequest = buildDetachRequest(msg)
+	case *eps.TrackingAreaUpdateAccept:
+		m.TrackingAreaUpdateAccept = buildTrackingAreaUpdateAccept(msg)
+	case *eps.TrackingAreaUpdateRequest:
+		m.TrackingAreaUpdateRequest = buildTrackingAreaUpdateRequest(msg)
+	case *eps.SecurityModeCommand:
+		m.SecurityModeCommand = buildSecurityModeCommand(msg)
+	case *eps.AuthenticationResponse:
+		m.AuthenticationResponse = buildAuthenticationResponse(msg)
+	case *eps.AuthenticationRequest:
+		m.AuthenticationRequest = buildAuthenticationRequest(msg)
+	case *eps.IdentityResponse:
+		m.IdentityResponse = buildIdentityResponse(msg)
+	case *eps.IdentityRequest:
+		m.IdentityRequest = buildIdentityRequest(msg)
+	case *eps.AttachAccept:
+		m.AttachAccept = buildAttachAccept(msg)
+	case *eps.AttachRequest:
+		m.AttachRequest = buildAttachRequest(msg)
 	}
 
 	return m

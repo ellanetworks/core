@@ -9,14 +9,14 @@ import (
 )
 
 type AuthenticationReject struct {
-	EAPMessage *RawOctets `json:"eap_message,omitempty"`
+	EAPMessage *utils.RawOctets `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildAuthenticationReject(msg *fgs.AuthenticationReject) *AuthenticationReject {
 	out := &AuthenticationReject{
-		EAPMessage: rawOctets(msg.EAP),
+		EAPMessage: utils.NewRawOctets(msg.EAP),
 	}
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)

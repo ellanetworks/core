@@ -31,6 +31,7 @@
         "label": "Initial registration",
         "unknown": false
       },
+      "follow_on_request_pending": true,
       "mobile_identity_5gs": {
         "identity_type": {
           "type": "enum",

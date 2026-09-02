@@ -188,6 +188,12 @@
                   "amf_pointer": 0,
                   "tmsi": "00000001"
                 },
+                "equivalent_plmns": [
+                  {
+                    "mcc": "001",
+                    "mnc": "01"
+                  }
+                ],
                 "tai_list": [
                   {
                     "plmn_id": {

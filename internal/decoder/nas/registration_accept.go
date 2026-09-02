@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	epsdec "github.com/ellanetworks/core/internal/decoder/eps"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -53,24 +53,26 @@ type SNSSAI struct {
 }
 
 type RegistrationAccept struct {
-	RegistrationResult5GS    utils.EnumField           `json:"registration_result_5gs"`
-	GUTI5G                   *GUTI5GContent            `json:"guti_5g,omitempty"`
-	EquivalentPLMNs          []PLMNID                  `json:"equivalent_plmns,omitempty"`
-	TAIList                  []TAI                     `json:"tai_list,omitempty"`
-	AllowedNSSAI             []SNSSAI                  `json:"allowed_nssai,omitempty"`
-	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
+	RegistrationResult5GS                  utils.EnumField           `json:"registration_result_5gs"`
+	RegistrationResultRestHex              string                    `json:"registration_result_rest_hex,omitempty"`
+	GUTI5G                                 *GUTI5GContent            `json:"guti_5g,omitempty"`
+	EquivalentPLMNs                        []PLMNID                  `json:"equivalent_plmns,omitempty"`
+	PDUSessionReactivationResultErrorCause []PDUSessionCause         `json:"pdu_session_reactivation_result_error_cause,omitempty"`
+	TAIList                                []TAI                     `json:"tai_list,omitempty"`
+	AllowedNSSAI                           []SNSSAI                  `json:"allowed_nssai,omitempty"`
+	NetworkFeatureSupport5GS               *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
 
-	ConfiguredNSSAI                 []SNSSAI                        `json:"configured_nssai,omitempty"`
-	PDUSessionStatus                []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
-	PDUSessionReactivationResult    []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
-	MICOIndication                  *MICOIndication                 `json:"mico_indication,omitempty"`
-	T3512Value                      *GPRSTimer3Value                `json:"t3512_value,omitempty"`
-	Non3GppDeregistrationTimerValue *GPRSTimer2Value                `json:"non_3gpp_deregistration_timer_value,omitempty"`
-	T3502Value                      *GPRSTimer2Value                `json:"t3502_value,omitempty"`
-	SORTransparentContainer         *RawOctets                      `json:"sor_transparent_container,omitempty"`
-	EAPMessage                      *RawOctets                      `json:"eap_message,omitempty"`
-	NegotiatedDRXParameters         *DRXParameter                   `json:"negotiated_drx_parameters,omitempty"`
-	EPSBearerContextStatus          []EPSBearerContextStatusItem    `json:"eps_bearer_context_status,omitempty"`
+	ConfiguredNSSAI                 []SNSSAI                            `json:"configured_nssai,omitempty"`
+	PDUSessionStatus                []PDUSessionStatusPDU               `json:"pdu_session_status,omitempty"`
+	PDUSessionReactivationResult    []PDUSessionReactivateResultPDU     `json:"pdu_session_reactivation_result,omitempty"`
+	MICOIndication                  *MICOIndication                     `json:"mico_indication,omitempty"`
+	T3512Value                      *GPRSTimer3Value                    `json:"t3512_value,omitempty"`
+	Non3GppDeregistrationTimerValue *GPRSTimer2Value                    `json:"non_3gpp_deregistration_timer_value,omitempty"`
+	T3502Value                      *GPRSTimer2Value                    `json:"t3502_value,omitempty"`
+	SORTransparentContainer         *utils.RawOctets                    `json:"sor_transparent_container,omitempty"`
+	EAPMessage                      *utils.RawOctets                    `json:"eap_message,omitempty"`
+	NegotiatedDRXParameters         *DRXParameter                       `json:"negotiated_drx_parameters,omitempty"`
+	EPSBearerContextStatus          []epsdec.EPSBearerContextStatusItem `json:"eps_bearer_context_status,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -90,9 +92,8 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 		out.GUTI5G = buildGUTI5G(*msg.GUTI)
 	}
 
-	if v, ok := preservedIE(msg.Unrecognized, ieiEquivalentPLMNs); ok {
-		out.EquivalentPLMNs = equivalentPlmnsFromRaw(v)
-	}
+	out.EquivalentPLMNs = equivalentPLMNs(msg.EquivalentPLMNs)
+	out.PDUSessionReactivationResultErrorCause = reactivationErrors(msg.ReactivationResultErrorCause)
 
 	if msg.TAIList != nil {
 		out.TAIList = taiList(*msg.TAIList)
@@ -107,10 +108,11 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 		out.NetworkFeatureSupport5GS = &nfs
 	}
 
-	out.SORTransparentContainer = rawOctets(msg.SORTransparentContainer)
-	out.EAPMessage = rawOctets(msg.EAP)
+	out.RegistrationResultRestHex = hex.EncodeToString(msg.RegistrationResultRest)
+	out.SORTransparentContainer = utils.NewRawOctets(msg.SORTransparentContainer)
+	out.EAPMessage = utils.NewRawOctets(msg.EAP)
 	out.ConfiguredNSSAI = nssai(msg.ConfiguredNSSAI)
-	out.EPSBearerContextStatus = epsBearerContextStatus(msg.EPSBearerContextStatus)
+	out.EPSBearerContextStatus = epsdec.EPSBearerContextStatus(msg.EPSBearerContextStatus)
 	out.MICOIndication = micoIndication(msg.MICOIndication)
 	out.NegotiatedDRXParameters = drxParameter(msg.NegotiatedDRX)
 	out.T3512Value = gprsTimer3(msg.T3512)
@@ -119,7 +121,7 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 	out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	out.PDUSessionReactivationResult = decodePDUSessionReactivationResult(msg.PDUSessionReactivationResult)
 
-	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiEquivalentPLMNs)
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }
@@ -154,58 +156,16 @@ func taiList(list fgs.TAIList) []TAI {
 	return out
 }
 
-// equivalentPlmnsFromRaw decodes the equivalent PLMNs IE value (a sequence of
-// 3-octet PLMN identities).
-// Information element identifiers of the REGISTRATION ACCEPT elements the nas
-// library does not model (TS 24.501 table 8.2.7.1.1). They arrive among the
-// message's unrecognized elements, which is where this decoder reads them.
-const (
-	ieiEquivalentPLMNs        uint8 = 0x4A
-	ieiRejectedNSSAI          uint8 = 0x11
-	ieiServiceAreaList        uint8 = 0x27
-	ieiEmergencyNumberList    uint8 = 0x34
-	ieiOperatorAccessCategory uint8 = 0x76
-	ieiLADNInformation        uint8 = 0x79
-	ieiExtEmergencyNumberList uint8 = 0x7A
-	ieiNSSAIInclusionMode     uint8 = 0xA0
-	ieiNon3GppNwPolicies      uint8 = 0xD0
-)
-
-// preservedIE returns the value of the preserved element with this IEI, and
-// whether the message carried one.
-func preservedIE(unrec []nas.RawIE, iei uint8) ([]byte, bool) {
-	for _, ie := range unrec {
-		if ie.IEI == iei {
-			return ie.Value, true
-		}
-	}
-
-	return nil, false
-}
-
-func equivalentPlmnsFromRaw(v []byte) []PLMNID {
-	if len(v) == 0 {
-		logger.EllaLog.Warn("EquivalentPlmns length is zero")
+// equivalentPLMNs renders the equivalent PLMN list (TS 24.008 §10.5.1.13). The
+// codec models the element, so it arrives parsed rather than preserved.
+func equivalentPLMNs(list nas.PLMNList) []PLMNID {
+	if len(list) == 0 {
 		return nil
 	}
 
-	if len(v)%3 != 0 {
-		logger.EllaLog.Warn("EquivalentPlmns length not multiple of 3")
-		return nil
-	}
-
-	n := len(v) / 3
-	out := make([]PLMNID, 0, n)
-
-	for i := range n {
-		base := i * 3
-
-		plmn, err := nas.ParsePLMN([3]byte{v[base], v[base+1], v[base+2]})
-		if err != nil {
-			continue
-		}
-
-		out = append(out, PLMNID{Mcc: plmn.MCC, Mnc: plmn.MNC})
+	out := make([]PLMNID, 0, len(list))
+	for _, p := range list {
+		out = append(out, PLMNID{Mcc: p.MCC, Mnc: p.MNC})
 	}
 
 	return out
@@ -237,4 +197,22 @@ func networkFeatureSupport(nfs fgs.NetworkFeatureSupport) NetworkFeatureSupport5
 		IMSVoPS3GPP:  b2u(nfs.IMSVoPS3GPP),
 		IMSVoPSN3GPP: b2u(nfs.IMSVoPSN3GPP),
 	}
+}
+
+// reactivationErrors renders the per-session cause the network gives for a
+// failed user-plane establishment (TS 24.501 §9.11.3.43).
+func reactivationErrors(errs fgs.ReactivationResultErrorCause) []PDUSessionCause {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	out := make([]PDUSessionCause, 0, len(errs))
+	for _, e := range errs {
+		out = append(out, PDUSessionCause{
+			PDUSessionID: uint8(e.PDUSessionID),
+			Cause:        utils.NamedEnum(uint8(e.Cause), e.Cause.Name()),
+		})
+	}
+
+	return out
 }

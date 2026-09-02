@@ -73,6 +73,99 @@
                 }
               },
               "tracking_area_update_request": {
+                "nas_key_set_identifier": 0,
+                "old_guti": {
+                  "type": "guti",
+                  "guti": {
+                    "mcc": "999",
+                    "mnc": "01",
+                    "mme_group_id": 1,
+                    "mme_code": 1,
+                    "m_tmsi": 1
+                  }
+                },
+                "ue_network_capability": {
+                  "hex": "f0700000180080",
+                  "eea": [
+                    "EEA0",
+                    "EEA1",
+                    "EEA2",
+                    "EEA3"
+                  ],
+                  "eia": [
+                    "EIA1",
+                    "EIA2",
+                    "EIA3"
+                  ]
+                },
+                "old_guti_type": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "native GUTI",
+                  "unknown": false
+                },
+                "eps_bearer_context_status": [
+                  {
+                    "eps_bearer_identity": 1,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 2,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 3,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 4,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 5,
+                    "active": true
+                  },
+                  {
+                    "eps_bearer_identity": 6,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 7,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 8,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 9,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 10,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 11,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 12,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 13,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 14,
+                    "active": false
+                  },
+                  {
+                    "eps_bearer_identity": 15,
+                    "active": false
+                  }
+                ],
                 "update_type": {
                   "type": "enum",
                   "value": 0,

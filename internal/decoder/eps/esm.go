@@ -29,20 +29,6 @@ type ESMMessage struct {
 	ActivateDefaultBearer  *ActivateDefaultBearer  `json:"activate_default_bearer,omitempty"`
 }
 
-type PDNConnectivityRequest struct {
-	RequestType utils.EnumField `json:"request_type"`
-	PDNType     utils.EnumField `json:"pdn_type"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
-type ActivateDefaultBearer struct {
-	AccessPointName string      `json:"access_point_name,omitempty"`
-	PDNAddress      *PDNAddress `json:"pdn_address,omitempty"`
-
-	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
-}
-
 // PDNAddress is the decoded PDN address IE (TS 24.301 §9.9.4.9): the assigned UE
 // address. For IPv6 the network assigns only the 64-bit interface identifier
 // (the prefix arrives via Router Advertisement / PCO).
@@ -72,20 +58,10 @@ func buildESMMessage(b []byte) *ESMMessage {
 	}
 
 	switch msg := msg.(type) {
-	case *eps.PDNConnectivityRequest:
-		m.PDNConnectivityRequest = &PDNConnectivityRequest{
-			RequestType: requestTypeToEnum(uint8(msg.RequestType)),
-			PDNType:     pdnTypeToEnum(msg.PDNType),
-		}
-
-		m.PDNConnectivityRequest.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 	case *eps.ActivateDefaultEPSBearerContextRequest:
-		m.ActivateDefaultBearer = &ActivateDefaultBearer{
-			AccessPointName: string(msg.AccessPointName),
-			PDNAddress:      pdnAddress(msg.PDNAddress),
-		}
-
-		m.ActivateDefaultBearer.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
+		m.ActivateDefaultBearer = buildActivateDefaultBearer(msg)
+	case *eps.PDNConnectivityRequest:
+		m.PDNConnectivityRequest = buildPDNConnectivityRequest(msg)
 	}
 
 	return m

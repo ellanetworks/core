@@ -264,10 +264,17 @@ func buildGsmMessage(raw []byte) *GsmMessage {
 		return gsmMessage
 	}
 
+	// The header octets above are read straight off the wire so a message the
+	// decoder cannot build still renders one. Where the codec did parse the
+	// message, its values are authoritative.
 	switch msg := msg.(type) {
 	case *fgs.PDUSessionEstablishmentRequest:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
 		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(msg)
 	case *fgs.PDUSessionEstablishmentAccept:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
 		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(msg)
 	}
 

@@ -13,7 +13,7 @@ type RegistrationReject struct {
 
 	T3346Value *GPRSTimer2Value `json:"t3346_value,omitempty"`
 	T3502Value *GPRSTimer2Value `json:"t3502_value,omitempty"`
-	EAPMessage *RawOctets       `json:"eap_message,omitempty"`
+	EAPMessage *utils.RawOctets `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -23,7 +23,7 @@ func buildRegistrationReject(msg *fgs.RegistrationReject) *RegistrationReject {
 		Cause5GMM: cause5GMMToEnum(msg.Cause),
 	}
 
-	out.EAPMessage = rawOctets(msg.EAP)
+	out.EAPMessage = utils.NewRawOctets(msg.EAP)
 	out.T3346Value = gprsTimer2(msg.T3346)
 	out.T3502Value = gprsTimer2(msg.T3502)
 

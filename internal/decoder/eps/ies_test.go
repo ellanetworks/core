@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package nas
+package eps
 
 import (
 	"encoding/hex"
@@ -11,13 +11,13 @@ import (
 
 // TS 24.301 §9.9.3.36 packs each algorithm set MSB-first, and bit 8 of the UIA
 // and GEA octets is spare. Bytes observed on a live 001/01 network.
-func TestS1UESecurityCapabilityBitLayout(t *testing.T) {
+func TestUESecurityCapabilityBitLayout(t *testing.T) {
 	raw, err := hex.DecodeString("f0f0c040")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got := s1UESecurityCapability(raw)
+	got := UESecurityCapabilityFromBytes(raw)
 
 	if got.Error != "" {
 		t.Fatalf("decode error: %s", got.Error)
@@ -44,8 +44,8 @@ func TestS1UESecurityCapabilityBitLayout(t *testing.T) {
 	}
 }
 
-func TestS1UESecurityCapabilityKeepsBytesOnBadLength(t *testing.T) {
-	got := s1UESecurityCapability([]byte{0x01, 0x02, 0x03})
+func TestUESecurityCapabilityKeepsBytesOnBadLength(t *testing.T) {
+	got := UESecurityCapabilityFromBytes([]byte{0x01, 0x02, 0x03})
 
 	if got.Error == "" {
 		t.Error("expected an error for a three octet element")

@@ -5,23 +5,7 @@ package nas
 
 import (
 	"testing"
-
-	"github.com/ellanetworks/core/nas"
 )
-
-func TestExtendedPCODecodesIPv4LinkMTURequest(t *testing.T) {
-	out := extendedPCOFromNAS(nas.ProtocolConfigurationOptions{
-		Containers: []nas.PCOContainer{{ID: 0x0010}},
-	})
-
-	if out.Error != "" {
-		t.Fatalf("container 0x0010 reported an error: %s", out.Error)
-	}
-
-	if out.IPv4LinkMTURequestUL == nil || !*out.IPv4LinkMTURequestUL {
-		t.Error("container 0x0010 did not set ipv4_link_mtu_request_ul")
-	}
-}
 
 // TS 24.501 §9.11.4.9 spreads the count over two octets, bit 8 of the first
 // being the most significant and bit 6 of the second the least.

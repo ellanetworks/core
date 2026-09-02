@@ -19,7 +19,7 @@ type DLNASTransport struct {
 	Cause5GMM                             *utils.EnumField `json:"cause_5gmm,omitempty"`
 	BackoffTimerSeconds                   *uint32          `json:"backoff_timer_seconds,omitempty"`
 
-	AdditionalInformation *RawOctets `json:"additional_information,omitempty"`
+	AdditionalInformation *utils.RawOctets `json:"additional_information,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -46,7 +46,7 @@ func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
 		out.Cause5GMM = &cause
 	}
 
-	out.AdditionalInformation = rawOctets(msg.AdditionalInfo)
+	out.AdditionalInformation = utils.NewRawOctets(msg.AdditionalInfo)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out

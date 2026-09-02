@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 
+	epsdec "github.com/ellanetworks/core/internal/decoder/eps"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -24,22 +25,22 @@ type SessionAMBR struct {
 }
 
 type PDUSessionEstablishmentAccept struct {
-	SelectedSSCMode                      uint8                                 `json:"selected_ssc_mode"`
-	SelectedPDUSessionType               utils.EnumField                       `json:"selected_pdu_session_type"`
-	AuthorizedQosRules                   []QosRule                             `json:"authorized_qos_rules"`
-	SessionAMBR                          SessionAMBR                           `json:"session_ambr"`
-	Cause5GSM                            *utils.EnumField                      `json:"cause_5g_s_m,omitempty"`
-	PDUAddress                           *string                               `json:"pdu_address,omitempty"`
-	SNSSAI                               *SNSSAI                               `json:"snssai,omitempty"`
-	AuthorizedQosFlowDescriptions        []QoSFlowDescription                  `json:"authorized_qos_flow_descriptions,omitempty"`
-	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
-	DNN                                  *string                               `json:"dnn,omitempty"`
+	SelectedSSCMode                      uint8                                        `json:"selected_ssc_mode"`
+	SelectedPDUSessionType               utils.EnumField                              `json:"selected_pdu_session_type"`
+	AuthorizedQosRules                   []QosRule                                    `json:"authorized_qos_rules"`
+	SessionAMBR                          SessionAMBR                                  `json:"session_ambr"`
+	Cause5GSM                            *utils.EnumField                             `json:"cause_5g_s_m,omitempty"`
+	PDUAddress                           *string                                      `json:"pdu_address,omitempty"`
+	SNSSAI                               *SNSSAI                                      `json:"snssai,omitempty"`
+	AuthorizedQosFlowDescriptions        []QoSFlowDescription                         `json:"authorized_qos_flow_descriptions,omitempty"`
+	ExtendedProtocolConfigurationOptions *epsdec.ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+	DNN                                  *string                                      `json:"dnn,omitempty"`
 
 	MappedEPSBearerContexts []MappedEPSBearerContext `json:"mapped_eps_bearer_contexts,omitempty"`
 
 	RQTimerValue                 *GPRSTimer2Value `json:"rq_timer_value,omitempty"`
 	AlwaysonPDUSessionIndication *bool            `json:"alwayson_pdu_session_indication,omitempty"`
-	EAPMessage                   *RawOctets       `json:"eap_message,omitempty"`
+	EAPMessage                   *utils.RawOctets `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -80,9 +81,7 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		estAcc.AuthorizedQosFlowDescriptions = QosFlowDescriptionsFromNAS(msg.QoSFlowDescriptions)
 	}
 
-	if msg.ExtendedPCO != nil {
-		estAcc.ExtendedProtocolConfigurationOptions = extendedPCOFromNAS(*msg.ExtendedPCO)
-	}
+	estAcc.ExtendedProtocolConfigurationOptions = epsdec.ExtendedPCO(msg.ExtendedPCO)
 
 	if msg.DNN != nil {
 		name := string(*msg.DNN)
@@ -91,7 +90,7 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 
 	estAcc.RQTimerValue = gprsTimer2(msg.RQTimer)
 	estAcc.AlwaysonPDUSessionIndication = msg.AlwaysOn
-	estAcc.EAPMessage = rawOctets(msg.EAP)
+	estAcc.EAPMessage = utils.NewRawOctets(msg.EAP)
 	estAcc.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return estAcc

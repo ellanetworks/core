@@ -30,7 +30,7 @@ type ULNASTransport struct {
 	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
 	DNN                                   *string          `json:"dnn,omitempty"`
 
-	AdditionalInformation *RawOctets `json:"additional_information,omitempty"`
+	AdditionalInformation *utils.RawOctets `json:"additional_information,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -64,7 +64,7 @@ func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
 		out.DNN = &name
 	}
 
-	out.AdditionalInformation = rawOctets(msg.AdditionalInformation)
+	out.AdditionalInformation = utils.NewRawOctets(msg.AdditionalInformation)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
