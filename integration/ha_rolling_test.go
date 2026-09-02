@@ -493,8 +493,6 @@ type writerReport struct {
 	unknown []string
 }
 
-// subscriberWriteTimeout bounds a single create so stop() cannot block
-// forever waiting for an in-flight request to resolve.
 const subscriberWriteTimeout = 30 * time.Second
 
 // startSubscriberWriter creates subscribers round-robin at ~5/s.
@@ -539,10 +537,6 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 
 			w.attempts.Add(1)
 
-			// The request runs on its own context so stop() never aborts an
-			// in-flight write: the server ignores client cancellation, so an
-			// aborted request would still land in the raft log after the
-			// caller has moved on to reading replicas.
 			writeCtx, writeCancel := context.WithTimeout(context.Background(), subscriberWriteTimeout)
 			err = c.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
 				Imsi:           imsi,

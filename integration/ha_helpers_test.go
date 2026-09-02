@@ -731,9 +731,6 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		t.Fatal("writer acknowledged no writes; the durability check would be vacuous")
 	}
 
-	// An unknown-outcome write may still be replicating when the check
-	// starts, so replica agreement is polled instead of sampled once;
-	// only a lasting disagreement is a durability violation.
 	const agreementDeadline = 15 * time.Second
 
 	var (
@@ -787,9 +784,6 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		len(report.acked), len(clients), len(report.unknown))
 }
 
-// divergedUnknownWrites returns the unknown-outcome IMSIs that are present
-// on some replicas but not all; a write missing everywhere never landed and
-// is not a divergence.
 func divergedUnknownWrites(sets []map[string]struct{}, unknown []string) []string {
 	diverged := make([]string, 0)
 
