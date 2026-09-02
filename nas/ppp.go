@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/netip"
+	"strconv"
+	"strings"
 )
 
 // The configuration protocol identifiers TS 24.008 §10.5.6.3 requires be
@@ -38,9 +40,11 @@ const (
 )
 
 const (
-	ipcpOptionIPAddress    uint8 = 3
-	ipcpOptionPrimaryDNS   uint8 = 129
-	ipcpOptionSecondaryDNS uint8 = 131
+	ipcpOptionIPAddress     uint8 = 3
+	ipcpOptionPrimaryDNS    uint8 = 129
+	ipcpOptionPrimaryNBNS   uint8 = 130
+	ipcpOptionSecondaryDNS  uint8 = 131
+	ipcpOptionSecondaryNBNS uint8 = 132
 )
 
 const (
@@ -234,4 +238,110 @@ func answerLCP(req pppPacket) ([]byte, error) {
 	}
 
 	return pppPacket{code: pppConfigureReject, identifier: req.identifier, data: req.data}.marshal()
+}
+
+// PCOProtocolOptionSummary renders the contents of a configuration protocol
+// options unit for display: the PPP code, and for IPCP the options it carries.
+// It returns the empty string for a unit it cannot read, leaving the caller to
+// fall back to the raw octets.
+func PCOProtocolOptionSummary(id uint16, content []byte) string {
+	p, err := parsePPPPacket(content)
+	if err != nil {
+		return ""
+	}
+
+	code := pppCodeName(id, p.code)
+	if code == "" {
+		return ""
+	}
+
+	if id != PCOProtocolIPCP {
+		return code
+	}
+
+	options, err := parsePPPOptions(p.data)
+	if err != nil || len(options) == 0 {
+		return code
+	}
+
+	rendered := make([]string, 0, len(options))
+	for _, o := range options {
+		rendered = append(rendered, ipcpOptionSummary(o))
+	}
+
+	return code + ": " + strings.Join(rendered, ", ")
+}
+
+func pppCodeName(id uint16, code uint8) string {
+	switch id {
+	case PCOProtocolIPCP, PCOProtocolLCP:
+		switch code {
+		case 1:
+			return "Configure-Request"
+		case 2:
+			return "Configure-Ack"
+		case 3:
+			return "Configure-Nak"
+		case 4:
+			return "Configure-Reject"
+		case 5:
+			return "Terminate-Request"
+		case 6:
+			return "Terminate-Ack"
+		case 7:
+			return "Code-Reject"
+		}
+	case PCOProtocolPAP:
+		switch code {
+		case 1:
+			return "Authenticate-Request"
+		case 2:
+			return "Authenticate-Ack"
+		case 3:
+			return "Authenticate-Nak"
+		}
+	case PCOProtocolCHAP:
+		switch code {
+		case 1:
+			return "Challenge"
+		case 2:
+			return "Response"
+		case 3:
+			return "Success"
+		case 4:
+			return "Failure"
+		}
+	}
+
+	return ""
+}
+
+func ipcpOptionSummary(o pppOption) string {
+	name := ipcpOptionName(o.typ)
+	if name == "" {
+		name = "option " + strconv.Itoa(int(o.typ))
+	}
+
+	if len(o.data) != ipv4Len {
+		return name
+	}
+
+	return name + " " + netip.AddrFrom4([ipv4Len]byte(o.data)).String()
+}
+
+func ipcpOptionName(typ uint8) string {
+	switch typ {
+	case ipcpOptionIPAddress:
+		return "IP Address"
+	case ipcpOptionPrimaryDNS:
+		return "Primary DNS Server Address"
+	case ipcpOptionPrimaryNBNS:
+		return "Primary NBNS Server Address"
+	case ipcpOptionSecondaryDNS:
+		return "Secondary DNS Server Address"
+	case ipcpOptionSecondaryNBNS:
+		return "Secondary NBNS Server Address"
+	default:
+		return ""
+	}
 }

@@ -198,3 +198,69 @@ func TestPrependProtocolOptionsPutsProtocolUnitsFirst(t *testing.T) {
 		t.Fatalf("IPCP is not the first unit on the wire: %x", b)
 	}
 }
+
+func TestPCOProtocolOptionSummary(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		id      uint16
+		content string
+		want    string
+	}{
+		{
+			"IPCP request with placeholder addresses",
+			nas.PCOProtocolIPCP,
+			"01000010" + "810600000000" + "830600000000",
+			"Configure-Request: Primary DNS Server Address 0.0.0.0, Secondary DNS Server Address 0.0.0.0",
+		},
+		{
+			"IPCP nak we answer with",
+			nas.PCOProtocolIPCP,
+			"03000010" + "810608080808" + "830608080808",
+			"Configure-Nak: Primary DNS Server Address 8.8.8.8, Secondary DNS Server Address 8.8.8.8",
+		},
+		{
+			"IPCP reject of the NBNS pair",
+			nas.PCOProtocolIPCP,
+			"04000010" + "820600000000" + "840600000000",
+			"Configure-Reject: Primary NBNS Server Address 0.0.0.0, Secondary NBNS Server Address 0.0.0.0",
+		},
+		{
+			"IPCP option this network does not name",
+			nas.PCOProtocolIPCP,
+			"0100000a" + "020600000000",
+			"Configure-Request: option 2 0.0.0.0",
+		},
+		{"IPCP with no options", nas.PCOProtocolIPCP, "02000004", "Configure-Ack"},
+		{"LCP", nas.PCOProtocolLCP, "0400000e" + "010405dc" + "020600000000", "Configure-Reject"},
+		{"PAP request", nas.PCOProtocolPAP, "01010008" + "02616200", "Authenticate-Request"},
+		{"PAP ack", nas.PCOProtocolPAP, "02010005" + "00", "Authenticate-Ack"},
+		{"CHAP response", nas.PCOProtocolCHAP, "02050006" + "0000", "Response"},
+		{"CHAP success", nas.PCOProtocolCHAP, "03050004", "Success"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nas.PCOProtocolOptionSummary(tc.id, mustHex(t, tc.content)); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPCOProtocolOptionSummaryFallsBackToRawOctets(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		id      uint16
+		content string
+	}{
+		{"truncated", nas.PCOProtocolIPCP, "0100"},
+		{"length past the end", nas.PCOProtocolIPCP, "010000ff"},
+		{"unnamed code", nas.PCOProtocolIPCP, "0b000004"},
+		{"unnamed CHAP code", nas.PCOProtocolCHAP, "09000004"},
+		{"not a protocol identifier", nas.PCOContainerDNSServerIPv4Address, "01000004"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nas.PCOProtocolOptionSummary(tc.id, mustHex(t, tc.content)); got != "" {
+				t.Fatalf("want the empty string so the caller shows hex, got %q", got)
+			}
+		})
+	}
+}
