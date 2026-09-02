@@ -164,8 +164,13 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		identity = *ue.attachGUTI
 	}
 
+	attachType := ue.attachType
+	if attachType == 0 {
+		attachType = eps.AttachTypeEPS
+	}
+
 	attach := &eps.AttachRequest{
-		EPSAttachType:       ue.attachType,
+		EPSAttachType:       attachType,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
 		UENetworkCapability: ue.ueNetworkCapability(),
