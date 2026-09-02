@@ -12,7 +12,7 @@ import {
 } from "@/queries/flow_reports";
 import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatProtocol } from "@/utils/formatters";
+import { formatProtocol, buildProtocolColorMap } from "@/utils/formatters";
 
 interface SubscriberProtocolChartProps {
   imsi: string;
@@ -44,12 +44,15 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
 
   const pieData = useMemo(() => {
     if (!statsData?.protocols?.length) return [];
-    return statsData.protocols.map((p, i) => ({
+    const colorMap = buildProtocolColorMap(
+      statsData.protocols.map((p) => p.protocol),
+      chart,
+    );
+    return statsData.protocols.map((p) => ({
       id: p.protocol,
       value: p.count,
       label: formatProtocol(p.protocol),
-      color:
-        chart.protocols[p.protocol] ?? chart.series[i % chart.series.length],
+      color: colorMap.get(p.protocol) ?? chart.series[0],
     }));
   }, [statsData, chart]);
 

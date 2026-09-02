@@ -25,10 +25,10 @@ func TestDecodersReadEveryCodecField(t *testing.T) {
 	}{
 		{"../ngap", "../../../ngap"},
 		{"../s1ap", "../../../s1ap"},
-		{"../nas", "../../../nas/fgs"},
-		{"../eps", "../../../nas/eps"},
+		{"../nas/fgs", "../../../nas/fgs"},
+		{"../nas/eps", "../../../nas/eps"},
 	} {
-		t.Run(strings.TrimPrefix(d.decoder, "../"), func(t *testing.T) {
+		t.Run(strings.ReplaceAll(strings.TrimPrefix(d.decoder, "../"), "/", "-"), func(t *testing.T) {
 			decoder := parseGoFiles(t, d.decoder)
 			codec := parseGoFiles(t, d.codec)
 

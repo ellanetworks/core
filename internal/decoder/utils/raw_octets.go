@@ -42,3 +42,25 @@ func AlgorithmNames(prefix string, set nas.AlgorithmSet) []string {
 
 	return names
 }
+
+// KeySetIdentifier is the NAS key set identifier and the type-of-security-context
+// flag that shares its half octet (TS 24.501 §9.11.3.32, TS 24.301 §9.9.3.21).
+// They are separate fields: rendering the half octet as one number conflates a
+// key set identifier of 1 in a mapped context with one of 9.
+type KeySetIdentifier struct {
+	Value uint8 `json:"value"`
+	// Mapped reports a context mapped from the other generation's, rather than
+	// one native to this one.
+	Mapped bool `json:"mapped"`
+	// NoKey reports the reserved value that stands for no key available.
+	NoKey bool `json:"no_key,omitempty"`
+}
+
+// NewKeySetIdentifier renders the identifier and its context flag.
+func NewKeySetIdentifier(k nas.KeySetIdentifier) KeySetIdentifier {
+	return KeySetIdentifier{
+		Value:  k.Value,
+		Mapped: k.Mapped,
+		NoKey:  k.Value == nas.NoKeyAvailable,
+	}
+}

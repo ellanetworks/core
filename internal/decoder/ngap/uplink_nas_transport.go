@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
+	fgsdec "github.com/ellanetworks/core/internal/decoder/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -17,7 +17,7 @@ func libNASPDU(pdu ngap.NASPDU) NASPDU {
 	return NASPDU{
 		Protocol: "NAS",
 		RawHex:   hex.EncodeToString(pdu),
-		Decoded:  nas.DecodeNASMessage(pdu),
+		Decoded:  fgsdec.DecodeNASMessage(pdu),
 	}
 }
 

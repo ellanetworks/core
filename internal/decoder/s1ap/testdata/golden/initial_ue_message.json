@@ -73,7 +73,10 @@
                 }
               },
               "tracking_area_update_request": {
-                "nas_key_set_identifier": 0,
+                "nas_key_set_identifier": {
+                  "value": 0,
+                  "mapped": false
+                },
                 "old_guti": {
                   "type": "guti",
                   "guti": {

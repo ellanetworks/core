@@ -72,7 +72,11 @@
                 }
               },
               "registration_request": {
-                "nas_key_set_identifier": 7,
+                "nas_key_set_identifier": {
+                  "value": 7,
+                  "mapped": false,
+                  "no_key": true
+                },
                 "registration_type_5gs": {
                   "type": "enum",
                   "value": 1,
