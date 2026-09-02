@@ -25,8 +25,13 @@ type ESMMessage struct {
 	ESMHeader ESMHeader `json:"esm_header"`
 	Error     string    `json:"error,omitempty"`
 
-	PDNConnectivityRequest *PDNConnectivityRequest `json:"pdn_connectivity_request,omitempty"`
-	ActivateDefaultBearer  *ActivateDefaultBearer  `json:"activate_default_bearer,omitempty"`
+	PDNConnectivityRequest      *PDNConnectivityRequest      `json:"pdn_connectivity_request,omitempty"`
+	ActivateDefaultBearer       *ActivateDefaultBearer       `json:"activate_default_bearer,omitempty"`
+	ActivateDefaultBearerAccept *ActivateDefaultBearerAccept `json:"activate_default_bearer_accept,omitempty"`
+	ESMInformationRequest       *ESMInformationRequest       `json:"esm_information_request,omitempty"`
+	ESMInformationResponse      *ESMInformationResponse      `json:"esm_information_response,omitempty"`
+	PDNDisconnectRequest        *PDNDisconnectRequest        `json:"pdn_disconnect_request,omitempty"`
+	DeactivateBearerAccept      *DeactivateBearerAccept      `json:"deactivate_bearer_accept,omitempty"`
 }
 
 // PDNAddress is the decoded PDN address IE (TS 24.301 §9.9.4.9): the assigned UE
@@ -62,6 +67,16 @@ func buildESMMessage(b []byte) *ESMMessage {
 		m.ActivateDefaultBearer = buildActivateDefaultBearer(msg)
 	case *eps.PDNConnectivityRequest:
 		m.PDNConnectivityRequest = buildPDNConnectivityRequest(msg)
+	case *eps.ActivateDefaultEPSBearerContextAccept:
+		m.ActivateDefaultBearerAccept = buildActivateDefaultBearerAccept(msg)
+	case *eps.ESMInformationRequest:
+		m.ESMInformationRequest = buildESMInformationRequest(msg)
+	case *eps.ESMInformationResponse:
+		m.ESMInformationResponse = buildESMInformationResponse(msg)
+	case *eps.PDNDisconnectRequest:
+		m.PDNDisconnectRequest = buildPDNDisconnectRequest(msg)
+	case *eps.DeactivateEPSBearerContextAccept:
+		m.DeactivateBearerAccept = buildDeactivateBearerAccept(msg)
 	}
 
 	return m

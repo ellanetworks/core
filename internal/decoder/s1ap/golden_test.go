@@ -81,6 +81,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		"ue_context_release_complete":   mustHex(t, ueContextReleaseCompleteCapture),
 		"paging":                        mustHex(t, pagingCapture),
 		"ue_capability_info_indication": mustHex(t, ueCapabilityInfoIndicationCapture),
+		"erab_setup_request":            mustHex(t, eRABSetupRequestCapture),
+		"erab_setup_response":           mustHex(t, eRABSetupResponseCapture),
+		"erab_release_command":          mustHex(t, eRABReleaseCommandCapture),
+		"erab_release_response":         mustHex(t, eRABReleaseResponseCapture),
 		"invalid":                       {0xff, 0x00, 0x01},
 	}
 
@@ -347,10 +351,12 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcHandoverNotification, s1ap.ProcHandoverCancel,
 			s1ap.ProcENBStatusTransfer, s1ap.ProcMMEStatusTransfer,
 			s1ap.ProcDownlinkUEAssociatedLPPaTransport, s1ap.ProcUplinkUEAssociatedLPPaTransport,
+			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation, s1ap.ProcHandoverCancel,
+			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup,

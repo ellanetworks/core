@@ -1,0 +1,197 @@
+{
+  "summary": "E-RAB Setup Request (MME-UE 1, eNB-UE 0, 1 E-RAB)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 5,
+    "label": "ERABSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 0
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 66,
+          "label": "uEaggregateMaximumBitrate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "dl": 200000000,
+          "ul": 200000000
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 16,
+          "label": "E-RABToBeSetupListBearerSUReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 6,
+            "qci": 5,
+            "arp": {
+              "priority_level": 1,
+              "preemption_capability": 0,
+              "preemption_vulnerability": 0
+            },
+            "transport_layer_address": "33.33.33.5+2001:18c0:85a:fe00:8975:1408:8ad:f41d",
+            "gtp_teid": 8,
+            "nas_pdu": {
+              "protocol": "NAS",
+              "raw_hex": "27cd717cf80462bcc101050403696d7305010a2e00015e04fefe0e0e583227488080211003000010810608080808830608080808000d04080808080010020578001b040100f110001c0901000631310101ff01001d06012710012710001f09012042010105070160",
+              "decoded": {
+                "security_header": {
+                  "protocol_discriminator": {
+                    "type": "enum",
+                    "value": 7,
+                    "label": "EMM",
+                    "unknown": false
+                  },
+                  "security_header_type": {
+                    "type": "enum",
+                    "value": 2,
+                    "label": "integrity protected and ciphered",
+                    "unknown": false
+                  },
+                  "authentication_code": 3446766840,
+                  "sequence_number": 4
+                },
+                "esm_message": {
+                  "esm_header": {
+                    "message_type": {
+                      "type": "enum",
+                      "value": 193,
+                      "label": "ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST",
+                      "unknown": false
+                    },
+                    "eps_bearer_identity": 6,
+                    "procedure_transaction_identity": 188
+                  },
+                  "activate_default_bearer": {
+                    "esm_cause": {
+                      "type": "enum",
+                      "value": 50,
+                      "label": "PDN type IPv4 only allowed",
+                      "unknown": false
+                    },
+                    "eps_qos": {
+                      "qci": 5
+                    },
+                    "apn_ambr": {
+                      "downlink_octet": 254,
+                      "uplink_octet": 254,
+                      "extended_hex": "0e0e"
+                    },
+                    "protocol_configuration_options": {
+                      "config_protocol": 128,
+                      "direction": "downlink",
+                      "containers": [
+                        {
+                          "id": 32801,
+                          "name": "IPCP",
+                          "value": "Configure-Nak: Primary DNS Server Address 8.8.8.8, Secondary DNS Server Address 8.8.8.8"
+                        },
+                        {
+                          "id": 13,
+                          "name": "DNS Server IPv4 Address",
+                          "value": "8.8.8.8"
+                        },
+                        {
+                          "id": 16,
+                          "name": "IPv4 Link MTU",
+                          "value": "1400"
+                        },
+                        {
+                          "id": 27,
+                          "name": "S-NSSAI",
+                          "hex": "0100f110"
+                        },
+                        {
+                          "id": 28,
+                          "name": "QoS rules",
+                          "hex": "01000631310101ff01"
+                        },
+                        {
+                          "id": 29,
+                          "name": "Session-AMBR",
+                          "hex": "012710012710"
+                        },
+                        {
+                          "id": 31,
+                          "name": "QoS flow descriptions",
+                          "hex": "012042010105070160"
+                        }
+                      ]
+                    },
+                    "access_point_name": "ims",
+                    "pdn_address": {
+                      "type": {
+                        "type": "enum",
+                        "value": 1,
+                        "label": "IPv4",
+                        "unknown": false
+                      },
+                      "ipv4": "10.46.0.1"
+                    }
+                  }
+                },
+                "encrypted": false
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

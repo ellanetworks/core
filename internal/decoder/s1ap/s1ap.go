@@ -86,6 +86,10 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildUEContextReleaseCommand(m.Value)
 	case s1ap.ProcUECapabilityInfoIndication:
 		msg.Value, msg.Summary = buildUECapabilityInfoIndication(m.Value)
+	case s1ap.ProcERABSetup:
+		msg.Value, msg.Summary = buildERABSetupRequest(m.Value)
+	case s1ap.ProcERABRelease:
+		msg.Value, msg.Summary = buildERABReleaseCommand(m.Value)
 	case s1ap.ProcPaging:
 		msg.Value, msg.Summary = buildPaging(m.Value)
 	case s1ap.ProcErrorIndication:
@@ -127,6 +131,10 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildInitialContextSetupResponse(m.Value)
 	case s1ap.ProcUEContextRelease:
 		msg.Value, msg.Summary = buildUEContextReleaseComplete(m.Value)
+	case s1ap.ProcERABSetup:
+		msg.Value, msg.Summary = buildERABSetupResponse(m.Value)
+	case s1ap.ProcERABRelease:
+		msg.Value, msg.Summary = buildERABReleaseResponse(m.Value)
 	case s1ap.ProcHandoverPreparation:
 		msg.Value, msg.Summary = buildHandoverCommand(m.Value)
 	case s1ap.ProcHandoverResourceAllocation:
