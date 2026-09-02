@@ -22,23 +22,33 @@ type EMMMessage struct {
 	EMMHeader EMMHeader `json:"emm_header"`
 	Error     string    `json:"error,omitempty"`
 
-	AttachRequest             *AttachRequest             `json:"attach_request,omitempty"`
-	AttachAccept              *AttachAccept              `json:"attach_accept,omitempty"`
-	IdentityRequest           *IdentityRequest           `json:"identity_request,omitempty"`
-	IdentityResponse          *IdentityResponse          `json:"identity_response,omitempty"`
-	AuthenticationRequest     *AuthenticationRequest     `json:"authentication_request,omitempty"`
-	AuthenticationResponse    *AuthenticationResponse    `json:"authentication_response,omitempty"`
-	SecurityModeCommand       *SecurityModeCommand       `json:"security_mode_command,omitempty"`
-	TrackingAreaUpdateRequest *TrackingAreaUpdateRequest `json:"tracking_area_update_request,omitempty"`
-	TrackingAreaUpdateAccept  *TrackingAreaUpdateAccept  `json:"tracking_area_update_accept,omitempty"`
-	DetachRequest             *DetachRequest             `json:"detach_request,omitempty"`
-	ServiceRequest            *ServiceRequest            `json:"service_request,omitempty"`
-	AttachComplete            *AttachComplete            `json:"attach_complete,omitempty"`
-	TrackingAreaUpdateReject  *TrackingAreaUpdateReject  `json:"tracking_area_update_reject,omitempty"`
-	SecurityModeComplete      *SecurityModeComplete      `json:"security_mode_complete,omitempty"`
-	EMMInformation            *EMMInformation            `json:"emm_information,omitempty"`
-	GUTIReallocationCommand   *GUTIReallocationCommand   `json:"guti_reallocation_command,omitempty"`
-	GUTIReallocationComplete  *GUTIReallocationComplete  `json:"guti_reallocation_complete,omitempty"`
+	AttachRequest              *AttachRequest              `json:"attach_request,omitempty"`
+	AttachAccept               *AttachAccept               `json:"attach_accept,omitempty"`
+	IdentityRequest            *IdentityRequest            `json:"identity_request,omitempty"`
+	IdentityResponse           *IdentityResponse           `json:"identity_response,omitempty"`
+	AuthenticationRequest      *AuthenticationRequest      `json:"authentication_request,omitempty"`
+	AuthenticationResponse     *AuthenticationResponse     `json:"authentication_response,omitempty"`
+	SecurityModeCommand        *SecurityModeCommand        `json:"security_mode_command,omitempty"`
+	TrackingAreaUpdateRequest  *TrackingAreaUpdateRequest  `json:"tracking_area_update_request,omitempty"`
+	TrackingAreaUpdateAccept   *TrackingAreaUpdateAccept   `json:"tracking_area_update_accept,omitempty"`
+	DetachRequest              *DetachRequest              `json:"detach_request,omitempty"`
+	ServiceRequest             *ServiceRequest             `json:"service_request,omitempty"`
+	AttachComplete             *AttachComplete             `json:"attach_complete,omitempty"`
+	TrackingAreaUpdateReject   *TrackingAreaUpdateReject   `json:"tracking_area_update_reject,omitempty"`
+	SecurityModeComplete       *SecurityModeComplete       `json:"security_mode_complete,omitempty"`
+	EMMInformation             *EMMInformation             `json:"emm_information,omitempty"`
+	GUTIReallocationCommand    *GUTIReallocationCommand    `json:"guti_reallocation_command,omitempty"`
+	GUTIReallocationComplete   *GUTIReallocationComplete   `json:"guti_reallocation_complete,omitempty"`
+	AttachReject               *AttachReject               `json:"attach_reject,omitempty"`
+	AuthenticationFailure      *AuthenticationFailure      `json:"authentication_failure,omitempty"`
+	AuthenticationReject       *AuthenticationReject       `json:"authentication_reject,omitempty"`
+	DetachAccept               *DetachAccept               `json:"detach_accept,omitempty"`
+	DetachRequestNetwork       *DetachRequestNetwork       `json:"detach_request_network,omitempty"`
+	EMMStatus                  *EMMStatus                  `json:"emm_status,omitempty"`
+	SecurityModeReject         *SecurityModeReject         `json:"security_mode_reject,omitempty"`
+	ServiceAccept              *ServiceAccept              `json:"service_accept,omitempty"`
+	ServiceReject              *ServiceReject              `json:"service_reject,omitempty"`
+	TrackingAreaUpdateComplete *TrackingAreaUpdateComplete `json:"tracking_area_update_complete,omitempty"`
 }
 
 type GUTI struct {
@@ -68,8 +78,13 @@ func buildEMMMessage(b []byte) *EMMMessage {
 
 	// A capture carries no direction, and TS 24.301 table 9.8.1 gives DETACH
 	// REQUEST one message type for both: decode the uplink variant, the one a
-	// UE sends.
+	// UE sends, and fall back to the network variant when that fails, since the
+	// two have different layouts and only one of them can parse.
 	msg, err := eps.ParseMessage(b, nas.DirectionUplink)
+	if err != nil && !nas.SoftOnly(err) && mt == eps.MsgDetachRequest {
+		msg, err = eps.ParseMessage(b, nas.DirectionDownlink)
+	}
+
 	if err != nil && !nas.SoftOnly(err) {
 		m.Error = err.Error()
 
@@ -109,6 +124,26 @@ func buildEMMMessage(b []byte) *EMMMessage {
 		m.GUTIReallocationCommand = buildGUTIReallocationCommand(msg)
 	case *eps.GUTIReallocationComplete:
 		m.GUTIReallocationComplete = buildGUTIReallocationComplete(msg)
+	case *eps.AttachReject:
+		m.AttachReject = buildAttachReject(msg)
+	case *eps.AuthenticationFailure:
+		m.AuthenticationFailure = buildAuthenticationFailure(msg)
+	case *eps.AuthenticationReject:
+		m.AuthenticationReject = buildAuthenticationReject(msg)
+	case *eps.DetachAccept:
+		m.DetachAccept = buildDetachAccept(msg)
+	case *eps.DetachRequestNetwork:
+		m.DetachRequestNetwork = buildDetachRequestNetwork(msg)
+	case *eps.EMMStatus:
+		m.EMMStatus = buildEMMStatus(msg)
+	case *eps.SecurityModeReject:
+		m.SecurityModeReject = buildSecurityModeReject(msg)
+	case *eps.ServiceAccept:
+		m.ServiceAccept = buildServiceAccept(msg)
+	case *eps.ServiceReject:
+		m.ServiceReject = buildServiceReject(msg)
+	case *eps.TrackingAreaUpdateComplete:
+		m.TrackingAreaUpdateComplete = buildTrackingAreaUpdateComplete(msg)
 	}
 
 	return m
