@@ -41,6 +41,7 @@ type UE struct {
 	attachGUTI                *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 	n1Mode                    bool                   // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
 	deferESMInfo              bool
+	attachType                eps.AttachType
 	requestType               eps.RequestType
 	pduSessionID              uint8 // sent in the PCO; 0 sends none
 	kasme                     []byte
@@ -61,7 +62,7 @@ func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
 	return &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
-		requestType: eps.RequestTypeInitialRequest,
+		attachType: eps.AttachTypeEPS, requestType: eps.RequestTypeInitialRequest,
 	}
 }
 
@@ -99,6 +100,8 @@ func (ue *UE) RequestPDNType(t uint8) { ue.pdnType = eps.PDNType(t) }
 func (ue *UE) RequestAPN(apn string) { ue.apn = apn }
 
 func (ue *UE) DeferESMInformation() { ue.deferESMInfo = true }
+
+func (ue *UE) RequestCombinedAttach() { ue.attachType = eps.AttachTypeCombined }
 
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,
 // so the MME must obtain the IMSI with an IDENTITY REQUEST (TS 24.301 §5.4.4).
@@ -162,7 +165,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 	}
 
 	attach := &eps.AttachRequest{
-		EPSAttachType:       eps.AttachTypeEPS,
+		EPSAttachType:       ue.attachType,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
 		UENetworkCapability: ue.ueNetworkCapability(),

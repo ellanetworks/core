@@ -18,17 +18,23 @@ import (
 // check is reachability rather than name matching, because a decoder is free to
 // render a field under another name or at another level — the EPS bearer
 // identity, for one, is rendered on the ESM header rather than per message.
+var codecPairs = []struct {
+	decoder string
+	codec   string
+}{
+	{"../ngap", "../../../ngap"},
+	{"../s1ap", "../../../s1ap"},
+	{"../nas/fgs", "../../../nas/fgs"},
+	{"../nas/eps", "../../../nas/eps"},
+}
+
+func pairName(decoder string) string {
+	return strings.TrimPrefix(decoder, "../")
+}
+
 func TestDecodersReadEveryCodecField(t *testing.T) {
-	for _, d := range []struct {
-		decoder string
-		codec   string
-	}{
-		{"../ngap", "../../../ngap"},
-		{"../s1ap", "../../../s1ap"},
-		{"../nas/fgs", "../../../nas/fgs"},
-		{"../nas/eps", "../../../nas/eps"},
-	} {
-		t.Run(strings.ReplaceAll(strings.TrimPrefix(d.decoder, "../"), "/", "-"), func(t *testing.T) {
+	for _, d := range codecPairs {
+		t.Run(strings.ReplaceAll(pairName(d.decoder), "/", "-"), func(t *testing.T) {
 			decoder := parseGoFiles(t, d.decoder)
 			codec := parseGoFiles(t, d.codec)
 
@@ -312,4 +318,55 @@ func exportedFields(files []*ast.File, typeName string) []string {
 	}
 
 	return out
+}
+
+func messageNames(files []*ast.File) []string {
+	var out []string
+
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			ts, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+
+			if _, ok := ts.Type.(*ast.StructType); !ok {
+				return true
+			}
+
+			if isMessage(files, ts.Name.Name) {
+				out = append(out, ts.Name.Name)
+			}
+
+			return false
+		})
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+func TestDecodersBuildEveryCodecMessage(t *testing.T) {
+	for _, d := range codecPairs {
+		t.Run(strings.ReplaceAll(pairName(d.decoder), "/", "-"), func(t *testing.T) {
+			decoder := parseGoFiles(t, d.decoder)
+			codec := parseGoFiles(t, d.codec)
+
+			read := readsPerMessage(decoder)
+
+			var undecoded []string
+
+			for _, msg := range messageNames(codec) {
+				if _, handled := read[msg]; !handled {
+					undecoded = append(undecoded, msg)
+				}
+			}
+
+			if len(undecoded) > 0 {
+				t.Errorf("the codec parses %d message(s) no decoder builds a body for, so their contents are dropped:\n  %s",
+					len(undecoded), strings.Join(undecoded, "\n  "))
+			}
+		})
+	}
 }

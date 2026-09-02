@@ -33,6 +33,12 @@ type EMMMessage struct {
 	TrackingAreaUpdateAccept  *TrackingAreaUpdateAccept  `json:"tracking_area_update_accept,omitempty"`
 	DetachRequest             *DetachRequest             `json:"detach_request,omitempty"`
 	ServiceRequest            *ServiceRequest            `json:"service_request,omitempty"`
+	AttachComplete            *AttachComplete            `json:"attach_complete,omitempty"`
+	TrackingAreaUpdateReject  *TrackingAreaUpdateReject  `json:"tracking_area_update_reject,omitempty"`
+	SecurityModeComplete      *SecurityModeComplete      `json:"security_mode_complete,omitempty"`
+	EMMInformation            *EMMInformation            `json:"emm_information,omitempty"`
+	GUTIReallocationCommand   *GUTIReallocationCommand   `json:"guti_reallocation_command,omitempty"`
+	GUTIReallocationComplete  *GUTIReallocationComplete  `json:"guti_reallocation_complete,omitempty"`
 }
 
 type GUTI struct {
@@ -91,6 +97,18 @@ func buildEMMMessage(b []byte) *EMMMessage {
 		m.AttachAccept = buildAttachAccept(msg)
 	case *eps.AttachRequest:
 		m.AttachRequest = buildAttachRequest(msg)
+	case *eps.AttachComplete:
+		m.AttachComplete = buildAttachComplete(msg)
+	case *eps.TrackingAreaUpdateReject:
+		m.TrackingAreaUpdateReject = buildTrackingAreaUpdateReject(msg)
+	case *eps.SecurityModeComplete:
+		m.SecurityModeComplete = buildSecurityModeComplete(msg)
+	case *eps.EMMInformation:
+		m.EMMInformation = buildEMMInformation(msg)
+	case *eps.GUTIReallocationCommand:
+		m.GUTIReallocationCommand = buildGUTIReallocationCommand(msg)
+	case *eps.GUTIReallocationComplete:
+		m.GUTIReallocationComplete = buildGUTIReallocationComplete(msg)
 	}
 
 	return m
