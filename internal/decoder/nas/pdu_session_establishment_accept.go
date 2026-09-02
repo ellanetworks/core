@@ -37,9 +37,9 @@ type PDUSessionEstablishmentAccept struct {
 
 	MappedEPSBearerContexts []MappedEPSBearerContext `json:"mapped_eps_bearer_contexts,omitempty"`
 
-	RQTimerValue                 *UnsupportedIE `json:"rq_timer_value,omitempty"`
-	AlwaysonPDUSessionIndication *UnsupportedIE `json:"alwayson_pdu_session_indication,omitempty"`
-	EAPMessage                   *UnsupportedIE `json:"eap_message,omitempty"`
+	RQTimerValue                 *GPRSTimer2Value `json:"rq_timer_value,omitempty"`
+	AlwaysonPDUSessionIndication *bool            `json:"alwayson_pdu_session_indication,omitempty"`
+	EAPMessage                   *RawOctets       `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -62,10 +62,6 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		estAcc.PDUAddress = &address
 	}
 
-	if msg.RQTimer != nil {
-		estAcc.RQTimerValue = makeUnsupportedIE()
-	}
-
 	if s := msg.SNSSAI; s != nil {
 		snssai := SNSSAI{SST: int32(s.SST)}
 		if s.SD != nil {
@@ -76,16 +72,8 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		estAcc.SNSSAI = &snssai
 	}
 
-	if msg.AlwaysOn != nil {
-		estAcc.AlwaysonPDUSessionIndication = makeUnsupportedIE()
-	}
-
 	if msg.MappedEPSBearerContexts != nil {
 		estAcc.MappedEPSBearerContexts = MappedEPSBearerContextsFromNAS(msg.MappedEPSBearerContexts)
-	}
-
-	if msg.EAP != nil {
-		estAcc.EAPMessage = makeUnsupportedIE()
 	}
 
 	if msg.QoSFlowDescriptions != nil {
@@ -101,6 +89,9 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		estAcc.DNN = &name
 	}
 
+	estAcc.RQTimerValue = gprsTimer2(msg.RQTimer)
+	estAcc.AlwaysonPDUSessionIndication = msg.AlwaysOn
+	estAcc.EAPMessage = rawOctets(msg.EAP)
 	estAcc.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return estAcc

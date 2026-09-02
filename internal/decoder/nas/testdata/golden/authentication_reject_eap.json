@@ -24,7 +24,9 @@
       }
     },
     "authentication_reject": {
-      "eap_message": "AgAABQE="
+      "eap_message": {
+        "hex": "0200000501"
+      }
     }
   },
   "encrypted": false

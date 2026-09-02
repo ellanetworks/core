@@ -253,8 +253,9 @@ func TestAttachRequestRoundTrip(t *testing.T) {
 		ESMMessageContainer: []byte{0x02, 0x01, 0xd0, 0x11},
 
 		// The DRX parameter is not modelled, so it travels as a preserved element.
+		// Parsing names it from the message's element table.
 		Unrecognized: []nas.RawIE{
-			{IEI: 0x5C, Format: nas.IETV3, Value: []byte{0x00, 0x08}},
+			{IEI: 0x5C, Format: nas.IETV3, Value: []byte{0x00, 0x08}, Name: "DRX parameter"},
 		},
 	}
 

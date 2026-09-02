@@ -97,7 +97,9 @@
         }
       ],
       "t3346_value": 10,
-      "eap_message": "AgAABQE="
+      "eap_message": {
+        "hex": "0200000501"
+      }
     }
   },
   "encrypted": false

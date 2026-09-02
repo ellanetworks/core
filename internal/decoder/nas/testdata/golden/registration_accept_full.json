@@ -130,7 +130,8 @@
         }
       ],
       "mico_indication": {
-        "status": "Unsupported"
+        "raai": true,
+        "sprti": false
       },
       "t3512_value": {
         "unit": {
@@ -144,7 +145,7 @@
         "seconds": 3000
       },
       "eap_message": {
-        "status": "Unsupported"
+        "hex": "0200000501"
       }
     }
   },

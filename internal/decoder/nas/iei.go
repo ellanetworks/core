@@ -48,11 +48,4 @@ const (
 
 	// Type-1 IEs: the walker emits their IEI as the octet's high nibble. Some octets
 	// are message-scoped (0x90 is network slicing in GMM but PDU session type in GSM).
-	ieiNetworkSlicingIndication uint8 = 0x90 // REGISTRATION REQUEST network slicing indication
-	ieiPDUSessionType           uint8 = 0x90 // PDU SESSION ESTABLISHMENT REQUEST PDU session type
-	ieiSSCMode                  uint8 = 0xa0 // PDU SESSION ESTABLISHMENT REQUEST SSC mode
-	ieiMICOIndication           uint8 = 0xb0 // REGISTRATION REQUEST MICO indication
-	ieiAlwaysonPDUSession       uint8 = 0xb0 // PDU SESSION ESTABLISHMENT REQUEST always-on PDU session requested
-	ieiNoncurrentNativeNASKSI   uint8 = 0xc0 // non-current native NAS key set identifier
-	ieiIMEISVRequest            uint8 = 0xe0 // IMEISV request
 )

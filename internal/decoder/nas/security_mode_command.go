@@ -49,7 +49,7 @@ type SecurityModeCommand struct {
 	IMEISVRequest                    *utils.EnumField                  `json:"imeisv_request,omitempty"`
 	SelectedEPSNASSecurityAlgorithms *SelectedEPSNASSecurityAlgorithms `json:"selected_eps_nas_security_algorithms,omitempty"`
 	Additional5GSecurityInformation  *Additional5GSecurityInformation  `json:"additional_5g_security_information,omitempty"`
-	EAPMessage                       []byte                            `json:"eap_message,omitempty"`
+	EAPMessage                       *RawOctets                        `json:"eap_message,omitempty"`
 	ABBA                             []uint8                           `json:"abba,omitempty"`
 
 	ReplayedS1UESecurityCapabilities *S1UESecurityCapability `json:"replayed_s1_ue_security_capabilities,omitempty"`
@@ -65,7 +65,7 @@ func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand
 		},
 		SpareHalfOctetAndNgksi:         msg.NgKSI.HalfOctet(),
 		ReplayedUESecurityCapabilities: *buildUESecurityCapability(msg.ReplayedUESecurityCapability),
-		EAPMessage:                     msg.EAP,
+		EAPMessage:                     rawOctets(msg.EAP),
 		ABBA:                           msg.ABBA,
 	}
 

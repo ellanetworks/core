@@ -9,14 +9,14 @@ import (
 )
 
 type RegistrationComplete struct {
-	GetSORContent []uint8 `json:"sor_transparent_container,omitempty"`
+	SORTransparentContainer *RawOctets `json:"sor_transparent_container,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildRegistrationComplete(msg *fgs.RegistrationComplete) *RegistrationComplete {
 	out := &RegistrationComplete{
-		GetSORContent: msg.SORTransparentContainer,
+		SORTransparentContainer: rawOctets(msg.SORTransparentContainer),
 	}
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)

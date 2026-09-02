@@ -1,120 +1,44 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package nas_test
+package nas
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
-	const message = "fgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8A=="
-
-	raw, err := decodeB64(message)
+// These elements are modelled by the codec, so they never reach Unrecognized.
+// The decoder once looked for them there and rendered nothing at all.
+func TestRegistrationRequestRendersCodecModelledElements(t *testing.T) {
+	raw, err := (&fgs.RegistrationRequest{
+		S1UENetworkCapability:  []byte{0xf0, 0xf0},
+		EPSNASMessageContainer: []byte{0x07, 0x41},
+	}).MarshalBinary()
 	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
+		t.Fatal(err)
 	}
 
-	nas := nas.DecodeNASMessage(raw)
-
-	if nas == nil {
-		t.Fatal("Decoded NAS message is nil")
+	parsed, err := fgs.ParseMessage(raw)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
-		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType.Label)
+	out, err := json.Marshal(buildRegistrationRequest(parsed.(*fgs.RegistrationRequest)))
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
-		t.Errorf("Unexpected SecurityHeaderType value: got %d", nas.SecurityHeader.SecurityHeaderType.Value)
+	for _, want := range []string{"s1_ue_network_capability", "eps_nas_message_container"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("%s missing from the decoded registration request", want)
+		}
 	}
 
-	if nas.GsmMessage != nil {
-		t.Fatal("GsmMessage is not nil")
-	}
-
-	if nas.GmmMessage == nil {
-		t.Fatal("GmmMessage is nil")
-	}
-
-	if nas.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
-		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
-	}
-
-	if nas.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
-		t.Errorf("Unexpected GmmMessage Type value: got %d", nas.GmmMessage.GmmHeader.MessageType.Value)
-	}
-
-	if nas.GmmMessage.RegistrationRequest == nil {
-		t.Fatal("RegistrationRequest is nil")
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != int64(fgs.IdentitySUCI) {
-		t.Errorf("Unexpected MobileIdentity5GS Identity: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity)
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != int64(uint8(fgs.IdentitySUCI)) {
-		t.Errorf("Unexpected MobileIdentity5GS Identity value: got %d", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value)
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.SUCI == nil {
-		t.Fatal("SUCI is nil")
-	}
-
-	expectedSuci := "suci-0-001-01-0000-0-0-4447867552"
-	if *nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.SUCI != expectedSuci {
-		t.Errorf("Unexpected SUCI: got %v, want %v", *nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.SUCI, expectedSuci)
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.PLMNID == nil {
-		t.Fatal("PLMNID is nil")
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.PLMNID.Mcc != "001" {
-		t.Errorf("Unexpected MCC: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.PLMNID.Mcc)
-	}
-
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.PLMNID.Mnc != "01" {
-		t.Errorf("Unexpected MNC: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.PLMNID.Mnc)
-	}
-
-	// check ue security capability
-	if nas.GmmMessage.RegistrationRequest.UESecurityCapability == nil {
-		t.Fatal("UESecurityCapability is nil")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA0 {
-		t.Error("UESecurityCapability IntegrityAlgorithm NIA0 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA1 {
-		t.Error("UESecurityCapability IntegrityAlgorithm NIA1 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA2 {
-		t.Error("UESecurityCapability IntegrityAlgorithm NIA2 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.IntegrityAlgorithm.NIA3 {
-		t.Error("UESecurityCapability IntegrityAlgorithm NIA3 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA0 {
-		t.Error("UESecurityCapability CipheringAlgorithm NEA0 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA1 {
-		t.Error("UESecurityCapability CipheringAlgorithm NEA1 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA2 {
-		t.Error("UESecurityCapability CipheringAlgorithm NEA2 is false, expected true")
-	}
-
-	if !nas.GmmMessage.RegistrationRequest.UESecurityCapability.CipheringAlgorithm.NEA3 {
-		t.Error("UESecurityCapability CipheringAlgorithm NEA3 is false, expected true")
+	if strings.Contains(string(out), "Unsupported") {
+		t.Error("a codec-modelled element rendered as a stub")
 	}
 }

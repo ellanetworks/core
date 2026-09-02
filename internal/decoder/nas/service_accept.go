@@ -23,14 +23,14 @@ type ServiceAccept struct {
 	PDUSessionStatus                       []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
 	PDUSessionReactivationResult           []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
 	PDUSessionReactivationResultErrorCause []PDUSessionCause               `json:"pdu_session_reactivation_result_error_cause,omitempty"`
-	EAPMessage                             []byte                          `json:"eap_message,omitempty"`
+	EAPMessage                             *RawOctets                      `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildServiceAccept(msg *fgs.ServiceAccept) *ServiceAccept {
 	out := &ServiceAccept{
-		EAPMessage: msg.EAP,
+		EAPMessage: rawOctets(msg.EAP),
 	}
 
 	if msg.PDUSessionStatus != nil {

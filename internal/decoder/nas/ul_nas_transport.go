@@ -30,7 +30,7 @@ type ULNASTransport struct {
 	SNSSAI                                *SNSSAI          `json:"snssai,omitempty"`
 	DNN                                   *string          `json:"dnn,omitempty"`
 
-	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
+	AdditionalInformation *RawOctets `json:"additional_information,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -64,10 +64,7 @@ func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
 		out.DNN = &name
 	}
 
-	if msg.AdditionalInformation != nil {
-		out.AdditionalInformation = makeUnsupportedIE()
-	}
-
+	out.AdditionalInformation = rawOctets(msg.AdditionalInformation)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
@@ -107,6 +104,16 @@ func snssaiFromNAS(s fgs.SNSSAI) SNSSAI {
 	if s.SD != nil {
 		sd := strings.ToUpper(hex.EncodeToString(s.SD[:]))
 		out.SD = &sd
+	}
+
+	if s.MappedHPLMNSST != nil {
+		sst := int32(*s.MappedHPLMNSST)
+		out.MappedHPLMNSST = &sst
+	}
+
+	if s.MappedHPLMNSD != nil {
+		sd := strings.ToUpper(hex.EncodeToString(s.MappedHPLMNSD[:]))
+		out.MappedHPLMNSD = &sd
 	}
 
 	return out

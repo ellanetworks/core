@@ -31,13 +31,29 @@
         "unknown": false
       },
       "t3346_value": {
-        "status": "Unsupported"
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "2 seconds",
+          "unknown": false
+        },
+        "value": 10,
+        "duration": "20s",
+        "seconds": 20
       },
       "t3502_value": {
-        "status": "Unsupported"
+        "unit": {
+          "type": "enum",
+          "value": 0,
+          "label": "2 seconds",
+          "unknown": false
+        },
+        "value": 11,
+        "duration": "22s",
+        "seconds": 22
       },
       "eap_message": {
-        "status": "Unsupported"
+        "hex": "0200000501"
       }
     }
   },

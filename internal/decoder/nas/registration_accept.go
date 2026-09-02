@@ -46,8 +46,10 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type SNSSAI struct {
-	SST int32   `json:"sst"`
-	SD  *string `json:"sd,omitempty"`
+	SST            int32   `json:"sst"`
+	SD             *string `json:"sd,omitempty"`
+	MappedHPLMNSST *int32  `json:"mapped_hplmn_sst,omitempty"`
+	MappedHPLMNSD  *string `json:"mapped_hplmn_sd,omitempty"`
 }
 
 type RegistrationAccept struct {
@@ -58,27 +60,17 @@ type RegistrationAccept struct {
 	AllowedNSSAI             []SNSSAI                  `json:"allowed_nssai,omitempty"`
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS `json:"network_feature_support_5gs,omitempty"`
 
-	RejectedNSSAI                            *UnsupportedIE                  `json:"rejected_nssai,omitempty"`
-	ConfiguredNSSAI                          *UnsupportedIE                  `json:"configured_nssai,omitempty"`
-	PDUSessionStatus                         []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
-	PDUSessionReactivationResult             []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
-	PDUSessionReactivationResultErrorCause   *UnsupportedIE                  `json:"pdu_session_reactivation_result_error_cause,omitempty"`
-	LADNInformation                          *UnsupportedIE                  `json:"ladn_information,omitempty"`
-	MICOIndication                           *UnsupportedIE                  `json:"mico_indication,omitempty"`
-	NetworkSlicingIndication                 *UnsupportedIE                  `json:"network_slicing_indication,omitempty"`
-	ServiceAreaList                          *UnsupportedIE                  `json:"service_area_list,omitempty"`
-	T3512Value                               *GPRSTimer3Value                `json:"t3512_value,omitempty"`
-	Non3GppDeregistrationTimerValue          *UnsupportedIE                  `json:"non_3gpp_deregistration_timer_value,omitempty"`
-	T3502Value                               *UnsupportedIE                  `json:"t3502_value,omitempty"`
-	EmergencyNumberList                      *UnsupportedIE                  `json:"emergency_number_list,omitempty"`
-	ExtendedEmergencyNumberList              *UnsupportedIE                  `json:"extended_emergency_number_list,omitempty"`
-	SORTransparentContainer                  *UnsupportedIE                  `json:"sor_transparent_container,omitempty"`
-	EAPMessage                               *UnsupportedIE                  `json:"eap_message,omitempty"`
-	NSSAIInclusionMode                       *UnsupportedIE                  `json:"nssai_inclusion_mode,omitempty"`
-	OperatordefinedAccessCategoryDefinitions *UnsupportedIE                  `json:"operatordefined_access_category_definitions,omitempty"`
-	NegotiatedDRXParameters                  *UnsupportedIE                  `json:"negotiated_drx_parameters,omitempty"`
-	Non3GppNwPolicies                        *UnsupportedIE                  `json:"non_3gpp_nw_policies,omitempty"`
-	EPSBearerContextStatus                   *UnsupportedIE                  `json:"eps_bearer_context_status,omitempty"`
+	ConfiguredNSSAI                 []SNSSAI                        `json:"configured_nssai,omitempty"`
+	PDUSessionStatus                []PDUSessionStatusPDU           `json:"pdu_session_status,omitempty"`
+	PDUSessionReactivationResult    []PDUSessionReactivateResultPDU `json:"pdu_session_reactivation_result,omitempty"`
+	MICOIndication                  *MICOIndication                 `json:"mico_indication,omitempty"`
+	T3512Value                      *GPRSTimer3Value                `json:"t3512_value,omitempty"`
+	Non3GppDeregistrationTimerValue *GPRSTimer2Value                `json:"non_3gpp_deregistration_timer_value,omitempty"`
+	T3502Value                      *GPRSTimer2Value                `json:"t3502_value,omitempty"`
+	SORTransparentContainer         *RawOctets                      `json:"sor_transparent_container,omitempty"`
+	EAPMessage                      *RawOctets                      `json:"eap_message,omitempty"`
+	NegotiatedDRXParameters         *DRXParameter                   `json:"negotiated_drx_parameters,omitempty"`
+	EPSBearerContextStatus          []EPSBearerContextStatusItem    `json:"eps_bearer_context_status,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -115,41 +107,19 @@ func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 		out.NetworkFeatureSupport5GS = &nfs
 	}
 
+	out.SORTransparentContainer = rawOctets(msg.SORTransparentContainer)
+	out.EAPMessage = rawOctets(msg.EAP)
+	out.ConfiguredNSSAI = nssai(msg.ConfiguredNSSAI)
+	out.EPSBearerContextStatus = epsBearerContextStatus(msg.EPSBearerContextStatus)
+	out.MICOIndication = micoIndication(msg.MICOIndication)
+	out.NegotiatedDRXParameters = drxParameter(msg.NegotiatedDRX)
 	out.T3512Value = gprsTimer3(msg.T3512)
+	out.Non3GppDeregistrationTimerValue = gprsTimer2(msg.Non3GppDeregistrationTimer)
+	out.T3502Value = gprsTimer2(msg.T3502)
 	out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
 	out.PDUSessionReactivationResult = decodePDUSessionReactivationResult(msg.PDUSessionReactivationResult)
 
-	presence := []struct {
-		set  bool
-		dest **UnsupportedIE
-	}{
-		{hasPreservedIE(msg.Unrecognized, ieiRejectedNSSAI), &out.RejectedNSSAI},
-		{msg.ConfiguredNSSAI != nil, &out.ConfiguredNSSAI},
-		{hasPreservedIE(msg.Unrecognized, ieiPDUReactErrCause), &out.PDUSessionReactivationResultErrorCause},
-		{hasPreservedIE(msg.Unrecognized, ieiLADNInformation), &out.LADNInformation},
-		{msg.MICOIndication != nil, &out.MICOIndication},
-		{hasPreservedIE(msg.Unrecognized, ieiNetworkSlicingIndication), &out.NetworkSlicingIndication},
-		{hasPreservedIE(msg.Unrecognized, ieiServiceAreaList), &out.ServiceAreaList},
-		{msg.Non3GppDeregistrationTimer != nil, &out.Non3GppDeregistrationTimerValue},
-		{msg.T3502 != nil, &out.T3502Value},
-		{hasPreservedIE(msg.Unrecognized, ieiEmergencyNumberList), &out.EmergencyNumberList},
-		{hasPreservedIE(msg.Unrecognized, ieiExtEmergencyNumberList), &out.ExtendedEmergencyNumberList},
-		{msg.SORTransparentContainer != nil, &out.SORTransparentContainer},
-		{msg.EAP != nil, &out.EAPMessage},
-		{hasPreservedIE(msg.Unrecognized, ieiNSSAIInclusionMode), &out.NSSAIInclusionMode},
-		{hasPreservedIE(msg.Unrecognized, ieiOperatorAccessCategory), &out.OperatordefinedAccessCategoryDefinitions},
-		{msg.NegotiatedDRX != nil, &out.NegotiatedDRXParameters},
-		{hasPreservedIE(msg.Unrecognized, ieiNon3GppNwPolicies), &out.Non3GppNwPolicies},
-		{msg.EPSBearerContextStatus != nil, &out.EPSBearerContextStatus},
-	}
-
-	for _, p := range presence {
-		if p.set {
-			*p.dest = makeUnsupportedIE()
-		}
-	}
-
-	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiEmergencyNumberList, ieiEquivalentPLMNs, ieiExtEmergencyNumberList, ieiLADNInformation, ieiNetworkSlicingIndication, ieiNon3GppNwPolicies, ieiNSSAIInclusionMode, ieiOperatorAccessCategory, ieiPDUReactErrCause, ieiRejectedNSSAI, ieiServiceAreaList)
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiEquivalentPLMNs)
 
 	return out
 }
@@ -213,13 +183,6 @@ func preservedIE(unrec []nas.RawIE, iei uint8) ([]byte, bool) {
 	return nil, false
 }
 
-// hasPreservedIE reports whether the message carried an element with this IEI.
-func hasPreservedIE(unrec []nas.RawIE, iei uint8) bool {
-	_, ok := preservedIE(unrec, iei)
-
-	return ok
-}
-
 func equivalentPlmnsFromRaw(v []byte) []PLMNID {
 	if len(v) == 0 {
 		logger.EllaLog.Warn("EquivalentPlmns length is zero")
@@ -248,18 +211,16 @@ func equivalentPlmnsFromRaw(v []byte) []PLMNID {
 	return out
 }
 
-// allowedNSSAIFromRaw decodes the allowed NSSAI IE value (a sequence of
-// length-prefixed S-NSSAIs, TS 24.501 §9.11.3.37).
+// nssai decodes an NSSAI IE value: a sequence of length-prefixed S-NSSAIs
+// (TS 24.501 §9.11.3.37), used for the allowed, requested and configured lists.
 func nssai(list fgs.NSSAI) []SNSSAI {
+	if len(list) == 0 {
+		return nil
+	}
+
 	out := make([]SNSSAI, 0, len(list))
 	for _, s := range list {
-		item := SNSSAI{SST: int32(s.SST)}
-		if s.SD != nil {
-			sd := hex.EncodeToString(s.SD[:])
-			item.SD = &sd
-		}
-
-		out = append(out, item)
+		out = append(out, snssaiFromNAS(s))
 	}
 
 	return out

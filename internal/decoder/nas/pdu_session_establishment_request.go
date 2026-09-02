@@ -67,9 +67,8 @@ type PDUSessionEstablishmentRequest struct {
 	Capability5GSM                       *Capability5GSM                       `json:"capability_5g_s_m,omitempty"`
 	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 
-	MaximumNumberOfSupportedPacketFilters *uint16        `json:"maximum_number_of_supported_packet_filters,omitempty"`
-	AlwaysonPDUSessionRequested           *bool          `json:"alwayson_pdu_session_requested,omitempty"`
-	SMPDUDNRequestContainer               *UnsupportedIE `json:"smpdu_dn_request_container,omitempty"`
+	MaximumNumberOfSupportedPacketFilters *uint16 `json:"maximum_number_of_supported_packet_filters,omitempty"`
+	AlwaysonPDUSessionRequested           *bool   `json:"alwayson_pdu_session_requested,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -109,8 +108,6 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		switch ie.IEI {
 		case ieiMaxPacketFilters:
 			out.MaximumNumberOfSupportedPacketFilters = maxSupportedPacketFilters(ie.Value)
-		case ieiSMPDUDNRequest:
-			out.SMPDUDNRequestContainer = makeUnsupportedIE()
 		case ieiExtendedPCO:
 			// The element reached Unrecognized because its content did not decode.
 			out.ExtendedProtocolConfigurationOptions = &ExtendedProtocolConfigurationOptions{
@@ -119,7 +116,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 		}
 	}
 
-	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiMaxPacketFilters, ieiSMPDUDNRequest, ieiExtendedPCO)
+	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiMaxPacketFilters, ieiExtendedPCO)
 
 	return out
 }

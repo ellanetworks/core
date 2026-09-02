@@ -78,16 +78,89 @@
         }
       },
       "capability_5gmm": {
-        "status": "Unsupported"
+        "sgc": false,
+        "hc_cp_ciot": false,
+        "n3_data": true,
+        "cp_ciot": false,
+        "restrict_ec": false,
+        "lpp": false,
+        "ho_attach": false,
+        "s1_mode": true
       },
-      "requested_nssai": {
-        "status": "Unsupported"
-      },
-      "pdu_session_status": {
-        "status": "Unsupported"
-      },
+      "requested_nssai": [
+        {
+          "sst": 1
+        }
+      ],
+      "pdu_session_status": [
+        {
+          "pdu_session_id": 0,
+          "active": false
+        },
+        {
+          "pdu_session_id": 1,
+          "active": true
+        },
+        {
+          "pdu_session_id": 2,
+          "active": false
+        },
+        {
+          "pdu_session_id": 3,
+          "active": false
+        },
+        {
+          "pdu_session_id": 4,
+          "active": false
+        },
+        {
+          "pdu_session_id": 5,
+          "active": false
+        },
+        {
+          "pdu_session_id": 6,
+          "active": false
+        },
+        {
+          "pdu_session_id": 7,
+          "active": false
+        },
+        {
+          "pdu_session_id": 8,
+          "active": false
+        },
+        {
+          "pdu_session_id": 9,
+          "active": false
+        },
+        {
+          "pdu_session_id": 10,
+          "active": false
+        },
+        {
+          "pdu_session_id": 11,
+          "active": false
+        },
+        {
+          "pdu_session_id": 12,
+          "active": false
+        },
+        {
+          "pdu_session_id": 13,
+          "active": false
+        },
+        {
+          "pdu_session_id": 14,
+          "active": false
+        },
+        {
+          "pdu_session_id": 15,
+          "active": false
+        }
+      ],
       "mico_indication": {
-        "status": "Unsupported"
+        "raai": true,
+        "sprti": false
       }
     }
   },

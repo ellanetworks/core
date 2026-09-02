@@ -9,11 +9,11 @@ import (
 )
 
 type AuthenticationRequest struct {
-	SpareHalfOctetAndNgksi      uint8     `json:"spare_half_octet_and_ngksi"`
-	ABBA                        []uint8   `json:"abba"`
-	AuthenticationParameterAUTN [16]uint8 `json:"authentication_parameter_autn,omitempty"`
-	AuthenticationParameterRAND [16]uint8 `json:"authentication_parameter_rand,omitempty"`
-	EAPMessage                  []byte    `json:"eap_message,omitempty"`
+	SpareHalfOctetAndNgksi      uint8      `json:"spare_half_octet_and_ngksi"`
+	ABBA                        []uint8    `json:"abba"`
+	AuthenticationParameterAUTN [16]uint8  `json:"authentication_parameter_autn,omitempty"`
+	AuthenticationParameterRAND [16]uint8  `json:"authentication_parameter_rand,omitempty"`
+	EAPMessage                  *RawOctets `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -22,7 +22,7 @@ func buildAuthenticationRequest(msg *fgs.AuthenticationRequest) *AuthenticationR
 	out := &AuthenticationRequest{
 		SpareHalfOctetAndNgksi: msg.NgKSI.HalfOctet(),
 		ABBA:                   msg.ABBA,
-		EAPMessage:             msg.EAP,
+		EAPMessage:             rawOctets(msg.EAP),
 	}
 
 	if msg.RAND != nil {

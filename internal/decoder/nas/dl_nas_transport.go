@@ -19,7 +19,7 @@ type DLNASTransport struct {
 	Cause5GMM                             *utils.EnumField `json:"cause_5gmm,omitempty"`
 	BackoffTimerSeconds                   *uint32          `json:"backoff_timer_seconds,omitempty"`
 
-	AdditionalInformation *UnsupportedIE `json:"additional_information,omitempty"`
+	AdditionalInformation *RawOctets `json:"additional_information,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -34,10 +34,6 @@ func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
 		out.PduSessionID2Value = new(uint8(*msg.PDUSessionID))
 	}
 
-	if msg.AdditionalInfo != nil {
-		out.AdditionalInformation = makeUnsupportedIE()
-	}
-
 	if msg.BackoffTimer != nil {
 		if d, ok := msg.BackoffTimer.Duration(); ok {
 			secs := uint32(d / time.Second)
@@ -50,6 +46,7 @@ func buildDLNASTransport(msg *fgs.DLNASTransport) *DLNASTransport {
 		out.Cause5GMM = &cause
 	}
 
+	out.AdditionalInformation = rawOctets(msg.AdditionalInfo)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out

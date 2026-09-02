@@ -92,6 +92,12 @@ type RawIE struct {
 	Format IEFormat
 	Value  []byte
 
+	// Name is the element's name in this message, taken from the message's
+	// optional-element table when it names this IEI. An IEI is message-scoped, so
+	// a diagnostic reader cannot name the element from the identifier alone.
+	// Empty when the message's table does not list the IEI.
+	Name string
+
 	// After is the IEI of the last element the message did model before this one
 	// arrived, or 0 if none did. Re-encoding puts the element back after that
 	// anchor, which reproduces the order it arrived in even when a sender
@@ -328,7 +334,12 @@ func (w *walker) run(r *Reader) (unrecognized []RawIE, err error) {
 			if known {
 				w.anchor = iei & 0xF0
 			} else {
-				unrecognized = append(unrecognized, RawIE{IEI: iei & 0xF0, Format: IETV1, Value: value, After: w.anchor})
+				name := ""
+				if d, ok := lookupIE(w.table, iei&0xF0); ok {
+					name = d.Name
+				}
+
+				unrecognized = append(unrecognized, RawIE{IEI: iei & 0xF0, Format: IETV1, Value: value, Name: name, After: w.anchor})
 			}
 
 			continue
@@ -398,7 +409,7 @@ func (w *walker) run(r *Reader) (unrecognized []RawIE, err error) {
 		if known {
 			w.anchor = iei
 		} else {
-			unrecognized = append(unrecognized, RawIE{IEI: iei, Format: def.Format, Value: value, After: w.anchor})
+			unrecognized = append(unrecognized, RawIE{IEI: iei, Format: def.Format, Value: value, Name: def.Name, After: w.anchor})
 		}
 	}
 

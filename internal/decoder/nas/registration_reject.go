@@ -11,9 +11,9 @@ import (
 type RegistrationReject struct {
 	Cause5GMM utils.EnumField `json:"cause_5gmm"`
 
-	T3346Value *UnsupportedIE `json:"t3346_value,omitempty"`
-	T3502Value *UnsupportedIE `json:"t3502_value,omitempty"`
-	EAPMessage *UnsupportedIE `json:"eap_message,omitempty"`
+	T3346Value *GPRSTimer2Value `json:"t3346_value,omitempty"`
+	T3502Value *GPRSTimer2Value `json:"t3502_value,omitempty"`
+	EAPMessage *RawOctets       `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -23,17 +23,9 @@ func buildRegistrationReject(msg *fgs.RegistrationReject) *RegistrationReject {
 		Cause5GMM: cause5GMMToEnum(msg.Cause),
 	}
 
-	if msg.T3346 != nil {
-		out.T3346Value = makeUnsupportedIE()
-	}
-
-	if msg.T3502 != nil {
-		out.T3502Value = makeUnsupportedIE()
-	}
-
-	if msg.EAP != nil {
-		out.EAPMessage = makeUnsupportedIE()
-	}
+	out.EAPMessage = rawOctets(msg.EAP)
+	out.T3346Value = gprsTimer2(msg.T3346)
+	out.T3502Value = gprsTimer2(msg.T3502)
 
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 

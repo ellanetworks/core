@@ -13,7 +13,7 @@ type ServiceReject struct {
 	Cause5GMM        utils.EnumField       `json:"cause"`
 	PDUSessionStatus []PDUSessionStatusPDU `json:"pdu_session_status,omitempty"`
 	T3346Value       *uint8                `json:"t3346_value,omitempty"`
-	EAPMessage       []byte                `json:"eap_message,omitempty"`
+	EAPMessage       *RawOctets            `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -22,7 +22,7 @@ func buildServiceReject(msg *fgs.ServiceReject) *ServiceReject {
 	out := &ServiceReject{
 		Cause5GMM:  cause5GMMToEnum(msg.Cause),
 		T3346Value: timerOctetPtr(msg.T3346),
-		EAPMessage: msg.EAP,
+		EAPMessage: rawOctets(msg.EAP),
 	}
 
 	if msg.PDUSessionStatus != nil {

@@ -14,14 +14,14 @@ type AuthenticationResponseParameter struct {
 
 type AuthenticationResponse struct {
 	AuthenticationResponseParameter *AuthenticationResponseParameter `json:"authentication_response_parameter,omitempty"`
-	EAPMessage                      []byte                           `json:"eap_message,omitempty"`
+	EAPMessage                      *RawOctets                       `json:"eap_message,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
 
 func buildAuthenticationResponse(msg *fgs.AuthenticationResponse) *AuthenticationResponse {
 	out := &AuthenticationResponse{
-		EAPMessage: msg.EAP,
+		EAPMessage: rawOctets(msg.EAP),
 	}
 
 	if msg.RES != nil {

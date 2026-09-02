@@ -15,25 +15,19 @@ type RegistrationRequest struct {
 	UESecurityCapability *UESecurityCapability `json:"ue_security_capability,omitempty"`
 	NASMessageContainer  *NASMessageContainer  `json:"nas_message_container,omitempty"`
 
-	NoncurrentNativeNASKeySetIdentifier *UnsupportedIE `json:"noncurrent_native_nas_key_set_identifier,omitempty"`
-	Capability5GMM                      *UnsupportedIE `json:"capability_5gmm,omitempty"`
-	RequestedNSSAI                      *UnsupportedIE `json:"requested_nssai,omitempty"`
-	LastVisitedRegisteredTAI            *UnsupportedIE `json:"last_visited_registered_tai,omitempty"`
-	S1UENetworkCapability               *UnsupportedIE `json:"s1_ue_network_capability,omitempty"`
-	UplinkDataStatus                    *UnsupportedIE `json:"uplink_data_status,omitempty"`
-	PDUSessionStatus                    *UnsupportedIE `json:"pdu_session_status,omitempty"`
-	MICOIndication                      *UnsupportedIE `json:"mico_indication,omitempty"`
-	UEStatus                            *UnsupportedIE `json:"ue_status,omitempty"`
-	AdditionalGUTI                      *UnsupportedIE `json:"additional_guti,omitempty"`
-	AllowedPDUSessionStatus             *UnsupportedIE `json:"allowed_pdu_session_status,omitempty"`
-	UesUsageSetting                     *UnsupportedIE `json:"ues_usage_setting,omitempty"`
-	RequestedDRXParameters              *UnsupportedIE `json:"requested_drx_parameters,omitempty"`
-	EPSNASMessageContainer              *UnsupportedIE `json:"eps_nas_message_container,omitempty"`
-	LADNIndication                      *UnsupportedIE `json:"ladn_indication,omitempty"`
-	PayloadContainer                    *UnsupportedIE `json:"payload_container,omitempty"`
-	NetworkSlicingIndication            *UnsupportedIE `json:"network_slicing_indication,omitempty"`
-	UpdateType5GS                       *UnsupportedIE `json:"update_type_5gs,omitempty"`
-	EPSBearerContextStatus              *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
+	Capability5GMM          *GMMCapability               `json:"capability_5gmm,omitempty"`
+	RequestedNSSAI          []SNSSAI                     `json:"requested_nssai,omitempty"`
+	S1UENetworkCapability   *S1UENetworkCapability       `json:"s1_ue_network_capability,omitempty"`
+	UplinkDataStatus        []PDUSessionStatusPDU        `json:"uplink_data_status,omitempty"`
+	PDUSessionStatus        []PDUSessionStatusPDU        `json:"pdu_session_status,omitempty"`
+	MICOIndication          *MICOIndication              `json:"mico_indication,omitempty"`
+	UEStatus                *UEStatus                    `json:"ue_status,omitempty"`
+	AdditionalGUTI          *MobileIdentity              `json:"additional_guti,omitempty"`
+	AllowedPDUSessionStatus []PDUSessionStatusPDU        `json:"allowed_pdu_session_status,omitempty"`
+	RequestedDRXParameters  *DRXParameter                `json:"requested_drx_parameters,omitempty"`
+	EPSNASMessageContainer  *EPSNASMessageContainer      `json:"eps_nas_message_container,omitempty"`
+	UpdateType5GS           *UpdateType5GS               `json:"update_type_5gs,omitempty"`
+	EPSBearerContextStatus  []EPSBearerContextStatusItem `json:"eps_bearer_context_status,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -50,68 +44,26 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 		out.UESecurityCapability = buildUESecurityCapability(*msg.UESecurityCapability)
 	}
 
-	if msg.GMMCapability != nil {
-		out.Capability5GMM = makeUnsupportedIE()
+	out.S1UENetworkCapability = s1UENetworkCapability(msg.S1UENetworkCapability)
+	out.EPSBearerContextStatus = epsBearerContextStatus(msg.EPSBearerContextStatus)
+	out.EPSNASMessageContainer = epsNASMessageContainer(msg.EPSNASMessageContainer)
+
+	if msg.AdditionalGUTI != nil {
+		guti := buildMobileIdentity(*msg.AdditionalGUTI)
+		out.AdditionalGUTI = &guti
 	}
 
-	if len(msg.RequestedNSSAI) > 0 {
-		out.RequestedNSSAI = makeUnsupportedIE()
-	}
+	out.RequestedNSSAI = nssai(msg.RequestedNSSAI)
+	out.Capability5GMM = gmmCapability(msg.GMMCapability)
+	out.UEStatus = ueStatus(msg.UEStatus)
+	out.MICOIndication = micoIndication(msg.MICOIndication)
+	out.UpdateType5GS = updateType5GS(msg.UpdateType5GS)
+	out.RequestedDRXParameters = drxParameter(msg.RequestedDRXParameters)
+	out.UplinkDataStatus = decodePDUSessionStatus(msg.UplinkDataStatus)
+	out.PDUSessionStatus = decodePDUSessionStatus(msg.PDUSessionStatus)
+	out.AllowedPDUSessionStatus = decodePDUSessionStatus(msg.AllowedPDUSessionStatus)
 
-	if msg.UplinkDataStatus != nil {
-		out.UplinkDataStatus = makeUnsupportedIE()
-	}
-
-	if msg.PDUSessionStatus != nil {
-		out.PDUSessionStatus = makeUnsupportedIE()
-	}
-
-	if msg.UEStatus != nil {
-		out.UEStatus = makeUnsupportedIE()
-	}
-
-	if msg.AllowedPDUSessionStatus != nil {
-		out.AllowedPDUSessionStatus = makeUnsupportedIE()
-	}
-
-	if msg.RequestedDRXParameters != nil {
-		out.RequestedDRXParameters = makeUnsupportedIE()
-	}
-
-	if msg.MICOIndication != nil {
-		out.MICOIndication = makeUnsupportedIE()
-	}
-
-	if msg.UpdateType5GS != nil {
-		out.UpdateType5GS = makeUnsupportedIE()
-	}
-
-	for _, ie := range msg.Unrecognized {
-		switch ie.IEI {
-		case ieiNoncurrentNativeNASKSI:
-			out.NoncurrentNativeNASKeySetIdentifier = makeUnsupportedIE()
-		case ieiS1UENetworkCapability:
-			out.S1UENetworkCapability = makeUnsupportedIE()
-		case ieiUesUsageSetting:
-			out.UesUsageSetting = makeUnsupportedIE()
-		case ieiLastVisitedTAI:
-			out.LastVisitedRegisteredTAI = makeUnsupportedIE()
-		case ieiEPSBearerContextStatus:
-			out.EPSBearerContextStatus = makeUnsupportedIE()
-		case ieiEPSNASMessageContainer:
-			out.EPSNASMessageContainer = makeUnsupportedIE()
-		case ieiLADNIndication:
-			out.LADNIndication = makeUnsupportedIE()
-		case ieiAdditionalGUTI:
-			out.AdditionalGUTI = makeUnsupportedIE()
-		case ieiPayloadContainer:
-			out.PayloadContainer = makeUnsupportedIE()
-		case ieiNetworkSlicingIndication:
-			out.NetworkSlicingIndication = makeUnsupportedIE()
-		}
-	}
-
-	out.UnrecognizedIEs = utils.RawIEsExcept(msg.Unrecognized, ieiNoncurrentNativeNASKSI, ieiS1UENetworkCapability, ieiUesUsageSetting, ieiLastVisitedTAI, ieiEPSBearerContextStatus, ieiEPSNASMessageContainer, ieiLADNIndication, ieiAdditionalGUTI, ieiPayloadContainer, ieiNetworkSlicingIndication)
+	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out
 }

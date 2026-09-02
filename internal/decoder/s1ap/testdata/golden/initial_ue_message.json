@@ -83,10 +83,12 @@
                 "unrecognized_ies": [
                   {
                     "iei": 82,
+                    "name": "Last visited registered TAI",
                     "hex": "99f9100001"
                   },
                   {
                     "iei": 93,
+                    "name": "Voice domain preference",
                     "hex": "06"
                   },
                   {
