@@ -277,6 +277,8 @@ func TestCloseIsIdempotent(t *testing.T) {
 	b.evictDone = make(chan struct{})
 	close(b.evictDone)
 
+	b.injectFD = -1
+
 	if err := b.Close(); err != nil {
 		t.Fatalf("first Close: %v", err)
 	}
