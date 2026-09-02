@@ -1,0 +1,132 @@
+{
+  "summary": "E-RAB Release Command (MME-UE 1, eNB-UE 0, 1 E-RAB)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 7,
+    "label": "ERABRelease",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 0
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 33,
+          "label": "E-RABToBeReleasedList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 6,
+            "cause": {
+              "group": {
+                "type": "enum",
+                "value": 2,
+                "label": "nas",
+                "unknown": false
+              },
+              "value": {
+                "type": "enum",
+                "value": 0,
+                "label": "normal-release",
+                "unknown": false
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 26,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "27ad39eed00562bdcd24",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 7,
+                "label": "EMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 2,
+                "label": "integrity protected and ciphered",
+                "unknown": false
+              },
+              "authentication_code": 2906255056,
+              "sequence_number": 5
+            },
+            "esm_message": {
+              "esm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 205,
+                  "label": "DEACTIVATE EPS BEARER CONTEXT REQUEST",
+                  "unknown": false
+                },
+                "eps_bearer_identity": 6,
+                "procedure_transaction_identity": 189
+              }
+            },
+            "encrypted": false
+          }
+        }
+      }
+    ]
+  }
+}
