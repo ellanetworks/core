@@ -22,6 +22,8 @@ type AttachResult struct {
 	ERABID              s1ap.ERABID
 	GUTI                *eps.EPSMobileIdentity
 	AttachResultValue   eps.AttachResult
+	SecurityKey         s1ap.SecurityKey
+	UESecurityCaps      s1ap.UESecurityCapabilities
 	EMMCause            *eps.EMMCause
 	IdentityRequested   bool
 	PDNType             eps.PDNType
@@ -187,6 +189,8 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	res := &AttachResult{
 		AttachResultValue: accept.EPSAttachResult,
+		SecurityKey:       ics.SecurityKey,
+		UESecurityCaps:    ics.UESecurityCapabilities,
 		EMMCause:          accept.Cause,
 		MMEUES1APID:       mmeUEID,
 		ENBUES1APID:       enbUEID,
