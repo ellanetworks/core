@@ -27,6 +27,18 @@ func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
 	return 0
 }
 
+func protocolOptionsFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) ([]nas.PCOContainer, bool) {
+	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
+		if opts == nil {
+			continue
+		}
+
+		return opts.ProtocolOptions(), true
+	}
+
+	return nil, false
+}
+
 func fiveGSMCauseFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) (uint8, bool) {
 	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
 		if opts == nil {

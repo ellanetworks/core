@@ -100,6 +100,10 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		ue.RequestedPDUSessionID = id
 	}
 
+	if opts, ok := protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); ok {
+		ue.RequestedProtocolOpts = opts
+	}
+
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN),
 		zap.Uint8("pdu_session_id", ue.RequestedPDUSessionID))

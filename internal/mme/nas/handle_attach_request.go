@@ -152,6 +152,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 		}
 
 		ue.RequestedPDUSessionID = pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
+		ue.RequestedProtocolOpts, _ = protocolOptionsFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
 
 		if pc.RequestType != 0 {
 			ue.RequestedType = pc.RequestType

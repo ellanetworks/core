@@ -310,3 +310,38 @@ func TestESMInformationResponseKeepsTheAttachPDUSessionIdentity(t *testing.T) {
 		t.Errorf("PDU session identity = %d, want the 7 the attach carried: a response that names none does not withdraw it, and zeroing it costs the UE its IP preservation", ue.RequestedPDUSessionID)
 	}
 }
+
+func TestESMInformationResponseReplacesTheAttachProtocolOptions(t *testing.T) {
+	m := esmInfoTestMME()
+	ue, _ := esmInfoAttachUe(t, m, 3)
+
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
+
+	ue.RequestedProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
+
+	replacement := nas.NewRequestedProtocolConfigurationOptions(nas.PCOContainerDNSServerIPv4Address)
+
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
+		PTI:                          3,
+		ProtocolConfigurationOptions: &replacement,
+	})
+
+	if len(ue.RequestedProtocolOpts) != 0 {
+		t.Fatalf("the attach's IPCP request survived a replacing IE: %+v", ue.RequestedProtocolOpts)
+	}
+}
+
+func TestESMInformationResponseWithoutPCOKeepsTheAttachProtocolOptions(t *testing.T) {
+	m := esmInfoTestMME()
+	ue, _ := esmInfoAttachUe(t, m, 3)
+
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
+
+	ue.RequestedProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
+
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{PTI: 3})
+
+	if len(ue.RequestedProtocolOpts) != 1 {
+		t.Fatal("a response carrying no PCO IE replaces nothing")
+	}
+}

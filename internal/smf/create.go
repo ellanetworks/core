@@ -287,6 +287,7 @@ func parsePDUSessionRequest(req *fgs.PDUSessionEstablishmentRequest) (*smfNas.Pr
 
 	if req.ExtendedPCO != nil {
 		pco.IPv4LinkMTURequest = true
+		pco.ProtocolRequests = req.ExtendedPCO.ProtocolOptions()
 
 		for _, id := range req.ExtendedPCO.ContainerIDs() {
 			switch id {
