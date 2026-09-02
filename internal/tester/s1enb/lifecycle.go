@@ -77,9 +77,21 @@ type ServiceRequestResult struct {
 	DLTEID      uint32 // eNB downlink TEID reported to the MME
 }
 
+// ServiceRequestOpts tunes a service-request re-establishment.
+type ServiceRequestOpts struct {
+	// DLTEID pins the S1-U downlink TEID the eNB reports in the Initial
+	// Context Setup Response. Zero allocates a fresh one, which is what an
+	// eNB normally does. Pin it to the TEID of an existing tunnel to keep
+	// that tunnel (and its receive counter) alive across the idle period:
+	// a test asserting on packets the core sends *during* re-establishment
+	// cannot tear a tunnel down and build a new one afterwards without
+	// racing those packets.
+	DLTEID uint32
+}
+
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
-// ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer.
-func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
+// ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer. opts may be nil.
+func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
 	if guti == nil {
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
@@ -117,6 +129,9 @@ func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.D
 	}
 
 	dlTEID := e.allocTEID()
+	if opts != nil && opts.DLTEID != 0 {
+		dlTEID = opts.DLTEID
+	}
 
 	if err := e.sendInitialContextSetupResponse(ics, enbUEID, dlTEID); err != nil {
 		return nil, err

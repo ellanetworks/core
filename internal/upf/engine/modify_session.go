@@ -68,8 +68,9 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 }
 
 // modifySessionLocked applies the modification. The caller holds filterMu
-// (read) and session.opMu. It returns whether the FAR flipped to forward,
-// which is the trigger to drain the session's buffered downlink packets.
+// (read) and session.opMu. It returns whether any PDR's FAR transitioned from
+// not-forwarding to forwarding, which is the trigger to drain the session's
+// buffered downlink packets.
 func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, error) {
 	if session.deleted {
 		err := fmt.Errorf("session %d is being deleted", req.SEID)
@@ -192,7 +193,10 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		if spdrInfo.PdrInfo.Far.Action&farForward != 0 {
 			bpfObjects.ClearNotified(req.SEID, uint16(pdrID))
 
-			drain = true
+			// Drain only on the transition *into* forwarding.
+			if !hadOld || old.PdrInfo.Far.Action&farForward == 0 {
+				drain = true
+			}
 		}
 	}
 

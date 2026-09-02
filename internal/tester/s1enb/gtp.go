@@ -35,6 +35,10 @@ type tunnel struct {
 	ulteid  uint32
 	dlteid  uint32
 	rxCount atomic.Uint64
+	// rxExtHdr counts received G-PDUs carrying the extension-header flag.
+	// S1-U G-PDUs have no PDU Session Container (that is N3/N9-only,
+	// TS 38.415), so this must stay at zero against a correct UPF.
+	rxExtHdr atomic.Uint64
 }
 
 // TunnelOpts configures a GTP-U datapath for an attached UE's default bearer.
@@ -244,6 +248,21 @@ func (e *ENB) TunnelRXCount(dlteid uint32) uint64 {
 	return t.rxCount.Load()
 }
 
+// TunnelRXExtHeaderCount returns how many of the G-PDUs received for the given
+// downlink TEID carried a GTP-U extension header. S1-U carries none, so a
+// non-zero value means the UPF encapsulated a 4G bearer as if it were N3.
+func (e *ENB) TunnelRXExtHeaderCount(dlteid uint32) uint64 {
+	e.mu.Lock()
+	t := e.tunnels[dlteid]
+	e.mu.Unlock()
+
+	if t == nil {
+		return 0
+	}
+
+	return t.rxExtHdr.Load()
+}
+
 // CloseTunnel tears down the tunnel for the given downlink TEID.
 func (e *ENB) CloseTunnel(dlteid uint32) {
 	e.mu.Lock()
@@ -329,6 +348,8 @@ func (e *ENB) gtpReader() {
 		// Walk any extension headers (a real UPF sends plain G-PDUs to a 4G eNB,
 		// so this is defensive).
 		if buf[0]&0x04 != 0 {
+			t.rxExtHdr.Add(1)
+
 			for start < n {
 				if buf[start] == 0x00 {
 					start++

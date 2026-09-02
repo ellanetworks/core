@@ -142,6 +142,25 @@ func reusableBindToDeviceControl(tun string) func(network, address string, c sys
 	}
 }
 
+// SendUDPOneWay sends a single datagram from a UE's TUN device and returns
+// without waiting for a reply.
+func SendUDPOneWay(ctx context.Context, tun, dst string, port int, payload []byte) error {
+	dialer := net.Dialer{Control: bindToDeviceControl(tun)}
+
+	conn, err := dialer.DialContext(ctx, "udp", net.JoinHostPort(dst, strconv.Itoa(port)))
+	if err != nil {
+		return fmt.Errorf("udp dial %s: %w", dst, err)
+	}
+
+	defer conn.Close() //nolint:errcheck
+
+	if _, err := conn.Write(payload); err != nil {
+		return fmt.Errorf("udp write to %s: %w", dst, err)
+	}
+
+	return nil
+}
+
 // SendUDP sends all count datagrams regardless of per-attempt errors so flow-report
 // packet counts stay deterministic. Returns nil if at least one reply was received.
 func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {

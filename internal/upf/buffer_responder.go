@@ -22,8 +22,7 @@ import (
 )
 
 const (
-	// maxPerQueuePackets caps one session's queue. The value of buffering
-	// is concentrated in the first packets of a flow.
+	// maxPerQueuePackets caps one session's queue.
 	maxPerQueuePackets = 16
 
 	// queueTTL matches T3513 paging retransmission: past it the UE did
@@ -203,12 +202,24 @@ func (b *BufferResponder) UpdateProgram(prog *bpf.Program) error {
 
 // Close stops the consumer and the sweeper, then releases the socket, the
 // link and the pair, in that order, so the consumer never touches a
-// recycled fd.
+// recycled fd. It is idempotent.
 func (b *BufferResponder) Close() error {
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+
+		return nil
+	}
+
+	b.closed = true
+	b.mu.Unlock()
+
 	// Clear the ifindex before the pair goes away: a recycled ifindex
 	// must not make the NAT guard match an unrelated frame.
-	if err := b.bpfObjects.SetBufferVethIfindex(0); err != nil {
-		logger.UpfLog.Warn("failed to clear buffer veth ifindex", zap.Error(err))
+	if b.bpfObjects != nil {
+		if err := b.bpfObjects.SetBufferVethIfindex(0); err != nil {
+			logger.UpfLog.Warn("failed to clear buffer veth ifindex", zap.Error(err))
+		}
 	}
 
 	if b.reader != nil {
@@ -229,8 +240,6 @@ func (b *BufferResponder) Close() error {
 		_ = unix.Close(b.injectFD)
 		b.injectFD = -1
 	}
-
-	b.closed = true
 	b.mu.Unlock()
 
 	if b.vethLink != nil {
@@ -315,7 +324,8 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 }
 
 // enqueue adds one captured packet under mu, applying the per-queue cap
-// (head-drop, so the newest packets are the ones kept) and the global byte
+// (head-drop, keeping the newest packets since older ones are more likely
+// to have timed out from the sender's perspective) and the global byte
 // budget.
 func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []byte) {
 	q, ok := b.buffers[seid]
@@ -324,16 +334,16 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 		b.buffers[seid] = q
 	}
 
+	// Global budget first: refuse before we evict anything, so we don't
+	// evict a packet and then drop the newcomer for the same reason.
+	if b.totalBytes+len(pkt) > maxTotalBytes {
+		incCounter(bufferPacketsEvicted)
+		return
+	}
+
 	for len(q.packets) >= maxPerQueuePackets {
 		incCounter(bufferPacketsEvicted)
 		b.dropHead(q)
-	}
-
-	if b.totalBytes+len(pkt) > maxTotalBytes {
-		// Refuse the newcomer rather than evict another session's
-		// queue: no cross-session interference under flood.
-		incCounter(bufferPacketsEvicted)
-		return
 	}
 
 	q.packets = append(q.packets, queuedPacket{

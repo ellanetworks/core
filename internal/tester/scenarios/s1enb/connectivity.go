@@ -150,7 +150,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 
 	e.CloseTunnel(res.DLTEID)
 
-	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout)
+	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)
 	}

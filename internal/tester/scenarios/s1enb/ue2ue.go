@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/spf13/pflag"
 )
 
@@ -159,6 +160,7 @@ type s1AttachResult struct {
 	DLTEID      uint32
 	mmeUES1APID int64
 	enbUES1APID int64
+	guti        *eps.EPSMobileIdentity
 }
 
 func attachAndTunnelS1(e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface string) (*s1AttachResult, error) {
@@ -191,5 +193,6 @@ func attachAndTunnelS1(e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface stri
 		DLTEID:      res.DLTEID,
 		mmeUES1APID: res.MMEUES1APID,
 		enbUES1APID: res.ENBUES1APID,
+		guti:        res.GUTI,
 	}, nil
 }

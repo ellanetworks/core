@@ -6,9 +6,6 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"net"
-	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -98,7 +95,7 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 	rxBefore := gNodeB.TunnelRXCount(regB.DLTEID)
 
 	// Drop UE-B to CM-IDLE: its downlink FAR flips to BUFF|NOCP.
-	if err := gNodeB.ReleaseContext(ueB, ranUENGAPID_B, []uint8{scenarios.DefaultPDUSessionID}, releaseTimeout); err != nil {
+	if err := gNodeB.ReleaseContext(ueB, ranUENGAPID_B, []uint8{scenarios.DefaultPDUSessionID}, gnb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release UE-B to idle: %w", err)
 	}
 
@@ -107,13 +104,13 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 	// Two datagrams of the idle window: the first is the single-shot case
 	// whose loss is unrecoverable, the second covers the queue beyond
 	// depth one while the page is in flight.
-	if err := udpSendFromTun(ctx, tunA, regB.UEIPv4, []byte("first datagram to an idle ue")); err != nil {
+	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, bufferedDstPort, []byte("first datagram to an idle ue")); err != nil {
 		return fmt.Errorf("send first datagram from UE-A: %w", err)
 	}
 
 	time.Sleep(bufferedSettle)
 
-	if err := udpSendFromTun(ctx, tunA, regB.UEIPv4, []byte("second datagram while paging")); err != nil {
+	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, bufferedDstPort, []byte("second datagram while paging")); err != nil {
 		return fmt.Errorf("send second datagram from UE-A: %w", err)
 	}
 
@@ -155,7 +152,7 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 
 	// A third datagram after the resume: it must flow directly, proving
 	// the live path works alongside the drained queue.
-	if err := udpSendFromTun(ctx, tunA, regB.UEIPv4, []byte("third datagram after resume")); err != nil {
+	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, bufferedDstPort, []byte("third datagram after resume")); err != nil {
 		return fmt.Errorf("send third datagram from UE-A: %w", err)
 	}
 
@@ -206,30 +203,4 @@ func awaitTunnelRX(gNodeB *gnb.GnodeB, dlteid uint32, want uint64, deadline time
 	}
 
 	return nil
-}
-
-// udpSendFromTun sends one datagram from a UE's TUN device, so the packet
-// egresses the gNB tunnel as that UE's uplink. One-way on purpose: no echo
-// is expected while the receiver is idle.
-func udpSendFromTun(ctx context.Context, tun, dstIP string, payload []byte) error {
-	dialer := net.Dialer{
-		Control: func(_, _ string, c syscall.RawConn) error {
-			return c.Control(func(fd uintptr) {
-				_ = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, tun)
-			})
-		},
-	}
-
-	conn, err := dialer.DialContext(ctx, "udp4", net.JoinHostPort(dstIP, strconv.Itoa(bufferedDstPort)))
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	_, err = conn.Write(payload)
-
-	return err
 }

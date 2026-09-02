@@ -262,6 +262,30 @@ func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 	}
 }
 
+// Start() tears itself down on its last failure and upf.go closes again on any
+// Start() error, so Close runs twice on that path. Without an idempotence
+// guard the second close(b.evictStop) panics and takes the process with it.
+func TestCloseIsIdempotent(t *testing.T) {
+	b, _ := newTestResponder()
+
+	// Stand in for the goroutines Start() would have launched: Close waits
+	// on done and evictDone, so hand it already-finished channels.
+	b.done = make(chan struct{})
+	close(b.done)
+
+	b.evictStop = make(chan struct{})
+	b.evictDone = make(chan struct{})
+	close(b.evictDone)
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+}
+
 // A Drain racing Close must not send on a closed (possibly recycled) fd.
 func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 	b, frames := newTestResponder()
