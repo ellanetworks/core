@@ -94,6 +94,22 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 	return b, nil
 }
 
+// WaitForPaging blocks until the MME pages on this association and returns the
+// decoded PAGING (TS 36.413 §9.1.6.1).
+func (e *ENB) WaitForPaging(timeout time.Duration) (*s1ap.Paging, error) {
+	frame, err := e.WaitForMessage(NoUEID, Initiating, s1ap.ProcPaging, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	paging, err := s1ap.ParsePaging(frame.Value)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse Paging: %w", err)
+	}
+
+	return paging, nil
+}
+
 // WaitForS1SetupFailure blocks until the MME answers the S1 Setup Request with
 // an S1 SETUP FAILURE (TS 36.413) and returns the decoded message.
 func (e *ENB) WaitForS1SetupFailure(timeout time.Duration) (*s1ap.S1SetupFailure, error) {
@@ -133,12 +149,23 @@ func (e *ENB) SendInitialUEMessage(enbUEID int64, nas []byte) error {
 // UE's S-TMSI, as a UE returning from ECM-IDLE does for a SERVICE REQUEST or a
 // TRACKING AREA UPDATE (TS 24.301). nas is the (security-protected) NAS PDU.
 func (e *ENB) SendInitialUEMessageWithSTMSI(enbUEID int64, mmec uint8, mtmsi uint32, nas []byte) error {
+	return e.sendInitialUEMessageWithSTMSI(enbUEID, mmec, mtmsi, s1ap.RRCCauseMOSignalling, nas)
+}
+
+// SendPagingResponse sends the INITIAL UE MESSAGE a UE answers a page with. The
+// RRC establishment cause is mt-Access, the cause the UE's RRC connection
+// carries when the page is what woke it (TS 36.331 §5.3.3.2).
+func (e *ENB) SendPagingResponse(enbUEID int64, mmec uint8, mtmsi uint32, nas []byte) error {
+	return e.sendInitialUEMessageWithSTMSI(enbUEID, mmec, mtmsi, s1ap.RRCCauseMTAccess, nas)
+}
+
+func (e *ENB) sendInitialUEMessageWithSTMSI(enbUEID int64, mmec uint8, mtmsi uint32, cause s1ap.RRCEstablishmentCause, nas []byte) error {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID:           s1ap.ENBUES1APID(enbUEID),
 		NASPDU:                s1ap.NASPDU(nas),
 		TAI:                   e.tai(),
 		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
-		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
+		RRCEstablishmentCause: s1ap.Ptr(cause),
 		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(mmec), MTMSI: s1ap.MTMSI(mtmsi)},
 	}
 
