@@ -1,0 +1,53 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 87,
+        "label": "AUTHENTICATION RESPONSE",
+        "unknown": false
+      }
+    },
+    "authentication_response": {
+      "authentication_response_parameter": {
+        "res_star": [
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239,
+          239
+        ]
+      },
+      "eap_message": {
+        "hex": "0200000501"
+      }
+    }
+  },
+  "encrypted": false
+}

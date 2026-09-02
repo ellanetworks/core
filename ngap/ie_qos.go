@@ -733,3 +733,46 @@ type SecurityResult struct {
 	ConfidentialityProtectionResult ConfidentialityProtectionResult `per:"ENUMERATED,range:0..1,..."`
 	_                               ieExtensions                    `per:",skip"`
 }
+
+// Name returns the value's name in TS 38.413 §9.3.1.27, or the empty string for
+// a value the spec's root does not name.
+func (i IntegrityProtectionIndication) Name() string {
+	switch i {
+	case IntegrityProtectionRequired:
+		return "required"
+	case IntegrityProtectionPreferred:
+		return "preferred"
+	case IntegrityProtectionNotNeeded:
+		return "not-needed"
+	default:
+		return ""
+	}
+}
+
+// Name returns the value's name in TS 38.413 §9.3.1.27, or the empty string for
+// a value the spec's root does not name.
+func (c ConfidentialityProtectionIndication) Name() string {
+	switch c {
+	case ConfidentialityProtectionRequired:
+		return "required"
+	case ConfidentialityProtectionPreferred:
+		return "preferred"
+	case ConfidentialityProtectionNotNeeded:
+		return "not-needed"
+	default:
+		return ""
+	}
+}
+
+// Name returns the value's name in TS 38.413 §9.3.1.103, or the empty string for
+// a value the spec's root does not name.
+func (m MaximumIntegrityProtectedDataRate) Name() string {
+	switch m {
+	case MaximumIntegrityProtectedDataRate64kbs:
+		return "bitrate64kbs"
+	case MaximumIntegrityProtectedDataRateMaximumUERate:
+		return "maximum-UE-rate"
+	default:
+		return ""
+	}
+}

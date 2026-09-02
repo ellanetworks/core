@@ -4,8 +4,6 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -38,13 +36,9 @@ func libSetupRequestTransfer(raw ngap.TransferContainer) (*PDUSessionResourceSet
 		}
 	}
 
-	if t.SecurityIndication != nil {
-		out.SecurityIndication = makeUnsupportedIE()
-	}
+	out.SecurityIndication = securityIndication(t.SecurityIndication)
 
-	for _, ie := range t.UnknownIEs() {
-		out.UnsupportedIEs = append(out.UnsupportedIEs, fmt.Sprintf("unsupported ie type %d", ie.ID))
-	}
+	out.UnrecognizedIEs = unmodeledIEs(t.UnknownIEs())
 
 	return out, nil
 }
@@ -85,4 +79,24 @@ func libQosFlowSetupRequest(flow ngap.QosFlowSetupRequestItem) QosFlowSetupReque
 
 func libPDUSessionType(t ngap.PDUSessionType) utils.EnumField {
 	return utils.NamedEnum(uint8(t), t.Name())
+}
+
+// securityIndication renders the user-plane protection the SMF asks the NG-RAN
+// node to apply (TS 38.413 §9.3.1.27).
+func securityIndication(s *ngap.SecurityIndication) *SecurityIndication {
+	if s == nil {
+		return nil
+	}
+
+	out := &SecurityIndication{
+		IntegrityProtectionIndication:       utils.NamedEnum(uint8(s.IntegrityProtectionIndication), s.IntegrityProtectionIndication.Name()),
+		ConfidentialityProtectionIndication: utils.NamedEnum(uint8(s.ConfidentialityProtectionIndication), s.ConfidentialityProtectionIndication.Name()),
+	}
+
+	if r := s.MaximumIntegrityProtectedDataRateUL; r != nil {
+		rate := utils.NamedEnum(uint8(*r), r.Name())
+		out.MaximumIntegrityProtectedDataRateUL = &rate
+	}
+
+	return out
 }

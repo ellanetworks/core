@@ -9,7 +9,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/decoder/eps"
+	"github.com/ellanetworks/core/internal/decoder/nas/eps"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )

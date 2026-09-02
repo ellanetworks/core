@@ -15,8 +15,9 @@ import (
 // mirrors what the NGAP and S1AP decoders render for an unmodelled IE, with the
 // identifier NAS puts on the element itself rather than on a wrapper.
 type RawIE struct {
-	IEI uint8  `json:"iei"`
-	Hex string `json:"hex"`
+	IEI  uint8  `json:"iei"`
+	Name string `json:"name,omitempty"`
+	Hex  string `json:"hex"`
 }
 
 // RawIEs renders the elements a NAS message preserved but the decoder does not
@@ -36,7 +37,7 @@ func RawIEsExcept(raw []nas.RawIE, handled ...uint8) []RawIE {
 			continue
 		}
 
-		out = append(out, RawIE{IEI: r.IEI, Hex: hex.EncodeToString(r.Value)})
+		out = append(out, RawIE{IEI: r.IEI, Name: r.Name, Hex: hex.EncodeToString(r.Value)})
 	}
 
 	return out

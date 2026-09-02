@@ -3,12 +3,12 @@
 
 package ngap
 
-import "github.com/ellanetworks/core/internal/decoder/nas"
+import fgsdec "github.com/ellanetworks/core/internal/decoder/nas/fgs"
 
 type NASPDU struct {
-	Protocol string          `json:"protocol"`
-	RawHex   string          `json:"raw_hex"`
-	Decoded  *nas.NASMessage `json:"decoded"`
+	Protocol string             `json:"protocol"`
+	RawHex   string             `json:"raw_hex"`
+	Decoded  *fgsdec.NASMessage `json:"decoded"`
 }
 
 type RATRestriction struct {

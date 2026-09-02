@@ -414,3 +414,20 @@ func (c UENetworkCapability) SupportsN1Mode() bool {
 
 	return c.Rest[n1ModeOctet]&n1ModeBit != 0
 }
+
+// CSLCSName returns the name TS 24.301 §9.9.3.12A gives the location services
+// indicator in the CS domain, or the empty string for a value the table does not
+// name. Zero means no information is available rather than "not supported", so
+// the value must not be rendered as a bare number.
+func (n NetworkFeatureSupport) CSLCSName() string {
+	switch n.CSLCS {
+	case 0:
+		return "no information available"
+	case 1:
+		return "supported"
+	case 2:
+		return "not supported"
+	default:
+		return ""
+	}
+}

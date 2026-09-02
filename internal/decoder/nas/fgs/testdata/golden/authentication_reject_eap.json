@@ -1,0 +1,33 @@
+{
+  "security_header": {
+    "protocol_discriminator": {
+      "type": "enum",
+      "value": 126,
+      "label": "5GMM",
+      "unknown": false
+    },
+    "security_header_type": {
+      "type": "enum",
+      "value": 0,
+      "label": "plain",
+      "unknown": false
+    },
+    "sequence_number": 0
+  },
+  "gmm_message": {
+    "gmm_header": {
+      "message_type": {
+        "type": "enum",
+        "value": 88,
+        "label": "AUTHENTICATION REJECT",
+        "unknown": false
+      }
+    },
+    "authentication_reject": {
+      "eap_message": {
+        "hex": "0200000501"
+      }
+    }
+  },
+  "encrypted": false
+}

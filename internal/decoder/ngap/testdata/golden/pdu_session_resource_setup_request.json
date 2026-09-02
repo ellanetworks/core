@@ -210,8 +210,20 @@
                             }
                           ],
                           "extended_protocol_configuration_options": {
-                            "dns_server_ipv4_address_request_ul": true,
-                            "ipv4_link_mtu_request_ul": true
+                            "config_protocol": 128,
+                            "direction": "downlink",
+                            "containers": [
+                              {
+                                "id": 13,
+                                "name": "DNS Server IPv4 Address",
+                                "value": "8.8.8.8"
+                              },
+                              {
+                                "id": 16,
+                                "name": "IPv4 Link MTU",
+                                "value": "1400"
+                              }
+                            ]
                           },
                           "dnn": "internet"
                         }
