@@ -18,9 +18,10 @@ import (
 // AMF. s1enb.PDNResult is its EPS counterpart.
 //
 // It is a snapshot. The gNB reallocates a downlink TEID every time the network
-// re-establishes the session (service request, handover), so a scenario tears
-// down the tunnel it built with the DLTEID it built it from, never with a value
-// read back later.
+// re-establishes the session (service request, handover), unless a scenario
+// pinned the existing tunnel's TEID for that re-establishment, so a scenario
+// tears down the tunnel it built with the DLTEID it built it from, never with a
+// value read back later.
 type PDUSessionResult struct {
 	PDUSessionID uint8
 	UEIPv4       string
@@ -217,13 +218,29 @@ func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSess
 	}, nil
 }
 
+// ServiceRequestOpts tunes a service-request re-establishment.
+type ServiceRequestOpts struct {
+	// DLTEID pins the N3 downlink TEID the gNB reports in the PDU Session
+	// Resource Setup Response. Zero allocates a fresh one, which is what a
+	// gNB normally does. Pin it to the TEID of an existing tunnel to keep
+	// that tunnel (and its receive counter) alive across the idle period:
+	// a test asserting on packets the core sends *during* re-establishment
+	// cannot tear a tunnel down and build a new one afterwards without
+	// racing those packets.
+	DLTEID uint32
+}
+
 // ServiceRequest performs a mobile-originated service request for a UE in
 // CM-IDLE (TS 23.502 §4.2.3.2), re-establishing the PDU session's user plane.
-// ENB.ServiceRequest is its EPS counterpart.
-func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration) (*ServiceRequestResult, error) {
+// opts may be nil. ENB.ServiceRequest is its EPS counterpart.
+func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
 	var status [16]bool
 
 	status[pduSessionID] = true
+
+	if opts != nil && opts.DLTEID != 0 {
+		g.PinDLTEID(ranUENGAPID, int64(pduSessionID), opts.DLTEID)
+	}
 
 	generation := g.sessionGeneration()
 

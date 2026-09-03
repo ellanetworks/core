@@ -201,7 +201,7 @@ func runConnectivityIPv6Test(
 		zap.String("destination", scenarios.DefaultPingDestinationV6),
 	)
 
-	serviceRequest, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	serviceRequest, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request procedure failed: %v", err)
 	}

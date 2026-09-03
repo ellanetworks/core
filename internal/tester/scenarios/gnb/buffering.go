@@ -117,17 +117,22 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 	time.Sleep(bufferedSettle)
 
 	// UE-B answers the page: the FAR flips to FORW and the buffered
-	// datagrams are re-injected through the downlink pipeline.
-	serviceRequest, err := gNodeB.ServiceRequest(ueB, ranUENGAPID_B, scenarios.DefaultPDUSessionID, registrationTimeout)
+	// datagrams are re-injected through the downlink pipeline. Pin the
+	// downlink TEID to the one the existing tunnel was built with, so the
+	// re-injected datagrams cannot arrive before a replacement tunnel is
+	// registered — the core drains as soon as it has processed the Initial
+	// Context Setup Response, which races tearing the tunnel down and
+	// building a new one here.
+	serviceRequest, err := gNodeB.ServiceRequest(ueB, ranUENGAPID_B, scenarios.DefaultPDUSessionID, registrationTimeout, &gnb.ServiceRequestOpts{DLTEID: regB.DLTEID})
 	if err != nil {
 		return fmt.Errorf("service request from idle: %w", err)
 	}
 
 	sessionB := serviceRequest.Session
 
-	// A service request normally keeps the AN tunnel; reprogram the gNB
-	// side only when the DL TEID actually changed, so the existing tunnel
-	// keeps receiving the re-injected datagrams without a gap.
+	// The pinned DL TEID matches the existing tunnel; reprogram the gNB
+	// side only when it actually changed, so the existing tunnel keeps
+	// receiving the re-injected datagrams without a gap.
 	dlTEID := regB.DLTEID
 
 	if sessionB.DLTEID != regB.DLTEID {
