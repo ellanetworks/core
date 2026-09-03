@@ -33,6 +33,8 @@ func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
 			return nil, fmt.Errorf("release PDU session %d the UE reports inactive: %w", psi, err)
 		}
+
+		ue.DeleteSmContext(uint8(psi))
 	}
 
 	return held, nil

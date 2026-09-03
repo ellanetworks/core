@@ -106,6 +106,16 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	if !slices.Contains(r, "1") || !slices.Contains(r, "5") || !slices.Contains(r, "8") || !slices.Contains(r, "15") {
 		t.Fatalf("expected SM Context 1, 5, 8, and 15 to be released, released: %v", r)
 	}
+
+	for _, pduSessionID := range []uint8{1, 5, 8, 15} {
+		if _, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+			t.Errorf("TS 24.501 §5.6.3.2: PDU session %d must be released on the AMF side too, not only in the SMF", pduSessionID)
+		}
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(11); !ok {
+		t.Error("PDU session 11 was reported active and must be kept")
+	}
 }
 
 func buildTestNotificationResponse(t *testing.T, pduSessionStatus []byte) *fgs.NotificationResponse {

@@ -990,6 +990,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("should have indicated PDU Session ID 13 is inactive in network")
 	}
 
+	for _, pduSessionID := range []uint8{1, 12} {
+		if _, ok := ue.SmContextFindByPDUSessionID(pduSessionID); !ok {
+			t.Errorf("PDU session %d was reported active and must be kept", pduSessionID)
+		}
+	}
+
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
@@ -1194,7 +1200,7 @@ func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]u
 		NgKSI:            nas.KeySetIdentifier{Value: 1},
 		MobileIdentity:   serviceRequest5GSTMSI(),
 		UplinkDataStatus: mustBitmap([]byte{0x00, 0x10}),
-		PDUSessionStatus: mustBitmap([]byte{0x02, 0x20}),
+		PDUSessionStatus: mustBitmap([]byte{0x02, 0x30}),
 	}
 
 	innerBytes, err := inner.MarshalBinary()

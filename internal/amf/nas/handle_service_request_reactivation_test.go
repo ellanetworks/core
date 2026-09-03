@@ -175,3 +175,27 @@ func TestHandleServiceRequest_AlreadyEstablishedSession_IsNotReportedAsAReactiva
 		t.Error("PDU session 12 reported as a reactivation failure although its user-plane resources are established (TS 24.501 9.11.3.42)")
 	}
 }
+
+func TestHandleServiceRequest_SessionReportedInactive_ReleasedOnBothSides(t *testing.T) {
+	smf := &fakeSmf{}
+	f := connectedModeUe(t, smf)
+
+	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+	if err := f.ue.CreateSmContext(9, "ref-9", &snssai, "internet"); err != nil {
+		t.Fatalf("could not create the sm context: %v", err)
+	}
+
+	idleToActive(t, f, fgs.ServiceTypeData)
+
+	if len(smf.ReleasedSmContext) != 1 || smf.ReleasedSmContext[0] != "ref-9" {
+		t.Fatalf("released %v in the SMF, want [ref-9]", smf.ReleasedSmContext)
+	}
+
+	if _, ok := f.ue.SmContextFindByPDUSessionID(9); ok {
+		t.Error("TS 24.501 §5.6.1.4: PDU session 9 was reported inactive and must be released on the AMF side too, not only in the SMF")
+	}
+
+	if _, ok := f.ue.SmContextFindByPDUSessionID(12); !ok {
+		t.Error("PDU session 12 was reported active and must be kept")
+	}
+}

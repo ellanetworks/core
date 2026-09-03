@@ -466,7 +466,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 				err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					logger.From(ctx, logger.AmfLog).Error("Release amf.SmContext Error", zap.Error(err))
+
+					continue
 				}
+
+				ue.DeleteSmContext(pduSessionID)
 			} else {
 				acceptPduSessionPsi[pduSessionID] = true
 			}

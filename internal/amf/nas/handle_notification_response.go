@@ -40,6 +40,8 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 					logger.From(ctx, logger.AmfLog).Warn("failed to release sm context", zap.Error(err))
 					return nasreply.Handled()
 				}
+
+				ue.DeleteSmContext(pduSessionID)
 			}
 		}
 	}
