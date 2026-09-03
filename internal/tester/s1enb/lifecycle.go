@@ -95,13 +95,13 @@ type ServiceRequestOpts struct {
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
 // ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer. opts may be nil.
 func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
-	return e.serviceRequest(ue, guti, false, timeout)
+	return e.serviceRequest(ue, guti, false, timeout, opts)
 }
 
 // ServiceRequestAnsweringPage is ServiceRequest for a UE woken by a page, so the
 // INITIAL UE MESSAGE carries RRC establishment cause mt-Access.
 func (e *ENB) ServiceRequestAnsweringPage(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
-	return e.serviceRequest(ue, guti, true, timeout)
+	return e.serviceRequest(ue, guti, true, timeout, opts)
 }
 
 func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage bool, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
