@@ -309,21 +309,22 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *
 
 	nfs := m.NetworkFeatureSupport(ue.UeNetCap())
 
+	// A voice-centric UE unable to obtain voice service disables its E-UTRAN
+	// capability (TS 23.221 §7.2a), and IMS voice is unreachable without a
+	// P-CSCF. Reporting the combined attach as served keeps such a UE camped on
+	// E-UTRAN; no SGs interface backs the CS registration.
+	attachResult := eps.AttachResultEPS
+	if ue.CombinedAttach {
+		attachResult = eps.AttachResultCombined
+	}
+
 	accept := &eps.AttachAccept{
-		EPSAttachResult:       eps.AttachResultEPS,
+		EPSAttachResult:       attachResult,
 		T3412:                 t3412,
 		TAIList:               taiList,
 		ESMMessageContainer:   esm,
 		GUTI:                  &guti,
 		NetworkFeatureSupport: nfs,
-	}
-
-	// The MME has no SGs interface, so a combined EPS/IMSI attach succeeds for
-	// EPS services only. EMM cause #18 makes the UE stop attempting CS
-	// registration on this PLMN (TS 24.301).
-	if ue.CombinedAttach {
-		cause := eps.EMMCauseCSDomainNotAvailable
-		accept.Cause = &cause
 	}
 
 	return accept.MarshalBinary()

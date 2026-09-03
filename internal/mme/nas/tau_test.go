@@ -313,8 +313,8 @@ func parseTAUAccept(t *testing.T, ue *mme.UeContext, sent []byte) *eps.TrackingA
 	return parsed
 }
 
-// TS 24.301 §8.2.26.8, §5.5.3.3.4.3
-func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
+// TS 23.221 §7.2a
+func TestTrackingAreaUpdateCombinedReportsCombinedUpdate(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
@@ -336,8 +336,12 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 		t.Fatalf("parse TAU Accept: %v", err)
 	}
 
-	if parsed.Cause == nil || *parsed.Cause != eps.EMMCauseCSDomainNotAvailable {
-		t.Fatalf("EMM cause = %v, want #%d (CS domain not available)", parsed.Cause, eps.EMMCauseCSDomainNotAvailable)
+	if parsed.EPSUpdateResult != eps.EPSUpdateResultCombined {
+		t.Fatalf("EPS update result = %d, want %d (combined TA/LA updated)", parsed.EPSUpdateResult, eps.EPSUpdateResultCombined)
+	}
+
+	if parsed.Cause != nil {
+		t.Fatalf("EMM cause = #%d, want none", *parsed.Cause)
 	}
 }
 
