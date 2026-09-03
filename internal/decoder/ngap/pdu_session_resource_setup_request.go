@@ -44,7 +44,7 @@ func buildPDUSessionResourceSetupRequest(value []byte) NGAPMessageValue {
 				SNSSAI:       buildSNSSAIValue(item.SNSSAI),
 			}
 
-			transfer, err := libSetupRequestTransfer(item.Transfer)
+			transfer, err := libPDUSessionResourceSetupRequestTransfer(item.Transfer)
 			if err != nil {
 				entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
 			} else {

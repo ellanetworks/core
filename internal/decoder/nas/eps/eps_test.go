@@ -216,3 +216,248 @@ func TestDecodeInvalid(t *testing.T) {
 		t.Fatal("expected an error for a too-short message")
 	}
 }
+
+func TestDecodeTrackingAreaUpdateReject(t *testing.T) {
+	msg := decodeHex(t, "074b09")
+
+	rej := msg.EMMMessage.TrackingAreaUpdateReject
+	if rej == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if rej.EMMCause.Value != int64(eps.EMMCauseUEIdentityCannotBeDerived) {
+		t.Errorf("EMM cause = %d %q", rej.EMMCause.Value, rej.EMMCause.Label)
+	}
+
+	if rej.EMMCause.Label == "" {
+		t.Errorf("EMM cause carries no label")
+	}
+}
+
+func TestDecodeEMMInformation(t *testing.T) {
+	msg := decodeHex(t, "2701fb5493030761430d8545363b0c7296e9f7b77c3d0745058445363b0c")
+
+	info := msg.EMMMessage.EMMInformation
+	if info == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if info.FullNameForNetwork == nil || info.FullNameForNetwork.Name != "Ella Networks" {
+		t.Errorf("full network name = %+v", info.FullNameForNetwork)
+	}
+
+	if info.ShortNameForNetwork == nil || info.ShortNameForNetwork.Name != "Ella" {
+		t.Errorf("short network name = %+v", info.ShortNameForNetwork)
+	}
+}
+
+func TestDecodeESMInformationResponse(t *testing.T) {
+	msg := decodeHex(t, "27378dcac30102bbda280908696e7465726e6574")
+
+	resp := msg.ESMMessage.ESMInformationResponse
+	if resp == nil {
+		t.Fatalf("ESM = %+v", msg.ESMMessage)
+	}
+
+	if resp.AccessPointName == nil || *resp.AccessPointName != "internet" {
+		t.Errorf("APN = %v", resp.AccessPointName)
+	}
+}
+
+func TestDecodePDNDisconnectRequest(t *testing.T) {
+	msg := decodeHex(t, "274ce5c4670502bdd206")
+
+	req := msg.ESMMessage.PDNDisconnectRequest
+	if req == nil {
+		t.Fatalf("ESM = %+v", msg.ESMMessage)
+	}
+
+	if req.LinkedEPSBearerIdentity != 6 {
+		t.Errorf("linked EPS bearer identity = %d, want 6", req.LinkedEPSBearerIdentity)
+	}
+}
+
+func TestDecodeAttachCompleteCarriesESMContainer(t *testing.T) {
+	msg := decodeHex(t, "2735e4e44602074300035200c2")
+
+	complete := msg.EMMMessage.AttachComplete
+	if complete == nil || complete.ESMContainer == nil {
+		t.Fatalf("EMM = %+v", msg.EMMMessage)
+	}
+
+	if complete.ESMContainer.ESMHeader.MessageType.Value != int64(eps.MsgActivateDefaultEPSBearerContextAccept) {
+		t.Errorf("ESM container = %+v", complete.ESMContainer.ESMHeader)
+	}
+
+	if complete.ESMContainer.ESMHeader.EPSBearerIdentity != 5 {
+		t.Errorf("EPS bearer identity = %d, want 5", complete.ESMContainer.ESMHeader.EPSBearerIdentity)
+	}
+}
+
+func TestDecodeEMMRejects(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		msg  interface{ MarshalBinary() ([]byte, error) }
+		want func(*testing.T, *EMMMessage)
+	}{
+		{
+			name: "AttachReject",
+			msg:  &eps.AttachReject{Cause: eps.EMMCauseIllegalUE},
+			want: func(t *testing.T, m *EMMMessage) {
+				if m.AttachReject == nil || m.AttachReject.EMMCause.Value != int64(eps.EMMCauseIllegalUE) {
+					t.Errorf("attach reject = %+v", m.AttachReject)
+				}
+			},
+		},
+		{
+			name: "AuthenticationFailure",
+			msg:  &eps.AuthenticationFailure{Cause: eps.EMMCauseMACFailure, AUTS: []byte{1, 2, 3}},
+			want: func(t *testing.T, m *EMMMessage) {
+				if m.AuthenticationFailure == nil || m.AuthenticationFailure.AUTS != "010203" {
+					t.Errorf("authentication failure = %+v", m.AuthenticationFailure)
+				}
+			},
+		},
+		{
+			name: "ServiceReject",
+			msg:  &eps.ServiceReject{Cause: eps.EMMCauseUEIdentityCannotBeDerived},
+			want: func(t *testing.T, m *EMMMessage) {
+				if m.ServiceReject == nil || m.ServiceReject.EMMCause.Label == "" {
+					t.Errorf("service reject = %+v", m.ServiceReject)
+				}
+			},
+		},
+		{
+			name: "EMMStatus",
+			msg:  &eps.EMMStatus{Cause: eps.EMMCauseIllegalUE},
+			want: func(t *testing.T, m *EMMMessage) {
+				if m.EMMStatus == nil {
+					t.Errorf("EMM status = %+v", m.EMMStatus)
+				}
+			},
+		},
+		{
+			// The network variant shares its message type with the UE one and only
+			// parses in the downlink direction (TS 24.301 table 9.8.1).
+			name: "DetachRequestNetwork",
+			msg:  &eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachRequired},
+			want: func(t *testing.T, m *EMMMessage) {
+				if m.DetachRequestNetwork == nil {
+					t.Fatalf("detach request (network) not decoded: %+v", m)
+				}
+
+				if m.DetachRequestNetwork.DetachType.Label == "" {
+					t.Errorf("detach type carries no label")
+				}
+			},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := c.msg.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			msg := DecodeEPSNASMessage(b)
+			if msg.EMMMessage == nil {
+				t.Fatalf("no EMM message decoded")
+			}
+
+			c.want(t, msg.EMMMessage)
+		})
+	}
+}
+
+// Every ESM message here is network- or UE-originated with the same message
+// type space, so each is decoded end to end rather than trusted to the dispatch
+// table alone.
+func TestDecodeESMMessages(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		msg  interface{ MarshalBinary() ([]byte, error) }
+		want func(*testing.T, *ESMMessage)
+	}{
+		{
+			name: "PDNConnectivityReject",
+			msg:  &eps.PDNConnectivityReject{EPSBearerIdentity: 5, PTI: 1, Cause: eps.ESMCauseInsufficientResources},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.PDNConnectivityReject == nil || m.PDNConnectivityReject.ESMCause.Label == "" {
+					t.Errorf("pdn connectivity reject = %+v", m.PDNConnectivityReject)
+				}
+			},
+		},
+		{
+			name: "ESMStatus",
+			msg:  &eps.ESMStatus{EPSBearerIdentity: 5, PTI: 1, Cause: eps.ESMCauseInvalidEPSBearerIdentity},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.ESMStatus == nil {
+					t.Errorf("esm status = %+v", m.ESMStatus)
+				}
+			},
+		},
+		{
+			name: "DeactivateEPSBearerContextRequest",
+			msg:  &eps.DeactivateEPSBearerContextRequest{EPSBearerIdentity: 5, PTI: 1, Cause: eps.ESMCauseRegularDeactivation},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.DeactivateBearerRequest == nil {
+					t.Errorf("deactivate bearer request = %+v", m.DeactivateBearerRequest)
+				}
+			},
+		},
+		{
+			name: "ModifyEPSBearerContextRequest",
+			msg: &eps.ModifyEPSBearerContextRequest{
+				EPSBearerIdentity: 5, PTI: 1,
+				NewEPSQoS: &eps.EPSQoS{QCI: 9},
+			},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.ModifyEPSBearerContextRequest == nil || m.ModifyEPSBearerContextRequest.NewEPSQoS == nil {
+					t.Errorf("modify eps bearer context request = %+v", m.ModifyEPSBearerContextRequest)
+				}
+			},
+		},
+		{
+			name: "BearerResourceAllocationRequest",
+			msg: &eps.BearerResourceAllocationRequest{
+				EPSBearerIdentity: 0, PTI: 1, LinkedEPSBearerIdentity: 5,
+				TrafficFlowAggregate:   []byte{0x01, 0x02},
+				RequiredTrafficFlowQoS: eps.EPSQoS{QCI: 9},
+			},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.BearerResourceAllocationRequest == nil {
+					t.Fatalf("bearer resource allocation request not decoded")
+				}
+
+				if m.BearerResourceAllocationRequest.LinkedEPSBearerIdentity != 5 {
+					t.Errorf("linked EPS bearer identity = %d, want 5", m.BearerResourceAllocationRequest.LinkedEPSBearerIdentity)
+				}
+			},
+		},
+		{
+			name: "BearerResourceModificationRequest",
+			msg: &eps.BearerResourceModificationRequest{
+				EPSBearerIdentity: 0, PTI: 1, EPSBearerIdentityForPacketFilter: 5,
+				TrafficFlowAggregate: []byte{0x03},
+			},
+			want: func(t *testing.T, m *ESMMessage) {
+				if m.BearerResourceModificationRequest == nil {
+					t.Errorf("bearer resource modification request = %+v", m.BearerResourceModificationRequest)
+				}
+			},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := c.msg.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			msg := DecodeEPSNASMessage(b)
+			if msg.ESMMessage == nil {
+				t.Fatalf("no ESM message decoded: %+v", msg)
+			}
+
+			c.want(t, msg.ESMMessage)
+		})
+	}
+}

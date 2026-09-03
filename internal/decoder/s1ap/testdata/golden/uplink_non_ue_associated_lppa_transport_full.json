@@ -1,0 +1,57 @@
+{
+  "summary": "Uplink Non UE Associated LPPa Transport (routing 3)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 47,
+    "label": "UplinkNonUEAssociatedLPPaTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 148,
+          "label": "Routing-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 147,
+          "label": "LPPa-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "LPPa",
+          "raw_hex": "00020000001c000003000200015000030001000005000b04000b000100000b000110",
+          "decoded": {
+            "kind": "E-CIDMeasurementInitiationRequest",
+            "esmlc_ue_measurement_id": 11
+          }
+        }
+      }
+    ]
+  }
+}

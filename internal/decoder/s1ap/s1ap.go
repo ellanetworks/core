@@ -86,6 +86,32 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildUEContextReleaseCommand(m.Value)
 	case s1ap.ProcUECapabilityInfoIndication:
 		msg.Value, msg.Summary = buildUECapabilityInfoIndication(m.Value)
+	case s1ap.ProcERABSetup:
+		msg.Value, msg.Summary = buildERABSetupRequest(m.Value)
+	case s1ap.ProcERABRelease:
+		msg.Value, msg.Summary = buildERABReleaseCommand(m.Value)
+	case s1ap.ProcReset:
+		msg.Value, msg.Summary = buildReset(m.Value)
+	case s1ap.ProcPathSwitchRequest:
+		msg.Value, msg.Summary = buildPathSwitchRequest(m.Value)
+	case s1ap.ProcNASNonDeliveryIndication:
+		msg.Value, msg.Summary = buildNASNonDeliveryIndication(m.Value)
+	case s1ap.ProcERABModify:
+		msg.Value, msg.Summary = buildERABModifyRequest(m.Value)
+	case s1ap.ProcERABModificationIndication:
+		msg.Value, msg.Summary = buildERABModificationIndication(m.Value)
+	case s1ap.ProcENBConfigurationUpdate:
+		msg.Value, msg.Summary = buildENBConfigurationUpdate(m.Value)
+	case s1ap.ProcENBConfigurationTransfer:
+		msg.Value, msg.Summary = buildENBConfigurationTransfer(m.Value)
+	case s1ap.ProcMMEConfigurationTransfer:
+		msg.Value, msg.Summary = buildMMEConfigurationTransfer(m.Value)
+	case s1ap.ProcLocationReport:
+		msg.Value, msg.Summary = buildLocationReport(m.Value)
+	case s1ap.ProcDownlinkNonUEAssociatedLPPaTransport:
+		msg.Value, msg.Summary = buildDownlinkNonUEAssociatedLPPaTransport(m.Value)
+	case s1ap.ProcUplinkNonUEAssociatedLPPaTransport:
+		msg.Value, msg.Summary = buildUplinkNonUEAssociatedLPPaTransport(m.Value)
 	case s1ap.ProcPaging:
 		msg.Value, msg.Summary = buildPaging(m.Value)
 	case s1ap.ProcErrorIndication:
@@ -127,6 +153,20 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildInitialContextSetupResponse(m.Value)
 	case s1ap.ProcUEContextRelease:
 		msg.Value, msg.Summary = buildUEContextReleaseComplete(m.Value)
+	case s1ap.ProcERABSetup:
+		msg.Value, msg.Summary = buildERABSetupResponse(m.Value)
+	case s1ap.ProcERABRelease:
+		msg.Value, msg.Summary = buildERABReleaseResponse(m.Value)
+	case s1ap.ProcReset:
+		msg.Value, msg.Summary = buildResetAcknowledge(m.Value)
+	case s1ap.ProcPathSwitchRequest:
+		msg.Value, msg.Summary = buildPathSwitchRequestAcknowledge(m.Value)
+	case s1ap.ProcERABModify:
+		msg.Value, msg.Summary = buildERABModifyResponse(m.Value)
+	case s1ap.ProcERABModificationIndication:
+		msg.Value, msg.Summary = buildERABModificationConfirm(m.Value)
+	case s1ap.ProcENBConfigurationUpdate:
+		msg.Value, msg.Summary = buildENBConfigurationUpdateAcknowledge(m.Value)
 	case s1ap.ProcHandoverPreparation:
 		msg.Value, msg.Summary = buildHandoverCommand(m.Value)
 	case s1ap.ProcHandoverResourceAllocation:
@@ -156,6 +196,10 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildHandoverPreparationFailure(m.Value)
 	case s1ap.ProcHandoverResourceAllocation:
 		msg.Value, msg.Summary = buildHandoverFailure(m.Value)
+	case s1ap.ProcPathSwitchRequest:
+		msg.Value, msg.Summary = buildPathSwitchRequestFailure(m.Value)
+	case s1ap.ProcENBConfigurationUpdate:
+		msg.Value, msg.Summary = buildENBConfigurationUpdateFailure(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}

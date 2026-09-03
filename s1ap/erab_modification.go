@@ -257,3 +257,7 @@ func (m *ERABModificationConfirm) Marshal() ([]byte, error) {
 		Value:         w.Bytes(),
 	})
 }
+
+func ParseERABModificationConfirm(value []byte) (*ERABModificationConfirm, error) {
+	return parseMessageBody[ERABModificationConfirm](ProcERABModificationIndication, TriggeringSuccessfulOutcome, erabModificationConfirmIEs, value)
+}

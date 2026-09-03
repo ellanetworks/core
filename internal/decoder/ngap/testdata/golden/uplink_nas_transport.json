@@ -101,6 +101,14 @@
                       },
                       "pdu_session_id": 1,
                       "pti": 0
+                    },
+                    "gsm_status": {
+                      "cause_5g_s_m": {
+                        "type": "enum",
+                        "value": 81,
+                        "label": "Invalid PTI value",
+                        "unknown": false
+                      }
                     }
                   }
                 },

@@ -61,7 +61,8 @@ const NoUEID int64 = 0
 
 // StartOpts configures an eNB simulator.
 type StartOpts struct {
-	ENBID            uint32 // 20-bit macro eNB ID
+	ENBID            uint32 // eNB identity, at the width ENBIDKind implies
+	ENBIDKind        s1ap.ENBIDKind
 	MCC              string
 	MNC              string
 	TAC              string // hex or decimal string; parsed as the 16-bit TAC
@@ -88,11 +89,12 @@ type StartOpts struct {
 var DefaultUERadioCapability = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}
 
 type ENB struct {
-	enbID  uint32
-	name   string
-	plmn   s1ap.PLMNIdentity
-	tac    uint16
-	n3Addr net.IP // eNB S1-U endpoint reported in bearer setup
+	enbID     uint32
+	enbIDKind s1ap.ENBIDKind
+	name      string
+	plmn      s1ap.PLMNIdentity
+	tac       uint16
+	n3Addr    net.IP // eNB S1-U endpoint reported in bearer setup
 
 	n3Conn  *net.UDPConn       // S1-U (GTP-U) socket, nil when no N3 address is configured
 	tunnels map[uint32]*tunnel // keyed by eNB downlink TEID
@@ -102,9 +104,9 @@ type ENB struct {
 	receivedFrames map[Category]map[s1ap.ProcedureCode][]Frame
 	closed         bool
 
-	// s1SetupInfo is the SCTP receive metadata of the S1 Setup Response, captured
-	// at startup so a scenario can assert its PPID and stream after Start.
-	s1SetupInfo *sctp.SndRcvInfo
+	// s1SetupFrame is the S1 Setup Response received at startup, captured so a
+	// scenario can assert its SCTP metadata and its IEs after Start.
+	s1SetupFrame Frame
 
 	sendMu sync.Mutex // serializes SCTP writes so concurrent per-UE flows are safe
 
@@ -187,6 +189,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 	e := &ENB{
 		UERadioCapability: DefaultUERadioCapability,
 		enbID:             opts.ENBID,
+		enbIDKind:         opts.ENBIDKind,
 		name:              opts.Name,
 		plmn:              plmn,
 		tac:               tac,
@@ -254,7 +257,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return nil, fmt.Errorf("S1 Setup did not complete: %w", err)
 	}
 
-	e.s1SetupInfo = setupResp.Info
+	e.s1SetupFrame = setupResp
 
 	logger.GnbLogger.Debug("S1 Setup complete", zap.String("enb", opts.Name), zap.Uint32("enb-id", opts.ENBID))
 
@@ -264,7 +267,20 @@ func Start(opts *StartOpts) (*ENB, error) {
 // S1SetupResponseInfo returns the SCTP receive metadata (PPID, stream) of the
 // S1 Setup Response received during Start.
 func (e *ENB) S1SetupResponseInfo() *sctp.SndRcvInfo {
-	return e.s1SetupInfo
+	return e.s1SetupFrame.Info
+}
+
+func (e *ENB) S1SetupResponse() (*s1ap.S1SetupResponse, error) {
+	if e.s1SetupFrame.Value == nil {
+		return nil, fmt.Errorf("s1enb: no S1 Setup Response was received")
+	}
+
+	resp, err := s1ap.ParseS1SetupResponse(e.s1SetupFrame.Value)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse S1 Setup Response: %w", err)
+	}
+
+	return resp, nil
 }
 
 // dialAndActivateLocked dials the peer at peers[idx], marks it active, starts

@@ -1,0 +1,71 @@
+{
+  "summary": "E-RAB Setup Response (MME-UE 1, eNB-UE 0, 1 E-RAB)",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 5,
+    "label": "ERABSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 0
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 28,
+          "label": "E-RABSetupListBearerSURes",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 6,
+            "transport_layer_address": "33.33.33.10",
+            "gtp_teid": 16777225
+          }
+        ]
+      }
+    ]
+  }
+}

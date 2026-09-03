@@ -114,6 +114,11 @@ func (ue *UE) SecurityContextForHandoverToFiveGS(ncc uint8) (EPSKeyMaterial, err
 	return out, nil
 }
 
+// KeNB is the access-stratum key the UE derives from K_ASME and the uplink NAS
+// COUNT of its Security Mode Complete (TS 33.401 §A.3). The MME must send the
+// same value as the Security Key of the Initial Context Setup Request.
+func (ue *UE) KeNB() ([32]byte, error) { return ue.deriveKeNB() }
+
 func (ue *UE) deriveKeNB() ([32]byte, error) {
 	var kenb [32]byte
 

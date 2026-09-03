@@ -1,0 +1,298 @@
+{
+  "summary": "HandoverResourceAllocation, AMF-UE=7, Cause=handover-desirable-for-radio-reason",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 13,
+    "label": "HandoverResourceAllocation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 29,
+          "label": "HandoverType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "intra5gs",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 16,
+            "label": "handover-desirable-for-radio-reason",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 110,
+          "label": "UEAggregateMaximumBitRate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "downlink_n_aggregate_maximum_bit_rate": 200000000,
+          "uplink_n_aggregate_maximum_bit_rate": 100000000,
+          "unit": "bps"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": [
+            "NEA1",
+            "NEA2",
+            "NEA3"
+          ],
+          "nr_integrity_protection_algorithms": [
+            "NIA1",
+            "NIA2",
+            "NIA3"
+          ],
+          "eutra_encryption_algorithms": "e000",
+          "eutra_integrity_protection_algorithms": "e000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 93,
+          "label": "SecurityContext",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "next_hop_chaining_count": 1,
+          "next_hop_nh": "0a00000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 41,
+          "label": "NewSecurityContextInd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": true
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 73,
+          "label": "PDUSessionResourceSetupListHOReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "snssai": {
+              "sst": 1
+            },
+            "pdu_session_resource_setup_request_transfer": {
+              "ul_ng_u_up_tnl_information": {
+                "gtp_tunnel": {
+                  "gtp_teid": 145,
+                  "transport_layer_address": "10.47.0.9"
+                }
+              },
+              "qos_flow_setup_request_list": [
+                {
+                  "qos_id": 1,
+                  "five_qi": 9,
+                  "pri_arp": 8
+                }
+              ],
+              "pdu_s_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "ipv4",
+                "unknown": false
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 101,
+          "label": "SourceToTarget-TransparentContainer",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0506"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 36,
+          "label": "MobilityRestrictionList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "serving_plmn": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "equivalent_plmns": [
+            {
+              "mcc": "001",
+              "mnc": "01"
+            }
+          ],
+          "rat_restrictions": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "rat_restriction_information": "e-UTRA"
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 28,
+          "label": "GUAMI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "amf_region_id": "01",
+          "amf_set_id": "004",
+          "amf_pointer": "00"
+        }
+      }
+    ]
+  }
+}

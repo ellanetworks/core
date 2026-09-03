@@ -1,0 +1,82 @@
+{
+  "summary": "PDUSessionResourceModifyIndication, AMF-UE=7, RAN-UE=3",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 27,
+    "label": "PDUSessionResourceModifyIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 63,
+          "label": "PDUSessionResourceModifyListModInd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "modify_indication_transfer": {
+              "dl_qos_flow_per_tnl_information": {
+                "up_transport_layer_information": {
+                  "gtp_teid": 81,
+                  "transport_layer_address": "10.46.0.1"
+                },
+                "associated_qos_flow_list": [
+                  {
+                    "qos_flow_identifier": 1
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -81,8 +81,141 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		"ue_context_release_complete":   mustHex(t, ueContextReleaseCompleteCapture),
 		"paging":                        mustHex(t, pagingCapture),
 		"ue_capability_info_indication": mustHex(t, ueCapabilityInfoIndicationCapture),
+		"erab_setup_request":            mustHex(t, eRABSetupRequestCapture),
+		"erab_setup_response":           mustHex(t, eRABSetupResponseCapture),
+		"erab_release_command":          mustHex(t, eRABReleaseCommandCapture),
+		"erab_release_response":         mustHex(t, eRABReleaseResponseCapture),
 		"invalid":                       {0xff, 0x00, 0x01},
 	}
+
+	corpus["enb_configuration_update_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdate{
+		ENBName:          s1ap.Ptr("srsenb01"),
+		SupportedTAs:     s1ap.SupportedTAs{{TAC: 1, BroadcastPLMNs: s1ap.BPLMNs{testPLMN}}},
+		DefaultPagingDRX: s1ap.Ptr(s1ap.PagingDRXv128),
+	})
+
+	corpus["enb_configuration_update_acknowledge_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdateAcknowledge{
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcENBConfigurationUpdate)},
+	})
+
+	corpus["enb_configuration_update_failure_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdateFailure{
+		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified},
+		TimeToWait:             s1ap.Ptr(s1ap.TimeToWaitV10s),
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcENBConfigurationUpdate)},
+	})
+
+	corpus["enb_configuration_transfer_full"] = mustMarshal(t, &s1ap.ENBConfigurationTransfer{
+		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04},
+	})
+
+	corpus["mme_configuration_transfer_full"] = mustMarshal(t, &s1ap.MMEConfigurationTransfer{
+		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x05, 0x06, 0x07, 0x08},
+	})
+
+	corpus["location_report_full"] = mustMarshal(t, &s1ap.LocationReport{
+		MMEUES1APID: 1,
+		ENBUES1APID: 2,
+		EUTRANCGI:   s1ap.Ptr(testCGI),
+		TAI:         s1ap.Ptr(testTAI),
+		RequestType: &s1ap.RequestType{EventType: s1ap.EventTypeChangeOfServeCell, ReportArea: s1ap.ReportAreaECGI},
+	})
+
+	corpus["erab_modify_request_full"] = mustMarshal(t, &s1ap.ERABModifyRequest{
+		MMEUES1APID:               1,
+		ENBUES1APID:               2,
+		UEAggregateMaximumBitRate: &s1ap.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+		ERABToBeModified: []s1ap.ERABToBeModifiedItemBearerModReq{{
+			ERABID: 5,
+			QoS:    s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
+			NASPDU: s1ap.NASPDU{0x07, 0x4b, 0x09},
+		}},
+	})
+
+	corpus["erab_modify_response_full"] = mustMarshal(t, &s1ap.ERABModifyResponse{
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(1)),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
+		ERABModify:  []s1ap.ERABModifyItemBearerModRes{{ERABID: 5}},
+		ERABFailedToModify: []s1ap.ERABItem{
+			{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}},
+		},
+		CriticalityDiagnostics:  &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcERABModify)},
+		UserLocationInformation: &s1ap.UserLocationInformation{EUTRANCGI: testCGI, TAI: testTAI},
+	})
+
+	corpus["erab_modification_indication_full"] = mustMarshal(t, &s1ap.ERABModificationIndication{
+		MMEUES1APID: 1,
+		ENBUES1APID: 2,
+		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
+			{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 1}, DLGTPTEID: 0x21},
+		},
+		NotToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
+			{ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 2}, DLGTPTEID: 0x22},
+		},
+		UserLocationInformation: &s1ap.UserLocationInformation{EUTRANCGI: testCGI, TAI: testTAI},
+	})
+
+	corpus["erab_modification_confirm_full"] = mustMarshal(t, &s1ap.ERABModificationConfirm{
+		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(1)),
+		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(2)),
+		ModifiedERABs:          []s1ap.ERABID{5, 6},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcERABModificationIndication)},
+	})
+
+	corpus["reset_all_full"] = mustMarshal(t, &s1ap.Reset{
+		Cause:     &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified},
+		ResetType: s1ap.ResetType{All: true},
+	})
+
+	corpus["reset_part_full"] = mustMarshal(t, &s1ap.Reset{
+		Cause: &s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: 0},
+		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
+			{MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(7)), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(3))},
+			{ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(4))},
+		}},
+	})
+
+	corpus["reset_acknowledge_full"] = mustMarshal(t, &s1ap.ResetAcknowledge{
+		ConnectionList: []s1ap.UEAssociatedLogicalS1ConnectionItem{
+			{MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(7)), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(3))},
+		},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcReset)},
+	})
+
+	corpus["path_switch_request_full"] = mustMarshal(t, &s1ap.PathSwitchRequest{
+		ENBUES1APID: 9,
+		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{
+			{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x11},
+		},
+		SourceMMEUES1APID:      4,
+		EUTRANCGI:              s1ap.Ptr(testCGI),
+		TAI:                    s1ap.Ptr(testTAI),
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xe000, IntegrityProtectionAlgorithms: 0xe000}),
+	})
+
+	corpus["path_switch_request_acknowledge_full"] = mustMarshal(t, &s1ap.PathSwitchRequestAcknowledge{
+		MMEUES1APID:               s1ap.Ptr(s1ap.MMEUES1APID(4)),
+		ENBUES1APID:               s1ap.Ptr(s1ap.ENBUES1APID(9)),
+		UEAggregateMaximumBitRate: &s1ap.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+		ERABToBeReleased: []s1ap.ERABItem{
+			{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}},
+		},
+		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: 3, NextHopParameter: s1ap.SecurityKey{0x01, 0x02, 0x03}},
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xe000, IntegrityProtectionAlgorithms: 0xe000}),
+	})
+
+	corpus["path_switch_request_failure_full"] = mustMarshal(t, &s1ap.PathSwitchRequestFailure{
+		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(4)),
+		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(9)),
+		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 6},
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcPathSwitchRequest)},
+	})
+
+	corpus["nas_non_delivery_indication_full"] = mustMarshal(t, &s1ap.NASNonDeliveryIndication{
+		MMEUES1APID: 4,
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU{0x07, 0x4b, 0x09},
+		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 27},
+	})
 
 	corpus["s1_setup_request_full"] = mustMarshal(t, &s1ap.S1SetupRequest{
 		GlobalENBID: s1ap.GlobalENBID{
@@ -269,6 +402,16 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		t.Fatalf("build LPPa PDU: %v", err)
 	}
 
+	corpus["downlink_non_ue_associated_lppa_transport_full"] = mustMarshal(t, &s1ap.DownlinkNonUEAssociatedLPPaTransport{
+		RoutingID: 3,
+		LPPaPDU:   lppaPDU,
+	})
+
+	corpus["uplink_non_ue_associated_lppa_transport_full"] = mustMarshal(t, &s1ap.UplinkNonUEAssociatedLPPaTransport{
+		RoutingID: 3,
+		LPPaPDU:   lppaPDU,
+	})
+
 	corpus["downlink_ue_associated_lppa_transport"] = mustMarshal(t, &s1ap.DownlinkUEAssociatedLPPaTransport{
 		MMEUES1APID: 5,
 		ENBUES1APID: 7,
@@ -347,14 +490,25 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcHandoverNotification, s1ap.ProcHandoverCancel,
 			s1ap.ProcENBStatusTransfer, s1ap.ProcMMEStatusTransfer,
 			s1ap.ProcDownlinkUEAssociatedLPPaTransport, s1ap.ProcUplinkUEAssociatedLPPaTransport,
+			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
+			s1ap.ProcReset, s1ap.ProcPathSwitchRequest, s1ap.ProcNASNonDeliveryIndication,
+			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
+			s1ap.ProcENBConfigurationUpdate, s1ap.ProcENBConfigurationTransfer,
+			s1ap.ProcMMEConfigurationTransfer, s1ap.ProcLocationReport,
+			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation, s1ap.ProcHandoverCancel,
+			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
+			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
+			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
+			s1ap.ProcENBConfigurationUpdate,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
+			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate,
 		},
 	}
 

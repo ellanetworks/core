@@ -27,6 +27,15 @@ type PDNResult struct {
 	UpfAddress          string
 	ULTEID              uint32
 	DLTEID              uint32
+	ERABQCI             byte   // QCI signalled in the E-RAB Setup Request's E-RAB Level QoS Parameters
+	UEAmbrDownlinkBps   uint64 // UE-AMBR re-signalled to the eNB in the E-RAB Setup Request (0 when absent)
+	UEAmbrUplinkBps     uint64
+}
+
+// PDNReleaseResult reports what the MME released and why (TS 36.413 §9.1.3.5).
+type PDNReleaseResult struct {
+	ERABID s1ap.ERABID
+	Cause  s1ap.Cause
 }
 
 // OpenPDN opens an additional PDN connection to apn for an attached UE (TS 24.301
@@ -99,10 +108,15 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 
 	res := &PDNResult{
 		ERABID:     erab.ERABID,
+		ERABQCI:    byte(erab.QoS.QCI),
 		ARP:        erab.QoS.ARP.PriorityLevel,
 		UpfAddress: upf.Unmap().String(),
 		ULTEID:     uint32(erab.GTPTEID),
 		DLTEID:     dlTEID,
+	}
+
+	if ambr := req.UEAggregateMaximumBitRate; ambr != nil {
+		res.UEAmbrDownlinkBps, res.UEAmbrUplinkBps = uint64(ambr.DL), uint64(ambr.UL)
 	}
 
 	res.QCI = act.EPSQoS.QCI
@@ -132,62 +146,64 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 
 // DisconnectPDN releases an additional PDN connection (TS 24.301 §6.5.2; TS
 // 23.401 §5.10.3).
-func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, timeout time.Duration) error {
+func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, timeout time.Duration) (*PDNReleaseResult, error) {
 	disc, err := (&eps.PDNDisconnectRequest{
 		PTI:                     ue.nextPTI(),
 		LinkedEPSBearerIdentity: eps.EPSBearerIdentity(linkedEBI),
 	}).MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("build PDN Disconnect Request: %w", err)
+		return nil, fmt.Errorf("build PDN Disconnect Request: %w", err)
 	}
 
 	protected, err := ue.protectUplink(disc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, protected); err != nil {
-		return fmt.Errorf("send PDN Disconnect Request: %w", err)
+		return nil, fmt.Errorf("send PDN Disconnect Request: %w", err)
 	}
 
 	frame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcERABRelease, timeout)
 	if err != nil {
-		return fmt.Errorf("await E-RAB Release Command: %w", err)
+		return nil, fmt.Errorf("await E-RAB Release Command: %w", err)
 	}
 
 	cmd, err := s1ap.ParseERABReleaseCommand(frame.Value)
 	if err != nil {
-		return fmt.Errorf("parse E-RAB Release Command: %w", err)
+		return nil, fmt.Errorf("parse E-RAB Release Command: %w", err)
 	}
 
 	if len(cmd.ERABToBeReleased) == 0 {
-		return fmt.Errorf("E-RAB Release Command without an E-RAB")
+		return nil, fmt.Errorf("E-RAB Release Command without an E-RAB")
 	}
 
 	if err := e.sendERABReleaseResponse(cmd, enbUEID); err != nil {
-		return err
+		return nil, err
 	}
+
+	out := &PDNReleaseResult{ERABID: cmd.ERABToBeReleased[0].ERABID, Cause: cmd.ERABToBeReleased[0].Cause}
 
 	plain, err := ue.unprotectDownlink([]byte(cmd.NASPDU))
 	if err != nil {
-		return fmt.Errorf("unprotect Deactivate EPS Bearer Context Request: %w", err)
+		return nil, fmt.Errorf("unprotect Deactivate EPS Bearer Context Request: %w", err)
 	}
 
 	reqMsg, err := eps.ParseDeactivateEPSBearerContextRequest(plain)
 	if err != nil {
-		return fmt.Errorf("parse Deactivate EPS Bearer Context Request: %w", err)
+		return nil, fmt.Errorf("parse Deactivate EPS Bearer Context Request: %w", err)
 	}
 
 	accept, err := ue.buildDeactivateEPSBearerContextAccept(uint8(reqMsg.EPSBearerIdentity), uint8(reqMsg.PTI))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, accept); err != nil {
-		return fmt.Errorf("send Deactivate EPS Bearer Context Accept: %w", err)
+		return nil, fmt.Errorf("send Deactivate EPS Bearer Context Accept: %w", err)
 	}
 
-	return nil
+	return out, nil
 }
 
 // sendERABReleaseResponse acknowledges an E-RAB RELEASE COMMAND, confirming the
