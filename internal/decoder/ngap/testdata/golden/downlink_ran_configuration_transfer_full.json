@@ -1,0 +1,37 @@
+{
+  "summary": "DownlinkRANConfigurationTransfer",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 6,
+    "label": "DownlinkRANConfigurationTransfer",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 98,
+          "label": "SONConfigurationTransferDL",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "040506"
+        }
+      }
+    ]
+  }
+}

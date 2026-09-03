@@ -160,6 +160,36 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildLocationReport(m.Value)
 	case ngap.ProcLocationReportingControl:
 		return buildLocationReportingControl(m.Value)
+	case ngap.ProcNGReset:
+		return buildNGReset(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequest(m.Value)
+	case ngap.ProcNASNonDeliveryIndication:
+		return buildNASNonDeliveryIndication(m.Value)
+	case ngap.ProcPDUSessionResourceModify:
+		return buildPDUSessionResourceModifyRequest(m.Value)
+	case ngap.ProcPDUSessionResourceModifyIndication:
+		return buildPDUSessionResourceModifyIndication(m.Value)
+	case ngap.ProcPDUSessionResourceNotify:
+		return buildPDUSessionResourceNotify(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdate(m.Value)
+	case ngap.ProcUplinkRANConfigurationTransfer:
+		return buildUplinkRANConfigurationTransfer(m.Value)
+	case ngap.ProcDownlinkRANConfigurationTransfer:
+		return buildDownlinkRANConfigurationTransfer(m.Value)
+	case ngap.ProcUplinkRANStatusTransfer:
+		return buildUplinkRANStatusTransfer(m.Value)
+	case ngap.ProcDownlinkRANStatusTransfer:
+		return buildDownlinkRANStatusTransfer(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverRequired(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverRequest(m.Value)
+	case ngap.ProcHandoverNotification:
+		return buildHandoverNotify(m.Value)
+	case ngap.ProcHandoverCancel:
+		return buildHandoverCancel(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -177,6 +207,22 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildUEContextReleaseComplete(m.Value)
 	case ngap.ProcPDUSessionResourceRelease:
 		return buildPDUSessionResourceReleaseResponse(m.Value)
+	case ngap.ProcNGReset:
+		return buildNGResetAcknowledge(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequestAcknowledge(m.Value)
+	case ngap.ProcPDUSessionResourceModify:
+		return buildPDUSessionResourceModifyResponse(m.Value)
+	case ngap.ProcPDUSessionResourceModifyIndication:
+		return buildPDUSessionResourceModifyConfirm(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdateAcknowledge(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverCommand(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverRequestAcknowledge(m.Value)
+	case ngap.ProcHandoverCancel:
+		return buildHandoverCancelAcknowledge(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -188,6 +234,14 @@ func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
 		return buildNGSetupFailure(m.Value)
 	case ngap.ProcInitialContextSetup:
 		return buildInitialContextSetupFailure(m.Value)
+	case ngap.ProcPathSwitchRequest:
+		return buildPathSwitchRequestFailure(m.Value)
+	case ngap.ProcRANConfigurationUpdate:
+		return buildRANConfigurationUpdateFailure(m.Value)
+	case ngap.ProcHandoverPreparation:
+		return buildHandoverPreparationFailure(m.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return buildHandoverFailure(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}

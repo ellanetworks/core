@@ -127,3 +127,17 @@ var enbIDKindNames = map[ENBIDKind]string{
 
 // Name returns the name of the ENB-ID CHOICE alternative the kind selects.
 func (k ENBIDKind) Name() string { return enbIDKindNames[k] }
+
+var eventTypeNames = map[EventType]string{
+	EventTypeDirect:                "direct",
+	EventTypeChangeOfServeCell:     "change-of-serve-cell",
+	EventTypeStopChangeOfServeCell: "stop-change-of-serve-cell",
+}
+
+func (e EventType) Name() string { return eventTypeNames[e] }
+
+var reportAreaNames = map[ReportArea]string{
+	ReportAreaECGI: "ecgi",
+}
+
+func (r ReportArea) Name() string { return reportAreaNames[r] }

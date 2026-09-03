@@ -1,0 +1,144 @@
+{
+  "summary": "HandoverResourceAllocation, AMF-UE=7, RAN-UE=3",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 13,
+    "label": "HandoverResourceAllocation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 53,
+          "label": "PDUSessionResourceAdmittedList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "handover_request_acknowledge_transfer": {
+              "dl_ng_u_up_tnl_information": {
+                "gtp_teid": 129,
+                "transport_layer_address": "10.46.0.9"
+              },
+              "security_result": {
+                "integrity_protection_result": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "performed",
+                  "unknown": false
+                },
+                "confidentiality_protection_result": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "performed",
+                  "unknown": false
+                }
+              },
+              "qos_flow_setup_response": [
+                {
+                  "qos_flow_identifier": 1
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 56,
+          "label": "PDUSessionResourceFailedToSetupListHOAck",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 2,
+            "handover_resource_allocation_unsuccessful_transfer": {
+              "cause": {
+                "group": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "radioNetwork",
+                  "unknown": false
+                },
+                "value": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "unspecified",
+                  "unknown": false
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 106,
+          "label": "TargetToSource-TransparentContainer",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0708"
+      }
+    ]
+  }
+}

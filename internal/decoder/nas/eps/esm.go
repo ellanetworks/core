@@ -32,6 +32,19 @@ type ESMMessage struct {
 	ESMInformationResponse      *ESMInformationResponse      `json:"esm_information_response,omitempty"`
 	PDNDisconnectRequest        *PDNDisconnectRequest        `json:"pdn_disconnect_request,omitempty"`
 	DeactivateBearerAccept      *DeactivateBearerAccept      `json:"deactivate_bearer_accept,omitempty"`
+
+	ActivateDefaultBearerReject       *ESMCauseOnly                      `json:"activate_default_bearer_reject,omitempty"`
+	DeactivateBearerRequest           *ESMCauseOnly                      `json:"deactivate_bearer_request,omitempty"`
+	ESMStatus                         *ESMCauseOnly                      `json:"esm_status,omitempty"`
+	PDNConnectivityReject             *ESMCauseOnly                      `json:"pdn_connectivity_reject,omitempty"`
+	PDNDisconnectReject               *ESMCauseOnly                      `json:"pdn_disconnect_reject,omitempty"`
+	ModifyEPSBearerContextReject      *ESMCauseOnly                      `json:"modify_eps_bearer_context_reject,omitempty"`
+	BearerResourceAllocationReject    *ESMCauseOnly                      `json:"bearer_resource_allocation_reject,omitempty"`
+	BearerResourceModificationReject  *ESMCauseOnly                      `json:"bearer_resource_modification_reject,omitempty"`
+	ModifyEPSBearerContextRequest     *ModifyEPSBearerContextRequest     `json:"modify_eps_bearer_context_request,omitempty"`
+	ModifyEPSBearerContextAccept      *ModifyEPSBearerContextAccept      `json:"modify_eps_bearer_context_accept,omitempty"`
+	BearerResourceAllocationRequest   *BearerResourceAllocationRequest   `json:"bearer_resource_allocation_request,omitempty"`
+	BearerResourceModificationRequest *BearerResourceModificationRequest `json:"bearer_resource_modification_request,omitempty"`
 }
 
 // PDNAddress is the decoded PDN address IE (TS 24.301 §9.9.4.9): the assigned UE
@@ -77,6 +90,30 @@ func buildESMMessage(b []byte) *ESMMessage {
 		m.PDNDisconnectRequest = buildPDNDisconnectRequest(msg)
 	case *eps.DeactivateEPSBearerContextAccept:
 		m.DeactivateBearerAccept = buildDeactivateBearerAccept(msg)
+	case *eps.ActivateDefaultEPSBearerContextReject:
+		m.ActivateDefaultBearerReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.DeactivateEPSBearerContextRequest:
+		m.DeactivateBearerRequest = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.ESMStatus:
+		m.ESMStatus = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.PDNConnectivityReject:
+		m.PDNConnectivityReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.PDNDisconnectReject:
+		m.PDNDisconnectReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.ModifyEPSBearerContextReject:
+		m.ModifyEPSBearerContextReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.BearerResourceAllocationReject:
+		m.BearerResourceAllocationReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.BearerResourceModificationReject:
+		m.BearerResourceModificationReject = esmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *eps.ModifyEPSBearerContextRequest:
+		m.ModifyEPSBearerContextRequest = buildModifyEPSBearerContextRequest(msg)
+	case *eps.ModifyEPSBearerContextAccept:
+		m.ModifyEPSBearerContextAccept = buildModifyEPSBearerContextAccept(msg)
+	case *eps.BearerResourceAllocationRequest:
+		m.BearerResourceAllocationRequest = buildBearerResourceAllocationRequest(msg)
+	case *eps.BearerResourceModificationRequest:
+		m.BearerResourceModificationRequest = buildBearerResourceModificationRequest(msg)
 	}
 
 	return m

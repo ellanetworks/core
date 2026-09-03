@@ -1,0 +1,128 @@
+{
+  "summary": "RANConfigurationUpdate",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 35,
+    "label": "RANConfigurationUpdate",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 82,
+          "label": "RANNodeName",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": "gnb01"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 102,
+          "label": "SupportedTAList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "tac": "000001",
+            "broadcast_plmn_list": [
+              {
+                "plmn_id": {
+                  "mcc": "001",
+                  "mnc": "01"
+                },
+                "slice_support_list": [
+                  {
+                    "sst": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 21,
+          "label": "DefaultPagingDRX",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 2,
+          "label": "v128",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 27,
+          "label": "GlobalRANNodeID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_identity": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "global_gnb_id": "000004"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 167,
+          "label": "NGRAN-TNLAssociationToRemoveList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "tnl_association_transport_layer_address": "10.0.0.1",
+            "tnl_association_transport_layer_address_amf": "10.0.0.2"
+          }
+        ]
+      }
+    ]
+  }
+}

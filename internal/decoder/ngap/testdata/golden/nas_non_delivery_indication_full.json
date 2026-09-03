@@ -1,0 +1,124 @@
+{
+  "summary": "NASNonDeliveryIndication, AMF-UE=7, RAN-UE=3, NAS=REGISTRATION REJECT, Cause=unkown-qos-flow-ID",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 19,
+    "label": "NASNonDeliveryIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e0044",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              },
+              "sequence_number": 0
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 68,
+                  "label": "REGISTRATION REJECT",
+                  "unknown": false
+                }
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 27,
+            "label": "unkown-qos-flow-ID",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}
