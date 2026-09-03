@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -20,6 +21,11 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
+
+// activeBufferResponder is the running responder the queued-state gauges
+// read. Set once Start succeeds, cleared on Close; the atomic keeps the
+// scrape path race-free against shutdown.
+var activeBufferResponder atomic.Pointer[BufferResponder]
 
 const (
 	// maxPerQueuePackets caps one session's queue.
@@ -198,6 +204,8 @@ func (b *BufferResponder) Start() error {
 		zap.Duration("queue_ttl", queueTTL),
 	)
 
+	activeBufferResponder.Store(b)
+
 	return nil
 }
 
@@ -223,6 +231,8 @@ func (b *BufferResponder) Close() error {
 
 	b.closed = true
 	b.mu.Unlock()
+
+	activeBufferResponder.Store(nil)
 
 	// Clear the ifindex before the pair goes away: a recycled ifindex
 	// must not make the NAT guard match an unrelated frame.
@@ -278,22 +288,29 @@ func (b *BufferResponder) consume() {
 			continue
 		}
 
-		hdr, payload, ok := parseDlBufferRecord(record.RawSample)
-		if !ok {
-			incCounter(bufferRecordsMalformed)
-			logger.UpfLog.Warn("malformed dl buffer record",
-				zap.Int("size", len(record.RawSample)))
-
-			continue
-		}
-
-		pkt := make([]byte, len(payload))
-		copy(pkt, payload)
-
-		b.mu.Lock()
-		b.enqueue(hdr.LocalSEID, hdr.QFI, hdr.Family, pkt)
-		b.mu.Unlock()
+		b.handleRecord(record.RawSample)
 	}
+}
+
+// handleRecord decodes one ring record and queues the packet. A malformed
+// record is a bug, not noise, so it is counted; it is a method so tests can
+// drive the counter without a ring buffer reader.
+func (b *BufferResponder) handleRecord(sample []byte) {
+	hdr, payload, ok := parseDlBufferRecord(sample)
+	if !ok {
+		incCounter(bufferRecordsMalformed)
+		logger.UpfLog.Warn("malformed dl buffer record",
+			zap.Int("size", len(sample)))
+
+		return
+	}
+
+	pkt := make([]byte, len(payload))
+	copy(pkt, payload)
+
+	b.mu.Lock()
+	b.enqueue(hdr.LocalSEID, hdr.QFI, hdr.Family, pkt)
+	b.mu.Unlock()
 }
 
 // evictExpired drops queues older than queueTTL so a UE that never answers
@@ -327,7 +344,7 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 			continue
 		}
 
-		addCounter(bufferPacketsEvicted, float64(len(q.packets)))
+		addCounter(bufferPacketsEvicted.WithLabelValues(evictedTTLExpired), float64(len(q.packets)))
 		b.totalBytes -= q.bytes
 		delete(b.buffers, seid)
 	}
@@ -347,12 +364,12 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 	// Global budget first: refuse before we evict anything, so we don't
 	// evict a packet and then drop the newcomer for the same reason.
 	if b.totalBytes+len(pkt) > maxTotalBytes {
-		incCounter(bufferPacketsEvicted)
+		incCounter(bufferPacketsEvicted.WithLabelValues(evictedByteBudget))
 		return
 	}
 
 	for len(q.packets) >= maxPerQueuePackets {
-		incCounter(bufferPacketsEvicted)
+		incCounter(bufferPacketsEvicted.WithLabelValues(evictedCapHeadDrop))
 		b.dropHead(q)
 	}
 
@@ -420,6 +437,21 @@ func (b *BufferResponder) queueLen(seid uint64) int {
 	return 0
 }
 
+// queuedTotals snapshots the buffered state for the Prometheus gauges.
+func (b *BufferResponder) queuedTotals() (packets int, bytes int, sessions int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	sessions = len(b.buffers)
+
+	for _, q := range b.buffers {
+		packets += len(q.packets)
+		bytes += q.bytes
+	}
+
+	return packets, bytes, sessions
+}
+
 // drainQueue pops the session's queued packets under the lock and
 // re-injects them paced and unlocked. It is a no-op when nothing is queued.
 func (b *BufferResponder) drainQueue(seid uint64) {
@@ -442,13 +474,20 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 
 	var injected int
 
-	for _, p := range packets {
+	for i, p := range packets {
 		b.mu.Lock()
 		fd := b.injectFD
 		closed := b.closed
 		b.mu.Unlock()
 
 		if closed || fd < 0 {
+			// The queue was already popped, so the packets left in
+			// this loop would otherwise vanish unaccounted.
+			remaining := len(packets) - i
+			addCounter(bufferPacketsEvicted.WithLabelValues(evictedClosed), float64(remaining))
+			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
+				logger.SEID(seid), zap.Int("count", remaining))
+
 			return
 		}
 
@@ -466,6 +505,8 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 		}
 
 		injected++
+
+		incCounter(bufferPacketsReinjected)
 
 		time.Sleep(drainPace)
 	}
@@ -486,7 +527,7 @@ func (b *BufferResponder) Drop(seid uint64) {
 		return
 	}
 
-	addCounter(bufferPacketsEvicted, float64(len(q.packets)))
+	addCounter(bufferPacketsEvicted.WithLabelValues(evictedSessionDrop), float64(len(q.packets)))
 	b.totalBytes -= q.bytes
 	delete(b.buffers, seid)
 }

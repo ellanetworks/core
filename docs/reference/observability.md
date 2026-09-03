@@ -33,6 +33,14 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_datapath_forward_total | Packets the data plane forwarded, with labels for direction (uplink, downlink) and the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in `xdp-native`, `xdp-generic` and `tcx`. | Counter |
 | app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
 | app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
+| app_upf_dl_buffer_capture_total | Downlink packets the data plane captured for buffering, labeled by result (captured, ring_full, too_large, gso). A non-zero ring_full rate means the capture ring is too small or the reader too slow. | Counter |
+| app_upf_dl_buffer_queued_packets | Downlink packets currently held in the buffer responder's queues. | Gauge |
+| app_upf_dl_buffer_queued_bytes | Bytes of downlink packets currently held in the buffer responder's queues. | Gauge |
+| app_upf_dl_buffer_sessions | Sessions with downlink packets currently buffered. | Gauge |
+| app_upf_dl_buffer_packets_reinjected_total | Buffered downlink packets successfully re-injected. | Counter |
+| app_upf_dl_buffer_packets_evicted_total | Buffered downlink packets discarded, labeled by reason (cap_head_drop, ttl_expired, byte_budget, session_drop, closed). | Counter |
+| app_upf_dl_buffer_reinject_failed_total | Buffered downlink packets whose re-injection failed. | Counter |
+| app_upf_dl_buffer_records_malformed_total | Malformed capture records read from the downlink buffer ring. Non-zero is a bug. | Counter |
 | app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
 | app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
@@ -108,6 +116,9 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | High Data Plane Packet Drop Rate | Warning | More than 10 packets/s dropped by the data plane for 5 minutes |
 | No Data Plane Traffic | Critical | Radios connected but zero throughput for 10 minutes |
 | Data Plane Aborted Actions | Critical | Any aborted actions for 2 minutes (indicates eBPF program errors) |
+| Buffer Ring Full | Warning | Any downlink packets missed the buffer ring for 5 minutes (ring too small or reader too slow) |
+| Malformed Buffer Records | Critical | Any malformed downlink buffer records for 5 minutes (indicates a bug) |
+| Buffer Re-injection Failures | Warning | Any buffered packet re-injection failures for 5 minutes |
 
 ### API Health
 

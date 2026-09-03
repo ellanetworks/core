@@ -5,13 +5,87 @@ package upf
 
 import (
 	"encoding/binary"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
+
+var registerBufferMetricsOnce sync.Once
+
+// registerBufferMetrics registers the buffer counters into the default
+// registry once for this test binary. The full RegisterMetrics cannot be
+// used here: its datapath collectors dereference bpfObjects, which is nil
+// in tests.
+func registerBufferMetrics() {
+	registerBufferMetricsOnce.Do(func() {
+		prometheus.MustRegister(bufferPacketsEvicted, bufferPacketsReinjected,
+			bufferReinjectFailed, bufferRecordsMalformed)
+	})
+}
+
+// counterValue reads one counter series from the default registry, the same
+// gather-and-walk internal/metrics/metrics_test.go uses. A series that was
+// never incremented is absent from the gather and reads as zero.
+func counterValue(t *testing.T, name string, labels map[string]string) float64 {
+	t.Helper()
+
+	registerBufferMetrics()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	for _, fam := range families {
+		if fam.GetName() != name {
+			continue
+		}
+
+		for _, m := range fam.GetMetric() {
+			if labelsMatch(m.GetLabel(), labels) {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+
+	return 0
+}
+
+func evictedValue(t *testing.T, reason string) float64 {
+	return counterValue(t, "app_upf_dl_buffer_packets_evicted_total", map[string]string{"reason": reason})
+}
+
+// labelsMatch reports whether one series carries exactly the wanted labels.
+func labelsMatch(pairs []*dto.LabelPair, want map[string]string) bool {
+	if len(pairs) != len(want) {
+		return false
+	}
+
+	for _, p := range pairs {
+		if v, ok := want[p.GetName()]; !ok || p.GetValue() != v {
+			return false
+		}
+	}
+
+	return true
+}
+
+// assertCounterDelta checks that a counter moved by exactly delta between
+// the before and after snapshots. The counters are package globals, so tests
+// assert deltas, not absolute values.
+func assertCounterDelta(t *testing.T, before, after, delta float64) {
+	t.Helper()
+
+	if got := after - before; got != delta {
+		t.Errorf("counter delta = %v, want %v", got, delta)
+	}
+}
 
 // buildRecord builds a dl_buffer_map sample the way the datapath does:
 // a 16-byte native-endian header followed by the L3 packet.
@@ -103,11 +177,15 @@ func newTestResponder() (*BufferResponder, *[][]byte) {
 func TestEnqueuePerQueueCapHeadDrop(t *testing.T) {
 	b, _ := newTestResponder()
 
+	evictedBefore := evictedValue(t, evictedCapHeadDrop)
+
 	for i := 0; i < maxPerQueuePackets+3; i++ {
 		b.mu.Lock()
 		b.enqueue(1, 1, 4, []byte{byte(i)})
 		b.mu.Unlock()
 	}
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedCapHeadDrop), 3)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -133,6 +211,7 @@ func TestEnqueueGlobalByteBudget(t *testing.T) {
 	b, _ := newTestResponder()
 
 	packet := make([]byte, 100)
+	evictedBefore := evictedValue(t, evictedByteBudget)
 
 	b.mu.Lock()
 	b.enqueue(1, 1, 4, packet)
@@ -142,6 +221,8 @@ func TestEnqueueGlobalByteBudget(t *testing.T) {
 	// Would exceed maxTotalBytes: refused, not enqueued.
 	b.enqueue(2, 1, 4, make([]byte, maxTotalBytes))
 	b.mu.Unlock()
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedByteBudget), 1)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -158,11 +239,15 @@ func TestEnqueueGlobalByteBudget(t *testing.T) {
 func TestDropRefundsBytes(t *testing.T) {
 	b, _ := newTestResponder()
 
+	evictedBefore := evictedValue(t, evictedSessionDrop)
+
 	b.mu.Lock()
 	b.enqueue(1, 1, 4, []byte{1, 2, 3})
 	b.mu.Unlock()
 
 	b.Drop(1)
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedSessionDrop), 1)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -179,6 +264,8 @@ func TestDropRefundsBytes(t *testing.T) {
 func TestEvictExpiredDropsStaleQueues(t *testing.T) {
 	b, _ := newTestResponder()
 
+	evictedBefore := evictedValue(t, evictedTTLExpired)
+
 	b.mu.Lock()
 	b.enqueue(1, 1, 4, []byte{1})
 	q := b.buffers[1]
@@ -190,6 +277,8 @@ func TestEvictExpiredDropsStaleQueues(t *testing.T) {
 	b.mu.Lock()
 	b.evictExpiredLocked(time.Now())
 	b.mu.Unlock()
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedTTLExpired), 1)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -205,6 +294,8 @@ func TestEvictExpiredDropsStaleQueues(t *testing.T) {
 
 func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 	b, frames := newTestResponder()
+
+	reinjectedBefore := counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil)
 
 	ipv4 := []byte{0x45, 0, 0, 0}
 	ipv6 := make([]byte, 40)
@@ -249,6 +340,8 @@ func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 
 	checkFrame((*frames)[0], ipv4, 0x0800)
 	checkFrame((*frames)[1], ipv6, 0x86DD)
+
+	assertCounterDelta(t, reinjectedBefore, counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil), 2)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -327,9 +420,12 @@ func TestCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-// A Drain racing Close must not send on a closed (possibly recycled) fd.
+// A Drain racing Close must not send on a closed (possibly recycled) fd,
+// and the packets it had already popped must not vanish unaccounted.
 func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 	b, frames := newTestResponder()
+
+	evictedBefore := evictedValue(t, evictedClosed)
 
 	b.mu.Lock()
 	b.enqueue(1, 1, 4, []byte{1, 2, 3})
@@ -344,6 +440,123 @@ func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 
 	if got := len(*frames); got != 0 {
 		t.Errorf("sent %d frames after Close, want 0", got)
+	}
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedClosed), 1)
+}
+
+// A Close landing mid-drain must leave the already-popped remainder
+// accounted as closed, not silently discarded.
+func TestDrainMidCloseDiscardsRemainder(t *testing.T) {
+	b, frames := newTestResponder()
+
+	send := b.send
+	b.send = func(fd int, frame []byte) error {
+		err := send(fd, frame)
+
+		// Close lands after the first re-injection.
+		b.mu.Lock()
+		b.closed = true
+		b.mu.Unlock()
+
+		return err
+	}
+
+	evictedBefore := evictedValue(t, evictedClosed)
+	reinjectedBefore := counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil)
+
+	b.mu.Lock()
+	b.enqueue(1, 1, 4, []byte{1})
+	b.enqueue(1, 1, 4, []byte{2})
+	b.mu.Unlock()
+
+	b.Drain(1)
+
+	if got := len(*frames); got != 1 {
+		t.Fatalf("sent %d frames, want 1", got)
+	}
+
+	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedClosed), 1)
+	assertCounterDelta(t, reinjectedBefore, counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil), 1)
+}
+
+func TestDrainReinjectFailure(t *testing.T) {
+	b, frames := newTestResponder()
+
+	b.send = func(_ int, _ []byte) error {
+		return errors.New("send failed")
+	}
+
+	failedBefore := counterValue(t, "app_upf_dl_buffer_reinject_failed_total", nil)
+	reinjectedBefore := counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil)
+
+	b.mu.Lock()
+	b.enqueue(1, 1, 4, []byte{1})
+	b.enqueue(1, 1, 4, []byte{2})
+	b.mu.Unlock()
+
+	b.Drain(1)
+
+	if got := len(*frames); got != 0 {
+		t.Errorf("send error was not propagated: %d frames captured", got)
+	}
+
+	assertCounterDelta(t, failedBefore, counterValue(t, "app_upf_dl_buffer_reinject_failed_total", nil), 2)
+	assertCounterDelta(t, reinjectedBefore, counterValue(t, "app_upf_dl_buffer_packets_reinjected_total", nil), 0)
+}
+
+func TestHandleRecordCountsMalformed(t *testing.T) {
+	b, _ := newTestResponder()
+
+	malformedBefore := counterValue(t, "app_upf_dl_buffer_records_malformed_total", nil)
+
+	b.handleRecord(buildRecord(1, 1, 1, 4, []byte{1, 2, 3})[:10])
+
+	assertCounterDelta(t, malformedBefore, counterValue(t, "app_upf_dl_buffer_records_malformed_total", nil), 1)
+
+	if _, ok := b.buffers[1]; ok {
+		t.Error("malformed record was queued")
+	}
+}
+
+func TestHandleRecordQueuesValid(t *testing.T) {
+	b, _ := newTestResponder()
+
+	malformedBefore := counterValue(t, "app_upf_dl_buffer_records_malformed_total", nil)
+
+	b.handleRecord(buildRecord(1, 1, 1, 4, []byte{1, 2, 3}))
+
+	assertCounterDelta(t, malformedBefore, counterValue(t, "app_upf_dl_buffer_records_malformed_total", nil), 0)
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if got := len(b.buffers[1].packets); got != 1 {
+		t.Fatalf("queued %d packets, want 1", got)
+	}
+}
+
+func TestQueuedTotals(t *testing.T) {
+	b, _ := newTestResponder()
+
+	b.mu.Lock()
+	b.enqueue(1, 1, 4, []byte{1, 2, 3})
+	b.enqueue(1, 1, 4, []byte{4, 5})
+	b.enqueue(2, 1, 4, []byte{6})
+	b.mu.Unlock()
+
+	packets, bytes, sessions := b.queuedTotals()
+
+	if packets != 3 {
+		t.Errorf("packets = %d, want 3", packets)
+	}
+
+	if bytes != 6 {
+		t.Errorf("bytes = %d, want 6", bytes)
+	}
+
+	if sessions != 2 {
+		t.Errorf("sessions = %d, want 2", sessions)
 	}
 }
 
