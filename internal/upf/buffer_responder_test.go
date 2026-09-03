@@ -262,6 +262,45 @@ func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 	}
 }
 
+// A packet the datapath captured before the FAR flip, but whose ring
+// buffer record the consumer reads only after the queue was first popped,
+// must still be delivered: without the grace re-check it lands in a queue
+// no later drain revisits and is stranded forever.
+func TestDrainDeliversLateCapturedPacket(t *testing.T) {
+	b, frames := newTestResponder()
+
+	b.mu.Lock()
+	b.enqueue(3, 1, 4, []byte{1})
+	b.mu.Unlock()
+
+	// The consumer lags: it enqueues the pre-flip capture shortly after
+	// Drain has popped the queue and is pacing its re-injections.
+	go func() {
+		time.Sleep(drainPace)
+
+		b.mu.Lock()
+		b.enqueue(3, 1, 4, []byte{2})
+		b.mu.Unlock()
+	}()
+
+	b.Drain(3)
+
+	if got := len(*frames); got != 2 {
+		t.Fatalf("sent %d frames, want 2", got)
+	}
+
+	if got := (*frames)[1][14]; got != 2 {
+		t.Errorf("second frame payload = %d, want the late-captured packet", got)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if _, ok := b.buffers[3]; ok {
+		t.Error("queue still present after Drain")
+	}
+}
+
 // Start() tears itself down on its last failure and upf.go closes again on any
 // Start() error, so Close runs twice on that path. Without an idempotence
 // guard the second close(b.evictStop) panics and takes the process with it.

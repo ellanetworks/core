@@ -36,6 +36,16 @@ const (
 	// drainPace spaces re-injected packets so a drained queue is not
 	// presented to the QER sliding-window rate limiter as one burst.
 	drainPace = time.Millisecond
+
+	// drainGrace spaces the re-checks that catch packets the datapath
+	// captured before the FAR flipped to FORW but the ring buffer
+	// consumer had not enqueued when the queue was first popped.
+	drainGrace = 2 * time.Millisecond
+
+	// drainGraceWindow bounds the re-checking: past it the consumer has
+	// long caught up, and the FAR no longer captures, so the queue is
+	// quiescent.
+	drainGraceWindow = 50 * time.Millisecond
 )
 
 // queuedPacket is one captured L3 packet awaiting re-injection.
@@ -369,7 +379,50 @@ func (b *BufferResponder) dropHead(q *packetQueue) {
 // Drain re-injects a session's buffered packets: pop under the lock, then
 // send paced and unlocked. The synthetic Ethernet header is fresh — the
 // capture started at L3, so no VLAN handling exists here by construction.
+//
+// The drain races the ring buffer consumer: the datapath may have captured
+// a packet while the FAR was still BUFF — before the modify that flipped it
+// committed — without the consumer having read the record yet when the
+// queue is first popped. That packet would be enqueued into a queue no
+// later drain ever revisits, and be stranded. So after the queue runs dry
+// the drain keeps re-checking within a bounded grace window: the FAR is
+// FORW by now, so no new captures can arrive, and the loop converges as
+// soon as the consumer catches up with the pre-flip stragglers.
 func (b *BufferResponder) Drain(seid uint64) {
+	deadline := time.Now().Add(drainGraceWindow)
+
+	for {
+		b.drainQueue(seid)
+
+		if b.queueLen(seid) == 0 {
+			if time.Now().After(deadline) {
+				return
+			}
+
+			time.Sleep(drainGrace)
+
+			if b.queueLen(seid) == 0 {
+				return
+			}
+		}
+	}
+}
+
+// queueLen returns the number of packets waiting for the session.
+func (b *BufferResponder) queueLen(seid uint64) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if q, ok := b.buffers[seid]; ok {
+		return len(q.packets)
+	}
+
+	return 0
+}
+
+// drainQueue pops the session's queued packets under the lock and
+// re-injects them paced and unlocked. It is a no-op when nothing is queued.
+func (b *BufferResponder) drainQueue(seid uint64) {
 	b.mu.Lock()
 
 	q, ok := b.buffers[seid]
