@@ -10,7 +10,7 @@ import (
 )
 
 // ERABToBeSetupBearer is a decoded E-RAB the MME asks the eNB to add for an
-// additional PDN connection (TS 36.413 §9.2.1.2). Unlike the context-setup
+// additional PDN connection (TS 36.413 §9.1.3.1). Unlike the context-setup
 // variant its NAS-PDU is mandatory: it carries the ACTIVATE DEFAULT EPS BEARER
 // CONTEXT REQUEST.
 type ERABToBeSetupBearer struct {

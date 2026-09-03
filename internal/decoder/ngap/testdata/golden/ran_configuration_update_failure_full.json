@@ -1,0 +1,90 @@
+{
+  "summary": "RANConfigurationUpdate, Cause=om-intervention",
+  "pdu_type": "UnsuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 35,
+    "label": "RANConfigurationUpdate",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 4,
+            "label": "misc",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 3,
+            "label": "om-intervention",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 107,
+          "label": "TimeToWait",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 3,
+          "label": "v10s",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 19,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 35,
+            "label": "RANConfigurationUpdate",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

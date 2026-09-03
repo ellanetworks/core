@@ -44,3 +44,11 @@ func integrityAlgToEnum(v uint8) utils.EnumField {
 func emmCauseToEnum(c eps.EMMCause) utils.EnumField {
 	return utils.NamedEnum(uint8(c), c.Name())
 }
+
+func detachTypeNetworkToEnum(v eps.DetachTypeNetwork) utils.EnumField {
+	return utils.NamedEnum(uint8(v), v.String())
+}
+
+func esmCauseToEnum(c eps.ESMCause) utils.EnumField {
+	return utils.NamedEnum(uint8(c), c.Name())
+}

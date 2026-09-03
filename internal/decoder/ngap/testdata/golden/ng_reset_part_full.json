@@ -1,0 +1,73 @@
+{
+  "summary": "NGReset, Cause=transport-resource-unavailable",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 20,
+    "label": "NGReset",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 1,
+            "label": "transport",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 0,
+            "label": "transport-resource-unavailable",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 88,
+          "label": "ResetType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "part_of_ng_interface": [
+            {
+              "amf_ue_ngap_id": 7,
+              "ran_ue_ngap_id": 3
+            },
+            {
+              "ran_ue_ngap_id": 4
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -101,6 +101,14 @@
                       },
                       "pdu_session_id": 1,
                       "pti": 4
+                    },
+                    "pdu_session_release_command": {
+                      "cause_5g_s_m": {
+                        "type": "enum",
+                        "value": 0,
+                        "label": "",
+                        "unknown": true
+                      }
                     }
                   }
                 },

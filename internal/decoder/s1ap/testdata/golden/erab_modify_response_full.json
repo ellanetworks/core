@@ -1,0 +1,154 @@
+{
+  "summary": "E-RAB Modify Response (MME-UE 1, eNB-UE 2, 1 E-RAB)",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 6,
+    "label": "ERABModify",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 31,
+          "label": "E-RABModifyListBearerModRes",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 5
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 32,
+          "label": "E-RABFailedToModifyList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 6,
+            "cause": {
+              "group": {
+                "type": "enum",
+                "value": 0,
+                "label": "radioNetwork",
+                "unknown": false
+              },
+              "value": {
+                "type": "enum",
+                "value": 0,
+                "label": "unspecified",
+                "unknown": false
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 58,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 6,
+            "label": "ERABModify",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 189,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "eutran_cgi": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "cell_id": "0019b01"
+          },
+          "tai": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": 1
+          }
+        }
+      }
+    ]
+  }
+}

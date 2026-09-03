@@ -1,0 +1,122 @@
+{
+  "summary": "E-RAB Modification Indication (MME-UE 1, eNB-UE 2, 1 E-RAB)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 50,
+    "label": "ERABModificationIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 199,
+          "label": "E-RABToBeModifiedListBearerModInd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 5,
+            "transport_layer_address": "10.45.0.1",
+            "dl_gtp_teid": 33
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 201,
+          "label": "E-RABNotToBeModifiedListBearerModInd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 6,
+            "transport_layer_address": "10.45.0.2",
+            "dl_gtp_teid": 34
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 189,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "eutran_cgi": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "cell_id": "0019b01"
+          },
+          "tai": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": 1
+          }
+        }
+      }
+    ]
+  }
+}

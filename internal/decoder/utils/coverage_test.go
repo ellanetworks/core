@@ -18,17 +18,23 @@ import (
 // check is reachability rather than name matching, because a decoder is free to
 // render a field under another name or at another level — the EPS bearer
 // identity, for one, is rendered on the ESM header rather than per message.
+var codecPairs = []struct {
+	decoder string
+	codec   string
+}{
+	{"../ngap", "../../../ngap"},
+	{"../s1ap", "../../../s1ap"},
+	{"../nas/fgs", "../../../nas/fgs"},
+	{"../nas/eps", "../../../nas/eps"},
+}
+
+func pairName(decoder string) string {
+	return strings.ReplaceAll(strings.TrimPrefix(decoder, "../"), "/", "-")
+}
+
 func TestDecodersReadEveryCodecField(t *testing.T) {
-	for _, d := range []struct {
-		decoder string
-		codec   string
-	}{
-		{"../ngap", "../../../ngap"},
-		{"../s1ap", "../../../s1ap"},
-		{"../nas/fgs", "../../../nas/fgs"},
-		{"../nas/eps", "../../../nas/eps"},
-	} {
-		t.Run(strings.ReplaceAll(strings.TrimPrefix(d.decoder, "../"), "/", "-"), func(t *testing.T) {
+	for _, d := range codecPairs {
+		t.Run(pairName(d.decoder), func(t *testing.T) {
 			decoder := parseGoFiles(t, d.decoder)
 			codec := parseGoFiles(t, d.codec)
 
@@ -129,8 +135,12 @@ func readsPerMessage(files []*ast.File) map[string]map[string]bool {
 				continue
 			}
 
-			if strings.HasPrefix(fn.Name.Name, "build") {
-				add(strings.TrimPrefix(fn.Name.Name, "build"), selectorNames(fn.Body))
+			// A decoder names a message builder build<Message>, or lib<Message>
+			// where it renders a container carried inside another message.
+			for _, prefix := range []string{"build", "lib"} {
+				if strings.HasPrefix(fn.Name.Name, prefix) {
+					add(strings.TrimPrefix(fn.Name.Name, prefix), selectorNames(fn.Body))
+				}
 			}
 
 			for _, sw := range typeSwitches(fn.Body) {
@@ -312,4 +322,61 @@ func exportedFields(files []*ast.File, typeName string) []string {
 	}
 
 	return out
+}
+
+// messageNames are the codec's message types, the set a decoder is expected to
+// build a body for.
+func messageNames(files []*ast.File) []string {
+	var out []string
+
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			ts, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+
+			if _, ok := ts.Type.(*ast.StructType); !ok {
+				return true
+			}
+
+			if isMessage(files, ts.Name.Name) {
+				out = append(out, ts.Name.Name)
+			}
+
+			return false
+		})
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+// A message the codec parses and no decoder builds a body for reaches the API and
+// the UI as a bare header: every element it carried is dropped without trace. The
+// companion check, TestDecodersReadEveryCodecField, only inspects messages a
+// decoder already handles, so it cannot see this.
+func TestDecodersBuildEveryCodecMessage(t *testing.T) {
+	for _, d := range codecPairs {
+		t.Run(pairName(d.decoder), func(t *testing.T) {
+			decoder := parseGoFiles(t, d.decoder)
+			codec := parseGoFiles(t, d.codec)
+
+			read := readsPerMessage(decoder)
+
+			var undecoded []string
+
+			for _, msg := range messageNames(codec) {
+				if _, handled := read[msg]; !handled {
+					undecoded = append(undecoded, msg)
+				}
+			}
+
+			if len(undecoded) > 0 {
+				t.Errorf("the codec parses %d message(s) no decoder builds a body for, so their contents are dropped:\n  %s",
+					len(undecoded), strings.Join(undecoded, "\n  "))
+			}
+		})
+	}
 }

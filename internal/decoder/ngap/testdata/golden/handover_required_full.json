@@ -1,0 +1,182 @@
+{
+  "summary": "HandoverPreparation, AMF-UE=7, RAN-UE=3, Cause=handover-desirable-for-radio-reason",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 12,
+    "label": "HandoverPreparation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 29,
+          "label": "HandoverType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "intra5gs",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 16,
+            "label": "handover-desirable-for-radio-reason",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 105,
+          "label": "TargetID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "target_ran_node_id": {
+            "global_ran_node_id": {
+              "plmn_identity": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "global_gnb_id": "000008"
+            },
+            "selected_tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 22,
+          "label": "DirectForwardingPathAvailability",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": true
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 61,
+          "label": "PDUSessionResourceListHORqd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "handover_required_transfer": {
+              "direct_forwarding_path_availability": true
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 101,
+          "label": "SourceToTarget-TransparentContainer",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0102"
+      }
+    ]
+  }
+}

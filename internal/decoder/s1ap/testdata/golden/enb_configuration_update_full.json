@@ -1,0 +1,80 @@
+{
+  "summary": "eNB Configuration Update (srsenb01)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 29,
+    "label": "ENBConfigurationUpdate",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 60,
+          "label": "eNBname",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": "srsenb01"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 64,
+          "label": "SupportedTAs",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "tac": 1,
+            "broadcast_plmns": [
+              {
+                "mcc": "001",
+                "mnc": "01"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 137,
+          "label": "DefaultPagingDRX",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 2,
+          "label": "v128",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

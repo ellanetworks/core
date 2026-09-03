@@ -1,0 +1,42 @@
+{
+  "summary": "eNB Configuration Update Acknowledge",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 29,
+    "label": "ENBConfigurationUpdate",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 58,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 29,
+            "label": "ENBConfigurationUpdate",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

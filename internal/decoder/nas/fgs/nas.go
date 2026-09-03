@@ -36,6 +36,16 @@ type GmmMessage struct {
 	ServiceReject          *ServiceReject          `json:"service_reject,omitempty"`
 	IdentityRequest        *IdentityRequest        `json:"identity_request,omitempty"`
 	IdentityResponse       *IdentityResponse       `json:"identity_response,omitempty"`
+
+	ConfigurationUpdateCommand         *ConfigurationUpdateCommand         `json:"configuration_update_command,omitempty"`
+	ConfigurationUpdateComplete        *ConfigurationUpdateComplete        `json:"configuration_update_complete,omitempty"`
+	DeregistrationRequestUEOriginating *DeregistrationRequestUEOriginating `json:"deregistration_request_ue_originating,omitempty"`
+	DeregistrationAcceptUEOriginating  *DeregistrationAccept               `json:"deregistration_accept_ue_originating,omitempty"`
+	DeregistrationRequestUETerminated  *DeregistrationRequestUETerminated  `json:"deregistration_request_ue_terminated,omitempty"`
+	DeregistrationAcceptUETerminated   *DeregistrationAccept               `json:"deregistration_accept_ue_terminated,omitempty"`
+	GMMStatus                          *GMMCauseOnly                       `json:"gmm_status,omitempty"`
+	SecurityModeReject                 *GMMCauseOnly                       `json:"security_mode_reject,omitempty"`
+	NotificationResponse               *NotificationResponse               `json:"notification_response,omitempty"`
 }
 
 type GsmHeader struct {
@@ -50,6 +60,19 @@ type GsmMessage struct {
 
 	PDUSessionEstablishmentRequest *PDUSessionEstablishmentRequest `json:"pdu_session_establishment_request,omitempty"`
 	PDUSessionEstablishmentAccept  *PDUSessionEstablishmentAccept  `json:"pdu_session_establishment_accept,omitempty"`
+
+	PDUSessionAuthenticationComplete *PDUSessionAuthenticationComplete `json:"pdu_session_authentication_complete,omitempty"`
+
+	GSMStatus                           *GSMCauseOnly                   `json:"gsm_status,omitempty"`
+	PDUSessionEstablishmentReject       *GSMCauseOnly                   `json:"pdu_session_establishment_reject,omitempty"`
+	PDUSessionReleaseCommand            *GSMCauseOnly                   `json:"pdu_session_release_command,omitempty"`
+	PDUSessionModificationCommandReject *GSMCauseOnly                   `json:"pdu_session_modification_command_reject,omitempty"`
+	PDUSessionReleaseRequest            *GSMOptionalCause               `json:"pdu_session_release_request,omitempty"`
+	PDUSessionReleaseComplete           *GSMOptionalCause               `json:"pdu_session_release_complete,omitempty"`
+	PDUSessionModificationRequest       *PDUSessionModificationRequest  `json:"pdu_session_modification_request,omitempty"`
+	PDUSessionModificationCommand       *PDUSessionModificationCommand  `json:"pdu_session_modification_command,omitempty"`
+	PDUSessionModificationReject        *PDUSessionModificationReject   `json:"pdu_session_modification_reject,omitempty"`
+	PDUSessionModificationComplete      *PDUSessionModificationComplete `json:"pdu_session_modification_complete,omitempty"`
 }
 
 type SecurityHeader struct {
@@ -237,6 +260,24 @@ func buildGmmMessage(raw []byte) *GmmMessage {
 		gmmMessage.IdentityRequest = buildIdentityRequest(msg)
 	case *fgs.IdentityResponse:
 		gmmMessage.IdentityResponse = buildIdentityResponse(msg)
+	case *fgs.ConfigurationUpdateCommand:
+		gmmMessage.ConfigurationUpdateCommand = buildConfigurationUpdateCommand(msg)
+	case *fgs.ConfigurationUpdateComplete:
+		gmmMessage.ConfigurationUpdateComplete = buildConfigurationUpdateComplete(msg)
+	case *fgs.DeregistrationRequestUEOriginating:
+		gmmMessage.DeregistrationRequestUEOriginating = buildDeregistrationRequestUEOriginating(msg)
+	case *fgs.DeregistrationAcceptUEOriginating:
+		gmmMessage.DeregistrationAcceptUEOriginating = buildDeregistrationAcceptUEOriginating(msg)
+	case *fgs.DeregistrationRequestUETerminated:
+		gmmMessage.DeregistrationRequestUETerminated = buildDeregistrationRequestUETerminated(msg)
+	case *fgs.DeregistrationAcceptUETerminated:
+		gmmMessage.DeregistrationAcceptUETerminated = buildDeregistrationAcceptUETerminated(msg)
+	case *fgs.GMMStatus:
+		gmmMessage.GMMStatus = gmmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.SecurityModeReject:
+		gmmMessage.SecurityModeReject = gmmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.NotificationResponse:
+		gmmMessage.NotificationResponse = buildNotificationResponse(msg)
 	}
 
 	return gmmMessage
@@ -272,6 +313,50 @@ func buildGsmMessage(raw []byte) *GsmMessage {
 		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
 		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
 		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(msg)
+	case *fgs.PDUSessionAuthenticationComplete:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionAuthenticationComplete = buildPDUSessionAuthenticationComplete(msg)
+	case *fgs.GSMStatus:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.GSMStatus = gsmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionEstablishmentReject:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionEstablishmentReject = gsmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionReleaseCommand:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionReleaseCommand = gsmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionModificationCommandReject:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionModificationCommandReject = gsmCauseOnly(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionReleaseRequest:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionReleaseRequest = gsmOptionalCause(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionReleaseComplete:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionReleaseComplete = gsmOptionalCause(msg.Cause, msg.Unrecognized)
+	case *fgs.PDUSessionModificationRequest:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionModificationRequest = buildPDUSessionModificationRequest(msg)
+	case *fgs.PDUSessionModificationCommand:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionModificationCommand = buildPDUSessionModificationCommand(msg)
+	case *fgs.PDUSessionModificationReject:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionModificationReject = buildPDUSessionModificationReject(msg)
+	case *fgs.PDUSessionModificationComplete:
+		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
+		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)
+		gsmMessage.PDUSessionModificationComplete = buildPDUSessionModificationComplete(msg)
 	case *fgs.PDUSessionEstablishmentAccept:
 		gsmMessage.GsmHeader.PDUSessionID = uint8(msg.PDUSessionID)
 		gsmMessage.GsmHeader.PTI = uint8(msg.PTI)

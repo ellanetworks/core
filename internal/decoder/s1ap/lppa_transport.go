@@ -124,6 +124,37 @@ func buildUplinkUEAssociatedLPPaTransport(value []byte) (S1APMessageValue, strin
 		fmt.Sprintf("Uplink UE Associated LPPa Transport (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
 }
 
+func buildDownlinkNonUEAssociatedLPPaTransport(value []byte) (S1APMessageValue, string) {
+	m, err := s1ap.ParseDownlinkNonUEAssociatedLPPaTransport(value)
+	if err != nil {
+		return S1APMessageValue{Error: fmt.Sprintf("parse Downlink Non UE Associated LPPa Transport: %v", err)}, ""
+	}
+
+	return nonUEAssociatedLPPaTransportValue(m.RoutingID, m.LPPaPDU, m.UnknownIEs()),
+		fmt.Sprintf("Downlink Non UE Associated LPPa Transport (routing %d)", m.RoutingID)
+}
+
+func buildUplinkNonUEAssociatedLPPaTransport(value []byte) (S1APMessageValue, string) {
+	m, err := s1ap.ParseUplinkNonUEAssociatedLPPaTransport(value)
+	if err != nil {
+		return S1APMessageValue{Error: fmt.Sprintf("parse Uplink Non UE Associated LPPa Transport: %v", err)}, ""
+	}
+
+	return nonUEAssociatedLPPaTransportValue(m.RoutingID, m.LPPaPDU, m.UnknownIEs()),
+		fmt.Sprintf("Uplink Non UE Associated LPPa Transport (routing %d)", m.RoutingID)
+}
+
+// The non-UE-associated transports carry no S1AP UE ids: the routing id alone
+// names the E-SMLC the LPPa PDU belongs to (TS 36.413 §9.1.19.3).
+func nonUEAssociatedLPPaTransportValue(routing s1ap.RoutingID, pdu s1ap.LPPaPDU, unknown []s1ap.RawIE) S1APMessageValue {
+	ies := []IE{
+		ie(s1ap.IDRoutingID, s1ap.CriticalityReject, uint8(routing)),
+		ie(s1ap.IDLPPaPDU, s1ap.CriticalityReject, decodeLPPaPDU(pdu)),
+	}
+
+	return S1APMessageValue{IEs: appendUnknownIEs(ies, unknown)}
+}
+
 func lppaTransportValue(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, routing s1ap.RoutingID, pdu s1ap.LPPaPDU, unknown []s1ap.RawIE) S1APMessageValue {
 	ies := []IE{
 		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(mmeID)),

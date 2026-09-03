@@ -121,6 +121,14 @@
                 },
                 "eps_bearer_identity": 6,
                 "procedure_transaction_identity": 189
+              },
+              "deactivate_bearer_request": {
+                "esm_cause": {
+                  "type": "enum",
+                  "value": 36,
+                  "label": "Regular deactivation",
+                  "unknown": false
+                }
               }
             },
             "encrypted": false

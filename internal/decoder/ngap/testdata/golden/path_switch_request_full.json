@@ -1,0 +1,138 @@
+{
+  "summary": "PathSwitchRequest, RAN-UE=3",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 25,
+    "label": "PathSwitchRequest",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 100,
+          "label": "SourceAMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 121,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": {
+            "nr_cgi": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "000000010"
+            },
+            "tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": [
+            "NEA1",
+            "NEA2",
+            "NEA3"
+          ],
+          "nr_integrity_protection_algorithms": [
+            "NIA1",
+            "NIA2",
+            "NIA3"
+          ],
+          "eutra_encryption_algorithms": "e000",
+          "eutra_integrity_protection_algorithms": "e000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 76,
+          "label": "PDUSessionResourceToBeSwitchedDLList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "path_switch_request_transfer": {
+              "dl_ng_u_up_tnl_information": {
+                "gtp_teid": 33,
+                "transport_layer_address": "10.45.0.1"
+              },
+              "qos_flow_accepted": [
+                1
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

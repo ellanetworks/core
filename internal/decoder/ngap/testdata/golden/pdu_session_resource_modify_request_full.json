@@ -1,0 +1,137 @@
+{
+  "summary": "PDUSessionResourceModify, AMF-UE=7, RAN-UE=3",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 26,
+    "label": "PDUSessionResourceModify",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 64,
+          "label": "PDUSessionResourceModifyListModReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "nas_pdu": {
+              "protocol": "NAS",
+              "raw_hex": "7e0068",
+              "decoded": {
+                "security_header": {
+                  "protocol_discriminator": {
+                    "type": "enum",
+                    "value": 126,
+                    "label": "5GMM",
+                    "unknown": false
+                  },
+                  "security_header_type": {
+                    "type": "enum",
+                    "value": 0,
+                    "label": "plain",
+                    "unknown": false
+                  },
+                  "sequence_number": 0
+                },
+                "gmm_message": {
+                  "gmm_header": {
+                    "message_type": {
+                      "type": "enum",
+                      "value": 104,
+                      "label": "DL NAS TRANSPORT",
+                      "unknown": false
+                    }
+                  }
+                },
+                "encrypted": false
+              }
+            },
+            "modify_request_transfer": {
+              "maximum_bit_rate": {
+                "downlink_n_aggregate_maximum_bit_rate": 200000000,
+                "uplink_n_aggregate_maximum_bit_rate": 100000000,
+                "unit": "bps"
+              },
+              "qos_flow_add_or_modify_request": [
+                {
+                  "qos_flow": {
+                    "qos_id": 1,
+                    "five_qi": 9,
+                    "pri_arp": 8
+                  },
+                  "qos_flow_identifier": 1
+                }
+              ],
+              "qos_flow_to_release": [
+                {
+                  "qos_flow_identifier": 2,
+                  "cause": {
+                    "group": {
+                      "type": "enum",
+                      "value": 0,
+                      "label": "radioNetwork",
+                      "unknown": false
+                    },
+                    "value": {
+                      "type": "enum",
+                      "value": 0,
+                      "label": "unspecified",
+                      "unknown": false
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

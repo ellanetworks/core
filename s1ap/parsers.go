@@ -19,6 +19,7 @@ var messageParsers = []messageParser{
 	{"ParseENBConfigurationUpdateFailure", func(v []byte) error { _, err := ParseENBConfigurationUpdateFailure(v); return err }},
 	{"ParseENBStatusTransfer", func(v []byte) error { _, err := ParseENBStatusTransfer(v); return err }},
 	{"ParseERABModificationIndication", func(v []byte) error { _, err := ParseERABModificationIndication(v); return err }},
+	{"ParseERABModificationConfirm", func(v []byte) error { _, err := ParseERABModificationConfirm(v); return err }},
 	{"ParseERABModifyRequest", func(v []byte) error { _, err := ParseERABModifyRequest(v); return err }},
 	{"ParseERABModifyResponse", func(v []byte) error { _, err := ParseERABModifyResponse(v); return err }},
 	{"ParseERABReleaseCommand", func(v []byte) error { _, err := ParseERABReleaseCommand(v); return err }},

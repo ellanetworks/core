@@ -1,0 +1,65 @@
+{
+  "summary": "NGReset, Cause=om-intervention",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 20,
+    "label": "NGReset",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 4,
+            "label": "misc",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 3,
+            "label": "om-intervention",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 88,
+          "label": "ResetType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "ng_interface": true
+        }
+      }
+    ]
+  }
+}

@@ -10,7 +10,7 @@ import (
 )
 
 // ERABToBeReleasedItem is a decoded E-RAB the MME asks the eNB to release, with
-// the cause it releases it for (TS 36.413 §9.2.1.35).
+// the cause it releases it for (TS 36.413 §9.2.1.36).
 type ERABToBeReleasedItem struct {
 	ERABID uint8 `json:"erab_id"`
 	Cause  Cause `json:"cause"`

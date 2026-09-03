@@ -8,10 +8,10 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// libSetupRequestTransfer renders the PDU Session Resource Setup Request
+// libPDUSessionResourceSetupRequestTransfer renders the PDU Session Resource Setup Request
 // Transfer both the setup request and the initial context setup carry per
 // session (TS 38.413 §9.3.4.1).
-func libSetupRequestTransfer(raw ngap.TransferContainer) (*PDUSessionResourceSetupRequestTransfer, error) {
+func libPDUSessionResourceSetupRequestTransfer(raw ngap.TransferContainer) (*PDUSessionResourceSetupRequestTransfer, error) {
 	t, err := ngap.ParsePDUSessionResourceSetupRequestTransfer(raw)
 	if err != nil {
 		return nil, err
@@ -34,6 +34,20 @@ func libSetupRequestTransfer(raw ngap.TransferContainer) (*PDUSessionResourceSet
 			DownlinkNAggregateMaximumBitRate: uint64(t.PDUSessionAggregateMaximumBitRate.DL),
 			Unit:                             "bps",
 		}
+	}
+
+	for _, item := range t.AdditionalULNGUUPTNLInformation {
+		out.AdditionalULNGUUPTNLInformation = append(out.AdditionalULNGUUPTNLInformation, libGTPTunnel(item.NGUUPTNLInformation))
+	}
+
+	if t.DataForwardingNotPossible != nil {
+		notPossible := *t.DataForwardingNotPossible == ngap.DataForwardingNotPossibleTrue
+		out.DataForwardingNotPossible = &notPossible
+	}
+
+	if t.NetworkInstance != nil {
+		v := uint16(*t.NetworkInstance)
+		out.NetworkInstance = &v
 	}
 
 	out.SecurityIndication = securityIndication(t.SecurityIndication)
