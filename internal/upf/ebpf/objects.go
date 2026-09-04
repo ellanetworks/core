@@ -23,10 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -167,67 +164,18 @@ func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
 
 // sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs to the number of possible CPUs.
 func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) error {
-	cpus, err := possibleCPUs()
+	cpus, err := ebpf.PossibleCPU()
 	if err != nil {
-		return err
+		return fmt.Errorf("get possible CPUs: %w", err)
 	}
 
 	for _, name := range []string{"csum_scratch", "dl_buffer_scratch"} {
 		if m, ok := spec.Maps[name]; ok {
-			m.MaxEntries = cpus
+			m.MaxEntries = uint32(cpus)
 		}
 	}
 
 	return nil
-}
-
-func possibleCPUs() (uint32, error) {
-	data, err := os.ReadFile("/sys/devices/system/cpu/possible")
-	if err != nil {
-		return 0, fmt.Errorf("read possible CPUs: %w", err)
-	}
-
-	return parseCPUList(strings.TrimSpace(string(data)))
-}
-
-func parseCPUList(list string) (uint32, error) {
-	var count uint32
-
-	for _, part := range strings.Split(list, ",") {
-		if part == "" {
-			continue
-		}
-
-		lo, hi, ranged := strings.Cut(part, "-")
-
-		first, err := strconv.ParseUint(lo, 10, 32)
-		if err != nil {
-			return 0, fmt.Errorf("parse CPU list %q: %w", list, err)
-		}
-
-		if !ranged {
-			count++
-
-			continue
-		}
-
-		last, err := strconv.ParseUint(hi, 10, 32)
-		if err != nil {
-			return 0, fmt.Errorf("parse CPU list %q: %w", list, err)
-		}
-
-		if last < first {
-			return 0, fmt.Errorf("inverted CPU range %q", part)
-		}
-
-		count += uint32(last-first) + 1
-	}
-
-	if count == 0 {
-		return 0, errors.New("no possible CPUs")
-	}
-
-	return count, nil
 }
 
 func (bpfObjects *BpfObjects) Load() error {
