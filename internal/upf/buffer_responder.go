@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	bpf "github.com/cilium/ebpf"
@@ -21,9 +20,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
-
-// activeBufferResponder is the running responder the queued-state gauges read.
-var activeBufferResponder atomic.Pointer[BufferResponder]
 
 const (
 	// maxPerQueuePackets caps one session's queue.
@@ -192,8 +188,6 @@ func (b *BufferResponder) Start() error {
 		zap.Duration("queue_ttl", queueTTL),
 	)
 
-	activeBufferResponder.Store(b)
-
 	return nil
 }
 
@@ -218,8 +212,6 @@ func (b *BufferResponder) Close() error {
 
 	b.closed = true
 	b.mu.Unlock()
-
-	activeBufferResponder.Store(nil)
 
 	if b.bpfObjects != nil {
 		if err := b.bpfObjects.SetBufferVethIfindex(0); err != nil {
@@ -281,7 +273,6 @@ func (b *BufferResponder) consume() {
 func (b *BufferResponder) handleRecord(sample []byte) {
 	hdr, payload, ok := parseDlBufferRecord(sample)
 	if !ok {
-		incCounter(bufferRecordsMalformed)
 		logger.UpfLog.Warn("malformed dl buffer record",
 			zap.Int("size", len(sample)))
 
@@ -325,7 +316,6 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 			continue
 		}
 
-		addCounter(bufferPacketsEvicted.WithLabelValues(evictedTTLExpired), float64(len(q.packets)))
 		b.totalBytes -= q.bytes
 		delete(b.buffers, seid)
 	}
@@ -341,12 +331,10 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 	}
 
 	if b.totalBytes+len(pkt) > maxTotalBytes {
-		incCounter(bufferPacketsEvicted.WithLabelValues(evictedByteBudget))
 		return
 	}
 
 	for len(q.packets) >= maxPerQueuePackets {
-		incCounter(bufferPacketsEvicted.WithLabelValues(evictedCapHeadDrop))
 		b.dropHead(q)
 	}
 
@@ -403,21 +391,6 @@ func (b *BufferResponder) queueLen(seid uint64) int {
 	return 0
 }
 
-// queuedTotals snapshots the buffered state for the Prometheus gauges.
-func (b *BufferResponder) queuedTotals() (packets int, bytes int, sessions int) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	sessions = len(b.buffers)
-
-	for _, q := range b.buffers {
-		packets += len(q.packets)
-		bytes += q.bytes
-	}
-
-	return packets, bytes, sessions
-}
-
 // drainQueue pops the session's queued packets and re-injects them paced.
 func (b *BufferResponder) drainQueue(seid uint64) {
 	b.mu.Lock()
@@ -447,7 +420,6 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 
 		if closed || fd < 0 {
 			remaining := len(packets) - i
-			addCounter(bufferPacketsEvicted.WithLabelValues(evictedClosed), float64(remaining))
 			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
 				logger.SEID(seid), zap.Int("count", remaining))
 
@@ -462,14 +434,11 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 		if err := b.send(fd, frame); err != nil {
 			logger.UpfLog.Warn("failed to re-inject buffered packet",
 				logger.SEID(seid), zap.Error(err))
-			incCounter(bufferReinjectFailed)
 
 			continue
 		}
 
 		injected++
-
-		incCounter(bufferPacketsReinjected)
 
 		time.Sleep(drainPace)
 	}
@@ -490,7 +459,6 @@ func (b *BufferResponder) Drop(seid uint64) {
 		return
 	}
 
-	addCounter(bufferPacketsEvicted.WithLabelValues(evictedSessionDrop), float64(len(q.packets)))
 	b.totalBytes -= q.bytes
 	delete(b.buffers, seid)
 }

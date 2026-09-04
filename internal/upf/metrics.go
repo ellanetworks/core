@@ -8,55 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Eviction reasons for app_upf_dl_buffer_packets_evicted_total.
-const (
-	evictedCapHeadDrop = "cap_head_drop"
-	evictedTTLExpired  = "ttl_expired"
-	evictedByteBudget  = "byte_budget"
-	evictedSessionDrop = "session_drop"
-	evictedClosed      = "closed"
-)
-
-var (
-	flowReportsDropped prometheus.Counter
-
-	// Buffer counters, package-level so tests can read them.
-	bufferPacketsEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "app_upf_dl_buffer_packets_evicted_total",
-		Help: "Buffered downlink packets discarded, by reason: cap_head_drop (per-queue cap), ttl_expired (paging timed out), byte_budget (global byte budget), session_drop (session deleted or paging failed), closed (responder shut down mid-drain).",
-	}, []string{"reason"})
-
-	bufferPacketsReinjected = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "app_upf_dl_buffer_packets_reinjected_total",
-		Help: "Buffered downlink packets successfully re-injected.",
-	})
-
-	bufferReinjectFailed = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "app_upf_dl_buffer_reinject_failed_total",
-		Help: "Buffered downlink packets whose re-injection failed.",
-	})
-
-	bufferRecordsMalformed = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "app_upf_dl_buffer_records_malformed_total",
-		Help: "Malformed capture records read from the downlink buffer ring. Non-zero is a bug.",
-	})
-)
-
-func incCounter(c prometheus.Counter) {
-	if c == nil {
-		return
-	}
-
-	c.Inc()
-}
-
-func addCounter(c prometheus.Counter, v float64) {
-	if c == nil {
-		return
-	}
-
-	c.Add(v)
-}
+var flowReportsDropped prometheus.Counter
 
 func RegisterMetrics() {
 	flowReportsDropped = prometheus.NewCounter(prometheus.CounterOpts{
@@ -64,8 +16,7 @@ func RegisterMetrics() {
 		Help: "Total number of flow reports dropped because the reporter channel was full.",
 	})
 
-	prometheus.MustRegister(flowReportsDropped, bufferPacketsEvicted,
-		bufferPacketsReinjected, bufferReinjectFailed, bufferRecordsMalformed)
+	prometheus.MustRegister(flowReportsDropped)
 
 	upfUplinkBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_uplink_bytes",
@@ -106,65 +57,6 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
-
-	dlBufferCaptureDesc := prometheus.NewDesc(
-		"app_upf_dl_buffer_capture_total",
-		"Downlink packets the datapath captured for buffering, by result. ring_full means the capture ring is too small or the reader too slow; non-zero in normal operation warrants a larger ring.",
-		[]string{"result"},
-		nil,
-	)
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		if bpfObjects == nil {
-			return
-		}
-
-		counters := bpfObjects.GetDlBufferCounters()
-
-		for _, r := range []struct {
-			label string
-			value uint64
-		}{
-			{"captured", counters.Captured},
-			{"ring_full", counters.RingFull},
-			{"too_large", counters.TooLarge},
-			{"gso", counters.GSO},
-		} {
-			ch <- prometheus.MustNewConstMetric(dlBufferCaptureDesc,
-				prometheus.CounterValue, float64(r.value), r.label)
-		}
-	}))
-
-	dlBufferQueuedPacketsDesc := prometheus.NewDesc(
-		"app_upf_dl_buffer_queued_packets",
-		"Downlink packets currently held in the buffer responder's queues.",
-		nil, nil,
-	)
-	dlBufferQueuedBytesDesc := prometheus.NewDesc(
-		"app_upf_dl_buffer_queued_bytes",
-		"Bytes of downlink packets currently held in the buffer responder's queues.",
-		nil, nil,
-	)
-	dlBufferSessionsDesc := prometheus.NewDesc(
-		"app_upf_dl_buffer_sessions",
-		"Sessions with downlink packets currently buffered.",
-		nil, nil,
-	)
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		responder := activeBufferResponder.Load()
-		if responder == nil {
-			return
-		}
-
-		packets, bytes, sessions := responder.queuedTotals()
-
-		ch <- prometheus.MustNewConstMetric(dlBufferQueuedPacketsDesc, prometheus.GaugeValue, float64(packets))
-
-		ch <- prometheus.MustNewConstMetric(dlBufferQueuedBytesDesc, prometheus.GaugeValue, float64(bytes))
-
-		ch <- prometheus.MustNewConstMetric(dlBufferSessionsDesc, prometheus.GaugeValue, float64(sessions))
-	}))
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
