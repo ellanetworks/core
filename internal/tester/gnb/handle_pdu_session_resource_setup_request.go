@@ -39,6 +39,12 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
+	if req.NASPDU != nil {
+		if err := ue.SendDownlinkNAS(*req.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
+			return fmt.Errorf("could not deliver NAS-PDU to UE: %w", err)
+		}
+	}
+
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
 

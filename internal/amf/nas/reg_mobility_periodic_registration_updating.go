@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -108,7 +109,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	appendPendingN1 := func(uint8) error { return nil }
 
-	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest))
+	requestData := ue.N1N2Message()
+
+	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest, requestData))
 
 	n2Setup := ueConn.N2Setup(proc)
 
@@ -177,7 +180,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if conn.RegistrationRequest.AllowedPDUSessionStatus != nil {
-		if requestData := ue.N1N2Message(); requestData != nil {
+		if requestData != nil {
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
@@ -407,7 +410,7 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 	}
 }
 
-func n2SessionsRequested(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
+func n2SessionsRequested(ue *amf.UeContext, req *fgs.RegistrationRequest, buffered *models.N1N2MessageTransferRequest) bool {
 	if req.UplinkDataStatus != nil {
 		for idx, hasUplinkData := range req.UplinkDataStatus.PSI {
 			if !hasUplinkData {
@@ -424,12 +427,11 @@ func n2SessionsRequested(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
 		return false
 	}
 
-	requestData := ue.N1N2Message()
-	if requestData == nil || requestData.Standalone() || requestData.BinaryDataN2Information == nil {
+	if buffered == nil || buffered.Standalone() || buffered.BinaryDataN2Information == nil {
 		return false
 	}
 
-	_, ok := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+	_, ok := ue.SmContextFindByPDUSessionID(buffered.PduSessionID)
 
 	return ok
 }
