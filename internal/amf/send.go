@@ -273,7 +273,7 @@ func SendRegistrationAccept(
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 	initialContextSetup bool,
-	pduSessionResourceSetupList ngap.PDUSessionResourceSetupListCxtReq,
+	sessions func() (ngap.PDUSessionResourceSetupListCxtReq, error),
 	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
 ) bool {
@@ -319,36 +319,10 @@ func SendRegistrationAccept(
 
 	initialContextSetupSent := false
 
+	var acceptWire []byte
+
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-		if initialContextSetup {
-			if err := ueConn.SendInitialContextSetup(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				kgnb,
-				ue.RadioCapability,
-				ue.RadioCapabilityForPaging,
-				ueSecCap,
-				wire,
-				pduSessionResourceSetupList,
-				supportedGUAMI,
-			); err != nil {
-				logger.From(ctx, logger.AmfLog).Warn("failed to send initial context setup request", zap.Error(err))
-			} else {
-				initialContextSetupSent = true
-
-				logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request")
-			}
-
-			return nil
-		}
-
-		if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.Error(err))
-		} else {
-			logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
-		}
+		acceptWire = wire
 
 		return nil
 	}); err != nil {
@@ -359,6 +333,47 @@ func SendRegistrationAccept(
 		}
 
 		return false
+	}
+
+	var pduSessionResourceSetupList ngap.PDUSessionResourceSetupListCxtReq
+
+	if sessions != nil {
+		pduSessionResourceSetupList, err = sessions()
+		if err != nil {
+			ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
+
+			if initialContextSetup {
+				ueConn.AbortICS()
+			}
+
+			return false
+		}
+	}
+
+	if initialContextSetup {
+		if err := ueConn.SendInitialContextSetup(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			kgnb,
+			ue.RadioCapability,
+			ue.RadioCapabilityForPaging,
+			ueSecCap,
+			acceptWire,
+			pduSessionResourceSetupList,
+			supportedGUAMI,
+		); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to send initial context setup request", zap.Error(err))
+		} else {
+			initialContextSetupSent = true
+
+			logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request")
+		}
+	} else if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.Error(err))
+	} else {
+		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 	}
 
 	if initialContextSetup && !initialContextSetupSent {
@@ -728,8 +743,8 @@ func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp models.BitRate, ambrDown models.BitRate, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
-	if ueConn.ICS() == ICSNotStarted {
-		return fmt.Errorf("no UE context on the NG-RAN node: initial context setup has not been sent")
+	if !ueConn.RANHoldsUEContext() {
+		return errNoRANUEContext
 	}
 
 	amfInstance, conn, err := ueConn.sendTarget()
@@ -760,6 +775,10 @@ func pduSessionResourceReleaseBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngap.PDUSessionResourceToReleaseListRelCmd) error {
+	if !ueConn.RANHoldsUEContext() {
+		return errNoRANUEContext
+	}
+
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
@@ -918,6 +937,10 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 	ctx context.Context,
 	pduSessionResourceModifyList ngap.PDUSessionResourceModifyListModReq,
 ) error {
+	if !ueConn.RANHoldsUEContext() {
+		return errNoRANUEContext
+	}
+
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err

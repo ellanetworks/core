@@ -89,14 +89,6 @@ func sendServiceAccept(
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	if pending != nil {
-		if err := stagePendingN1(ctx, ue, initialContextSetup, proc, pending, sht, &ctxList, &suList); err != nil {
-			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
-
-			return err
-		}
-	}
-
 	plain, err := amf.BuildServiceAccept(pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building service accept message: %v", err)
@@ -104,57 +96,78 @@ func sendServiceAccept(
 
 	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
 
+	var acceptWire []byte
+
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-		switch {
-		case initialContextSetup:
-			if err := ueConn.SendInitialContextSetup(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				kgnb,
-				ue.RadioCapability,
-				ue.RadioCapabilityForPaging,
-				ueSecCap,
-				wire,
-				ctxList,
-				supportedGUAMI,
-			); err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
-		case len(suList) != 0:
-			if err := ueConn.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				wire,
-				suList,
-			); err != nil {
-				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
-			}
-
-			ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept")
-		default:
-			ueConn.EndN2Setup(proc)
-
-			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %v", err)
-			}
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept")
-		}
+		acceptWire = wire
 
 		return nil
 	}); err != nil {
 		amf.ReportProtectFailure(ctx, ue, "service accept", err)
 
 		return err
+	}
+
+	var pendingWire []byte
+
+	if pending != nil {
+		pendingWire, err = stagePendingN1(ctx, ue, initialContextSetup, proc, pending, sht, &ctxList, &suList)
+		if err != nil {
+			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
+
+			return err
+		}
+	}
+
+	switch {
+	case initialContextSetup:
+		if err := ueConn.SendInitialContextSetup(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			kgnb,
+			ue.RadioCapability,
+			ue.RadioCapabilityForPaging,
+			ueSecCap,
+			acceptWire,
+			ctxList,
+			supportedGUAMI,
+		); err != nil {
+			return fmt.Errorf("error sending initial context setup request: %v", err)
+		}
+
+		ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
+	case len(suList) != 0:
+		if err := ueConn.SendPDUSessionResourceSetupRequest(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			acceptWire,
+			suList,
+		); err != nil {
+			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
+		}
+
+		ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept")
+	default:
+		ueConn.EndN2Setup(proc)
+
+		if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
+			return fmt.Errorf("error sending downlink nas transport: %v", err)
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept")
+	}
+
+	if len(pendingWire) != 0 {
+		if err := ueConn.SendDownlinkNASTransport(ctx, pendingWire); err != nil {
+			return fmt.Errorf("error sending buffered N1 SM message: %v", err)
+		}
 	}
 
 	return nil
@@ -169,7 +182,9 @@ func stagePendingN1(
 	sht uint8,
 	ctxList *ngap.PDUSessionResourceSetupListCxtReq,
 	suList *ngap.PDUSessionResourceSetupListSUReq,
-) error {
+) ([]byte, error) {
+	var standalone []byte
+
 	stage := func(nasPdu []byte) error {
 		conn := ue.Conn()
 		if conn == nil || !conn.N2Setup(proc).ClaimSession(pending.pduSessionID) {
@@ -180,7 +195,9 @@ func stagePendingN1(
 				return nil
 			}
 
-			return conn.SendDownlinkNASTransport(ctx, nasPdu)
+			standalone = nasPdu
+
+			return nil
 		}
 
 		if initialContextSetup {
@@ -209,15 +226,19 @@ func stagePendingN1(
 	}
 
 	if pending.n1Msg == nil {
-		return stage(nil)
+		return nil, stage(nil)
 	}
 
 	plain, err := amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, pending.n1Msg, new(fgs.PDUSessionID(pending.pduSessionID)), nil, nil)
 	if err != nil {
-		return fmt.Errorf("error building DL NAS transport message: %v", err)
+		return nil, fmt.Errorf("error building DL NAS transport message: %v", err)
 	}
 
-	return ue.SendDownlinkNAS(plain, sht, stage)
+	if err := ue.SendDownlinkNAS(plain, sht, stage); err != nil {
+		return nil, err
+	}
+
+	return standalone, nil
 }
 
 // TS 24501 5.6.1

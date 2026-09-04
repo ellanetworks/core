@@ -220,7 +220,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+					staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) { return ctxList, nil }
+
+					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, staged, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
 						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 					} else {
 						n2Setup.End()
@@ -295,16 +297,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	if err := appendPendingN1(sht); err != nil {
-		abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
-
-		return
-	}
-
 	if initialContextSetup {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+		staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) {
+			if err := appendPendingN1(sht); err != nil {
+				return nil, err
+			}
+
+			return ctxList, nil
+		}
+
+		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, staged, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
 			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 		} else {
 			n2Setup.End()
@@ -324,32 +328,47 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
+	var acceptWire []byte
+
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-		if len(suList) != 0 {
-			if err := ueConn.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				wire,
-				suList,
-			); err != nil {
-				n2Setup.End()
+		acceptWire = wire
 
-				return err
-			}
-
-			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
-
-			return nil
-		}
-
-		n2Setup.End()
-
-		return ueConn.SendDownlinkNASTransport(ctx, wire)
+		return nil
 	}); err != nil {
 		abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
 
 		return
+	}
+
+	if err := appendPendingN1(sht); err != nil {
+		abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
+
+		return
+	}
+
+	if len(suList) != 0 {
+		if err := ueConn.SendPDUSessionResourceSetupRequest(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			acceptWire,
+			suList,
+		); err != nil {
+			n2Setup.End()
+			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
+
+			return
+		}
+
+		n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+	} else {
+		n2Setup.End()
+
+		if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
+
+			return
+		}
 	}
 
 	amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)

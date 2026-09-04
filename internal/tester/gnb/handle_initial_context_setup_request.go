@@ -59,6 +59,17 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 			)
 
 			gnb.storePDUSession(ranUEID, pduSessionInfo)
+
+			if pduSession.NASPDU != nil {
+				ue, err := gnb.LoadUE(ranUEID)
+				if err != nil {
+					return fmt.Errorf("cannot find UE for PDU session NAS-PDU: %v", err)
+				}
+
+				if err := ue.SendDownlinkNAS([]byte(*pduSession.NASPDU), amfUEID, ranUEID); err != nil {
+					return fmt.Errorf("could not deliver PDU session NAS-PDU to UE: %v", err)
+				}
+			}
 		}
 	}
 

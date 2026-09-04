@@ -1243,3 +1243,83 @@ func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]u
 func serviceRequest5GSTMSI() fgs.MobileIdentity {
 	return fgs.STMSIIdentity(fgs.STMSI{TMSI: [4]byte{0xDE, 0xAD, 0xBE, 0xEF}})
 }
+
+func TestHandleServiceRequest_BufferedN1WithN2_ServiceAcceptTakesTheLowerNASCount(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				SupportedTACs: "[\"000001\"]",
+			},
+		},
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
+	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.ForceStateForTest(amf.Registered)
+	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
+	ue.Tai = ue.Conn().Tai
+	ue.SetSecuredForTest(true)
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := nas.CipheringSNOW3G
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(algo)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.AllowedNssai = []models.Snssai{snssai}
+	setTestUESecurityCapability(ue)
+
+	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
+
+	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+		PduSessionID:            1,
+		SNssai:                  &snssai,
+		BinaryDataN1Message:     []byte{0x2e, 0x01, 0x01},
+		BinaryDataN2Information: []byte{0x03, 0x04},
+	})
+
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount(), fgs.ServiceTypeMobileTerminatedServices)
+	if err != nil {
+		t.Fatalf("could not build service request: %v", err)
+	}
+
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
+
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
+	}
+
+	ics := ngapSender.SentInitialContextSetupRequest[0]
+
+	decipherGmmCount(t, ue, *ics.NASPDU, ue.ULCount(), uint8(fgs.MsgServiceAccept))
+
+	if len(ics.PDUSessionResourceSetup) != 1 {
+		t.Fatalf("PDU session resource setup list length = %d, want 1", len(ics.PDUSessionResourceSetup))
+	}
+
+	sessionNAS := ics.PDUSessionResourceSetup[0].NASPDU
+	if sessionNAS == nil {
+		t.Fatal("the buffered 5GSM message is not carried by the PDU session NAS-PDU IE")
+	}
+
+	decipherGmmCount(t, ue, *sessionNAS, ue.ULCount()+1, uint8(fgs.MsgDLNASTransport))
+}

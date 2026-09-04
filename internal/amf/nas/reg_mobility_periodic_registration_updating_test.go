@@ -634,9 +634,21 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 		t.Fatalf("PDU session resource setup list length = %d, want 1: the buffered N2 SM information rides the context setup", got)
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 1)
+	ics := ngapSender.SentInitialContextSetupRequest[0]
+
+	nm := decryptAndDecodeNasPdu(t, ue, *ics.NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
+	}
+
+	sessionNAS := ics.PDUSessionResourceSetup[0].NASPDU
+	if sessionNAS == nil {
+		t.Fatal("the buffered 5GSM message is not carried by the PDU session NAS-PDU IE")
+	}
+
+	dl := decryptAndDecodeNasPdu(t, ue, *sessionNAS, 1)
+	if dl[2] != uint8(fgs.MsgDLNASTransport) {
+		t.Fatalf("expected DL NAS Transport at the higher downlink NAS COUNT, got %v", dl[2])
 	}
 }
 

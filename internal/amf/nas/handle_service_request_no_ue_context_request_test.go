@@ -116,3 +116,37 @@ func TestSendPDUSessionResourceSetupRequest_RefusedBeforeInitialContextSetup(t *
 			len(f.ngapSender.SentPDUSessionResourceSetupRequest))
 	}
 }
+
+func TestUEAssociatedSendsRefusedBeforeInitialContextSetup(t *testing.T) {
+	f := connectedModeUe(t, &fakeSmf{})
+
+	relList := ngap.PDUSessionResourceToReleaseListRelCmd{
+		{PDUSessionID: 12, Transfer: ngap.TransferContainer([]byte{0x01, 0x02, 0x03})},
+	}
+
+	modList := ngap.PDUSessionResourceModifyListModReq{
+		{PDUSessionID: 12, Transfer: ngap.TransferContainer([]byte{0x01, 0x02, 0x03})},
+	}
+
+	if err := f.conn().SendPDUSessionResourceReleaseCommand(t.Context(), nil, relList); err == nil {
+		t.Error("release command send succeeded, want a refusal")
+	}
+
+	if err := f.conn().SendPDUSessionResourceModifyRequest(t.Context(), modList); err == nil {
+		t.Error("modify request send succeeded, want a refusal")
+	}
+
+	f.conn().MarkICSCompleted()
+
+	if err := f.conn().SendPDUSessionResourceReleaseCommand(t.Context(), nil, relList); err != nil {
+		t.Errorf("release command failed once the NG-RAN node holds the UE context: %v", err)
+	}
+
+	if err := f.conn().SendPDUSessionResourceModifyRequest(t.Context(), modList); err != nil {
+		t.Errorf("modify request failed once the NG-RAN node holds the UE context: %v", err)
+	}
+
+	if len(f.ngapSender.SentPDUSessionResourceReleaseCommand) != 1 {
+		t.Errorf("release commands = %d, want 1", len(f.ngapSender.SentPDUSessionResourceReleaseCommand))
+	}
+}
