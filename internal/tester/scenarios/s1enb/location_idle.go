@@ -106,7 +106,7 @@ func runS1ENBLocationIdle(ctx context.Context, env scenarios.Env, p *locationIdl
 
 	logger.Logger.Info("S1AP Paging received from MME")
 
-	sr, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second)
+	sr, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second, nil)
 	if err != nil {
 		return fmt.Errorf("service request answering the page: %w", err)
 	}

@@ -56,7 +56,7 @@ func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
-	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout)
+	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)
 	}

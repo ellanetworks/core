@@ -43,7 +43,12 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 			}
 
 			pduSessionInfo.PDUSessionID = pduSessionID
-			pduSessionInfo.DLTEID = gnb.allocTEID()
+
+			if pinned := gnb.consumePinnedDLTEID(ranUEID, pduSessionID); pinned != 0 {
+				pduSessionInfo.DLTEID = pinned
+			} else {
+				pduSessionInfo.DLTEID = gnb.allocTEID()
+			}
 
 			logger.GnbLogger.Debug(
 				"Parsed PDU Session Resource Setup Request",

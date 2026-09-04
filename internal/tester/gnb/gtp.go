@@ -145,8 +145,6 @@ func (g *GnodeB) AddTunnel(opts *TunnelOpts) error {
 		}
 	}
 
-	time.Sleep(3 * time.Second)
-
 	t := &Tunnel{
 		Name:   ifce.Name(),
 		tunIF:  ifce,

@@ -12,6 +12,29 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type N3N6EntrypointTcDlBufferCounters struct {
+	_        structs.HostLayout
+	Captured uint64
+	RingFull uint64
+	TooLarge uint64
+	Gso      uint64
+}
+
+type N3N6EntrypointTcDlBufferScratch struct {
+	_   structs.HostLayout
+	Hdr struct {
+		_         structs.HostLayout
+		LocalSeid uint64
+		PdrId     uint16
+		Len       uint16
+		Qfi       uint8
+		Family    uint8
+		Pad       uint16
+	}
+	Payload [9000]uint8
+	Pad     [8]uint8
+}
+
 type N3N6EntrypointTcFiveTuple struct {
 	_     structs.HostLayout
 	Saddr uint32
@@ -236,6 +259,9 @@ type N3N6EntrypointTcVethTunnelInfo struct {
 // Used for safe lookups in a Collection or CollectionSpec.
 const (
 	N3N6EntrypointTcMapCsumScratch         = "csum_scratch"
+	N3N6EntrypointTcMapDlBufferCountersMap = "dl_buffer_counters_map"
+	N3N6EntrypointTcMapDlBufferMap         = "dl_buffer_map"
+	N3N6EntrypointTcMapDlBufferScratch     = "dl_buffer_scratch"
 	N3N6EntrypointTcMapDownlinkRouteStats  = "downlink_route_stats"
 	N3N6EntrypointTcMapDownlinkStatistics  = "downlink_statistics"
 	N3N6EntrypointTcMapFlowStats           = "flow_stats"
@@ -265,6 +291,7 @@ const (
 	N3N6EntrypointTcProgUpfLocalSwitchFunc = "upf_local_switch_func"
 	N3N6EntrypointTcProgUpfUplinkFunc      = "upf_uplink_func"
 	N3N6EntrypointTcProgVethXdpFunc        = "veth_xdp_func"
+	N3N6EntrypointTcVarBufferVethIfindex   = "buffer_veth_ifindex"
 	N3N6EntrypointTcVarFlowact             = "flowact"
 	N3N6EntrypointTcVarLocalSwitch         = "local_switch"
 	N3N6EntrypointTcVarMasquerade          = "masquerade"
@@ -330,45 +357,49 @@ type N3N6EntrypointTcProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointTcMapSpecs struct {
-	CsumScratch        *ebpf.MapSpec `ebpf:"csum_scratch"`
-	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
-	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
-	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
-	FragNatIdSeq       *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
-	FragPortsIp4       *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
-	FragPortsIp6       *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
-	FramedDownlinkIp4  *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
-	FramedDownlinkIp6  *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
-	LocalSwitchUlPdr   *ebpf.MapSpec `ebpf:"local_switch_ul_pdr"`
-	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
-	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
-	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
-	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
-	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
-	QerWindows         *ebpf.MapSpec `ebpf:"qer_windows"`
-	RsEventMap         *ebpf.MapSpec `ebpf:"rs_event_map"`
-	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
-	UpfCalls           *ebpf.MapSpec `ebpf:"upf_calls"`
-	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
-	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
-	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
-	VethTunnels        *ebpf.MapSpec `ebpf:"veth_tunnels"`
+	CsumScratch         *ebpf.MapSpec `ebpf:"csum_scratch"`
+	DlBufferCountersMap *ebpf.MapSpec `ebpf:"dl_buffer_counters_map"`
+	DlBufferMap         *ebpf.MapSpec `ebpf:"dl_buffer_map"`
+	DlBufferScratch     *ebpf.MapSpec `ebpf:"dl_buffer_scratch"`
+	DownlinkRouteStats  *ebpf.MapSpec `ebpf:"downlink_route_stats"`
+	DownlinkStatistics  *ebpf.MapSpec `ebpf:"downlink_statistics"`
+	FlowStats           *ebpf.MapSpec `ebpf:"flow_stats"`
+	FragNatIdSeq        *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4        *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
+	FragPortsIp6        *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
+	FramedDownlinkIp4   *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6   *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
+	LocalSwitchUlPdr    *ebpf.MapSpec `ebpf:"local_switch_ul_pdr"`
+	NatCt               *ebpf.MapSpec `ebpf:"nat_ct"`
+	NoNeighMap          *ebpf.MapSpec `ebpf:"no_neigh_map"`
+	NocpMap             *ebpf.MapSpec `ebpf:"nocp_map"`
+	PdrsDownlinkIp4     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink          *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	QerWindows          *ebpf.MapSpec `ebpf:"qer_windows"`
+	RsEventMap          *ebpf.MapSpec `ebpf:"rs_event_map"`
+	SdfFilters          *ebpf.MapSpec `ebpf:"sdf_filters"`
+	UpfCalls            *ebpf.MapSpec `ebpf:"upf_calls"`
+	UplinkRouteStats    *ebpf.MapSpec `ebpf:"uplink_route_stats"`
+	UplinkStatistics    *ebpf.MapSpec `ebpf:"uplink_statistics"`
+	UrrMap              *ebpf.MapSpec `ebpf:"urr_map"`
+	VethTunnels         *ebpf.MapSpec `ebpf:"veth_tunnels"`
 }
 
 // N3N6EntrypointTcVariableSpecs contains global variables before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointTcVariableSpecs struct {
-	Flowact     *ebpf.VariableSpec `ebpf:"flowact"`
-	LocalSwitch *ebpf.VariableSpec `ebpf:"local_switch"`
-	Masquerade  *ebpf.VariableSpec `ebpf:"masquerade"`
-	N3Ifindex   *ebpf.VariableSpec `ebpf:"n3_ifindex"`
-	N3Vlan      *ebpf.VariableSpec `ebpf:"n3_vlan"`
-	N6Ifindex   *ebpf.VariableSpec `ebpf:"n6_ifindex"`
-	N6Vlan      *ebpf.VariableSpec `ebpf:"n6_vlan"`
-	NatPortMax  *ebpf.VariableSpec `ebpf:"nat_port_max"`
-	NatPortMin  *ebpf.VariableSpec `ebpf:"nat_port_min"`
+	BufferVethIfindex *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
+	Flowact           *ebpf.VariableSpec `ebpf:"flowact"`
+	LocalSwitch       *ebpf.VariableSpec `ebpf:"local_switch"`
+	Masquerade        *ebpf.VariableSpec `ebpf:"masquerade"`
+	N3Ifindex         *ebpf.VariableSpec `ebpf:"n3_ifindex"`
+	N3Vlan            *ebpf.VariableSpec `ebpf:"n3_vlan"`
+	N6Ifindex         *ebpf.VariableSpec `ebpf:"n6_ifindex"`
+	N6Vlan            *ebpf.VariableSpec `ebpf:"n6_vlan"`
+	NatPortMax        *ebpf.VariableSpec `ebpf:"nat_port_max"`
+	NatPortMin        *ebpf.VariableSpec `ebpf:"nat_port_min"`
 }
 
 // N3N6EntrypointTcObjects contains all objects after they have been loaded into the kernel.
@@ -391,35 +422,41 @@ func (o *N3N6EntrypointTcObjects) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointTcMaps struct {
-	CsumScratch        *ebpf.Map `ebpf:"csum_scratch"`
-	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
-	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
-	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
-	FragNatIdSeq       *ebpf.Map `ebpf:"frag_nat_id_seq"`
-	FragPortsIp4       *ebpf.Map `ebpf:"frag_ports_ip4"`
-	FragPortsIp6       *ebpf.Map `ebpf:"frag_ports_ip6"`
-	FramedDownlinkIp4  *ebpf.Map `ebpf:"framed_downlink_ip4"`
-	FramedDownlinkIp6  *ebpf.Map `ebpf:"framed_downlink_ip6"`
-	LocalSwitchUlPdr   *ebpf.Map `ebpf:"local_switch_ul_pdr"`
-	NatCt              *ebpf.Map `ebpf:"nat_ct"`
-	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
-	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
-	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
-	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
-	QerWindows         *ebpf.Map `ebpf:"qer_windows"`
-	RsEventMap         *ebpf.Map `ebpf:"rs_event_map"`
-	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
-	UpfCalls           *ebpf.Map `ebpf:"upf_calls"`
-	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
-	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
-	UrrMap             *ebpf.Map `ebpf:"urr_map"`
-	VethTunnels        *ebpf.Map `ebpf:"veth_tunnels"`
+	CsumScratch         *ebpf.Map `ebpf:"csum_scratch"`
+	DlBufferCountersMap *ebpf.Map `ebpf:"dl_buffer_counters_map"`
+	DlBufferMap         *ebpf.Map `ebpf:"dl_buffer_map"`
+	DlBufferScratch     *ebpf.Map `ebpf:"dl_buffer_scratch"`
+	DownlinkRouteStats  *ebpf.Map `ebpf:"downlink_route_stats"`
+	DownlinkStatistics  *ebpf.Map `ebpf:"downlink_statistics"`
+	FlowStats           *ebpf.Map `ebpf:"flow_stats"`
+	FragNatIdSeq        *ebpf.Map `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4        *ebpf.Map `ebpf:"frag_ports_ip4"`
+	FragPortsIp6        *ebpf.Map `ebpf:"frag_ports_ip6"`
+	FramedDownlinkIp4   *ebpf.Map `ebpf:"framed_downlink_ip4"`
+	FramedDownlinkIp6   *ebpf.Map `ebpf:"framed_downlink_ip6"`
+	LocalSwitchUlPdr    *ebpf.Map `ebpf:"local_switch_ul_pdr"`
+	NatCt               *ebpf.Map `ebpf:"nat_ct"`
+	NoNeighMap          *ebpf.Map `ebpf:"no_neigh_map"`
+	NocpMap             *ebpf.Map `ebpf:"nocp_map"`
+	PdrsDownlinkIp4     *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6     *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink          *ebpf.Map `ebpf:"pdrs_uplink"`
+	QerWindows          *ebpf.Map `ebpf:"qer_windows"`
+	RsEventMap          *ebpf.Map `ebpf:"rs_event_map"`
+	SdfFilters          *ebpf.Map `ebpf:"sdf_filters"`
+	UpfCalls            *ebpf.Map `ebpf:"upf_calls"`
+	UplinkRouteStats    *ebpf.Map `ebpf:"uplink_route_stats"`
+	UplinkStatistics    *ebpf.Map `ebpf:"uplink_statistics"`
+	UrrMap              *ebpf.Map `ebpf:"urr_map"`
+	VethTunnels         *ebpf.Map `ebpf:"veth_tunnels"`
 }
 
 func (m *N3N6EntrypointTcMaps) Close() error {
 	return _N3N6EntrypointTcClose(
 		m.CsumScratch,
+		m.DlBufferCountersMap,
+		m.DlBufferMap,
+		m.DlBufferScratch,
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FlowStats,
@@ -450,15 +487,16 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointTcVariables struct {
-	Flowact     *ebpf.Variable `ebpf:"flowact"`
-	LocalSwitch *ebpf.Variable `ebpf:"local_switch"`
-	Masquerade  *ebpf.Variable `ebpf:"masquerade"`
-	N3Ifindex   *ebpf.Variable `ebpf:"n3_ifindex"`
-	N3Vlan      *ebpf.Variable `ebpf:"n3_vlan"`
-	N6Ifindex   *ebpf.Variable `ebpf:"n6_ifindex"`
-	N6Vlan      *ebpf.Variable `ebpf:"n6_vlan"`
-	NatPortMax  *ebpf.Variable `ebpf:"nat_port_max"`
-	NatPortMin  *ebpf.Variable `ebpf:"nat_port_min"`
+	BufferVethIfindex *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
+	Flowact           *ebpf.Variable `ebpf:"flowact"`
+	LocalSwitch       *ebpf.Variable `ebpf:"local_switch"`
+	Masquerade        *ebpf.Variable `ebpf:"masquerade"`
+	N3Ifindex         *ebpf.Variable `ebpf:"n3_ifindex"`
+	N3Vlan            *ebpf.Variable `ebpf:"n3_vlan"`
+	N6Ifindex         *ebpf.Variable `ebpf:"n6_ifindex"`
+	N6Vlan            *ebpf.Variable `ebpf:"n6_vlan"`
+	NatPortMax        *ebpf.Variable `ebpf:"nat_port_max"`
+	NatPortMin        *ebpf.Variable `ebpf:"nat_port_min"`
 }
 
 // N3N6EntrypointTcPrograms contains all programs after they have been loaded into the kernel.

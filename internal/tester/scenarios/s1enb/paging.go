@@ -104,7 +104,7 @@ func runS1ENBPaging(ctx context.Context, env scenarios.Env, p *pagingParams) err
 		return err
 	}
 
-	if _, err := e.ServiceRequestAnsweringPage(ue, res.GUTI, releaseTimeout); err != nil {
+	if _, err := e.ServiceRequestAnsweringPage(ue, res.GUTI, releaseTimeout, nil); err != nil {
 		return fmt.Errorf("service request answering the page: %w", err)
 	}
 

@@ -1,0 +1,536 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package upf
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"sync"
+	"time"
+
+	bpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	// maxPerQueuePackets caps one session's queue.
+	maxPerQueuePackets = 16
+
+	// queueTTL matches T3513 paging retransmission.
+	queueTTL = 30 * time.Second
+
+	// maxTotalBytes bounds every queue together.
+	maxTotalBytes = 4 << 20
+
+	// drainPace spaces re-injected packets to avoid bursting the rate limiter.
+	drainPace = time.Millisecond
+
+	// drainGrace spaces the drain's re-checks for late-enqueued packets.
+	drainGrace = 2 * time.Millisecond
+
+	// drainGraceWindow bounds the drain's re-checking.
+	drainGraceWindow = 50 * time.Millisecond
+)
+
+// queuedPacket is one captured L3 packet awaiting re-injection.
+type queuedPacket struct {
+	qfi      uint8
+	family   uint8
+	data     []byte
+	enqueued time.Time
+}
+
+// packetQueue is one session's FIFO of captured packets, byte-accounted.
+type packetQueue struct {
+	packets []queuedPacket
+	bytes   int
+}
+
+// BufferResponder consumes downlink packets captured at the FAR_BUFF
+// branch and re-injects them once the FAR flips to FORW.
+type BufferResponder struct {
+	bpfObjects *ebpf.BpfObjects
+
+	reader *ringbuf.Reader
+	done   chan struct{}
+
+	evictStop chan struct{}
+	evictDone chan struct{}
+
+	vethLink link.Link
+
+	injectFD int
+	injectSA unix.SockaddrLinklayer
+	closed   bool
+
+	srcMAC [6]byte // veth-buf
+	dstMAC [6]byte // veth-buf-xdp
+
+	mu         sync.Mutex
+	buffers    map[uint64]*packetQueue // keyed by local SEID
+	totalBytes int
+
+	// send injects one frame; overridable in tests.
+	send func(fd int, frame []byte) error
+}
+
+// NewBufferResponder creates a buffer responder. It does not start the
+// consumer.
+func NewBufferResponder(bpfObjects *ebpf.BpfObjects) *BufferResponder {
+	b := &BufferResponder{
+		bpfObjects: bpfObjects,
+		injectFD:   -1,
+		buffers:    make(map[uint64]*packetQueue),
+	}
+	b.send = b.sendFrame
+
+	return b
+}
+
+func (b *BufferResponder) sendFrame(fd int, frame []byte) error {
+	return unix.Sendto(fd, frame, 0, &b.injectSA)
+}
+
+// Start creates the injection veth pair, attaches the downlink program,
+// and starts the consumer.
+func (b *BufferResponder) Start() error {
+	if err := createVethPair(VethBufName, VethBufXDPName); err != nil {
+		return fmt.Errorf("create injection veth pair: %w", err)
+	}
+
+	xdpIdx, err := vethIndex(VethBufXDPName)
+	if err != nil {
+		return fmt.Errorf("lookup %s: %w", VethBufXDPName, err)
+	}
+
+	if b.bpfObjects.UseTCX {
+		b.vethLink, err = attachTCX(b.bpfObjects.UpfDownlinkFunc, xdpIdx, VethBufXDPName)
+	} else {
+		b.vethLink, err = attachXDP(b.bpfObjects.UpfDownlinkFunc, xdpIdx, link.XDPGenericMode)
+	}
+
+	if err != nil {
+		return fmt.Errorf("attach downlink program to %s: %w", VethBufXDPName, err)
+	}
+
+	bufIface, err := net.InterfaceByName(VethBufName)
+	if err != nil {
+		return fmt.Errorf("lookup %s: %w", VethBufName, err)
+	}
+
+	copy(b.srcMAC[:], bufIface.HardwareAddr)
+
+	xdpIface, err := net.InterfaceByName(VethBufXDPName)
+	if err != nil {
+		return fmt.Errorf("lookup %s: %w", VethBufXDPName, err)
+	}
+
+	copy(b.dstMAC[:], xdpIface.HardwareAddr)
+
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ALL)))
+	if err != nil {
+		return fmt.Errorf("AF_PACKET socket: %w", err)
+	}
+
+	b.injectFD = fd
+	b.injectSA = unix.SockaddrLinklayer{
+		Protocol: htons(unix.ETH_P_ALL),
+		Ifindex:  bufIface.Index,
+	}
+
+	b.reader, err = ringbuf.NewReader(b.bpfObjects.DlBufferMap)
+	if err != nil {
+		_ = unix.Close(fd)
+		b.injectFD = -1
+
+		return fmt.Errorf("open dl_buffer ring buffer: %w", err)
+	}
+
+	b.done = make(chan struct{})
+	b.evictStop = make(chan struct{})
+	b.evictDone = make(chan struct{})
+
+	done := b.done
+
+	go func() { // #nosec: G118 -- lifecycle goroutine
+		defer close(done)
+
+		b.consume()
+	}()
+
+	evictDone := b.evictDone
+
+	go func() { // #nosec: G118 -- lifecycle goroutine
+		defer close(evictDone)
+
+		b.evictExpired()
+	}()
+
+	if err := b.bpfObjects.SetBufferVethIfindex(xdpIdx); err != nil {
+		_ = b.Close()
+
+		return fmt.Errorf("set buffer veth ifindex: %w", err)
+	}
+
+	logger.UpfLog.Info("downlink buffer responder started",
+		zap.String("veth_go", VethBufName),
+		zap.String("veth_xdp", VethBufXDPName),
+		zap.Int("max_per_queue_packets", maxPerQueuePackets),
+		zap.Duration("queue_ttl", queueTTL),
+	)
+
+	return nil
+}
+
+// UpdateProgram points the veth link at prog, which a reload has replaced.
+func (b *BufferResponder) UpdateProgram(prog *bpf.Program) error {
+	if b == nil || b.vethLink == nil {
+		return nil
+	}
+
+	return b.vethLink.Update(prog)
+}
+
+// Close stops the consumer and the sweeper, then releases the socket,
+// the link and the pair. It is idempotent.
+func (b *BufferResponder) Close() error {
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+
+		return nil
+	}
+
+	b.closed = true
+	b.mu.Unlock()
+
+	if b.bpfObjects != nil {
+		if err := b.bpfObjects.SetBufferVethIfindex(0); err != nil {
+			logger.UpfLog.Warn("failed to clear buffer veth ifindex", zap.Error(err))
+		}
+	}
+
+	if b.reader != nil {
+		_ = b.reader.Close()
+	}
+
+	if b.done != nil {
+		<-b.done
+	}
+
+	if b.evictStop != nil {
+		close(b.evictStop)
+		<-b.evictDone
+	}
+
+	b.mu.Lock()
+	if b.injectFD >= 0 {
+		_ = unix.Close(b.injectFD)
+		b.injectFD = -1
+	}
+	b.mu.Unlock()
+
+	if b.vethLink != nil {
+		_ = b.vethLink.Close()
+	}
+
+	if err := destroyVethPair(VethBufName); err != nil {
+		logger.UpfLog.Warn("failed to destroy injection veth pair", zap.Error(err))
+	}
+
+	return nil
+}
+
+// consume is the ring buffer consumer goroutine.
+func (b *BufferResponder) consume() {
+	var record ringbuf.Record
+
+	for {
+		err := b.reader.ReadInto(&record)
+		if errors.Is(err, os.ErrClosed) {
+			return
+		}
+
+		if err != nil {
+			logger.UpfLog.Warn("dl buffer ring read error", zap.Error(err))
+			continue
+		}
+
+		b.handleRecord(record.RawSample)
+	}
+}
+
+// handleRecord decodes one ring record and queues the packet.
+func (b *BufferResponder) handleRecord(sample []byte) {
+	hdr, payload, ok := parseDlBufferRecord(sample)
+	if !ok {
+		logger.UpfLog.Warn("malformed dl buffer record",
+			zap.Int("size", len(sample)))
+
+		return
+	}
+
+	pkt := make([]byte, len(payload))
+	copy(pkt, payload)
+
+	b.mu.Lock()
+	b.enqueue(hdr.LocalSEID, hdr.QFI, hdr.Family, pkt)
+	b.mu.Unlock()
+}
+
+// evictExpired drops queues older than queueTTL.
+func (b *BufferResponder) evictExpired() {
+	ticker := time.NewTicker(queueTTL / 2)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-b.evictStop:
+			return
+		case <-ticker.C:
+			b.mu.Lock()
+			b.evictExpiredLocked(time.Now())
+			b.mu.Unlock()
+		}
+	}
+}
+
+// evictExpiredLocked drops every queue whose head has aged past the TTL.
+// Caller holds mu.
+func (b *BufferResponder) evictExpiredLocked(now time.Time) {
+	for seid, q := range b.buffers {
+		if len(q.packets) == 0 {
+			continue
+		}
+
+		if now.Sub(q.packets[0].enqueued) < queueTTL {
+			continue
+		}
+
+		b.totalBytes -= q.bytes
+		delete(b.buffers, seid)
+	}
+}
+
+// enqueue adds one captured packet under mu, applying the per-queue cap
+// and the global byte budget.
+func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []byte) {
+	for b.totalBytes+len(pkt) > maxTotalBytes {
+		if !b.evictOldestLocked() {
+			return
+		}
+	}
+
+	q, ok := b.buffers[seid]
+	if !ok {
+		q = &packetQueue{}
+		b.buffers[seid] = q
+	}
+
+	for len(q.packets) >= maxPerQueuePackets {
+		b.dropHead(q)
+	}
+
+	q.packets = append(q.packets, queuedPacket{
+		qfi:      qfi,
+		family:   family,
+		data:     pkt,
+		enqueued: time.Now(),
+	})
+	q.bytes += len(pkt)
+	b.totalBytes += len(pkt)
+}
+
+// dropHead removes the oldest packet of q and refunds its bytes. Caller
+// holds mu.
+func (b *BufferResponder) dropHead(q *packetQueue) {
+	p := q.packets[0]
+	q.packets[0].data = nil
+	q.packets = q.packets[1:]
+	q.bytes -= len(p.data)
+	b.totalBytes -= len(p.data)
+}
+
+func (b *BufferResponder) evictOldestLocked() bool {
+	var (
+		oldestSeid uint64
+		oldest     *packetQueue
+	)
+
+	for seid, q := range b.buffers {
+		if len(q.packets) == 0 {
+			continue
+		}
+
+		if oldest == nil || q.packets[0].enqueued.Before(oldest.packets[0].enqueued) {
+			oldestSeid = seid
+			oldest = q
+		}
+	}
+
+	if oldest == nil {
+		return false
+	}
+
+	b.dropHead(oldest)
+
+	if len(oldest.packets) == 0 {
+		delete(b.buffers, oldestSeid)
+	}
+
+	return true
+}
+
+// Drain re-injects a session's buffered packets.
+func (b *BufferResponder) Drain(seid uint64) {
+	deadline := time.Now().Add(drainGraceWindow)
+
+	for time.Now().Before(deadline) {
+		b.drainQueue(seid)
+
+		if b.queueLen(seid) == 0 {
+			if time.Now().After(deadline) {
+				return
+			}
+
+			time.Sleep(drainGrace)
+
+			if b.queueLen(seid) == 0 {
+				return
+			}
+		}
+	}
+}
+
+// queueLen returns the number of packets waiting for the session.
+func (b *BufferResponder) queueLen(seid uint64) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if q, ok := b.buffers[seid]; ok {
+		return len(q.packets)
+	}
+
+	return 0
+}
+
+// drainQueue pops the session's queued packets and re-injects them paced.
+func (b *BufferResponder) drainQueue(seid uint64) {
+	b.mu.Lock()
+
+	q, ok := b.buffers[seid]
+	if !ok || len(q.packets) == 0 {
+		b.mu.Unlock()
+		return
+	}
+
+	packets := q.packets
+
+	delete(b.buffers, seid)
+	b.totalBytes -= q.bytes
+
+	b.mu.Unlock()
+
+	frame := make([]byte, 0, 14+ebpf.MaxDlBufferPkt)
+
+	var injected int
+
+	for i, p := range packets {
+		frame = append(frame[:0], b.dstMAC[:]...)
+		frame = append(frame, b.srcMAC[:]...)
+		frame = binary.BigEndian.AppendUint16(frame, etherTypeFor(p.family))
+		frame = append(frame, p.data...)
+
+		b.mu.Lock()
+		fd := b.injectFD
+		closed := b.closed
+
+		if closed || fd < 0 {
+			b.mu.Unlock()
+
+			remaining := len(packets) - i
+			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
+				logger.SEID(seid), zap.Int("count", remaining))
+
+			return
+		}
+
+		err := b.send(fd, frame)
+		b.mu.Unlock()
+
+		if err != nil {
+			logger.UpfLog.Warn("failed to re-inject buffered packet",
+				logger.SEID(seid), zap.Error(err))
+
+			continue
+		}
+
+		injected++
+
+		time.Sleep(drainPace)
+	}
+
+	if injected > 0 {
+		logger.UpfLog.Debug("drained buffered downlink packets",
+			logger.SEID(seid), zap.Int("count", injected))
+	}
+}
+
+// Drop discards a session's buffered packets.
+func (b *BufferResponder) Drop(seid uint64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	q, ok := b.buffers[seid]
+	if !ok {
+		return
+	}
+
+	b.totalBytes -= q.bytes
+	delete(b.buffers, seid)
+}
+
+// parseDlBufferRecord decodes a dl_buffer_map sample into its header and
+// payload.
+func parseDlBufferRecord(sample []byte) (hdr ebpf.DlBufferHeader, payload []byte, ok bool) {
+	if len(sample) < 16 {
+		return hdr, nil, false
+	}
+
+	hdr = ebpf.DlBufferHeader{
+		LocalSEID: binary.NativeEndian.Uint64(sample[0:8]),
+		PdrID:     binary.NativeEndian.Uint16(sample[8:10]),
+		Len:       binary.NativeEndian.Uint16(sample[10:12]),
+		QFI:       sample[12],
+		Family:    sample[13],
+	}
+
+	payload = sample[16:]
+
+	if hdr.Len == 0 || int(hdr.Len) != len(payload) || hdr.Len > ebpf.MaxDlBufferPkt {
+		return hdr, nil, false
+	}
+
+	if hdr.Family != 4 && hdr.Family != 6 {
+		return hdr, nil, false
+	}
+
+	return hdr, payload, true
+}
+
+func etherTypeFor(family uint8) uint16 {
+	if family == 6 {
+		return 0x86DD
+	}
+
+	return 0x0800
+}

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"runtime"
 	"strings"
 	"testing"
 	"unsafe"
@@ -35,8 +34,8 @@ func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int
 		t.Fatalf("load TC spec: %v", err)
 	}
 
-	if m, ok := spec.Maps["csum_scratch"]; ok {
-		m.MaxEntries = uint32(runtime.NumCPU())
+	if err := sizeCPUScratchMaps(spec); err != nil {
+		t.Fatalf("size scratch maps: %v", err)
 	}
 
 	var objs N3N6EntrypointTcObjects
