@@ -12,10 +12,14 @@ func (conn *SessionEngine) SuppressDownlinkDataNotification(seid uint64) {
 	conn.eachDownlinkNotification(seid, func(d ebpf.DataNotification) {
 		conn.BpfObjects.MarkNotified(d)
 	})
+
+	if b := conn.downlinkBuffer(); b != nil {
+		b.Drop(seid)
+	}
 }
 
 // ClearDownlinkDataNotification releases the suppression once the UE is reachable
-// again, so subsequent downlink data pages it (TS 24.301 §5.3.5; TS 23.502 §4.2.3.3
+// again, so subsequent downlink data pages it (TS 24.301 §5.3.4.3; TS 23.502 §4.2.3.3
 // step 3c). Releases entries marked under a QFI the PDR has since moved off: the
 // suppress and the clear run at different times.
 func (conn *SessionEngine) ClearDownlinkDataNotification(seid uint64) {

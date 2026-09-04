@@ -331,6 +331,7 @@ var dropReasonNames = [...]string{
 	"nat_quote_no_mapping",
 	"fragment_malformed",
 	"mtu_exceeded",
+	"reinject_unowned",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.

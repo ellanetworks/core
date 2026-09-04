@@ -293,7 +293,7 @@ func runEnbConnectivityTest(
 		zap.String("destination", scenarios.DefaultPingDestination),
 	)
 
-	serviceRequest, err := ngeNB.ServiceRequest(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	serviceRequest, err := ngeNB.ServiceRequest(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request procedure failed: %v", err)
 	}
