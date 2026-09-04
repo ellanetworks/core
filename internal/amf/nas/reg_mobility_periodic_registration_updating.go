@@ -154,11 +154,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
-	pduSessionStatus, err := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
-	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "synchronise PDU session status", err)
-		return
-	}
+	pduSessionStatus := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
@@ -365,8 +361,6 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
 				zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), zap.Uint8("ebi", ebi))
-
-			continue
 		}
 
 		ue.DeleteSmContext(pduSessionID)

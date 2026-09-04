@@ -5,15 +5,16 @@ package nas
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/fgs"
+	"go.uber.org/zap"
 )
 
-func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) (*[16]bool, error) {
+func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) *[16]bool {
 	if req == nil || req.PDUSessionStatus == nil {
-		return nil, nil
+		return nil
 	}
 
 	reported := req.PDUSessionStatus.PSI
@@ -31,11 +32,12 @@ func syncPDUSessionStatus(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 
 		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
-			return nil, fmt.Errorf("release PDU session %d the UE reports inactive: %w", psi, err)
+			logger.From(ctx, logger.AmfLog).Error("release PDU session the UE reports inactive",
+				zap.Error(err), zap.Int("pdu_session_id", psi))
 		}
 
 		ue.DeleteSmContext(uint8(psi))
 	}
 
-	return held, nil
+	return held
 }
