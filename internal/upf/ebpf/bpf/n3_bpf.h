@@ -21,15 +21,14 @@
 
 #pragma once
 
-#include "bpf/utils/flow.h"
-#include "bpf/utils/routing.h"
-#include "bpf/utils/trace.h"
-#include "bpf/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
 #include "bpf/utils/common.h"
-#include "bpf/utils/frag_needed.h"
+#include "bpf/utils/routing.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/profiling.h"
+#include "bpf/utils/flow.h"
 #include "bpf/utils/gtp.h"
 #include "bpf/utils/tailcall.h"
 #include "bpf/utils/pdr.h"
@@ -39,6 +38,8 @@
 #include "bpf/utils/urr.h"
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/rs_event.h"
+#include "bpf/utils/nocp.h"
+#include "bpf/utils/dl_buffer.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -179,6 +180,17 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	ctx->interface = INTERFACE_N6;
 
 	if (dl_far->action & (FAR_BUFF | FAR_NOCP)) {
+		struct nocp notif = { .local_seid = dl_pdr->local_seid,
+				      .pdr_id = dl_pdr->pdr_id,
+				      .qfi = dl_qer->qfi };
+		bpf_ringbuf_output(&nocp_map, (void *)&notif,
+				   sizeof(struct nocp), 0);
+
+		dl_buffer_capture(ctx, dl_pdr, dl_qer,
+				  ctx->ip4 ? (const void *)ctx->ip4 :
+					     (const void *)ctx->ip6,
+				  ctx->ip4 ? 4 : 6);
+
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(dl_far->action & FAR_FORW)) {

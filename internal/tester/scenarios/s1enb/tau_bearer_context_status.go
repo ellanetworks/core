@@ -89,7 +89,7 @@ func runS1ENBTAUBearerContextStatus(ctx context.Context, env scenarios.Env, _ an
 		return err
 	}
 
-	sr, err := e.ServiceRequest(ue, tau.GUTI, releaseTimeout)
+	sr, err := e.ServiceRequest(ue, tau.GUTI, releaseTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request for the surviving PDN connection: %w", err)
 	}

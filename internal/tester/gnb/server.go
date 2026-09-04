@@ -123,6 +123,7 @@ type GnodeB struct {
 	N3Address         netip.Addr
 	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
 	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
+	pinnedDLTEIDs     map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
 	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 	UERadioCapability []byte
 	radioCapReported  map[int64]bool
@@ -931,6 +932,35 @@ func (g *GnodeB) allocTEID() uint32 {
 	g.lastGeneratedTEID++
 
 	return g.lastGeneratedTEID
+}
+
+// PinDLTEID pins the downlink TEID reported at the next re-establishment of
+// the session. The pin is consumed by that re-establishment.
+func (g *GnodeB) PinDLTEID(ranUENGAPID int64, pduSessionID int64, teid uint32) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.pinnedDLTEIDs == nil {
+		g.pinnedDLTEIDs = make(map[int64]map[int64]uint32)
+	}
+
+	if g.pinnedDLTEIDs[ranUENGAPID] == nil {
+		g.pinnedDLTEIDs[ranUENGAPID] = make(map[int64]uint32)
+	}
+
+	g.pinnedDLTEIDs[ranUENGAPID][pduSessionID] = teid
+}
+
+// consumePinnedDLTEID reports the downlink TEID pinned for (ranUeID,
+// pduSessionID), if one was armed, and clears it.
+func (g *GnodeB) consumePinnedDLTEID(ranUeID, pduSessionID int64) uint32 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	teid := g.pinnedDLTEIDs[ranUeID][pduSessionID]
+	delete(g.pinnedDLTEIDs[ranUeID], pduSessionID)
+
+	return teid
 }
 
 func (g *GnodeB) AddUE(ranUENGAPID int64, ue air.DownlinkSender) {

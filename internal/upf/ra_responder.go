@@ -443,7 +443,7 @@ func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, ueIPv6 netip.Addr)
 }
 
 // htons converts a uint16 from host to network byte order.
-func htons(v uint16) uint16 {
+func htons(v uint16) uint16 { // nolint: unparam
 	var buf [2]byte
 	binary.NativeEndian.PutUint16(buf[:], v)
 

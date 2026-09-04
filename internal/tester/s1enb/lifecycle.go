@@ -81,19 +81,26 @@ type ServiceRequestResult struct {
 	UERadioCapability []byte
 }
 
+// ServiceRequestOpts tunes a service-request re-establishment.
+type ServiceRequestOpts struct {
+	// DLTEID pins the downlink TEID reported at the next re-establishment
+	// of the bearer. Zero allocates a fresh one.
+	DLTEID uint32
+}
+
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
-// ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer.
-func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
-	return e.serviceRequest(ue, guti, false, timeout)
+// ECM-IDLE (TS 24.301 §5.6.1), re-establishing the bearer. opts may be nil.
+func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
+	return e.serviceRequest(ue, guti, false, timeout, opts)
 }
 
 // ServiceRequestAnsweringPage is ServiceRequest for a UE woken by a page, so the
 // INITIAL UE MESSAGE carries RRC establishment cause mt-Access.
-func (e *ENB) ServiceRequestAnsweringPage(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
-	return e.serviceRequest(ue, guti, true, timeout)
+func (e *ENB) ServiceRequestAnsweringPage(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
+	return e.serviceRequest(ue, guti, true, timeout, opts)
 }
 
-func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage bool, timeout time.Duration) (*ServiceRequestResult, error) {
+func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage bool, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
 	if guti == nil {
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
@@ -136,6 +143,9 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 	}
 
 	dlTEID := e.allocTEID()
+	if opts != nil && opts.DLTEID != 0 {
+		dlTEID = opts.DLTEID
+	}
 
 	if err := e.sendInitialContextSetupResponse(ics, enbUEID, dlTEID); err != nil {
 		return nil, err

@@ -57,6 +57,7 @@ type UPF struct {
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
 	raResponder        *RAResponder
+	bufferResponder    *BufferResponder
 
 	ctx context.Context
 
@@ -208,6 +209,17 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		)
 	}
 
+	bufferResponder := NewBufferResponder(bpfObjects)
+	if err := bufferResponder.Start(); err != nil {
+		logger.UpfLog.Warn("failed to start downlink buffer responder, downlink packets to an idle UE will not be buffered",
+			zap.Error(err))
+
+		_ = bufferResponder.Close()
+	} else {
+		upf.bufferResponder = bufferResponder
+		se.SetDownlinkBuffer(bufferResponder)
+	}
+
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	upf.startUsageMonitor(ctx, 30*time.Second)
@@ -241,6 +253,12 @@ func (u *UPF) Close(ctx context.Context) {
 		if u.raResponder != nil {
 			if err := u.raResponder.Close(); err != nil {
 				logger.UpfLog.Warn("Failed to close RA responder", zap.Error(err))
+			}
+		}
+
+		if u.bufferResponder != nil {
+			if err := u.bufferResponder.Close(); err != nil {
+				logger.UpfLog.Warn("Failed to close downlink buffer responder", zap.Error(err))
 			}
 		}
 
@@ -326,6 +344,12 @@ func (u *UPF) updateAttachedPrograms() error {
 
 	if u.raResponder != nil {
 		if err := u.raResponder.UpdateProgram(u.se.BpfObjects.VethXdpFunc); err != nil {
+			return err
+		}
+	}
+
+	if u.bufferResponder != nil {
+		if err := u.bufferResponder.UpdateProgram(u.se.BpfObjects.UpfDownlinkFunc); err != nil {
 			return err
 		}
 	}

@@ -17,6 +17,16 @@ import (
 const s1enbName = "Ella-Core-Tester-S1eNB"
 
 func startENB(env scenarios.Env) (*s1enb.ENB, error) {
+	return startENBOpts(env, false)
+}
+
+// startENBWithDatapath starts an eNB with the S1-U datapath enabled, for
+// scenarios that move user-plane packets rather than only signalling.
+func startENBWithDatapath(env scenarios.Env) (*s1enb.ENB, error) {
+	return startENBOpts(env, true)
+}
+
+func startENBOpts(env scenarios.Env, datapath bool) (*s1enb.ENB, error) {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
 		return nil, err
@@ -38,6 +48,7 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 		CoreS1MMEAddress: s1mme,
 		ENBAddress:       g.N2Address,
 		ENBN3Address:     g.N3Address,
+		EnableDatapath:   datapath,
 	})
 }
 

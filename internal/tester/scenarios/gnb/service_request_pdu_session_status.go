@@ -133,7 +133,7 @@ func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _
 		return fmt.Errorf("before the service request: %w", err)
 	}
 
-	sr, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, keptPDUSessionID, registrationTimeout)
+	sr, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, keptPDUSessionID, registrationTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request reporting PDU session %d inactive: %w", droppedPDUSessionID, err)
 	}
