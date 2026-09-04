@@ -272,6 +272,7 @@ func SendRegistrationAccept(
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
+	initialContextSetup bool,
 	pduSessionResourceSetupList ngap.PDUSessionResourceSetupListCxtReq,
 	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
@@ -319,9 +320,7 @@ func SendRegistrationAccept(
 	initialContextSetupSent := false
 
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-		if ueConn.UeContextRequest {
-			ueConn.MarkICSPending()
-
+		if initialContextSetup {
 			if err := ueConn.SendInitialContextSetup(
 				ctx,
 				ue.Ambr.Uplink,
@@ -355,6 +354,18 @@ func SendRegistrationAccept(
 	}); err != nil {
 		ReportProtectFailure(ctx, ue, "registration accept", err)
 
+		// A claimed Initial Context Setup that never left the AMF would strand the
+		// connection in ICSPending, where no later downlink can set the UE context up.
+		if initialContextSetup {
+			ueConn.AbortICS()
+		}
+
+		return false
+	}
+
+	if initialContextSetup && !initialContextSetupSent {
+		ueConn.AbortICS()
+
 		return false
 	}
 
@@ -370,7 +381,7 @@ func SendRegistrationAccept(
 			}
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-				if retryUeConn.UeContextRequest && retryUeConn.ICS() != ICSCompleted {
+				if initialContextSetup && retryUeConn.ICS() != ICSCompleted {
 					if err := retryUeConn.SendInitialContextSetup(
 						context.Background(),
 						ue.Ambr.Uplink,
@@ -719,6 +730,15 @@ func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp models.BitRate, ambrDown models.BitRate, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
+	// The NG-RAN node holds no UE context until an INITIAL CONTEXT SETUP REQUEST reaches
+	// it (TS 38.413 §8.3.1.2), and answers a setup for a context it does not hold with an
+	// Error Indication (§10.4). Callers reach the procedure through ClaimN2Setup, which
+	// hands out the Initial Context Setup first; refuse the send rather than put a
+	// procedure on the wire the node must reject.
+	if ueConn.ICS() == ICSNotStarted {
+		return fmt.Errorf("no UE context on the NG-RAN node: initial context setup has not been sent")
+	}
+
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err

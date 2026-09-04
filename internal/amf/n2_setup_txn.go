@@ -217,3 +217,23 @@ func (ueConn *UeConn) N2SetupOpen(proc N2SetupProcedure) bool {
 
 	return ok
 }
+
+// ClaimN2Setup picks the NGAP procedure that carries this downlink's PDU session
+// resources and claims it for the caller, reporting whether the caller owns the Initial
+// Context Setup.
+//
+// The NG-RAN node establishes the UE context on receipt of the INITIAL CONTEXT SETUP
+// REQUEST, which carries the security key and UE security capabilities that context
+// needs (TS 38.413 §8.3.1.1, §8.3.1.2). A PDU SESSION RESOURCE SETUP REQUEST reaching a
+// node that holds no context for the UE describes a procedure incompatible with its
+// state, and the node answers with an Error Indication (§10.4). The UE Context Request
+// IE obliges the AMF to run the Initial Context Setup when the NG-RAN node sends it
+// (§8.6.1.2); §8.3.1.1 leaves the procedure to configuration only for signalling-only
+// connections, so a downlink carrying user-plane resources pulls it in on its own.
+func (ueConn *UeConn) ClaimN2Setup(carriesSessions bool) (N2SetupProcedure, bool) {
+	if (ueConn.UeContextRequest || carriesSessions) && ueConn.ClaimICS() {
+		return N2SetupInitialContext, true
+	}
+
+	return N2SetupPDUSession, false
+}

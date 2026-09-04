@@ -65,20 +65,13 @@ func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
 	return out
 }
 
-func n2SetupProcedure(initialContextSetup bool) amf.N2SetupProcedure {
-	if initialContextSetup {
-		return amf.N2SetupInitialContext
-	}
-
-	return amf.N2SetupPDUSession
-}
-
 func sendServiceAccept(
 	ctx context.Context,
 	guardCfg guard.TimerValue,
 	ue *amf.UeContext,
 	ueConn *amf.UeConn,
 	initialContextSetup bool,
+	proc amf.N2SetupProcedure,
 	ctxList ngap.PDUSessionResourceSetupListCxtReq,
 	suList ngap.PDUSessionResourceSetupListSUReq,
 	pDUSessionStatus *[16]bool,
@@ -97,7 +90,7 @@ func sendServiceAccept(
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
 	if pending != nil {
-		if err := stagePendingN1(ctx, ue, initialContextSetup, pending, sht, &ctxList, &suList); err != nil {
+		if err := stagePendingN1(ctx, ue, initialContextSetup, proc, pending, sht, &ctxList, &suList); err != nil {
 			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
 
 			return err
@@ -148,7 +141,7 @@ func sendServiceAccept(
 
 			logger.From(ctx, logger.AmfLog).Info("sent service accept")
 		default:
-			ueConn.EndN2Setup(n2SetupProcedure(initialContextSetup))
+			ueConn.EndN2Setup(proc)
 
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
@@ -171,6 +164,7 @@ func stagePendingN1(
 	ctx context.Context,
 	ue *amf.UeContext,
 	initialContextSetup bool,
+	proc amf.N2SetupProcedure,
 	pending *pendingN1,
 	sht uint8,
 	ctxList *ngap.PDUSessionResourceSetupListCxtReq,
@@ -178,7 +172,7 @@ func stagePendingN1(
 ) error {
 	stage := func(nasPdu []byte) error {
 		conn := ue.Conn()
-		if conn == nil || !conn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pending.pduSessionID) {
+		if conn == nil || !conn.N2Setup(proc).ClaimSession(pending.pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("delivering buffered N1 without a duplicate PDU session setup",
 				zap.Uint8("pdu_session_id", pending.pduSessionID))
 
@@ -343,8 +337,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	operatorInfo := operator.Info()
 
-	initialContextSetup := ueConn.UeContextRequest && ueConn.ClaimICS()
-
 	buffered := resolveBufferedSM(ue)
 
 	if buffered.stale {
@@ -394,6 +386,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
+	// The NG-RAN node released this UE's context on the previous connection, so the
+	// user-plane resources this SERVICE REQUEST resumes have to travel in an Initial
+	// Context Setup that re-establishes it (TS 23.502 §4.2.3.2 step 12).
+	proc, initialContextSetup := ueConn.ClaimN2Setup(buffered.stage != nil || len(activate) != 0)
+
 	for pduSessionID := range activate {
 		smContext, ok := smContextSnapshot[pduSessionID]
 		if !ok {
@@ -411,7 +408,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			errCause = append(errCause, uint8(fgs.GMMCauseProtocolErrorUnspecified))
 		}
 
-		if !ueConn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pduSessionID) {
+		if !ueConn.N2Setup(proc).ClaimSession(pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
 				zap.Uint8("pdu_session_id", pduSessionID))
 
@@ -492,7 +489,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	accept := func(pending *pendingN1) error {
-		err := sendServiceAccept(ctx, amfInstance.N2SetupGuardCfg, ue, ueConn, initialContextSetup, ctxList, suList, acceptPduSessionPsi,
+		err := sendServiceAccept(ctx, amfInstance.N2SetupGuardCfg, ue, ueConn, initialContextSetup, proc, ctxList, suList, acceptPduSessionPsi,
 			reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, pending)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))

@@ -108,7 +108,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	appendPendingN1 := func(uint8) error { return nil }
 
-	n2Setup := ueConn.N2Setup(n2SetupProcedure(ueConn.UeContextRequest))
+	// The user-plane resources this registration resumes have to travel in an Initial
+	// Context Setup whenever the NG-RAN node holds no UE context for the UE yet
+	// (TS 38.413 §8.3.1.1), so the procedure is settled before any setup item is built.
+	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest))
+
+	n2Setup := ueConn.N2Setup(proc)
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
@@ -133,7 +138,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						cause := fgs.GMMCauseProtocolErrorUnspecified
 						errCause = append(errCause, uint8(cause))
 					} else {
-						if ueConn.UeContextRequest {
+						if initialContextSetup {
 							item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {
 								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
@@ -218,7 +223,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
 						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 					} else {
 						n2Setup.End()
@@ -252,6 +257,19 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			appendPendingN1 = func(sht uint8) error {
 				stage := func(nasPdu []byte) error {
+					if initialContextSetup {
+						item, err := amf.PDUSessionSetupItem(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+						if err != nil {
+							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+
+							return nil
+						}
+
+						ctxList = append(ctxList, item)
+
+						return nil
+					}
+
 					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
@@ -278,10 +296,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
-	if ueConn.UeContextRequest {
+	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
+
+	if err := appendPendingN1(sht); err != nil {
+		abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
+
+		return
+	}
+
+	if initialContextSetup {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
+		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
 			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 		} else {
 			n2Setup.End()
@@ -290,56 +316,48 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 
 		return
-	} else {
-		sht := uint8(fgs.SHTIntegrityProtectedCiphered)
+	}
 
-		if err := appendPendingN1(sht); err != nil {
-			abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
+	plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
+	if err != nil {
+		abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
 
-			return
-		}
+		return
+	}
 
-		plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
-		if err != nil {
-			abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
+	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-			return
-		}
+	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+		if len(suList) != 0 {
+			if err := ueConn.SendPDUSessionResourceSetupRequest(
+				ctx,
+				ue.Ambr.Uplink,
+				ue.Ambr.Downlink,
+				wire,
+				suList,
+			); err != nil {
+				n2Setup.End()
 
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
-
-		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-			if len(suList) != 0 {
-				if err := ueConn.SendPDUSessionResourceSetupRequest(
-					ctx,
-					ue.Ambr.Uplink,
-					ue.Ambr.Downlink,
-					wire,
-					suList,
-				); err != nil {
-					n2Setup.End()
-
-					return err
-				}
-
-				n2Setup.Arm(amfInstance.N2SetupGuardCfg)
-
-				return nil
+				return err
 			}
 
-			n2Setup.End()
+			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
 
-			return ueConn.SendDownlinkNASTransport(ctx, wire)
-		}); err != nil {
-			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
-
-			return
+			return nil
 		}
 
-		amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+		n2Setup.End()
 
-		logger.From(ctx, logger.AmfLog).Info("sent registration accept")
+		return ueConn.SendDownlinkNASTransport(ctx, wire)
+	}); err != nil {
+		abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
+
+		return
 	}
+
+	amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+
+	logger.From(ctx, logger.AmfLog).Info("sent registration accept")
 }
 
 func movingFromEPC(req *fgs.RegistrationRequest) bool {
@@ -371,4 +389,35 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 
 		ue.DeleteSmContext(pduSessionID)
 	}
+}
+
+// n2SessionsRequested reports whether a registration asks for user-plane resources on the
+// NG-RAN node, either to resume sessions the UE lists in its Uplink Data Status or to
+// carry a buffered downlink N2 SM message. It decides the NGAP procedure before any setup
+// item is built, so it mirrors the conditions those items are built under.
+func n2SessionsRequested(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
+	if req.UplinkDataStatus != nil {
+		for idx, hasUplinkData := range req.UplinkDataStatus.PSI {
+			if !hasUplinkData {
+				continue
+			}
+
+			if _, ok := ue.SmContextFindByPDUSessionID(uint8(idx)); ok {
+				return true
+			}
+		}
+	}
+
+	if req.AllowedPDUSessionStatus == nil {
+		return false
+	}
+
+	requestData := ue.N1N2Message()
+	if requestData == nil || requestData.Standalone() || requestData.BinaryDataN2Information == nil {
+		return false
+	}
+
+	_, ok := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
+
+	return ok
 }

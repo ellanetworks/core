@@ -344,8 +344,10 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 	}
 }
 
-func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *testing.T) {
+func TestMobilityReg_UplinkDataStatus_NoUeContextRequest_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
@@ -360,11 +362,20 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
-		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1: an NG-RAN node holding no UE context needs one before it can take PDU session resources (TS 38.413 8.3.1.1)",
+			len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 0)
+	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
+		t.Fatalf("PDU session resource setup requests = %d, want 0", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	}
+
+	if got := len(ngapSender.SentInitialContextSetupRequest[0].PDUSessionResourceSetup); got != 1 {
+		t.Fatalf("PDU session resource setup list length = %d, want 1", got)
+	}
+
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -372,6 +383,8 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 
 func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
@@ -386,11 +399,15 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	if len(ngapSender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+	if got := len(ngapSender.SentInitialContextSetupRequest[0].PDUSessionResourceSetup); got != 0 {
+		t.Fatalf("PDU session resource setup list length = %d, want 0: the session the UE asked to resume failed to activate", got)
+	}
+
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -477,8 +494,10 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	}
 }
 
-func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *testing.T) {
+func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySetupList(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
@@ -499,17 +518,17 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
-		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport (DLNASTransport for N1), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nmSetup := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 0)
+	nmSetup := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 0)
 	if nmSetup[2] != uint8(fgs.MsgRegistrationAccept) {
-		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup[2])
+		t.Fatalf("expected RegistrationAccept in InitialContextSetupRequest, got %v", nmSetup[2])
 	}
 
 	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 1)
@@ -588,6 +607,8 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai, "internet")
@@ -605,11 +626,15 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
-		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	if len(ngapSender.SentInitialContextSetupRequest) != 1 {
+		t.Fatalf("initial context setup requests = %d, want 1", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 1)
+	if got := len(ngapSender.SentInitialContextSetupRequest[0].PDUSessionResourceSetup); got != 1 {
+		t.Fatalf("PDU session resource setup list length = %d, want 1: the buffered N2 SM information rides the context setup", got)
+	}
+
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 1)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -638,7 +663,7 @@ func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	}
 }
 
-func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
+func TestMobilityReg_ContextAlreadySetUp_PDUSessionResourceSetup(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -647,6 +672,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
 	ue.Conn().UeContextRequest = false
+	ue.Conn().MarkICSCompleted()
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 

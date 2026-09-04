@@ -763,6 +763,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.AllowedNssai = []models.Snssai{snssai}
+	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
 
@@ -773,11 +775,17 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
-		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
+	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
+	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
+	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
+		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
 
-	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
+	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
+		t.Fatalf("PDU session resource setup requests = %d, want 0", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	}
+
+	pduResp := ngapSender.SentInitialContextSetupRequest[0]
 	decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
@@ -854,6 +862,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.AllowedNssai = []models.Snssai{snssai}
+	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -865,11 +875,17 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
-		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
+	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
+	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
+	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
+		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
 
-	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
+	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
+		t.Fatalf("PDU session resource setup requests = %d, want 0", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	}
+
+	pduResp := ngapSender.SentInitialContextSetupRequest[0]
 	plain := decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	accept, err := fgs.ParseServiceAccept(plain)
@@ -955,6 +971,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.AllowedNssai = []models.Snssai{snssai}
+	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -966,11 +984,17 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
-		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
+	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
+	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
+	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
+		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
 
-	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
+	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
+		t.Fatalf("PDU session resource setup requests = %d, want 0", len(ngapSender.SentPDUSessionResourceSetupRequest))
+	}
+
+	pduResp := ngapSender.SentInitialContextSetupRequest[0]
 	plain := decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	accept, err := fgs.ParseServiceAccept(plain)
@@ -1080,7 +1104,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
-		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
+		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
 
 	pduResp := ngapSender.SentInitialContextSetupRequest[0]

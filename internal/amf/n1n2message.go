@@ -60,7 +60,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	if !ueConn.ClaimICS() {
+	if _, initialContextSetup := ueConn.ClaimN2Setup(true); !initialContextSetup {
 		// Context already set up (or in progress): deliver the PDU session standalone.
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 
@@ -325,7 +325,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if !ueConn.ClaimICS() {
+	if _, initialContextSetup := ueConn.ClaimN2Setup(true); !initialContextSetup {
 		// Context already set up (or in progress): deliver the PDU session standalone.
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 		if !n2Setup.ClaimSession(req.PduSessionID) {

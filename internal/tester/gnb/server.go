@@ -125,8 +125,12 @@ type GnodeB struct {
 	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
 	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 	UERadioCapability []byte
-	radioCapReported  map[int64]bool
-	dispatcher        *dispatcher // per-UE frame queues; see dispatch.go
+	// OmitUEContextRequest leaves the UE Context Request IE out of every INITIAL UE
+	// MESSAGE, as NG-RAN nodes that leave the Initial Context Setup to the AMF's own
+	// judgement do (TS 38.413 8.6.1.2).
+	OmitUEContextRequest bool
+	radioCapReported     map[int64]bool
+	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
 	// maintains exactly one active SCTP association at a time, starting
@@ -1033,6 +1037,7 @@ func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G [
 		NasPDU:                nasPDU,
 		Guti5g:                guti5G,
 		RRCEstablishmentCause: cause,
+		OmitUEContextRequest:  g.OmitUEContextRequest,
 	}
 
 	pkt, err := BuildInitialUEMessage(opts)
