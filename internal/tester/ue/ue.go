@@ -97,6 +97,7 @@ type UE struct {
 	amfInfo                Amf
 	IMEISV                 string
 	replayRegistration     []byte
+	replayPending          bool
 	Gnb                    air.UplinkSender
 	mu                     sync.Mutex
 	cond                   *sync.Cond
@@ -759,10 +760,10 @@ func (ue *UE) WaitForRRCRelease(timeout time.Duration) error {
 }
 
 func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
-	return ue.sendRegistrationRequest(ranUENGAPID, regType, nil)
+	return ue.sendRegistrationRequest(ranUENGAPID, regType, nil, nil)
 }
 
-func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []uint8) error {
+func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []uint8, pduSessionStatus *[16]bool) error {
 	var uplinkDataStatus [16]bool
 
 	for _, pduSessionID := range reactivate {
@@ -773,7 +774,7 @@ func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []ui
 		uplinkDataStatus[pduSessionID] = true
 	}
 
-	return ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus)
+	return ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus, pduSessionStatus)
 }
 
 func (ue *UE) setRequestedReactivation(requested bool) {
@@ -806,7 +807,7 @@ func (ue *UE) skipAutoPDUSession() bool {
 	return ue.NoAutoPDUSession || ue.requestedReactivation
 }
 
-func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus *[16]bool) error {
+func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus, pduSessionStatus *[16]bool) error {
 	if ue.Gnb == nil {
 		return fmt.Errorf("GNB is not set for UE")
 	}
@@ -826,6 +827,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		FollowOnRequest:       ue.followOnRequestPending(uplinkDataStatus),
 		RequestedNSSAI:        nil,
 		UplinkDataStatus:      uplinkDataStatus,
+		PDUSessionStatus:      pduSessionStatus,
 		IncludeCapability:     regType != uint8(fgs.RegistrationTypePeriodicUpdating),
 		S1UENetworkCapability: s1Capability,
 		UESecurity:            ue.UeSecurity,
@@ -836,6 +838,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 	}
 
 	ue.replayRegistration = complete
+	ue.replayPending = true
 
 	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
 	// protects the initial NAS message of a new connection, so the AMF can

@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -41,12 +42,30 @@ type PDNReleaseResult struct {
 // OpenPDN opens an additional PDN connection to apn for an attached UE (TS 24.301
 // §6.5.1), returning the new bearer's user-plane endpoints.
 func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8, timeout time.Duration) (*PDNResult, error) {
-	connReq, err := (&eps.PDNConnectivityRequest{
+	return e.OpenPDNAnnouncingN1Mode(ue, mmeUEID, enbUEID, apn, pdnType, 0, timeout)
+}
+
+func (e *ENB) OpenPDNAnnouncingN1Mode(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType, pduSessionID uint8,
+	timeout time.Duration,
+) (*PDNResult, error) {
+	connectivity := &eps.PDNConnectivityRequest{
 		PTI:             ue.nextPTI(),
 		RequestType:     1, // initial request
 		PDNType:         eps.PDNType(pdnType),
 		AccessPointName: new(eps.APN(apn)),
-	}).MarshalBinary()
+	}
+
+	if pduSessionID != 0 {
+		connectivity.ProtocolConfigurationOptions = &nas.ProtocolConfigurationOptions{
+			ConfigProtocol: nas.PCOConfigProtocolPPP,
+			Direction:      nas.PCOMSToNetwork,
+			Containers: []nas.PCOContainer{
+				{ID: nas.PCOContainerPDUSessionID, Content: []byte{pduSessionID}},
+			},
+		}
+	}
+
+	connReq, err := connectivity.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build PDN Connectivity Request: %w", err)
 	}

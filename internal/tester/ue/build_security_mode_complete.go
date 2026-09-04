@@ -14,6 +14,8 @@ type SecurityModeCompleteOpts struct {
 	IMEISV           string
 	PDUSessionStatus *[16]bool
 	Replay           []byte
+	OmitContainer    bool
+	OmitIMEISV       bool
 }
 
 func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
@@ -41,7 +43,7 @@ func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
 
 	registrationRequest := opts.Replay
 
-	if registrationRequest == nil {
+	if registrationRequest == nil && !opts.OmitContainer {
 		built, err := BuildRegistrationRequest(regReqOpts)
 		if err != nil {
 			return nil, fmt.Errorf("error encoding %s IMSI UE  NAS Registration Request message: %v", opts.UESecurity.Supi, err)
@@ -50,14 +52,17 @@ func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
 		registrationRequest = built
 	}
 
-	imeisv := fgs.PEIIdentity(fgs.PEI{Type: fgs.IdentityIMEISV, Digits: opts.IMEISV})
-	if !imeisv.PEI.Valid() {
-		return nil, fmt.Errorf("IMEISV must be 16 digits, got %d", len(opts.IMEISV))
+	m := &fgs.SecurityModeComplete{
+		NASMessageContainer: registrationRequest,
 	}
 
-	m := &fgs.SecurityModeComplete{
-		IMEISV:              &imeisv,
-		NASMessageContainer: registrationRequest,
+	if !opts.OmitIMEISV {
+		imeisv := fgs.PEIIdentity(fgs.PEI{Type: fgs.IdentityIMEISV, Digits: opts.IMEISV})
+		if !imeisv.PEI.Valid() {
+			return nil, fmt.Errorf("IMEISV must be 16 digits, got %d", len(opts.IMEISV))
+		}
+
+		m.IMEISV = &imeisv
 	}
 
 	pdu, err := m.MarshalBinary()
