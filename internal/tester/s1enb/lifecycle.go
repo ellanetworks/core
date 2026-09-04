@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -188,6 +189,31 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 	// With no active flag the MME releases the UE back to ECM-IDLE once the GUTI
 	// reallocation is acknowledged (TS 24.301 §5.5.3.2.4).
 	return e.completeContextRelease(enbUEID, timeout)
+}
+
+// TrackingAreaUpdateWithBearerStatus performs a mobile-originated TAU for a UE in
+// ECM-IDLE carrying an EPS bearer context status, which TS 24.301 §5.5.3.2.2 has the
+// UE include after it locally deactivated EPS bearer contexts without notifying the
+// network. It returns the accepted status the MME reports back.
+func (e *ENB) TrackingAreaUpdateWithBearerStatus(ue *UE, guti *eps.EPSMobileIdentity,
+	status *nas.EPSBearerContextStatus, timeout time.Duration,
+) (*AttachResult, error) {
+	if guti == nil {
+		return nil, fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
+	}
+
+	enbUEID := e.AllocateENBUEID()
+
+	tau, err := ue.buildTrackingAreaUpdateRequestWithBearerStatus(eps.EPSUpdateTypeTA, false, guti, status)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), tau); err != nil {
+		return nil, err
+	}
+
+	return e.idleTrackingAreaUpdateReturningToIdle(ue, enbUEID, timeout)
 }
 
 func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, timeout time.Duration) (int64, []byte, error) {

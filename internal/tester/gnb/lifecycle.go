@@ -52,9 +52,10 @@ type RegistrationResult struct {
 // endpoint from a completed service request. s1enb.ServiceRequestResult is its
 // EPS counterpart.
 type ServiceRequestResult struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-	Session     PDUSessionResult
+	AMFUENGAPID      int64
+	RANUENGAPID      int64
+	Session          PDUSessionResult
+	PDUSessionStatus *fgs.PSIBitmap
 }
 
 // Register drives a full initial registration with the UE's default PDU session
@@ -203,8 +204,14 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 		return nil, fmt.Errorf("send Service Request: %w", err)
 	}
 
-	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), timeout); err != nil {
+	plain, err := u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), timeout)
+	if err != nil {
 		return nil, fmt.Errorf("await Service Accept: %w", err)
+	}
+
+	accept, err := fgs.ParseServiceAccept(plain)
+	if err != nil {
+		return nil, fmt.Errorf("parse Service Accept: %w", err)
 	}
 
 	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
@@ -213,9 +220,10 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	}
 
 	return &ServiceRequestResult{
-		AMFUENGAPID: g.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-		Session:     session,
+		AMFUENGAPID:      g.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:      ranUENGAPID,
+		Session:          session,
+		PDUSessionStatus: accept.PDUSessionStatus,
 	}, nil
 }
 

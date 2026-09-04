@@ -80,6 +80,7 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/idle_eps_to_5gs_returning_to_idle":  true,
 	"interworking/idle_round_trip_through_eps":        true,
 	"interworking/idle_round_trip_through_5gs":        true,
+	"interworking/idle_eps_to_5gs_bearer_status":      true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
@@ -96,6 +97,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"gnb/connectivity_multi_pdu_session": {
 		IPv6Only: true,
 	},
+	"gnb/service_request_pdu_session_status": {
+		IPv6Only: true,
+	},
 	"gnb/connectivity_multiple_policies_per_profile": {
 		IPv6Only: true,
 	},
@@ -104,6 +108,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		DualStack: true,
 	},
 	"s1enb/connectivity_multi_pdn": {
+		IPv6Only: true,
+	},
+	"s1enb/tau_bearer_context_status": {
 		IPv6Only: true,
 	},
 	"s1enb/connectivity": {
