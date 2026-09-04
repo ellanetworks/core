@@ -35,10 +35,8 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 		pduSessionID := uint8(psi)
 		if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 			if !psiArray[psi] {
-				err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref)
-				if err != nil {
+				if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("failed to release sm context", zap.Error(err))
-					return nasreply.Handled()
 				}
 
 				ue.DeleteSmContext(pduSessionID)
