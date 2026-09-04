@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -44,16 +45,6 @@ func bearerStatusFixture(_ scenarios.Env) scenarios.FixtureSpec {
 		},
 		Policies: []scenarios.PolicySpec{
 			{
-				Name:                "iwk-bearer-status-default",
-				ProfileName:         scenarios.DefaultProfileName,
-				SliceName:           scenarios.DefaultSliceName,
-				DataNetworkName:     scenarios.DefaultDNN,
-				SessionAmbrUplink:   "100 Mbps",
-				SessionAmbrDownlink: "100 Mbps",
-				Var5qi:              9,
-				Arp:                 15,
-			},
-			{
 				Name:                "iwk-bearer-status-enterprise",
 				ProfileName:         scenarios.DefaultProfileName,
 				SliceName:           scenarios.DefaultSliceName,
@@ -69,11 +60,6 @@ func bearerStatusFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runIdleEPSTo5GSBearerStatus attaches two PDN connections in EPS, then moves to 5GS
-// reporting one of their EPS bearers inactive. TS 24.501 §5.5.1.3.2 has the UE include
-// the EPS bearer context status IE when it locally deactivated a bearer in S1 mode
-// without telling the network, and TS 23.502 clause 4.11.1.3.3 has the network release
-// what the UE no longer holds while keeping the rest.
 func runIdleEPSTo5GSBearerStatus(ctx context.Context, env scenarios.Env, _ any) error {
 	e, err := startENBOnSecondaryN3(env)
 	if err != nil {
@@ -111,6 +97,10 @@ func runIdleEPSTo5GSBearerStatus(ctx context.Context, env scenarios.Env, _ any) 
 		return fmt.Errorf("the second PDN connection took E-RAB %d, want %d", pdn.ERABID, droppedEPSBearerIdentity)
 	}
 
+	if err := assertSessionCount(ctx, env, 2, "before the move to 5GS"); err != nil {
+		return err
+	}
+
 	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release the connection before the move to 5GS: %w", err)
 	}
@@ -137,6 +127,10 @@ func runIdleEPSTo5GSBearerStatus(ctx context.Context, env scenarios.Env, _ any) 
 	}
 
 	if err := assertOnlyTheHeldBearerSurvived(accept); err != nil {
+		return err
+	}
+
+	if err := assertSessionCount(ctx, env, 1, "after the move to 5GS"); err != nil {
 		return err
 	}
 
@@ -167,7 +161,6 @@ func arriveOn5GSReportingBearerStatus(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, u *ue
 		RANUENGAPID:            ranUENGAPID,
 		MappedGUTI:             fgs.GUTIIdentity(etsi.MapGUTIEPSTo5G(epsGUTI)),
 		EPSNASMessageContainer: container,
-		PDUSessionStatus:       &sessions,
 		UplinkDataStatus:       &sessions,
 		EPSBearerContextStatus: &carried,
 		Mapped: ue.MappedFromEPSIdle{
@@ -211,13 +204,36 @@ func assertOnlyTheHeldBearerSurvived(plain []byte) error {
 			droppedEPSBearerIdentity)
 	}
 
-	if accept.PDUSessionStatus == nil || !accept.PDUSessionStatus.PSI[movedPDUSessionID] {
-		return fmt.Errorf("PDU session status = %+v, want PDU session %d active", accept.PDUSessionStatus, movedPDUSessionID)
-	}
-
-	if accept.PDUSessionStatus.PSI[droppedPDUSessionID] {
+	if accept.PDUSessionStatus != nil && accept.PDUSessionStatus.PSI[droppedPDUSessionID] {
 		return fmt.Errorf("PDU session status reports session %d active, want it released with its EPS bearer", droppedPDUSessionID)
 	}
 
 	return nil
+}
+
+func assertSessionCount(ctx context.Context, env scenarios.Env, want int, stage string) error {
+	cl, err := coreClient(env)
+	if err != nil {
+		return err
+	}
+
+	deadline := time.Now().Add(sessionSettle)
+
+	var got int
+
+	for {
+		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
+		if err == nil {
+			got = len(sub.Sessions)
+			if got == want {
+				return nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s: the subscriber holds %d sessions, want %d", stage, got, want)
+		}
+
+		time.Sleep(statusPoll)
+	}
 }

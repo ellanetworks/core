@@ -191,10 +191,6 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 	return e.completeContextRelease(enbUEID, timeout)
 }
 
-// TrackingAreaUpdateWithBearerStatus performs a mobile-originated TAU for a UE in
-// ECM-IDLE carrying an EPS bearer context status, which TS 24.301 §5.5.3.2.2 has the
-// UE include after it locally deactivated EPS bearer contexts without notifying the
-// network. It returns the accepted status the MME reports back.
 func (e *ENB) TrackingAreaUpdateWithBearerStatus(ue *UE, guti *eps.EPSMobileIdentity,
 	status *nas.EPSBearerContextStatus, timeout time.Duration,
 ) (*AttachResult, error) {

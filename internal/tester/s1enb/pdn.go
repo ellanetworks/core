@@ -45,9 +45,6 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 	return e.OpenPDNAnnouncingN1Mode(ue, mmeUEID, enbUEID, apn, pdnType, 0, timeout)
 }
 
-// OpenPDNAnnouncingN1Mode opens a PDN connection whose PDN CONNECTIVITY REQUEST carries
-// the PDU session ID the UE would use for it in N1 mode (TS 24.301 §6.5.1.2), which is
-// what lets the PDN connection transfer to 5GS. A zero pduSessionID omits the container.
 func (e *ENB) OpenPDNAnnouncingN1Mode(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType, pduSessionID uint8,
 	timeout time.Duration,
 ) (*PDNResult, error) {

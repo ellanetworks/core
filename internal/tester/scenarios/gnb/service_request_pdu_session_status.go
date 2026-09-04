@@ -76,7 +76,7 @@ func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _
 		GnodeB:         gNodeB,
 		PDUSessionID:   keptPDUSessionID,
 		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
-		Msin:           "017271246546",
+		Msin:           "7271246546",
 		K:              scenarios.DefaultKey,
 		OpC:            scenarios.DefaultOPC,
 		Amf:            scenarios.DefaultAMF,
