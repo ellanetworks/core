@@ -89,22 +89,23 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, u)
 
-	_, err = gNodeB.Register(u, ranUENGAPID, movedPDUSessionID, registrationTimeout)
+	registered, err := gNodeB.Register(u, ranUENGAPID, movedPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, u)
-	if err != nil {
+	if err := assertEPSNASAlgorithms(u); err != nil {
 		return err
 	}
+
+	moved := registered.Session
 
 	before, err := probeOver5GS(ctx, env, gNodeB, moved, "over N3 before the idle move")
 	if err != nil {
 		return err
 	}
 
-	if err := goIdleOnNR(gNodeB, u); err != nil {
+	if err := goIdleOnNRConnection(gNodeB, u, ranUENGAPID); err != nil {
 		return err
 	}
 
@@ -161,10 +162,6 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 	}
 
 	return assertContinuity(before, after)
-}
-
-func goIdleOnNR(gNodeB *gnb.GnodeB, u *ue.UE) error {
-	return goIdleOnNRConnection(gNodeB, u, mobilityRANUENGAPID)
 }
 
 func goIdleOnNRConnection(gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) error {
@@ -375,14 +372,16 @@ func runIdleRoundTripThroughEPS(ctx context.Context, env scenarios.Env, _ any) e
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, u)
 
-	if _, err := gNodeB.Register(u, ranUENGAPID, movedPDUSessionID, registrationTimeout); err != nil {
+	registered, err := gNodeB.Register(u, ranUENGAPID, movedPDUSessionID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, u)
-	if err != nil {
+	if err := assertEPSNASAlgorithms(u); err != nil {
 		return err
 	}
+
+	moved := registered.Session
 
 	before, err := probeOver5GS(ctx, env, gNodeB, moved, "over N3 before the round trip")
 	if err != nil {
@@ -404,7 +403,7 @@ func runIdleRoundTripThroughEPS(ctx context.Context, env scenarios.Env, _ any) e
 }
 
 func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, before sessionFacts) (*s1enb.ENB, *s1enb.UE, *s1enb.AttachResult, error) {
-	if err := goIdleOnNR(gNodeB, u); err != nil {
+	if err := goIdleOnNRConnection(gNodeB, u, int64(scenarios.DefaultRANUENGAPID)); err != nil {
 		return nil, nil, nil, err
 	}
 
