@@ -354,8 +354,6 @@ func SendRegistrationAccept(
 	}); err != nil {
 		ReportProtectFailure(ctx, ue, "registration accept", err)
 
-		// A claimed Initial Context Setup that never left the AMF would strand the
-		// connection in ICSPending, where no later downlink can set the UE context up.
 		if initialContextSetup {
 			ueConn.AbortICS()
 		}
@@ -730,11 +728,6 @@ func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp models.BitRate, ambrDown models.BitRate, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
-	// The NG-RAN node holds no UE context until an INITIAL CONTEXT SETUP REQUEST reaches
-	// it (TS 38.413 §8.3.1.2), and answers a setup for a context it does not hold with an
-	// Error Indication (§10.4). Callers reach the procedure through ClaimN2Setup, which
-	// hands out the Initial Context Setup first; refuse the send rather than put a
-	// procedure on the wire the node must reject.
 	if ueConn.ICS() == ICSNotStarted {
 		return fmt.Errorf("no UE context on the NG-RAN node: initial context setup has not been sent")
 	}

@@ -775,8 +775,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
-	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
 		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
@@ -875,8 +873,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
-	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
 		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}
@@ -984,8 +980,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
 
-	// The UE answered a page, so the NG-RAN node holds no context for it and the resumed
-	// user-plane resources travel in an Initial Context Setup (TS 23.502 4.2.3.2 step 12).
 	if len(ngapSender.SentInitialContextSetupRequest) < 1 {
 		t.Fatalf("should have sent an Initial Context Setup Request message")
 	}

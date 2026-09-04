@@ -117,17 +117,14 @@ type GnodeB struct {
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
-	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	mu                sync.Mutex
-	cond              *sync.Cond
-	N3Address         netip.Addr
-	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
-	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
-	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
-	UERadioCapability []byte
-	// OmitUEContextRequest leaves the UE Context Request IE out of every INITIAL UE
-	// MESSAGE, as NG-RAN nodes that leave the Initial Context Setup to the AMF's own
-	// judgement do (TS 38.413 8.6.1.2).
+	receivedFrames       map[Category]map[ngap.ProcedureCode][]SCTPFrame
+	mu                   sync.Mutex
+	cond                 *sync.Cond
+	N3Address            netip.Addr
+	pduSessions          map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen           uint64                                     // bumped on every store; see awaitPDUSession
+	UEAmbr               map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
+	UERadioCapability    []byte
 	OmitUEContextRequest bool
 	radioCapReported     map[int64]bool
 	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go

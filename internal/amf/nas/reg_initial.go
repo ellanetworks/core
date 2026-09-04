@@ -159,9 +159,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-	// An initial registration carries no user-plane resources; the NG-RAN node gets a UE
-	// context only if it asked for one (TS 38.413 §8.6.1.2), and otherwise on the Initial
-	// Context Setup that carries the UE's first PDU session.
 	initialContextSetup := false
 	if ueConn := ue.Conn(); ueConn != nil {
 		_, initialContextSetup = ueConn.ClaimN2Setup(false)

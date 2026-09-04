@@ -20,9 +20,7 @@ type InitialUEMessageOpts struct {
 	Tac                   string
 	GnbID                 string
 	RRCEstablishmentCause ngap.RRCEstablishmentCause
-	// OmitUEContextRequest leaves out the UE Context Request IE, as NG-RAN nodes that
-	// leave the Initial Context Setup to the AMF's own judgement do (TS 38.413 8.6.1.2).
-	OmitUEContextRequest bool
+	OmitUEContextRequest  bool
 }
 
 func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {

@@ -23,11 +23,6 @@ func init() {
 	})
 }
 
-// runServiceRequestDataNoUEContextRequest resumes a released PDU session from an NG-RAN
-// node that never sends the UE Context Request IE. The node holds no UE context on the
-// connection the SERVICE REQUEST arrives on, so the AMF has to re-establish it with an
-// Initial Context Setup before any user-plane resource can be set up
-// (TS 38.413 8.3.1.1, TS 23.502 4.2.3.2 step 12).
 func runServiceRequestDataNoUEContextRequest(_ context.Context, env scenarios.Env, _ any) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {

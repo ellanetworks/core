@@ -12,12 +12,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// An NG-RAN node may leave the UE Context Request IE out of the INITIAL UE MESSAGE and
-// still hold no UE context on the connection the SERVICE REQUEST arrives on. TS 38.413
-// §8.6.1.2 makes the IE an obligation to run the Initial Context Setup, not a condition
-// for it, and §8.3.1.1 leaves the procedure to configuration only for signalling-only
-// connections; a PDU SESSION RESOURCE SETUP REQUEST sent instead reaches a node holding
-// no context and is answered with an Error Indication (§10.4).
 func TestHandleServiceRequest_NoUeContextRequest_ResumesThroughInitialContextSetup(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 	f.conn().UeContextRequest = false
@@ -44,8 +38,6 @@ func TestHandleServiceRequest_NoUeContextRequest_ResumesThroughInitialContextSet
 	}
 }
 
-// The standalone procedure stays available once the NG-RAN node holds the context, which
-// is the 5GMM-CONNECTED case of TS 23.502 §4.2.3.2 step 12.
 func TestHandleServiceRequest_NoUeContextRequest_ContextAlreadySetUp_StaysStandalone(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 	f.conn().UeContextRequest = false
@@ -62,8 +54,6 @@ func TestHandleServiceRequest_NoUeContextRequest_ContextAlreadySetUp_StaysStanda
 	}
 }
 
-// A signalling-only request from a node that asked for no UE context sets none up
-// (TS 38.413 §8.3.1.1).
 func TestHandleServiceRequest_NoUeContextRequest_SignallingOnly_NoContextSetup(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 	f.conn().UeContextRequest = false
@@ -85,8 +75,6 @@ func TestHandleServiceRequest_NoUeContextRequest_SignallingOnly_NoContextSetup(t
 	}
 }
 
-// The UE Context Request IE keeps its own force: a node that sends it gets the Initial
-// Context Setup even when the downlink carries no user-plane resources (§8.6.1.2).
 func TestHandleServiceRequest_UeContextRequest_SignallingOnly_SetsUpContext(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
@@ -99,8 +87,6 @@ func TestHandleServiceRequest_UeContextRequest_SignallingOnly_SetsUpContext(t *t
 	}
 }
 
-// The wire-level backstop: no PDU SESSION RESOURCE SETUP REQUEST reaches an NG-RAN node
-// that has not been sent an INITIAL CONTEXT SETUP REQUEST.
 func TestSendPDUSessionResourceSetupRequest_RefusedBeforeInitialContextSetup(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 

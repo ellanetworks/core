@@ -386,9 +386,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
-	// The NG-RAN node released this UE's context on the previous connection, so the
-	// user-plane resources this SERVICE REQUEST resumes have to travel in an Initial
-	// Context Setup that re-establishes it (TS 23.502 §4.2.3.2 step 12).
 	proc, initialContextSetup := ueConn.ClaimN2Setup(buffered.stage != nil || len(activate) != 0)
 
 	for pduSessionID := range activate {

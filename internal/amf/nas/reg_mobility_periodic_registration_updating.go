@@ -108,9 +108,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	appendPendingN1 := func(uint8) error { return nil }
 
-	// The user-plane resources this registration resumes have to travel in an Initial
-	// Context Setup whenever the NG-RAN node holds no UE context for the UE yet
-	// (TS 38.413 §8.3.1.1), so the procedure is settled before any setup item is built.
 	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest))
 
 	n2Setup := ueConn.N2Setup(proc)
@@ -391,10 +388,6 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 	}
 }
 
-// n2SessionsRequested reports whether a registration asks for user-plane resources on the
-// NG-RAN node, either to resume sessions the UE lists in its Uplink Data Status or to
-// carry a buffered downlink N2 SM message. It decides the NGAP procedure before any setup
-// item is built, so it mirrors the conditions those items are built under.
 func n2SessionsRequested(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
 	if req.UplinkDataStatus != nil {
 		for idx, hasUplinkData := range req.UplinkDataStatus.PSI {
