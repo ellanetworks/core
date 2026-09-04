@@ -70,6 +70,21 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
 );
 
 function drainStateChip(state: DrainState, updatedAt?: string) {
+  if (state === "draining") {
+    const title = updatedAt
+      ? `Draining since ${formatDateTime(updatedAt)}. Not yet safe to remove.`
+      : "Node is draining; not yet safe to remove.";
+    return (
+      <Tooltip title={title}>
+        <Chip
+          label="Draining"
+          size="small"
+          color="warning"
+          variant="outlined"
+        />
+      </Tooltip>
+    );
+  }
   if (state === "drained") {
     const title = updatedAt
       ? `Drained at ${formatDateTime(updatedAt)}. Safe to remove.`
@@ -443,9 +458,11 @@ const ClusterPage: React.FC = () => {
             ? "Cannot remove the node you are currently connected to."
             : isCurrentLeader
               ? "Cannot remove the current leader. Drain it first so leadership transfers, then retry."
-              : state !== "drained"
-                ? "Drain the node first. Remove is enabled only for nodes in the 'drained' state."
-                : "Remove this node from the Raft cluster.";
+              : state === "draining"
+                ? "Drain in progress. Remove is enabled once the node reaches 'drained'."
+                : state !== "drained"
+                  ? "Drain the node first. Remove is enabled only for nodes in the 'drained' state."
+                  : "Remove this node from the Raft cluster.";
 
           return [
             <Tooltip key="promote" title={promoteTitle}>

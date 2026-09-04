@@ -18,6 +18,7 @@ const (
 	NGAPProcedureNGSetupRequest         NGAPProcedure = "NGSetupRequest"
 	NGAPProcedureNGReset                NGAPProcedure = "NGReset"
 	NGAPProcedureRANConfigurationUpdate NGAPProcedure = "RANConfigurationUpdate"
+	NGAPProcedureAMFConfigUpdateAck     NGAPProcedure = "AMFConfigurationUpdateAcknowledge"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialUEMessage                  NGAPProcedure = "InitialUEMessage"
@@ -41,7 +42,8 @@ const (
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
-	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate:
+	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate,
+		NGAPProcedureAMFConfigUpdateAck:
 		return 0, nil
 
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,

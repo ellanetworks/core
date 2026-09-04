@@ -41,7 +41,7 @@ jobs:
           INTEGRATION: "1"
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          go test ./integration/... -run TestIntegration5GHAFailover -v -timeout 15m
+          go test ./integration/... -run 'TestIntegration5GHAFailover|TestIntegration5GHADrain' -v -timeout 15m
 
       - name: Upload cluster logs
         if: always()

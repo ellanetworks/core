@@ -174,6 +174,8 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildPDUSessionResourceNotify(m.Value)
 	case ngap.ProcRANConfigurationUpdate:
 		return buildRANConfigurationUpdate(m.Value)
+	case ngap.ProcAMFConfigurationUpdate:
+		return buildAMFConfigurationUpdate(m.Value)
 	case ngap.ProcUplinkRANConfigurationTransfer:
 		return buildUplinkRANConfigurationTransfer(m.Value)
 	case ngap.ProcDownlinkRANConfigurationTransfer:
@@ -217,6 +219,8 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildPDUSessionResourceModifyConfirm(m.Value)
 	case ngap.ProcRANConfigurationUpdate:
 		return buildRANConfigurationUpdateAcknowledge(m.Value)
+	case ngap.ProcAMFConfigurationUpdate:
+		return buildAMFConfigurationUpdateAcknowledge(m.Value)
 	case ngap.ProcHandoverPreparation:
 		return buildHandoverCommand(m.Value)
 	case ngap.ProcHandoverResourceAllocation:
@@ -238,6 +242,8 @@ func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
 		return buildPathSwitchRequestFailure(m.Value)
 	case ngap.ProcRANConfigurationUpdate:
 		return buildRANConfigurationUpdateFailure(m.Value)
+	case ngap.ProcAMFConfigurationUpdate:
+		return buildAMFConfigurationUpdateFailure(m.Value)
 	case ngap.ProcHandoverPreparation:
 		return buildHandoverPreparationFailure(m.Value)
 	case ngap.ProcHandoverResourceAllocation:

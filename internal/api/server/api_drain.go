@@ -4,21 +4,17 @@
 package server
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"go.uber.org/zap"
 )
 
@@ -27,21 +23,14 @@ const (
 	ResumeAction = "cluster_member_resume"
 )
 
-const (
-	defaultDrainStepTimeout = 5 * time.Second
-)
-
 type DrainResponse struct {
 	DrainState string `json:"drainState"`
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
 //
-// Runs on the Raft leader (followers forward). The leader runs node-local
-// side-effects on the target (AMF Status Indication to RANs, BGP stop),
-// commits drainState=drained through Raft, and transfers leadership when
-// the target is the current leader.
-func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+// Runs on the Raft leader (followers forward).
+func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
 			writeError(r.Context(), w, http.StatusMisdirectedRequest,
@@ -68,23 +57,15 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 			return
 		}
 
-		if member.DrainState == db.DrainStateDrained {
+		if member.DrainState == db.DrainStateDraining || member.DrainState == db.DrainStateDrained {
 			writeResponse(r.Context(), w, DrainResponse{
-				DrainState: db.DrainStateDrained,
+				DrainState: member.DrainState,
 			}, http.StatusOK, logger.APILog)
 
 			return
 		}
 
-		sideEffects, sideErr := runDrainSideEffects(r.Context(), dbInstance, amfInstance, bgpService, ln, member)
-		if sideErr != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError,
-				"drain side-effects failed", sideErr, logger.APILog)
-
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDrained); err != nil {
+		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to persist drain state", err, logger.APILog)
 
@@ -97,7 +78,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 
 		if nodeID == dbInstance.NodeID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
 			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.APILog.Warn("leadership transfer failed during self-drain; drain state is already drained",
+				logger.APILog.Warn("leadership transfer failed during self-drain; drain state is already draining",
 					zap.Error(err))
 			} else {
 				transferred = true
@@ -111,22 +92,19 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 			DrainAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %d drain, leadership_transferred=%v, rans_notified=%d, bgp_stopped=%v",
-				nodeID, transferred, sideEffects.RANsNotified, sideEffects.BGPStopped),
+			fmt.Sprintf("Node %d drain, leadership_transferred=%v", nodeID, transferred),
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
-			DrainState: db.DrainStateDrained,
+			DrainState: db.DrainStateDraining,
 		}, http.StatusOK, logger.APILog)
 	})
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
 //
-// Runs on the leader. Restarts the target's local BGP speaker and clears
-// drainState back to active. Does not re-issue AMF Status Indication or
-// reclaim Raft leadership.
-func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+// Runs on the leader.
+func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
 			writeError(r.Context(), w, http.StatusMisdirectedRequest,
@@ -158,14 +136,6 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 			return
 		}
 
-		bgpStarted, sideErr := runResumeSideEffects(r.Context(), dbInstance, bgpService, ln, member)
-		if sideErr != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError,
-				"resume side-effects failed", sideErr, logger.APILog)
-
-			return
-		}
-
 		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to clear drain state", err, logger.APILog)
@@ -180,136 +150,11 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 			ResumeAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %d resumed, bgp_started=%v", nodeID, bgpStarted),
+			fmt.Sprintf("Node %d resumed", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
 	})
-}
-
-// runDrainSideEffects notifies RANs and stops the BGP speaker on the target.
-// When the target is the local (leader) node the steps run inline; otherwise
-// they are dispatched to the target over the cluster mTLS port.
-func runDrainSideEffects(ctx context.Context, dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BGPService, ln *listener.Listener, member *db.ClusterMember) (DrainSideEffectsResponse, error) {
-	if member.NodeID == dbInstance.NodeID() {
-		ransNotified := notifyRANsUnavailable(ctx, amfInstance, defaultDrainStepTimeout)
-
-		bgpStopped := false
-
-		if bgpService != nil {
-			if err := bgpService.Stop(); err != nil {
-				logger.APILog.Warn("BGP stop during drain failed", zap.Error(err))
-			} else {
-				bgpStopped = true
-			}
-		}
-
-		return DrainSideEffectsResponse{RANsNotified: ransNotified, BGPStopped: bgpStopped}, nil
-	}
-
-	var out DrainSideEffectsResponse
-
-	if err := postClusterInternal(ctx, ln, member.RaftAddress, member.NodeID, "/cluster/internal/drain-side-effects", &out); err != nil {
-		return DrainSideEffectsResponse{}, err
-	}
-
-	return out, nil
-}
-
-func runResumeSideEffects(ctx context.Context, dbInstance *db.Database, bgpService *bgp.BGPService, ln *listener.Listener, member *db.ClusterMember) (bool, error) {
-	if member.NodeID == dbInstance.NodeID() {
-		if bgpService == nil || bgpService.IsRunning() {
-			return false, nil
-		}
-
-		bgpEnabled, err := dbInstance.IsBGPEnabled(ctx)
-		if err != nil {
-			logger.APILog.Warn("resume: failed to read BGP enabled flag; skipping BGP restart",
-				zap.Error(err))
-
-			return false, nil
-		}
-
-		if !bgpEnabled {
-			return false, nil
-		}
-
-		if err := bgpService.Restart(ctx); err != nil {
-			logger.APILog.Warn("resume: failed to restart BGP speaker", zap.Error(err))
-			return false, nil
-		}
-
-		return true, nil
-	}
-
-	var out ResumeSideEffectsResponse
-
-	if err := postClusterInternal(ctx, ln, member.RaftAddress, member.NodeID, "/cluster/internal/resume-side-effects", &out); err != nil {
-		return false, err
-	}
-
-	return out.BGPStarted, nil
-}
-
-// postClusterInternal issues a JSON-body-less POST to the target node's
-// cluster mTLS port and decodes the 2xx response JSON into out. The caller
-// supplies the target's Raft address, its node-id (enforced on the mTLS
-// dial), and the path (including leading slash). Used for the drain/resume
-// side-effect RPCs.
-func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftAddr string, targetNodeID int, path string, out any) error {
-	if ln == nil {
-		return fmt.Errorf("cluster listener unavailable")
-	}
-
-	if targetRaftAddr == "" {
-		return fmt.Errorf("target node has no raft address")
-	}
-
-	if targetNodeID == 0 {
-		return fmt.Errorf("target node has no node-id")
-	}
-
-	client := dialPeerHTTPClient(ln, targetNodeID)
-	defer client.CloseIdleConnections()
-
-	url := fmt.Sprintf("https://%s%s", targetRaftAddr, path)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(nil)) // #nosec G107,G704 -- built from Raft-replicated raft address, not user input
-	if err != nil {
-		return fmt.Errorf("new request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req) // #nosec G704 -- URL built from Raft-replicated raft address, not user input
-	if err != nil {
-		return fmt.Errorf("post to %s: %w", targetRaftAddr, err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("target returned %s", resp.Status)
-	}
-
-	var envelope struct {
-		Result json.RawMessage `json:"result"`
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
-	}
-
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-
-	if len(envelope.Result) == 0 {
-		return nil
-	}
-
-	return json.Unmarshal(envelope.Result, out)
 }
 
 func parseMemberIDPath(r *http.Request) (int, bool) {
@@ -324,45 +169,4 @@ func parseMemberIDPath(r *http.Request) (int, bool) {
 	}
 
 	return id, true
-}
-
-// notifyRANsUnavailable signals every connected RAN that this AMF's GUAMI is
-// unavailable, per TS 38.413, so the RAN redirects new UEs to sibling AMFs.
-// Returns the number of RANs successfully notified.
-func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout time.Duration) int {
-	if amfInstance == nil {
-		return 0
-	}
-
-	queryCtx, queryCancel := context.WithTimeout(ctx, timeout)
-	operatorInfo, err := amfInstance.OperatorInfo(queryCtx)
-
-	queryCancel()
-
-	if err != nil {
-		logger.APILog.Warn("Could not get operator info for drain", zap.Error(err))
-		return 0
-	}
-
-	sendCtx, sendCancel := context.WithTimeout(ctx, timeout)
-	defer sendCancel()
-
-	notified := 0
-
-	pkt, err := amf.BuildAMFStatusIndication(operatorInfo.Guami)
-	if err != nil {
-		logger.APILog.Warn("failed to build AMF Status Indication during drain", zap.Error(err))
-		return 0
-	}
-
-	for _, ran := range amfInstance.ConnectedRadios() {
-		if err := amfInstance.SendToRadio(sendCtx, ran.Conn, amf.NGAPProcedureAMFStatusIndication, pkt); err != nil {
-			logger.APILog.Warn("failed to send AMF Status Indication to RAN during drain", zap.Error(err))
-			continue
-		}
-
-		notified++
-	}
-
-	return notified
 }

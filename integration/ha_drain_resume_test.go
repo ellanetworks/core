@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -146,11 +147,33 @@ func drainAndAssert(ctx context.Context, leader *client.Client, nodeID int) erro
 		return fmt.Errorf("DrainClusterMember(%d): %w", nodeID, err)
 	}
 
-	if resp.DrainState != "drained" {
-		return fmt.Errorf("drainState = %q, want drained", resp.DrainState)
+	if resp.DrainState != "draining" && resp.DrainState != "drained" {
+		return fmt.Errorf("drainState = %q, want draining or drained", resp.DrainState)
 	}
 
-	return nil
+	return waitForDrained(ctx, leader, nodeID)
+}
+
+const drainCompletionTimeout = 90 * time.Second
+
+func waitForDrained(ctx context.Context, leader *client.Client, nodeID int) error {
+	deadline := time.Now().Add(drainCompletionTimeout)
+
+	var last string
+
+	for time.Now().Before(deadline) {
+		state, err := drainStateOf(ctx, leader, nodeID)
+		if err == nil {
+			last = state
+			if state == "drained" {
+				return nil
+			}
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	return fmt.Errorf("node %d did not reach drained within %s (last state %q)", nodeID, drainCompletionTimeout, last)
 }
 
 func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID int) error {

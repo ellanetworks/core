@@ -3,7 +3,7 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-export type DrainState = "active" | "drained";
+export type DrainState = "active" | "draining" | "drained";
 
 export type ClusterMember = {
   nodeId: number;

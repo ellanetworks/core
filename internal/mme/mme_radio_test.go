@@ -64,7 +64,7 @@ func TestENBSetupCompleteGate(t *testing.T) {
 		t.Fatal("tracked-but-not-set-up eNB reported setup-complete")
 	}
 
-	m.ClaimENBID(m.RadioForConn(c), testENBID(1))
+	m.ClaimENBID(m.RadioForConn(c), testENBID(1), DefaultRelativeCapacity)
 
 	if !setupComplete(c) {
 		t.Fatal("eNB not setup-complete after claiming its Global eNB ID")
@@ -87,14 +87,14 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	c2 := new(sctp.SCTPConn)
 
 	m.trackRadio(c1, RadioInfo{Name: "enb-old"})
-	m.ClaimENBID(m.RadioForConn(c1), enbID)
+	m.ClaimENBID(m.RadioForConn(c1), enbID, DefaultRelativeCapacity)
 
 	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c1) {
 		t.Fatalf("setup: the Global eNB ID %q resolved to the wrong association", id)
 	}
 
 	m.trackRadio(c2, RadioInfo{Name: "enb-new"})
-	m.ClaimENBID(m.RadioForConn(c2), enbID)
+	m.ClaimENBID(m.RadioForConn(c2), enbID, DefaultRelativeCapacity)
 
 	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c2) {
 		t.Errorf("the Global eNB ID %q did not resolve to the re-associated eNB", id)
@@ -121,7 +121,7 @@ func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	c := new(sctp.SCTPConn)
 
 	m.trackRadio(c, RadioInfo{Name: "enb-a"})
-	m.ClaimENBID(m.RadioForConn(c), enbID)
+	m.ClaimENBID(m.RadioForConn(c), enbID, DefaultRelativeCapacity)
 
 	m.NewUeConn(c, 10)
 
@@ -129,7 +129,7 @@ func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 		t.Fatalf("setup: expected 1 UE connection, got %d", got)
 	}
 
-	m.ClaimENBID(m.RadioForConn(c), enbID)
+	m.ClaimENBID(m.RadioForConn(c), enbID, DefaultRelativeCapacity)
 
 	if got := len(m.ConnsOnConn(c)); got != 0 {
 		t.Fatalf("expected the eNB's UE contexts to be released, %d remain", got)

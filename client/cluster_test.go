@@ -52,7 +52,7 @@ func TestDrainClusterMember_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"drainState":"drained"}`),
+			Result:     []byte(`{"drainState":"draining"}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -62,8 +62,8 @@ func TestDrainClusterMember_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.DrainState != "drained" {
-		t.Errorf("expected drainState drained, got %s", resp.DrainState)
+	if resp.DrainState != "draining" {
+		t.Errorf("expected drainState draining, got %s", resp.DrainState)
 	}
 
 	if fake.lastOpts.Method != "POST" {

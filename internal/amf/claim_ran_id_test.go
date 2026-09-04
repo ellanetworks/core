@@ -48,7 +48,7 @@ func TestClaimRanID_NoExistingRadio(t *testing.T) {
 	radio := newRadioForTest(amfInstance, conn, "gNB-A")
 	amfInstance.SetRadioForTest(conn, radio)
 
-	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"))
+	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 	if evicted != nil {
 		t.Fatalf("expected no eviction, got radio %q", amfInstance.RadioNameForTest(evicted))
 	}
@@ -73,7 +73,7 @@ func TestClaimRanID_EvictsDuplicateGNB(t *testing.T) {
 	existing := newRadioForTest(amfInstance, existingConn, "gNB-old")
 	amfInstance.SetRadioForTest(existingConn, existing)
 
-	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
@@ -81,7 +81,7 @@ func TestClaimRanID_EvictsDuplicateGNB(t *testing.T) {
 	newRadio := newRadioForTest(amfInstance, newConn, "gNB-new")
 	amfInstance.SetRadioForTest(newConn, newRadio)
 
-	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "ABCDE1"))
+	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 	if evicted == nil {
 		t.Fatal("expected existing radio to be evicted")
 	}
@@ -110,7 +110,7 @@ func TestClaimRanID_DifferentIDDoesNotEvict(t *testing.T) {
 	existing := newRadioForTest(amfInstance, existingConn, "gNB-old")
 	amfInstance.SetRadioForTest(existingConn, existing)
 
-	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(existing, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
@@ -118,7 +118,7 @@ func TestClaimRanID_DifferentIDDoesNotEvict(t *testing.T) {
 	newRadio := newRadioForTest(amfInstance, newConn, "gNB-new")
 	amfInstance.SetRadioForTest(newConn, newRadio)
 
-	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "FEDCBA"))
+	evicted := amfInstance.ClaimRanID(newRadio, gnbGlobalRANNodeID(t, "FEDCBA"), amf.DefaultRelativeCapacity)
 	if evicted != nil {
 		t.Fatalf("expected no eviction for a different Global RAN Node ID, got %q", amfInstance.RadioNameForTest(evicted))
 	}
@@ -135,11 +135,11 @@ func TestClaimRanID_SelfClaimIsNoOp(t *testing.T) {
 	radio := newRadioForTest(amfInstance, conn, "gNB-A")
 	amfInstance.SetRadioForTest(conn, radio)
 
-	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Fatalf("first claim should not evict, got %q", amfInstance.RadioNameForTest(evicted))
 	}
 
-	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"))
+	evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 	if evicted != nil {
 		t.Fatalf("self-claim should be a no-op, got eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
@@ -157,7 +157,7 @@ func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	radio := newRadioForTest(amfInstance, conn, "gNB-A")
 	amfInstance.SetRadioForTest(conn, radio)
 
-	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
@@ -165,7 +165,7 @@ func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	ue := amf.NewUeContext()
 	amfInstance.AttachUeConn(ue, ueConn)
 
-	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Fatalf("a repeat NG Setup must not evict its own association, got %q", amfInstance.RadioNameForTest(evicted))
 	}
 

@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/drain"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -554,6 +555,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
 
+	drainWakeup, stopDrainWakeup := dbInstance.Changefeed().Wakeup(db.TopicClusterMembers)
+	defer stopDrainWakeup()
+
+	drainReconciler := drain.New(dbInstance, bgpService, drainWakeup, mmeInstance, amfInstance)
+	drainReconciler.Start()
+
+	defer drainReconciler.Stop()
+
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   amf.NGAPPPID,
 		Name:   "NGAP",
@@ -742,7 +751,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 		if buildErr != nil {
 			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
 		} else {
-			for _, ran := range amfInstance.ConnectedRadios() {
+			for _, ran := range amfInstance.SetupCompleteRadios() {
 				ran.SendToRadio(ctx, amf.NGAPProcedureAMFStatusIndication, pkt)
 			}
 		}

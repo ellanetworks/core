@@ -88,15 +88,20 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 		t.Fatalf("drain leader: %v", err)
 	}
 
-	if drainResp.DrainState != "drained" {
+	if drainResp.DrainState != "draining" && drainResp.DrainState != "drained" {
 		writer.stop()
-		t.Fatalf("drainState = %q, want drained", drainResp.DrainState)
+		t.Fatalf("drainState = %q, want draining or drained", drainResp.DrainState)
 	}
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		writer.stop()
 		t.Fatalf("no new leader after drain: %v", err)
+	}
+
+	if err := waitForDrained(ctx, newLeader, leaderNodeID); err != nil {
+		writer.stop()
+		t.Fatalf("drained leader never completed its drain: %v", err)
 	}
 
 	if err := newLeader.RemoveClusterMember(ctx, leaderNodeID, false); err != nil {

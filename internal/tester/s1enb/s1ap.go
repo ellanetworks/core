@@ -110,6 +110,29 @@ func (e *ENB) WaitForPaging(timeout time.Duration) (*s1ap.Paging, error) {
 	return paging, nil
 }
 
+func (e *ENB) WaitForMMEConfigurationUpdate(timeout time.Duration) (*s1ap.MMEConfigurationUpdate, error) {
+	frame, err := e.WaitForMessage(NoUEID, Initiating, s1ap.ProcMMEConfigurationUpdate, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	update, err := s1ap.ParseMMEConfigurationUpdate(frame.Value)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse MME Configuration Update: %w", err)
+	}
+
+	return update, nil
+}
+
+func (e *ENB) SendMMEConfigurationUpdateAcknowledge() error {
+	b, err := (&s1ap.MMEConfigurationUpdateAcknowledge{}).Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build MME Configuration Update Acknowledge: %w", err)
+	}
+
+	return e.SendMessage(b, false)
+}
+
 // WaitForS1SetupFailure blocks until the MME answers the S1 Setup Request with
 // an S1 SETUP FAILURE (TS 36.413) and returns the decoded message.
 func (e *ENB) WaitForS1SetupFailure(timeout time.Duration) (*s1ap.S1SetupFailure, error) {
