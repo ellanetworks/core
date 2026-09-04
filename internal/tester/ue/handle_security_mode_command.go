@@ -47,10 +47,15 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 
 	storeEPSNASAlgorithms(ue, smc)
 
+	replay := ue.replayForSecurityModeComplete(smc)
+	imeisvRequested := smc.IMEISVRequested != nil && *smc.IMEISVRequested == fgs.IMEISVRequested
+
 	securityModeComplete, err := BuildSecurityModeComplete(&SecurityModeCompleteOpts{
-		UESecurity: ue.UeSecurity,
-		IMEISV:     ue.IMEISV,
-		Replay:     ue.replayRegistration,
+		UESecurity:    ue.UeSecurity,
+		IMEISV:        ue.IMEISV,
+		Replay:        replay,
+		OmitContainer: replay == nil,
+		OmitIMEISV:    !imeisvRequested,
 	})
 	if err != nil {
 		return fmt.Errorf("error sending Security Mode Complete: %w", err)
@@ -85,4 +90,16 @@ func storeEPSNASAlgorithms(ue *UE, smc *fgs.SecurityModeCommand) {
 	logger.UeLogger.Debug("Stored the selected EPS NAS security algorithms",
 		zap.Uint8("EEA", uint8(smc.SelectedEPSNASSecurityAlgorithms.Ciphering)),
 		zap.Uint8("EIA", uint8(smc.SelectedEPSNASSecurityAlgorithms.Integrity)))
+}
+
+func (ue *UE) replayForSecurityModeComplete(smc *fgs.SecurityModeCommand) []byte {
+	rinmr := smc.AdditionalSecurityInformation != nil && smc.AdditionalSecurityInformation.RINMR
+
+	if !ue.replayPending && !rinmr {
+		return nil
+	}
+
+	ue.replayPending = false
+
+	return ue.replayRegistration
 }
