@@ -189,34 +189,6 @@ func (g *GnodeB) openPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	return &session, nil
 }
 
-// MobilityRegistrationUpdate re-registers a UE the AMF already knows under a new
-// RAN UE NGAP ID (TS 23.502 §4.2.2.2.2), re-establishing its user plane.
-// ENB.PeriodicTrackingAreaUpdate is the closest EPS counterpart.
-func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration) (*RegistrationResult, error) {
-	generation := g.sessionGeneration()
-
-	g.AddUE(ranUENGAPID, u)
-
-	if err := u.SendMobilityRegistrationRequest(ranUENGAPID, []uint8{pduSessionID}); err != nil {
-		return nil, fmt.Errorf("send Registration Request (mobility updating): %w", err)
-	}
-
-	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout); err != nil {
-		return nil, fmt.Errorf("await Registration Accept for the mobility registration update: %w", err)
-	}
-
-	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RegistrationResult{
-		AMFUENGAPID: g.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-		Session:     session,
-	}, nil
-}
-
 // ServiceRequest performs a mobile-originated service request for a UE in
 // CM-IDLE (TS 23.502 §4.2.3.2), re-establishing the PDU session's user plane.
 // ENB.ServiceRequest is its EPS counterpart.
