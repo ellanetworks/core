@@ -126,3 +126,76 @@ func TestAbortN2SetupsLeavesConfirmedSessionsAlone(t *testing.T) {
 		t.Error("a session the NG-RAN node confirmed must not be released by aborting a transaction")
 	}
 }
+
+func TestClaimN2Setup(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		ueContextRequest bool
+		carriesSessions  bool
+		ics              ICSState
+		wantProc         N2SetupProcedure
+		wantInitial      bool
+	}{
+		{
+			name:            "no UE Context Request IE, sessions to set up: the NG-RAN node needs the context first",
+			carriesSessions: true,
+			wantProc:        N2SetupInitialContext,
+			wantInitial:     true,
+		},
+		{
+			name:             "UE Context Request IE, nothing to carry",
+			ueContextRequest: true,
+			wantProc:         N2SetupInitialContext,
+			wantInitial:      true,
+		},
+		{
+			name:     "signalling only, no UE Context Request IE: no context is set up",
+			wantProc: N2SetupPDUSession,
+		},
+		{
+			name:            "context already set up: the standalone procedure carries the sessions",
+			carriesSessions: true,
+			ics:             ICSCompleted,
+			wantProc:        N2SetupPDUSession,
+		},
+		{
+			name:            "context setup already sent: the NG-RAN node holds it from that message on",
+			carriesSessions: true,
+			ics:             ICSPending,
+			wantProc:        N2SetupPDUSession,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := newTxnTestConn()
+			conn.UeContextRequest = tc.ueContextRequest
+			conn.ics.Store(int32(tc.ics))
+
+			proc, initial := conn.ClaimN2Setup(tc.carriesSessions)
+
+			if proc != tc.wantProc {
+				t.Errorf("procedure = %v, want %v", proc, tc.wantProc)
+			}
+
+			if initial != tc.wantInitial {
+				t.Errorf("claimed the initial context setup = %v, want %v", initial, tc.wantInitial)
+			}
+		})
+	}
+}
+
+func TestClaimN2SetupHandsTheInitialContextSetupToOneCaller(t *testing.T) {
+	conn := newTxnTestConn()
+
+	if _, initial := conn.ClaimN2Setup(true); !initial {
+		t.Fatal("the first caller did not claim the initial context setup")
+	}
+
+	proc, initial := conn.ClaimN2Setup(true)
+	if initial {
+		t.Error("a second caller claimed the same initial context setup")
+	}
+
+	if proc != N2SetupPDUSession {
+		t.Errorf("procedure = %v, want %v", proc, N2SetupPDUSession)
+	}
+}

@@ -675,6 +675,8 @@ func TestForward5GSMMessageToSMF_N2PduResRel_SendsReleaseCommand(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
+	ue.Conn().MarkICSCompleted()
+
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	fakeSmf := &fakeSmf{
@@ -698,6 +700,8 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
+
+	ue.Conn().MarkICSCompleted()
 
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
@@ -1152,5 +1156,33 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	if call.Snssai.Sst != 1 || call.Snssai.Sd != "aabbcc" {
 		t.Fatalf("expected default SNSSAI SST=1 SD=aabbcc, got: SST=%d SD=%s", call.Snssai.Sst, call.Snssai.Sd)
+	}
+}
+
+func TestForward5GSMMessageToSMF_NoRANUEContext_DeliversN1WithoutReleaseCommand(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	fakeSmf := &fakeSmf{
+		UpdateN1MsgResponse: &smf.UpdateResult{
+			N1Msg:     []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
+			N2Msg:     []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00},
+			ReleaseN2: true,
+		},
+	}
+
+	amfInstance := amf.New(nil, nil, fakeSmf)
+
+	forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
+
+	if len(ngapSender.SentPDUSessionResourceReleaseCommand) != 0 {
+		t.Errorf("release commands = %d, want 0: the NG-RAN node holds no UE context to release resources from",
+			len(ngapSender.SentPDUSessionResourceReleaseCommand))
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink nas transports = %d, want 1: the UE still needs the 5GSM message", len(ngapSender.SentDownlinkNASTransport))
 	}
 }

@@ -66,20 +66,13 @@ func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
 	return out
 }
 
-func n2SetupProcedure(initialContextSetup bool) amf.N2SetupProcedure {
-	if initialContextSetup {
-		return amf.N2SetupInitialContext
-	}
-
-	return amf.N2SetupPDUSession
-}
-
 func sendServiceAccept(
 	ctx context.Context,
 	guardCfg guard.TimerValue,
 	ue *amf.UeContext,
 	ueConn *amf.UeConn,
 	initialContextSetup bool,
+	proc amf.N2SetupProcedure,
 	ctxList ngap.PDUSessionResourceSetupListCxtReq,
 	suList ngap.PDUSessionResourceSetupListSUReq,
 	pDUSessionStatus *[16]bool,
@@ -97,14 +90,6 @@ func sendServiceAccept(
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	if pending != nil {
-		if err := stagePendingN1(ctx, ue, initialContextSetup, pending, sht, &ctxList, &suList); err != nil {
-			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
-
-			return err
-		}
-	}
-
 	plain, err := amf.BuildServiceAccept(pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building service accept message: %v", err)
@@ -112,57 +97,78 @@ func sendServiceAccept(
 
 	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
 
+	var acceptWire []byte
+
 	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-		switch {
-		case initialContextSetup:
-			if err := ueConn.SendInitialContextSetup(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				ue.AllowedNssai,
-				kgnb,
-				ue.RadioCapability,
-				ue.RadioCapabilityForPaging,
-				ueSecCap,
-				wire,
-				ctxList,
-				supportedGUAMI,
-			); err != nil {
-				return fmt.Errorf("error sending initial context setup request: %v", err)
-			}
-
-			ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
-		case len(suList) != 0:
-			if err := ueConn.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				wire,
-				suList,
-			); err != nil {
-				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
-			}
-
-			ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept")
-		default:
-			ueConn.EndN2Setup(n2SetupProcedure(initialContextSetup))
-
-			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %v", err)
-			}
-
-			logger.From(ctx, logger.AmfLog).Info("sent service accept")
-		}
+		acceptWire = wire
 
 		return nil
 	}); err != nil {
 		amf.ReportProtectFailure(ctx, ue, "service accept", err)
 
 		return err
+	}
+
+	var pendingWire []byte
+
+	if pending != nil {
+		pendingWire, err = stagePendingN1(ctx, ue, initialContextSetup, proc, pending, sht, &ctxList, &suList)
+		if err != nil {
+			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
+
+			return err
+		}
+	}
+
+	switch {
+	case initialContextSetup:
+		if err := ueConn.SendInitialContextSetup(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			kgnb,
+			ue.RadioCapability,
+			ue.RadioCapabilityForPaging,
+			ueSecCap,
+			acceptWire,
+			ctxList,
+			supportedGUAMI,
+		); err != nil {
+			return fmt.Errorf("error sending initial context setup request: %v", err)
+		}
+
+		ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
+	case len(suList) != 0:
+		if err := ueConn.SendPDUSessionResourceSetupRequest(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			acceptWire,
+			suList,
+		); err != nil {
+			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
+		}
+
+		ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept")
+	default:
+		ueConn.EndN2Setup(proc)
+
+		if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
+			return fmt.Errorf("error sending downlink nas transport: %v", err)
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("sent service accept")
+	}
+
+	if len(pendingWire) != 0 {
+		if err := ueConn.SendDownlinkNASTransport(ctx, pendingWire); err != nil {
+			return fmt.Errorf("error sending buffered N1 SM message: %v", err)
+		}
 	}
 
 	return nil
@@ -172,14 +178,17 @@ func stagePendingN1(
 	ctx context.Context,
 	ue *amf.UeContext,
 	initialContextSetup bool,
+	proc amf.N2SetupProcedure,
 	pending *pendingN1,
 	sht uint8,
 	ctxList *ngap.PDUSessionResourceSetupListCxtReq,
 	suList *ngap.PDUSessionResourceSetupListSUReq,
-) error {
+) ([]byte, error) {
+	var standalone []byte
+
 	stage := func(nasPdu []byte) error {
 		conn := ue.Conn()
-		if conn == nil || !conn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pending.pduSessionID) {
+		if conn == nil || !conn.N2Setup(proc).ClaimSession(pending.pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("delivering buffered N1 without a duplicate PDU session setup",
 				zap.Uint8("pdu_session_id", pending.pduSessionID))
 
@@ -187,7 +196,9 @@ func stagePendingN1(
 				return nil
 			}
 
-			return conn.SendDownlinkNASTransport(ctx, nasPdu)
+			standalone = nasPdu
+
+			return nil
 		}
 
 		if initialContextSetup {
@@ -216,15 +227,19 @@ func stagePendingN1(
 	}
 
 	if pending.n1Msg == nil {
-		return stage(nil)
+		return nil, stage(nil)
 	}
 
 	plain, err := amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, pending.n1Msg, new(fgs.PDUSessionID(pending.pduSessionID)), nil, nil)
 	if err != nil {
-		return fmt.Errorf("error building DL NAS transport message: %v", err)
+		return nil, fmt.Errorf("error building DL NAS transport message: %v", err)
 	}
 
-	return ue.SendDownlinkNAS(plain, sht, stage)
+	if err := ue.SendDownlinkNAS(plain, sht, stage); err != nil {
+		return nil, err
+	}
+
+	return standalone, nil
 }
 
 // TS 24501 5.6.1
@@ -344,8 +359,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	operatorInfo := operator.Info()
 
-	initialContextSetup := ueConn.UeContextRequest && ueConn.ClaimICS()
-
 	buffered := resolveBufferedSM(ue)
 
 	if buffered.stale {
@@ -429,6 +442,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
+	proc, initialContextSetup := ueConn.ClaimN2Setup(buffered.stage != nil || len(activate) != 0)
+
 	for pduSessionID := range activate {
 		smContext, ok := smContextSnapshot[pduSessionID]
 		if !ok {
@@ -446,7 +461,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			errCause = append(errCause, uint8(fgs.GMMCauseProtocolErrorUnspecified))
 		}
 
-		if !ueConn.N2Setup(n2SetupProcedure(initialContextSetup)).ClaimSession(pduSessionID) {
+		if !ueConn.N2Setup(proc).ClaimSession(pduSessionID) {
 			logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
 				zap.Uint8("pdu_session_id", pduSessionID))
 
@@ -506,7 +521,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	accept := func(pending *pendingN1) error {
-		err := sendServiceAccept(ctx, amfInstance.N2SetupGuardCfg, ue, ueConn, initialContextSetup, ctxList, suList, acceptPduSessionPsi,
+		err := sendServiceAccept(ctx, amfInstance.N2SetupGuardCfg, ue, ueConn, initialContextSetup, proc, ctxList, suList, acceptPduSessionPsi,
 			reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, pending)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
