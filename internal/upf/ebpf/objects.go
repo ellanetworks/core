@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"runtime"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -47,10 +46,31 @@ const (
 	NatPortMax uint16 = 32767
 )
 
+// MaxDlBufferPkt is the largest packet the datapath will capture, matching DL_BUFFER_MAX_PKT.
+const MaxDlBufferPkt = 9000
+
 type DataNotification struct {
 	LocalSEID uint64
 	PdrID     uint16
 	QFI       uint8
+}
+
+// DlBufferHeader is the Go representation of struct dl_buffer_hdr.
+type DlBufferHeader struct {
+	LocalSEID uint64
+	PdrID     uint16
+	Len       uint16
+	QFI       uint8
+	Family    uint8 // 4 or 6
+	Pad       uint16
+}
+
+// DlBufferCounters mirrors struct dl_buffer_counters.
+type DlBufferCounters struct {
+	Captured uint64
+	RingFull uint64
+	TooLarge uint64
+	GSO      uint64
 }
 
 // RSEvent is the Go representation of struct rs_event emitted by the N3 XDP
@@ -82,8 +102,11 @@ type BpfObjects struct {
 	N6InterfaceIndex uint32
 	N3Vlan           uint32
 	N6Vlan           uint32
-	pagingMu         sync.Mutex
-	pagingList       map[DataNotification]bool
+
+	bufferVethIndex uint32 // ifindex of the reinjection veth
+
+	pagingMu   sync.Mutex
+	pagingList map[DataNotification]bool
 }
 
 func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -139,6 +162,22 @@ func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
 	return LoadN3N6Entrypoint()
 }
 
+// sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs to the number of possible CPUs.
+func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) error {
+	cpus, err := ebpf.PossibleCPU()
+	if err != nil {
+		return fmt.Errorf("get possible CPUs: %w", err)
+	}
+
+	for _, name := range []string{"csum_scratch", "dl_buffer_scratch"} {
+		if m, ok := spec.Maps[name]; ok {
+			m.MaxEntries = uint32(cpus)
+		}
+	}
+
+	return nil
+}
+
 func (bpfObjects *BpfObjects) Load() error {
 	n3n6Spec, err := bpfObjects.loadSpec()
 	if err != nil {
@@ -146,12 +185,9 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
-	// The csum_scratch map is a regular BPF_MAP_TYPE_ARRAY indexed by CPU
-	// ID (not a per-CPU map, because the per-CPU allocator rejects values
-	// larger than ~32 KB).  Set max_entries to the number of CPUs so every
-	// CPU gets its own slot.
-	if m, ok := n3n6Spec.Maps["csum_scratch"]; ok {
-		m.MaxEntries = uint32(runtime.NumCPU())
+	if err := sizeCPUScratchMaps(n3n6Spec); err != nil {
+		logger.UpfLog.Error("failed to size scratch maps", zap.Error(err))
+		return err
 	}
 
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
@@ -215,6 +251,11 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 
 	if err := spec.Variables["nat_port_max"].Set(NatPortMax); err != nil {
 		logger.UpfLog.Error("failed to set nat port max", zap.Error(err))
+		return err
+	}
+
+	if err := spec.Variables["buffer_veth_ifindex"].Set(bpfObjects.bufferVethIndex); err != nil {
+		logger.UpfLog.Error("failed to set buffer_veth_ifindex", zap.Error(err))
 		return err
 	}
 
@@ -286,11 +327,9 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
-	// Match the csum_scratch max_entries to the actual CPU count, same as
-	// in Load().  Without this the spec still has the placeholder value 1,
-	// which conflicts with the existing map that was created with NumCPU().
-	if m, ok := spec.Maps["csum_scratch"]; ok {
-		m.MaxEntries = uint32(runtime.NumCPU())
+	if err := sizeCPUScratchMaps(spec); err != nil {
+		logger.UpfLog.Error("failed to size scratch maps", zap.Error(err))
+		return err
 	}
 
 	opts := &ebpf.CollectionOptions{
@@ -340,6 +379,39 @@ func (bpfObjects *BpfObjects) Close() error {
 	return CloseAllObjects(
 		&bpfObjects.N3N6EntrypointObjects,
 	)
+}
+
+// SetBufferVethIfindex names the veth re-injected packets arrive on. Zero clears it.
+func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
+	bpfObjects.bufferVethIndex = uint32(vethIfindex)
+
+	if err := bpfObjects.BufferVethIfindex.Set(uint32(vethIfindex)); err != nil {
+		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
+	}
+
+	return nil
+}
+
+// GetDlBufferCounters sums the per-CPU capture counters.
+func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
+	var (
+		perCPU []N3N6EntrypointDlBufferCounters
+		total  DlBufferCounters
+	)
+
+	if err := bpfObjects.DlBufferCountersMap.Lookup(uint32(0), &perCPU); err != nil {
+		logger.UpfLog.Warn("failed to fetch dl buffer counters", zap.Error(err))
+		return total
+	}
+
+	for _, c := range perCPU {
+		total.Captured += c.Captured
+		total.RingFull += c.RingFull
+		total.TooLarge += c.TooLarge
+		total.GSO += c.Gso
+	}
+
+	return total
 }
 
 func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {

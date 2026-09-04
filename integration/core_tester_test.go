@@ -47,6 +47,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/framed_route_ipv6":                "requires NAT disabled; covered by TestIntegration4GFramedRouting",
 	"gnb/ue2ue":                              "requires NAT disabled; covered by TestIntegration5GUE2UE",
 	"s1enb/ue2ue":                            "requires NAT disabled; covered by TestIntegration4GUE2UE",
+	"gnb/buffered_downlink":                  "requires local switch enabled; covered by TestIntegration5GBufferedDownlink",
+	"s1enb/buffered_downlink":                "requires local switch enabled; covered by TestIntegration4GBufferedDownlink",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -80,6 +82,7 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/idle_eps_to_5gs_returning_to_idle":  true,
 	"interworking/idle_round_trip_through_eps":        true,
 	"interworking/idle_round_trip_through_5gs":        true,
+	"interworking/idle_eps_to_5gs_bearer_status":      true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
@@ -96,6 +99,12 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"gnb/connectivity_multi_pdu_session": {
 		IPv6Only: true,
 	},
+	"gnb/service_request_pdu_session_status": {
+		IPv6Only: true,
+	},
+	"gnb/mobility_registration_pdu_session_status": {
+		IPv6Only: true,
+	},
 	"gnb/connectivity_multiple_policies_per_profile": {
 		IPv6Only: true,
 	},
@@ -104,6 +113,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		DualStack: true,
 	},
 	"s1enb/connectivity_multi_pdn": {
+		IPv6Only: true,
+	},
+	"s1enb/tau_bearer_context_status": {
 		IPv6Only: true,
 	},
 	"s1enb/connectivity": {

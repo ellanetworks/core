@@ -68,7 +68,17 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 		ue.SetUECapabilities(fgsRR.GMMCapability, fgsRR.S1UENetworkCapability)
 
-		contextSetup(ctx, amfInstance, ue, fgsRR, slices.Clone(msg.NASMessageContainer))
+		plain := slices.Clone(msg.NASMessageContainer)
+
+		conn.RegistrationRequest = fgsRR
+		conn.RegistrationRequestPlain = plain
+		conn.RegistrationRequestReplayRequired = false
+
+		if provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
+			return nasreply.Handled()
+		}
+
+		contextSetup(ctx, amfInstance, ue, fgsRR, plain)
 
 		return nasreply.Handled()
 	}

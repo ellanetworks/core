@@ -50,7 +50,7 @@ func runServiceRequestDataNoUEContextRequest(_ context.Context, env scenarios.En
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
 
-	if _, err := gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
+	if _, err := gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout, nil); err != nil {
 		return fmt.Errorf("service request procedure failed: %v", err)
 	}
 

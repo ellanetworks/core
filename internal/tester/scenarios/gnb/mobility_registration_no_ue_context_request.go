@@ -50,7 +50,7 @@ func runMobilityRegistrationNoUEContextRequest(_ context.Context, env scenarios.
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
 
-	if _, err := gNodeB.MobilityRegistrationUpdate(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
+	if _, err := gNodeB.MobilityRegistrationUpdate(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, nil, registrationTimeout); err != nil {
 		return fmt.Errorf("mobility registration update procedure failed: %v", err)
 	}
 

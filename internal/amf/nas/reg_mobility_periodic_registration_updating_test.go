@@ -485,8 +485,17 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 		t.Fatalf("expected one ReleaseSmContext attempt, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
 
-	if len(ngapSender.SentDownlinkNASTransport) != 0 {
-		t.Fatalf("expected no downlink after release failure, got %d", len(ngapSender.SentDownlinkNASTransport))
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
+		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(2); ok {
+		t.Error("PDU session 2 was reported inactive and must be released on the AMF side too")
 	}
 
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 0 {
@@ -1251,5 +1260,64 @@ func TestMobilityReg_InitialContextSetupNotSent_ReleasesTheClaim(t *testing.T) {
 
 	if !conn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Error("the PDU session is still claimed although no setup was sent")
+	}
+}
+
+func TestMobilityReg_LocallyDeactivatedBearer_SmfReleaseFails_IsNotReportedActive(t *testing.T) {
+	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+	smf.ReleaseSmContextError = fmt.Errorf("pfcp session deletion failed")
+
+	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
+	if err := ue.CreateSmContext(5, "ref-5", snssai, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if err := ue.CreateSmContext(6, "ref-6", snssai, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(5, 6)
+	ue.SetEPSBearerIdentity(6, 7)
+	ue.Conn().EPSArrival = &amf.EPSArrival{}
+	ue.Conn().MarkICSCompleted()
+
+	var active [16]bool
+
+	active[7] = true
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = &nas.EPSBearerContextStatus{Active: active}
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(smf.ReleaseSmContextCalls) != 1 || smf.ReleaseSmContextCalls[0].SmContextRef != "ref-5" {
+		t.Fatalf("release calls = %v, want one for ref-5", smf.ReleaseSmContextCalls)
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(5); ok {
+		t.Error("the AMF-side release is not conditional on the SMF request succeeding: the SMF drops the session either way")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus == nil {
+		t.Fatal("no EPS bearer context status after an arrival from EPS")
+	}
+
+	if regAccept.EPSBearerContextStatus.Active[6] {
+		t.Error("EBI 6 was deactivated by the UE and dropped by the SMF; reporting it active makes the UE keep a QoS flow the network no longer has (TS 24.501 §5.5.1.3.4)")
+	}
+
+	if !regAccept.EPSBearerContextStatus.Active[7] {
+		t.Error("EBI 7 is still active and must be reported active")
 	}
 }

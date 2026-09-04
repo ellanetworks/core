@@ -33,6 +33,7 @@ type bufferedSM struct {
 	pduSessionID uint8
 	stale        bool
 	present      bool
+	dropped      bool
 }
 
 func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
@@ -372,9 +373,43 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// Copy SmContextList under lock for safe concurrent iteration.
 	smContextSnapshot := ue.SmContextSnapshot()
 
+	if msg.PDUSessionStatus != nil {
+		acceptPduSessionPsi = new([16]bool)
+
+		psiArray := msg.PDUSessionStatus.PSI
+		for pduSessionID, smContext := range smContextSnapshot {
+			if int(pduSessionID) >= len(psiArray) {
+				logger.From(ctx, logger.AmfLog).Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pdu_session_id", pduSessionID))
+				continue
+			}
+
+			if !psiArray[pduSessionID] {
+				if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
+					logger.From(ctx, logger.AmfLog).Error("Release amf.SmContext Error", zap.Error(err))
+				}
+
+				ue.DeleteSmContext(pduSessionID)
+				delete(smContextSnapshot, pduSessionID)
+			} else {
+				acceptPduSessionPsi[pduSessionID] = true
+			}
+		}
+	}
+
+	if buffered.present && !buffered.stale {
+		if _, held := smContextSnapshot[buffered.pduSessionID]; !held {
+			logger.From(ctx, logger.AmfLog).Warn("discarding buffered downlink payload naming a PDU session the UE reports inactive",
+				zap.Uint8("pdu_session_id", buffered.pduSessionID))
+
+			buffered.stage = nil
+			buffered.n1Only = nil
+			buffered.dropped = true
+		}
+	}
+
 	activate := make(map[uint8]bool, len(smContextSnapshot))
 
-	if buffered.present && !buffered.stale && buffered.stage == nil {
+	if buffered.present && !buffered.stale && !buffered.dropped && buffered.stage == nil {
 		activate[buffered.pduSessionID] = true
 	}
 
@@ -465,27 +500,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 
 		suList = append(suList, item)
-	}
-
-	if msg.PDUSessionStatus != nil {
-		acceptPduSessionPsi = new([16]bool)
-
-		psiArray := msg.PDUSessionStatus.PSI
-		for pduSessionID, smContext := range smContextSnapshot {
-			if int(pduSessionID) >= len(psiArray) {
-				logger.From(ctx, logger.AmfLog).Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pdu_session_id", pduSessionID))
-				continue
-			}
-
-			if !psiArray[pduSessionID] { // #nosec: G602 -- bounds checked above
-				err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref)
-				if err != nil {
-					logger.From(ctx, logger.AmfLog).Error("Release amf.SmContext Error", zap.Error(err))
-				}
-			} else {
-				acceptPduSessionPsi[pduSessionID] = true
-			}
-		}
 	}
 
 	if buffered.stage == nil && len(ctxList) == 0 && len(suList) == 0 {
