@@ -236,7 +236,6 @@ func serviceRequestWithStatus(t *testing.T, f connectedModeFixture, svcType fgs.
 	})
 }
 
-// TS 24.501 §5.6.1.4.1, §5.6.1.8 case i)
 func TestHandleServiceRequest_BufferedPayloadForASessionReportedInactive_IsNotSetUpOnTheRAN(t *testing.T) {
 	smf := &fakeSmf{}
 	f := connectedModeUe(t, smf)
@@ -290,7 +289,6 @@ func TestHandleServiceRequest_BufferedPayloadForASessionReportedInactive_IsNotSe
 	}
 }
 
-// TS 24.501 §5.6.1.4.1 a)
 func TestHandleServiceRequest_SmfReleaseFails_SessionIsStillReleasedOnTheAMFSide(t *testing.T) {
 	smf := &fakeSmf{ReleaseSmContextError: errors.New("pfcp session deletion failed")}
 	f := connectedModeUe(t, smf)
@@ -315,8 +313,6 @@ func TestHandleServiceRequest_SmfReleaseFails_SessionIsStillReleasedOnTheAMFSide
 	}
 }
 
-// TS 24.501 §9.11.3.57 table 9.11.3.57.1 forbids this combination: a PDU session in
-// PDU SESSION INACTIVE state is coded 0 in the Uplink data status IE.
 func TestHandleServiceRequest_UplinkDataForASessionReportedInactive_IsNotSetUpOnTheRAN(t *testing.T) {
 	smf := &fakeSmf{}
 	f := connectedModeUe(t, smf)

@@ -144,7 +144,6 @@ func mustBytes(b []byte, err error) []byte {
 	return b
 }
 
-// TS 24.501 §5.6.3.3 a)
 func TestHandleNotificationResponse_SmfReleaseFails_EveryReportedSessionIsStillReleased(t *testing.T) {
 	smf := fakeSmf{ReleaseSmContextError: errors.New("pfcp session deletion failed")}
 	amfInstance := amf.New(&fakeDBInstance{

@@ -48,7 +48,6 @@ func TestSyncPDUSessionStatus_ReleasesOnTheAMFSideToo(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.4 a)
 func TestSyncPDUSessionStatus_SmfReleaseFails_StillReleasesAndReportsTheStatus(t *testing.T) {
 	ue, _, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 	smf.ReleaseSmContextError = errors.New("pfcp session deletion failed")

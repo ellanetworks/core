@@ -260,10 +260,6 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 	return sessionFactsFor(ctx, env, addrs, enbTunIface, bearer.upfAddress, bearer.ulTEID, "S1-U after the handover")
 }
 
-// assertEPSNASAlgorithms checks the AMF handed the UE its EPS NAS algorithms
-// during the initial registration, which TS 24.501 §5.4.2.4 requires of the
-// second security mode command. Without them the UE can derive no mapped EPS
-// security context and cannot move to EPS at all.
 func assertEPSNASAlgorithms(u *ue.UE) error {
 	if u.UeSecurity.EPSNASAlgorithms == nil {
 		return fmt.Errorf("the AMF provisioned no EPS NAS algorithms during the initial registration, so the UE cannot move to EPS (TS 24.501 §5.4.2.4)")

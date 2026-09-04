@@ -468,8 +468,6 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 		t.Fatalf("expected one ReleaseSmContext attempt, got %d", len(fakeSmf.ReleaseSmContextCalls))
 	}
 
-	// TS 24.501 §5.5.1.3.4 a): the local release and the REGISTRATION ACCEPT carrying the
-	// PDU session status IE are not conditional on the SMF request succeeding.
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -1227,8 +1225,6 @@ func TestMobilityReg_InitialContextSetupNotSent_ReleasesTheClaim(t *testing.T) {
 	}
 }
 
-// TS 23.502 clause 4.11.1.3.3: the EPS bearer status the AMF returns reflects all existing
-// EPS bearers, so a session the SMF has dropped must not be reported active.
 func TestMobilityReg_LocallyDeactivatedBearer_SmfReleaseFails_IsNotReportedActive(t *testing.T) {
 	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 
