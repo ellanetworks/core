@@ -15,7 +15,7 @@ import (
 )
 
 // TestIntegration5GBufferedDownlink runs the gnb buffered-downlink scenario.
-// TS 23.501 §5.8.2.2.1
+// TS 23.502 §4.2.3.3
 func TestIntegration5GBufferedDownlink(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

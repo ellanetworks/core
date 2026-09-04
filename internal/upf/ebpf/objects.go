@@ -23,8 +23,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
-	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -163,13 +165,69 @@ func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
 	return LoadN3N6Entrypoint()
 }
 
-// sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs to the number of CPUs.
-func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) {
+// sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs to the number of possible CPUs.
+func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) error {
+	cpus, err := possibleCPUs()
+	if err != nil {
+		return err
+	}
+
 	for _, name := range []string{"csum_scratch", "dl_buffer_scratch"} {
 		if m, ok := spec.Maps[name]; ok {
-			m.MaxEntries = uint32(runtime.NumCPU())
+			m.MaxEntries = cpus
 		}
 	}
+
+	return nil
+}
+
+func possibleCPUs() (uint32, error) {
+	data, err := os.ReadFile("/sys/devices/system/cpu/possible")
+	if err != nil {
+		return 0, fmt.Errorf("read possible CPUs: %w", err)
+	}
+
+	return parseCPUList(strings.TrimSpace(string(data)))
+}
+
+func parseCPUList(list string) (uint32, error) {
+	var count uint32
+
+	for _, part := range strings.Split(list, ",") {
+		if part == "" {
+			continue
+		}
+
+		lo, hi, ranged := strings.Cut(part, "-")
+
+		first, err := strconv.ParseUint(lo, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("parse CPU list %q: %w", list, err)
+		}
+
+		if !ranged {
+			count++
+
+			continue
+		}
+
+		last, err := strconv.ParseUint(hi, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("parse CPU list %q: %w", list, err)
+		}
+
+		if last < first {
+			return 0, fmt.Errorf("inverted CPU range %q", part)
+		}
+
+		count += uint32(last-first) + 1
+	}
+
+	if count == 0 {
+		return 0, errors.New("no possible CPUs")
+	}
+
+	return count, nil
 }
 
 func (bpfObjects *BpfObjects) Load() error {
@@ -179,7 +237,10 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
-	sizeCPUScratchMaps(n3n6Spec)
+	if err := sizeCPUScratchMaps(n3n6Spec); err != nil {
+		logger.UpfLog.Error("failed to size scratch maps", zap.Error(err))
+		return err
+	}
 
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
@@ -318,7 +379,10 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
-	sizeCPUScratchMaps(spec)
+	if err := sizeCPUScratchMaps(spec); err != nil {
+		logger.UpfLog.Error("failed to size scratch maps", zap.Error(err))
+		return err
+	}
 
 	opts := &ebpf.CollectionOptions{
 		MapReplacements: bpfObjects.preservedMaps(),

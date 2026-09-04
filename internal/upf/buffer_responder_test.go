@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 // buildRecord builds a dl_buffer_map sample the way the datapath does.
@@ -131,25 +132,38 @@ func TestEnqueuePerQueueCapHeadDrop(t *testing.T) {
 func TestEnqueueGlobalByteBudget(t *testing.T) {
 	b, _ := newTestResponder()
 
-	packet := make([]byte, 100)
-
 	b.mu.Lock()
-	b.enqueue(1, 1, 4, packet)
+	b.enqueue(1, 1, 4, []byte{1})
+	b.enqueue(2, 1, 4, []byte{2})
+	b.totalBytes = maxTotalBytes
 	b.mu.Unlock()
 
 	b.mu.Lock()
-	b.enqueue(2, 1, 4, make([]byte, maxTotalBytes))
+	b.enqueue(2, 1, 4, []byte{3})
 	b.mu.Unlock()
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if q := b.buffers[2]; q != nil && len(q.packets) != 0 {
-		t.Errorf("over-budget packet was enqueued: %d", len(q.packets))
+	if _, ok := b.buffers[1]; ok {
+		t.Error("queue of the oldest packet survived budget eviction")
 	}
 
-	if got := b.buffers[1].bytes; got != len(packet) {
-		t.Errorf("first queue bytes = %d, want %d", got, len(packet))
+	q := b.buffers[2]
+	if got := len(q.packets); got != 2 {
+		t.Fatalf("queue holds %d packets, want 2", got)
+	}
+
+	if q.packets[1].data[0] != 3 {
+		t.Error("newest packet was not admitted")
+	}
+
+	if got := q.bytes; got != 2 {
+		t.Errorf("queue bytes = %d, want 2", got)
+	}
+
+	if b.totalBytes != maxTotalBytes {
+		t.Errorf("totalBytes = %d, want %d", b.totalBytes, maxTotalBytes)
 	}
 }
 
@@ -338,31 +352,75 @@ func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 	}
 }
 
-// A Close landing mid-drain must leave the popped remainder accounted as
-// closed.
-func TestDrainMidCloseDiscardsRemainder(t *testing.T) {
-	b, frames := newTestResponder()
+func TestDrainConcurrentClose(t *testing.T) {
+	fds := make([]int, 2)
+	if err := unix.Pipe(fds); err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
 
-	send := b.send
-	b.send = func(fd int, frame []byte) error {
-		err := send(fd, frame)
+	defer func() { _ = unix.Close(fds[1]) }()
 
-		b.mu.Lock()
-		b.closed = true
-		b.mu.Unlock()
+	b := NewBufferResponder(nil)
+	b.injectFD = fds[0]
 
-		return err
+	firstSend := make(chan struct{}, 1)
+
+	b.send = func(fd int, _ []byte) error {
+		if b.closed {
+			t.Error("send after Close")
+		}
+
+		if _, err := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0); err != nil {
+			t.Errorf("send on dead fd %d: %v", fd, err)
+		}
+
+		select {
+		case firstSend <- struct{}{}:
+		default:
+		}
+
+		return nil
 	}
 
 	b.mu.Lock()
-	b.enqueue(1, 1, 4, []byte{1})
-	b.enqueue(1, 1, 4, []byte{2})
+	for i := range maxPerQueuePackets {
+		b.enqueue(1, 1, 4, []byte{byte(i)})
+	}
 	b.mu.Unlock()
 
-	b.Drain(1)
+	drained := make(chan struct{})
 
-	if got := len(*frames); got != 1 {
-		t.Fatalf("sent %d frames, want 1", got)
+	go func() {
+		defer close(drained)
+
+		b.Drain(1)
+	}()
+
+	select {
+	case <-firstSend:
+	case <-time.After(2 * time.Second):
+		t.Fatal("drain never sent")
+	}
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("drain did not terminate after Close")
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if _, ok := b.buffers[1]; ok {
+		t.Error("queue still present after Drain")
+	}
+
+	if b.totalBytes != 0 {
+		t.Errorf("totalBytes = %d, want 0", b.totalBytes)
 	}
 }
 

@@ -324,14 +324,16 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 // enqueue adds one captured packet under mu, applying the per-queue cap
 // and the global byte budget.
 func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []byte) {
+	for b.totalBytes+len(pkt) > maxTotalBytes {
+		if !b.evictOldestLocked() {
+			return
+		}
+	}
+
 	q, ok := b.buffers[seid]
 	if !ok {
 		q = &packetQueue{}
 		b.buffers[seid] = q
-	}
-
-	if b.totalBytes+len(pkt) > maxTotalBytes {
-		return
 	}
 
 	for len(q.packets) >= maxPerQueuePackets {
@@ -358,11 +360,41 @@ func (b *BufferResponder) dropHead(q *packetQueue) {
 	b.totalBytes -= len(p.data)
 }
 
+func (b *BufferResponder) evictOldestLocked() bool {
+	var (
+		oldestSeid uint64
+		oldest     *packetQueue
+	)
+
+	for seid, q := range b.buffers {
+		if len(q.packets) == 0 {
+			continue
+		}
+
+		if oldest == nil || q.packets[0].enqueued.Before(oldest.packets[0].enqueued) {
+			oldestSeid = seid
+			oldest = q
+		}
+	}
+
+	if oldest == nil {
+		return false
+	}
+
+	b.dropHead(oldest)
+
+	if len(oldest.packets) == 0 {
+		delete(b.buffers, oldestSeid)
+	}
+
+	return true
+}
+
 // Drain re-injects a session's buffered packets.
 func (b *BufferResponder) Drain(seid uint64) {
 	deadline := time.Now().Add(drainGraceWindow)
 
-	for {
+	for time.Now().Before(deadline) {
 		b.drainQueue(seid)
 
 		if b.queueLen(seid) == 0 {
@@ -413,12 +445,18 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 	var injected int
 
 	for i, p := range packets {
+		frame = append(frame[:0], b.dstMAC[:]...)
+		frame = append(frame, b.srcMAC[:]...)
+		frame = binary.BigEndian.AppendUint16(frame, etherTypeFor(p.family))
+		frame = append(frame, p.data...)
+
 		b.mu.Lock()
 		fd := b.injectFD
 		closed := b.closed
-		b.mu.Unlock()
 
 		if closed || fd < 0 {
+			b.mu.Unlock()
+
 			remaining := len(packets) - i
 			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
 				logger.SEID(seid), zap.Int("count", remaining))
@@ -426,12 +464,10 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 			return
 		}
 
-		frame = append(frame[:0], b.dstMAC[:]...)
-		frame = append(frame, b.srcMAC[:]...)
-		frame = binary.BigEndian.AppendUint16(frame, etherTypeFor(p.family))
-		frame = append(frame, p.data...)
+		err := b.send(fd, frame)
+		b.mu.Unlock()
 
-		if err := b.send(fd, frame); err != nil {
+		if err != nil {
 			logger.UpfLog.Warn("failed to re-inject buffered packet",
 				logger.SEID(seid), zap.Error(err))
 
