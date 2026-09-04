@@ -47,8 +47,7 @@ const (
 	NatPortMax uint16 = 32767
 )
 
-// MaxDlBufferPkt is the largest packet the datapath will capture, matching
-// DL_BUFFER_MAX_PKT in bpf/utils/dl_buffer.h.
+// MaxDlBufferPkt is the largest packet the datapath will capture, matching DL_BUFFER_MAX_PKT.
 const MaxDlBufferPkt = 9000
 
 type DataNotification struct {
@@ -57,8 +56,7 @@ type DataNotification struct {
 	QFI       uint8
 }
 
-// DlBufferHeader is the Go representation of struct dl_buffer_hdr: the
-// session identity prefixed to every captured packet in dl_buffer_map.
+// DlBufferHeader is the Go representation of struct dl_buffer_hdr.
 type DlBufferHeader struct {
 	LocalSEID uint64
 	PdrID     uint16
@@ -106,8 +104,7 @@ type BpfObjects struct {
 	N3Vlan           uint32
 	N6Vlan           uint32
 
-	// Index of the veth interface use for reinjecting buffered packets
-	bufferVethIndex uint32
+	bufferVethIndex uint32 // ifindex of the reinjection veth
 
 	pagingMu   sync.Mutex
 	pagingList map[DataNotification]bool
@@ -166,11 +163,7 @@ func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
 	return LoadN3N6Entrypoint()
 }
 
-// sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs
-// to the number of CPUs. Both are regular arrays (not per-CPU maps, because
-// the per-CPU allocator rejects values larger than ~32 KB) whose placeholder
-// max_entries of 1 must match the existing map on a reload, or the map
-// replacement conflicts.
+// sizeCPUScratchMaps sets max_entries of the per-CPU-indexed scratch ARRAYs to the number of CPUs.
 func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) {
 	for _, name := range []string{"csum_scratch", "dl_buffer_scratch"} {
 		if m, ok := spec.Maps[name]; ok {
@@ -252,8 +245,6 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
-	// Applied from the stored state so a reload (fresh .bss) keeps the
-	// injection-veth ifindex the buffer responder set.
 	if err := spec.Variables["buffer_veth_ifindex"].Set(bpfObjects.bufferVethIndex); err != nil {
 		logger.UpfLog.Error("failed to set buffer_veth_ifindex", zap.Error(err))
 		return err
@@ -327,8 +318,6 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
-	// Match the scratch max_entries to the actual CPU count, same as
-	// in Load().
 	sizeCPUScratchMaps(spec)
 
 	opts := &ebpf.CollectionOptions{
@@ -380,9 +369,7 @@ func (bpfObjects *BpfObjects) Close() error {
 	)
 }
 
-// SetBufferVethIfindex names the veth re-injected packets arrive on, so the
-// N6 handlers can recognise a frame the datapath itself queued. Zero clears
-// it, for when the buffer responder is not running.
+// SetBufferVethIfindex names the veth re-injected packets arrive on. Zero clears it.
 func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 	bpfObjects.bufferVethIndex = uint32(vethIfindex)
 
@@ -393,9 +380,7 @@ func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 	return nil
 }
 
-// GetDlBufferCounters sums the per-CPU capture counters. UPF_DROP_BUFFER_
-// RING_FULL-style visibility lives here: non-zero ring_full in normal
-// operation means the ring is too small or the reader too slow.
+// GetDlBufferCounters sums the per-CPU capture counters.
 func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
 	var (
 		perCPU []N3N6EntrypointDlBufferCounters

@@ -45,15 +45,8 @@ func fixtureBufferedDownlink(env scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runBufferedDownlink asserts the 3GPP buffering behaviour for an idle UE
-// (TS 23.501 §5.8.2.2.1): downlink datagrams arriving while the receiving
-// UE is in CM-IDLE — starting with the first, whose loss is unrecoverable
-// for single-shot traffic — are delivered after the UE answers the page.
-// The sender is another UE, so the traffic takes the local switch path.
-// Delivery is asserted with the gNB's G-PDU counter on UE-B's downlink
-// tunnel: a UDP listener does not work here, because both UE addresses are
-// local to the tester and the kernel stack cannot tell the two ends apart.
-// Requires local switching enabled.
+// runBufferedDownlink asserts that downlink datagrams sent to an idle UE are
+// buffered and delivered after the UE answers the page. Requires local switching.
 func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 	subs, err := buildSubscribers(2, bufferedStartIMSI)
 	if err != nil {
@@ -94,16 +87,12 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 
 	rxBefore := gNodeB.TunnelRXCount(regB.DLTEID)
 
-	// Drop UE-B to CM-IDLE: its downlink FAR flips to BUFF|NOCP.
 	if err := gNodeB.ReleaseContext(ueB, ranUENGAPID_B, []uint8{scenarios.DefaultPDUSessionID}, gnb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release UE-B to idle: %w", err)
 	}
 
 	time.Sleep(bufferedSettle)
 
-	// Two datagrams of the idle window: the first is the single-shot case
-	// whose loss is unrecoverable, the second covers the queue beyond
-	// depth one while the page is in flight.
 	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, bufferedDstPort, []byte("first datagram to an idle ue")); err != nil {
 		return fmt.Errorf("send first datagram from UE-A: %w", err)
 	}
@@ -116,13 +105,6 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 
 	time.Sleep(bufferedSettle)
 
-	// UE-B answers the page: the FAR flips to FORW and the buffered
-	// datagrams are re-injected through the downlink pipeline. Pin the
-	// downlink TEID to the one the existing tunnel was built with, so the
-	// re-injected datagrams cannot arrive before a replacement tunnel is
-	// registered — the core drains as soon as it has processed the Initial
-	// Context Setup Response, which races tearing the tunnel down and
-	// building a new one here.
 	serviceRequest, err := gNodeB.ServiceRequest(ueB, ranUENGAPID_B, scenarios.DefaultPDUSessionID, registrationTimeout, &gnb.ServiceRequestOpts{DLTEID: regB.DLTEID})
 	if err != nil {
 		return fmt.Errorf("service request from idle: %w", err)
@@ -130,9 +112,6 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 
 	sessionB := serviceRequest.Session
 
-	// The pinned DL TEID matches the existing tunnel; reprogram the gNB
-	// side only when it actually changed, so the existing tunnel keeps
-	// receiving the re-injected datagrams without a gap.
 	dlTEID := regB.DLTEID
 
 	if sessionB.DLTEID != regB.DLTEID {
@@ -150,19 +129,14 @@ func runBufferedDownlink(ctx context.Context, env scenarios.Env) error {
 			return fmt.Errorf("recreate UE-B tunnel after service request: %w", err)
 		}
 
-		// A fresh tunnel counts from zero.
 		rxBefore = 0
 		dlTEID = sessionB.DLTEID
 	}
 
-	// A third datagram after the resume: it must flow directly, proving
-	// the live path works alongside the drained queue.
 	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, bufferedDstPort, []byte("third datagram after resume")); err != nil {
 		return fmt.Errorf("send third datagram from UE-A: %w", err)
 	}
 
-	// Expect the two buffered datagrams plus the live one on UE-B's
-	// downlink tunnel.
 	if err := awaitTunnelRX(gNodeB, dlTEID, rxBefore+3, bufferedPollDeadline); err != nil {
 		return err
 	}

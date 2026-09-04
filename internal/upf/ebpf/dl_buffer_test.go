@@ -23,8 +23,6 @@ const farBuffNocp = 0x04 | 0x08
 func readRingRecord(t *testing.T, r *ringbuf.Reader) []byte {
 	t.Helper()
 
-	// Returns os.ErrDeadlineExceeded once elapsed, so a missing capture
-	// fails the assertion rather than hanging.
 	r.SetDeadline(time.Now().Add(2 * time.Second))
 
 	var rec ringbuf.Record
@@ -36,8 +34,7 @@ func readRingRecord(t *testing.T, r *ringbuf.Reader) []byte {
 	return bytes.Clone(rec.RawSample)
 }
 
-// buffNocpPDR builds a downlink PDR whose FAR holds BUFF|NOCP — the SMF's
-// idle-UE state (TS 23.501 §5.8.2.2.1).
+// buffNocpPDR builds a downlink PDR whose FAR holds BUFF|NOCP.
 func buffNocpPDR(seid uint64, pdrID uint32, qfi uint8) PdrInfo {
 	pdr := ipv4OuterDownlinkPDR(0x1234, testUPFN3IP, testGNBIP, qfi)
 	pdr.SEID = seid
@@ -47,10 +44,8 @@ func buffNocpPDR(seid uint64, pdrID uint32, qfi uint8) PdrInfo {
 	return pdr
 }
 
-// TestDlBufferCaptureIPv4 checks that a downlink packet to an idle UE is
-// captured: the verdict is still the NOCP drop, the record carries the
-// session's SEID/PDR-ID/QFI, and the payload is byte-identical to the
-// injected L3 packet. The nocp notification must still be emitted alongside.
+// TestDlBufferCaptureIPv4 checks that a downlink packet to an idle UE is captured,
+// and the nocp notification is still emitted.
 func TestDlBufferCaptureIPv4(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -189,9 +184,7 @@ func TestDlBufferCaptureIPv6(t *testing.T) {
 	}
 }
 
-// TestDlBufferCaptureWithoutResponder checks that capture needs no setup:
-// the datapath buffers unconditionally, and a record written before any
-// reader exists waits in the ring rather than being lost.
+// TestDlBufferCaptureWithoutResponder checks that capture works with readers opened only after the packet ran.
 func TestDlBufferCaptureWithoutResponder(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -211,9 +204,6 @@ func TestDlBufferCaptureWithoutResponder(t *testing.T) {
 		t.Fatalf("BUFF|NOCP downlink got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
-	// Readers opened after the packet ran: the records waited in the
-	// rings, which is what makes unconditional capture safe before the
-	// responder's consumer has started.
 	bufReader, err := ringbuf.NewReader(obj.DlBufferMap)
 	if err != nil {
 		t.Fatalf("open dl_buffer_map reader: %v", err)

@@ -117,18 +117,14 @@ type GnodeB struct {
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
-	receivedFrames map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	mu             sync.Mutex
-	cond           *sync.Cond
-	N3Address      netip.Addr
-	pduSessions    map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
-	sessionGen     uint64                                     // bumped on every store; see awaitPDUSession
-	// pinnedDLTEIDs holds downlink TEIDs a scenario pinned for the next
-	// re-establishment of a session, so the gNB reports the existing tunnel's
-	// TEID instead of allocating a fresh one.
-	// RANUENGAPID -> PDUSessionID -> downlink TEID.
-	pinnedDLTEIDs     map[int64]map[int64]uint32
-	UEAmbr            map[int64]*UEAmbrInformation // RANUENGAPID -> UE AMBR
+	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
+	mu                sync.Mutex
+	cond              *sync.Cond
+	N3Address         netip.Addr
+	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
+	pinnedDLTEIDs     map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
+	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 	UERadioCapability []byte
 	radioCapReported  map[int64]bool
 	dispatcher        *dispatcher // per-UE frame queues; see dispatch.go
@@ -938,12 +934,8 @@ func (g *GnodeB) allocTEID() uint32 {
 	return g.lastGeneratedTEID
 }
 
-// PinDLTEID makes the next re-establishment of PDU session pduSessionID for
-// ranUENGAPID report teid as its downlink TEID instead of allocating a fresh
-// one. The downlink TEID is chosen when the AMF's Initial Context Setup
-// Request is processed on the gNB's dispatch goroutine, so a scenario arms
-// the pin before driving the procedure that re-establishes the session. The
-// pin is consumed by that re-establishment.
+// PinDLTEID pins the downlink TEID reported at the next re-establishment of
+// the session. The pin is consumed by that re-establishment.
 func (g *GnodeB) PinDLTEID(ranUENGAPID int64, pduSessionID int64, teid uint32) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

@@ -29,16 +29,13 @@ const (
 // socket. Uplink IP packets are encapsulated to the UPF with the uplink TEID;
 // downlink G-PDUs for the eNB's downlink TEID are decapsulated to the TUN.
 type tunnel struct {
-	name    string
-	tunIF   *water.Interface
-	upfAddr *net.UDPAddr
-	ulteid  uint32
-	dlteid  uint32
-	rxCount atomic.Uint64
-	// rxExtHdr counts received G-PDUs carrying the extension-header flag.
-	// S1-U G-PDUs have no PDU Session Container (that is N3/N9-only,
-	// TS 38.415), so this must stay at zero against a correct UPF.
-	rxExtHdr atomic.Uint64
+	name     string
+	tunIF    *water.Interface
+	upfAddr  *net.UDPAddr
+	ulteid   uint32
+	dlteid   uint32
+	rxCount  atomic.Uint64
+	rxExtHdr atomic.Uint64 // G-PDUs carrying an extension header; must stay zero on S1-U
 }
 
 // TunnelOpts configures a GTP-U datapath for an attached UE's default bearer.
@@ -248,9 +245,8 @@ func (e *ENB) TunnelRXCount(dlteid uint32) uint64 {
 	return t.rxCount.Load()
 }
 
-// TunnelRXExtHeaderCount returns how many of the G-PDUs received for the given
-// downlink TEID carried a GTP-U extension header. S1-U carries none, so a
-// non-zero value means the UPF encapsulated a 4G bearer as if it were N3.
+// TunnelRXExtHeaderCount returns how many G-PDUs received for the given
+// downlink TEID carried a GTP-U extension header.
 func (e *ENB) TunnelRXExtHeaderCount(dlteid uint32) uint64 {
 	e.mu.Lock()
 	t := e.tunnels[dlteid]

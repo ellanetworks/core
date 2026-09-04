@@ -11,14 +11,11 @@ import (
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	// Side-effect import to register every scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration5GBufferedDownlink asserts that downlink datagrams arriving
-// while the receiving UE is in CM-IDLE are delivered after the UE answers the
-// page (TS 23.501 §5.8.2.2.1 FAR BUFF), not just subsequent ones. The sender
-// is another UE, so the suite runs with local switching enabled.
+// TestIntegration5GBufferedDownlink runs the gnb buffered-downlink scenario.
+// TS 23.501 §5.8.2.2.1
 func TestIntegration5GBufferedDownlink(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

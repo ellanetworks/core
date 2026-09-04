@@ -22,35 +22,26 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// activeBufferResponder is the running responder the queued-state gauges
-// read. Set once Start succeeds, cleared on Close; the atomic keeps the
-// scrape path race-free against shutdown.
+// activeBufferResponder is the running responder the queued-state gauges read.
 var activeBufferResponder atomic.Pointer[BufferResponder]
 
 const (
 	// maxPerQueuePackets caps one session's queue.
 	maxPerQueuePackets = 16
 
-	// queueTTL matches T3513 paging retransmission: past it the UE did
-	// not answer the page and the packets are stale anyway.
+	// queueTTL matches T3513 paging retransmission.
 	queueTTL = 30 * time.Second
 
-	// maxTotalBytes bounds every queue together, so an idle-UE flood
-	// cannot pin unbounded memory.
+	// maxTotalBytes bounds every queue together.
 	maxTotalBytes = 4 << 20
 
-	// drainPace spaces re-injected packets so a drained queue is not
-	// presented to the QER sliding-window rate limiter as one burst.
+	// drainPace spaces re-injected packets to avoid bursting the rate limiter.
 	drainPace = time.Millisecond
 
-	// drainGrace spaces the re-checks that catch packets the datapath
-	// captured before the FAR flipped to FORW but the ring buffer
-	// consumer had not enqueued when the queue was first popped.
+	// drainGrace spaces the drain's re-checks for late-enqueued packets.
 	drainGrace = 2 * time.Millisecond
 
-	// drainGraceWindow bounds the re-checking: past it the consumer has
-	// long caught up, and the FAR no longer captures, so the queue is
-	// quiescent.
+	// drainGraceWindow bounds the drain's re-checking.
 	drainGraceWindow = 50 * time.Millisecond
 )
 
@@ -68,9 +59,8 @@ type packetQueue struct {
 	bytes   int
 }
 
-// BufferResponder consumes downlink packets the datapath captured at the
-// FAR_BUFF branch and re-injects them through upf_downlink_func on a
-// dedicated veth pair once the FAR flips to FORW.
+// BufferResponder consumes downlink packets captured at the FAR_BUFF
+// branch and re-injects them once the FAR flips to FORW.
 type BufferResponder struct {
 	bpfObjects *ebpf.BpfObjects
 
@@ -93,8 +83,7 @@ type BufferResponder struct {
 	buffers    map[uint64]*packetQueue // keyed by local SEID
 	totalBytes int
 
-	// send injects one frame; a field so tests can capture frames
-	// without an AF_PACKET socket.
+	// send injects one frame; overridable in tests.
 	send func(fd int, frame []byte) error
 }
 
@@ -115,9 +104,8 @@ func (b *BufferResponder) sendFrame(fd int, frame []byte) error {
 	return unix.Sendto(fd, frame, 0, &b.injectSA)
 }
 
-// Start creates the injection veth pair, attaches upf_downlink_func to its
-// program end, opens the send-only AF_PACKET socket, and starts the
-// consumer.
+// Start creates the injection veth pair, attaches the downlink program,
+// and starts the consumer.
 func (b *BufferResponder) Start() error {
 	if err := createVethPair(VethBufName, VethBufXDPName); err != nil {
 		return fmt.Errorf("create injection veth pair: %w", err)
@@ -218,9 +206,8 @@ func (b *BufferResponder) UpdateProgram(prog *bpf.Program) error {
 	return b.vethLink.Update(prog)
 }
 
-// Close stops the consumer and the sweeper, then releases the socket, the
-// link and the pair, in that order, so the consumer never touches a
-// recycled fd. It is idempotent.
+// Close stops the consumer and the sweeper, then releases the socket,
+// the link and the pair. It is idempotent.
 func (b *BufferResponder) Close() error {
 	b.mu.Lock()
 	if b.closed {
@@ -234,8 +221,6 @@ func (b *BufferResponder) Close() error {
 
 	activeBufferResponder.Store(nil)
 
-	// Clear the ifindex before the pair goes away: a recycled ifindex
-	// must not make the NAT guard match an unrelated frame.
 	if b.bpfObjects != nil {
 		if err := b.bpfObjects.SetBufferVethIfindex(0); err != nil {
 			logger.UpfLog.Warn("failed to clear buffer veth ifindex", zap.Error(err))
@@ -292,9 +277,7 @@ func (b *BufferResponder) consume() {
 	}
 }
 
-// handleRecord decodes one ring record and queues the packet. A malformed
-// record is a bug, not noise, so it is counted; it is a method so tests can
-// drive the counter without a ring buffer reader.
+// handleRecord decodes one ring record and queues the packet.
 func (b *BufferResponder) handleRecord(sample []byte) {
 	hdr, payload, ok := parseDlBufferRecord(sample)
 	if !ok {
@@ -313,8 +296,7 @@ func (b *BufferResponder) handleRecord(sample []byte) {
 	b.mu.Unlock()
 }
 
-// evictExpired drops queues older than queueTTL so a UE that never answers
-// the page cannot hold memory forever.
+// evictExpired drops queues older than queueTTL.
 func (b *BufferResponder) evictExpired() {
 	ticker := time.NewTicker(queueTTL / 2)
 	defer ticker.Stop()
@@ -339,7 +321,6 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 			continue
 		}
 
-		// FIFO: the head is the oldest.
 		if now.Sub(q.packets[0].enqueued) < queueTTL {
 			continue
 		}
@@ -351,9 +332,7 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 }
 
 // enqueue adds one captured packet under mu, applying the per-queue cap
-// (head-drop, keeping the newest packets since older ones are more likely
-// to have timed out from the sender's perspective) and the global byte
-// budget.
+// and the global byte budget.
 func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []byte) {
 	q, ok := b.buffers[seid]
 	if !ok {
@@ -361,8 +340,6 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 		b.buffers[seid] = q
 	}
 
-	// Global budget first: refuse before we evict anything, so we don't
-	// evict a packet and then drop the newcomer for the same reason.
 	if b.totalBytes+len(pkt) > maxTotalBytes {
 		incCounter(bufferPacketsEvicted.WithLabelValues(evictedByteBudget))
 		return
@@ -393,18 +370,7 @@ func (b *BufferResponder) dropHead(q *packetQueue) {
 	b.totalBytes -= len(p.data)
 }
 
-// Drain re-injects a session's buffered packets: pop under the lock, then
-// send paced and unlocked. The synthetic Ethernet header is fresh — the
-// capture started at L3, so no VLAN handling exists here by construction.
-//
-// The drain races the ring buffer consumer: the datapath may have captured
-// a packet while the FAR was still BUFF — before the modify that flipped it
-// committed — without the consumer having read the record yet when the
-// queue is first popped. That packet would be enqueued into a queue no
-// later drain ever revisits, and be stranded. So after the queue runs dry
-// the drain keeps re-checking within a bounded grace window: the FAR is
-// FORW by now, so no new captures can arrive, and the loop converges as
-// soon as the consumer catches up with the pre-flip stragglers.
+// Drain re-injects a session's buffered packets.
 func (b *BufferResponder) Drain(seid uint64) {
 	deadline := time.Now().Add(drainGraceWindow)
 
@@ -452,8 +418,7 @@ func (b *BufferResponder) queuedTotals() (packets int, bytes int, sessions int) 
 	return packets, bytes, sessions
 }
 
-// drainQueue pops the session's queued packets under the lock and
-// re-injects them paced and unlocked. It is a no-op when nothing is queued.
+// drainQueue pops the session's queued packets and re-injects them paced.
 func (b *BufferResponder) drainQueue(seid uint64) {
 	b.mu.Lock()
 
@@ -481,8 +446,6 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 		b.mu.Unlock()
 
 		if closed || fd < 0 {
-			// The queue was already popped, so the packets left in
-			// this loop would otherwise vanish unaccounted.
 			remaining := len(packets) - i
 			addCounter(bufferPacketsEvicted.WithLabelValues(evictedClosed), float64(remaining))
 			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
@@ -533,7 +496,7 @@ func (b *BufferResponder) Drop(seid uint64) {
 }
 
 // parseDlBufferRecord decodes a dl_buffer_map sample into its header and
-// payload. A malformed record is a bug, not noise, so the caller counts it.
+// payload.
 func parseDlBufferRecord(sample []byte) (hdr ebpf.DlBufferHeader, payload []byte, ok bool) {
 	if len(sample) < 16 {
 		return hdr, nil, false

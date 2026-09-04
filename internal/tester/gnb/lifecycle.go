@@ -19,9 +19,8 @@ import (
 //
 // It is a snapshot. The gNB reallocates a downlink TEID every time the network
 // re-establishes the session (service request, handover), unless a scenario
-// pinned the existing tunnel's TEID for that re-establishment, so a scenario
-// tears down the tunnel it built with the DLTEID it built it from, never with a
-// value read back later.
+// pinned the tunnel's TEID, so a scenario tears down the tunnel it built with
+// the DLTEID it built it from, never with a value read back later.
 type PDUSessionResult struct {
 	PDUSessionID uint8
 	UEIPv4       string
@@ -220,13 +219,8 @@ func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSess
 
 // ServiceRequestOpts tunes a service-request re-establishment.
 type ServiceRequestOpts struct {
-	// DLTEID pins the N3 downlink TEID the gNB reports in the PDU Session
-	// Resource Setup Response. Zero allocates a fresh one, which is what a
-	// gNB normally does. Pin it to the TEID of an existing tunnel to keep
-	// that tunnel (and its receive counter) alive across the idle period:
-	// a test asserting on packets the core sends *during* re-establishment
-	// cannot tear a tunnel down and build a new one afterwards without
-	// racing those packets.
+	// DLTEID pins the downlink TEID reported at the next re-establishment
+	// of the session. Zero allocates a fresh one.
 	DLTEID uint32
 }
 

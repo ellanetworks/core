@@ -8,10 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Eviction reasons for app_upf_dl_buffer_packets_evicted_total. Keep in
-// sync with the call sites in buffer_responder.go, the alerting rules in
-// observability/grafana/alerting/alerts.yml, and the metrics table in
-// docs/reference/observability.md.
+// Eviction reasons for app_upf_dl_buffer_packets_evicted_total.
 const (
 	evictedCapHeadDrop = "cap_head_drop"
 	evictedTTLExpired  = "ttl_expired"
@@ -23,8 +20,7 @@ const (
 var (
 	flowReportsDropped prometheus.Counter
 
-	// The buffer counters are created here rather than in RegisterMetrics
-	// so tests can read them without touching the default registry.
+	// Buffer counters, package-level so tests can read them.
 	bufferPacketsEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "app_upf_dl_buffer_packets_evicted_total",
 		Help: "Buffered downlink packets discarded, by reason: cap_head_drop (per-queue cap), ttl_expired (paging timed out), byte_budget (global byte budget), session_drop (session deleted or paging failed), closed (responder shut down mid-drain).",
@@ -111,8 +107,6 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
-	// Downlink buffer datapath capture outcomes. The counters live in the
-	// BPF program (per-CPU), summed by GetDlBufferCounters.
 	dlBufferCaptureDesc := prometheus.NewDesc(
 		"app_upf_dl_buffer_capture_total",
 		"Downlink packets the datapath captured for buffering, by result. ring_full means the capture ring is too small or the reader too slow; non-zero in normal operation warrants a larger ring.",
@@ -141,7 +135,6 @@ func RegisterMetrics() {
 		}
 	}))
 
-	// Current buffered state, snapshotted from the running responder.
 	dlBufferQueuedPacketsDesc := prometheus.NewDesc(
 		"app_upf_dl_buffer_queued_packets",
 		"Downlink packets currently held in the buffer responder's queues.",

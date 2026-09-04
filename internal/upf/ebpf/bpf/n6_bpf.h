@@ -187,11 +187,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
-	/* Under NAT the UE address is never visible on N6: every legitimate
-	 * downlink packet arrives addressed to the UPF's public address and
-	 * is translated above. One already carrying the UE address matches
-	 * no mapping, so drop it — unless it is a re-injected buffered
-	 * packet, recognised by its ingress veth. */
 	if (masquerade && !translated &&
 	    !frame_is_reinjected(ctx->ctx_buff)) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",

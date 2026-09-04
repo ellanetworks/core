@@ -63,11 +63,7 @@ const (
 	bufTestFARDownlink uint32 = 2
 )
 
-// smfRules mirrors the rule set the SMF builds in internal/smf/datapath.go
-// rules(). Two properties of that shape matter here: the uplink FAR is always
-// FORW, and the SMF resends the *full* set on every modification (both
-// establishRequest and modifyRequest call rules()), so only the downlink FAR's
-// apply-action ever varies between calls.
+// smfRules mirrors the SMF's rule set, with the given downlink apply-action.
 func smfRules(downlink models.ApplyAction) (pdrs []models.PDR, fars []models.FAR, qers []models.QER, urrs []models.URR) {
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
 
@@ -114,8 +110,7 @@ func smfRules(downlink models.ApplyAction) (pdrs []models.PDR, fars []models.FAR
 	return pdrs, fars, qers, urrs
 }
 
-// smfModify mirrors dataPlane.modifyRequest: the full rule set, with the
-// downlink FAR carrying the requested apply-action.
+// smfModify builds a full-ruleset modify with the given downlink apply-action.
 func smfModify(downlink models.ApplyAction) *models.ModifyRequest {
 	pdrs, fars, qers, _ := smfRules(downlink)
 
@@ -127,8 +122,8 @@ func smfModify(downlink models.ApplyAction) *models.ModifyRequest {
 	}
 }
 
-// newBufferTestEngine returns a session engine with one session established
-// from the SMF's rule set, with the downlink buffering. Requires root.
+// newBufferTestEngine returns a session engine with one established session
+// and the given downlink buffer. Requires root.
 func newBufferTestEngine(t *testing.T, buf engine.DownlinkBuffer) *engine.SessionEngine {
 	t.Helper()
 
@@ -183,8 +178,7 @@ func newBufferTestEngine(t *testing.T, buf engine.DownlinkBuffer) *engine.Sessio
 }
 
 // TestModifySessionDrainsOnFarForward checks that a modify flipping the
-// downlink FAR to FORW drains the session's buffered packets exactly once, and
-// only after the transaction committed.
+// downlink FAR to FORW drains the session's buffered packets once.
 func TestModifySessionDrainsOnFarForward(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
@@ -200,17 +194,8 @@ func TestModifySessionDrainsOnFarForward(t *testing.T) {
 	}
 }
 
-// TestModifySessionNoDrainWhileDownlinkBuffers checks that a modify leaving the
-// downlink FAR at BUFF|NOCP does not drain: the packets stay queued until the
-// UE actually returns.
-//
-// This is the shape the SMF really sends. Every modifyRequest carries the full
-// rule set, and the uplink FAR is hard-coded FORW, so a drain keyed on "some
-// touched PDR forwards" would fire here — on the very modifications that arm
-// buffering (UE going idle, idle-mode inter-RAT transfer, an AMBR change while
-// idle). Draining into a BUFF downlink FAR re-captures the packets with a fresh
-// timestamp, putting them out of reach of the TTL sweeper, and double-counts
-// their bytes.
+// TestModifySessionNoDrainWhileDownlinkBuffers checks that a modify leaving
+// the downlink FAR at BUFF|NOCP does not drain.
 func TestModifySessionNoDrainWhileDownlinkBuffers(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
@@ -226,9 +211,8 @@ func TestModifySessionNoDrainWhileDownlinkBuffers(t *testing.T) {
 	}
 }
 
-// TestModifySessionNoRedrainWhileForwarding checks that modifications made
-// while the downlink already forwards do not drain again. Only the transition
-// into forwarding can have packets waiting behind it.
+// TestModifySessionNoRedrainWhileForwarding checks that a modify while the
+// downlink FAR already forwards does not drain again.
 func TestModifySessionNoRedrainWhileForwarding(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
@@ -241,7 +225,6 @@ func TestModifySessionNoRedrainWhileForwarding(t *testing.T) {
 		t.Fatalf("drains after the transition = %v, want exactly one", got)
 	}
 
-	// A policy or AMBR update on a connected UE: same rules, downlink still FORW.
 	if err := conn.ModifySession(context.Background(), smfModify(models.ApplyAction{Forw: true})); err != nil {
 		t.Fatalf("second modify: %v", err)
 	}
@@ -269,7 +252,7 @@ func TestModifySessionNoDrainOnDownlinkDrop(t *testing.T) {
 }
 
 // TestSuppressDropsBufferedPackets checks that a failed page drops the
-// session's buffered packets rather than holding them to the TTL.
+// session's buffered packets.
 func TestSuppressDropsBufferedPackets(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
@@ -282,7 +265,7 @@ func TestSuppressDropsBufferedPackets(t *testing.T) {
 }
 
 // TestDeleteSessionDropsBufferedPackets checks that a deleted session's
-// buffered packets are dropped, not leaked to the TTL sweeper.
+// buffered packets are dropped.
 func TestDeleteSessionDropsBufferedPackets(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)

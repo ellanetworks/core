@@ -21,12 +21,10 @@ const (
 	// program is attached. Packets arrive here from veth-smf.
 	VethXDPName = "veth-xdp"
 
-	// VethBufName is the Go-side end of the downlink-buffering injection
-	// pair; the BufferResponder sends re-injected frames here.
+	// VethBufName is the Go-side end of the downlink-buffering veth pair.
 	VethBufName = "veth-buf"
 
-	// VethBufXDPName is the program end of the buffering pair, where
-	// upf_downlink_func is attached.
+	// VethBufXDPName is the program end of the buffering pair.
 	VethBufXDPName = "veth-buf-xdp"
 
 	// vethMTU is the MTU configured on both ends of every veth pair.
@@ -53,9 +51,8 @@ func VethXDPIndex() (int, error) {
 	return vethIndex(VethXDPName)
 }
 
-// createVethPair creates a named veth pair and brings both ends up. If the
-// pair already exists it is torn down first so the state is deterministic;
-// deleting one side of a veth pair removes the peer.
+// createVethPair creates a named veth pair and brings both ends up, tearing
+// down any pre-existing pair first.
 func createVethPair(a, b string) error {
 	if existing, _ := netlink.LinkByName(a); existing != nil {
 		logger.UpfLog.Info("Removing stale veth pair", zap.String("link", a))

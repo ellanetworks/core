@@ -29,8 +29,7 @@ type SessionEngine struct {
 	advertisedN3AddressIPv4 netip.Addr
 	advertisedN3AddressIPv6 netip.Addr
 	BpfObjects              *ebpf.BpfObjects
-	// Downlink packet buffering, wired in by the outer UPF package
-	// (SetDownlinkBuffer); nil disables it.
+	// Downlink packet buffering; nil disables it.
 	dlBuffer             DownlinkBuffer
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator

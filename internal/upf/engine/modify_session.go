@@ -54,10 +54,6 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		return err
 	}
 
-	// The drain runs after the transaction committed and outside both
-	// locks: it paces Sendto syscalls that must not stall other sessions
-	// under the engine locks, and a rolled-back modify leaves the FAR at
-	// BUFF, so the packets stay queued.
 	if drain {
 		if b := conn.downlinkBuffer(); b != nil {
 			b.Drain(req.SEID)
@@ -67,10 +63,9 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	return nil
 }
 
-// modifySessionLocked applies the modification. The caller holds filterMu
-// (read) and session.opMu. It returns whether any PDR's FAR transitioned from
-// not-forwarding to forwarding, which is the trigger to drain the session's
-// buffered downlink packets.
+// modifySessionLocked applies the modification and reports whether any PDR's
+// FAR transitioned into forwarding. The caller holds filterMu (read) and
+// session.opMu.
 func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, error) {
 	if session.deleted {
 		err := fmt.Errorf("session %d is being deleted", req.SEID)
@@ -193,7 +188,6 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		if spdrInfo.PdrInfo.Far.Action&farForward != 0 {
 			bpfObjects.ClearNotified(req.SEID, uint16(pdrID))
 
-			// Drain only on the transition *into* forwarding.
 			if !hadOld || old.PdrInfo.Far.Action&farForward == 0 {
 				drain = true
 			}

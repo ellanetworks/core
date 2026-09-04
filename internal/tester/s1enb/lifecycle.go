@@ -82,13 +82,8 @@ type ServiceRequestResult struct {
 
 // ServiceRequestOpts tunes a service-request re-establishment.
 type ServiceRequestOpts struct {
-	// DLTEID pins the S1-U downlink TEID the eNB reports in the Initial
-	// Context Setup Response. Zero allocates a fresh one, which is what an
-	// eNB normally does. Pin it to the TEID of an existing tunnel to keep
-	// that tunnel (and its receive counter) alive across the idle period:
-	// a test asserting on packets the core sends *during* re-establishment
-	// cannot tear a tunnel down and build a new one afterwards without
-	// racing those packets.
+	// DLTEID pins the downlink TEID reported at the next re-establishment
+	// of the bearer. Zero allocates a fresh one.
 	DLTEID uint32
 }
 

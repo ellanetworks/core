@@ -180,8 +180,6 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	ctx->interface = INTERFACE_N6;
 
 	if (dl_far->action & (FAR_BUFF | FAR_NOCP)) {
-		/* The downlink UE is idle: buffer the packet and notify the
-		 * control plane. */
 		struct nocp notif = { .local_seid = dl_pdr->local_seid,
 				      .pdr_id = dl_pdr->pdr_id,
 				      .qfi = dl_qer->qfi };

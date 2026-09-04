@@ -44,9 +44,6 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 
 			pduSessionInfo.PDUSessionID = pduSessionID
 
-			// A scenario may have pinned the downlink TEID to keep an
-			// existing tunnel across the re-establishment; otherwise
-			// allocate a fresh one.
 			if pinned := gnb.consumePinnedDLTEID(ranUEID, pduSessionID); pinned != 0 {
 				pduSessionInfo.DLTEID = pinned
 			} else {

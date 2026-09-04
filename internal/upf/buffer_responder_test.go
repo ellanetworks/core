@@ -19,9 +19,7 @@ import (
 var registerBufferMetricsOnce sync.Once
 
 // registerBufferMetrics registers the buffer counters into the default
-// registry once for this test binary. The full RegisterMetrics cannot be
-// used here: its datapath collectors dereference bpfObjects, which is nil
-// in tests.
+// registry once for this test binary.
 func registerBufferMetrics() {
 	registerBufferMetricsOnce.Do(func() {
 		prometheus.MustRegister(bufferPacketsEvicted, bufferPacketsReinjected,
@@ -29,9 +27,8 @@ func registerBufferMetrics() {
 	})
 }
 
-// counterValue reads one counter series from the default registry, the same
-// gather-and-walk internal/metrics/metrics_test.go uses. A series that was
-// never incremented is absent from the gather and reads as zero.
+// counterValue reads one counter series from the default registry,
+// reading a never-incremented series as zero.
 func counterValue(t *testing.T, name string, labels map[string]string) float64 {
 	t.Helper()
 
@@ -77,8 +74,7 @@ func labelsMatch(pairs []*dto.LabelPair, want map[string]string) bool {
 }
 
 // assertCounterDelta checks that a counter moved by exactly delta between
-// the before and after snapshots. The counters are package globals, so tests
-// assert deltas, not absolute values.
+// the before and after snapshots.
 func assertCounterDelta(t *testing.T, before, after, delta float64) {
 	t.Helper()
 
@@ -87,8 +83,7 @@ func assertCounterDelta(t *testing.T, before, after, delta float64) {
 	}
 }
 
-// buildRecord builds a dl_buffer_map sample the way the datapath does:
-// a 16-byte native-endian header followed by the L3 packet.
+// buildRecord builds a dl_buffer_map sample the way the datapath does.
 func buildRecord(seid uint64, pdrID uint16, qfi uint8, family uint8, payload []byte) []byte {
 	rec := make([]byte, 16, 16+len(payload))
 	binary.NativeEndian.PutUint64(rec[0:8], seid)
@@ -128,7 +123,7 @@ func TestParseDlBufferRecordMalformed(t *testing.T) {
 	cases := map[string][]byte{
 		"truncated header": valid[:10],
 		"zero length":      buildRecord(1, 1, 1, 4, nil),
-		"length short":     binary.NativeEndian.AppendUint16(valid[:12], 0), // len field says 0, payload present
+		"length short":     binary.NativeEndian.AppendUint16(valid[:12], 0),
 		"length long": func() []byte {
 			r := buildRecord(1, 1, 1, 4, []byte{1, 2, 3})
 			binary.NativeEndian.PutUint16(r[10:12], 99)
@@ -157,7 +152,7 @@ func TestParseDlBufferRecordMalformed(t *testing.T) {
 }
 
 // newTestResponder returns a responder whose sends are captured instead of
-// hitting an AF_PACKET socket, with a fake fd.
+// hitting an AF_PACKET socket.
 func newTestResponder() (*BufferResponder, *[][]byte) {
 	b := NewBufferResponder(nil)
 
@@ -195,7 +190,6 @@ func TestEnqueuePerQueueCapHeadDrop(t *testing.T) {
 		t.Fatalf("queue holds %d packets, want %d", got, maxPerQueuePackets)
 	}
 
-	// Head-drop keeps the newest: the first three enqueued are gone.
 	for i, p := range q.packets {
 		if want := byte(3 + i); p.data[0] != want {
 			t.Errorf("packet %d = %d, want %d", i, p.data[0], want)
@@ -218,7 +212,6 @@ func TestEnqueueGlobalByteBudget(t *testing.T) {
 	b.mu.Unlock()
 
 	b.mu.Lock()
-	// Would exceed maxTotalBytes: refused, not enqueued.
 	b.enqueue(2, 1, 4, make([]byte, maxTotalBytes))
 	b.mu.Unlock()
 
@@ -270,7 +263,6 @@ func TestEvictExpiredDropsStaleQueues(t *testing.T) {
 	b.enqueue(1, 1, 4, []byte{1})
 	q := b.buffers[1]
 
-	// Age the packet past the TTL, as the sweeper would see it.
 	q.packets[0].enqueued = time.Now().Add(-queueTTL - time.Second)
 	b.mu.Unlock()
 
@@ -355,10 +347,8 @@ func TestDrainFramesPacketsAndClearsQueue(t *testing.T) {
 	}
 }
 
-// A packet the datapath captured before the FAR flip, but whose ring
-// buffer record the consumer reads only after the queue was first popped,
-// must still be delivered: without the grace re-check it lands in a queue
-// no later drain revisits and is stranded forever.
+// A packet captured before the FAR flip whose record is read only after
+// the queue was popped must still be delivered.
 func TestDrainDeliversLateCapturedPacket(t *testing.T) {
 	b, frames := newTestResponder()
 
@@ -366,8 +356,6 @@ func TestDrainDeliversLateCapturedPacket(t *testing.T) {
 	b.enqueue(3, 1, 4, []byte{1})
 	b.mu.Unlock()
 
-	// The consumer lags: it enqueues the pre-flip capture shortly after
-	// Drain has popped the queue and is pacing its re-injections.
 	go func() {
 		time.Sleep(drainPace)
 
@@ -394,14 +382,11 @@ func TestDrainDeliversLateCapturedPacket(t *testing.T) {
 	}
 }
 
-// Start() tears itself down on its last failure and upf.go closes again on any
-// Start() error, so Close runs twice on that path. Without an idempotence
-// guard the second close(b.evictStop) panics and takes the process with it.
+// Close may run twice on a Start() error path; the second call must not
+// panic.
 func TestCloseIsIdempotent(t *testing.T) {
 	b, _ := newTestResponder()
 
-	// Stand in for the goroutines Start() would have launched: Close waits
-	// on done and evictDone, so hand it already-finished channels.
 	b.done = make(chan struct{})
 	close(b.done)
 
@@ -420,8 +405,8 @@ func TestCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-// A Drain racing Close must not send on a closed (possibly recycled) fd,
-// and the packets it had already popped must not vanish unaccounted.
+// A Drain racing Close must not send on a closed fd, and popped packets
+// must be accounted.
 func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 	b, frames := newTestResponder()
 
@@ -445,8 +430,8 @@ func TestDrainAfterCloseDoesNotSend(t *testing.T) {
 	assertCounterDelta(t, evictedBefore, evictedValue(t, evictedClosed), 1)
 }
 
-// A Close landing mid-drain must leave the already-popped remainder
-// accounted as closed, not silently discarded.
+// A Close landing mid-drain must leave the popped remainder accounted as
+// closed.
 func TestDrainMidCloseDiscardsRemainder(t *testing.T) {
 	b, frames := newTestResponder()
 
@@ -454,7 +439,6 @@ func TestDrainMidCloseDiscardsRemainder(t *testing.T) {
 	b.send = func(fd int, frame []byte) error {
 		err := send(fd, frame)
 
-		// Close lands after the first re-injection.
 		b.mu.Lock()
 		b.closed = true
 		b.mu.Unlock()
@@ -560,8 +544,7 @@ func TestQueuedTotals(t *testing.T) {
 	}
 }
 
-// RawSample is reused across ReadInto calls, so the consumer must copy the
-// payload before the next read overwrites it.
+// The consumer must copy the payload before the next read overwrites it.
 func TestEnqueueCopiesPayload(t *testing.T) {
 	b, _ := newTestResponder()
 
@@ -579,7 +562,6 @@ func TestEnqueueCopiesPayload(t *testing.T) {
 	b.enqueue(hdr.LocalSEID, hdr.QFI, hdr.Family, pkt)
 	b.mu.Unlock()
 
-	// Overwrite the sample as the next ReadInto would.
 	for i := range sample {
 		sample[i] = 0xEE
 	}
@@ -602,8 +584,8 @@ func TestEtherTypeFor(t *testing.T) {
 	}
 }
 
-// The consumer and the sweeper both take b.mu; a flood of concurrent
-// enqueues must not deadlock against them.
+// A flood of concurrent enqueues must not deadlock against the consumer
+// and sweeper.
 func TestEnqueueConcurrent(t *testing.T) {
 	b, _ := newTestResponder()
 

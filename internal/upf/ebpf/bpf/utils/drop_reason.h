@@ -86,9 +86,7 @@ enum upf_drop_reason {
 	UPF_DROP_FRAGMENT_MALFORMED,
 	/* Uplink inner packet larger than the N6 MTU, DF set or IPv6. */
 	UPF_DROP_MTU_EXCEEDED,
-	/* A frame on the buffer injection veth that the datapath did not
-	 * forward: nothing on that interface is for the host, and passing it
-	 * would have the host route it back out N6. */
+	/* A frame on the buffer injection veth that the datapath did not forward. */
 	UPF_DROP_REINJECT_UNOWNED,
 
 	UPF_DROP_REASON_COUNT,

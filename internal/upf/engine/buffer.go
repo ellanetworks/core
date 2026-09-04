@@ -3,20 +3,16 @@
 
 package engine
 
-// DownlinkBuffer is the downlink packet-buffering capability, satisfied by
-// the BufferResponder in internal/upf.
+// DownlinkBuffer is the downlink packet-buffering capability.
 type DownlinkBuffer interface {
-	// Drain re-injects the session's buffered packets; called after the
-	// FAR flips to FORW.
+	// Drain re-injects the session's buffered packets.
 	Drain(seid uint64)
 
-	// Drop discards the session's buffered packets; called when paging
-	// fails or the session is deleted.
+	// Drop discards the session's buffered packets.
 	Drop(seid uint64)
 }
 
 // SetDownlinkBuffer wires the buffering implementation into the engine.
-// Nil disables buffering; every call site nil-checks.
 func (pc *SessionEngine) SetDownlinkBuffer(b DownlinkBuffer) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
