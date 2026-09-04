@@ -248,9 +248,6 @@ func (g *GnodeB) claimRadioCapabilityReport(ranUeId int64) bool {
 	return true
 }
 
-// storeUEContext records that an INITIAL CONTEXT SETUP REQUEST established the UE
-// context, giving the gNB the security key and UE security capabilities it needs before
-// it can allocate resources over NG and Uu (TS 38.413 8.2.1.2, 8.3.1.1).
 func (g *GnodeB) storeUEContext(ranUeID int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

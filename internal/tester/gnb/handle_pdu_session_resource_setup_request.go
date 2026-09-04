@@ -39,10 +39,6 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
-	// A node that holds no UE context has neither the security key nor the UE security
-	// capabilities it needs to allocate resources over NG and Uu (TS 38.413 8.2.1.2), so
-	// the request names a procedure incompatible with its state (TS 38.413 10.4). Nokia
-	// gNBs answer it with an Error Indication.
 	if !gnb.holdsUEContext(ranUeNgapID) {
 		logger.GnbLogger.Error("Received PDU Session Resource Setup Request before the UE context was set up",
 			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
