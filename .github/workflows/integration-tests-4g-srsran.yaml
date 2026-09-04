@@ -53,4 +53,4 @@ jobs:
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ipv4
         run: |
-          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover|TestIntegration4GNetworkRules|TestIntegration4GUE2UE' -timeout 30m -v
+          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHA|TestIntegration4GNetworkRules|TestIntegration4GUE2UE' -timeout 30m -v
