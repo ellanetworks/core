@@ -100,6 +100,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"gnb/service_request_pdu_session_status": {
 		IPv6Only: true,
 	},
+	"gnb/mobility_registration_pdu_session_status": {
+		IPv6Only: true,
+	},
 	"gnb/connectivity_multiple_policies_per_profile": {
 		IPv6Only: true,
 	},

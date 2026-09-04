@@ -43,9 +43,44 @@ type PDUSessionResult struct {
 // RegistrationResult reports the NGAP identifiers and the PDU session an
 // initial registration established. s1enb.AttachResult is its EPS counterpart.
 type RegistrationResult struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-	Session     PDUSessionResult
+	AMFUENGAPID      int64
+	RANUENGAPID      int64
+	Session          PDUSessionResult
+	PDUSessionStatus *fgs.PSIBitmap
+}
+
+func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
+	pduSessionStatus *[16]bool, timeout time.Duration,
+) (*RegistrationResult, error) {
+	generation := g.sessionGeneration()
+
+	g.AddUE(ranUENGAPID, u)
+
+	if err := u.SendMobilityRegistrationRequest(ranUENGAPID, []uint8{pduSessionID}, pduSessionStatus); err != nil {
+		return nil, fmt.Errorf("send Registration Request (mobility updating): %w", err)
+	}
+
+	plain, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await Registration Accept for the mobility registration update: %w", err)
+	}
+
+	accept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		return nil, fmt.Errorf("parse Registration Accept: %w", err)
+	}
+
+	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RegistrationResult{
+		AMFUENGAPID:      g.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:      ranUENGAPID,
+		Session:          session,
+		PDUSessionStatus: accept.PDUSessionStatus,
+	}, nil
 }
 
 // ServiceRequestResult reports the NGAP identifiers and the re-established N3

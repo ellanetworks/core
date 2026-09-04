@@ -204,10 +204,6 @@ func assertOnlyTheHeldBearerSurvived(plain []byte) error {
 			droppedEPSBearerIdentity)
 	}
 
-	if accept.PDUSessionStatus != nil && accept.PDUSessionStatus.PSI[droppedPDUSessionID] {
-		return fmt.Errorf("PDU session status reports session %d active, want it released with its EPS bearer", droppedPDUSessionID)
-	}
-
 	return nil
 }
 

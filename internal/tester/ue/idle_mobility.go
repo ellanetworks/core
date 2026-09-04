@@ -182,6 +182,7 @@ func (ue *UE) armReplay(opts IdleRegistrationOpts) error {
 	}
 
 	ue.replayRegistration = replayBytes
+	ue.replayPending = true
 
 	return nil
 }

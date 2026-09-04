@@ -19,30 +19,30 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const mobilityRegStatusIMSI = "001017271246548"
+
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/service_request_pdu_session_status",
+		Name:      "gnb/mobility_registration_pdu_session_status",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runServiceRequestPDUSessionStatus(ctx, env, params)
+			return runMobilityRegistrationPDUSessionStatus(ctx, env, params)
 		},
-		Fixture: fixtureServiceRequestPDUSessionStatus,
+		Fixture: fixtureMobilityRegistrationPDUSessionStatus,
 	})
 }
 
-func fixtureServiceRequestPDUSessionStatus(env scenarios.Env) scenarios.FixtureSpec {
+func fixtureMobilityRegistrationPDUSessionStatus(env scenarios.Env) scenarios.FixtureSpec {
 	spec := fixtureConnectivityMultiPDUSession(env)
 	spec.Subscribers = []scenarios.SubscriberSpec{
-		scenarios.DefaultSubscriberWith(serviceRequestStatusIMSI, "multi-pdu-profile"),
+		scenarios.DefaultSubscriberWith(mobilityRegStatusIMSI, "multi-pdu-profile"),
 	}
-	spec.AssertUsageForIMSIs = []string{serviceRequestStatusIMSI}
+	spec.AssertUsageForIMSIs = []string{mobilityRegStatusIMSI}
 
 	return spec
 }
 
-const serviceRequestStatusIMSI = "001017271246547"
-
-func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _ any) error {
+func runMobilityRegistrationPDUSessionStatus(ctx context.Context, env scenarios.Env, _ any) error {
 	const (
 		dnn1 = scenarios.DefaultDNN
 		dnn2 = "enterprise"
@@ -55,6 +55,7 @@ func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _
 	)
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+	updateRANUENGAPID := ranUENGAPID + 1
 	g := env.FirstGNB()
 
 	gNodeB, err := gnb.Start(&gnb.StartOpts{
@@ -88,7 +89,7 @@ func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _
 		GnodeB:         gNodeB,
 		PDUSessionID:   keptPDUSessionID,
 		PDUSessionType: fgs.PDUSessionType(env.PDUSessionType()),
-		Msin:           serviceRequestStatusIMSI[5:],
+		Msin:           mobilityRegStatusIMSI[5:],
 		K:              scenarios.DefaultKey,
 		OpC:            scenarios.DefaultOPC,
 		Amf:            scenarios.DefaultAMF,
@@ -124,69 +125,57 @@ func runServiceRequestPDUSessionStatus(ctx context.Context, env scenarios.Env, _
 		return fmt.Errorf("could not establish PDU session %d: %w", droppedPDUSessionID, err)
 	}
 
+	if err := awaitSessionCount(ctx, env, mobilityRegStatusIMSI, 2); err != nil {
+		return fmt.Errorf("before the mobility registration update: %w", err)
+	}
+
 	sessions := []uint8{keptPDUSessionID, droppedPDUSessionID}
 	if err := gNodeB.ReleaseContext(newUE, ranUENGAPID, sessions, gnb.CauseUserInactivity, releaseTimeout); err != nil {
-		return fmt.Errorf("release the connection before the service request: %w", err)
+		return fmt.Errorf("release the connection before the mobility registration update: %w", err)
 	}
 
-	if err := awaitSessionCount(ctx, env, serviceRequestStatusIMSI, 2); err != nil {
-		return fmt.Errorf("before the service request: %w", err)
-	}
+	var reported [16]bool
 
-	sr, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, keptPDUSessionID, registrationTimeout)
+	reported[keptPDUSessionID] = true
+
+	update, err := gNodeB.MobilityRegistrationUpdate(newUE, updateRANUENGAPID, keptPDUSessionID, &reported, registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("service request reporting PDU session %d inactive: %w", droppedPDUSessionID, err)
+		return fmt.Errorf("mobility registration update reporting PDU session %d inactive: %w", droppedPDUSessionID, err)
 	}
 
-	if err := assertReportedPDUSessionStatus(sr.PDUSessionStatus, keptPDUSessionID, droppedPDUSessionID); err != nil {
+	if err := assertReportedPDUSessionStatus(update.PDUSessionStatus, keptPDUSessionID, droppedPDUSessionID); err != nil {
 		return err
 	}
 
-	if err := awaitSessionCount(ctx, env, serviceRequestStatusIMSI, 1); err != nil {
-		return fmt.Errorf("after the service request: %w", err)
+	if err := awaitSessionCount(ctx, env, mobilityRegStatusIMSI, 1); err != nil {
+		return fmt.Errorf("after the mobility registration update: %w", err)
 	}
 
-	tun := gtpInterfaceNamePrefix + "srs0"
+	tun := gtpInterfaceNamePrefix + "mrs0"
 
-	ueIP := sr.Session.UEIPv4 + env.UIPrefix()
+	ueIP := update.Session.UEIPv4 + env.UIPrefix()
 	if env.IPFamily() == scenarios.IPv6Only {
-		ueIP = sr.Session.UEIPv6 + env.UIPrefix()
+		ueIP = update.Session.UEIPv6 + env.UIPrefix()
 	}
 
 	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
 		UEIPv4:           ueIP,
-		UpfAddress:       sr.Session.UpfAddress,
+		UpfAddress:       update.Session.UpfAddress,
 		TunInterfaceName: tun,
-		ULTEID:           sr.Session.ULTEID,
-		DLTEID:           sr.Session.DLTEID,
-		MTU:              sr.Session.MTU,
-		QFI:              sr.Session.QFI,
+		ULTEID:           update.Session.ULTEID,
+		DLTEID:           update.Session.DLTEID,
+		MTU:              update.Session.MTU,
+		QFI:              update.Session.QFI,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create GTP tunnel for the surviving session: %w", err)
 	}
 
-	defer gNodeB.CloseTunnel(sr.Session.DLTEID)
+	defer gNodeB.CloseTunnel(update.Session.DLTEID)
 
 	if err := probe.Run(ctx, probe.ICMP, tun, env.PingDestination(), scenarios.DefaultProbePort, env.PingCommand() == "ping6"); err != nil {
-		return fmt.Errorf("ping via %s (DNN %s) failed after the service request: %w", tun, dnn1, err)
+		return fmt.Errorf("ping via %s (DNN %s) failed after the mobility registration update: %w", tun, dnn1, err)
 	}
 
-	return gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
-}
-
-func assertReportedPDUSessionStatus(status *fgs.PSIBitmap, kept, dropped uint8) error {
-	if status == nil {
-		return fmt.Errorf("the SERVICE ACCEPT carried no PDU session status, so the UE cannot tell which session the network kept (TS 24.501 §5.6.1.4.1)")
-	}
-
-	if !status.PSI[kept] {
-		return fmt.Errorf("PDU session status reports session %d inactive, want it active: the UE asked for its user plane back", kept)
-	}
-
-	if status.PSI[dropped] {
-		return fmt.Errorf("PDU session status reports session %d active, want it inactive: the UE reported it inactive and the AMF must locally release it (TS 24.501 §5.6.1.4.1)", dropped)
-	}
-
-	return nil
+	return gNodeB.Deregister(newUE, updateRANUENGAPID, releaseTimeout)
 }
