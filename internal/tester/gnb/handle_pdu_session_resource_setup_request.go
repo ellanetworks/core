@@ -34,8 +34,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		})
 	}
 
-	ue, err := gnb.LoadUE(ranUeNgapID)
-	if err != nil {
+	if _, err := gnb.LoadUE(ranUeNgapID); err != nil {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
@@ -54,11 +53,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		return nil
 	}
 
-	if req.NASPDU != nil {
-		if err := ue.SendDownlinkNAS(*req.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
-			return fmt.Errorf("could not deliver NAS-PDU to UE: %w", err)
-		}
-	}
+	var sessionNAS [][]byte
 
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
@@ -67,34 +62,46 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		if err != nil {
 			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",
 				zap.Error(err), zap.Int64("PDU Session ID", pduSessionID))
-		} else {
-			pduSessionInfo.PDUSessionID = pduSessionID
-			pduSessionInfo.DLTEID = gnb.allocTEID()
 
-			logger.GnbLogger.Debug(
-				"Parsed PDU Session Resource Setup Request Transfer",
-				zap.Int64("AMF UE NGAP ID", amfUeNgapID),
-				zap.Int64("RAN UE NGAP ID", ranUeNgapID),
-				zap.Int64("PDU Session ID", pduSessionID),
-				zap.Uint32("UL TEID", pduSessionInfo.ULTEID),
-				zap.String("UPF Address", pduSessionInfo.UpfAddress),
-				zap.Int64("QOS ID", pduSessionInfo.QosId),
-				zap.Int64("5QI", pduSessionInfo.FiveQi),
-				zap.Int64("Priority ARP", pduSessionInfo.PriArp),
-				zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
-			)
-
-			gnb.storePDUSession(ranUeNgapID, pduSessionInfo)
+			continue
 		}
+
+		pduSessionInfo.PDUSessionID = pduSessionID
+		pduSessionInfo.DLTEID = gnb.allocTEID()
+
+		logger.GnbLogger.Debug(
+			"Parsed PDU Session Resource Setup Request Transfer",
+			zap.Int64("AMF UE NGAP ID", amfUeNgapID),
+			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+			zap.Int64("PDU Session ID", pduSessionID),
+			zap.Uint32("UL TEID", pduSessionInfo.ULTEID),
+			zap.String("UPF Address", pduSessionInfo.UpfAddress),
+			zap.Int64("QOS ID", pduSessionInfo.QosId),
+			zap.Int64("5QI", pduSessionInfo.FiveQi),
+			zap.Int64("Priority ARP", pduSessionInfo.PriArp),
+			zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
+		)
+
+		gnb.storePDUSession(ranUeNgapID, pduSessionInfo)
 
 		// Some AMF implementations omit the NAS-PDU when there is no NAS
 		// payload; this is non-fatal.
 		if pduSession.NASPDU == nil {
 			logger.GnbLogger.Debug("PDU Session Resource Setup Request contains no NAS-PDU, skipping NAS delivery",
 				zap.Int64("PDU Session ID", pduSessionID))
-		} else if err := ue.SendDownlinkNAS(*pduSession.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
-			return fmt.Errorf("HandleDownlinkNASTransport failed: %w", err)
+		} else {
+			sessionNAS = append(sessionNAS, *pduSession.NASPDU)
 		}
+	}
+
+	var message []byte
+
+	if req.NASPDU != nil {
+		message = *req.NASPDU
+	}
+
+	if err := forwardDownlinkNAS(gnb, amfUeNgapID, ranUeNgapID, message, sessionNAS); err != nil {
+		return err
 	}
 
 	if !gnb.N3Address.IsValid() {

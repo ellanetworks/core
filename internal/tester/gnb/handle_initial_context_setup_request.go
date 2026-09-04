@@ -34,20 +34,7 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 		})
 	}
 
-	// The NAS-PDU is optional (TS 38.413 §9.2.2.1); a request that carries none
-	// sets up the context alone. Forward it to the UE before sending the
-	// InitialContextSetupResponse so the UE processes downlink NAS messages in
-	// the same order the AMF sent them (TS 24.501 §4.4.3.1).
-	if req.NASPDU != nil {
-		ue, err := gnb.LoadUE(ranUEID)
-		if err != nil {
-			return fmt.Errorf("cannot find UE for NAS-PDU: %v", err)
-		}
-
-		if err := ue.SendDownlinkNAS([]byte(*req.NASPDU), amfUEID, ranUEID); err != nil {
-			return fmt.Errorf("could not deliver NAS-PDU to UE: %v", err)
-		}
-	}
+	var sessionNAS [][]byte
 
 	{
 		for _, pduSession := range req.PDUSessionResourceSetup {
@@ -82,16 +69,23 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 			gnb.storePDUSession(ranUEID, pduSessionInfo)
 
 			if pduSession.NASPDU != nil {
-				ue, err := gnb.LoadUE(ranUEID)
-				if err != nil {
-					return fmt.Errorf("cannot find UE for PDU session NAS-PDU: %v", err)
-				}
-
-				if err := ue.SendDownlinkNAS([]byte(*pduSession.NASPDU), amfUEID, ranUEID); err != nil {
-					return fmt.Errorf("could not deliver PDU session NAS-PDU to UE: %v", err)
-				}
+				sessionNAS = append(sessionNAS, []byte(*pduSession.NASPDU))
 			}
 		}
+	}
+
+	// The NAS-PDU is optional (TS 38.413 §9.2.2.1); a request that carries none
+	// sets up the context alone. Forward it to the UE before sending the
+	// InitialContextSetupResponse so the UE processes downlink NAS messages in
+	// the same order the AMF sent them (TS 24.501 §4.4.3.1).
+	var message []byte
+
+	if req.NASPDU != nil {
+		message = []byte(*req.NASPDU)
+	}
+
+	if err := forwardDownlinkNAS(gnb, amfUEID, ranUEID, message, sessionNAS); err != nil {
+		return err
 	}
 
 	pduSessions := [16]*PDUSessionInformation{}
