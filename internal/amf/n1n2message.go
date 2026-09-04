@@ -31,6 +31,8 @@ import (
 // until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
+var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
+
 func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -60,7 +62,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	if !ueConn.ClaimICS() {
+	if _, initialContextSetup := ueConn.ClaimN2Setup(true); !initialContextSetup {
 		// Context already set up (or in progress): deliver the PDU session standalone.
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 
@@ -219,7 +221,7 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 	}
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		if n2Msg == nil {
+		if n2Msg == nil || !ueConn.RANHoldsUEContext() {
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send downlink NAS transport: %w", err)
 			}
@@ -278,6 +280,18 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	}
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+		if !ueConn.RANHoldsUEContext() {
+			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
+				return fmt.Errorf("send downlink NAS transport: %w", err)
+			}
+
+			logger.From(ctx, logger.AmfLog).Info("Sent DL NAS Transport (N1-only session release) to gNB",
+				logger.PDUSessionID(pduSessionID),
+			)
+
+			return nil
+		}
+
 		list := ngap.PDUSessionResourceToReleaseListRelCmd{
 			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
 		}
@@ -325,7 +339,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if !ueConn.ClaimICS() {
+	if _, initialContextSetup := ueConn.ClaimN2Setup(true); !initialContextSetup {
 		// Context already set up (or in progress): deliver the PDU session standalone.
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 		if !n2Setup.ClaimSession(req.PduSessionID) {
@@ -568,6 +582,10 @@ func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
+		return
+	}
+
+	if !ueConn.RANHoldsUEContext() {
 		return
 	}
 

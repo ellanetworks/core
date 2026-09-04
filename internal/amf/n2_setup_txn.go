@@ -217,3 +217,15 @@ func (ueConn *UeConn) N2SetupOpen(proc N2SetupProcedure) bool {
 
 	return ok
 }
+
+func (ueConn *UeConn) RANHoldsUEContext() bool {
+	return ueConn.ICS() != ICSNotStarted
+}
+
+func (ueConn *UeConn) ClaimN2Setup(carriesSessions bool) (N2SetupProcedure, bool) {
+	if (ueConn.UeContextRequest || carriesSessions) && ueConn.ClaimICS() {
+		return N2SetupInitialContext, true
+	}
+
+	return N2SetupPDUSession, false
+}

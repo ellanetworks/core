@@ -117,17 +117,19 @@ type GnodeB struct {
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
-	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	mu                sync.Mutex
-	cond              *sync.Cond
-	N3Address         netip.Addr
-	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
-	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
-	pinnedDLTEIDs     map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
-	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
-	UERadioCapability []byte
-	radioCapReported  map[int64]bool
-	dispatcher        *dispatcher // per-UE frame queues; see dispatch.go
+	receivedFrames       map[Category]map[ngap.ProcedureCode][]SCTPFrame
+	mu                   sync.Mutex
+	cond                 *sync.Cond
+	N3Address            netip.Addr
+	pduSessions          map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen           uint64                                     // bumped on every store; see awaitPDUSession
+	pinnedDLTEIDs        map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
+	UEAmbr               map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
+	UERadioCapability    []byte
+	OmitUEContextRequest bool
+	radioCapReported     map[int64]bool
+	ueContexts           map[int64]bool
+	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
 	// maintains exactly one active SCTP association at a time, starting
@@ -245,6 +247,31 @@ func (g *GnodeB) claimRadioCapabilityReport(ranUeId int64) bool {
 	g.radioCapReported[ranUeId] = true
 
 	return true
+}
+
+func (g *GnodeB) storeUEContext(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.ueContexts == nil {
+		g.ueContexts = make(map[int64]bool)
+	}
+
+	g.ueContexts[ranUeID] = true
+}
+
+func (g *GnodeB) holdsUEContext(ranUeID int64) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.ueContexts[ranUeID]
+}
+
+func (g *GnodeB) dropUEContext(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.ueContexts, ranUeID)
 }
 
 func (g *GnodeB) StoreUEAmbr(ranUeId int64, ambr *UEAmbrInformation) {
@@ -1063,6 +1090,7 @@ func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G [
 		NasPDU:                nasPDU,
 		Guti5g:                guti5G,
 		RRCEstablishmentCause: cause,
+		OmitUEContextRequest:  g.OmitUEContextRequest,
 	}
 
 	pkt, err := BuildInitialUEMessage(opts)
