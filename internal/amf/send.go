@@ -384,18 +384,24 @@ func SendRegistrationAccept(
 
 	if amfInstance.NASGuardCfg.Enable {
 		cfg := amfInstance.NASGuardCfg
-		conn := ue.Conn()
-		conn.armNASGuardWith(cfg, "T3550 (Registration Accept)", func(expireTimes int32) {
+		ueConn.armNASGuardWith(cfg, "T3550 (Registration Accept)", func(expireTimes int32) {
 			retryUeConn := ue.Conn()
 			if retryUeConn == nil {
-				logger.From(ctx, conn.Log()).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
+				logger.From(ctx, ueConn.Log()).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
+
+				return
+			}
+
+			if retryUeConn != ueConn {
+				logger.From(ctx, ueConn.Log()).Warn("[NAS] NAS signalling connection replaced, abort retransmission of Registration Accept")
+				ueConn.StopNASGuard()
 
 				return
 			}
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-				if initialContextSetup && retryUeConn.ICS() != ICSCompleted {
-					if err := retryUeConn.SendInitialContextSetup(
+				if initialContextSetup && ueConn.ICS() != ICSCompleted {
+					if err := ueConn.SendInitialContextSetup(
 						context.Background(),
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
@@ -408,30 +414,32 @@ func SendRegistrationAccept(
 						pduSessionResourceSetupList,
 						supportedGUAMI,
 					); err != nil {
-						logger.From(ctx, retryUeConn.Log()).Error("could not send initial context setup request", zap.Error(err))
+						logger.From(ctx, ueConn.Log()).Error("could not send initial context setup request", zap.Error(err))
+
+						return nil
 					}
 
-					retryUeConn.MarkICSPending()
+					ueConn.MarkICSPending()
 
-					logger.From(ctx, retryUeConn.Log()).Info("Sent NGAP initial context setup request")
+					logger.From(ctx, ueConn.Log()).Info("Sent NGAP initial context setup request")
 
 					return nil
 				}
 
-				logger.From(ctx, retryUeConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+				logger.From(ctx, ueConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-				if err := retryUeConn.SendDownlinkNASTransport(context.Background(), wire); err != nil {
-					logger.From(ctx, retryUeConn.Log()).Error("could not send downlink NAS transport message", zap.Error(err))
+				if err := ueConn.SendDownlinkNASTransport(context.Background(), wire); err != nil {
+					logger.From(ctx, ueConn.Log()).Error("could not send downlink NAS transport message", zap.Error(err))
 				}
 
-				logger.From(ctx, retryUeConn.Log()).Info("Sent GMM registration accept")
+				logger.From(ctx, ueConn.Log()).Info("Sent GMM registration accept")
 
 				return nil
 			}); err != nil {
-				logger.From(ctx, retryUeConn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
+				logger.From(ctx, ueConn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
 		}, func() {
-			logger.From(ctx, conn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			logger.From(ctx, ueConn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
 			amfInstance.MarkRegistered(context.Background(), ue)
 			ue.ClearRegistrationRequestData()
@@ -459,12 +467,19 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 			return
 		}
 
-		retryUeConn.Log().Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+		if retryUeConn != conn {
+			conn.Log().Warn("NAS signalling connection replaced, abort retransmission of Registration Accept")
+			conn.StopNASGuard()
+
+			return
+		}
+
+		conn.Log().Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
 		if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-			return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
+			return conn.SendDownlinkNASTransport(context.Background(), wire)
 		}); err != nil {
-			retryUeConn.Log().Error("could not retransmit Registration Accept", zap.Error(err))
+			conn.Log().Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func() {
 		conn.Log().Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))

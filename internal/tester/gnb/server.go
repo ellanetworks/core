@@ -127,6 +127,7 @@ type GnodeB struct {
 	UERadioCapability    []byte
 	OmitUEContextRequest bool
 	radioCapReported     map[int64]bool
+	ueContexts           map[int64]bool
 	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
@@ -245,6 +246,34 @@ func (g *GnodeB) claimRadioCapabilityReport(ranUeId int64) bool {
 	g.radioCapReported[ranUeId] = true
 
 	return true
+}
+
+// storeUEContext records that an INITIAL CONTEXT SETUP REQUEST established the UE
+// context, giving the gNB the security key and UE security capabilities it needs before
+// it can allocate resources over NG and Uu (TS 38.413 8.2.1.2, 8.3.1.1).
+func (g *GnodeB) storeUEContext(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.ueContexts == nil {
+		g.ueContexts = make(map[int64]bool)
+	}
+
+	g.ueContexts[ranUeID] = true
+}
+
+func (g *GnodeB) holdsUEContext(ranUeID int64) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.ueContexts[ranUeID]
+}
+
+func (g *GnodeB) dropUEContext(ranUeID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.ueContexts, ranUeID)
 }
 
 func (g *GnodeB) StoreUEAmbr(ranUeId int64, ambr *UEAmbrInformation) {

@@ -39,6 +39,25 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
+	// A node that holds no UE context has neither the security key nor the UE security
+	// capabilities it needs to allocate resources over NG and Uu (TS 38.413 8.2.1.2), so
+	// the request names a procedure incompatible with its state (TS 38.413 10.4). Nokia
+	// gNBs answer it with an Error Indication.
+	if !gnb.holdsUEContext(ranUeNgapID) {
+		logger.GnbLogger.Error("Received PDU Session Resource Setup Request before the UE context was set up",
+			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+			zap.Int64("AMF UE NGAP ID", amfUeNgapID),
+		)
+
+		cause := ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolMessageNotCompatible}
+
+		if err := gnb.SendErrorIndication(amfUeNgapID, ranUeNgapID, cause, ngap.ProcPDUSessionResourceSetup); err != nil {
+			return fmt.Errorf("could not send ErrorIndication: %w", err)
+		}
+
+		return nil
+	}
+
 	if req.NASPDU != nil {
 		if err := ue.SendDownlinkNAS(*req.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
 			return fmt.Errorf("could not deliver NAS-PDU to UE: %w", err)
