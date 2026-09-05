@@ -26,6 +26,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/s1_handover":                      "multi-eNB datapath, covered by TestIntegration4GS1Handover",
 	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
 	"ha/failover_connectivity_4g":            "multi-core HA topology, covered by TestIntegration4GHAFailover",
+	"ha/drain_4g":                            "multi-core HA topology, covered by TestIntegration4GHADrain",
+	"ha/drain_5g":                            "multi-core HA topology, covered by TestIntegration5GHADrain",
 	"multi/cluster_traffic_5g":               "multi-core HA topology, covered by TestIntegration5GMultiGNB",
 	"gnb/connectivity_expect_blocked":        "test-only harness; requires a pre-installed deny rule",
 	"gnb/connectivity_expect_allowed":        "test-only harness; minimal allow-path",

@@ -58,7 +58,9 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	mmeGroupID, mmeCode := operator.GUMMEI()
 
-	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
+	advertisedCapacity := m.RelativeCapacity()
+
+	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, advertisedCapacity)
 	if err != nil {
 		if ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err); ok {
 			sendS1SetupProtocolFailure(m, ctx, conn, ase)
@@ -95,7 +97,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).
 	if radio := m.RadioForConn(conn); radio != nil {
 		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
-		m.ClaimENBID(radio, req.GlobalENBID)
+		m.ClaimENBID(radio, req.GlobalENBID, advertisedCapacity)
 	}
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))

@@ -18,7 +18,7 @@ func connectRadio(t *testing.T, a *amf.AMF, name, gnbID string) *amf.Radio {
 	conn := &sctp.SCTPConn{}
 	radio := newRadioForTest(a, conn, name)
 	a.SetRadioForTest(conn, radio)
-	a.ClaimRanID(radio, gnbGlobalRANNodeID(t, gnbID))
+	a.ClaimRanID(radio, gnbGlobalRANNodeID(t, gnbID), amf.DefaultRelativeCapacity)
 
 	return radio
 }
@@ -227,7 +227,7 @@ func TestClaimRanIDOverOfflineRadioEvictsNothing(t *testing.T) {
 	reconnected := newRadioForTest(amfInstance, conn, "gNB-A")
 	amfInstance.SetRadioForTest(conn, reconnected)
 
-	if evicted := amfInstance.ClaimRanID(reconnected, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
+	if evicted := amfInstance.ClaimRanID(reconnected, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
 		t.Errorf("ClaimRanID evicted %q, want nothing: the incumbent was offline", amfInstance.RadioNameForTest(evicted))
 	}
 }

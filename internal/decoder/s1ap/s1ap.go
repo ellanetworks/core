@@ -102,6 +102,8 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildERABModificationIndication(m.Value)
 	case s1ap.ProcENBConfigurationUpdate:
 		msg.Value, msg.Summary = buildENBConfigurationUpdate(m.Value)
+	case s1ap.ProcMMEConfigurationUpdate:
+		msg.Value, msg.Summary = buildMMEConfigurationUpdate(m.Value)
 	case s1ap.ProcENBConfigurationTransfer:
 		msg.Value, msg.Summary = buildENBConfigurationTransfer(m.Value)
 	case s1ap.ProcMMEConfigurationTransfer:
@@ -167,6 +169,8 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildERABModificationConfirm(m.Value)
 	case s1ap.ProcENBConfigurationUpdate:
 		msg.Value, msg.Summary = buildENBConfigurationUpdateAcknowledge(m.Value)
+	case s1ap.ProcMMEConfigurationUpdate:
+		msg.Value, msg.Summary = buildMMEConfigurationUpdateAcknowledge(m.Value)
 	case s1ap.ProcHandoverPreparation:
 		msg.Value, msg.Summary = buildHandoverCommand(m.Value)
 	case s1ap.ProcHandoverResourceAllocation:
@@ -200,6 +204,8 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildPathSwitchRequestFailure(m.Value)
 	case s1ap.ProcENBConfigurationUpdate:
 		msg.Value, msg.Summary = buildENBConfigurationUpdateFailure(m.Value)
+	case s1ap.ProcMMEConfigurationUpdate:
+		msg.Value, msg.Summary = buildMMEConfigurationUpdateFailure(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}

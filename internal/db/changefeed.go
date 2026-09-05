@@ -30,6 +30,7 @@ const (
 	TopicIPLeases               Topic = "ip_leases"
 	TopicClusterNodeCerts       Topic = "cluster_node_certs"
 	TopicSessionReconcile       Topic = "session_reconcile"
+	TopicClusterMembers         Topic = "cluster_members"
 	TopicFramedRoutes           Topic = "subscriber_framed_routes"
 )
 

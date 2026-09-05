@@ -39,22 +39,24 @@ const DrainNodeModal: React.FC<Props> = ({
       title={`Drain node ${nodeId}?`}
       description={
         <>
-          Stops new traffic on <strong>node {nodeId}</strong> and marks it
-          drained immediately, so it can be restarted, upgraded, or removed. Use
-          Resume to reverse.
+          Stops new traffic on <strong>node {nodeId}</strong> and moves its
+          subscribers to the rest of the cluster, so it can be restarted,
+          upgraded, or removed. 4G subscribers reconnect briefly; 5G subscribers
+          keep their sessions. Use Resume to reverse.
         </>
       }
       details={{
         label: "What this does",
         content: (
           <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Sends AMF Status Indication so connected RANs treat this node&apos;s
-            GUAMI as unavailable. Stops the local BGP speaker.
+            Tells connected radios to stop selecting this node, and stops the
+            local BGP speaker.
             {isLeader
-              ? " Transfers Raft leadership to another voter once the side-effects have run."
+              ? " Transfers Raft leadership to another voter."
               : ""}{" "}
-            Sets <code>drainState</code> to <em>drained</em>, after which the
-            node is removable.
+            Sets <code>drainState</code> to <em>draining</em>, then to{" "}
+            <em>drained</em> once the node holds no subscribers or the one-hour
+            deadline passes. The node is removable at <em>drained</em>.
           </Typography>
         ),
       }}

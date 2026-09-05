@@ -41,7 +41,7 @@ jobs:
           INTEGRATION: "1"
           INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
-          go test ./integration/... -run TestIntegration4GHAFailover -v -timeout 15m
+          go test ./integration/... -run 'TestIntegration4GHAFailover|TestIntegration4GHADrain' -v -timeout 15m
 
       - name: Upload cluster logs
         if: always()

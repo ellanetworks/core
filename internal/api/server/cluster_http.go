@@ -17,25 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// dialPeerHTTPClient returns an HTTP client that dials the specified
-// peer via the mTLS cluster listener, enforcing that the peer's
-// certificate CN resolves to expectedNodeID. The client is built per
-// request because peer identity is part of the TLS dial contract and
-// raft addresses can change between requests.
-func dialPeerHTTPClient(ln *listener.Listener, expectedNodeID int) *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return ln.Dial(ctx, addr, expectedNodeID, listener.ALPNHTTP, 10*time.Second)
-			},
-		},
-		Timeout: 0,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-}
-
 // connListener is a net.Listener backed by a channel of connections.
 // The cluster listener's ALPNHTTP handler pushes accepted connections
 // into the channel; http.Server.Serve consumes them via Accept.

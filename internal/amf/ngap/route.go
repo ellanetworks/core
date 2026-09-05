@@ -170,6 +170,8 @@ func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receivePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcPDUSessionResourceModify:
 		receivePDUSessionResourceModifyResponse(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcAMFConfigurationUpdate:
+		handleAMFConfigurationUpdateAcknowledge(ctx, ran, so.Value)
 	default:
 		return false
 	}
@@ -187,6 +189,8 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 		receiveHandoverFailure(ctx, amfInstance, ran, msg, uo, span)
 	case ngap.ProcInitialContextSetup:
 		receiveInitialContextSetupFailure(ctx, amfInstance, ran, msg, uo, span)
+	case ngap.ProcAMFConfigurationUpdate:
+		handleAMFConfigurationUpdateFailure(amfInstance, ctx, ran, uo.Value)
 	default:
 		return false
 	}

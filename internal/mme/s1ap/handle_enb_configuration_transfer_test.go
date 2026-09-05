@@ -25,7 +25,7 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 	m := newTestMME(t)
 
 	targetConn := &captureConn{}
-	m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID())
+	m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID(), mme.DefaultRelativeCapacity)
 
 	sourceConn := &captureConn{}
 

@@ -70,6 +70,8 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 			HandleERABReleaseResponse(m, ctx, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverRequestAcknowledge(m, ctx, radio, p.Value)
+		case s1ap.ProcMMEConfigurationUpdate:
+			handleMMEConfigurationUpdateAcknowledge(m, ctx, radio, p.Value)
 		default:
 			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
@@ -79,6 +81,8 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 			handleInitialContextSetupFailure(m, ctx, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverFailure(m, ctx, radio, p.Value)
+		case s1ap.ProcMMEConfigurationUpdate:
+			handleMMEConfigurationUpdateFailure(m, ctx, radio, p.Value)
 		default:
 			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
