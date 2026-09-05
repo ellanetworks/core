@@ -63,7 +63,7 @@ jobs:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
-          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -skip 'TestIntegrationHA|TestIntegration5GHAFailover|TestAPIMatrix|TestIntegration5GBGP|TestIntegration5GFramedRouting|TestIntegration5GUE2UE|TestIntegration4G|TestIntegrationTester/s1enb' -timeout 30m -v
 
@@ -72,6 +72,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: integration-5g-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
-          path: ${{ runner.temp }}/ha-cluster-logs
+          path: ${{ runner.temp }}/integration-logs
           if-no-files-found: ignore
           retention-days: 7

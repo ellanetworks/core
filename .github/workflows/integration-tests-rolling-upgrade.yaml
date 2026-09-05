@@ -35,7 +35,7 @@ jobs:
       - name: Run rolling-upgrade integration test
         env:
           INTEGRATION: "1"
-          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run TestIntegrationHARollingUpgrade -v -timeout 15m
 
@@ -44,6 +44,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: rolling-upgrade-cluster-logs
-          path: ${{ runner.temp }}/ha-cluster-logs
+          path: ${{ runner.temp }}/integration-logs
           if-no-files-found: ignore
           retention-days: 7

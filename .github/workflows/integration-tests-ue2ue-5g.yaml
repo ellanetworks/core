@@ -49,7 +49,7 @@ jobs:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
-          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ue2ue-logs
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/ue2ue-logs
         run: |
           go test ./integration/... -run TestIntegration5GUE2UE -timeout 20m -v
 

@@ -22,7 +22,7 @@ const haComposeDir = "compose/ha/"
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 // captureClusterLogs collects each service's container logs and writes
-// them to <HA_CLUSTER_LOG_DIR>/<test-name>/<service>.log for CI artifact
+// them to <INTEGRATION_LOG_DIR>/<test-name>/<service>.log for CI artifact
 // upload. If printLogs is true, logs are also emitted via t.Logf.
 // Safe to call with no clients (e.g. on bring-up failure).
 func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string, printLogs bool) {
@@ -33,13 +33,17 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 
 	var diskDir string
 
-	if root := os.Getenv("HA_CLUSTER_LOG_DIR"); root != "" {
+	if root := os.Getenv("INTEGRATION_LOG_DIR"); root != "" {
 		diskDir = filepath.Join(root, sanitizeTestName(t.Name()))
 		if err := os.MkdirAll(diskDir, 0o755); err != nil {
 			t.Logf("captureClusterLogs: mkdir %s: %v", diskDir, err)
 
 			diskDir = ""
 		}
+	}
+
+	for i := range services {
+		captureMetrics(t, APIAddressForCluster(i+1), fmt.Sprintf("metrics-node%d.txt", i+1))
 	}
 
 	captured := 0
@@ -104,7 +108,7 @@ func bringUpHACluster(t *testing.T, ctx context.Context, dc *DockerClient) ([]*c
 // more addresses than the starting set of services.
 //
 // On any error return, captureClusterLogs is invoked so per-node container
-// logs are emitted (and persisted to HA_CLUSTER_LOG_DIR if set) BEFORE the
+// logs are emitted (and persisted to INTEGRATION_LOG_DIR if set) BEFORE the
 // next test's ComposeCleanup tears the containers down.
 func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
 	t.Helper()
