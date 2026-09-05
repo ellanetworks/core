@@ -379,7 +379,14 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 }
 
 func (u *UPF) ReloadFlowAccounting(flowact bool) error {
-	if err := u.se.BpfObjects.SetFlowAccounting(flowact); err != nil {
+	u.se.BpfObjects.FlowAccounting = flowact
+
+	err := u.se.BpfObjects.LoadWithMapReplacements()
+	if err != nil {
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	if err := u.updateAttachedPrograms(); err != nil {
 		return err
 	}
 

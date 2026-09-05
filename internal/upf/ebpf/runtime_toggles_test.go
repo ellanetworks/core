@@ -38,9 +38,10 @@ func TestDatapathTogglesAreWritableAfterLoad(t *testing.T) {
 	objs := loadTCProgramConfig(t, true, 1, 1)
 
 	assertToggleWritable(t, "local_switch", objs.LocalSwitch)
-	assertToggleWritable(t, "flowact", objs.Flowact)
 
-	if err := objs.Masquerade.Set(false); err == nil {
-		t.Error("masquerade is writable after load; it is meant to stay a load-time constant")
+	for name, v := range map[string]*ebpf.Variable{"masquerade": objs.Masquerade, "flowact": objs.Flowact} {
+		if err := v.Set(false); err == nil {
+			t.Errorf("%s is writable after load; it is meant to stay a load-time constant", name)
+		}
 	}
 }
