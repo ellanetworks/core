@@ -358,10 +358,11 @@ int upf_local_switch_func(struct __ctx_buff *ctx)
 	if (!ul_pdr)
 		return record_action(&context, DEFAULT_CTX_ACTION);
 
+	const __u64 billed_bytes = ctx_full_len(ctx);
+
 	enum ctx_action ret = local_switch_to_ue(&context, dl_pdr, ul_pdr);
 
 	if (ctx_action_forwards(ret)) {
-		const __u64 billed_bytes = ctx_full_len(ctx);
 		const __u32 dlkey = 0;
 		struct upf_statistic *dl_stats =
 			bpf_map_lookup_elem(&downlink_statistics, &dlkey);

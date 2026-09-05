@@ -209,7 +209,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	}
 	if (dl_qer->dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
-			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
+			ctx_len_from(ctx->ctx_buff, ctx->data_end,
+				     ctx->ip4 ? (const void *)ctx->ip4 :
+						(const void *)ctx->ip6);
 		struct qer_window *window =
 			qer_window_for(dl_pdr->local_seid, dl_pdr->qer_id);
 		if (window &&
@@ -257,6 +259,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (ctx_action_forwards(tunnel_ret)) {
 		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, dl_pdr->local_seid, dl_pdr->urr_id,
+				 billed_bytes);
+		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
 				 billed_bytes);
 	}
 
@@ -492,8 +496,6 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (dl_pdr) {
 			upf_printk("upf: local switch teid:%d", teid);
 			account_flow(ctx, n3_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
-			const __u64 ul_billed = ctx_full_len(ctx->ctx_buff);
-			update_urr_bytes(ctx, pdr->local_seid, pdr->urr_id, ul_billed);
 			const __u32 lskey = 0;
 			struct pdr_info *ul_stash =
 				bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);
