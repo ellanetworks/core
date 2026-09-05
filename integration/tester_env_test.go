@@ -75,6 +75,8 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	}
 
 	t.Cleanup(func() {
+		captureDatapathMetrics(t, APIAddress(), "metrics.txt")
+
 		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
 		if err == nil {
 			logDir := os.Getenv("INTEGRATION_LOG_DIR")
