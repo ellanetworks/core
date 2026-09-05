@@ -218,9 +218,6 @@ func (r *SettingsReconciler) reconcileSettings(ctx context.Context) error {
 	return nil
 }
 
-// Each toggle is a load-time constant in the datapath, so changing any of
-// them costs a full verify-and-reattach. Reading all three and applying
-// them together keeps that cost to one reload per pass instead of three.
 func (r *SettingsReconciler) reconcileDatapathSettings(ctx context.Context) error {
 	desired, err := r.desiredDatapathSettings(ctx)
 	if err != nil {
