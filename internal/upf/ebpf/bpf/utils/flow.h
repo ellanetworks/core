@@ -92,7 +92,8 @@ static __always_inline void account_flow(struct packet_context *ctx,
 		f.daddr = ctx->ip6->daddr;
 		/* The upper-layer protocol, past any chain. */
 		f.proto = ctx->l4_proto;
-		f.dscp = ctx->ip6->priority >> 4;
+		f.dscp = (__u8)((ctx->ip6->priority << 2) |
+				(ctx->ip6->flow_lbl[0] >> 6));
 	}
 
 	switch (f.proto) {
