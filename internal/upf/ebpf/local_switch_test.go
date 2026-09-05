@@ -512,8 +512,14 @@ func TestLocalSwitchStatistics(t *testing.T) {
 		t.Errorf("downlink tx counter = 0, want > 0 (local switch billed to downlink)")
 	}
 
-	if dlStats.ByteCounter.Bytes == 0 {
-		t.Errorf("downlink byte counter = 0, want > 0")
+	want := uint64(ethHdrLen + len(inner))
+
+	if dlStats.ByteCounter.Bytes != want {
+		t.Errorf("downlink byte counter = %d, want %d: the subscriber's frame, not the encapsulated one", dlStats.ByteCounter.Bytes, want)
+	}
+
+	if ulStats.ByteCounter.Bytes != want {
+		t.Errorf("uplink byte counter = %d, want %d", ulStats.ByteCounter.Bytes, want)
 	}
 }
 
@@ -987,5 +993,196 @@ func TestLocalSwitchUplinkFARUnsupportedN9(t *testing.T) {
 
 	if got := DropCount(obj, Uplink, "far_unsupported"); got != 1 {
 		t.Errorf("far_unsupported = %d, want 1", got)
+	}
+}
+
+func TestLocalSwitchURRNotChargedOnDrop(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulSeid      = 0x4C5553
+		dlSeid      = 0x4C4453
+		urrID       = 7
+		filterIndex = 1
+	)
+
+	var (
+		ueAIP = [4]byte{10, 0, 0, 9}
+		ueBIP = [4]byte{10, 0, 0, 10}
+		teidA = uint32(0x4C5553)
+		teidB = uint32(0x4C4453)
+	)
+
+	tests := []struct {
+		name       string
+		dropReason string
+		setup      func(t *testing.T, obj *BpfObjects, dlPdr *PdrInfo)
+	}{
+		{
+			name:       "dl gate closed",
+			dropReason: "qer_gate_closed",
+			setup: func(t *testing.T, obj *BpfObjects, dlPdr *PdrInfo) {
+				dlPdr.Qer.GateStatusDL = 1
+			},
+		},
+		{
+			name:       "sdf deny",
+			dropReason: "sdf_filter",
+			setup: func(t *testing.T, obj *BpfObjects, dlPdr *PdrInfo) {
+				dlPdr.FilterMapIndex = filterIndex
+				putSDFFilter(t, obj, filterIndex, []SdfRule{
+					sdfRuleIPv4(ueAIP, 32, 0, 0, 17, SdfActionDeny),
+				})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgramLocalSwitch(t)
+
+			if err := obj.NewUrr(ulSeid, urrID); err != nil {
+				t.Fatalf("NewUrr (uplink): %v", err)
+			}
+
+			if err := obj.NewUrr(dlSeid, urrID); err != nil {
+				t.Fatalf("NewUrr (downlink): %v", err)
+			}
+
+			ulPdr := PdrInfo{
+				SEID:               ulSeid,
+				UrrID:              urrID,
+				OuterHeaderRemoval: 0,
+				IMSI:               "001010000000001",
+				Far:                FarInfo{Action: 0x02},
+				Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+				UEIPv4:             netip.AddrFrom4(ueAIP),
+				UEIPv6Prefix:       canonicalUEv6Prefix,
+			}
+			if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
+				t.Fatalf("install uplink PDR: %v", err)
+			}
+
+			dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
+			dlPdr.SEID = dlSeid
+			dlPdr.UrrID = urrID
+
+			tc.setup(t, obj, &dlPdr)
+
+			if err := obj.PutPdrDownlink(netip.AddrFrom4(ueBIP), dlPdr); err != nil {
+				t.Fatalf("install downlink PDR: %v", err)
+			}
+
+			inner := ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil))
+
+			action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
+			if action != ActionDrop {
+				t.Fatalf("got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+			}
+
+			if got := DropCount(obj, Uplink, tc.dropReason); got != 1 {
+				t.Errorf("%s = %d, want 1", tc.dropReason, got)
+			}
+
+			if got := sumURR(t, obj, ulSeid, urrID); got != 0 {
+				t.Errorf("uplink URR bytes = %d, want 0: the packet never left the UPF", got)
+			}
+
+			if got := sumURR(t, obj, dlSeid, urrID); got != 0 {
+				t.Errorf("downlink URR bytes = %d, want 0: the packet never left the UPF", got)
+			}
+		})
+	}
+}
+
+func TestLocalSwitchQERMetersFromL3(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		qerID   = 11
+		rateBps = 28_800
+	)
+
+	var (
+		ueAIP = [4]byte{10, 0, 0, 9}
+		ueBIP = [4]byte{10, 0, 0, 10}
+		ueAv6 = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
+		ueBv6 = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0x0a}
+		teidA = uint32(0x4C4C33)
+		teidB = uint32(0x4C4C34)
+	)
+
+	prefixOf := func(addr [16]byte) netip.Addr {
+		for i := 8; i < 16; i++ {
+			addr[i] = 0
+		}
+
+		return netip.AddrFrom16(addr)
+	}
+
+	tests := []struct {
+		name    string
+		ulPdr   PdrInfo
+		dlKey   netip.Addr
+		inner   []byte
+		l3Bytes int
+	}{
+		{
+			name: "ipv4",
+			ulPdr: PdrInfo{
+				IMSI:         "001010000000001",
+				Far:          FarInfo{Action: 0x02},
+				UEIPv4:       netip.AddrFrom4(ueAIP),
+				UEIPv6Prefix: canonicalUEv6Prefix,
+			},
+			dlKey:   netip.AddrFrom4(ueBIP),
+			inner:   ipv4Packet(ueAIP, ueBIP, 17, udpDatagram(4000, 53, nil)),
+			l3Bytes: 28,
+		},
+		{
+			name: "ipv6",
+			ulPdr: PdrInfo{
+				IMSI:         "001010000000001",
+				Far:          FarInfo{Action: 0x02},
+				UEIPv4:       canonicalUEv4,
+				UEIPv6Prefix: prefixOf(ueAv6),
+			},
+			dlKey:   prefixOf(ueBv6),
+			inner:   ipv6Packet(ueAv6, ueBv6, 17, udpDatagram(4000, 53, nil)),
+			l3Bytes: 48,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.inner) != tc.l3Bytes {
+				t.Fatalf("inner packet is %d bytes, want %d", len(tc.inner), tc.l3Bytes)
+			}
+
+			obj := loadProgramLocalSwitch(t)
+
+			if err := obj.PutPdrUplink(teidA, tc.ulPdr); err != nil {
+				t.Fatalf("install uplink PDR: %v", err)
+			}
+
+			dlPdr := ipv4OuterDownlinkPDR(teidB, testUPFN3IP, testGNBIP, 5)
+			dlPdr.QerID = qerID
+			dlPdr.Qer.MaxBitrateDL = rateBps
+
+			if err := obj.PutPdrDownlink(tc.dlKey, dlPdr); err != nil {
+				t.Fatalf("install downlink PDR: %v", err)
+			}
+
+			if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, tc.inner)); action == ActionDrop {
+				t.Fatalf("first packet was dropped, %d as qer_rate_limit", DropCount(obj, Uplink, "qer_rate_limit"))
+			}
+
+			action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, tc.inner))
+
+			if got := DropCount(obj, Uplink, "qer_rate_limit"); action != ActionDrop || got != 1 {
+				t.Fatalf("second packet got action %d with %d rate-limit drops, want ActionDrop (%d) with 1: %d L3 bytes at %d bps exceeds the window, but the L4 payload alone does not",
+					action, got, ActionDrop, tc.l3Bytes, rateBps)
+			}
+		})
 	}
 }
