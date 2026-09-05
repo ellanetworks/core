@@ -51,7 +51,7 @@ jobs:
         env:
           INTEGRATION: "1"
           IP_VERSION: ${{ matrix.ip_version }}
-          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run TestIntegration5GBGP -timeout 15m -v
 

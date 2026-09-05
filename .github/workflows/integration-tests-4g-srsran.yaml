@@ -52,5 +52,15 @@ jobs:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ipv4
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover|TestIntegration4GNetworkRules|TestIntegration4GUE2UE' -timeout 30m -v
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-4g-srsran-cluster-logs-${{ matrix.attach_mode }}
+          path: ${{ runner.temp }}/integration-logs
+          if-no-files-found: ignore
+          retention-days: 7
