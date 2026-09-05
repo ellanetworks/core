@@ -357,11 +357,12 @@ func (u *UPF) updateAttachedPrograms() error {
 	return nil
 }
 
-func (u *UPF) ReloadNAT(masquerade bool) error {
-	u.se.BpfObjects.Masquerade = masquerade
+func (u *UPF) ApplyDatapathSettings(settings DatapathSettings) error {
+	u.se.BpfObjects.Masquerade = settings.NAT
+	u.se.BpfObjects.FlowAccounting = settings.FlowAccounting
+	u.se.BpfObjects.LocalSwitch = settings.LocalSwitch
 
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
+	if err := u.se.BpfObjects.LoadWithMapReplacements(); err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
@@ -369,46 +370,16 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 		return err
 	}
 
-	if masquerade {
+	if settings.NAT {
 		u.startGC(u.ctx)
 	} else {
 		u.stopGC()
 	}
 
-	return nil
-}
-
-func (u *UPF) ReloadFlowAccounting(flowact bool) error {
-	u.se.BpfObjects.FlowAccounting = flowact
-
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
-	if err := u.updateAttachedPrograms(); err != nil {
-		return err
-	}
-
-	if flowact {
+	if settings.FlowAccounting {
 		u.startFlowCollection(u.ctx)
 	} else {
 		u.stopFlowCollection()
-	}
-
-	return nil
-}
-
-func (u *UPF) ReloadLocalSwitch(localSwitch bool) error {
-	u.se.BpfObjects.LocalSwitch = localSwitch
-
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
-	if err := u.updateAttachedPrograms(); err != nil {
-		return err
 	}
 
 	return nil
