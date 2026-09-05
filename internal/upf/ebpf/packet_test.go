@@ -197,6 +197,21 @@ func withDF(pkt []byte) []byte {
 	return pkt
 }
 
+func withTOS(pkt []byte, tos uint8) []byte {
+	pkt[1] = tos
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+func withTrafficClass(pkt []byte, tc uint8) []byte {
+	pkt[0] = 0x60 | (tc >> 4)
+	pkt[1] = (pkt[1] & 0x0f) | ((tc & 0x0f) << 4)
+
+	return pkt
+}
+
 func udpDatagram(srcPort, dstPort uint16, payload []byte) []byte {
 	const hdrLen = 8
 
