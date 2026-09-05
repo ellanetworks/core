@@ -88,22 +88,18 @@ type filterCall struct {
 
 type fakeUpdater struct {
 	mu                sync.Mutex
-	natCalls          []bool
-	flowCalls         []bool
-	localSwitchCalls  []bool
+	settingsCalls     []DatapathSettings
 	n3Calls           []netip.Addr
 	filterCalls       []filterCall
-	natErr            error
-	flowErr           error
-	localSwitchErr    error
+	settingsErr       error
 	updateFiltersErr  error
 	updateFiltersFunc func(policyID string, direction models.Direction, rules []models.FilterRule) error
-	reloadNATFunc     func(enabled bool) error
+	applyFunc         func(settings DatapathSettings) error
 }
 
-func (f *fakeUpdater) ReloadNAT(enabled bool) error {
-	if f.reloadNATFunc != nil {
-		if err := f.reloadNATFunc(enabled); err != nil {
+func (f *fakeUpdater) ApplyDatapathSettings(settings DatapathSettings) error {
+	if f.applyFunc != nil {
+		if err := f.applyFunc(settings); err != nil {
 			return err
 		}
 	}
@@ -111,39 +107,37 @@ func (f *fakeUpdater) ReloadNAT(enabled bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.natErr != nil {
-		return f.natErr
+	if f.settingsErr != nil {
+		return f.settingsErr
 	}
 
-	f.natCalls = append(f.natCalls, enabled)
+	f.settingsCalls = append(f.settingsCalls, settings)
 
 	return nil
 }
 
-func (f *fakeUpdater) ReloadFlowAccounting(enabled bool) error {
+func (f *fakeUpdater) natCalls() []bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.flowErr != nil {
-		return f.flowErr
+	out := make([]bool, len(f.settingsCalls))
+	for i, c := range f.settingsCalls {
+		out[i] = c.NAT
 	}
 
-	f.flowCalls = append(f.flowCalls, enabled)
-
-	return nil
+	return out
 }
 
-func (f *fakeUpdater) ReloadLocalSwitch(enabled bool) error {
+func (f *fakeUpdater) flowCalls() []bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.localSwitchErr != nil {
-		return f.localSwitchErr
+	out := make([]bool, len(f.settingsCalls))
+	for i, c := range f.settingsCalls {
+		out[i] = c.FlowAccounting
 	}
 
-	f.localSwitchCalls = append(f.localSwitchCalls, enabled)
-
-	return nil
+	return out
 }
 
 func (f *fakeUpdater) UpdateAdvertisedN3Address(addr netip.Addr) {
@@ -187,16 +181,16 @@ func TestReconcile_NATAppliesOnFirstTickAndSkipsWhenUnchanged(t *testing.T) {
 		t.Fatalf("first reconcile: %v", err)
 	}
 
-	if got := len(updater.natCalls); got != 1 || updater.natCalls[0] != true {
-		t.Fatalf("expected one ReloadNAT(true), got %v", updater.natCalls)
+	if got := len(updater.natCalls()); got != 1 || updater.natCalls()[0] != true {
+		t.Fatalf("expected one datapath apply with NAT on, got %v", updater.natCalls())
 	}
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("second reconcile: %v", err)
 	}
 
-	if got := len(updater.natCalls); got != 1 {
-		t.Fatalf("expected ReloadNAT to NOT fire on unchanged second tick, got %d total calls", got)
+	if got := len(updater.natCalls()); got != 1 {
+		t.Fatalf("expected no datapath apply on an unchanged second tick, got %d total calls", got)
 	}
 }
 
@@ -218,8 +212,8 @@ func TestReconcile_NATFiresOnChange(t *testing.T) {
 		t.Fatalf("reconcile 2: %v", err)
 	}
 
-	if !reflect.DeepEqual(updater.natCalls, []bool{true, false}) {
-		t.Fatalf("expected NAT calls [true, false], got %v", updater.natCalls)
+	if !reflect.DeepEqual(updater.natCalls(), []bool{true, false}) {
+		t.Fatalf("expected NAT calls [true, false], got %v", updater.natCalls())
 	}
 }
 
@@ -237,8 +231,8 @@ func TestReconcile_FlowAccountingDiff(t *testing.T) {
 		t.Fatalf("second reconcile: %v", err)
 	}
 
-	if !reflect.DeepEqual(updater.flowCalls, []bool{true}) {
-		t.Fatalf("expected one ReloadFlowAccounting(true), got %v", updater.flowCalls)
+	if !reflect.DeepEqual(updater.flowCalls(), []bool{true}) {
+		t.Fatalf("expected one datapath apply with flow accounting on, got %v", updater.flowCalls())
 	}
 }
 
@@ -540,9 +534,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 
 	for time.Now().Before(deadline) {
-		updater.mu.Lock()
-		count := len(updater.natCalls)
-		updater.mu.Unlock()
+		count := len(updater.natCalls())
 
 		if count == 1 {
 			break
@@ -551,9 +543,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	updater.mu.Lock()
-	initialNATCalls := len(updater.natCalls)
-	updater.mu.Unlock()
+	initialNATCalls := len(updater.natCalls())
 
 	if initialNATCalls != 1 {
 		t.Fatalf("expected 1 NAT call after initial reconcile, got %d", initialNATCalls)
@@ -568,9 +558,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	deadline = time.Now().Add(time.Second)
 
 	for time.Now().Before(deadline) {
-		updater.mu.Lock()
-		count := len(updater.natCalls)
-		updater.mu.Unlock()
+		count := len(updater.natCalls())
 
 		if count == 2 {
 			return
@@ -579,16 +567,14 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	updater.mu.Lock()
-	finalNATCalls := len(updater.natCalls)
-	updater.mu.Unlock()
+	finalNATCalls := len(updater.natCalls())
 
 	t.Fatalf("expected reconcile to fire from changefeed event; got %d total NAT calls", finalNATCalls)
 }
 
 func TestReconcile_PropagatesNATError(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
-	updater := &fakeUpdater{natErr: errors.New("xdp attach failed")}
+	updater := &fakeUpdater{settingsErr: errors.New("xdp attach failed")}
 
 	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
 
@@ -626,7 +612,7 @@ func TestStart_FiltersDoNotWaitOnASettingsReload(t *testing.T) {
 	filtersApplied := make(chan struct{})
 
 	updater := &fakeUpdater{
-		reloadNATFunc: func(bool) error {
+		applyFunc: func(DatapathSettings) error {
 			<-release
 
 			return nil
@@ -654,5 +640,60 @@ func TestStart_FiltersDoNotWaitOnASettingsReload(t *testing.T) {
 	case <-filtersApplied:
 	case <-time.After(5 * time.Second):
 		t.Fatal("filters were not applied while a settings reload was in flight")
+	}
+}
+
+func TestReconcile_TogglesShareOneDatapathApply(t *testing.T) {
+	store := &fakeStore{natEnabled: true, flowAccounting: true, localSwitch: true}
+	updater := &fakeUpdater{}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updater.mu.Lock()
+	calls := updater.settingsCalls
+	updater.mu.Unlock()
+
+	if len(calls) != 1 {
+		t.Fatalf("three toggles produced %d datapath applies, want 1", len(calls))
+	}
+
+	want := DatapathSettings{NAT: true, FlowAccounting: true, LocalSwitch: true}
+	if calls[0] != want {
+		t.Fatalf("applied %+v, want %+v", calls[0], want)
+	}
+}
+
+func TestReconcile_OneChangedToggleReappliesAllOfThem(t *testing.T) {
+	store := &fakeStore{natEnabled: true}
+	updater := &fakeUpdater{}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	store.mu.Lock()
+	store.localSwitch = true
+	store.mu.Unlock()
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	updater.mu.Lock()
+	calls := updater.settingsCalls
+	updater.mu.Unlock()
+
+	if len(calls) != 2 {
+		t.Fatalf("got %d datapath applies, want 2", len(calls))
+	}
+
+	if !calls[1].NAT || !calls[1].LocalSwitch {
+		t.Fatalf("second apply lost a setting: %+v", calls[1])
 	}
 }

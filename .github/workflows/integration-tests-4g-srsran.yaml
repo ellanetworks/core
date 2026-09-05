@@ -45,12 +45,22 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      # Exclude TestIntegration4GHAFailover: it also matches -run 'TestIntegration4G'
-      # but runs in integration-tests-ha-4g with its own 3-node cluster.
+      # Exclude TestIntegration4GHA*: they also match -run 'TestIntegration4G'
+      # but run in integration-tests-ha-4g with their own 3-node cluster.
       - name: Run 4G srsRAN integration tests
         env:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ipv4
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHA|TestIntegration4GNetworkRules|TestIntegration4GUE2UE' -timeout 30m -v
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-4g-srsran-cluster-logs-${{ matrix.attach_mode }}
+          path: ${{ runner.temp }}/integration-logs
+          if-no-files-found: ignore
+          retention-days: 7
