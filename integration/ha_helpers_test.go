@@ -43,7 +43,7 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 	}
 
 	for i := range services {
-		captureDatapathMetrics(t, APIAddressForCluster(i+1), fmt.Sprintf("metrics-node%d.txt", i+1))
+		captureMetrics(t, APIAddressForCluster(i+1), fmt.Sprintf("metrics-node%d.txt", i+1))
 	}
 
 	captured := 0
