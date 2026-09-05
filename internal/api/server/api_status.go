@@ -63,6 +63,11 @@ type ClusterStatusResponse struct {
 	PendingMigration     *PendingMigrationResponse `json:"pendingMigration,omitempty"`
 }
 
+type DatapathStatusResponse struct {
+	AppliedPolicyIndex   uint64 `json:"appliedPolicyIndex"`
+	AppliedSettingsIndex uint64 `json:"appliedSettingsIndex"`
+}
+
 type StatusResponse struct {
 	Version       string                 `json:"version"`
 	Revision      string                 `json:"revision"`
@@ -73,11 +78,13 @@ type StatusResponse struct {
 
 	// One of the config.Datapath* values, absent until the UPF is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
+
+	Datapath *DatapathStatusResponse `json:"datapath,omitempty"`
 }
 
 // datapathMode is a function because the handler is built before the UPF
 // exists; nil means never available.
-func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() string) http.Handler {
+func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() string, datapathIndexes func() (uint64, uint64)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -101,6 +108,14 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 
 		if datapathMode != nil {
 			statusResponse.DatapathAttachMode = datapathMode()
+		}
+
+		if datapathIndexes != nil {
+			policy, settings := datapathIndexes()
+			statusResponse.Datapath = &DatapathStatusResponse{
+				AppliedPolicyIndex:   policy,
+				AppliedSettingsIndex: settings,
+			}
 		}
 
 		if dbInstance.ClusterEnabled() {

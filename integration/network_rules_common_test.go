@@ -15,10 +15,6 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// rulePropagationDelay lets the UPF's changefeed reconciler register a policy's
-// SDF filters before a session establishes and binds its filter index.
-const rulePropagationDelay = 3 * time.Second
-
 // runNetworkRulesAndFlowReports drives a matrix of rule shapes for the given RAN
 // (ranPrefix "gnb"/"s1enb"). For each shape, every applicable protocol's probe
 // is run back-to-back under a single combined policy, then per-protocol flow
@@ -271,10 +267,6 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 		setDefaultPolicyRules(context.Background(), t, env.Client, &client.PolicyRules{})
 	})
 
-	// The rule must reach the data path before the scenario attaches, else a fast
-	// attach binds its filter index before the deny rule is in force.
-	time.Sleep(rulePropagationDelay)
-
 	if err := env.Client.ClearFlowReports(ctx); err != nil {
 		t.Fatalf("clear flow reports: %v", err)
 	}
@@ -356,7 +348,7 @@ func setDefaultPolicyRules(ctx context.Context, t *testing.T, c *client.Client, 
 		t.Fatalf("get policy %q: %v", name, err)
 	}
 
-	if err := c.UpdatePolicy(ctx, name, &client.UpdatePolicyOptions{
+	if err := c.UpdatePolicyAndWait(ctx, name, &client.UpdatePolicyOptions{
 		ProfileName:         cur.ProfileName,
 		SliceName:           cur.SliceName,
 		DataNetworkName:     cur.DataNetworkName,

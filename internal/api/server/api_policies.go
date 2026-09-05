@@ -474,6 +474,7 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		setAppliedIndex(w, dbInstance)
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeletePolicyAction, email, getClientIP(r), "User deleted policy: "+name)
@@ -627,6 +628,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		setAppliedIndex(w, dbInstance)
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
@@ -727,6 +729,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		setAppliedIndex(w, dbInstance)
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)
 	})

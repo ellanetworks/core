@@ -18,6 +18,10 @@ import (
 )
 
 func statusHandler(t *testing.T, mode func() string) http.Handler {
+	return statusHandlerWithIndexes(t, mode, nil)
+}
+
+func statusHandlerWithIndexes(t *testing.T, mode func() string, indexes func() (uint64, uint64)) http.Handler {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
@@ -32,7 +36,7 @@ func statusHandler(t *testing.T, mode func() string) http.Handler {
 	ready := &atomic.Bool{}
 	ready.Store(true)
 
-	return server.GetStatus(dbInstance, ready, mode)
+	return server.GetStatus(dbInstance, ready, mode, indexes)
 }
 
 func statusBody(t *testing.T, handler http.Handler) map[string]any {
@@ -77,5 +81,28 @@ func TestStatusOmitsDatapathAttachModeBeforeAttach(t *testing.T) {
 				t.Error("datapathAttachMode is present before the datapath attached")
 			}
 		})
+	}
+}
+
+func TestStatusReportsDatapathAppliedIndexes(t *testing.T) {
+	handler := statusHandlerWithIndexes(t, nil, func() (uint64, uint64) { return 42, 17 })
+
+	datapath, ok := statusBody(t, handler)["datapath"].(map[string]any)
+	if !ok {
+		t.Fatal("datapath missing from status")
+	}
+
+	if got := datapath["appliedPolicyIndex"]; got != float64(42) {
+		t.Errorf("appliedPolicyIndex = %v, want 42", got)
+	}
+
+	if got := datapath["appliedSettingsIndex"]; got != float64(17) {
+		t.Errorf("appliedSettingsIndex = %v, want 17", got)
+	}
+}
+
+func TestStatusOmitsDatapathIndexesBeforeReconciler(t *testing.T) {
+	if _, ok := statusBody(t, statusHandler(t, nil))["datapath"]; ok {
+		t.Error("datapath is present before the reconciler started")
 	}
 }

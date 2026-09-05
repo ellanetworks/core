@@ -3652,7 +3652,34 @@ components:
             Mechanism the data plane attached with.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
+        datapath:
+          $ref: "#/components/schemas/DatapathStatus"
       required: [version, revision, initialized, ready, schemaVersion]
+
+    DatapathStatus:
+      type: object
+      description: >-
+        How far this node's data plane has caught up with the replicated
+        log. A write returns the index it committed in the
+        X-Ella-Applied-Index response header; the change is in force on
+        this node once the matching field here has reached it.
+
+        The indexes are node-local: every node runs its own data plane and
+        reconciler, so they say nothing about any other node. They reset to
+        zero when the node restarts, so a client that sees a value decrease
+        must re-read rather than keep waiting.
+      properties:
+        appliedPolicyIndex:
+          type: integer
+          format: int64
+          description: Newest index whose policy network rules are enforced.
+        appliedSettingsIndex:
+          type: integer
+          format: int64
+          description: >-
+            Newest index whose NAT, flow-accounting, local-switch and N3
+            settings are applied.
+      required: [appliedPolicyIndex, appliedSettingsIndex]
 
     StatusResponseEnvelope:
       type: object

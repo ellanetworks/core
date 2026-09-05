@@ -29,6 +29,11 @@ type ClusterStatus struct {
 	PendingMigration     *PendingMigration `json:"pendingMigration,omitempty"`
 }
 
+type DatapathStatus struct {
+	AppliedPolicyIndex   uint64 `json:"appliedPolicyIndex"`
+	AppliedSettingsIndex uint64 `json:"appliedSettingsIndex"`
+}
+
 type Status struct {
 	Version       string         `json:"version"`
 	Revision      string         `json:"revision,omitempty"`
@@ -39,6 +44,8 @@ type Status struct {
 
 	// Empty until the data plane is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
+
+	Datapath *DatapathStatus `json:"datapath,omitempty"`
 }
 
 // GetStatus retrieves the current status of the system.

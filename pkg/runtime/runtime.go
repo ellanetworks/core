@@ -540,16 +540,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
-		DB:                  dbInstance,
-		Sessions:            smfInstance,
-		AMF:                 amfInstance,
-		MME:                 mmeInstance,
-		BGP:                 bgpService,
-		LMF:                 lmfInstance,
-		EmbedFS:             rc.EmbedFS,
-		RegisterExtraRoutes: rc.RegisterExtraRoutes,
-		ClusterListener:     clusterLn,
-		DatapathAttachMode:  upfInstance.DatapathAttachMode,
+		DB:                     dbInstance,
+		Sessions:               smfInstance,
+		AMF:                    amfInstance,
+		MME:                    mmeInstance,
+		BGP:                    bgpService,
+		LMF:                    lmfInstance,
+		EmbedFS:                rc.EmbedFS,
+		RegisterExtraRoutes:    rc.RegisterExtraRoutes,
+		ClusterListener:        clusterLn,
+		DatapathAttachMode:     upfInstance.DatapathAttachMode,
+		DatapathAppliedIndexes: upfReconciler.AppliedIndexes,
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}

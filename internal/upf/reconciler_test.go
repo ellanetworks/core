@@ -25,6 +25,14 @@ type fakeStore struct {
 	n3GetErr        error
 	policies        []db.Policy
 	rulesByPolicyID map[string][]*db.NetworkRule
+	appliedIndex    uint64
+}
+
+func (f *fakeStore) RaftAppliedIndex() uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.appliedIndex
 }
 
 func (f *fakeStore) IsNATEnabled(_ context.Context) (bool, error) {
@@ -602,4 +610,108 @@ func splitFilterCalls(calls []filterCall) (uplink, downlink []filterCall) {
 	}
 
 	return uplink, downlink
+}
+
+func policyWithRule(t *testing.T) (*fakeStore, string) {
+	t.Helper()
+
+	const policyID = "policy-1"
+
+	return &fakeStore{
+		policies: []db.Policy{{ID: policyID}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			policyID: {{Direction: directionDownlinkString, Protocol: 1, Action: "deny"}},
+		},
+	}, policyID
+}
+
+func TestReconcile_AppliesFiltersEvenWhenASettingsReloadFails(t *testing.T) {
+	store, policyID := policyWithRule(t)
+	store.natEnabled = true
+
+	updater := &fakeUpdater{natErr: errors.New("boom")}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err == nil {
+		t.Fatal("expected the NAT failure to surface")
+	}
+
+	updater.mu.Lock()
+	calls := len(updater.filterCalls)
+	first := ""
+
+	if calls > 0 {
+		first = updater.filterCalls[0].policyID
+	}
+	updater.mu.Unlock()
+
+	if calls == 0 || first != policyID {
+		t.Fatalf("filters were not applied before the failing reload: %d calls", calls)
+	}
+}
+
+func TestReconcile_RecordsAppliedIndexes(t *testing.T) {
+	store, _ := policyWithRule(t)
+	store.appliedIndex = 42
+
+	r := newReconciler(&fakeUpdater{}, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if policy, settings := r.AppliedIndexes(); policy != 42 || settings != 42 {
+		t.Fatalf("applied indexes = (%d, %d), want (42, 42)", policy, settings)
+	}
+}
+
+func TestReconcile_DoesNotRecordIndexesOnFailure(t *testing.T) {
+	store, _ := policyWithRule(t)
+	store.appliedIndex = 42
+	store.natEnabled = true
+
+	updater := &fakeUpdater{natErr: errors.New("boom")}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err == nil {
+		t.Fatal("expected the NAT failure to surface")
+	}
+
+	policy, settings := r.AppliedIndexes()
+	if policy != 42 {
+		t.Errorf("appliedPolicyIndex = %d, want 42: the filters did reach the data plane", policy)
+	}
+
+	if settings != 0 {
+		t.Errorf("appliedSettingsIndex = %d, want 0: the settings pass failed", settings)
+	}
+}
+
+func TestReconcile_IndexNeverExceedsTheSnapshotItRead(t *testing.T) {
+	store, _ := policyWithRule(t)
+	store.appliedIndex = 7
+
+	r := newReconciler(&fakeUpdater{}, store, netip.MustParseAddr("1.2.3.4"))
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	store.mu.Lock()
+	store.appliedIndex = 9
+	store.mu.Unlock()
+
+	if policy, _ := r.AppliedIndexes(); policy != 7 {
+		t.Fatalf("appliedPolicyIndex = %d, want 7: no pass has read index 9 yet", policy)
+	}
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	if policy, _ := r.AppliedIndexes(); policy != 9 {
+		t.Fatalf("appliedPolicyIndex = %d, want 9", policy)
+	}
 }

@@ -36,6 +36,7 @@ type SettingsStore interface {
 	GetN3Settings(ctx context.Context) (*db.N3Settings, error)
 	ListPoliciesPage(ctx context.Context, page int, perPage int) ([]db.Policy, int, error)
 	ListRulesForPolicy(ctx context.Context, policyID string) ([]*db.NetworkRule, error)
+	RaftAppliedIndex() uint64
 }
 
 // Updater is the narrow view the reconciler needs over the UPF runtime.
@@ -72,6 +73,9 @@ type SettingsReconciler struct {
 	appliedLocalSwitch    *bool
 	appliedN3Address      netip.Addr
 	appliedFilters        map[string]filterSnapshot
+
+	appliedPolicyIndex   uint64
+	appliedSettingsIndex uint64
 }
 
 type filterSnapshot struct {
@@ -177,6 +181,14 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 // Reconcile performs one reconcile pass. Exposed for tests and for
 // callers that want to force convergence after a known change.
 func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
+	index := r.store.RaftAppliedIndex()
+
+	if err := r.reconcileFilters(ctx); err != nil {
+		return fmt.Errorf("policy filters: %w", err)
+	}
+
+	r.setAppliedPolicyIndex(index)
+
 	if err := r.reconcileNAT(ctx); err != nil {
 		return fmt.Errorf("nat: %w", err)
 	}
@@ -193,11 +205,34 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("n3 address: %w", err)
 	}
 
-	if err := r.reconcileFilters(ctx); err != nil {
-		return fmt.Errorf("policy filters: %w", err)
-	}
+	r.setAppliedSettingsIndex(index)
 
 	return nil
+}
+
+func (r *SettingsReconciler) AppliedIndexes() (policy uint64, settings uint64) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+
+	return r.appliedPolicyIndex, r.appliedSettingsIndex
+}
+
+func (r *SettingsReconciler) setAppliedPolicyIndex(index uint64) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+
+	if index > r.appliedPolicyIndex {
+		r.appliedPolicyIndex = index
+	}
+}
+
+func (r *SettingsReconciler) setAppliedSettingsIndex(index uint64) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+
+	if index > r.appliedSettingsIndex {
+		r.appliedSettingsIndex = index
+	}
 }
 
 func (r *SettingsReconciler) reconcileNAT(ctx context.Context) error {
