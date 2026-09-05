@@ -47,8 +47,7 @@ volatile const int n6_vlan;
 volatile const int n6_vlan = 0;
 
 /* UE-to-UE local switching (TS 23.501 §5.8.2.13). Defaults to false. */
-volatile const bool local_switch;
-volatile const bool local_switch = false;
+bool local_switch;
 
 struct vlan_hdr {
 	__be16 h_vlan_TCI;

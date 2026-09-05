@@ -379,14 +379,7 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 }
 
 func (u *UPF) ReloadFlowAccounting(flowact bool) error {
-	u.se.BpfObjects.FlowAccounting = flowact
-
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
-	if err := u.updateAttachedPrograms(); err != nil {
+	if err := u.se.BpfObjects.SetFlowAccounting(flowact); err != nil {
 		return err
 	}
 
@@ -400,18 +393,7 @@ func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 }
 
 func (u *UPF) ReloadLocalSwitch(localSwitch bool) error {
-	u.se.BpfObjects.LocalSwitch = localSwitch
-
-	err := u.se.BpfObjects.LoadWithMapReplacements()
-	if err != nil {
-		return fmt.Errorf("couldn't load BPF objects: %w", err)
-	}
-
-	if err := u.updateAttachedPrograms(); err != nil {
-		return err
-	}
-
-	return nil
+	return u.se.BpfObjects.SetLocalSwitch(localSwitch)
 }
 
 func (u *UPF) startGC(ctx context.Context) {

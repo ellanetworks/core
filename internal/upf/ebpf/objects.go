@@ -381,6 +381,26 @@ func (bpfObjects *BpfObjects) Close() error {
 	)
 }
 
+func (bpfObjects *BpfObjects) SetLocalSwitch(enabled bool) error {
+	bpfObjects.LocalSwitch = enabled
+
+	if err := bpfObjects.N3N6EntrypointVariables.LocalSwitch.Set(enabled); err != nil {
+		return fmt.Errorf("set local_switch: %w", err)
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) SetFlowAccounting(enabled bool) error {
+	bpfObjects.FlowAccounting = enabled
+
+	if err := bpfObjects.Flowact.Set(enabled); err != nil {
+		return fmt.Errorf("set flowact: %w", err)
+	}
+
+	return nil
+}
+
 // SetBufferVethIfindex names the veth re-injected packets arrive on. Zero clears it.
 func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 	bpfObjects.bufferVethIndex = uint32(vethIfindex)
