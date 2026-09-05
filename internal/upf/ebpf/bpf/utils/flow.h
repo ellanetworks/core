@@ -24,7 +24,8 @@
 #define FLOW_UPLINK 0
 #define FLOW_DOWNLINK 1
 
-bool flowact;
+volatile const bool flowact;
+volatile const bool flowact = false;
 
 struct flow {
 	__u64 imsi;
