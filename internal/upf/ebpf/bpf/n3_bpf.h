@@ -252,7 +252,6 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
 	account_flow(ctx, n3_ifindex, dl_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK, ALLOW);
-	account_flow(ctx, n3_ifindex, ul_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
 
 	enum ctx_action tunnel_ret =
 		send_to_gtp_tunnel(ctx, dl_far, tos, dl_qer->qfi);
@@ -496,6 +495,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		struct pdr_info *dl_pdr = try_local_switch(ctx);
 		if (dl_pdr) {
 			upf_printk("upf: local switch teid:%d", teid);
+			account_flow(ctx, n3_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
 			const __u32 lskey = 0;
 			struct pdr_info *ul_stash =
 				bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);
