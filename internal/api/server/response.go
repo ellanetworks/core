@@ -8,11 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"go.uber.org/zap"
 )
 
@@ -31,10 +29,6 @@ type ErrorResponse struct {
 
 type Response struct {
 	Result any `json:"result,omitempty"`
-}
-
-func setAppliedIndex(w http.ResponseWriter, dbInstance *db.Database) {
-	w.Header().Set(ellaraft.HeaderAppliedIndex, strconv.FormatUint(dbInstance.RaftAppliedIndex(), 10))
 }
 
 func writeResponse(ctx context.Context, w http.ResponseWriter, v any, status int, l *zap.Logger) {

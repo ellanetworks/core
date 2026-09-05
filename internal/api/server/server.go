@@ -24,23 +24,22 @@ import (
 )
 
 type HandlerConfig struct {
-	DB                     *db.Database
-	Config                 config.Config
-	JWTSecret              *JWTSecret
-	SecureCookie           bool
-	FrontendFS             fs.FS
-	Sessions               smf.SessionQuerier
-	AMF                    *amf.AMF
-	MME                    *mme.MME
-	BGP                    *bgp.BGPService
-	BcryptCost             int
-	Ready                  *atomic.Bool
-	ReconcileRoutes        func(context.Context) error
-	RegisterExtraRoutes    func(*http.ServeMux)
-	ClusterListener        *listener.Listener
-	LMF                    *lmf.LMF
-	DatapathAttachMode     func() string
-	DatapathAppliedIndexes func() (uint64, uint64)
+	DB                  *db.Database
+	Config              config.Config
+	JWTSecret           *JWTSecret
+	SecureCookie        bool
+	FrontendFS          fs.FS
+	Sessions            smf.SessionQuerier
+	AMF                 *amf.AMF
+	MME                 *mme.MME
+	BGP                 *bgp.BGPService
+	BcryptCost          int
+	Ready               *atomic.Bool
+	ReconcileRoutes     func(context.Context) error
+	RegisterExtraRoutes func(*http.ServeMux)
+	ClusterListener     *listener.Listener
+	LMF                 *lmf.LMF
+	DatapathAttachMode  func() string
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -67,7 +66,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		ready.Store(true)
 	}
 
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, cfg.DatapathAttachMode, cfg.DatapathAppliedIndexes).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, cfg.DatapathAttachMode).ServeHTTP)
 
 	// OpenAPI Specification (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
@@ -312,7 +311,7 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	ready := &atomic.Bool{}
 
 	// The datapath is not attached during discovery, so the mode is absent.
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil, nil).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 

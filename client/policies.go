@@ -161,21 +161,6 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 // destructively replaced on every update: if opts.Rules is nil, all
 // existing rules are deleted. To keep them, re-supply the current list.
 func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
-	_, err := c.updatePolicy(ctx, name, opts)
-
-	return err
-}
-
-func (c *Client) UpdatePolicyAndWait(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
-	index, err := c.updatePolicy(ctx, name, opts)
-	if err != nil {
-		return err
-	}
-
-	return c.WaitForDatapathPolicy(ctx, index)
-}
-
-func (c *Client) updatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) (uint64, error) {
 	payload := struct {
 		ProfileName         string       `json:"profile_name,omitempty"`
 		SliceName           string       `json:"slice_name,omitempty"`
@@ -200,20 +185,20 @@ func (c *Client) updatePolicy(ctx context.Context, name string, opts *UpdatePoli
 
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/policies/" + name,
 		Body:   &body,
 	})
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return appliedIndexFrom(resp), nil
+	return nil
 }
 
 func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) error {

@@ -89,17 +89,16 @@ func (hr *handlerRef) set(h http.Handler) {
 // UpgradeConfig holds the dependencies needed to upgrade the API server
 // from discovery-only routes to the full API.
 type UpgradeConfig struct {
-	DB                     *db.Database
-	Sessions               smf.SessionQuerier
-	AMF                    *amf.AMF
-	MME                    *mme.MME
-	BGP                    *bgp.BGPService
-	LMF                    *lmf.LMF
-	EmbedFS                fs.FS
-	RegisterExtraRoutes    func(*http.ServeMux)
-	ClusterListener        *listener.Listener
-	DatapathAttachMode     func() string
-	DatapathAppliedIndexes func() (uint64, uint64)
+	DB                  *db.Database
+	Sessions            smf.SessionQuerier
+	AMF                 *amf.AMF
+	MME                 *mme.MME
+	BGP                 *bgp.BGPService
+	LMF                 *lmf.LMF
+	EmbedFS             fs.FS
+	RegisterExtraRoutes func(*http.ServeMux)
+	ClusterListener     *listener.Listener
+	DatapathAttachMode  func() string
 }
 
 // StartDiscovery creates and starts the HTTP server with only the routes
@@ -231,20 +230,19 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	secureCookie := resolveScheme(s.cfg) == HTTPS
 
 	fullHandler := server.NewHandler(server.HandlerConfig{
-		DB:                     opts.DB,
-		Config:                 s.cfg,
-		JWTSecret:              jwtSecret,
-		SecureCookie:           secureCookie,
-		FrontendFS:             opts.EmbedFS,
-		Sessions:               opts.Sessions,
-		AMF:                    opts.AMF,
-		MME:                    opts.MME,
-		BGP:                    opts.BGP,
-		LMF:                    opts.LMF,
-		BcryptCost:             bcrypt.DefaultCost,
-		DatapathAttachMode:     opts.DatapathAttachMode,
-		DatapathAppliedIndexes: opts.DatapathAppliedIndexes,
-		Ready:                  &s.ready,
+		DB:                 opts.DB,
+		Config:             s.cfg,
+		JWTSecret:          jwtSecret,
+		SecureCookie:       secureCookie,
+		FrontendFS:         opts.EmbedFS,
+		Sessions:           opts.Sessions,
+		AMF:                opts.AMF,
+		MME:                opts.MME,
+		BGP:                opts.BGP,
+		LMF:                opts.LMF,
+		BcryptCost:         bcrypt.DefaultCost,
+		DatapathAttachMode: opts.DatapathAttachMode,
+		Ready:              &s.ready,
 		ReconcileRoutes: func(rcCtx context.Context) error {
 			return routeReconciler(rcCtx, opts.DB, kernelInt)
 		},
