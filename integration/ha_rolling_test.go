@@ -427,7 +427,7 @@ func swapNodeImage(t *testing.T, ctx context.Context, dc *DockerClient, nodeNum 
 func capturePreSwapLogs(t *testing.T, ctx context.Context, dc *DockerClient, service string) {
 	t.Helper()
 
-	dir := os.Getenv("HA_CLUSTER_LOG_DIR")
+	dir := os.Getenv("INTEGRATION_LOG_DIR")
 	if dir == "" {
 		return
 	}

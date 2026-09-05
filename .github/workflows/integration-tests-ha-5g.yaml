@@ -39,7 +39,7 @@ jobs:
       - name: Run HA+3GPP integration tests
         env:
           INTEGRATION: "1"
-          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run TestIntegration5GHAFailover -v -timeout 15m
 
@@ -48,6 +48,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ha-5g-cluster-logs
-          path: ${{ runner.temp }}/ha-cluster-logs
+          path: ${{ runner.temp }}/integration-logs
           if-no-files-found: ignore
           retention-days: 7

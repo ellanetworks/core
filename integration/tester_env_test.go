@@ -77,7 +77,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	t.Cleanup(func() {
 		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
 		if err == nil {
-			logDir := os.Getenv("HA_CLUSTER_LOG_DIR")
+			logDir := os.Getenv("INTEGRATION_LOG_DIR")
 			if logDir != "" && t.Failed() {
 				safeName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 
