@@ -38,12 +38,17 @@ type SettingsStore interface {
 	ListRulesForPolicy(ctx context.Context, policyID string) ([]*db.NetworkRule, error)
 }
 
+// DatapathSettings is the set of load-time datapath toggles applied together.
+type DatapathSettings struct {
+	NAT            bool
+	FlowAccounting bool
+	LocalSwitch    bool
+}
+
 // Updater is the narrow view the reconciler needs over the UPF runtime.
 // *UPF satisfies it.
 type Updater interface {
-	ReloadNAT(enabled bool) error
-	ReloadFlowAccounting(enabled bool) error
-	ReloadLocalSwitch(enabled bool) error
+	ApplyDatapathSettings(settings DatapathSettings) error
 	UpdateAdvertisedN3Address(addr netip.Addr)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
@@ -66,12 +71,10 @@ type SettingsReconciler struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	stateMu               sync.Mutex
-	appliedNAT            *bool
-	appliedFlowAccounting *bool
-	appliedLocalSwitch    *bool
-	appliedN3Address      netip.Addr
-	appliedFilters        map[string]filterSnapshot
+	stateMu          sync.Mutex
+	appliedSettings  *DatapathSettings
+	appliedN3Address netip.Addr
+	appliedFilters   map[string]filterSnapshot
 }
 
 type filterSnapshot struct {
@@ -204,16 +207,8 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
 }
 
 func (r *SettingsReconciler) reconcileSettings(ctx context.Context) error {
-	if err := r.reconcileNAT(ctx); err != nil {
-		return fmt.Errorf("nat: %w", err)
-	}
-
-	if err := r.reconcileFlowAccounting(ctx); err != nil {
-		return fmt.Errorf("flow accounting: %w", err)
-	}
-
-	if err := r.reconcileLocalSwitch(ctx); err != nil {
-		return fmt.Errorf("local switch: %w", err)
+	if err := r.reconcileDatapathSettings(ctx); err != nil {
+		return err
 	}
 
 	if err := r.reconcileN3Address(ctx); err != nil {
@@ -223,88 +218,64 @@ func (r *SettingsReconciler) reconcileSettings(ctx context.Context) error {
 	return nil
 }
 
-func (r *SettingsReconciler) reconcileNAT(ctx context.Context) error {
-	desired, err := r.store.IsNATEnabled(ctx)
+// Each toggle is a load-time constant in the datapath, so changing any of
+// them costs a full verify-and-reattach. Reading all three and applying
+// them together keeps that cost to one reload per pass instead of three.
+func (r *SettingsReconciler) reconcileDatapathSettings(ctx context.Context) error {
+	desired, err := r.desiredDatapathSettings(ctx)
 	if err != nil {
 		return err
 	}
 
 	r.stateMu.Lock()
-	current := r.appliedNAT
+	current := r.appliedSettings
 	r.stateMu.Unlock()
 
 	if current != nil && *current == desired {
 		return nil
 	}
 
-	if err := r.updater.ReloadNAT(desired); err != nil {
-		return err
+	if err := r.updater.ApplyDatapathSettings(desired); err != nil {
+		return fmt.Errorf("apply datapath settings: %w", err)
 	}
 
 	r.stateMu.Lock()
-	v := desired
-	r.appliedNAT = &v
+	applied := desired
+	r.appliedSettings = &applied
 	r.stateMu.Unlock()
 
-	logger.UpfLog.Info("applied NAT setting", zap.Bool("enabled", desired))
+	logger.UpfLog.Info("applied datapath settings",
+		zap.Bool("nat", desired.NAT),
+		zap.Bool("flow_accounting", desired.FlowAccounting),
+		zap.Bool("local_switch", desired.LocalSwitch),
+	)
 
 	return nil
 }
 
-func (r *SettingsReconciler) reconcileFlowAccounting(ctx context.Context) error {
-	desired, err := r.store.IsFlowAccountingEnabled(ctx)
+func (r *SettingsReconciler) desiredDatapathSettings(ctx context.Context) (DatapathSettings, error) {
+	var desired DatapathSettings
+
+	nat, err := r.store.IsNATEnabled(ctx)
 	if err != nil {
-		return err
+		return desired, fmt.Errorf("nat: %w", err)
 	}
 
-	r.stateMu.Lock()
-	current := r.appliedFlowAccounting
-	r.stateMu.Unlock()
-
-	if current != nil && *current == desired {
-		return nil
-	}
-
-	if err := r.updater.ReloadFlowAccounting(desired); err != nil {
-		return err
-	}
-
-	r.stateMu.Lock()
-	v := desired
-	r.appliedFlowAccounting = &v
-	r.stateMu.Unlock()
-
-	logger.UpfLog.Info("applied flow accounting setting", zap.Bool("enabled", desired))
-
-	return nil
-}
-
-func (r *SettingsReconciler) reconcileLocalSwitch(ctx context.Context) error {
-	desired, err := r.store.IsLocalSwitchEnabled(ctx)
+	flowAccounting, err := r.store.IsFlowAccountingEnabled(ctx)
 	if err != nil {
-		return err
+		return desired, fmt.Errorf("flow accounting: %w", err)
 	}
 
-	r.stateMu.Lock()
-	current := r.appliedLocalSwitch
-	r.stateMu.Unlock()
-
-	if current != nil && *current == desired {
-		return nil
+	localSwitch, err := r.store.IsLocalSwitchEnabled(ctx)
+	if err != nil {
+		return desired, fmt.Errorf("local switch: %w", err)
 	}
 
-	if err := r.updater.ReloadLocalSwitch(desired); err != nil {
-		return err
-	}
+	desired.NAT = nat
+	desired.FlowAccounting = flowAccounting
+	desired.LocalSwitch = localSwitch
 
-	r.stateMu.Lock()
-	v := desired
-	r.appliedLocalSwitch = &v
-	r.stateMu.Unlock()
-
-	logger.UpfLog.Info("applied local switch setting", zap.Bool("enabled", desired))
-
-	return nil
+	return desired, nil
 }
 
 func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
