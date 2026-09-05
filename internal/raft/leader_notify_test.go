@@ -41,7 +41,7 @@ func TestWaitForLeaderDoesNotConsumeLeaderCh(t *testing.T) {
 		if !isLeader {
 			t.Fatal("expected the pending notification to report leadership")
 		}
-	default:
+	case <-time.After(10 * time.Second):
 		t.Fatal("waitForLeader took the transition off raft.LeaderCh(); raft delivers each value to exactly one receiver, so LeaderObserver must be its sole consumer or leadership callbacks are lost")
 	}
 }
