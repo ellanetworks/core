@@ -98,9 +98,16 @@ type fakeUpdater struct {
 	localSwitchErr    error
 	updateFiltersErr  error
 	updateFiltersFunc func(policyID string, direction models.Direction, rules []models.FilterRule) error
+	reloadNATFunc     func(enabled bool) error
 }
 
 func (f *fakeUpdater) ReloadNAT(enabled bool) error {
+	if f.reloadNATFunc != nil {
+		if err := f.reloadNATFunc(enabled); err != nil {
+			return err
+		}
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -602,4 +609,50 @@ func splitFilterCalls(calls []filterCall) (uplink, downlink []filterCall) {
 	}
 
 	return uplink, downlink
+}
+
+func TestStart_FiltersDoNotWaitOnASettingsReload(t *testing.T) {
+	const policyID = "policy-1"
+
+	store := &fakeStore{
+		natEnabled: true,
+		policies:   []db.Policy{{ID: policyID}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			policyID: {{Direction: directionDownlinkString, Protocol: 1, Action: "deny"}},
+		},
+	}
+
+	release := make(chan struct{})
+	filtersApplied := make(chan struct{})
+
+	updater := &fakeUpdater{
+		reloadNATFunc: func(bool) error {
+			<-release
+
+			return nil
+		},
+		updateFiltersFunc: func(string, models.Direction, []models.FilterRule) error {
+			select {
+			case <-filtersApplied:
+			default:
+				close(filtersApplied)
+			}
+
+			return nil
+		},
+	}
+
+	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r.Start()
+
+	defer func() {
+		close(release)
+		r.Stop()
+	}()
+
+	select {
+	case <-filtersApplied:
+	case <-time.After(5 * time.Second):
+		t.Fatal("filters were not applied while a settings reload was in flight")
+	}
 }
