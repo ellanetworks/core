@@ -294,17 +294,6 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 	return policy, nil
 }
 
-func (a *smfDBAdapter) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
-	epochDay := time.Now().UTC().Unix() / 86400
-
-	return a.db.IncrementDailyUsage(ctx, db.DailyUsage{
-		EpochDay:      epochDay,
-		IMSI:          imsi,
-		BytesUplink:   int64(uplinkBytes),
-		BytesDownlink: int64(downlinkBytes),
-	})
-}
-
 func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error {
 	epochDay := time.Now().UTC().Unix() / 86400
 
@@ -318,7 +307,15 @@ func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []mo
 		}
 	}
 
-	return a.db.IncrementDailyUsageBatch(ctx, rows)
+	return usageStoreErr(a.db.IncrementDailyUsageBatch(ctx, rows))
+}
+
+func usageStoreErr(err error) error {
+	if errors.Is(err, db.ErrOutcomeUnknown) {
+		return fmt.Errorf("%w: %w", models.ErrUsageOutcomeUnknown, err)
+	}
+
+	return err
 }
 
 func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error {

@@ -185,15 +185,6 @@ func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.
 	return f.err
 }
 
-func (f *fakeStore) IncrementDailyUsage(_ context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.usageLog = append(f.usageLog, usageEntry{imsi, uplinkBytes, downlinkBytes})
-
-	return f.err
-}
-
 func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowReportRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

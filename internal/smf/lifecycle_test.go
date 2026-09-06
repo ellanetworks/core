@@ -20,6 +20,8 @@ import (
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func TestMain(m *testing.M) {
@@ -1578,48 +1580,6 @@ func TestReconcileSmContext_DNSIdleUE(t *testing.T) {
 	smCtx.Mutex.Unlock()
 }
 
-// ===========================
-// HandleUsageReport tests
-// ===========================
-
-func TestHandleUsageReport(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	err := s.HandleUsageReport(ctx, &models.UsageReport{
-		SEID:           smCtx.PFCPContext.SEID,
-		UplinkVolume:   500,
-		DownlinkVolume: 300,
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReport failed: %v", err)
-	}
-
-	store.mu.Lock()
-	if len(store.usageLog) != 1 {
-		store.mu.Unlock()
-		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
-	}
-
-	entry := store.usageLog[0]
-	store.mu.Unlock()
-
-	if entry.imsi != testIMSI {
-		t.Fatalf("expected IMSI %s, got %s", testIMSI, entry.imsi)
-	}
-
-	if entry.uplinkBytes != 500 {
-		t.Fatalf("expected 500 uplink bytes, got %d", entry.uplinkBytes)
-	}
-
-	if entry.downlinkBytes != 300 {
-		t.Fatalf("expected 300 downlink bytes, got %d", entry.downlinkBytes)
-	}
-}
-
 // TestHandleDownlinkDataReportEPS checks that downlink data for a 4G EPS session
 // pages via the MME, not the AMF (TS 23.401 §5.3.4.3).
 func TestHandleDownlinkDataReportEPS(t *testing.T) {
@@ -1770,36 +1730,6 @@ func TestSendFlowReports_StoreError(t *testing.T) {
 	err := s.SendFlowReports(context.Background(), []*models.FlowReportRequest{req})
 	if err == nil {
 		t.Fatal("expected error when store fails")
-	}
-}
-
-// ===========================
-// IncrementDailyUsage tests
-// ===========================
-
-func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	err := s.IncrementDailyUsage(ctx, testIMSI, 1000, 2000)
-	if err != nil {
-		t.Fatalf("IncrementDailyUsage failed: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if len(store.usageLog) != 1 {
-		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
-	}
-
-	if store.usageLog[0].uplinkBytes != 1000 {
-		t.Fatalf("expected 1000 uplink bytes, got %d", store.usageLog[0].uplinkBytes)
-	}
-
-	if store.usageLog[0].downlinkBytes != 2000 {
-		t.Fatalf("expected 2000 downlink bytes, got %d", store.usageLog[0].downlinkBytes)
 	}
 }
 
@@ -2478,6 +2408,24 @@ func TestHandleUsageReports_BatchesEverySessionIntoOneStoreCall(t *testing.T) {
 	}
 }
 
+func TestHandleUsageReports_PreservesAnUnknownOutcome(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	store.mu.Lock()
+	store.err = fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)
+	store.mu.Unlock()
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+	})
+	if !errors.Is(err, models.ErrUsageOutcomeUnknown) {
+		t.Fatalf("HandleUsageReports lost the unknown-outcome signal: %v", err)
+	}
+}
+
 func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2503,6 +2451,44 @@ func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
 	if store.usageLog[0].uplinkBytes != 500 {
 		t.Errorf("got uplink %d, want 500", store.usageLog[0].uplinkBytes)
 	}
+}
+
+func TestHandleUsageReports_CountsEveryDroppedReport(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	before := droppedUsageReports(t)
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID + 9998, UplinkVolume: 70, DownlinkVolume: 20},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 1, DownlinkVolume: 1},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	if got := droppedUsageReports(t) - before; got != 2 {
+		t.Fatalf("counted %v dropped reports, want 2", got)
+	}
+}
+
+func droppedUsageReports(t *testing.T) float64 {
+	t.Helper()
+
+	ch := make(chan prometheus.Metric, 1)
+	smf.UsageReportsDropped.Collect(ch)
+	close(ch)
+
+	var m dto.Metric
+
+	if err := (<-ch).Write(&m); err != nil {
+		t.Fatalf("read UsageReportsDropped: %v", err)
+	}
+
+	return m.GetCounter().GetValue()
 }
 
 func TestHandleUsageReports_NoResolvableSessionSkipsTheStore(t *testing.T) {

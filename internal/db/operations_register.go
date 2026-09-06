@@ -24,7 +24,7 @@ var (
 // Daily usage
 var (
 	opIncrementDailyUsage      = registerChangesetOp("IncrementDailyUsage", (*Database).applyIncrementDailyUsage)
-	opIncrementDailyUsageBatch = registerChangesetOp("IncrementDailyUsageBatch", (*Database).applyIncrementDailyUsageBatch)
+	opIncrementDailyUsageBatch = registerChangesetOpReturning[DailyUsageBatch, int]("IncrementDailyUsageBatch", (*Database).applyIncrementDailyUsageBatch)
 	opClearDailyUsage          = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
 )
 

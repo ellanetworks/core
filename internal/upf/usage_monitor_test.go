@@ -5,13 +5,16 @@ package upf
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
+	"go.uber.org/zap"
 )
 
 func TestStopUsageMonitorWaitsForExit(t *testing.T) {
@@ -152,51 +155,87 @@ func TestSessionURRsSharedByBothDirectionsReportsDownlink(t *testing.T) {
 	}
 }
 
-func usageList(n int) []sessionUsage {
-	all := make([]sessionUsage, n)
-	for i := range all {
-		all[i] = sessionUsage{seid: uint64(i), localSeid: uint64(i)}
-	}
-
-	return all
+type stubReportHandler struct {
+	err   error
+	calls int
 }
 
-func TestUsageChunksCoversEverySessionExactlyOnce(t *testing.T) {
-	for _, n := range []int{1, 4, 5, 6, 2000, 2001, 4100} {
-		seen := map[uint64]int{}
+func (s *stubReportHandler) HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error {
+	return nil
+}
 
-		for _, chunk := range usageChunks(usageList(n), 5) {
-			if len(chunk) > 5 {
-				t.Fatalf("n=%d: chunk of %d exceeds the batch size", n, len(chunk))
-			}
+func (s *stubReportHandler) HandleUsageReports(context.Context, []*models.UsageReport) error {
+	s.calls++
 
-			for _, u := range chunk {
-				seen[u.seid]++
-			}
+	return s.err
+}
+
+func (s *stubReportHandler) SendFlowReports(context.Context, []*models.FlowReportRequest) error {
+	return nil
+}
+
+func TestReportUsageKeepsDrainedCountersWhenTheOutcomeIsUnknown(t *testing.T) {
+	smf := &stubReportHandler{err: fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)}
+	u := &UPF{se: &engine.SessionEngine{}, smf: smf}
+
+	batch := []sessionUsage{
+		{seid: 1, localSeid: 1, uvol: 500, drained: map[uint32]uint64{1: 500}},
+		{seid: 2, localSeid: 2, dvol: 300, drained: map[uint32]uint64{2: 300}},
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("reportUsage reached the URR restore after an unknown outcome: %v", r)
 		}
+	}()
 
-		if len(seen) != n {
-			t.Fatalf("n=%d: covered %d sessions, want %d", n, len(seen), n)
-		}
+	u.reportUsage(context.Background(), batch)
 
-		for seid, count := range seen {
-			if count != 1 {
-				t.Fatalf("n=%d: seid %d appeared %d times, want once", n, seid, count)
-			}
-		}
+	if smf.calls != 1 {
+		t.Fatalf("the batch was reported %d times, want once", smf.calls)
 	}
 }
 
-func TestUsageChunksOfNothingIsNothing(t *testing.T) {
-	if got := usageChunks(nil, 5); got != nil {
-		t.Fatalf("usageChunks(nil) = %v, want nil", got)
+func fieldByKey(fields []zap.Field, key string) (zap.Field, bool) {
+	for _, f := range fields {
+		if f.Key == key {
+			return f, true
+		}
+	}
+
+	return zap.Field{}, false
+}
+
+func TestBatchFieldsSumsVolumeAcrossTheBatch(t *testing.T) {
+	fields := batchFields([]sessionUsage{
+		{localSeid: 7, uvol: 500, dvol: 300},
+		{localSeid: 8, uvol: 70, dvol: 20},
+	})
+
+	uvol, ok := fieldByKey(fields, "uplink_volume")
+	if !ok || uvol.Integer != 570 {
+		t.Errorf("uplink_volume = %v, want 570", uvol.Integer)
+	}
+
+	dvol, ok := fieldByKey(fields, "downlink_volume")
+	if !ok || dvol.Integer != 320 {
+		t.Errorf("downlink_volume = %v, want 320", dvol.Integer)
+	}
+
+	if _, ok := fieldByKey(fields, "seid"); ok {
+		t.Error("a multi-session batch must not claim a single SEID")
 	}
 }
 
-func TestUsageChunksWithANonPositiveSizeStaysWhole(t *testing.T) {
-	got := usageChunks(usageList(7), 0)
+func TestBatchFieldsNamesTheSessionOfASingleSessionFlush(t *testing.T) {
+	fields := batchFields([]sessionUsage{{localSeid: 42, uvol: 500, dvol: 300}})
 
-	if len(got) != 1 || len(got[0]) != 7 {
-		t.Fatalf("usageChunks(7, 0) produced %d chunks, want one of 7", len(got))
+	seid, ok := fieldByKey(fields, "seid")
+	if !ok {
+		t.Fatalf("a single-session flush lost its SEID: %v", fields)
+	}
+
+	if seid.Integer != 42 {
+		t.Errorf("seid = %v, want 42", seid.Integer)
 	}
 }

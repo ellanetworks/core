@@ -12,6 +12,11 @@ import (
 // ("4g"|"5g") and result ("accept"|"reject").
 var SessionEstablishmentAttempts *prometheus.CounterVec
 
+var UsageReportsDropped = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_usage_reports_dropped_total",
+	Help: "Usage reports dropped because the SEID no longer resolves to a subscriber.",
+})
+
 // sessionCounter reports active session counts split by RAT.
 type sessionCounter interface {
 	SessionCountByRAT() (fourG, fiveG int)
@@ -36,6 +41,8 @@ func RegisterMetrics(sessions sessionCounter) {
 	)
 
 	prometheus.MustRegister(SessionEstablishmentAttempts)
+
+	prometheus.MustRegister(UsageReportsDropped)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		var fourG, fiveG int

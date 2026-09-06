@@ -57,29 +57,6 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	return nil
 }
 
-func (s *SMF) HandleUsageReport(ctx context.Context, report *models.UsageReport) error {
-	ctx, span := tracer.Start(ctx, "smf/handle_usage_report")
-	defer span.End()
-
-	smContext := s.GetSessionBySEID(report.SEID)
-	if smContext == nil || !smContext.Supi.IsIMSI() {
-		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
-	}
-
-	if err := s.store.IncrementDailyUsage(ctx, smContext.Supi.IMSI(), report.UplinkVolume, report.DownlinkVolume); err != nil {
-		return fmt.Errorf("failed to update data volume for imsi %s: %v", smContext.Supi.String(), err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Debug(
-		"Processed usage report",
-		logger.SUPI(smContext.Supi.String()),
-		logger.UplinkVolume(report.UplinkVolume),
-		logger.DownlinkVolume(report.DownlinkVolume),
-	)
-
-	return nil
-}
-
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/send_flow_reports",
 		trace.WithAttributes(attribute.Int("batch_size", len(reqs))),
@@ -125,9 +102,13 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 	for _, report := range reports {
 		smContext := s.GetSessionBySEID(report.SEID)
 		if smContext == nil || !smContext.Supi.IsIMSI() {
-			logger.WithTrace(ctx, logger.SmfLog).Warn(
-				"dropping a usage report with no SMContext",
-				zap.Uint64("seid", report.SEID),
+			UsageReportsDropped.Inc()
+
+			logger.WithTrace(ctx, logger.SmfLog).Error(
+				"usage bytes lost: the SEID no longer resolves to a subscriber",
+				logger.SEID(report.SEID),
+				logger.UplinkVolume(report.UplinkVolume),
+				logger.DownlinkVolume(report.DownlinkVolume),
 			)
 
 			continue
@@ -154,8 +135,4 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 	)
 
 	return nil
-}
-
-func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
-	return s.store.IncrementDailyUsage(ctx, imsi, uplinkBytes, downlinkBytes)
 }

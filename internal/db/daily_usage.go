@@ -160,11 +160,16 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "batch_insert").Inc()
 
-	if _, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages}); err != nil {
+	skipped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
 		return err
+	}
+
+	if skipped > 0 {
+		DailyUsageRowsSkipped.Add(float64(skipped))
 	}
 
 	span.SetStatus(codes.Ok, "")

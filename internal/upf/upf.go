@@ -688,9 +688,11 @@ func (u *UPF) pollUsageAndResetCounters(ctx context.Context) error {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
-	drained := make([]sessionUsage, 0, len(u.se.ListSessions()))
+	sessions := u.se.ListSessions()
 
-	for localSeid, session := range u.se.ListSessions() {
+	drained := make([]sessionUsage, 0, len(sessions))
+
+	for localSeid, session := range sessions {
 		usage, ok := u.drainUsageForSession(localSeid, session)
 		if !ok {
 			continue
@@ -699,30 +701,11 @@ func (u *UPF) pollUsageAndResetCounters(ctx context.Context) error {
 		drained = append(drained, usage)
 	}
 
-	for _, batch := range usageChunks(drained, usageReportBatchSize) {
+	for batch := range slices.Chunk(drained, usageReportBatchSize) {
 		u.reportUsage(ctx, batch)
 	}
 
 	return nil
-}
-
-func usageChunks(all []sessionUsage, size int) [][]sessionUsage {
-	if len(all) == 0 {
-		return nil
-	}
-
-	if size < 1 {
-		size = len(all)
-	}
-
-	chunks := make([][]sessionUsage, 0, (len(all)+size-1)/size)
-
-	for start := 0; start < len(all); start += size {
-		end := min(start+size, len(all))
-		chunks = append(chunks, all[start:end])
-	}
-
-	return chunks
 }
 
 // FlushUsage drains and reports any pending URR counters for the given SEID.
@@ -823,8 +806,15 @@ func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
 	}
 
 	if err := u.se.SendUsageReports(ctx, u.smf, reports); err != nil {
+		if errors.Is(err, models.ErrUsageOutcomeUnknown) {
+			logger.UpfLog.Error("usage report outcome unknown: dropping drained counters rather than double-counting them",
+				append(batchFields(batch), zap.Error(err))...)
+
+			return
+		}
+
 		logger.UpfLog.Warn("could not send PFCP session report request for usage",
-			zap.Error(err), zap.Int("sessions", len(batch)))
+			append(batchFields(batch), zap.Error(err))...)
 
 		for _, usage := range batch {
 			u.restoreDrainedUsage(usage)
@@ -833,7 +823,28 @@ func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
 		return
 	}
 
-	logger.UpfLog.Debug("Sent usage reports", zap.Int("sessions", len(batch)))
+	logger.UpfLog.Debug("Sent usage reports", batchFields(batch)...)
+}
+
+func batchFields(batch []sessionUsage) []zap.Field {
+	var uvol, dvol uint64
+
+	for _, usage := range batch {
+		uvol += usage.uvol
+		dvol += usage.dvol
+	}
+
+	fields := []zap.Field{
+		zap.Int("sessions", len(batch)),
+		logger.UplinkVolume(uvol),
+		logger.DownlinkVolume(dvol),
+	}
+
+	if len(batch) == 1 {
+		fields = append(fields, logger.SEID(batch[0].localSeid))
+	}
+
+	return fields
 }
 
 func (u *UPF) restoreDrainedUsage(usage sessionUsage) {

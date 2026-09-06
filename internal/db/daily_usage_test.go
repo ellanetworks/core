@@ -5,10 +5,14 @@ package db_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (string, error) {
@@ -925,6 +929,136 @@ func TestIncrementDailyUsageBatch_EmptyIsANoop(t *testing.T) {
 
 	if err := database.IncrementDailyUsageBatch(context.Background(), nil); err != nil {
 		t.Fatalf("an empty batch must be a no-op: %s", err)
+	}
+}
+
+func setupRaftTestDB(t *testing.T) *db.Database {
+	t.Helper()
+
+	database, err := db.NewDatabase(context.Background(),
+		filepath.Join(t.TempDir(), "db.sqlite3"), ellaraft.FastTestConfig())
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %s", err)
+	}
+
+	t.Cleanup(func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	})
+
+	return database
+}
+
+func TestIncrementDailyUsageBatch_AFailedRowRollsBackTheRowsBeforeIt(t *testing.T) {
+	database := setupRaftTestDB(t)
+
+	profileID, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001")
+	if err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	if err := database.CreateSubscriber(context.Background(), &db.Subscriber{
+		Imsi:           "001010000000002",
+		SequenceNumber: "000000000022",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      profileID,
+	}); err != nil {
+		t.Fatalf("Couldn't create subscriber: %s", err)
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := []db.DailyUsage{
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 111, BytesDownlink: 222},
+		{EpochDay: day, IMSI: "001010000000002", BytesUplink: -1, BytesDownlink: 0},
+	}
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err == nil {
+		t.Fatal("a CHECK violation must fail the batch")
+	}
+
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+	}
+
+	for _, row := range usage {
+		if row.BytesUplink != 0 || row.BytesDownlink != 0 {
+			t.Fatalf("the row before the failing one was persisted: %+v", usage)
+		}
+	}
+}
+
+func skippedDailyUsageRows(t *testing.T) float64 {
+	t.Helper()
+
+	ch := make(chan prometheus.Metric, 1)
+	db.DailyUsageRowsSkipped.Collect(ch)
+	close(ch)
+
+	var m dto.Metric
+
+	if err := (<-ch).Write(&m); err != nil {
+		t.Fatalf("read DailyUsageRowsSkipped: %s", err)
+	}
+
+	return m.GetCounter().GetValue()
+}
+
+func TestIncrementDailyUsageBatch_CountsSkippedRowsOnce(t *testing.T) {
+	database := setupRaftTestDB(t)
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := []db.DailyUsage{
+		{EpochDay: day, IMSI: "001019999999998", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 100, BytesDownlink: 200},
+	}
+
+	before := skippedDailyUsageRows(t)
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err != nil {
+		t.Fatalf("Couldn't complete IncrementDailyUsageBatch: %s", err)
+	}
+
+	if got := skippedDailyUsageRows(t) - before; got != 2 {
+		t.Fatalf("counted %v skipped rows, want 2", got)
+	}
+}
+
+func TestIncrementDailyUsageBatch_CountsNoSkippedRowWhenTheBatchFails(t *testing.T) {
+	database := setupRaftTestDB(t)
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := []db.DailyUsage{
+		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: -1, BytesDownlink: 0},
+	}
+
+	before := skippedDailyUsageRows(t)
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err == nil {
+		t.Fatal("a CHECK violation must fail the batch")
+	}
+
+	if got := skippedDailyUsageRows(t) - before; got != 0 {
+		t.Fatalf("a batch that never committed counted %v skipped rows, want 0", got)
 	}
 }
 

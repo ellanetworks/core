@@ -275,10 +275,6 @@ func (f *fakeSessionStore) IncrementDailyUsageBatch(_ context.Context, _ []model
 	return nil
 }
 
-func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {
-	return nil
-}
-
 func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*models.FlowReportRequest) error {
 	return nil
 }
