@@ -910,12 +910,7 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 		return "", n3Interface.Address
 	}
 
-	ifaceName := n3Interface.Name
-	if n3Interface.VlanConfig != nil {
-		ifaceName = n3Interface.VlanConfig.MasterInterface
-	}
-
-	ips, err := getInterfaceIPs(ifaceName)
+	ips, err := getInterfaceIPs(n3Interface.Name)
 	if err != nil {
 		return "", ""
 	}

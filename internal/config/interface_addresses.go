@@ -11,8 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const unusableAddrFlags = unix.IFA_F_DEPRECATED |
-	unix.IFA_F_TENTATIVE |
+const unusableAddrFlags = unix.IFA_F_TENTATIVE |
 	unix.IFA_F_DADFAILED |
 	unix.IFA_F_SECONDARY
 
@@ -37,6 +36,17 @@ func addrIsUsable(a netlink.Addr) (netip.Addr, bool) {
 }
 
 func addrRanksBefore(a, b netlink.Addr) bool {
+	if a.Scope != b.Scope {
+		return a.Scope < b.Scope
+	}
+
+	aDeprecated := a.Flags&unix.IFA_F_DEPRECATED != 0
+	bDeprecated := b.Flags&unix.IFA_F_DEPRECATED != 0
+
+	if aDeprecated != bDeprecated {
+		return bDeprecated
+	}
+
 	aPermanent := a.Flags&unix.IFA_F_PERMANENT != 0
 	bPermanent := b.Flags&unix.IFA_F_PERMANENT != 0
 

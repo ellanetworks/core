@@ -42,7 +42,7 @@ static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
-		       BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC);
+		       BPF_FIB_LOOKUP_SRC);
 	return fib_params.ipv4_src;
 }
 
@@ -66,7 +66,7 @@ static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
 	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
-		       BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC);
+		       BPF_FIB_LOOKUP_SRC);
 	__builtin_memcpy(out, fib_params.ipv6_src, sizeof(*out));
 }
 

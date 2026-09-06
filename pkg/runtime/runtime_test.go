@@ -91,6 +91,36 @@ func TestResolveN3AddressesDerivedAddressStillScansBothFamilies(t *testing.T) {
 	}
 }
 
+func TestResolveN3AddressesScansVlanNetdevNotMaster(t *testing.T) {
+	originalGetInterfaceIPs := getInterfaceIPs
+
+	t.Cleanup(func() {
+		getInterfaceIPs = originalGetInterfaceIPs
+	})
+
+	getInterfaceIPs = func(name string) ([]string, error) {
+		if name != "ens4.100" {
+			t.Fatalf("unexpected interface lookup: %s", name)
+		}
+
+		return []string{"10.1.1.5", "2001:db8::5"}, nil
+	}
+
+	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{
+		Name:       "ens4.100",
+		Address:    "10.1.1.5",
+		VlanConfig: &config.VlanConfig{MasterInterface: "ens4"},
+	})
+
+	if got, want := n3IPv4, "10.1.1.5"; got != want {
+		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	}
+
+	if got, want := n3IPv6, "2001:db8::5"; got != want {
+		t.Fatalf("n3IPv6 = %q, want %q", got, want)
+	}
+}
+
 func TestResolveN3AddressesUsesScannedAddressesWhenUnconfigured(t *testing.T) {
 	originalGetInterfaceIPs := getInterfaceIPs
 
