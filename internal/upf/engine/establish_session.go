@@ -64,12 +64,10 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	bpfObjects := conn.BpfObjects
 
-	n3IPv4, n3IPv6 := conn.N3Addresses()
-
 	var txn sessionTxn
 
 	for _, far := range req.FARs {
-		farInfo := farInfoFromMerge(far, n3IPv4, n3IPv6, ebpf.FarInfo{})
+		farInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, ebpf.FarInfo{})
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 

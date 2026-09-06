@@ -94,11 +94,9 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	drain := false
 
-	n3IPv4, n3IPv6 := conn.N3Addresses()
-
 	for _, far := range req.UpdateFARs {
 		sFarInfo := session.GetFar(far.FARID)
-		sFarInfo = farInfoFromMerge(far, n3IPv4, n3IPv6, sFarInfo)
+		sFarInfo = farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, sFarInfo)
 
 		go addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
 

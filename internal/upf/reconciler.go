@@ -61,22 +61,20 @@ type Updater interface {
 // calls re-attach XDP / re-write eBPF maps, so calling them
 // unconditionally on every tick would disrupt the data plane.
 type SettingsReconciler struct {
-	updater    Updater
-	store      SettingsStore
-	changefeed *db.Changefeed
-	backstop   time.Duration
+	updater      Updater
+	store        SettingsStore
+	changefeed   *db.Changefeed
+	fallbackN3IP netip.Addr
+	backstop     time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	stateMu         sync.Mutex
-	appliedSettings *DatapathSettings
-	appliedN3IPv4   netip.Addr
-	appliedN3IPv6   netip.Addr
-	fallbackN3IPv4  netip.Addr
-	fallbackN3IPv6  netip.Addr
-	appliedFilters  map[string]filterSnapshot
+	stateMu          sync.Mutex
+	appliedSettings  *DatapathSettings
+	appliedN3Address netip.Addr
+	appliedFilters   map[string]filterSnapshot
 }
 
 type filterSnapshot struct {
@@ -84,35 +82,19 @@ type filterSnapshot struct {
 	downlink []models.FilterRule
 }
 
-// NewSettingsReconciler wires a reconciler. fallbackN3IPv4 and
-// fallbackN3IPv6 are the local node's resolved N3 addresses, used for
-// whichever family n3_settings.external_address does not override.
-// changefeed may be nil in tests that drive Reconcile() directly;
-// production callers always pass a non-nil broker.
-func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IPv4, fallbackN3IPv6 netip.Addr) *SettingsReconciler {
+// NewSettingsReconciler wires a reconciler. fallbackN3IP is the local
+// node's configured N3 address used when n3_settings.external_address
+// is empty. changefeed may be nil in tests that drive Reconcile()
+// directly; production callers always pass a non-nil broker.
+func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IP netip.Addr) *SettingsReconciler {
 	return &SettingsReconciler{
 		updater:        updater,
 		store:          store,
 		changefeed:     changefeed,
-		fallbackN3IPv4: fallbackN3IPv4,
-		fallbackN3IPv6: fallbackN3IPv6,
+		fallbackN3IP:   fallbackN3IP,
 		backstop:       upfReconcileBackstop,
 		appliedFilters: make(map[string]filterSnapshot),
 	}
-}
-
-func (r *SettingsReconciler) SetFallbackN3Addresses(ipv4, ipv6 netip.Addr) bool {
-	r.stateMu.Lock()
-	defer r.stateMu.Unlock()
-
-	if r.fallbackN3IPv4 == ipv4 && r.fallbackN3IPv6 == ipv6 {
-		return false
-	}
-
-	r.fallbackN3IPv4 = ipv4
-	r.fallbackN3IPv6 = ipv6
-
-	return true
 }
 
 // Start launches the reconciler goroutines. Subsequent calls without a
@@ -304,10 +286,7 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 		return err
 	}
 
-	r.stateMu.Lock()
-	desiredIPv4 := r.fallbackN3IPv4
-	desiredIPv6 := r.fallbackN3IPv6
-	r.stateMu.Unlock()
+	desired := r.fallbackN3IP
 
 	if settings.ExternalAddress != "" {
 		parsed, err := netip.ParseAddr(settings.ExternalAddress)
@@ -315,39 +294,30 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 			return fmt.Errorf("invalid external address %q: %w", settings.ExternalAddress, err)
 		}
 
-		if parsed.Is4() {
-			desiredIPv4 = parsed
-		} else {
-			desiredIPv6 = parsed
-		}
+		desired = parsed
 	}
 
-	r.applyAdvertisedN3Address(desiredIPv4, &r.appliedN3IPv4)
-	r.applyAdvertisedN3Address(desiredIPv6, &r.appliedN3IPv6)
-
-	return nil
-}
-
-func (r *SettingsReconciler) applyAdvertisedN3Address(desired netip.Addr, applied *netip.Addr) {
 	if !desired.IsValid() {
-		return
+		return nil
 	}
 
 	r.stateMu.Lock()
-	current := *applied
+	current := r.appliedN3Address
 	r.stateMu.Unlock()
 
 	if current == desired {
-		return
+		return nil
 	}
 
 	r.updater.UpdateAdvertisedN3Address(desired)
 
 	r.stateMu.Lock()
-	*applied = desired
+	r.appliedN3Address = desired
 	r.stateMu.Unlock()
 
 	logger.UpfLog.Info("applied advertised N3 address", zap.String("address", desired.String()))
+
+	return nil
 }
 
 func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {

@@ -28,8 +28,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `s1ap-port` (int, optional): The SCTP port for the 4G S1-MME / S1AP listener. Default `36412`.
         - `port` (int, optional): Deprecated alias for `ngap-port`. Cannot be set together with `ngap-port`.
     - `n3` (object): The configuration for the n3 interface (N3 in 5G, S1-U in 4G). This interface should be connected to the radios.
-        - `name` (string): The name of the network interface (optional: either name or address must be provided). Ella Core advertises one address per family found on the interface; see [GTP-U transport addresses](#gtp-u-transport-addresses).
-        - `address` (string): The address to listen on. Supports both IPv4 and IPv6 (optional: either name or address must be provided). When set, Ella Core advertises only this address and only its family.
+        - `name` (string): The name of the network interface (optional: either name or address must be provided).
+        - `address` (string): The address to listen on. Supports both IPv4 and IPv6 (optional: either name or address must be provided).
     - `n6` (object): The configuration for the n6 interface (N6 in 5G, SGi in 4G). This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
@@ -139,7 +139,7 @@ interfaces:
   n2:
     name: "ens5"
   n3:
-    address: "ens4"
+    name: "ens4"
   n6:
     name: "ens3"
   api:
@@ -151,16 +151,4 @@ interfaces:
 
 Ella Core supports GTP-U tunnels over IPv6 for the N3 / S1-U interface (between the core and the radio). When a radio advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 / S1-MME signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
 
-## GTP-U transport addresses
-
-The address Ella Core advertises to radios as the GTP-U endpoint is taken from the `n3` configuration:
-
-- **`address` is set**: Ella Core advertises exactly that address, and only its family. Configuring an IPv4 address means radios are never offered an IPv6 endpoint, and vice versa.
-- **`name` is set**: Ella Core discovers the interface's addresses and advertises one per family. A dual-stack interface therefore yields a dual-stack transport address.
-
-Some radios only accept an IPv4-only transport address. Support for the dual-stack form was added in 3GPP TS 36.414 v12.1.0 (February 2015), so radios predating it may reject a session setup that carries one. Set `address` to your IPv4 address to advertise IPv4 only.
-
-When discovering addresses from an interface, Ella Core skips addresses the kernel considers unfit as a stable endpoint: deprecated addresses, tentative and duplicate-address-detection failures, IPv4 secondary aliases, and IPv6 temporary (RFC 4941 privacy) addresses. Among the remaining addresses it prefers permanent ones, then the longest remaining lifetime. Ella Core watches the interface and re-advertises when its addresses change.
-
-!!! note
-    An address Ella Core discovers can change or expire outside its control, for example when a DHCP lease or a router advertisement is renewed with a different prefix. Set `address` to pin the endpoint.
+To ensure Ella Core always uses IPv4 or IPv6 for GTP-U, specify an address of that family in the configuration file, or ensure only IPs of that family are configured on the interface.

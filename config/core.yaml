@@ -43,13 +43,10 @@ interfaces:
   # to the radios.
   n3:
     # The name of the network interface (optional: either name or address must
-    # be provided). Ella Core advertises one address per family found on this
-    # interface, so a dual-stack interface yields a dual-stack GTP-U transport
-    # address. Radios predating 3GPP TS 36.414 v12.1.0 may reject that form.
+    # be provided).
     name: "n3"
     # The address to listen on. Supports both IPv4 and IPv6 (optional: either
-    # name or address must be provided). When set, Ella Core advertises only
-    # this address and only its family.
+    # name or address must be provided).
     # address: "10.3.0.2"
   # The n6 interface (N6 in 5G, SGi in 4G). This interface should be connected
   # to the internet.
