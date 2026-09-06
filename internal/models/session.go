@@ -209,6 +209,14 @@ type UsageReport struct {
 	DownlinkVolume uint64
 }
 
+// SubscriberUsage is one subscriber's accounted volume, resolved from a
+// UsageReport's SEID, as handed to the usage store.
+type SubscriberUsage struct {
+	IMSI           string
+	UplinkVolume   uint64
+	DownlinkVolume uint64
+}
+
 // FlowReportRequest is sent by UPF to SMF with flow statistics.
 type FlowReportRequest struct {
 	IMSI            string

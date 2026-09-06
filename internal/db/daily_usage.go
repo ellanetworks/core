@@ -133,6 +133,45 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 	return nil
 }
 
+type DailyUsageBatch struct {
+	Rows []DailyUsage
+}
+
+func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []DailyUsage) error {
+	if len(usages) == 0 {
+		return nil
+	}
+
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (batch)", "INSERT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", DailyUsageTableName),
+			attribute.Int("db.batch.size", len(usages)),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "batch_insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "batch_insert").Inc()
+
+	if _, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
 func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerDay, error) {
 	ctx, span := tracer.Start(
 		ctx,

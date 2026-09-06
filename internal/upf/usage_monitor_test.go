@@ -151,3 +151,52 @@ func TestSessionURRsSharedByBothDirectionsReportsDownlink(t *testing.T) {
 		t.Fatalf("sessionURRs() = %v, want %v", got, want)
 	}
 }
+
+func usageList(n int) []sessionUsage {
+	all := make([]sessionUsage, n)
+	for i := range all {
+		all[i] = sessionUsage{seid: uint64(i), localSeid: uint64(i)}
+	}
+
+	return all
+}
+
+func TestUsageChunksCoversEverySessionExactlyOnce(t *testing.T) {
+	for _, n := range []int{1, 4, 5, 6, 2000, 2001, 4100} {
+		seen := map[uint64]int{}
+
+		for _, chunk := range usageChunks(usageList(n), 5) {
+			if len(chunk) > 5 {
+				t.Fatalf("n=%d: chunk of %d exceeds the batch size", n, len(chunk))
+			}
+
+			for _, u := range chunk {
+				seen[u.seid]++
+			}
+		}
+
+		if len(seen) != n {
+			t.Fatalf("n=%d: covered %d sessions, want %d", n, len(seen), n)
+		}
+
+		for seid, count := range seen {
+			if count != 1 {
+				t.Fatalf("n=%d: seid %d appeared %d times, want once", n, seid, count)
+			}
+		}
+	}
+}
+
+func TestUsageChunksOfNothingIsNothing(t *testing.T) {
+	if got := usageChunks(nil, 5); got != nil {
+		t.Fatalf("usageChunks(nil) = %v, want nil", got)
+	}
+}
+
+func TestUsageChunksWithANonPositiveSizeStaysWhole(t *testing.T) {
+	got := usageChunks(usageList(7), 0)
+
+	if len(got) != 1 || len(got[0]) != 7 {
+		t.Fatalf("usageChunks(7, 0) produced %d chunks, want one of 7", len(got))
+	}
+}

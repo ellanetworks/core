@@ -116,6 +116,46 @@ func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequ
 	return nil
 }
 
+func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageReport) error {
+	ctx, span := tracer.Start(ctx, "smf/handle_usage_reports")
+	defer span.End()
+
+	usages := make([]models.SubscriberUsage, 0, len(reports))
+
+	for _, report := range reports {
+		smContext := s.GetSessionBySEID(report.SEID)
+		if smContext == nil || !smContext.Supi.IsIMSI() {
+			logger.WithTrace(ctx, logger.SmfLog).Warn(
+				"dropping a usage report with no SMContext",
+				zap.Uint64("seid", report.SEID),
+			)
+
+			continue
+		}
+
+		usages = append(usages, models.SubscriberUsage{
+			IMSI:           smContext.Supi.IMSI(),
+			UplinkVolume:   report.UplinkVolume,
+			DownlinkVolume: report.DownlinkVolume,
+		})
+	}
+
+	if len(usages) == 0 {
+		return nil
+	}
+
+	if err := s.store.IncrementDailyUsageBatch(ctx, usages); err != nil {
+		return fmt.Errorf("failed to update data volume for %d subscribers: %w", len(usages), err)
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Debug(
+		"Processed usage reports",
+		zap.Int("subscribers", len(usages)),
+	)
+
+	return nil
+}
+
 func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
 	return s.store.IncrementDailyUsage(ctx, imsi, uplinkBytes, downlinkBytes)
 }

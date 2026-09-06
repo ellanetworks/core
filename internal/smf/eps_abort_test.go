@@ -98,6 +98,10 @@ func (f *abortFakeStore) ResolveDNN(_ context.Context, _ string) (DNNStore, erro
 	return f.dnn, nil
 }
 
+func (f *abortFakeStore) IncrementDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
+	return nil
+}
+
 func (f *abortFakeStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {
 	return nil
 }

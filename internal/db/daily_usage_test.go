@@ -832,3 +832,125 @@ func TestGetUsagePerSubscriber_Limit(t *testing.T) {
 		t.Fatalf("expected top-2 by total bytes (%s, %s), got (%s, %s)", imsis[2], imsis[1], limited[0].IMSI, limited[1].IMSI)
 	}
 }
+
+func TestIncrementDailyUsageBatch_AccumulatesEveryRow(t *testing.T) {
+	database := setupTestDB(t)
+
+	profileID, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001")
+	if err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	imsis := []string{"001010000000001", "001010000000002", "001010000000003"}
+	for _, imsi := range imsis[1:] {
+		if err := database.CreateSubscriber(context.Background(), &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000022",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profileID,
+		}); err != nil {
+			t.Fatalf("Couldn't create subscriber: %s", err)
+		}
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := make([]db.DailyUsage, len(imsis))
+	for i, imsi := range imsis {
+		rows[i] = db.DailyUsage{EpochDay: day, IMSI: imsi, BytesUplink: 100, BytesDownlink: 200}
+	}
+
+	for range 2 {
+		if err := database.IncrementDailyUsageBatch(context.Background(), rows); err != nil {
+			t.Fatalf("Couldn't complete IncrementDailyUsageBatch: %s", err)
+		}
+	}
+
+	for _, imsi := range imsis {
+		usage, err := database.GetUsagePerSubscriber(context.Background(), imsi, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+		if err != nil {
+			t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+		}
+
+		if len(usage) != 1 {
+			t.Fatalf("got %d usage rows for %s, want 1", len(usage), imsi)
+		}
+
+		if usage[0].BytesUplink != 200 || usage[0].BytesDownlink != 400 {
+			t.Errorf("got up=%d down=%d for %s, want 200/400", usage[0].BytesUplink, usage[0].BytesDownlink, imsi)
+		}
+	}
+}
+
+func TestIncrementDailyUsageBatch_SkipsUnknownSubscriberAndKeepsTheRest(t *testing.T) {
+	database := setupTestDB(t)
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := []db.DailyUsage{
+		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 100, BytesDownlink: 200},
+	}
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err != nil {
+		t.Fatalf("a batch with an unknown subscriber must still record the others: %s", err)
+	}
+
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+	}
+
+	if len(usage) != 1 || usage[0].BytesUplink != 100 || usage[0].BytesDownlink != 200 {
+		t.Fatalf("the known subscriber's usage was lost: %+v", usage)
+	}
+
+	orphan, err := database.GetUsagePerSubscriber(context.Background(), "001019999999999", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+	}
+
+	if len(orphan) != 0 {
+		t.Errorf("got %d rows for the unknown subscriber, want none", len(orphan))
+	}
+}
+
+func TestIncrementDailyUsageBatch_EmptyIsANoop(t *testing.T) {
+	database := setupTestDB(t)
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), nil); err != nil {
+		t.Fatalf("an empty batch must be a no-op: %s", err)
+	}
+}
+
+func TestIncrementDailyUsageBatch_AbortsOnAnErrorThatIsNotAMissingSubscriber(t *testing.T) {
+	database := setupTestDB(t)
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
+		t.Fatalf("Couldn't create fixtures: %s", err)
+	}
+
+	day := db.DaysSinceEpoch(time.Now())
+
+	rows := []db.DailyUsage{
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: -1, BytesDownlink: 200},
+	}
+
+	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err == nil {
+		t.Fatal("a CHECK violation must fail the batch, not be skipped like a missing subscriber")
+	}
+
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
+	}
+
+	if len(usage) != 0 {
+		t.Errorf("got %d rows after a failed batch, want none", len(usage))
+	}
+}

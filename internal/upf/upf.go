@@ -31,17 +31,18 @@ import (
 )
 
 const (
-	PfcpAddress         = "0.0.0.0"
-	PfcpNodeID          = "0.0.0.0"
-	FTEIDPool           = 65535
-	ConnTrackTimeout    = 10 * time.Minute
-	natGCInterval       = 10 * time.Second
-	natGCBatchSize      = 4096
-	InactiveFlowTimeout = 30 * time.Second
-	ActiveFlowTimeout   = 30 * time.Minute
-	maxInFlightFlows    = 16384
-	flowReportTimeout   = 5 * time.Second
-	usageFlushTimeout   = 5 * time.Second
+	PfcpAddress          = "0.0.0.0"
+	PfcpNodeID           = "0.0.0.0"
+	FTEIDPool            = 65535
+	ConnTrackTimeout     = 10 * time.Minute
+	natGCInterval        = 10 * time.Second
+	natGCBatchSize       = 4096
+	InactiveFlowTimeout  = 30 * time.Second
+	ActiveFlowTimeout    = 30 * time.Minute
+	maxInFlightFlows     = 16384
+	flowReportTimeout    = 5 * time.Second
+	usageFlushTimeout    = 5 * time.Second
+	usageReportBatchSize = 2000
 )
 
 var bpfObjects *ebpf.BpfObjects
@@ -687,11 +688,41 @@ func (u *UPF) pollUsageAndResetCounters(ctx context.Context) error {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
+	drained := make([]sessionUsage, 0, len(u.se.ListSessions()))
+
 	for localSeid, session := range u.se.ListSessions() {
-		u.flushUsageForSession(ctx, localSeid, session)
+		usage, ok := u.drainUsageForSession(localSeid, session)
+		if !ok {
+			continue
+		}
+
+		drained = append(drained, usage)
+	}
+
+	for _, batch := range usageChunks(drained, usageReportBatchSize) {
+		u.reportUsage(ctx, batch)
 	}
 
 	return nil
+}
+
+func usageChunks(all []sessionUsage, size int) [][]sessionUsage {
+	if len(all) == 0 {
+		return nil
+	}
+
+	if size < 1 {
+		size = len(all)
+	}
+
+	chunks := make([][]sessionUsage, 0, (len(all)+size-1)/size)
+
+	for start := 0; start < len(all); start += size {
+		end := min(start+size, len(all))
+		chunks = append(chunks, all[start:end])
+	}
+
+	return chunks
 }
 
 // FlushUsage drains and reports any pending URR counters for the given SEID.
@@ -710,6 +741,14 @@ func (u *UPF) FlushUsage(ctx context.Context, seid uint64) {
 	}
 
 	u.flushUsageForSession(ctx, seid, session)
+}
+
+type sessionUsage struct {
+	seid      uint64
+	localSeid uint64
+	uvol      uint64
+	dvol      uint64
+	drained   map[uint32]uint64
 }
 
 type sessionURR struct {
@@ -739,10 +778,8 @@ func sessionURRs(pdrs map[uint32]engine.SPDRInfo) []sessionURR {
 	return urrs
 }
 
-func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, session *engine.Session) {
-	var uvol, dvol uint64
-
-	drained := make(map[uint32]uint64)
+func (u *UPF) drainUsageForSession(localSeid uint64, session *engine.Session) (sessionUsage, bool) {
+	usage := sessionUsage{seid: session.SEID, localSeid: localSeid}
 
 	for _, urr := range sessionURRs(session.ListPDRs()) {
 		volume, err := u.se.BpfObjects.GetAndResetUrr(localSeid, urr.id)
@@ -755,38 +792,66 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 			continue
 		}
 
-		drained[urr.id] = volume
+		if usage.drained == nil {
+			usage.drained = make(map[uint32]uint64, 2)
+		}
+
+		usage.drained[urr.id] = volume
 
 		if urr.downlink {
-			dvol += volume
+			usage.dvol += volume
 		} else {
-			uvol += volume
+			usage.uvol += volume
 		}
 	}
 
-	if len(drained) == 0 {
+	return usage, len(usage.drained) > 0
+}
+
+func (u *UPF) reportUsage(ctx context.Context, batch []sessionUsage) {
+	if len(batch) == 0 {
 		return
 	}
 
-	if err := u.se.SendUsageReport(ctx, u.smf, localSeid, uvol, dvol); err != nil {
-		logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid))
+	reports := make([]*models.UsageReport, len(batch))
+	for i, usage := range batch {
+		reports[i] = &models.UsageReport{
+			SEID:           usage.seid,
+			UplinkVolume:   usage.uvol,
+			DownlinkVolume: usage.dvol,
+		}
+	}
 
-		for id, volume := range drained {
-			if restoreErr := u.se.BpfObjects.AddUrr(localSeid, id, volume); restoreErr != nil {
-				logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
-					zap.Uint64("bytes", volume), zap.Error(restoreErr), logger.SEID(localSeid), logger.URRID(id))
-			}
+	if err := u.se.SendUsageReports(ctx, u.smf, reports); err != nil {
+		logger.UpfLog.Warn("could not send PFCP session report request for usage",
+			zap.Error(err), zap.Int("sessions", len(batch)))
+
+		for _, usage := range batch {
+			u.restoreDrainedUsage(usage)
 		}
 
 		return
 	}
 
-	logger.UpfLog.Debug(
-		"Sent usage report",
-		logger.SEID(localSeid),
-		logger.UplinkVolume(uvol),
-		logger.DownlinkVolume(dvol),
-	)
+	logger.UpfLog.Debug("Sent usage reports", zap.Int("sessions", len(batch)))
+}
+
+func (u *UPF) restoreDrainedUsage(usage sessionUsage) {
+	for id, volume := range usage.drained {
+		if err := u.se.BpfObjects.AddUrr(usage.localSeid, id, volume); err != nil {
+			logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
+				zap.Uint64("bytes", volume), zap.Error(err), logger.SEID(usage.localSeid), logger.URRID(id))
+		}
+	}
+}
+
+func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, session *engine.Session) {
+	usage, ok := u.drainUsageForSession(localSeid, session)
+	if !ok {
+		return
+	}
+
+	u.reportUsage(ctx, []sessionUsage{usage})
 }
 
 func (u *UPF) listenForMissingNeighbours() {

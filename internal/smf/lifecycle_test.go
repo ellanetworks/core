@@ -2450,3 +2450,76 @@ func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
 		t.Fatalf("a modification was sent for a session the UPF never accepted: %d calls", modifies)
 	}
 }
+
+func TestHandleUsageReports_BatchesEverySessionIntoOneStoreCall(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	err := s.HandleUsageReports(ctx, []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 70, DownlinkVolume: 20},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.batchCalls != 1 {
+		t.Errorf("got %d store calls, want 1", store.batchCalls)
+	}
+
+	if len(store.usageLog) != 2 {
+		t.Fatalf("expected 2 usage entries, got %d", len(store.usageLog))
+	}
+}
+
+func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	err := s.HandleUsageReports(ctx, []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 1, DownlinkVolume: 1},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+	})
+	if err != nil {
+		t.Fatalf("an unresolvable SEID must not fail the batch: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.usageLog) != 1 {
+		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
+	}
+
+	if store.usageLog[0].uplinkBytes != 500 {
+		t.Errorf("got uplink %d, want 500", store.usageLog[0].uplinkBytes)
+	}
+}
+
+func TestHandleUsageReports_NoResolvableSessionSkipsTheStore(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: 424242, UplinkVolume: 1, DownlinkVolume: 1},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.batchCalls != 0 {
+		t.Errorf("got %d store calls, want none", store.batchCalls)
+	}
+}

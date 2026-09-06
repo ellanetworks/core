@@ -271,6 +271,10 @@ func (f *fakeSessionStore) ReleaseIPv6(_ context.Context, _ string, _ uint8) (ne
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
+func (f *fakeSessionStore) IncrementDailyUsageBatch(_ context.Context, _ []models.SubscriberUsage) error {
+	return nil
+}
+
 func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {
 	return nil
 }

@@ -305,6 +305,22 @@ func (a *smfDBAdapter) IncrementDailyUsage(ctx context.Context, imsi string, upl
 	})
 }
 
+func (a *smfDBAdapter) IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error {
+	epochDay := time.Now().UTC().Unix() / 86400
+
+	rows := make([]db.DailyUsage, len(usages))
+	for i, usage := range usages {
+		rows[i] = db.DailyUsage{
+			EpochDay:      epochDay,
+			IMSI:          usage.IMSI,
+			BytesUplink:   int64(usage.UplinkVolume),
+			BytesDownlink: int64(usage.DownlinkVolume),
+		}
+	}
+
+	return a.db.IncrementDailyUsageBatch(ctx, rows)
+}
+
 func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error {
 	batch := make([]*dbwriter.FlowReport, len(reports))
 
