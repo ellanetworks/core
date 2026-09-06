@@ -15,13 +15,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMain(m *testing.M) {
@@ -2453,13 +2455,13 @@ func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
 	}
 }
 
-func TestHandleUsageReports_CountsEveryDroppedReport(t *testing.T) {
+func TestHandleUsageReports_ReportsEveryDroppedReport(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
-	before := droppedUsageReports(t)
+	logs := observeSMFLog(t)
 
 	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
 		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 500, DownlinkVolume: 300},
@@ -2470,25 +2472,26 @@ func TestHandleUsageReports_CountsEveryDroppedReport(t *testing.T) {
 		t.Fatalf("HandleUsageReports failed: %v", err)
 	}
 
-	if got := droppedUsageReports(t) - before; got != 2 {
-		t.Fatalf("counted %v dropped reports, want 2", got)
+	entries := logs.FilterMessage("usage bytes lost: the SEID no longer resolves to a subscriber").All()
+	if len(entries) != 2 {
+		t.Fatalf("got %d loss reports, want 2", len(entries))
+	}
+
+	if got := entries[0].ContextMap()["uplink_volume"]; got != uint64(500) {
+		t.Errorf("uplink_volume = %v, want 500", got)
 	}
 }
 
-func droppedUsageReports(t *testing.T) float64 {
+func observeSMFLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
-	ch := make(chan prometheus.Metric, 1)
-	smf.UsageReportsDropped.Collect(ch)
-	close(ch)
+	core, logs := observer.New(zapcore.ErrorLevel)
+	saved := logger.SmfLog
+	logger.SmfLog = zap.New(core)
 
-	var m dto.Metric
+	t.Cleanup(func() { logger.SmfLog = saved })
 
-	if err := (<-ch).Write(&m); err != nil {
-		t.Fatalf("read UsageReportsDropped: %v", err)
-	}
-
-	return m.GetCounter().GetValue()
+	return logs
 }
 
 func TestHandleUsageReports_NoResolvableSessionSkipsTheStore(t *testing.T) {

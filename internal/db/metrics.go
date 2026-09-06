@@ -21,11 +21,6 @@ var (
 	DBQueryDuration *prometheus.HistogramVec
 )
 
-var DailyUsageRowsSkipped = prometheus.NewCounter(prometheus.CounterOpts{
-	Name: "app_daily_usage_rows_skipped_total",
-	Help: "Daily-usage rows dropped from a batch because the subscriber no longer exists.",
-})
-
 func RegisterMetrics(db *Database) {
 	if DBQueryDuration != nil {
 		// Already registered, skip
@@ -93,7 +88,6 @@ func RegisterMetrics(db *Database) {
 	prometheus.MustRegister(ipAddressesAllocated)
 	prometheus.MustRegister(DBQueryDuration)
 	prometheus.MustRegister(DBQueriesTotal)
-	prometheus.MustRegister(DailyUsageRowsSkipped)
 }
 
 // GetSize returns the on-disk size of the database file in bytes.

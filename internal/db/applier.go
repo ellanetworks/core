@@ -336,7 +336,7 @@ func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage
 }
 
 func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *DailyUsageBatch) (any, error) {
-	skipped := 0
+	var dropped droppedDailyUsage
 
 	for i := range batch.Rows {
 		err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, &batch.Rows[i]).Run()
@@ -345,10 +345,9 @@ func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *Da
 		}
 
 		if isForeignKeyError(err) {
-			skipped++
-
-			logger.DBLog.Warn("skipping daily usage for an unknown subscriber",
-				zap.String("imsi", batch.Rows[i].IMSI))
+			dropped.Rows++
+			dropped.BytesUplink += batch.Rows[i].BytesUplink
+			dropped.BytesDownlink += batch.Rows[i].BytesDownlink
 
 			continue
 		}
@@ -356,7 +355,7 @@ func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *Da
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return skipped, nil
+	return dropped, nil
 }
 
 func (db *Database) applyClearDailyUsage(ctx context.Context) error {

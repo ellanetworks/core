@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (string, error) {
@@ -995,23 +997,19 @@ func TestIncrementDailyUsageBatch_AFailedRowRollsBackTheRowsBeforeIt(t *testing.
 	}
 }
 
-func skippedDailyUsageRows(t *testing.T) float64 {
+func observeDBLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
-	ch := make(chan prometheus.Metric, 1)
-	db.DailyUsageRowsSkipped.Collect(ch)
-	close(ch)
+	core, logs := observer.New(zapcore.ErrorLevel)
+	saved := logger.DBLog
+	logger.DBLog = zap.New(core)
 
-	var m dto.Metric
+	t.Cleanup(func() { logger.DBLog = saved })
 
-	if err := (<-ch).Write(&m); err != nil {
-		t.Fatalf("read DailyUsageRowsSkipped: %s", err)
-	}
-
-	return m.GetCounter().GetValue()
+	return logs
 }
 
-func TestIncrementDailyUsageBatch_CountsSkippedRowsOnce(t *testing.T) {
+func TestIncrementDailyUsageBatch_ReportsTheUsageItCouldNotCharge(t *testing.T) {
 	database := setupRaftTestDB(t)
 
 	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
@@ -1022,22 +1020,36 @@ func TestIncrementDailyUsageBatch_CountsSkippedRowsOnce(t *testing.T) {
 
 	rows := []db.DailyUsage{
 		{EpochDay: day, IMSI: "001019999999998", BytesUplink: 100, BytesDownlink: 200},
-		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 100, BytesDownlink: 200},
-		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 100, BytesDownlink: 200},
+		{EpochDay: day, IMSI: "001019999999999", BytesUplink: 70, BytesDownlink: 20},
+		{EpochDay: day, IMSI: "001010000000001", BytesUplink: 500, BytesDownlink: 300},
 	}
 
-	before := skippedDailyUsageRows(t)
+	logs := observeDBLog(t)
 
 	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err != nil {
 		t.Fatalf("Couldn't complete IncrementDailyUsageBatch: %s", err)
 	}
 
-	if got := skippedDailyUsageRows(t) - before; got != 2 {
-		t.Fatalf("counted %v skipped rows, want 2", got)
+	entries := logs.FilterMessage("usage bytes lost: no subscriber row to charge").All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d loss reports, want 1", len(entries))
+	}
+
+	fields := entries[0].ContextMap()
+	if fields["rows"] != int64(2) {
+		t.Errorf("rows = %v, want 2", fields["rows"])
+	}
+
+	if fields["uplink_volume"] != int64(170) {
+		t.Errorf("uplink_volume = %v, want 170", fields["uplink_volume"])
+	}
+
+	if fields["downlink_volume"] != int64(220) {
+		t.Errorf("downlink_volume = %v, want 220", fields["downlink_volume"])
 	}
 }
 
-func TestIncrementDailyUsageBatch_CountsNoSkippedRowWhenTheBatchFails(t *testing.T) {
+func TestIncrementDailyUsageBatch_ReportsNoLossWhenTheBatchFails(t *testing.T) {
 	database := setupRaftTestDB(t)
 
 	if _, err := createDataNetworkPolicyAndSubscriber(database, "001010000000001"); err != nil {
@@ -1051,14 +1063,14 @@ func TestIncrementDailyUsageBatch_CountsNoSkippedRowWhenTheBatchFails(t *testing
 		{EpochDay: day, IMSI: "001010000000001", BytesUplink: -1, BytesDownlink: 0},
 	}
 
-	before := skippedDailyUsageRows(t)
+	logs := observeDBLog(t)
 
 	if err := database.IncrementDailyUsageBatch(context.Background(), rows); err == nil {
 		t.Fatal("a CHECK violation must fail the batch")
 	}
 
-	if got := skippedDailyUsageRows(t) - before; got != 0 {
-		t.Fatalf("a batch that never committed counted %v skipped rows, want 0", got)
+	if got := logs.FilterMessage("usage bytes lost: no subscriber row to charge").Len(); got != 0 {
+		t.Fatalf("a batch that never committed reported %d losses, want 0", got)
 	}
 }
 

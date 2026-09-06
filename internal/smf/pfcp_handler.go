@@ -102,8 +102,6 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 	for _, report := range reports {
 		smContext := s.GetSessionBySEID(report.SEID)
 		if smContext == nil || !smContext.Supi.IsIMSI() {
-			UsageReportsDropped.Inc()
-
 			logger.WithTrace(ctx, logger.SmfLog).Error(
 				"usage bytes lost: the SEID no longer resolves to a subscriber",
 				logger.SEID(report.SEID),

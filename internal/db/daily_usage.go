@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const DailyUsageTableName = "daily_usage"
@@ -137,6 +139,12 @@ type DailyUsageBatch struct {
 	Rows []DailyUsage
 }
 
+type droppedDailyUsage struct {
+	Rows          int
+	BytesUplink   int64
+	BytesDownlink int64
+}
+
 func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []DailyUsage) error {
 	if len(usages) == 0 {
 		return nil
@@ -160,7 +168,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "batch_insert").Inc()
 
-	skipped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
+	dropped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -168,8 +176,11 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 		return err
 	}
 
-	if skipped > 0 {
-		DailyUsageRowsSkipped.Add(float64(skipped))
+	if dropped.Rows > 0 {
+		logger.WithTrace(ctx, logger.DBLog).Error("usage bytes lost: no subscriber row to charge",
+			zap.Int("rows", dropped.Rows),
+			zap.Int64("uplink_volume", dropped.BytesUplink),
+			zap.Int64("downlink_volume", dropped.BytesDownlink))
 	}
 
 	span.SetStatus(codes.Ok, "")
