@@ -202,7 +202,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 
 	/* Only source_nat reads the derived address, and trust_fib skips it.
 	 * Asking anyway adds BPF_FIB_LKUP_RET_NO_SRC_ADDR as a drop reason. */
-	__u64 flags = BPF_FIB_LOOKUP_DIRECT;
+	__u64 flags = 0;
 	if (!trust_fib && masquerade) {
 		flags |= BPF_FIB_LOOKUP_SRC;
 	}
