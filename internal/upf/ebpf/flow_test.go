@@ -280,3 +280,68 @@ func sumURR(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
 
 	return sum
 }
+
+func TestFlowDSCP(t *testing.T) {
+	requireProgTestRun(t)
+
+	tests := []struct {
+		name     string
+		teid     uint32
+		inner    []byte
+		wantDSCP uint8
+	}{
+		{
+			name:     "ipv4 ef",
+			teid:     0x44534301,
+			inner:    withTOS(innerIPv4UDP([4]byte{8, 8, 8, 8}, 53), 0xB8),
+			wantDSCP: 46,
+		},
+		{
+			name:     "ipv4 cs3",
+			teid:     0x44534302,
+			inner:    withTOS(innerIPv4UDP([4]byte{8, 8, 8, 8}, 53), 0x60),
+			wantDSCP: 24,
+		},
+		{
+			name:     "ipv6 ef",
+			teid:     0x44534303,
+			inner:    withTrafficClass(innerIPv6UDP(testUEv6, 53), 0xB8),
+			wantDSCP: 46,
+		},
+		{
+			name:     "ipv6 cs3",
+			teid:     0x44534304,
+			inner:    withTrafficClass(innerIPv6UDP(testUEv6, 53), 0x60),
+			wantDSCP: 24,
+		},
+		{
+			name:     "ipv6 best effort",
+			teid:     0x44534305,
+			inner:    innerIPv6UDP(testUEv6, 53),
+			wantDSCP: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgramFlow(t, 0, 1)
+			putForwardingUplinkPDR(t, obj, tc.teid, 0)
+
+			runXDP(t, obj.UpfEntryFunc, uplinkGPDU(tc.teid, tc.inner))
+
+			var (
+				key N3N6EntrypointFlow
+				val N3N6EntrypointFlowStats
+			)
+
+			it := obj.FlowStats.Iterate()
+			if !it.Next(&key, &val) {
+				t.Fatalf("no flow_stats entry recorded (iterate err=%v)", it.Err())
+			}
+
+			if key.Dscp != tc.wantDSCP {
+				t.Errorf("flow DSCP = %d, want %d", key.Dscp, tc.wantDSCP)
+			}
+		})
+	}
+}
