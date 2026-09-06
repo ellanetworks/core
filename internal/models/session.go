@@ -211,8 +211,6 @@ type UsageReport struct {
 	DownlinkVolume uint64
 }
 
-// SubscriberUsage is one subscriber's accounted volume, resolved from a
-// UsageReport's SEID, as handed to the usage store.
 type SubscriberUsage struct {
 	IMSI           string
 	UplinkVolume   uint64
