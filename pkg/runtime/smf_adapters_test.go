@@ -6,11 +6,13 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // setupAdapterTestDB creates a database with a data network, profile,
@@ -158,5 +160,37 @@ func TestReleaseIP_DynamicDeletesLease(t *testing.T) {
 
 	if _, err := adapter.db.GetLeaseBySession(ctx, poolID, "ipv4", 9, imsi); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("expected dynamic lease deleted (ErrNotFound), got %v", err)
+	}
+}
+
+func TestUsageStoreErrMarksAnUnknownOutcome(t *testing.T) {
+	err := usageStoreErr(fmt.Errorf("propose: %w", db.ErrOutcomeUnknown))
+
+	if !errors.Is(err, models.ErrUsageOutcomeUnknown) {
+		t.Fatalf("usageStoreErr() = %v, want it to carry ErrUsageOutcomeUnknown", err)
+	}
+
+	if !errors.Is(err, db.ErrOutcomeUnknown) {
+		t.Errorf("usageStoreErr() dropped the underlying cause: %v", err)
+	}
+}
+
+func TestUsageStoreErrLeavesADefiniteFailureAlone(t *testing.T) {
+	cause := errors.New("subscriber row is gone")
+
+	err := usageStoreErr(cause)
+
+	if errors.Is(err, models.ErrUsageOutcomeUnknown) {
+		t.Fatalf("a definite failure must stay restorable, got %v", err)
+	}
+
+	if !errors.Is(err, cause) {
+		t.Errorf("usageStoreErr() = %v, want the original cause", err)
+	}
+}
+
+func TestUsageStoreErrPassesNilThrough(t *testing.T) {
+	if err := usageStoreErr(nil); err != nil {
+		t.Fatalf("usageStoreErr(nil) = %v, want nil", err)
 	}
 }

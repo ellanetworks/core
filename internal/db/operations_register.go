@@ -23,8 +23,9 @@ var (
 
 // Daily usage
 var (
-	opIncrementDailyUsage = registerChangesetOp("IncrementDailyUsage", (*Database).applyIncrementDailyUsage)
-	opClearDailyUsage     = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
+	opIncrementDailyUsage      = registerChangesetOp("IncrementDailyUsage", (*Database).applyIncrementDailyUsage)
+	opIncrementDailyUsageBatch = registerChangesetOpReturning[DailyUsageBatch, droppedDailyUsage]("IncrementDailyUsageBatch", (*Database).applyIncrementDailyUsageBatch)
+	opClearDailyUsage          = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
 )
 
 // IP leases. ip_leases.nodeID added in v9.

@@ -5,13 +5,16 @@ package upf
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
+	"go.uber.org/zap"
 )
 
 func TestStopUsageMonitorWaitsForExit(t *testing.T) {
@@ -149,5 +152,90 @@ func TestSessionURRsSharedByBothDirectionsReportsDownlink(t *testing.T) {
 	want := []sessionURR{{id: 7, downlink: true}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("sessionURRs() = %v, want %v", got, want)
+	}
+}
+
+type stubReportHandler struct {
+	err   error
+	calls int
+}
+
+func (s *stubReportHandler) HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error {
+	return nil
+}
+
+func (s *stubReportHandler) HandleUsageReports(context.Context, []*models.UsageReport) error {
+	s.calls++
+
+	return s.err
+}
+
+func (s *stubReportHandler) SendFlowReports(context.Context, []*models.FlowReportRequest) error {
+	return nil
+}
+
+func TestReportUsageKeepsDrainedCountersWhenTheOutcomeIsUnknown(t *testing.T) {
+	smf := &stubReportHandler{err: fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)}
+	u := &UPF{se: &engine.SessionEngine{}, smf: smf}
+
+	batch := []sessionUsage{
+		{seid: 1, localSeid: 1, uvol: 500, drained: map[uint32]uint64{1: 500}},
+		{seid: 2, localSeid: 2, dvol: 300, drained: map[uint32]uint64{2: 300}},
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("reportUsage reached the URR restore after an unknown outcome: %v", r)
+		}
+	}()
+
+	u.reportUsage(context.Background(), batch)
+
+	if smf.calls != 1 {
+		t.Fatalf("the batch was reported %d times, want once", smf.calls)
+	}
+}
+
+func fieldByKey(fields []zap.Field, key string) (zap.Field, bool) {
+	for _, f := range fields {
+		if f.Key == key {
+			return f, true
+		}
+	}
+
+	return zap.Field{}, false
+}
+
+func TestBatchFieldsSumsVolumeAcrossTheBatch(t *testing.T) {
+	fields := batchFields([]sessionUsage{
+		{localSeid: 7, uvol: 500, dvol: 300},
+		{localSeid: 8, uvol: 70, dvol: 20},
+	})
+
+	uvol, ok := fieldByKey(fields, "uplink_volume")
+	if !ok || uvol.Integer != 570 {
+		t.Errorf("uplink_volume = %v, want 570", uvol.Integer)
+	}
+
+	dvol, ok := fieldByKey(fields, "downlink_volume")
+	if !ok || dvol.Integer != 320 {
+		t.Errorf("downlink_volume = %v, want 320", dvol.Integer)
+	}
+
+	if _, ok := fieldByKey(fields, "seid"); ok {
+		t.Error("a multi-session batch must not claim a single SEID")
+	}
+}
+
+func TestBatchFieldsNamesTheSessionOfASingleSessionFlush(t *testing.T) {
+	fields := batchFields([]sessionUsage{{localSeid: 42, uvol: 500, dvol: 300}})
+
+	seid, ok := fieldByKey(fields, "seid")
+	if !ok {
+		t.Fatalf("a single-session flush lost its SEID: %v", fields)
+	}
+
+	if seid.Integer != 42 {
+		t.Errorf("seid = %v, want 42", seid.Integer)
 	}
 }

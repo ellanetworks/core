@@ -335,6 +335,29 @@ func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage
 	return nil, nil
 }
 
+func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *DailyUsageBatch) (any, error) {
+	var dropped droppedDailyUsage
+
+	for i := range batch.Rows {
+		err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, &batch.Rows[i]).Run()
+		if err == nil {
+			continue
+		}
+
+		if isForeignKeyError(err) {
+			dropped.Rows++
+			dropped.BytesUplink += batch.Rows[i].BytesUplink
+			dropped.BytesDownlink += batch.Rows[i].BytesDownlink
+
+			continue
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return dropped, nil
+}
+
 func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 	err := db.runner(ctx).Query(ctx, db.deleteAllDailyUsageStmt).Run()
 	if err != nil {
