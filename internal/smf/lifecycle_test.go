@@ -15,11 +15,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMain(m *testing.M) {
@@ -1578,48 +1582,6 @@ func TestReconcileSmContext_DNSIdleUE(t *testing.T) {
 	smCtx.Mutex.Unlock()
 }
 
-// ===========================
-// HandleUsageReport tests
-// ===========================
-
-func TestHandleUsageReport(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, _ := setupSessionWithTunnel(t, s)
-
-	err := s.HandleUsageReport(ctx, &models.UsageReport{
-		SEID:           smCtx.PFCPContext.SEID,
-		UplinkVolume:   500,
-		DownlinkVolume: 300,
-	})
-	if err != nil {
-		t.Fatalf("HandleUsageReport failed: %v", err)
-	}
-
-	store.mu.Lock()
-	if len(store.usageLog) != 1 {
-		store.mu.Unlock()
-		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
-	}
-
-	entry := store.usageLog[0]
-	store.mu.Unlock()
-
-	if entry.imsi != testIMSI {
-		t.Fatalf("expected IMSI %s, got %s", testIMSI, entry.imsi)
-	}
-
-	if entry.uplinkBytes != 500 {
-		t.Fatalf("expected 500 uplink bytes, got %d", entry.uplinkBytes)
-	}
-
-	if entry.downlinkBytes != 300 {
-		t.Fatalf("expected 300 downlink bytes, got %d", entry.downlinkBytes)
-	}
-}
-
 // TestHandleDownlinkDataReportEPS checks that downlink data for a 4G EPS session
 // pages via the MME, not the AMF (TS 23.401 §5.3.4.3).
 func TestHandleDownlinkDataReportEPS(t *testing.T) {
@@ -1770,36 +1732,6 @@ func TestSendFlowReports_StoreError(t *testing.T) {
 	err := s.SendFlowReports(context.Background(), []*models.FlowReportRequest{req})
 	if err == nil {
 		t.Fatal("expected error when store fails")
-	}
-}
-
-// ===========================
-// IncrementDailyUsage tests
-// ===========================
-
-func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	err := s.IncrementDailyUsage(ctx, testIMSI, 1000, 2000)
-	if err != nil {
-		t.Fatalf("IncrementDailyUsage failed: %v", err)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	if len(store.usageLog) != 1 {
-		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
-	}
-
-	if store.usageLog[0].uplinkBytes != 1000 {
-		t.Fatalf("expected 1000 uplink bytes, got %d", store.usageLog[0].uplinkBytes)
-	}
-
-	if store.usageLog[0].downlinkBytes != 2000 {
-		t.Fatalf("expected 2000 downlink bytes, got %d", store.usageLog[0].downlinkBytes)
 	}
 }
 
@@ -2448,5 +2380,135 @@ func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
 
 	if modifies != 0 {
 		t.Fatalf("a modification was sent for a session the UPF never accepted: %d calls", modifies)
+	}
+}
+
+func TestHandleUsageReports_BatchesEverySessionIntoOneStoreCall(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	err := s.HandleUsageReports(ctx, []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 70, DownlinkVolume: 20},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.batchCalls != 1 {
+		t.Errorf("got %d store calls, want 1", store.batchCalls)
+	}
+
+	if len(store.usageLog) != 2 {
+		t.Fatalf("expected 2 usage entries, got %d", len(store.usageLog))
+	}
+}
+
+func TestHandleUsageReports_PreservesAnUnknownOutcome(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	store.mu.Lock()
+	store.err = fmt.Errorf("propose: %w", models.ErrUsageOutcomeUnknown)
+	store.mu.Unlock()
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+	})
+	if !errors.Is(err, models.ErrUsageOutcomeUnknown) {
+		t.Fatalf("HandleUsageReports lost the unknown-outcome signal: %v", err)
+	}
+}
+
+func TestHandleUsageReports_SkipsReportsWithNoSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	err := s.HandleUsageReports(ctx, []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 1, DownlinkVolume: 1},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 500, DownlinkVolume: 300},
+	})
+	if err != nil {
+		t.Fatalf("an unresolvable SEID must not fail the batch: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.usageLog) != 1 {
+		t.Fatalf("expected 1 usage entry, got %d", len(store.usageLog))
+	}
+
+	if store.usageLog[0].uplinkBytes != 500 {
+		t.Errorf("got uplink %d, want 500", store.usageLog[0].uplinkBytes)
+	}
+}
+
+func TestHandleUsageReports_ReportsEveryDroppedReport(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	logs := observeSMFLog(t)
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: smCtx.PFCPContext.SEID + 9999, UplinkVolume: 500, DownlinkVolume: 300},
+		{SEID: smCtx.PFCPContext.SEID + 9998, UplinkVolume: 70, DownlinkVolume: 20},
+		{SEID: smCtx.PFCPContext.SEID, UplinkVolume: 1, DownlinkVolume: 1},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	entries := logs.FilterMessage("usage bytes lost: the SEID no longer resolves to a subscriber").All()
+	if len(entries) != 2 {
+		t.Fatalf("got %d loss reports, want 2", len(entries))
+	}
+
+	if got := entries[0].ContextMap()["uplink_volume"]; got != uint64(500) {
+		t.Errorf("uplink_volume = %v, want 500", got)
+	}
+}
+
+func observeSMFLog(t *testing.T) *observer.ObservedLogs {
+	t.Helper()
+
+	core, logs := observer.New(zapcore.ErrorLevel)
+	saved := logger.SmfLog
+	logger.SmfLog = zap.New(core)
+
+	t.Cleanup(func() { logger.SmfLog = saved })
+
+	return logs
+}
+
+func TestHandleUsageReports_NoResolvableSessionSkipsTheStore(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	err := s.HandleUsageReports(context.Background(), []*models.UsageReport{
+		{SEID: 424242, UplinkVolume: 1, DownlinkVolume: 1},
+	})
+	if err != nil {
+		t.Fatalf("HandleUsageReports failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.batchCalls != 0 {
+		t.Errorf("got %d store calls, want none", store.batchCalls)
 	}
 }

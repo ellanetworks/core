@@ -76,7 +76,7 @@ type DNNStore interface {
 // data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
-	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
+	IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 

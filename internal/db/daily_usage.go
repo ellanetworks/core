@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const DailyUsageTableName = "daily_usage"
@@ -126,6 +128,59 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 		span.SetStatus(codes.Error, err.Error())
 
 		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+type DailyUsageBatch struct {
+	Rows []DailyUsage
+}
+
+type droppedDailyUsage struct {
+	Rows          int
+	BytesUplink   int64
+	BytesDownlink int64
+}
+
+func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []DailyUsage) error {
+	if len(usages) == 0 {
+		return nil
+	}
+
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (batch)", "INSERT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", DailyUsageTableName),
+			attribute.Int("db.batch.size", len(usages)),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "batch_insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "batch_insert").Inc()
+
+	dropped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	if dropped.Rows > 0 {
+		logger.WithTrace(ctx, logger.DBLog).Error("usage bytes lost: no subscriber row to charge",
+			zap.Int("rows", dropped.Rows),
+			zap.Int64("uplink_volume", dropped.BytesUplink),
+			zap.Int64("downlink_volume", dropped.BytesDownlink))
 	}
 
 	span.SetStatus(codes.Ok, "")

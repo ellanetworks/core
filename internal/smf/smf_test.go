@@ -27,6 +27,7 @@ type fakeStore struct {
 	releasedIP      netip.Addr
 	releasedIPv6    netip.Addr
 	usageLog        []usageEntry
+	batchCalls      int
 	flowLog         []models.FlowReportRequest
 	releasedIPs     []string
 	releasedIPv6s   []string
@@ -171,11 +172,15 @@ func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai
 	return f.policy, nil
 }
 
-func (f *fakeStore) IncrementDailyUsage(_ context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
+func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.SubscriberUsage) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.usageLog = append(f.usageLog, usageEntry{imsi, uplinkBytes, downlinkBytes})
+	f.batchCalls++
+
+	for _, u := range usages {
+		f.usageLog = append(f.usageLog, usageEntry{u.IMSI, u.UplinkVolume, u.DownlinkVolume})
+	}
 
 	return f.err
 }

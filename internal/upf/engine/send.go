@@ -15,7 +15,7 @@ import (
 // back to the SMF.
 type SMFReportHandler interface {
 	HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error
-	HandleUsageReport(context.Context, *models.UsageReport) error
+	HandleUsageReports(context.Context, []*models.UsageReport) error
 	SendFlowReports(context.Context, []*models.FlowReportRequest) error
 }
 
@@ -32,15 +32,10 @@ func (conn *SessionEngine) SendDownlinkDataReport(ctx context.Context, smf SMFRe
 	})
 }
 
-func (conn *SessionEngine) SendUsageReport(ctx context.Context, smf SMFReportHandler, localSeid uint64, uvol uint64, dvol uint64) error {
-	session := conn.GetSession(localSeid)
-	if session == nil {
-		return fmt.Errorf("failed to find session with localSeid: %d", localSeid)
+func (conn *SessionEngine) SendUsageReports(ctx context.Context, smf SMFReportHandler, reports []*models.UsageReport) error {
+	if len(reports) == 0 {
+		return nil
 	}
 
-	return smf.HandleUsageReport(ctx, &models.UsageReport{
-		SEID:           session.SEID,
-		UplinkVolume:   uvol,
-		DownlinkVolume: dvol,
-	})
+	return smf.HandleUsageReports(ctx, reports)
 }

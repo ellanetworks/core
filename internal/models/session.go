@@ -16,6 +16,8 @@ import (
 // needed to delete it.
 var ErrSessionNotFound = errors.New("upf session not found")
 
+var ErrUsageOutcomeUnknown = errors.New("usage report outcome unknown")
+
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
@@ -205,6 +207,12 @@ type DownlinkDataReport struct {
 // UsageReport delivers periodic volume measurements from UPF to SMF.
 type UsageReport struct {
 	SEID           uint64
+	UplinkVolume   uint64
+	DownlinkVolume uint64
+}
+
+type SubscriberUsage struct {
+	IMSI           string
 	UplinkVolume   uint64
 	DownlinkVolume uint64
 }

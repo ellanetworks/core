@@ -186,9 +186,10 @@ type N2Interface struct {
 }
 
 type N3Interface struct {
-	Name       string
-	Address    string
-	VlanConfig *VlanConfig
+	Name            string
+	Address         string
+	AddressExplicit bool
+	VlanConfig      *VlanConfig
 }
 
 type N6Interface struct {
@@ -432,6 +433,7 @@ func Validate(filePath string) (Config, error) {
 	config.DB.Path = c.DB.Path
 	config.Interfaces.N3.Name = n3InterfaceName
 	config.Interfaces.N3.Address = n3Address
+	config.Interfaces.N3.AddressExplicit = c.Interfaces.N3.Address != ""
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
 
 	if c.Interfaces.N2.Name != "" {
@@ -543,12 +545,7 @@ var CheckInterfaceExistsFunc = func(name string) (bool, error) {
 }
 
 var GetInterfaceIPFunc = func(name string, family AddressFamily) (string, error) {
-	iface, err := net.InterfaceByName(name)
-	if err != nil {
-		return "", err
-	}
-
-	addresses, err := iface.Addrs()
+	addresses, err := UsableInterfaceAddrs(name)
 	if err != nil {
 		return "", err
 	}
@@ -556,24 +553,22 @@ var GetInterfaceIPFunc = func(name string, family AddressFamily) (string, error)
 	var ipv4Fallback string
 
 	for _, addr := range addresses {
-		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
-			switch family {
-			case IPv4:
-				if ip.To4() != nil {
-					return ip.String(), nil
-				}
-			case IPv6:
-				if ip.To4() == nil {
-					return ip.String(), nil
-				}
-			case AnyFamily:
-				if ip.To4() == nil && !ip.IsLinkLocalUnicast() {
-					return ip.String(), nil
-				}
+		switch family {
+		case IPv4:
+			if addr.Is4() {
+				return addr.String(), nil
+			}
+		case IPv6:
+			if addr.Is6() {
+				return addr.String(), nil
+			}
+		case AnyFamily:
+			if addr.Is6() {
+				return addr.String(), nil
+			}
 
-				if ip.To4() != nil && ipv4Fallback == "" {
-					ipv4Fallback = ip.String()
-				}
+			if addr.Is4() && ipv4Fallback == "" {
+				ipv4Fallback = addr.String()
 			}
 		}
 	}
@@ -680,12 +675,7 @@ func GetInterfaceName(address string) (string, error) {
 }
 
 var GetInterfaceIPsFunc = func(name string) ([]string, error) {
-	iface, err := net.InterfaceByName(name)
-	if err != nil {
-		return nil, err
-	}
-
-	addresses, err := iface.Addrs()
+	addresses, err := UsableInterfaceAddrs(name)
 	if err != nil {
 		return nil, err
 	}
@@ -693,11 +683,11 @@ var GetInterfaceIPsFunc = func(name string) ([]string, error) {
 	var ips []string
 
 	for _, addr := range addresses {
-		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
-			if !ip.IsLinkLocalUnicast() && !ip.IsLoopback() {
-				ips = append(ips, ip.String())
-			}
+		if addr.IsLoopback() {
+			continue
 		}
+
+		ips = append(ips, addr.String())
 	}
 
 	return ips, nil
