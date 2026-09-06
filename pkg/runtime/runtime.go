@@ -52,6 +52,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const n3AddressDebounce = 2 * time.Second
+
 var getInterfaceIPs = config.GetInterfaceIPs
 
 var staleLeaseCleanup struct {
@@ -415,9 +417,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
-	fallbackN3, _ := netip.ParseAddr(n3IPv4)
-	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3)
+	fallbackN3IPv4, _ := netip.ParseAddr(n3IPv4)
+	fallbackN3IPv6, _ := netip.ParseAddr(n3IPv6)
+	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3IPv4, fallbackN3IPv6)
 	upfReconciler.Start()
+
+	startN3AddressWatcher(ctx, cfg.Interfaces.N3, upfInstance, upfReconciler)
 
 	defer upfReconciler.Stop()
 
@@ -896,19 +901,67 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 	return out, nil
 }
 
-// resolveN3Addresses scans the N3 interface and returns the first non-link-local
-// IPv4 and IPv6 addresses found. The configured address (cfg.Interfaces.N3.Address)
-// is used as the primary address for its family; the interface is then scanned
-// for an address of the other family.
-func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
-	if n3Interface.Address != "" {
-		if addr, err := netip.ParseAddr(n3Interface.Address); err == nil {
-			if addr.Is4() {
-				n3IPv4 = n3Interface.Address
-			} else {
-				n3IPv6 = n3Interface.Address
-			}
+func startN3AddressWatcher(ctx context.Context, n3Interface config.N3Interface, upfInstance *upf.UPF, reconciler *upf.SettingsReconciler) {
+	if n3Interface.AddressExplicit {
+		return
+	}
+
+	ifaceName := n3Interface.Name
+	if n3Interface.VlanConfig != nil {
+		ifaceName = n3Interface.VlanConfig.MasterInterface
+	}
+
+	if ifaceName == "" {
+		return
+	}
+
+	onChange := func() {
+		ipv4Str, ipv6Str := resolveN3Addresses(n3Interface)
+
+		ipv4, _ := netip.ParseAddr(ipv4Str)
+		ipv6, _ := netip.ParseAddr(ipv6Str)
+
+		if !ipv4.IsValid() && !ipv6.IsValid() {
+			logger.EllaLog.Warn("N3 interface has no usable address, keeping the previous one",
+				zap.String("interface", ifaceName))
+
+			return
 		}
+
+		upfInstance.UpdateN3Addresses(ipv4, ipv6)
+
+		if !reconciler.SetFallbackN3Addresses(ipv4, ipv6) {
+			return
+		}
+
+		logger.EllaLog.Info("N3 addresses changed",
+			zap.String("interface", ifaceName),
+			zap.String("n3_ipv4", ipv4Str),
+			zap.String("n3_ipv6", ipv6Str))
+
+		if err := reconciler.Reconcile(ctx); err != nil {
+			logger.EllaLog.Warn("failed to apply the new N3 addresses", zap.Error(err))
+		}
+	}
+
+	if err := kernel.WatchInterfaceAddrs(ctx, ifaceName, n3AddressDebounce, onChange); err != nil {
+		logger.EllaLog.Warn("N3 address changes will not be tracked until restart",
+			zap.String("interface", ifaceName), zap.Error(err))
+	}
+}
+
+func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
+	if n3Interface.AddressExplicit && n3Interface.Address != "" {
+		addr, err := netip.ParseAddr(n3Interface.Address)
+		if err != nil {
+			return "", ""
+		}
+
+		if addr.Is4() {
+			return n3Interface.Address, ""
+		}
+
+		return "", n3Interface.Address
 	}
 
 	ifaceName := n3Interface.Name
@@ -918,7 +971,7 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 
 	ips, err := getInterfaceIPs(ifaceName)
 	if err != nil {
-		return n3IPv4, n3IPv6
+		return "", ""
 	}
 
 	for _, ipStr := range ips {

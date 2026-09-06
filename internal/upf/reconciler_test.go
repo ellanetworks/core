@@ -168,7 +168,7 @@ func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID string, directio
 }
 
 func newReconciler(updater Updater, store SettingsStore, fallback netip.Addr) *SettingsReconciler {
-	return NewSettingsReconciler(updater, store, nil, fallback)
+	return NewSettingsReconciler(updater, store, nil, fallback, netip.Addr{})
 }
 
 func TestReconcile_NATAppliesOnFirstTickAndSkipsWhenUnchanged(t *testing.T) {
@@ -292,6 +292,80 @@ func TestReconcile_N3HandlesGetN3SettingsNotFound(t *testing.T) {
 
 	if len(updater.n3Calls) != 0 {
 		t.Fatalf("no N3 call expected when settings missing, got %v", updater.n3Calls)
+	}
+}
+
+func TestReconcile_N3AppliesBothFamilies(t *testing.T) {
+	store := &fakeStore{n3External: ""}
+	updater := &fakeUpdater{}
+	ipv4 := netip.MustParseAddr("10.0.0.5")
+	ipv6 := netip.MustParseAddr("2001:db8::5")
+
+	r := NewSettingsReconciler(updater, store, nil, ipv4, ipv6)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := len(updater.n3Calls); got != 2 {
+		t.Fatalf("expected 2 N3 calls, got %v", updater.n3Calls)
+	}
+
+	if updater.n3Calls[0] != ipv4 || updater.n3Calls[1] != ipv6 {
+		t.Fatalf("expected %s then %s, got %v", ipv4, ipv6, updater.n3Calls)
+	}
+}
+
+func TestReconcile_N3ExternalOverridesOnlyItsFamily(t *testing.T) {
+	store := &fakeStore{n3External: "172.16.1.1"}
+	updater := &fakeUpdater{}
+	ipv6 := netip.MustParseAddr("2001:db8::5")
+
+	r := NewSettingsReconciler(updater, store, nil, netip.MustParseAddr("10.0.0.5"), ipv6)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := len(updater.n3Calls); got != 2 {
+		t.Fatalf("expected 2 N3 calls, got %v", updater.n3Calls)
+	}
+
+	if updater.n3Calls[0].String() != "172.16.1.1" {
+		t.Fatalf("expected the external address to win for IPv4, got %v", updater.n3Calls[0])
+	}
+
+	if updater.n3Calls[1] != ipv6 {
+		t.Fatalf("expected the IPv6 fallback to survive, got %v", updater.n3Calls[1])
+	}
+}
+
+func TestReconcile_N3AppliesUpdatedFallbacks(t *testing.T) {
+	store := &fakeStore{n3External: ""}
+	updater := &fakeUpdater{}
+
+	r := NewSettingsReconciler(updater, store, nil, netip.MustParseAddr("10.0.0.5"), netip.Addr{})
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	rotated := netip.MustParseAddr("10.0.0.9")
+
+	if !r.SetFallbackN3Addresses(rotated, netip.Addr{}) {
+		t.Fatal("expected the fallback change to be reported")
+	}
+
+	if r.SetFallbackN3Addresses(rotated, netip.Addr{}) {
+		t.Fatal("an unchanged fallback must not be reported as a change")
+	}
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := len(updater.n3Calls); got != 2 || updater.n3Calls[1] != rotated {
+		t.Fatalf("expected the rotated address to be applied, got %v", updater.n3Calls)
 	}
 }
 
@@ -525,7 +599,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{}
 
-	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"))
+	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"), netip.Addr{})
 	r.backstop = time.Hour
 
 	r.Start()

@@ -218,6 +218,21 @@ func (pc *SessionEngine) SetAdvertisedN3AddressIPv6(newN3Addr netip.Addr) {
 	pc.advertisedN3AddressIPv6 = newN3Addr
 }
 
+func (pc *SessionEngine) N3Addresses() (ipv4, ipv6 netip.Addr) {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+
+	return pc.n3AddressIPv4, pc.n3AddressIPv6
+}
+
+func (pc *SessionEngine) SetN3Addresses(ipv4, ipv6 netip.Addr) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.n3AddressIPv4 = ipv4
+	pc.n3AddressIPv6 = ipv6
+}
+
 func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
