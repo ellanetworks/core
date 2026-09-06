@@ -896,29 +896,23 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 	return out, nil
 }
 
-// resolveN3Addresses scans the N3 interface and returns the first non-link-local
-// IPv4 and IPv6 addresses found. The configured address (cfg.Interfaces.N3.Address)
-// is used as the primary address for its family; the interface is then scanned
-// for an address of the other family.
 func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
-	if n3Interface.Address != "" {
-		if addr, err := netip.ParseAddr(n3Interface.Address); err == nil {
-			if addr.Is4() {
-				n3IPv4 = n3Interface.Address
-			} else {
-				n3IPv6 = n3Interface.Address
-			}
+	if n3Interface.AddressExplicit && n3Interface.Address != "" {
+		addr, err := netip.ParseAddr(n3Interface.Address)
+		if err != nil {
+			return "", ""
 		}
+
+		if addr.Is4() {
+			return n3Interface.Address, ""
+		}
+
+		return "", n3Interface.Address
 	}
 
-	ifaceName := n3Interface.Name
-	if n3Interface.VlanConfig != nil {
-		ifaceName = n3Interface.VlanConfig.MasterInterface
-	}
-
-	ips, err := getInterfaceIPs(ifaceName)
+	ips, err := getInterfaceIPs(n3Interface.Name)
 	if err != nil {
-		return n3IPv4, n3IPv6
+		return "", ""
 	}
 
 	for _, ipStr := range ips {
