@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 )
 
-func TestResolveN3AddressesConfiguredIPv6StillFindsIPv4OnInterface(t *testing.T) {
+func TestResolveN3AddressesConfiguredIPv6IsAuthoritative(t *testing.T) {
 	originalGetInterfaceIPs := getInterfaceIPs
 
 	t.Cleanup(func() {
@@ -18,20 +18,19 @@ func TestResolveN3AddressesConfiguredIPv6StillFindsIPv4OnInterface(t *testing.T)
 	})
 
 	getInterfaceIPs = func(name string) ([]string, error) {
-		if name != "n3eth0" {
-			t.Fatalf("unexpected interface lookup: %s", name)
-		}
+		t.Fatalf("interface must not be scanned when an address is configured: %s", name)
 
-		return []string{"2001:db8::10", "192.0.2.10"}, nil
+		return nil, nil
 	}
 
 	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{
-		Name:    "n3eth0",
-		Address: "2001:db8::1",
+		Name:            "n3eth0",
+		Address:         "2001:db8::1",
+		AddressExplicit: true,
 	})
 
-	if got, want := n3IPv4, "192.0.2.10"; got != want {
-		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	if n3IPv4 != "" {
+		t.Fatalf("n3IPv4 = %q, want empty", n3IPv4)
 	}
 
 	if got, want := n3IPv6, "2001:db8::1"; got != want {
@@ -39,7 +38,7 @@ func TestResolveN3AddressesConfiguredIPv6StillFindsIPv4OnInterface(t *testing.T)
 	}
 }
 
-func TestResolveN3AddressesConfiguredIPv4StillFindsIPv6OnInterface(t *testing.T) {
+func TestResolveN3AddressesConfiguredIPv4IsAuthoritative(t *testing.T) {
 	originalGetInterfaceIPs := getInterfaceIPs
 
 	t.Cleanup(func() {
@@ -47,23 +46,77 @@ func TestResolveN3AddressesConfiguredIPv4StillFindsIPv6OnInterface(t *testing.T)
 	})
 
 	getInterfaceIPs = func(name string) ([]string, error) {
-		if name != "n3eth0" {
-			t.Fatalf("unexpected interface lookup: %s", name)
-		}
+		t.Fatalf("interface must not be scanned when an address is configured: %s", name)
 
-		return []string{"192.0.2.20", "2001:db8::20"}, nil
+		return nil, nil
 	}
 
 	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{
-		Name:    "n3eth0",
-		Address: "192.0.2.1",
+		Name:            "n3eth0",
+		Address:         "192.0.2.1",
+		AddressExplicit: true,
 	})
 
 	if got, want := n3IPv4, "192.0.2.1"; got != want {
 		t.Fatalf("n3IPv4 = %q, want %q", got, want)
 	}
 
+	if n3IPv6 != "" {
+		t.Fatalf("n3IPv6 = %q, want empty", n3IPv6)
+	}
+}
+
+func TestResolveN3AddressesDerivedAddressStillScansBothFamilies(t *testing.T) {
+	originalGetInterfaceIPs := getInterfaceIPs
+
+	t.Cleanup(func() {
+		getInterfaceIPs = originalGetInterfaceIPs
+	})
+
+	getInterfaceIPs = func(name string) ([]string, error) {
+		return []string{"192.0.2.20", "2001:db8::20"}, nil
+	}
+
+	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{
+		Name:    "n3eth0",
+		Address: "2001:db8::20",
+	})
+
+	if got, want := n3IPv4, "192.0.2.20"; got != want {
+		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	}
+
 	if got, want := n3IPv6, "2001:db8::20"; got != want {
+		t.Fatalf("n3IPv6 = %q, want %q", got, want)
+	}
+}
+
+func TestResolveN3AddressesScansVlanNetdevNotMaster(t *testing.T) {
+	originalGetInterfaceIPs := getInterfaceIPs
+
+	t.Cleanup(func() {
+		getInterfaceIPs = originalGetInterfaceIPs
+	})
+
+	getInterfaceIPs = func(name string) ([]string, error) {
+		if name != "ens4.100" {
+			t.Fatalf("unexpected interface lookup: %s", name)
+		}
+
+		return []string{"10.1.1.5", "2001:db8::5"}, nil
+	}
+
+	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{
+		Name:       "ens4.100",
+		Address:    "10.1.1.5",
+		VlanConfig: &config.VlanConfig{MasterInterface: "ens4"},
+	})
+
+	if got, want := n3IPv4, "10.1.1.5"; got != want {
+		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	}
+
+	if got, want := n3IPv6, "2001:db8::5"; got != want {
 		t.Fatalf("n3IPv6 = %q, want %q", got, want)
 	}
 }

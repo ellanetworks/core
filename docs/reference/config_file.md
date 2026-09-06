@@ -139,7 +139,7 @@ interfaces:
   n2:
     name: "ens5"
   n3:
-    address: "ens4"
+    name: "ens4"
   n6:
     name: "ens3"
   api:
