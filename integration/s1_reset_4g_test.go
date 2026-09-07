@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/integration/fixture"
@@ -18,9 +18,7 @@ import (
 // with a RESET ACKNOWLEDGE carrying no connection list, drop the UE's S1
 // context, and keep the association up so a subsequent attach succeeds.
 func TestIntegration4GS1Reset(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() == IPv6Only {
 		t.Skipf("TestIntegration4GS1Reset requires an IPv4 PDN, current %s", DetectIPFamily())

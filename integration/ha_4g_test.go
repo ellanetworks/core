@@ -4,7 +4,7 @@
 package integration_test
 
 import (
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
@@ -15,9 +15,7 @@ import (
 // Its name keeps it out of the 5G HA and srsRAN 4G -run filters; it runs in the
 // integration-tests-ha-4g workflow.
 func TestIntegration4GHAFailover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA3GPP4G)
 
 	runHA3GPPFailover(t, "ha/failover_connectivity_4g")
 }

@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
 
@@ -13,9 +13,7 @@ import (
 )
 
 func TestIntegrationHALeaderCrash(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

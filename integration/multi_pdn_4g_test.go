@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/integration/fixture"
@@ -17,9 +17,7 @@ import (
 // it attaches on the default APN, opens a second PDN connection to another APN,
 // verifies connectivity on both with distinct UE IPs, then disconnects the second.
 func TestIntegration4GMultiPDN(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() == IPv6Only {
 		t.Skipf("TestIntegration4GMultiPDN requires IPv4 PDNs, current %s", DetectIPFamily())

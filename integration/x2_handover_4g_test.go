@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"testing"
 	"time"
@@ -23,9 +24,7 @@ import (
 // proves the MME's path-switch handler reprogrammed the UPF downlink to the
 // target eNB (TS 36.413 §8.4.4).
 func TestIntegration4GX2Handover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Handover4G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration4GX2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))

@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
@@ -45,9 +45,7 @@ var apiMatrixHAResources = map[string]apiMatrixHARunner{
 }
 
 func TestAPIMatrixHA(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.APIMatrixHA)
 
 	beginHATest(t)
 

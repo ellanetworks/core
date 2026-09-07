@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"testing"
 	"time"
@@ -17,9 +18,7 @@ import (
 
 // TS 23.502 §4.9.1.3.3
 func TestIntegration5GN2Handover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GN2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))

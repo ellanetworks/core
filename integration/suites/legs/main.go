@@ -4,33 +4,152 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/ellanetworks/core/integration/suites"
+	"github.com/ellanetworks/core/internal/tester/scenarios"
+	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-const maxMatrixJobs = 256
+const testPattern = "^(TestIntegration|TestAPIMatrix)"
 
 func main() {
-	legs := suites.Legs()
-
-	if len(legs) == 0 {
-		fmt.Fprintln(os.Stderr, "no integration legs found; the suite registry is broken")
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
 
-	if len(legs) > maxMatrixJobs {
-		fmt.Fprintf(os.Stderr, "%d legs exceeds the %d-job GitHub Actions matrix limit\n", len(legs), maxMatrixJobs)
-		os.Exit(1)
+func run() error {
+	dir, err := os.MkdirTemp("", "suites")
+	if err != nil {
+		return fmt.Errorf("temp dir: %w", err)
+	}
+
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	decls, err := declare(filepath.Join(dir, "declarations.json"))
+	if err != nil {
+		return err
+	}
+
+	defined, err := definedTests()
+	if err != nil {
+		return err
+	}
+
+	if missing := undeclared(defined, decls); len(missing) > 0 {
+		return fmt.Errorf("these integration tests call no suites.Require, so no CI job would run them:\n  %s",
+			strings.Join(missing, "\n  "))
+	}
+
+	legs, err := suites.BuildLegs(decls, scenarioPrefixes())
+	if err != nil {
+		return err
 	}
 
 	out, err := json.Marshal(legs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "marshal legs: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("marshal legs: %w", err)
 	}
 
 	fmt.Println(string(out))
+
+	return nil
+}
+
+func declare(path string) ([]suites.Declaration, error) {
+	cmd := exec.Command("go", "test", "./integration/", "-run", ".", "-count=1")
+	cmd.Env = append(os.Environ(), suites.DumpEnv+"="+path)
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("listing run: %w", err)
+	}
+
+	b, err := os.ReadFile(path) //nolint:gosec // path created by this program
+	if err != nil {
+		return nil, fmt.Errorf("read declarations: %w", err)
+	}
+
+	var decls []suites.Declaration
+	if err := json.Unmarshal(b, &decls); err != nil {
+		return nil, fmt.Errorf("decode declarations: %w", err)
+	}
+
+	if len(decls) == 0 {
+		return nil, fmt.Errorf("no declarations found; the listing run is broken")
+	}
+
+	return decls, nil
+}
+
+func definedTests() ([]string, error) {
+	out, err := exec.Command("go", "test", "./integration/", "-list", testPattern).Output()
+	if err != nil {
+		return nil, fmt.Errorf("list tests: %w", err)
+	}
+
+	var names []string
+
+	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(line, "TestIntegration") || strings.HasPrefix(line, "TestAPIMatrix") {
+			names = append(names, line)
+		}
+	}
+
+	if len(names) == 0 {
+		return nil, fmt.Errorf("go test -list found no integration tests; discovery is broken")
+	}
+
+	return names, nil
+}
+
+func undeclared(defined []string, decls []suites.Declaration) []string {
+	seen := make(map[string]bool, len(decls))
+	for _, d := range decls {
+		seen[d.Test] = true
+	}
+
+	var missing []string
+
+	for _, n := range defined {
+		if !seen[n] {
+			missing = append(missing, n)
+		}
+	}
+
+	sort.Strings(missing)
+
+	return missing
+}
+
+func scenarioPrefixes() []string {
+	seen := map[string]bool{}
+
+	var out []string
+
+	for _, n := range scenarios.List() {
+		p, _, found := strings.Cut(n, "/")
+		if !found || seen[p] {
+			continue
+		}
+
+		seen[p] = true
+
+		out = append(out, p)
+	}
+
+	sort.Strings(out)
+
+	return out
 }

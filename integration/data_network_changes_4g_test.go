@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/integration/fixture"
@@ -19,9 +19,7 @@ import (
 // deactivates the bearer with ESM cause #39 "reactivation requested"
 // (TS 24.301 §6.4.4.2) and the UE re-attaches with the new configuration.
 func TestIntegration4GDataNetworkChanges(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skipf("TestIntegration4GDataNetworkChanges runs in IPv4 mode, current %s", DetectIPFamily())

@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
 
@@ -19,9 +19,7 @@ import (
 // has accepted its S1 Setup Request and sent an S1 Setup Response, so its
 // presence is positive proof of the request/response exchange.
 func TestIntegration4GS1Setup(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	// The srsenb compose stack is IPv4-only.
 	if DetectIPFamily() != IPv4Only {

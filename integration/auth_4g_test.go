@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
 	"time"
@@ -18,9 +18,7 @@ import (
 // the MME rejects the attach with ATTACH REJECT #2 ("IMSI unknown in HSS")
 // rather than letting it register.
 func TestIntegration4GUnknownIMSI(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")
@@ -90,9 +88,7 @@ func TestIntegration4GUnknownIMSI(t *testing.T) {
 // AUTHENTICATION FAILURE #20; the MME aborts with AUTHENTICATION REJECT
 // (TS 24.301 §5.4.2.5) and the UE never registers.
 func TestIntegration4GAuthMACFailure(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")

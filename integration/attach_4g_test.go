@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +21,7 @@ import (
 // The UE's USIM (compose/srsenb/compose.yaml) matches the MME's hard-coded
 // subscriber (internal/mme/subscriber.go).
 func TestIntegration4GAttach(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G attach integration runs in IPv4 mode only")

@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +14,7 @@ import (
 )
 
 func TestIntegrationHAForceRemoveUnreachableMember(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

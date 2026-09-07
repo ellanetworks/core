@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"os/exec"
 	"strings"
 	"testing"
@@ -21,9 +21,7 @@ const joinTokenComposeDir = "compose/ha-scaleup/"
 const joinTokenProject = "ha-scaleup"
 
 func TestIntegrationHAJoinTokenRejection(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

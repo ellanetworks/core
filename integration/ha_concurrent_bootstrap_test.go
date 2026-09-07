@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
 
@@ -30,9 +30,7 @@ const haComposeProject = "ha"
 // so a regression that crashes the joiner surfaces as a stuck cluster
 // rather than being papered over by compose retrying the container.
 func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

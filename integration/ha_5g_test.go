@@ -4,7 +4,7 @@
 package integration_test
 
 import (
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
@@ -21,9 +21,7 @@ import (
 // ella-core-tester images); named so it does NOT match the `-run
 // TestIntegrationHA` filter of the control-plane HA workflow.
 func TestIntegration5GHAFailover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA3GPP5G)
 
 	runHA3GPPFailover(t, "ha/failover_connectivity_5g")
 }

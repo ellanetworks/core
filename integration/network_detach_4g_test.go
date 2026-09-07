@@ -5,7 +5,7 @@ package integration_test
 
 import (
 	"context"
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -15,9 +15,7 @@ import (
 // subscriber via the API. DeleteSubscriber drives a network-initiated detach: the
 // MME sends a Detach Request to the UE and releases its S1 context.
 func TestIntegration4GNetworkDetach(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")

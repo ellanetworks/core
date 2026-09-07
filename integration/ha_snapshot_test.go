@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,9 +23,7 @@ import (
 // up by log replay), reads pre-snapshot rows locally, and continues to
 // replicate writes after the install.
 func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

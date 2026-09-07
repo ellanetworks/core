@@ -4,14 +4,12 @@
 package integration_test
 
 import (
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
 func TestIntegration5GUE2UE(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.UE2UE)
 
 	runUE2UESuite(t, "gnb")
 }

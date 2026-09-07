@@ -4,16 +4,14 @@
 package integration_test
 
 import (
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
 // TestIntegration4GBGP runs the shared BGP suite with a 4G EPS bearer holding the
 // advertised UE route, asserting the external gobgp peer receives it.
 func TestIntegration4GBGP(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.BGP4G)
 
 	runBGPSuite(t, "s1enb/session_hold")
 }

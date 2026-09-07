@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"strconv"
 	"strings"
@@ -26,9 +27,7 @@ import (
 // allocator under cross-node contention, and per-core UPF locality
 // for GTP-U termination.
 func TestIntegration5GMultiGNB(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	if f := DetectIPFamily(); f == IPv6Only || f == DualStack {
 		t.Skipf("skipping: TestIntegration5GMultiGNB is IPv4-only (IP_VERSION=%s)", os.Getenv("IP_VERSION"))

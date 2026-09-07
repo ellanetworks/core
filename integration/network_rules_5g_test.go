@@ -4,7 +4,7 @@
 package integration_test
 
 import (
-	"os"
+	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 )
 
@@ -12,9 +12,7 @@ import (
 // flow-report suite (runNetworkRulesAndFlowReports in network_rules_common_test.go)
 // over 5G PDU sessions, across IPv4 and IPv6.
 func TestIntegration5GNetworkRulesAndFlowReports(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	runNetworkRulesAndFlowReports(t, "gnb")
 }

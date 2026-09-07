@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"testing"
 	"time"
@@ -26,9 +27,7 @@ import (
 // path itself once the UE has arrived; the after-ping proves the AMF's path
 // switch handler reprogrammed the UPF downlink to the target gNB.
 func TestIntegration5GXnHandover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GXnHandover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))

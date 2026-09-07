@@ -22,7 +22,7 @@ jobs:
 
       - id: list
         run: |
-          legs=$(.github/scripts/list-integration-legs.sh)
+          legs=$(go run ./integration/suites/legs)
           echo "legs=$legs" >> "$GITHUB_OUTPUT"
 
   run:
