@@ -81,7 +81,8 @@ func declare(ctx context.Context, path string) ([]suites.Declaration, error) {
 		return nil, fmt.Errorf("listing run: %w", err)
 	}
 
-	b, err := os.ReadFile(path) //nolint:gosec // path created by this program
+	// #nosec G304 -- path was created by this program inside its own temp dir.
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read declarations: %w", err)
 	}

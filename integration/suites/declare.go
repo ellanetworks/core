@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"testing"
@@ -68,6 +69,11 @@ func WriteDump() error {
 		return nil
 	}
 
+	path = filepath.Clean(path)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("%s must be an absolute path, got %q", DumpEnv, path)
+	}
+
 	mu.Lock()
 
 	out := append([]Declaration(nil), declarations...)
@@ -86,6 +92,8 @@ func WriteDump() error {
 		return fmt.Errorf("marshal declarations: %w", err)
 	}
 
+	// #nosec G703 -- path is cleaned and required to be absolute above; it names
+	// the dump file this test binary is asked to write.
 	return os.WriteFile(path, append(b, '\n'), 0o600)
 }
 
