@@ -15,6 +15,8 @@ jobs:
       legs: ${{ steps.list.outputs.legs }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
@@ -61,6 +63,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
+
+      - name: Suite setup
+        if: ${{ matrix.setup != '' }}
+        run: ${{ matrix.setup }}
 
       - name: Run ${{ matrix.suite }}
         env:

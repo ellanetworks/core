@@ -103,21 +103,27 @@ type Definition struct {
 	Profile     Profile
 	Timeout     string
 	NeedsTester bool
+	Setup       string
 }
 
+const gobgpPeerBuild = "docker build -t gobgp-peer:latest " +
+	"-f integration/compose/bgp/Dockerfile.gobgp integration/compose/bgp/"
+
 var Definitions = map[Name]Definition{
-	Datapath4G:     {ProfileFull, "30m", true},
-	Datapath5G:     {ProfileFull, "30m", true},
-	SRSRAN4G:       {ProfileAttach, "30m", true},
-	UE2UE:          {ProfileAttach, "20m", true},
-	Framed:         {ProfileFamiliesAttach, "20m", true},
-	Handover4G:     {ProfileAttachPlusV6, "15m", true},
-	BGP4G:          {ProfileAttachPlusV6, "15m", true},
-	BGP5G:          {ProfileFamilies, "15m", true},
-	HA:             {ProfileClusterFamilies, "15m", false},
-	RollingUpgrade: {ProfileMinimal, "15m", false},
-	HA3GPP4G:       {ProfileMinimal, "15m", true},
-	HA3GPP5G:       {ProfileMinimal, "15m", true},
-	APIMatrix:      {ProfileMinimal, "10m", true},
-	APIMatrixHA:    {ProfileMinimal, "15m", false},
+	Datapath4G:     {Profile: ProfileFull, Timeout: "30m", NeedsTester: true},
+	Datapath5G:     {Profile: ProfileFull, Timeout: "30m", NeedsTester: true},
+	SRSRAN4G:       {Profile: ProfileAttach, Timeout: "30m", NeedsTester: true},
+	UE2UE:          {Profile: ProfileAttach, Timeout: "20m", NeedsTester: true},
+	Framed:         {Profile: ProfileFamiliesAttach, Timeout: "20m", NeedsTester: true},
+	Handover4G:     {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true},
+	BGP4G:          {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
+	BGP5G:          {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
+	HA:             {Profile: ProfileClusterFamilies, Timeout: "15m"},
+	RollingUpgrade: {Profile: ProfileMinimal, Timeout: "15m", Setup: "integration/compose/ha-rolling/build-images.sh"},
+	HA3GPP4G:       {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},
+	HA3GPP5G:       {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},
+	APIMatrix:      {Profile: ProfileMinimal, Timeout: "10m", NeedsTester: true},
+	APIMatrixHA:    {Profile: ProfileMinimal, Timeout: "15m"},
 }
+
+var Exempt = map[string]string{}

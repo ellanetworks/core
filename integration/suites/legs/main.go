@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -19,7 +20,7 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-const testPattern = "^(TestIntegration|TestAPIMatrix)"
+var testName = regexp.MustCompile(`^Test[A-Za-z0-9_]*$`)
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -47,7 +48,8 @@ func run(ctx context.Context) error {
 	}
 
 	if missing := undeclared(defined, decls); len(missing) > 0 {
-		return fmt.Errorf("these integration tests call no suites.Require, so no CI job would run them:\n  %s",
+		return fmt.Errorf("these tests in integration/ call no suites.Require, so no CI job would run them:\n  %s\n"+
+			"declare a suite for each, or add it to suites.Exempt with a reason",
 			strings.Join(missing, "\n  "))
 	}
 
@@ -100,7 +102,7 @@ func declare(ctx context.Context, path string) ([]suites.Declaration, error) {
 }
 
 func definedTests(ctx context.Context) ([]string, error) {
-	out, err := exec.CommandContext(ctx, "go", "test", "./integration/", "-list", testPattern).Output()
+	out, err := exec.CommandContext(ctx, "go", "test", "./integration/", "-list", ".*").Output()
 	if err != nil {
 		return nil, fmt.Errorf("list tests: %w", err)
 	}
@@ -110,7 +112,7 @@ func definedTests(ctx context.Context) ([]string, error) {
 	sc := bufio.NewScanner(strings.NewReader(string(out)))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
-		if strings.HasPrefix(line, "TestIntegration") || strings.HasPrefix(line, "TestAPIMatrix") {
+		if testName.MatchString(line) {
 			names = append(names, line)
 		}
 	}
@@ -131,9 +133,15 @@ func undeclared(defined []string, decls []suites.Declaration) []string {
 	var missing []string
 
 	for _, n := range defined {
-		if !seen[n] {
-			missing = append(missing, n)
+		if seen[n] {
+			continue
 		}
+
+		if _, exempt := suites.Exempt[n]; exempt {
+			continue
+		}
+
+		missing = append(missing, n)
 	}
 
 	sort.Strings(missing)

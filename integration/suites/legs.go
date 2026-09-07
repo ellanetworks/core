@@ -18,6 +18,7 @@ type Leg struct {
 	Timeout        string `json:"timeout"`
 	TimeoutMinutes int    `json:"timeout_minutes"`
 	NeedsTester    bool   `json:"needs_tester"`
+	Setup          string `json:"setup"`
 	Run            string `json:"run"`
 	Skip           string `json:"skip"`
 	Cell
@@ -35,6 +36,21 @@ func BuildLegs(decls []Declaration, subtreePrefixes []string) ([]Leg, error) {
 	}
 
 	sort.Strings(names)
+
+	var undeclared []string
+
+	for name := range Definitions {
+		if _, ok := bySuite[string(name)]; !ok {
+			undeclared = append(undeclared, string(name))
+		}
+	}
+
+	if len(undeclared) > 0 {
+		sort.Strings(undeclared)
+
+		return nil, fmt.Errorf("these suites are defined but no test declares them, so they would run nothing: %s",
+			strings.Join(undeclared, ", "))
+	}
 
 	var legs []Leg
 
@@ -61,6 +77,7 @@ func BuildLegs(decls []Declaration, subtreePrefixes []string) ([]Leg, error) {
 				Timeout:        def.Timeout,
 				TimeoutMinutes: minutes + setupHeadroomMinutes,
 				NeedsTester:    def.NeedsTester,
+				Setup:          def.Setup,
 				Run:            run,
 				Skip:           skip,
 				Cell:           c,
