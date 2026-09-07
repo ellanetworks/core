@@ -6,12 +6,12 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHARemoveLeader drains and removes the current leader,

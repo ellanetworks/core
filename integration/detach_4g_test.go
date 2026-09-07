@@ -5,12 +5,12 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GDetach brings a real srsUE to EMM-REGISTERED, then stops it

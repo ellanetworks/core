@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 const (

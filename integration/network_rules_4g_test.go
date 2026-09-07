@@ -4,8 +4,9 @@
 package integration_test
 
 import (
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GNetworkRules runs the shared network-rule + flow-report suite

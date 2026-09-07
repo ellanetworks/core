@@ -5,9 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GServiceRequest attaches a real srsUE, lets srsenb's inactivity

@@ -4,8 +4,9 @@
 package integration_test
 
 import (
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration5GBGP runs the shared BGP suite (runBGPSuite in

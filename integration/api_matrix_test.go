@@ -5,10 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 type apiMatrixRunner func(ctx context.Context, t *testing.T, c *client.Client)

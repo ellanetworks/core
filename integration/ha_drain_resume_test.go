@@ -6,10 +6,10 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHADrainResumeCycle drains a follower, resumes it,

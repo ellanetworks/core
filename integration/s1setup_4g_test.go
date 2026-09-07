@@ -5,11 +5,11 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GS1Setup brings up Ella Core and a real srsRAN eNB

@@ -6,7 +6,6 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register the multi/cluster_traffic_5g scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"

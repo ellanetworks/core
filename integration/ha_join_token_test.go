@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 const joinTokenComposeDir = "compose/ha-scaleup/"

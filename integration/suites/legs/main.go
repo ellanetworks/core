@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,13 +22,13 @@ import (
 const testPattern = "^(TestIntegration|TestAPIMatrix)"
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(context.Background()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(ctx context.Context) error {
 	dir, err := os.MkdirTemp("", "suites")
 	if err != nil {
 		return fmt.Errorf("temp dir: %w", err)
@@ -35,12 +36,12 @@ func run() error {
 
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	decls, err := declare(filepath.Join(dir, "declarations.json"))
+	decls, err := declare(ctx, filepath.Join(dir, "declarations.json"))
 	if err != nil {
 		return err
 	}
 
-	defined, err := definedTests()
+	defined, err := definedTests(ctx)
 	if err != nil {
 		return err
 	}
@@ -70,8 +71,9 @@ func run() error {
 	return nil
 }
 
-func declare(path string) ([]suites.Declaration, error) {
-	cmd := exec.Command("go", "test", "./integration/", "-run", ".", "-count=1")
+func declare(ctx context.Context, path string) ([]suites.Declaration, error) {
+	cmd := exec.CommandContext(ctx, "go", "test", "./integration/", "-run", ".", "-count=1")
+
 	cmd.Env = append(os.Environ(), suites.DumpEnv+"="+path)
 	cmd.Stderr = os.Stderr
 
@@ -96,8 +98,8 @@ func declare(path string) ([]suites.Declaration, error) {
 	return decls, nil
 }
 
-func definedTests() ([]string, error) {
-	out, err := exec.Command("go", "test", "./integration/", "-list", testPattern).Output()
+func definedTests(ctx context.Context) ([]string, error) {
+	out, err := exec.CommandContext(ctx, "go", "test", "./integration/", "-list", testPattern).Output()
 	if err != nil {
 		return nil, fmt.Errorf("list tests: %w", err)
 	}

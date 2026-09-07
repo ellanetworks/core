@@ -5,10 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GNetworkDetach attaches a real srsUE, then deletes its

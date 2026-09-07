@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 func TestIntegrationHAClusterFormation(t *testing.T) {

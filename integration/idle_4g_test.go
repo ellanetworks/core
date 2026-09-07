@@ -5,9 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GIdle attaches a real srsUE, then lets srsenb's inactivity

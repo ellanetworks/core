@@ -6,11 +6,11 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register every scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"

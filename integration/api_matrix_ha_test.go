@@ -5,8 +5,9 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 type apiMatrixHARunner func(ctx context.Context, t *testing.T, h *haMatrixEnv)

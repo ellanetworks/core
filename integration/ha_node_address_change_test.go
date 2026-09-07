@@ -6,9 +6,10 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 const haFQDNComposeFile = "compose-fqdn.yaml"

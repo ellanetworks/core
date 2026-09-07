@@ -5,13 +5,13 @@ package integration_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/integration/suites"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )

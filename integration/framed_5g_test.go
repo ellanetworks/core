@@ -4,8 +4,9 @@
 package integration_test
 
 import (
-	"github.com/ellanetworks/core/integration/suites"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration5GFramedRouting establishes a 5G PDU session whose subscriber

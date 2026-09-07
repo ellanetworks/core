@@ -53,6 +53,7 @@ func record(t *testing.T, ds ...Declaration) {
 	}
 
 	mu.Lock()
+
 	declarations = append(declarations, ds...)
 	mu.Unlock()
 
@@ -68,6 +69,7 @@ func WriteDump() error {
 	}
 
 	mu.Lock()
+
 	out := append([]Declaration(nil), declarations...)
 	mu.Unlock()
 
