@@ -1,0 +1,88 @@
+name: Integration tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  discover:
+    name: Discover suites
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    outputs:
+      legs: ${{ steps.list.outputs.legs }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - id: list
+        run: |
+          legs=$(.github/scripts/list-integration-legs.sh)
+          echo "legs=$legs" >> "$GITHUB_OUTPUT"
+
+  run:
+    name: ${{ matrix.name }}
+    needs: discover
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.legs) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download Ella Core image
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-${{ matrix.arch }}
+
+      - name: Download Ella Core Tester image
+        if: ${{ matrix.needs_tester }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-${{ matrix.arch }}
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-${{ matrix.arch }}.tar
+          if [ "${{ matrix.needs_tester }}" = "true" ]; then
+            docker load -i ellacore_tester_latest-${{ matrix.arch }}.tar
+          fi
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run ${{ matrix.suite }}
+        env:
+          INTEGRATION: "1"
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
+          IP_VERSION: ${{ matrix.ip_version }}
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
+          SUITE_RUN: ${{ matrix.run }}
+          SUITE_SKIP: ${{ matrix.skip }}
+          SUITE_TIMEOUT: ${{ matrix.timeout }}
+        run: |
+          args=(./integration/... -run "$SUITE_RUN" -timeout "$SUITE_TIMEOUT" -v)
+          if [ -n "$SUITE_SKIP" ]; then
+            args+=(-skip "$SUITE_SKIP")
+          fi
+          go test "${args[@]}"
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-logs-${{ matrix.suite }}-${{ matrix.arch }}-${{ matrix.ip_version }}-${{ matrix.attach_mode }}
+          path: ${{ runner.temp }}/integration-logs
+          if-no-files-found: ignore
+          retention-days: 7

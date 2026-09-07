@@ -47,63 +47,9 @@ jobs:
     uses: ./.github/workflows/image-build.yaml
   image-build-tester:
     uses: ./.github/workflows/image-build-tester.yaml
-  integration-tests-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-4g.yaml
-  integration-tests-4g-srsran:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-4g-srsran.yaml
-  integration-tests-5g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-5g.yaml
-  integration-tests-api-matrix:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-api-matrix.yaml
   ui-e2e:
     needs: [go-unit-test, go-vet, go-lint, image-build]
     uses: ./.github/workflows/ui-e2e.yaml
-  integration-tests-ha:
-    needs: [go-unit-test, go-vet, go-lint, image-build]
-    uses: ./.github/workflows/integration-tests-ha.yaml
-  integration-tests-api-matrix-ha:
-    needs: [go-unit-test, go-vet, go-lint, image-build]
-    uses: ./.github/workflows/integration-tests-api-matrix-ha.yaml
-  integration-tests-ha-5g:
+  integration-tests:
     needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ha-5g.yaml
-  integration-tests-ha-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ha-4g.yaml
-  integration-tests-bgp-5g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-bgp-5g.yaml
-  integration-tests-bgp-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-bgp-4g.yaml
-  integration-tests-framed-5g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-framed-5g.yaml
-  integration-tests-framed-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-framed-4g.yaml
-  integration-tests-ue2ue-5g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ue2ue-5g.yaml
-  integration-tests-ue2ue-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ue2ue-4g.yaml
-  integration-tests-n2-handover:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-n2-handover.yaml
-  integration-tests-xn-handover-5g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-xn-handover-5g.yaml
-  integration-tests-x2-handover-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-x2-handover-4g.yaml
-  integration-tests-s1-handover-4g:
-    needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-s1-handover-4g.yaml
-  integration-tests-rolling-upgrade:
-    needs: [go-unit-test, go-vet, go-lint, image-build]
-    uses: ./.github/workflows/integration-tests-rolling-upgrade.yaml
+    uses: ./.github/workflows/integration.yaml
