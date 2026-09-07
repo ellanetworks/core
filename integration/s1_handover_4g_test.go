@@ -61,11 +61,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cleanupCancel()
 
-		for _, svc := range []string{"ella-core", "ella-core-tester"} {
-			if logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc); logErr == nil && t.Failed() {
-				t.Logf("=== %s logs ===\n%s", svc, logs)
-			}
-		}
+		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
 		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
 	})

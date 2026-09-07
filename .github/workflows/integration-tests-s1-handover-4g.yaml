@@ -49,6 +49,7 @@ jobs:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
+          INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration/... -run TestIntegration4GS1Handover -v -timeout 10m
 
@@ -56,7 +57,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: s1-handover-4g-logs
-          path: /tmp/s1-handover-4g-logs
+          name: s1-handover-4g-logs-${{ matrix.ip_version }}-${{ matrix.attach_mode }}
+          path: ${{ runner.temp }}/integration-logs
           if-no-files-found: ignore
           retention-days: 7

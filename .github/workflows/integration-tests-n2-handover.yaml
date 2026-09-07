@@ -57,7 +57,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: n2-handover-logs
-          path: /tmp/n2-handover-logs
+          name: n2-handover-logs-${{ matrix.ip_version }}-${{ matrix.attach_mode }}
+          path: ${{ runner.temp }}/integration-logs
           if-no-files-found: ignore
           retention-days: 7

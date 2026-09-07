@@ -64,3 +64,47 @@ func scrapeMetrics(baseURL string) ([]byte, error) {
 
 	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 }
+
+const composeLogsTimeout = 2 * time.Minute
+
+func captureServiceLogs(t *testing.T, dc *DockerClient, composeDir string, services []string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), composeLogsTimeout)
+	defer cancel()
+
+	var diskDir string
+
+	if root := os.Getenv("INTEGRATION_LOG_DIR"); root != "" {
+		diskDir = filepath.Join(root, sanitizeTestName(t.Name()))
+		if err := os.MkdirAll(diskDir, 0o755); err != nil {
+			t.Logf("captureServiceLogs: mkdir %s: %v", diskDir, err)
+
+			diskDir = ""
+		}
+	}
+
+	for _, svc := range services {
+		logs, err := dc.ComposeLogs(ctx, composeDir, svc)
+		if err != nil {
+			if t.Failed() {
+				t.Logf("=== %s logs: collection failed: %v ===", svc, err)
+			}
+
+			continue
+		}
+
+		if t.Failed() {
+			t.Logf("=== %s logs ===\n%s", svc, logs)
+		}
+
+		if diskDir == "" {
+			continue
+		}
+
+		path := filepath.Join(diskDir, svc+".log")
+		if err := os.WriteFile(path, []byte(logs), 0o644); err != nil {
+			t.Logf("captureServiceLogs: write %s: %v", path, err)
+		}
+	}
+}
