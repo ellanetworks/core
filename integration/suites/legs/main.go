@@ -50,7 +50,12 @@ func run() error {
 			strings.Join(missing, "\n  "))
 	}
 
-	legs, err := suites.BuildLegs(decls, scenarioPrefixes())
+	prefixes, err := scenarioPrefixes()
+	if err != nil {
+		return err
+	}
+
+	legs, err := suites.BuildLegs(decls, prefixes)
 	if err != nil {
 		return err
 	}
@@ -133,14 +138,19 @@ func undeclared(defined []string, decls []suites.Declaration) []string {
 	return missing
 }
 
-func scenarioPrefixes() []string {
+func scenarioPrefixes() ([]string, error) {
 	seen := map[string]bool{}
 
-	var out []string
+	var out, bare []string
 
 	for _, n := range scenarios.List() {
 		p, _, found := strings.Cut(n, "/")
-		if !found || seen[p] {
+		if !found {
+			bare = append(bare, n)
+			continue
+		}
+
+		if seen[p] {
 			continue
 		}
 
@@ -149,7 +159,14 @@ func scenarioPrefixes() []string {
 		out = append(out, p)
 	}
 
+	if len(bare) > 0 {
+		sort.Strings(bare)
+
+		return nil, fmt.Errorf("these core-tester scenarios have no \"<ran>/\" prefix, so they would run in both the 4G and 5G suites:\n  %s",
+			strings.Join(bare, "\n  "))
+	}
+
 	sort.Strings(out)
 
-	return out
+	return out, nil
 }
