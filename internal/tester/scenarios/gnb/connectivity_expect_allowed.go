@@ -128,6 +128,8 @@ func runConnectivityExpectAllowedTest(
 		return fmt.Errorf("could not create GTP tunnel (name: %s, DL TEID: %d): %v", tunInterfaceName, session.DLTEID, err)
 	}
 
+	awaitDownlinkReady()
+
 	logger.GnbLogger.Debug(
 		"Created GTP Tunnel for PDU Session",
 		zap.String("IMSI", newUE.UeSecurity.Supi),

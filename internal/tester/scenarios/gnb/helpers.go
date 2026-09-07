@@ -14,6 +14,10 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
+func awaitDownlinkReady() {
+	time.Sleep(scenarios.DatapathSettleDelay)
+}
+
 func wantsIPv6Probe(env scenarios.Env) bool {
 	return env.IPFamily() == scenarios.IPv6Only
 }
@@ -28,7 +32,7 @@ func handoverTunnelAddress(env scenarios.Env, session gnb.PDUSessionResult) stri
 
 func awaitHandoverTunnelReady(env scenarios.Env, iface string) error {
 	if !wantsIPv6Probe(env) {
-		time.Sleep(500 * time.Millisecond)
+		awaitDownlinkReady()
 
 		return nil
 	}

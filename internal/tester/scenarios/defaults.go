@@ -55,4 +55,6 @@ const (
 	// operator configuration and network slices from storage before it can
 	// answer, so the wait has to absorb database latency on a loaded runner.
 	NGSetupTimeout = 5 * time.Second
+
+	DatapathSettleDelay = 500 * time.Millisecond
 )

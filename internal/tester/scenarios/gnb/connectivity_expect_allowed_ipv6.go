@@ -138,6 +138,8 @@ func runConnectivityExpectAllowedIPv6Test(
 		return fmt.Errorf("timeout waiting for ULA address on %s: %v", tunInterfaceName, err)
 	}
 
+	awaitDownlinkReady()
+
 	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, scenarios.DefaultPingDestinationV6, true, srcPortBase); err != nil {
 		return fmt.Errorf("%s probe to %s via %s failed, but was expected to succeed: %v", protocol, scenarios.DefaultPingDestinationV6, tunInterfaceName, err)
 	}
