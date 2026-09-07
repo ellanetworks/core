@@ -248,6 +248,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 		}
 
 		if _, err := sqliteConn.ExecContext(ctx, "COMMIT", nil); err != nil {
+			rollback()
 			return fmt.Errorf("commit changeset apply: %w", err)
 		}
 
