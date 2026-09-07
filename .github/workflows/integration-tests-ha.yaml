@@ -13,6 +13,7 @@ jobs:
       matrix:
         ip_version: [ipv4, ipv6, dualstack]
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout

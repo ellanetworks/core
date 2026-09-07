@@ -9,6 +9,7 @@ on:
 jobs:
   build-snap:
     runs-on: ubuntu-26.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 

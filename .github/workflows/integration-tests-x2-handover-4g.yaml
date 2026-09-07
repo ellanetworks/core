@@ -17,6 +17,7 @@ jobs:
           - ip_version: ipv6
             attach_mode: xdp-generic
     runs-on: ubuntu-26.04
+    timeout-minutes: 25
 
     steps:
       - name: Checkout

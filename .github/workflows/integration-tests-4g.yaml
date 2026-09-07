@@ -25,6 +25,7 @@ jobs:
             ip_version: ipv4
             attach_mode: tcx
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
+    timeout-minutes: 45
 
     steps:
       - name: Checkout

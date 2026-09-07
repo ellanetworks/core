@@ -15,6 +15,7 @@ jobs:
       matrix:
         attach_mode: [xdp-generic, tcx]
     runs-on: ubuntu-26.04
+    timeout-minutes: 45
 
     steps:
       - name: Checkout

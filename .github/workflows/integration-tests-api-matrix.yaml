@@ -13,6 +13,7 @@ jobs:
     # Running cross-arch / cross-family would duplicate identical REST
     # coverage for no added signal.
     runs-on: ubuntu-26.04
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -50,3 +51,12 @@ jobs:
           INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs
         run: |
           go test ./integration -run '^TestAPIMatrix$' -timeout 10m -v
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-matrix-cluster-logs
+          path: ${{ runner.temp }}/integration-logs
+          if-no-files-found: ignore
+          retention-days: 7
