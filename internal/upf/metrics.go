@@ -18,8 +18,6 @@ var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
 }, []string{"reason"})
 
-const mapPressureFloor = 0.75
-
 const (
 	flowReportDropChannelFull = "channel_full"
 
@@ -88,17 +86,13 @@ func RegisterMetrics() {
 
 	mapPressureDesc := prometheus.NewDesc(
 		"app_upf_bpf_map_pressure_ratio",
-		"Fill ratio of a data plane BPF map, between 0 and 1. Only reported for a map at or above 75% of its capacity.",
+		"Fill ratio of a data plane BPF map, between 0 and 1. Reported for every tracked map so the series can be trended and a missing series means the exporter is not reporting, not that the map is healthy.",
 		[]string{"map"},
 		nil,
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for name, ratio := range bpfObjects.MapPressure() {
-			if ratio < mapPressureFloor {
-				continue
-			}
-
 			ch <- prometheus.MustNewConstMetric(mapPressureDesc, prometheus.GaugeValue, ratio, name)
 		}
 	}))

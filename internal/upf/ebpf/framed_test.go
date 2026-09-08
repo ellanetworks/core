@@ -229,48 +229,70 @@ func TestFramedRouteDownlinkMiss(t *testing.T) {
 func TestFramedRouteOccupancyNestedPrefixes(t *testing.T) {
 	requireProgTestRun(t)
 
-	obj := loadProgram(t, 1, 0)
+	for _, tc := range []struct {
+		name    string
+		mapName string
+		ueAddr  netip.Addr
+		outer   netip.Prefix
+		inner   netip.Prefix
+	}{
+		{
+			name:    "ipv4",
+			mapName: MapFramedDownlinkIP4,
+			ueAddr:  framedUEIP,
+			outer:   netip.MustParsePrefix("10.10.0.0/16"),
+			inner:   netip.MustParsePrefix("10.10.1.0/24"),
+		},
+		{
+			name:    "ipv6",
+			mapName: MapFramedDownlinkIP6,
+			ueAddr:  netip.MustParseAddr("2001:db8:1::1"),
+			outer:   netip.MustParsePrefix("2001:db8:2::/48"),
+			inner:   netip.MustParsePrefix("2001:db8:2:1::/64"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgram(t, 1, 0)
 
-	outer := netip.MustParsePrefix("10.10.0.0/16")
-	inner := netip.MustParsePrefix("10.10.1.0/24")
+			if err := obj.PutFramedDownlink(tc.outer, tc.ueAddr); err != nil {
+				t.Fatalf("install outer framed route: %v", err)
+			}
 
-	if err := obj.PutFramedDownlink(outer, framedUEIP); err != nil {
-		t.Fatalf("install outer framed route: %v", err)
-	}
+			if got := obj.occupancyOf(tc.mapName); got != 1 {
+				t.Fatalf("occupancy after outer route = %d, want 1", got)
+			}
 
-	if got := obj.occupancyOf(MapFramedDownlinkIP4); got != 1 {
-		t.Fatalf("occupancy after outer route = %d, want 1", got)
-	}
+			if err := obj.PutFramedDownlink(tc.inner, tc.ueAddr); err != nil {
+				t.Fatalf("install inner framed route: %v", err)
+			}
 
-	if err := obj.PutFramedDownlink(inner, framedUEIP); err != nil {
-		t.Fatalf("install inner framed route: %v", err)
-	}
+			if got := obj.occupancyOf(tc.mapName); got != 2 {
+				t.Fatalf("occupancy after nested route = %d, want 2", got)
+			}
 
-	if got := obj.occupancyOf(MapFramedDownlinkIP4); got != 2 {
-		t.Fatalf("occupancy after nested route = %d, want 2", got)
-	}
+			if err := obj.PutFramedDownlink(tc.inner, tc.ueAddr); err != nil {
+				t.Fatalf("reinstall inner framed route: %v", err)
+			}
 
-	if err := obj.PutFramedDownlink(inner, framedUEIP); err != nil {
-		t.Fatalf("reinstall inner framed route: %v", err)
-	}
+			if got := obj.occupancyOf(tc.mapName); got != 2 {
+				t.Fatalf("occupancy after reinstall = %d, want 2", got)
+			}
 
-	if got := obj.occupancyOf(MapFramedDownlinkIP4); got != 2 {
-		t.Fatalf("occupancy after reinstall = %d, want 2", got)
-	}
+			if err := obj.DeleteFramedDownlink(tc.inner); err != nil {
+				t.Fatalf("delete inner framed route: %v", err)
+			}
 
-	if err := obj.DeleteFramedDownlink(inner); err != nil {
-		t.Fatalf("delete inner framed route: %v", err)
-	}
+			if got := obj.occupancyOf(tc.mapName); got != 1 {
+				t.Fatalf("occupancy after deleting nested route = %d, want 1", got)
+			}
 
-	if got := obj.occupancyOf(MapFramedDownlinkIP4); got != 1 {
-		t.Fatalf("occupancy after deleting nested route = %d, want 1", got)
-	}
+			if err := obj.DeleteFramedDownlink(tc.outer); err != nil {
+				t.Fatalf("delete outer framed route: %v", err)
+			}
 
-	if err := obj.DeleteFramedDownlink(outer); err != nil {
-		t.Fatalf("delete outer framed route: %v", err)
-	}
-
-	if got := obj.occupancyOf(MapFramedDownlinkIP4); got != 0 {
-		t.Fatalf("occupancy after deleting outer route = %d, want 0", got)
+			if got := obj.occupancyOf(tc.mapName); got != 0 {
+				t.Fatalf("occupancy after deleting outer route = %d, want 0", got)
+			}
+		})
 	}
 }
