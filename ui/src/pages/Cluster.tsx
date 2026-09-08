@@ -47,6 +47,7 @@ import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { formatDateTime } from "@/utils/formatters";
+import PageTitle from "@/components/PageTitle";
 
 type JoinedRow = ClusterMember & {
   id: number;
@@ -528,9 +529,7 @@ const ClusterPage: React.FC = () => {
           px: PAGE_PADDING_X,
         }}
       >
-        <Typography variant="h4" component="h1" sx={{ mb: 2 }}>
-          Cluster
-        </Typography>
+        <PageTitle title="Cluster" sx={{ mb: 2 }} />
         <Paper sx={{ p: 3 }}>
           <Typography variant="body1">
             This node is running in single-node mode. High availability is not
@@ -547,9 +546,7 @@ const ClusterPage: React.FC = () => {
     >
       <Grid container spacing={2} sx={{ mb: 2, alignItems: "center" }}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <Typography variant="h4" component="h1">
-            Cluster
-          </Typography>
+          <PageTitle title="Cluster" />
           <Typography variant="body1" color="textSecondary">
             High-availability cluster members and health.
           </Typography>

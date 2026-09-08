@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState, useCallback } from "react";
+import PageTitle from "@/components/PageTitle";
 import {
   Autocomplete,
   Box,
@@ -833,9 +834,7 @@ const Traffic: React.FC = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4" component="h1">
-            Traffic
-          </Typography>
+          <PageTitle title="Traffic" />
           <Typography variant="body1" color="textSecondary">
             Monitor network traffic — view aggregated data usage and individual
             flow records collected by the user plane.

@@ -58,6 +58,7 @@ import type { LogRow } from "@/components/EventDetails";
 import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import PageTitle from "@/components/PageTitle";
 
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
@@ -608,34 +609,10 @@ export default function RadioEvents() {
         }}
       >
         <Box>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={Link}
-              to="/radios"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Radios
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              Network Events
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Radios", to: "/radios" }}
+            title="Network Events"
+          />
           <Typography variant="body1" color="textSecondary">
             {subDescription}
           </Typography>
