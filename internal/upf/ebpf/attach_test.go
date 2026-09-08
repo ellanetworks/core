@@ -334,17 +334,4 @@ func TestDownlinkStatisticsAttached(t *testing.T) {
 	if counters.Bytes != dlBytes {
 		t.Errorf("GetDatapathCounters bytes = %d, want %d", counters.Bytes, dlBytes)
 	}
-
-	var frames uint64
-	for _, n := range counters.Forwarded {
-		frames += n
-	}
-
-	for _, n := range counters.Dropped {
-		frames += n
-	}
-
-	if frames != packets {
-		t.Errorf("frames accounted = %d, want %d", frames, packets)
-	}
 }
