@@ -9,20 +9,21 @@ import { createQueryClient } from "@/queries/queryClient";
 import { Outlet } from "react-router-dom";
 import theme from "@/utils/theme";
 import Logo from "@/components/Logo";
+import { PRODUCT } from "@/utils/product";
 
 export default function AuthLayout() {
   const [queryClient] = useState(createQueryClient);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={theme} noSsr forceThemeRerender>
         <CssBaseline />
         <Box sx={{ display: "flex" }}>
           <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
             <Toolbar>
               <Logo width={50} height={50} />
               <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
-                Ella Core
+                {PRODUCT.name}
               </Typography>
             </Toolbar>
           </AppBar>

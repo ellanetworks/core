@@ -10,12 +10,12 @@ import {
   isValidIpv4Cidr,
   isValidIpv6PoolCidr,
 } from "@/utils/ip";
+import { PRODUCT } from "@/utils/product";
 
 export const dataNetworkNameRegex =
   /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
-export const IPV6_POOL_HELPER_TEXT =
-  "Prefix length between /48 and /60 — Ella Core delegates /64s from within the pool.";
+export const IPV6_POOL_HELPER_TEXT = `Prefix length between /48 and /60 — ${PRODUCT.name} delegates /64s from within the pool.`;
 
 export const poolAndDnsSchema = {
   ipv4_pool: yup

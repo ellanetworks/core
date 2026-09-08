@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ipv4Regex, ipv6Regex } from "@/utils/ip";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
+import { PRODUCT } from "@/utils/product";
 
 interface EditInterfaceN3ModalProps {
   open: boolean;
@@ -62,7 +63,7 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit N3 Interface"
-      description="Configure an external address (IPv4 or IPv6) for N3. Ella Core will advertise this address to radios which will use it to establish GTP tunnels. Use this if Ella Core is behind a proxy, NAT, or load-balancer. If not set, Ella Core will use N3's address as defined in the config file."
+      description={`Configure an external address (IPv4 or IPv6) for N3. ${PRODUCT.name} will advertise this address to radios which will use it to establish GTP tunnels. Use this if ${PRODUCT.name} is behind a proxy, NAT, or load-balancer. If not set, ${PRODUCT.name} will use N3's address as defined in the config file.`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update N3 external address"

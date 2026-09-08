@@ -3,11 +3,19 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { assertNoA11yViolations } from "../a11y";
+import { PRODUCT } from "../../src/utils/product";
+
+const startsWith = (value: string) =>
+  new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 
 const ERROR_BOUNDARY = "Something went wrong in the interface";
 
 const ROUTES = [
-  { label: "Dashboard", route: "/dashboard", heading: /^Ella Core/ },
+  {
+    label: "Dashboard",
+    route: "/dashboard",
+    heading: startsWith(PRODUCT.name),
+  },
   { label: "Subscribers", route: "/subscribers", heading: /^Subscribers/ },
   { label: "Profiles", route: "/profiles", heading: /^Profiles/ },
   { label: "Radios", route: "/radios", heading: /^Radios/ },

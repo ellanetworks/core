@@ -55,6 +55,7 @@ import {
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
 import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -350,7 +351,7 @@ const Dashboard = () => {
         }}
       >
         <PageTitle
-          title="Ella Core"
+          title={PRODUCT.name}
           documentTitle="Dashboard"
           adornment={
             <>

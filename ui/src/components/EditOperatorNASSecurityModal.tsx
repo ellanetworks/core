@@ -19,6 +19,7 @@ import type { Control } from "react-hook-form";
 import { updateOperatorNASSecurity } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
+import { PRODUCT } from "@/utils/product";
 
 interface EditOperatorNASSecurityModalProps {
   open: boolean;
@@ -261,7 +262,7 @@ const EditOperatorNASSecurityModal: React.FC<
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit NAS Security Algorithms"
-      description="Configure the security algorithms used to protect NAS signaling between the subscriber and Ella Core. The order determines which algorithm Ella Core prefers."
+      description={`Configure the security algorithms used to protect NAS signaling between the subscriber and ${PRODUCT.name}. The order determines which algorithm ${PRODUCT.name} prefers.`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update security algorithms"

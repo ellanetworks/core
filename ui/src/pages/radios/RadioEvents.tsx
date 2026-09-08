@@ -59,6 +59,7 @@ import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
@@ -538,8 +539,7 @@ export default function RadioEvents() {
     [setSearchParams],
   );
 
-  const subDescription =
-    "Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between Ella Core and connected radios. These logs are useful for auditing and troubleshooting purposes.";
+  const subDescription = `Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between ${PRODUCT.name} and connected radios. These logs are useful for auditing and troubleshooting purposes.`;
 
   const handleSelectionChange = useCallback(
     (model: GridRowSelectionModel) => {

@@ -3,15 +3,20 @@
 
 import { createTheme } from "@mui/material/styles";
 import type {} from "@mui/x-data-grid/themeAugmentation";
+import { dark, light, type Tokens } from "@/utils/tokens";
 
 export interface ChartPalette {
   uplink: string;
   downlink: string;
+  protocolText: string;
   series: string[];
   protocols: Record<number, string>;
 }
 
 declare module "@mui/material/styles" {
+  interface CssThemeVariables {
+    enabled: true;
+  }
   interface Palette {
     link: string;
     backgroundSubtle: string;
@@ -24,51 +29,25 @@ declare module "@mui/material/styles" {
   }
 }
 
-const base = createTheme({
-  palette: {
-    // MUI defaults to 3, which lets getContrastText return white on backgrounds
-    // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
-    contrastThreshold: 4.5,
-    primary: {
-      main: "#26374a",
-    },
-    success: {
-      main: "#1b6c1c",
-    },
-    error: {
-      main: "#c62828",
-    },
-    warning: {
-      main: "#ed6c02",
-    },
-    link: "#2B3FD4",
-    backgroundSubtle: "#F5F5F5",
-    chart: {
-      uplink: "#FF9800",
-      downlink: "#4254FB",
-      series: [
-        "#2196F3",
-        "#4CAF50",
-        "#FF9800",
-        "#C2185B",
-        "#9C27B0",
-        "#00BCD4",
-        "#FF5722",
-        "#795548",
-        "#546E7A",
-        "#8BC34A",
-        "#3F51B5",
-        "#CDDC39",
-      ],
-      protocols: {
-        1: "#FF9800",
-        6: "#2196F3",
-        17: "#4CAF50",
-        47: "#9C27B0",
-        58: "#C2185B",
-        132: "#00BCD4",
-      },
-    },
+const paletteFor = (tokens: Tokens) => ({
+  // MUI defaults to 3, which lets getContrastText return white on backgrounds
+  // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
+  contrastThreshold: 4.5,
+  primary: { main: tokens.primary },
+  success: { main: tokens.success },
+  error: { main: tokens.error },
+  warning: { main: tokens.warning },
+  link: tokens.link,
+  backgroundSubtle: tokens.backgroundSubtle,
+  chart: tokens.chart,
+  DataGrid: { headerBg: tokens.backgroundSubtle },
+});
+
+const theme = createTheme({
+  cssVariables: { colorSchemeSelector: "class" },
+  colorSchemes: {
+    light: { palette: { mode: "light", ...paletteFor(light) } },
+    dark: { palette: { mode: "dark", ...paletteFor(dark) } },
   },
   components: {
     MuiDataGrid: {
@@ -76,6 +55,11 @@ const base = createTheme({
         columnHeaderTitle: {
           fontWeight: 600,
         },
+      },
+    },
+    MuiListItemText: {
+      styleOverrides: {
+        primary: ({ theme: t }) => ({ color: t.vars.palette.primary.main }),
       },
     },
   },
@@ -94,19 +78,6 @@ const base = createTheme({
     },
     h3: {
       fontWeight: 500,
-    },
-  },
-});
-
-const theme = createTheme(base, {
-  palette: {
-    DataGrid: { headerBg: base.palette.backgroundSubtle },
-  },
-  components: {
-    MuiListItemText: {
-      styleOverrides: {
-        primary: { color: base.palette.primary.main },
-      },
     },
   },
 });

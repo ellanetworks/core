@@ -31,6 +31,7 @@ import type { APIToken } from "@/queries/api_tokens";
 import { formatDate } from "@/utils/formatters";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import CreateAPITokenModal from "@/components/CreateAPITokenModal";
+import { PRODUCT } from "@/utils/product";
 
 interface UserAPITokensCardProps {
   tokens: APIToken[];
@@ -129,8 +130,8 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
 
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             {targetEmail
-              ? "Manage API tokens for this user. Tokens authenticate programmatically with Ella Core and inherit the user's permissions."
-              : "Manage your API tokens to authenticate programmatically with Ella Core. Your API token will have the same permissions as your user account. Actions performed with the token will be logged under your user account."}
+              ? `Manage API tokens for this user. Tokens authenticate programmatically with ${PRODUCT.name} and inherit the user's permissions.`
+              : `Manage your API tokens to authenticate programmatically with ${PRODUCT.name}. Your API token will have the same permissions as your user account. Actions performed with the token will be logged under your user account.`}
           </Typography>
 
           {newToken && (

@@ -103,7 +103,7 @@ export function renderWithProviders(
 
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={theme} noSsr forceThemeRerender>
         <MemoryRouter initialEntries={initialEntries}>
           {auth ? (
             <>

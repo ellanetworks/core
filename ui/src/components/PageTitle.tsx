@@ -5,8 +5,9 @@ import React, { useEffect } from "react";
 import { Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
+import { PRODUCT } from "@/utils/product";
 
-const APP_NAME = "Ella Core";
+const APP_NAME = PRODUCT.name;
 
 export interface PageTitleProps {
   title: string;

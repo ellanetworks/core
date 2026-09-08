@@ -16,6 +16,7 @@ import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
+import { PRODUCT } from "@/utils/product";
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -28,8 +29,7 @@ export default function InterfacesTab() {
 
   const [isEditN3Open, setEditN3Open] = useState(false);
 
-  const description =
-    "View the network interfaces used by Ella Core for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the Ella Core configuration file; this page reflects that configuration, with N3's external address as the only editable field.";
+  const description = `View the network interfaces used by ${PRODUCT.name} for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the ${PRODUCT.name} configuration file; this page reflects that configuration, with N3's external address as the only editable field.`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>

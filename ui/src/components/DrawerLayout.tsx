@@ -33,6 +33,10 @@ import {
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
   Person as PersonIcon,
+  Brightness6 as ThemeIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  Check as CheckIcon,
   Storage as StorageIcon,
   Lan as LanIcon,
   HelpCenter as SupportIcon,
@@ -43,13 +47,20 @@ import Logo from "@/components/Logo";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
+import { useColorScheme, useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
 import { logout } from "@/queries/auth";
+import { PRODUCT } from "@/utils/product";
 
 const drawerWidth = 250;
+
+const THEME_MODES = [
+  { value: "system", label: "System", Icon: ThemeIcon },
+  { value: "light", label: "Light", Icon: LightModeIcon },
+  { value: "dark", label: "Dark", Icon: DarkModeIcon },
+] as const;
 
 const drawerSelectedSx = {
   "&:hover": { bgcolor: "transparent" },
@@ -118,6 +129,7 @@ export default function DrawerLayout({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
+  const { mode, setMode } = useColorScheme();
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -214,7 +226,7 @@ export default function DrawerLayout({
 
           <Logo width={50} height={50} />
           <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
-            Ella Core
+            {PRODUCT.name}
           </Typography>
 
           <Box sx={{ flexGrow: 1 }} />
@@ -241,6 +253,29 @@ export default function DrawerLayout({
               </ListItemIcon>
               <ListItemText primary="Profile" />
             </MenuItem>
+            <Divider />
+            <ListSubheader disableSticky role="presentation">
+              Theme
+            </ListSubheader>
+            {THEME_MODES.map(({ value, label, Icon }) => (
+              <MenuItem
+                key={value}
+                role="menuitemradio"
+                aria-label={`${label} theme`}
+                aria-checked={mode === value}
+                selected={mode === value}
+                onClick={() => setMode(value)}
+              >
+                <ListItemIcon>
+                  <Icon fontSize="small" color="primary" />
+                </ListItemIcon>
+                <ListItemText primary={label} />
+                {mode === value && (
+                  <CheckIcon fontSize="small" sx={{ ml: 2 }} />
+                )}
+              </MenuItem>
+            ))}
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" color="primary" />
@@ -380,7 +415,7 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component="a"
-                href="https://docs.ellanetworks.com"
+                href={PRODUCT.docsUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}

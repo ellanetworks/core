@@ -42,6 +42,7 @@ import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import IPProtocolChip from "@/components/IPProtocolChip";
 import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%", textAlign: "right" } as const;
@@ -393,7 +394,7 @@ const PolicyDetail: React.FC = () => {
                       <TableRow>
                         <TableCell sx={labelCellSx}>
                           <Tooltip
-                            title="Maximum uplink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
+                            title={`Maximum uplink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by ${PRODUCT.name}.`}
                             arrow
                             placement="top"
                           >
@@ -424,7 +425,7 @@ const PolicyDetail: React.FC = () => {
                       <TableRow>
                         <TableCell sx={labelCellSx}>
                           <Tooltip
-                            title="Maximum downlink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
+                            title={`Maximum downlink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by ${PRODUCT.name}.`}
                             arrow
                             placement="top"
                           >

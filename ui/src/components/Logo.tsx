@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
+import { PRODUCT } from "@/utils/product";
 
 export default function Logo({
   width = 50,
@@ -11,6 +12,6 @@ export default function Logo({
   height?: number;
 }) {
   return (
-    <img src="/logo.svg" alt="Ella Core Logo" width={width} height={height} />
+    <img src="/logo.svg" alt={PRODUCT.logoAlt} width={width} height={height} />
   );
 }

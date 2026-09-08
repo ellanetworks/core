@@ -21,7 +21,7 @@ const IPProtocolChip: React.FC<{ protocol: number; color?: string }> = ({
           color ??
           theme.palette.chart.protocols[protocol] ??
           theme.palette.grey[600],
-        color: "#fff",
+        color: theme.palette.chart.protocolText,
         fontWeight: 600,
         fontSize: "0.75rem",
         height: 22,
