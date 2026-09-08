@@ -121,37 +121,17 @@ func (bpfObjects *BpfObjects) PutFramedDownlink(prefix netip.Prefix, ueAddr neti
 
 	logger.UpfLog.Debug("Put framed route", logger.IPAddress(prefix.String()))
 
-	present, err := bpfObjects.HasFramedDownlink(prefix)
-	if err != nil {
-		return err
-	}
-
-	name := MapFramedDownlinkIP4
-	if !prefix.Addr().Is4() {
-		name = MapFramedDownlinkIP6
-	}
-
 	if prefix.Addr().Is4() {
 		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
 		ueIP := ueAddr.As4()
 
-		if err := bpfObjects.FramedDownlinkIp4.Put(key, unsafe.Pointer(&ueIP)); err != nil {
-			return err
-		}
-	} else {
-		key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
-		uePrefix := ueAddr.As16()
-
-		if err := bpfObjects.FramedDownlinkIp6.Put(key, unsafe.Pointer(&uePrefix)); err != nil {
-			return err
-		}
+		return bpfObjects.putTracked(bpfObjects.FramedDownlinkIp4, MapFramedDownlinkIP4, key, unsafe.Pointer(&ueIP))
 	}
 
-	if !present {
-		bpfObjects.addOccupancy(name, 1)
-	}
+	key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+	uePrefix := ueAddr.As16()
 
-	return nil
+	return bpfObjects.putTracked(bpfObjects.FramedDownlinkIp6, MapFramedDownlinkIP6, key, unsafe.Pointer(&uePrefix))
 }
 
 // DeleteFramedDownlink removes a framed route's LPM entry.
