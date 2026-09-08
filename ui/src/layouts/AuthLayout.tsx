@@ -16,7 +16,12 @@ export default function AuthLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme} noSsr forceThemeRerender>
+      <ThemeProvider
+        theme={theme}
+        noSsr
+        forceThemeRerender
+        disableTransitionOnChange
+      >
         <CssBaseline />
         <Box sx={{ display: "flex" }}>
           <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>

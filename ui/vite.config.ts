@@ -4,11 +4,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { PRODUCT } from "./src/utils/product";
 
 const apiTarget = process.env.ELLA_API_PROXY_TARGET ?? "http://localhost:5000";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "ella-product-title",
+      transformIndexHtml(html: string) {
+        return html.replace(
+          /<title>[^<]*<\/title>/,
+          `<title>${PRODUCT.name}</title>`,
+        );
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

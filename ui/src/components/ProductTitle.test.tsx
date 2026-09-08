@@ -20,18 +20,18 @@ describe("ProductTitle", () => {
   });
 
   it("credits the vendor when the product is renamed", () => {
-    PRODUCT.name = "Kygo";
+    PRODUCT.name = "Northwind";
 
     render(<ProductTitle />);
 
-    expect(screen.getByText("Kygo")).toBeInTheDocument();
+    expect(screen.getByText("Northwind")).toBeInTheDocument();
     expect(screen.getByText("Powered by Ella Networks")).toBeInTheDocument();
   });
 });
 
 describe("Footer", () => {
   it("keeps the vendor identity when the product is renamed", () => {
-    PRODUCT.name = "Kygo";
+    PRODUCT.name = "Northwind";
 
     render(<Footer />);
 
@@ -39,6 +39,6 @@ describe("Footer", () => {
     expect(
       screen.getByRole("link", { name: "ellanetworks.com" }),
     ).toHaveAttribute("href", "https://ellanetworks.com");
-    expect(screen.queryByText(/Kygo/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Northwind/)).not.toBeInTheDocument();
   });
 });

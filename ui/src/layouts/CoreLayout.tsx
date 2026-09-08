@@ -17,7 +17,12 @@ export default function CoreLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme} noSsr forceThemeRerender>
+      <ThemeProvider
+        theme={theme}
+        noSsr
+        forceThemeRerender
+        disableTransitionOnChange
+      >
         <CssBaseline />
         <AuthProvider>
           <DrawerLayout>
