@@ -7,33 +7,18 @@
     <meta name="description" content="A private mobile core network" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <meta name="color-scheme" content="light dark" />
-    <script>
-      (function () {
-        try {
-          let colorScheme = "";
-          const mode = localStorage.getItem("mui-mode") || "system";
-          const dark = localStorage.getItem("mui-color-scheme-dark") || "dark";
-          const light =
-            localStorage.getItem("mui-color-scheme-light") || "light";
-          if (mode === "system") {
-            colorScheme = window.matchMedia("(prefers-color-scheme: dark)")
-              .matches
-              ? dark
-              : light;
-          }
-          if (mode === "light") {
-            colorScheme = light;
-          }
-          if (mode === "dark") {
-            colorScheme = dark;
-          }
-          if (colorScheme) {
-            document.documentElement.classList.remove(light, dark);
-            document.documentElement.classList.add(colorScheme);
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        background-color: %CANVAS_LIGHT%;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          background-color: %CANVAS_DARK%;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

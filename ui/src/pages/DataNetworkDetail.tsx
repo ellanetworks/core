@@ -55,14 +55,8 @@ import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
-
-const tableContainerSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-} as const;
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
@@ -980,7 +974,7 @@ const DataNetworkDetail: React.FC = () => {
           }
         >
           {(framedRoutes) => (
-            <TableContainer sx={tableContainerSx}>
+            <TableContainer sx={TABLE_CONTAINER_SX}>
               <Table size="small">
                 <TableHead>
                   <TableRow>

@@ -18,11 +18,13 @@ declare module "@mui/material/styles" {
   }
   interface Palette {
     link: string;
+    borderControl: string;
     backgroundSubtle: string;
     chart: ChartPalette;
   }
   interface PaletteOptions {
     link?: string;
+    borderControl?: string;
     backgroundSubtle?: string;
     chart?: ChartPalette;
   }
@@ -36,6 +38,7 @@ const paletteFor = (tokens: Tokens) => ({
   success: { main: tokens.success },
   error: { main: tokens.error },
   warning: { main: tokens.warning },
+  info: { main: tokens.info },
   link: tokens.link,
   background: {
     default: tokens.backgroundDefault,
@@ -46,6 +49,7 @@ const paletteFor = (tokens: Tokens) => ({
     secondary: tokens.textSecondary,
   },
   backgroundSubtle: tokens.backgroundSubtle,
+  borderControl: tokens.borderControl,
   chart: tokens.chart,
   DataGrid: { headerBg: tokens.backgroundSubtle },
 });
@@ -64,9 +68,11 @@ const theme = createTheme({
         },
       },
     },
-    MuiListItemText: {
+    MuiOutlinedInput: {
       styleOverrides: {
-        primary: ({ theme: t }) => ({ color: t.vars.palette.primary.main }),
+        notchedOutline: ({ theme: t }) => ({
+          borderColor: t.vars.palette.borderControl,
+        }),
       },
     },
   },

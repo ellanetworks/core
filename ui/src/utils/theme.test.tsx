@@ -13,6 +13,7 @@ const Probe = () => {
     <>
       <span data-testid="primary">{t.palette.primary.main}</span>
       <span data-testid="link">{t.palette.link}</span>
+      <span data-testid="info">{t.palette.info.main}</span>
       <span data-testid="subtle">{t.palette.backgroundSubtle}</span>
       <span data-testid="canvas">{t.palette.background.default}</span>
       <span data-testid="paper">{t.palette.background.paper}</span>
@@ -79,6 +80,7 @@ describe("theme color schemes", () => {
     expect(value("mode")).toBe("light");
     expect(value("primary")).toBe(light.primary);
     expect(value("link")).toBe(light.link);
+    expect(value("info")).toBe(light.info);
     expect(value("subtle")).toBe(light.backgroundSubtle);
     expect(value("canvas")).toBe(light.backgroundDefault);
     expect(value("paper")).toBe(light.backgroundPaper);
@@ -94,6 +96,7 @@ describe("theme color schemes", () => {
     expect(value("mode")).toBe("dark");
     expect(value("primary")).toBe(dark.primary);
     expect(value("link")).toBe(dark.link);
+    expect(value("info")).toBe(dark.info);
     expect(value("subtle")).toBe(dark.backgroundSubtle);
     expect(value("canvas")).toBe(dark.backgroundDefault);
     expect(value("paper")).toBe(dark.backgroundPaper);
@@ -116,6 +119,7 @@ describe("dark palette contrast", () => {
     ["success", dark.success],
     ["error", dark.error],
     ["warning", dark.warning],
+    ["info", dark.info],
     ["link", dark.link],
   ])("keeps %s readable on every dark surface", (_name, color) => {
     for (const surface of surfaces) {
@@ -171,6 +175,31 @@ describe("light palette contrast", () => {
     "keeps the protocol %s chip readable",
     (_protocol, color) => {
       expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
+    },
+  );
+});
+
+describe("control boundaries", () => {
+  const WCAG_NON_TEXT = 3;
+
+  it("keeps the light input outline above the non-text floor", () => {
+    expect(
+      contrast(
+        over("#000000", 0.42, light.backgroundPaper),
+        light.backgroundPaper,
+      ),
+    ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
+  });
+
+  it.each([
+    ["paper", dark.backgroundPaper],
+    ["subtle", dark.backgroundSubtle],
+  ])(
+    "keeps the dark input outline above the non-text floor on %s",
+    (_n, surface) => {
+      expect(
+        contrast(over("#FFFFFF", 0.36, surface), surface),
+      ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
     },
   );
 });

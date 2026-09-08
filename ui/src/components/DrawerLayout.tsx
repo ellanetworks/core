@@ -63,6 +63,8 @@ const THEME_MODES = [
 ] as const;
 
 const drawerSelectedSx = {
+  "& .MuiListItemText-primary": { color: "primary.main" },
+
   "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },

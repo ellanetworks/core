@@ -13,6 +13,47 @@ const COLOUR_HEAVY_ROUTES = [
 
 const htmlClass = (page: Page) => page.locator("html").getAttribute("class");
 
+const collectCspViolations = async (page: Page) => {
+  const violations: string[] = [];
+  await page.addInitScript(() => {
+    (window as Window & { cspViolations?: string[] }).cspViolations = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      (window as Window & { cspViolations?: string[] }).cspViolations?.push(
+        `${event.violatedDirective} ${event.blockedURI}`,
+      );
+    });
+  });
+  return async () => {
+    violations.push(
+      ...(await page.evaluate(
+        () =>
+          (window as Window & { cspViolations?: string[] }).cspViolations ?? [],
+      )),
+    );
+    return violations;
+  };
+};
+
+const schemeBeforeBundle = async (page: Page, route: string) => {
+  await page.addInitScript(() => {
+    document.addEventListener("readystatechange", () => {
+      const w = window as Window & { earlyColorScheme?: string };
+      if (document.readyState === "interactive" && !w.earlyColorScheme) {
+        w.earlyColorScheme = getComputedStyle(
+          document.documentElement,
+        ).colorScheme;
+      }
+    });
+  });
+  await page.goto(route, { waitUntil: "commit" });
+  await page.waitForLoadState("load");
+  return page.evaluate(
+    () =>
+      (window as Window & { earlyColorScheme?: string }).earlyColorScheme ??
+      "(not sampled)",
+  );
+};
+
 const chooseMode = async (page: Page, name: string) => {
   await page.getByRole("button", { name: "account menu" }).click();
   await page.getByRole("menuitemradio", { name: `${name} theme` }).click();
@@ -22,7 +63,21 @@ const chooseMode = async (page: Page, name: string) => {
 test.describe("dark mode", () => {
   test.use({ colorScheme: "dark" });
 
-  test("follows the OS preference before the app boots", async ({ page }) => {
+  test("paints the OS scheme before the bundle runs", async ({ page }) => {
+    expect(await schemeBeforeBundle(page, "/dashboard")).toBe("dark");
+  });
+
+  test("loads without tripping the app's own CSP", async ({ page }) => {
+    const read = await collectCspViolations(page);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("progressbar")).toHaveCount(0, {
+      timeout: 15_000,
+    });
+
+    expect(await read(), "the page must not violate its own CSP").toEqual([]);
+  });
+
+  test("applies the scheme class once mounted", async ({ page }) => {
     await page.goto("/dashboard");
 
     expect(await htmlClass(page)).toContain("dark");
@@ -69,7 +124,11 @@ test.describe("dark mode", () => {
 test.describe("light mode", () => {
   test.use({ colorScheme: "light" });
 
-  test("follows the OS preference before the app boots", async ({ page }) => {
+  test("paints the OS scheme before the bundle runs", async ({ page }) => {
+    expect(await schemeBeforeBundle(page, "/dashboard")).toBe("light");
+  });
+
+  test("applies the scheme class once mounted", async ({ page }) => {
     await page.goto("/dashboard");
 
     expect(await htmlClass(page)).toContain("light");
