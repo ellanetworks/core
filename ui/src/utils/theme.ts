@@ -71,7 +71,8 @@ const theme = createTheme({
     MuiTableCell: {
       styleOverrides: {
         stickyHeader: ({ theme: t }) => ({
-          backgroundColor: t.vars.palette.backgroundSubtle,
+          backgroundColor: t.vars.palette.background.paper,
+          backgroundImage: t.vars.overlays[1],
         }),
       },
     },
