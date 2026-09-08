@@ -5,7 +5,7 @@ docs_dir: docs
 theme:
   name: material
   logo: images/logo.svg
-  favicon: images/logo.svg
+  favicon: images/favicon.svg
   palette:
     primary: custom
   font:

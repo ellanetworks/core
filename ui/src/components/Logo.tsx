@@ -4,6 +4,8 @@
 import React from "react";
 import { logoAlt } from "@/utils/product";
 
+export const MARK_MAX_SIZE = 64;
+
 export default function Logo({
   width = 50,
   height = 50,
@@ -11,5 +13,7 @@ export default function Logo({
   width?: number;
   height?: number;
 }) {
-  return <img src="/logo.svg" alt={logoAlt()} width={width} height={height} />;
+  const src =
+    Math.max(width, height) <= MARK_MAX_SIZE ? "/logo-mark.svg" : "/logo.svg";
+  return <img src={src} alt={logoAlt()} width={width} height={height} />;
 }
