@@ -73,7 +73,12 @@ func (bpfObjects *BpfObjects) addOccupancy(name string, delta int) {
 	bpfObjects.occupancy[name] = n
 }
 
-func (bpfObjects *BpfObjects) MapPressure() map[string]float64 {
+type MapUsage struct {
+	Entries    int
+	MaxEntries uint32
+}
+
+func (bpfObjects *BpfObjects) MapUsage() map[string]MapUsage {
 	if bpfObjects == nil {
 		return nil
 	}
@@ -86,7 +91,7 @@ func (bpfObjects *BpfObjects) MapPressure() map[string]float64 {
 	}
 	bpfObjects.occupancyMu.Unlock()
 
-	out := make(map[string]float64, len(TrackedMaps))
+	out := make(map[string]MapUsage, len(TrackedMaps))
 
 	for _, name := range TrackedMaps {
 		m := bpfObjects.mapByName(name)
@@ -99,12 +104,7 @@ func (bpfObjects *BpfObjects) MapPressure() map[string]float64 {
 			continue
 		}
 
-		ratio := float64(occupancy[name]) / float64(maxEntries)
-		if ratio > 1 {
-			ratio = 1
-		}
-
-		out[name] = ratio
+		out[name] = MapUsage{Entries: occupancy[name], MaxEntries: maxEntries}
 	}
 
 	return out

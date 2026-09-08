@@ -20,6 +20,9 @@
 package ebpf
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -419,17 +422,18 @@ var ringbufNames = [RingbufIDMax]string{
 	RingbufNoNeigh: "no_neigh_map",
 }
 
-func RingbufLost(bpfObjects *BpfObjects) map[string]uint64 {
+func RingbufLost(bpfObjects *BpfObjects) (map[string]uint64, error) {
+	if bpfObjects == nil || bpfObjects.RingbufLost == nil {
+		return nil, errors.New("ringbuf lost map is not loaded")
+	}
+
 	out := make(map[string]uint64, RingbufIDMax)
 
 	for i, name := range ringbufNames {
 		var perCPU []uint64
 
 		if err := bpfObjects.RingbufLost.Lookup(uint32(i), &perCPU); err != nil {
-			logger.UpfLog.Warn("failed to read ringbuf lost counters",
-				zap.String("ringbuf", name), zap.Error(err))
-
-			continue
+			return nil, fmt.Errorf("read ringbuf lost counters for %s: %w", name, err)
 		}
 
 		var total uint64
@@ -440,5 +444,5 @@ func RingbufLost(bpfObjects *BpfObjects) map[string]uint64 {
 		out[name] = total
 	}
 
-	return out
+	return out, nil
 }

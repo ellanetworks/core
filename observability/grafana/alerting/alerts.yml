@@ -728,7 +728,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                max by (map) (app_upf_bpf_map_pressure_ratio)
+                max by (map) (app_upf_bpf_map_entries / app_upf_bpf_map_max_entries)
               instant: true
               refId: A
           - refId: C

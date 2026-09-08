@@ -84,16 +84,27 @@ func RegisterMetrics() {
 		}
 	}))
 
-	mapPressureDesc := prometheus.NewDesc(
-		"app_upf_bpf_map_pressure_ratio",
-		"Fill ratio of a data plane BPF map, between 0 and 1. Reported for every tracked map so the series can be trended and a missing series means the exporter is not reporting, not that the map is healthy.",
+	mapEntriesDesc := prometheus.NewDesc(
+		"app_upf_bpf_map_entries",
+		"Entries currently installed in a data plane BPF map. Divide by app_upf_bpf_map_max_entries for a fill ratio; a value above the maximum means the occupancy bookkeeping has drifted.",
+		[]string{"map"},
+		nil,
+	)
+
+	mapMaxEntriesDesc := prometheus.NewDesc(
+		"app_upf_bpf_map_max_entries",
+		"Capacity of a data plane BPF map, as declared by its max_entries attribute.",
 		[]string{"map"},
 		nil,
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		for name, ratio := range bpfObjects.MapPressure() {
-			ch <- prometheus.MustNewConstMetric(mapPressureDesc, prometheus.GaugeValue, ratio, name)
+		for name, usage := range bpfObjects.MapUsage() {
+			ch <- prometheus.MustNewConstMetric(mapEntriesDesc, prometheus.GaugeValue,
+				float64(usage.Entries), name)
+
+			ch <- prometheus.MustNewConstMetric(mapMaxEntriesDesc, prometheus.GaugeValue,
+				float64(usage.MaxEntries), name)
 		}
 	}))
 
@@ -128,9 +139,15 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		for name, lost := range ebpf.RingbufLost(bpfObjects) {
+		lost, err := ebpf.RingbufLost(bpfObjects)
+		if err != nil {
+			ch <- prometheus.NewInvalidMetric(ringbufLostDesc, err)
+			return
+		}
+
+		for name, count := range lost {
 			ch <- prometheus.MustNewConstMetric(ringbufLostDesc, prometheus.CounterValue,
-				float64(lost), name)
+				float64(count), name)
 		}
 	}))
 
