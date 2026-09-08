@@ -150,7 +150,9 @@ func (bpfObjects *BpfObjects) DeleteFramedDownlink(prefix netip.Prefix) error {
 	return bpfObjects.deleteTracked(bpfObjects.FramedDownlinkIp6, MapFramedDownlinkIP6, key)
 }
 
-// HasFramedDownlink reports whether a framed route's exact LPM entry is present.
+// HasFramedDownlink reports whether a downlink lookup of the prefix resolves to
+// a framed route. The map is an LPM trie, so a covering shorter prefix also
+// matches; this is not an exact-key test.
 func (bpfObjects *BpfObjects) HasFramedDownlink(prefix netip.Prefix) (bool, error) {
 	prefix = prefix.Masked()
 
