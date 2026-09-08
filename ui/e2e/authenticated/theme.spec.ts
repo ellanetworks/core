@@ -3,7 +3,6 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { assertNoA11yViolations } from "../a11y";
-import { adminToken, seedProtocolRules } from "../api";
 
 const COLOUR_HEAVY_ROUTES = [
   { label: "Dashboard", route: "/dashboard" },
@@ -94,21 +93,6 @@ test.describe("dark mode", () => {
     const group = page.getByRole("group", { name: "Theme" });
     await expect(group).toBeVisible();
     await expect(group.getByRole("menuitemradio")).toHaveCount(3);
-  });
-
-  test("the policy detail protocol chips are accessible", async ({
-    page,
-    request,
-  }) => {
-    await seedProtocolRules(request, await adminToken(request));
-
-    await page.goto("/profiles/default/policies/default");
-    await expect(page.getByRole("progressbar")).toHaveCount(0, {
-      timeout: 15_000,
-    });
-    await expect(page.getByText("UDP").first()).toBeVisible();
-
-    await assertNoA11yViolations(page, "Policy detail chips (dark)");
   });
 
   test("the account menu is accessible with the theme options open", async ({

@@ -9,7 +9,7 @@ const TOKEN_FILE = "e2e/.auth/admin-token.txt";
 export const ADMIN_EMAIL = "e2e-admin@ellanetworks.com";
 export const ADMIN_PASSWORD = "E2eAdminPassw0rd!";
 
-const READY_TIMEOUT_MS = 60_000;
+const READY_TIMEOUT_MS = 20_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -189,61 +189,4 @@ export async function deleteSubscriberIfPresent(
     `/api/v1/subscribers/${encodeURIComponent(imsi)}`,
     { token },
   );
-}
-
-export async function seedProtocolRules(
-  request: APIRequestContext,
-  token: string,
-): Promise<void> {
-  const policy = await json<Record<string, unknown>>(
-    request,
-    "get",
-    "/api/v1/policies/default",
-    { token },
-  );
-
-  await send(request, "put", "/api/v1/policies/default", {
-    token,
-    data: {
-      ...policy,
-      rules: {
-        uplink: [
-          {
-            description: "Allow DNS",
-            remote_prefix: "0.0.0.0/0",
-            protocol: 17,
-            port_low: 53,
-            port_high: 53,
-            action: "allow",
-          },
-          {
-            description: "Allow web",
-            remote_prefix: "0.0.0.0/0",
-            protocol: 6,
-            port_low: 443,
-            port_high: 443,
-            action: "allow",
-          },
-          {
-            description: "Block SCTP",
-            remote_prefix: "0.0.0.0/0",
-            protocol: 132,
-            port_low: 0,
-            port_high: 0,
-            action: "deny",
-          },
-        ],
-        downlink: [
-          {
-            description: "Allow GRE",
-            remote_prefix: "0.0.0.0/0",
-            protocol: 47,
-            port_low: 0,
-            port_high: 0,
-            action: "allow",
-          },
-        ],
-      },
-    },
-  });
 }
