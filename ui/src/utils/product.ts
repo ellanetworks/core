@@ -4,7 +4,6 @@
 export const DEFAULT_PRODUCT_NAME = "Ella Core";
 
 export const VENDOR = {
-  name: "Ella Networks",
   company: "Ella Networks Inc.",
   websiteUrl: "https://ellanetworks.com",
 } as const;
@@ -15,7 +14,3 @@ export const PRODUCT = {
 };
 
 export const logoAlt = () => `${PRODUCT.name} Logo`;
-
-export const isRebranded = () => PRODUCT.name !== DEFAULT_PRODUCT_NAME;
-
-export const vendorAttribution = `Powered by ${VENDOR.name}`;

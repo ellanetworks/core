@@ -4,7 +4,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DEFAULT_PRODUCT_NAME, PRODUCT, logoAlt } from "@/utils/product";
-import ProductTitle from "./ProductTitle";
 import Footer from "./Footer";
 import { ipv6PoolHelperText } from "./dataNetworkForm";
 
@@ -12,26 +11,8 @@ afterEach(() => {
   PRODUCT.name = DEFAULT_PRODUCT_NAME;
 });
 
-describe("ProductTitle", () => {
-  it("shows the product name alone under the default branding", () => {
-    render(<ProductTitle />);
-
-    expect(screen.getByText(DEFAULT_PRODUCT_NAME)).toBeInTheDocument();
-    expect(screen.queryByText(/Powered by/)).not.toBeInTheDocument();
-  });
-
-  it("credits the vendor when the product is renamed", () => {
-    PRODUCT.name = "Northwind";
-
-    render(<ProductTitle />);
-
-    expect(screen.getByText("Northwind")).toBeInTheDocument();
-    expect(screen.getByText("Powered by Ella Networks")).toBeInTheDocument();
-  });
-});
-
-describe("branding reads", () => {
-  it("propagates a rename to every derived string", () => {
+describe("product name", () => {
+  it("propagates to every derived string", () => {
     PRODUCT.name = "Northwind";
 
     expect(logoAlt()).toBe("Northwind Logo");
@@ -40,7 +21,7 @@ describe("branding reads", () => {
 });
 
 describe("Footer", () => {
-  it("keeps the vendor identity when the product is renamed", () => {
+  it("shows the vendor identity, not the product name", () => {
     PRODUCT.name = "Northwind";
 
     render(<Footer />);
