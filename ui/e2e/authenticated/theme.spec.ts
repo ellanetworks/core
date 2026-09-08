@@ -3,6 +3,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { assertNoA11yViolations } from "../a11y";
+import { adminToken, seedProtocolRules } from "../api";
 
 const COLOUR_HEAVY_ROUTES = [
   { label: "Dashboard", route: "/dashboard" },
@@ -57,7 +58,7 @@ const schemeBeforeBundle = async (page: Page, route: string) => {
 const chooseMode = async (page: Page, name: string) => {
   await page.getByRole("button", { name: "account menu" }).click();
   await page.getByRole("menuitemradio", { name: `${name} theme` }).click();
-  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
 };
 
 test.describe("dark mode", () => {
@@ -93,6 +94,30 @@ test.describe("dark mode", () => {
       await assertNoA11yViolations(page, `${label} (dark)`);
     });
   }
+
+  test("groups the theme options under a labelled group", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "account menu" }).click();
+
+    const group = page.getByRole("group", { name: "Theme" });
+    await expect(group).toBeVisible();
+    await expect(group.getByRole("menuitemradio")).toHaveCount(3);
+  });
+
+  test("the policy detail protocol chips are accessible", async ({
+    page,
+    request,
+  }) => {
+    await seedProtocolRules(request, await adminToken(request));
+
+    await page.goto("/profiles/default/policies/default");
+    await expect(page.getByRole("progressbar")).toHaveCount(0, {
+      timeout: 15_000,
+    });
+    await expect(page.getByText("UDP").first()).toBeVisible();
+
+    await assertNoA11yViolations(page, "Policy detail chips (dark)");
+  });
 
   test("the account menu is accessible with the theme options open", async ({
     page,

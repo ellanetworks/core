@@ -15,7 +15,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function send(
   request: APIRequestContext,
-  method: "get" | "post" | "delete",
+  method: "get" | "post" | "put" | "delete",
   path: string,
   opts: { token?: string; data?: unknown } = {},
 ) {
@@ -40,7 +40,7 @@ export async function send(
 
 async function json<T>(
   request: APIRequestContext,
-  method: "get" | "post" | "delete",
+  method: "get" | "post" | "put" | "delete",
   path: string,
   opts: { token?: string; data?: unknown } = {},
 ): Promise<T> {
@@ -189,4 +189,61 @@ export async function deleteSubscriberIfPresent(
     `/api/v1/subscribers/${encodeURIComponent(imsi)}`,
     { token },
   );
+}
+
+export async function seedProtocolRules(
+  request: APIRequestContext,
+  token: string,
+): Promise<void> {
+  const policy = await json<Record<string, unknown>>(
+    request,
+    "get",
+    "/api/v1/policies/default",
+    { token },
+  );
+
+  await send(request, "put", "/api/v1/policies/default", {
+    token,
+    data: {
+      ...policy,
+      rules: {
+        uplink: [
+          {
+            description: "Allow DNS",
+            remote_prefix: "0.0.0.0/0",
+            protocol: 17,
+            port_low: 53,
+            port_high: 53,
+            action: "allow",
+          },
+          {
+            description: "Allow web",
+            remote_prefix: "0.0.0.0/0",
+            protocol: 6,
+            port_low: 443,
+            port_high: 443,
+            action: "allow",
+          },
+          {
+            description: "Block SCTP",
+            remote_prefix: "0.0.0.0/0",
+            protocol: 132,
+            port_low: 0,
+            port_high: 0,
+            action: "deny",
+          },
+        ],
+        downlink: [
+          {
+            description: "Allow GRE",
+            remote_prefix: "0.0.0.0/0",
+            protocol: 47,
+            port_low: 0,
+            port_high: 0,
+            action: "allow",
+          },
+        ],
+      },
+    },
+  });
 }

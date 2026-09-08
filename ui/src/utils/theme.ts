@@ -95,4 +95,10 @@ const theme = createTheme({
   },
 });
 
+export const THEME_PROVIDER_PROPS = {
+  noSsr: true,
+  forceThemeRerender: true,
+  disableTransitionOnChange: true,
+} as const;
+
 export default theme;

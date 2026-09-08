@@ -11,9 +11,10 @@ export const VENDOR = {
 
 export const PRODUCT = {
   name: DEFAULT_PRODUCT_NAME,
-  logoAlt: `${DEFAULT_PRODUCT_NAME} Logo`,
   docsUrl: "https://docs.ellanetworks.com",
 };
+
+export const logoAlt = () => `${PRODUCT.name} Logo`;
 
 export const isRebranded = () => PRODUCT.name !== DEFAULT_PRODUCT_NAME;
 

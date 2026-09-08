@@ -16,7 +16,7 @@ import {
   useNavigate,
   type InitialEntry,
 } from "react-router-dom";
-import theme from "@/utils/theme";
+import theme, { THEME_PROVIDER_PROPS } from "@/utils/theme";
 import { AuthContext } from "@/contexts/AuthContext";
 import { SnackbarProvider } from "@/contexts/SnackbarContext";
 import { setOnUnauthorized } from "@/queries/utils";
@@ -103,7 +103,7 @@ export function renderWithProviders(
 
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <ThemeProvider theme={theme} noSsr forceThemeRerender>
+      <ThemeProvider theme={theme} {...THEME_PROVIDER_PROPS}>
         <MemoryRouter initialEntries={initialEntries}>
           {auth ? (
             <>

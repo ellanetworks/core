@@ -257,24 +257,31 @@ export default function DrawerLayout({
             <ListSubheader disableSticky role="presentation">
               Theme
             </ListSubheader>
-            {THEME_MODES.map(({ value, label, Icon }) => (
-              <MenuItem
-                key={value}
-                role="menuitemradio"
-                aria-label={`${label} theme`}
-                aria-checked={mode === value}
-                selected={mode === value}
-                onClick={() => setMode(value)}
-              >
-                <ListItemIcon>
-                  <Icon fontSize="small" color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={label} />
-                {mode === value && (
-                  <CheckIcon fontSize="small" sx={{ ml: 2 }} />
-                )}
-              </MenuItem>
-            ))}
+            {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+            <li role="group" aria-label="Theme">
+              {THEME_MODES.map(({ value, label, Icon }) => (
+                <MenuItem
+                  key={value}
+                  component="div"
+                  role="menuitemradio"
+                  aria-label={`${label} theme`}
+                  aria-checked={mode === value}
+                  selected={mode === value}
+                  onClick={() => {
+                    setMode(value);
+                    handleAccountClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <Icon fontSize="small" color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary={label} />
+                  {mode === value && (
+                    <CheckIcon fontSize="small" sx={{ ml: 2 }} />
+                  )}
+                </MenuItem>
+              ))}
+            </li>
             <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>

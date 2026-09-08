@@ -7,8 +7,6 @@ import type { SxProps, Theme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { PRODUCT } from "@/utils/product";
 
-const APP_NAME = PRODUCT.name;
-
 export interface PageTitleProps {
   title: string;
   count?: number;
@@ -33,7 +31,8 @@ export default function PageTitle({
   const name = documentTitle ?? (parent ? `${parent.label} / ${title}` : title);
 
   useEffect(() => {
-    document.title = name === APP_NAME ? APP_NAME : `${name} · ${APP_NAME}`;
+    const appName = PRODUCT.name;
+    document.title = name === appName ? appName : `${name} · ${appName}`;
   }, [name]);
 
   if (parent) {

@@ -7,7 +7,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createQueryClient } from "@/queries/queryClient";
 import { Outlet } from "react-router-dom";
-import theme from "@/utils/theme";
+import theme, { THEME_PROVIDER_PROPS } from "@/utils/theme";
 import Logo from "@/components/Logo";
 import ProductTitle from "@/components/ProductTitle";
 
@@ -16,12 +16,7 @@ export default function AuthLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        theme={theme}
-        noSsr
-        forceThemeRerender
-        disableTransitionOnChange
-      >
+      <ThemeProvider theme={theme} {...THEME_PROVIDER_PROPS}>
         <CssBaseline />
         <Box sx={{ display: "flex" }}>
           <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>

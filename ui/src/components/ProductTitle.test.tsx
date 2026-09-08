@@ -3,9 +3,10 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DEFAULT_PRODUCT_NAME, PRODUCT } from "@/utils/product";
+import { DEFAULT_PRODUCT_NAME, PRODUCT, logoAlt } from "@/utils/product";
 import ProductTitle from "./ProductTitle";
 import Footer from "./Footer";
+import { ipv6PoolHelperText } from "./dataNetworkForm";
 
 afterEach(() => {
   PRODUCT.name = DEFAULT_PRODUCT_NAME;
@@ -26,6 +27,15 @@ describe("ProductTitle", () => {
 
     expect(screen.getByText("Northwind")).toBeInTheDocument();
     expect(screen.getByText("Powered by Ella Networks")).toBeInTheDocument();
+  });
+});
+
+describe("branding reads", () => {
+  it("propagates a rename to every derived string", () => {
+    PRODUCT.name = "Northwind";
+
+    expect(logoAlt()).toBe("Northwind Logo");
+    expect(ipv6PoolHelperText()).toContain("Northwind");
   });
 });
 

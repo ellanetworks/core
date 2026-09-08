@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ThemeProvider, useTheme } from "@mui/material/styles";
-import theme from "@/utils/theme";
+import theme, { THEME_PROVIDER_PROPS } from "@/utils/theme";
 import { dark, light } from "@/utils/tokens";
 
 const Probe = () => {
@@ -30,8 +30,7 @@ const renderIn = (mode: "light" | "dark") =>
   render(
     <ThemeProvider
       theme={theme}
-      noSsr
-      forceThemeRerender
+      {...THEME_PROVIDER_PROPS}
       defaultMode={mode}
       storageManager={null}
     >
@@ -127,9 +126,9 @@ describe("dark palette contrast", () => {
     }
   });
 
-  it.each(Object.entries(dark.chart.protocols))(
-    "keeps the protocol %s chip readable",
-    (_protocol, color) => {
+  it.each([...Object.values(dark.chart.protocols), ...dark.chart.series])(
+    "keeps a %s chip readable with the text MUI picks",
+    (color) => {
       expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
     },
   );
@@ -142,6 +141,14 @@ describe("dark palette contrast", () => {
       }
     },
   );
+
+  it("steps light paper to subtle as far as dark does", () => {
+    expect(
+      contrast(light.backgroundPaper, light.backgroundSubtle),
+    ).toBeGreaterThanOrEqual(
+      contrast(dark.backgroundPaper, dark.backgroundSubtle) - 0.01,
+    );
+  });
 
   it("separates the dark surfaces from each other", () => {
     expect(
@@ -171,12 +178,44 @@ describe("dark palette contrast", () => {
 });
 
 describe("light palette contrast", () => {
-  it.each(Object.entries(light.chart.protocols))(
-    "keeps the protocol %s chip readable",
-    (_protocol, color) => {
+  const WCAG_NON_TEXT = 3;
+
+  it.each([...Object.values(light.chart.protocols), ...light.chart.series])(
+    "keeps a %s chip readable with the text MUI picks",
+    (color) => {
       expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
     },
   );
+
+  it.each(light.chart.series.map((c, i) => [i, c] as const))(
+    "keeps chart series %s above the non-text floor",
+    (_index, color) => {
+      expect(contrast(color, light.backgroundDefault)).toBeGreaterThanOrEqual(
+        WCAG_NON_TEXT,
+      );
+    },
+  );
+
+  it("keeps the uplink and downlink marks above the non-text floor", () => {
+    expect(
+      contrast(light.chart.uplink, light.backgroundDefault),
+    ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
+    expect(
+      contrast(light.chart.downlink, light.backgroundDefault),
+    ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
+  });
+
+  it.each([
+    ["primary", light.primary],
+    ["success", light.success],
+    ["error", light.error],
+    ["info", light.info],
+    ["link", light.link],
+  ])("keeps %s readable as text on the page", (_name, color) => {
+    expect(contrast(color, light.backgroundDefault)).toBeGreaterThanOrEqual(
+      WCAG_AA,
+    );
+  });
 });
 
 describe("control boundaries", () => {

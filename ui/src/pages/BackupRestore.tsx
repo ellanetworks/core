@@ -218,7 +218,7 @@ const BackupRestore = () => {
                 }}
               >
                 <Typography variant="body2" color="textSecondary">
-                  Generate and download a snapshot of your {PRODUCT.name}
+                  Generate and download a snapshot of your {PRODUCT.name}{" "}
                   configuration and data. You can then use this file to restore
                   your system if needed.
                 </Typography>
@@ -281,7 +281,7 @@ const BackupRestore = () => {
                     ) : (
                       <>
                         <Typography variant="body2" color="textSecondary">
-                          Upload a previously created backup file to restore
+                          Upload a previously created backup file to restore{" "}
                           {PRODUCT.name} to a previous state. This will
                           overwrite your current configuration and data.
                         </Typography>

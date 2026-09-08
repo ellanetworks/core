@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
@@ -101,13 +101,18 @@ describe("DrawerLayout theme control", () => {
     expect(modeItem("Dark theme")).toHaveAttribute("aria-checked", "false");
   });
 
-  it("moves the selection when a mode is chosen", async () => {
+  it("closes the menu and moves the selection when a mode is chosen", async () => {
     const user = userEvent.setup();
     renderThemed();
     await openAccountMenu(user);
 
     await user.click(modeItem("Dark theme"));
 
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+
+    await openAccountMenu(user);
     expect(modeItem("Dark theme")).toHaveAttribute("aria-checked", "true");
     expect(modeItem("System theme")).toHaveAttribute("aria-checked", "false");
   });
