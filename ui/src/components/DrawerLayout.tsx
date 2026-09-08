@@ -72,6 +72,42 @@ const drawerSelectedSx = {
   },
 };
 
+function NavItem({
+  to,
+  label,
+  icon,
+  match,
+  exact = false,
+  pathname,
+  onNavigate,
+}: {
+  to: string;
+  label: string;
+  icon: React.ReactNode;
+  match?: string;
+  exact?: boolean;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const base = match ?? to;
+  const current = exact ? pathname === base : pathname.startsWith(base);
+  return (
+    <ListItem disablePadding>
+      <ListItemButton
+        component={Link}
+        to={to}
+        selected={current}
+        aria-current={current ? "page" : undefined}
+        onClick={onNavigate}
+        sx={drawerSelectedSx}
+      >
+        <ListItemIcon>{icon}</ListItemIcon>
+        <ListItemText primary={label} />
+      </ListItemButton>
+    </ListItem>
+  );
+}
+
 export default function DrawerLayout({
   children,
 }: {
@@ -231,119 +267,64 @@ export default function DrawerLayout({
         }}
       >
         <Toolbar />
-        {/* A landmark, so the links are a region a screen reader can jump to
-            without tabbing through them (WCAG 1.3.1). */}
         <Box
           component="nav"
           aria-label="Main"
           sx={{ flexGrow: 1, overflow: "auto" }}
         >
           <List>
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/dashboard"
-                selected={pathname === "/dashboard"}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <DashboardIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Dashboard" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/operator"
-                selected={pathname === "/operator"}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <FeedIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Operator" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/radios"
-                selected={pathname.startsWith("/radios")}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <RouterIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Radios" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/networking"
-                selected={pathname.startsWith("/networking")}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <LanIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Networking" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/profiles"
-                selected={pathname.startsWith("/profiles")}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <TuneIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Profiles" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/subscribers"
-                selected={pathname.startsWith("/subscribers")}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <GroupsIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Subscribers" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                to="/traffic/usage"
-                selected={pathname.startsWith("/traffic")}
-                onClick={handleNavClick}
-                sx={drawerSelectedSx}
-              >
-                <ListItemIcon>
-                  <BarChartIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Traffic" />
-              </ListItemButton>
-            </ListItem>
-
+            <NavItem
+              to="/dashboard"
+              label="Dashboard"
+              icon={<DashboardIcon color="primary" />}
+              exact
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/operator"
+              label="Operator"
+              icon={<FeedIcon color="primary" />}
+              exact
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/radios"
+              label="Radios"
+              icon={<RouterIcon color="primary" />}
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/networking"
+              label="Networking"
+              icon={<LanIcon color="primary" />}
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/profiles"
+              label="Profiles"
+              icon={<TuneIcon color="primary" />}
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/subscribers"
+              label="Subscribers"
+              icon={<GroupsIcon color="primary" />}
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
+            <NavItem
+              to="/traffic/usage"
+              label="Traffic"
+              icon={<BarChartIcon color="primary" />}
+              match="/traffic"
+              pathname={pathname}
+              onNavigate={handleNavClick}
+            />
             {role === "Admin" && (
               <>
                 <ListSubheader
@@ -356,66 +337,37 @@ export default function DrawerLayout({
                 >
                   System
                 </ListSubheader>
-
-                <ListItem disablePadding>
-                  <ListItemButton
-                    component={Link}
-                    to="/users"
-                    selected={pathname.startsWith("/users")}
-                    onClick={handleNavClick}
-                    sx={drawerSelectedSx}
-                  >
-                    <ListItemIcon>
-                      <AdminPanelSettingsIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText primary="Users" />
-                  </ListItemButton>
-                </ListItem>
-
-                <ListItem disablePadding>
-                  <ListItemButton
-                    component={Link}
-                    to="/audit-logs"
-                    selected={pathname === "/audit-logs"}
-                    onClick={handleNavClick}
-                    sx={drawerSelectedSx}
-                  >
-                    <ListItemIcon>
-                      <ReceiptLongIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText primary="Audit Logs" />
-                  </ListItemButton>
-                </ListItem>
-
-                <ListItem disablePadding>
-                  <ListItemButton
-                    component={Link}
-                    to="/backup-restore"
-                    selected={pathname === "/backup-restore"}
-                    onClick={handleNavClick}
-                    sx={drawerSelectedSx}
-                  >
-                    <ListItemIcon>
-                      <StorageIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText primary="Backup and Restore" />
-                  </ListItemButton>
-                </ListItem>
-
-                <ListItem disablePadding>
-                  <ListItemButton
-                    component={Link}
-                    to="/cluster"
-                    selected={pathname === "/cluster"}
-                    onClick={handleNavClick}
-                    sx={drawerSelectedSx}
-                  >
-                    <ListItemIcon>
-                      <HubIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText primary="Cluster" />
-                  </ListItemButton>
-                </ListItem>
+                <NavItem
+                  to="/users"
+                  label="Users"
+                  icon={<AdminPanelSettingsIcon color="primary" />}
+                  pathname={pathname}
+                  onNavigate={handleNavClick}
+                />
+                <NavItem
+                  to="/audit-logs"
+                  label="Audit Logs"
+                  icon={<ReceiptLongIcon color="primary" />}
+                  exact
+                  pathname={pathname}
+                  onNavigate={handleNavClick}
+                />
+                <NavItem
+                  to="/backup-restore"
+                  label="Backup and Restore"
+                  icon={<StorageIcon color="primary" />}
+                  exact
+                  pathname={pathname}
+                  onNavigate={handleNavClick}
+                />
+                <NavItem
+                  to="/cluster"
+                  label="Cluster"
+                  icon={<HubIcon color="primary" />}
+                  exact
+                  pathname={pathname}
+                  onNavigate={handleNavClick}
+                />
               </>
             )}
           </List>
