@@ -82,6 +82,8 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 		for i := range s.DropReasons {
 			total.DropReasons[i] += s.DropReasons[i]
 		}
+
+		total.NatEvictions += s.NatEvictions
 	}
 
 	return total, true
@@ -89,8 +91,9 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 
 // DatapathCounters is one direction's packet accounting.
 type DatapathCounters struct {
-	Forwarded [UPFMaxAction]uint64
-	Dropped   [UPFDropReasonMax]uint64
+	Forwarded    [UPFMaxAction]uint64
+	Dropped      [UPFDropReasonMax]uint64
+	NatEvictions uint64
 }
 
 // A direction whose map could not be read is absent rather than zero.
@@ -103,7 +106,11 @@ func GetDatapathCounters(bpfObjects *BpfObjects) map[Direction]DatapathCounters 
 			continue
 		}
 
-		out[dir] = DatapathCounters{Forwarded: s.ForwardedActions, Dropped: s.DropReasons}
+		out[dir] = DatapathCounters{
+			Forwarded:    s.ForwardedActions,
+			Dropped:      s.DropReasons,
+			NatEvictions: s.NatEvictions,
+		}
 	}
 
 	return out
@@ -397,4 +404,41 @@ func TotalDrops(bpfObjects *BpfObjects, dir Direction) uint64 {
 	}
 
 	return total
+}
+
+const (
+	RingbufNocp    = 0
+	RingbufRSEvent = 1
+	RingbufNoNeigh = 2
+	RingbufIDMax   = 3
+)
+
+var ringbufNames = [RingbufIDMax]string{
+	RingbufNocp:    "nocp_map",
+	RingbufRSEvent: "rs_event_map",
+	RingbufNoNeigh: "no_neigh_map",
+}
+
+func RingbufLost(bpfObjects *BpfObjects) map[string]uint64 {
+	out := make(map[string]uint64, RingbufIDMax)
+
+	for i, name := range ringbufNames {
+		var perCPU []uint64
+
+		if err := bpfObjects.RingbufLost.Lookup(uint32(i), &perCPU); err != nil {
+			logger.UpfLog.Warn("failed to read ringbuf lost counters",
+				zap.String("ringbuf", name), zap.Error(err))
+
+			continue
+		}
+
+		var total uint64
+		for _, v := range perCPU {
+			total += v
+		}
+
+		out[name] = total
+	}
+
+	return out
 }

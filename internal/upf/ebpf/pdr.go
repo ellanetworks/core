@@ -78,7 +78,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 		return fmt.Errorf("build uplink PDR: %w", err)
 	}
 
-	return bpfObjects.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.putTracked(bpfObjects.PdrsUplink, MapPdrsUplink, teid, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) error {
@@ -91,12 +91,12 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) e
 
 	if addr.Is4() {
 		key := addr.As4()
-		return bpfObjects.PdrsDownlinkIp4.Put(key, unsafe.Pointer(&pdrToStore))
+		return bpfObjects.putTracked(bpfObjects.PdrsDownlinkIp4, MapPdrsDownlinkIP4, key, unsafe.Pointer(&pdrToStore))
 	}
 
 	prefix := addr.As16()
 
-	return bpfObjects.PdrsDownlinkIp6.Put(prefix, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.putTracked(bpfObjects.PdrsDownlinkIp6, MapPdrsDownlinkIP6, prefix, unsafe.Pointer(&pdrToStore))
 }
 
 // framedIP4Key / framedIP6Key mirror the C LPM-trie keys in pdr_maps.h: a
@@ -121,17 +121,37 @@ func (bpfObjects *BpfObjects) PutFramedDownlink(prefix netip.Prefix, ueAddr neti
 
 	logger.UpfLog.Debug("Put framed route", logger.IPAddress(prefix.String()))
 
+	present, err := bpfObjects.HasFramedDownlink(prefix)
+	if err != nil {
+		return err
+	}
+
+	name := MapFramedDownlinkIP4
+	if !prefix.Addr().Is4() {
+		name = MapFramedDownlinkIP6
+	}
+
 	if prefix.Addr().Is4() {
 		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
 		ueIP := ueAddr.As4()
 
-		return bpfObjects.FramedDownlinkIp4.Put(key, unsafe.Pointer(&ueIP))
+		if err := bpfObjects.FramedDownlinkIp4.Put(key, unsafe.Pointer(&ueIP)); err != nil {
+			return err
+		}
+	} else {
+		key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
+		uePrefix := ueAddr.As16()
+
+		if err := bpfObjects.FramedDownlinkIp6.Put(key, unsafe.Pointer(&uePrefix)); err != nil {
+			return err
+		}
 	}
 
-	key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
-	uePrefix := ueAddr.As16()
+	if !present {
+		bpfObjects.addOccupancy(name, 1)
+	}
 
-	return bpfObjects.FramedDownlinkIp6.Put(key, unsafe.Pointer(&uePrefix))
+	return nil
 }
 
 // DeleteFramedDownlink removes a framed route's LPM entry.
@@ -142,12 +162,12 @@ func (bpfObjects *BpfObjects) DeleteFramedDownlink(prefix netip.Prefix) error {
 
 	if prefix.Addr().Is4() {
 		key := framedIP4Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As4()}
-		return bpfObjects.FramedDownlinkIp4.Delete(key)
+		return bpfObjects.deleteTracked(bpfObjects.FramedDownlinkIp4, MapFramedDownlinkIP4, key)
 	}
 
 	key := framedIP6Key{PrefixLen: uint32(prefix.Bits()), Addr: prefix.Addr().As16()}
 
-	return bpfObjects.FramedDownlinkIp6.Delete(key)
+	return bpfObjects.deleteTracked(bpfObjects.FramedDownlinkIp6, MapFramedDownlinkIP6, key)
 }
 
 // HasFramedDownlink reports whether a framed route's exact LPM entry is present.
@@ -183,7 +203,7 @@ func (bpfObjects *BpfObjects) HasFramedDownlink(prefix netip.Prefix) (bool, erro
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 	logger.UpfLog.Debug("Delete PDR Uplink", logger.TEID(teid))
-	return bpfObjects.PdrsUplink.Delete(teid)
+	return bpfObjects.deleteTracked(bpfObjects.PdrsUplink, MapPdrsUplink, teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
@@ -191,12 +211,12 @@ func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
 
 	if addr.Is4() {
 		key := addr.As4()
-		return bpfObjects.PdrsDownlinkIp4.Delete(key)
+		return bpfObjects.deleteTracked(bpfObjects.PdrsDownlinkIp4, MapPdrsDownlinkIP4, key)
 	}
 
 	key := addr.As16()
 
-	return bpfObjects.PdrsDownlinkIp6.Delete(key)
+	return bpfObjects.deleteTracked(bpfObjects.PdrsDownlinkIp6, MapPdrsDownlinkIP6, key)
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.
@@ -263,7 +283,7 @@ type SdfFilterList struct {
 func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 	zeroVals := make([]uint64, runtime.NumCPU())
 
-	err := bpfObjects.UrrMap.Put(N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
+	err := bpfObjects.putTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id}, zeroVals)
 	if err != nil {
 		return fmt.Errorf("failed to put urr id %d: %w", id, err)
 	}
@@ -274,7 +294,7 @@ func (bpfObjects *BpfObjects) NewUrr(seid uint64, id uint32) error {
 func (bpfObjects *BpfObjects) DeleteUrr(seid uint64, id uint32) error {
 	// A URR shared by several PDRs (the downlink and second PDR share one) is
 	// deleted with the first PDR, so a later delete of the same key is a no-op.
-	err := bpfObjects.UrrMap.Delete(N3N6EntrypointUrrKey{Seid: seid, UrrId: id})
+	err := bpfObjects.deleteTracked(bpfObjects.UrrMap, MapURR, N3N6EntrypointUrrKey{Seid: seid, UrrId: id})
 	if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 		return fmt.Errorf("failed to delete URR: %w", err)
 	}

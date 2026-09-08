@@ -602,7 +602,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                rate(app_uplink_bytes[10m]) + rate(app_downlink_bytes[10m])
+                sum(rate(app_upf_bytes_total[10m]))
               instant: true
               refId: A
           - refId: B
@@ -685,7 +685,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                increase(app_flow_reports_dropped_total[5m])
+                sum(increase(app_upf_flow_reports_dropped_total[5m]))
               instant: true
               refId: A
           - refId: C

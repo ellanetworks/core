@@ -107,6 +107,9 @@ type BpfObjects struct {
 
 	pagingMu   sync.Mutex
 	pagingList map[DataNotification]bool
+
+	occupancyMu sync.Mutex
+	occupancy   map[string]int
 }
 
 func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -119,6 +122,7 @@ func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex in
 		N3Vlan:           n3vlan,
 		N6Vlan:           n6vlan,
 		pagingList:       make(map[DataNotification]bool),
+		occupancy:        make(map[string]int),
 	}
 }
 

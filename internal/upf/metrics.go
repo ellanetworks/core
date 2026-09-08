@@ -8,29 +8,100 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var flowReportsDropped prometheus.Counter
+var flowReportsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_upf_flow_reports_dropped_total",
+	Help: "Total number of flow reports dropped before they reached the SMF, by reason.",
+}, []string{"reason"})
+
+var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_upf_dl_buffer_evicted_total",
+	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
+}, []string{"reason"})
+
+const mapPressureFloor = 0.75
+
+const (
+	flowReportDropChannelFull = "channel_full"
+
+	dlBufferEvictTTL            = "ttl"
+	dlBufferEvictByteBudget     = "byte_budget"
+	dlBufferEvictQueueDepth     = "queue_depth"
+	dlBufferEvictSessionDrop    = "session_drop"
+	dlBufferEvictMalformed      = "malformed"
+	dlBufferEvictReinjectFailed = "reinject_failed"
+)
 
 func RegisterMetrics() {
-	flowReportsDropped = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "app_flow_reports_dropped_total",
-		Help: "Total number of flow reports dropped because the reporter channel was full.",
-	})
+	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted)
 
-	prometheus.MustRegister(flowReportsDropped)
+	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
 
-	upfUplinkBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_uplink_bytes",
-		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
-	}, func() float64 {
-		return float64(ebpf.GetN3UplinkThroughputStats(bpfObjects))
-	})
+	for _, reason := range []string{
+		dlBufferEvictTTL,
+		dlBufferEvictByteBudget,
+		dlBufferEvictQueueDepth,
+		dlBufferEvictSessionDrop,
+		dlBufferEvictMalformed,
+		dlBufferEvictReinjectFailed,
+	} {
+		dlBufferEvicted.WithLabelValues(reason)
+	}
 
-	upfDownlinkBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_downlink_bytes",
-		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
-	}, func() float64 {
-		return float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects))
-	})
+	upfBytesDesc := prometheus.NewDesc(
+		"app_upf_bytes_total",
+		"The total number of bytes going through the data plane, by direction (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header.",
+		[]string{"direction"},
+		nil,
+	)
+
+	dlBufferCaptureDesc := prometheus.NewDesc(
+		"app_upf_dl_buffer_capture_total",
+		"Downlink packets for an idle UE the data plane offered to the buffer, by outcome: captured, or the reason the capture was refused.",
+		[]string{"result"},
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
+			float64(ebpf.GetN3UplinkThroughputStats(bpfObjects)), "uplink")
+
+		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
+			float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects)), "downlink")
+	}))
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		c := bpfObjects.GetDlBufferCounters()
+
+		for _, entry := range []struct {
+			result string
+			value  uint64
+		}{
+			{"captured", c.Captured},
+			{"ring_full", c.RingFull},
+			{"too_large", c.TooLarge},
+			{"gso", c.GSO},
+		} {
+			ch <- prometheus.MustNewConstMetric(dlBufferCaptureDesc, prometheus.CounterValue,
+				float64(entry.value), entry.result)
+		}
+	}))
+
+	mapPressureDesc := prometheus.NewDesc(
+		"app_upf_bpf_map_pressure",
+		"Fill ratio of a data plane BPF map, between 0 and 1. Only reported for a map at or above 75% of its capacity.",
+		[]string{"map"},
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		for name, ratio := range bpfObjects.MapPressure() {
+			if ratio < mapPressureFloor {
+				continue
+			}
+
+			ch <- prometheus.MustNewConstMetric(mapPressureDesc, prometheus.GaugeValue, ratio, name)
+		}
+	}))
 
 	// Every frame is counted exactly once across the two families:
 	// forwarded, by action, or dropped, by reason.
@@ -48,6 +119,27 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	natEvictionsDesc := prometheus.NewDesc(
+		"app_upf_nat_evictions_total",
+		"Conntrack entries the data plane found evicted under load and re-created, by the direction of the packet that repaired the pair.",
+		[]string{"direction"},
+		nil,
+	)
+
+	ringbufLostDesc := prometheus.NewDesc(
+		"app_upf_ringbuf_lost_total",
+		"Events the data plane raised but could not place in a ring buffer, by ring buffer name.",
+		[]string{"map"},
+		nil,
+	)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		for name, lost := range ebpf.RingbufLost(bpfObjects) {
+			ch <- prometheus.MustNewConstMetric(ringbufLostDesc, prometheus.CounterValue,
+				float64(lost), name)
+		}
+	}))
+
 	// The full distribution, including outcomes that are not drops.
 	datapathFibLookupDesc := prometheus.NewDesc(
 		"app_upf_datapath_fib_lookup_total",
@@ -55,8 +147,6 @@ func RegisterMetrics() {
 		[]string{"direction", "result"},
 		nil,
 	)
-
-	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
@@ -80,6 +170,9 @@ func RegisterMetrics() {
 					prometheus.CounterValue, float64(counters.Dropped[reason]),
 					string(dir), name)
 			}
+
+			ch <- prometheus.MustNewConstMetric(natEvictionsDesc,
+				prometheus.CounterValue, float64(counters.NatEvictions), string(dir))
 		}
 	}))
 

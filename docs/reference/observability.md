@@ -33,8 +33,12 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_datapath_forward_total | Packets the data plane forwarded, with labels for direction (uplink, downlink) and the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in `xdp-native`, `xdp-generic` and `tcx`. | Counter |
 | app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
 | app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
-| app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
-| app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
+| app_upf_bytes_total | The total number of bytes transmitted through the data plane, labeled by `direction` (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header. | Counter |
+| app_upf_bpf_map_pressure | Fill ratio of a data plane BPF map, between 0 and 1, labeled by `map`. Only reported for a map at or above 75% of its capacity, so no series exists in normal operation. | Gauge |
+| app_upf_nat_evictions_total | Conntrack entries the data plane found evicted under load and re-created, labeled by the `direction` of the packet that repaired the pair. A sustained rate means the conntrack table is stealing entries between subscribers. | Counter |
+| app_upf_dl_buffer_capture_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`: `captured`, or why the capture was refused (`ring_full`, `too_large`, `gso`). | Counter |
+| app_upf_dl_buffer_evicted_total | Buffered downlink packets discarded before re-injection, labeled by the `reason` that discarded them (`ttl`, `byte_budget`, `queue_depth`, `session_drop`, `malformed`, `reinject_failed`). | Counter |
+| app_upf_ringbuf_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map` (`nocp_map` for paging notifications, `rs_event_map` for router solicitations, `no_neigh_map` for missing neighbour events). | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |
