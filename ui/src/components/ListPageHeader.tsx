@@ -3,6 +3,7 @@
 
 import React from "react";
 import { Box, Typography } from "@mui/material";
+import PageTitle from "@/components/PageTitle";
 
 interface ListPageHeaderProps {
   title: string;
@@ -23,12 +24,13 @@ const ListPageHeader: React.FC<ListPageHeaderProps> = ({
 }) => (
   <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
     <Box>
-      <Typography
-        variant={variant === "page" ? "h4" : "h5"}
-        component={variant === "page" ? "h1" : "h2"}
-      >
-        {count === undefined ? title : `${title} (${count})`}
-      </Typography>
+      {variant === "page" ? (
+        <PageTitle title={title} count={count} />
+      ) : (
+        <Typography variant="h5" component="h2">
+          {count === undefined ? title : `${title} (${count})`}
+        </Typography>
+      )}
       <Typography
         variant={variant === "page" ? "body1" : "body2"}
         color="textSecondary"

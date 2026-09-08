@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const TAB_SEGMENTS = [
   "data-networks",
@@ -44,9 +45,7 @@ export default function NetworkingPage() {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-        Networking
-      </Typography>
+      <PageTitle title="Networking" sx={{ mb: 1 }} />
       <Typography variant="body1" color="textSecondary" sx={{ mb: 2 }}>
         Configure networks and packet forwarding for Subscriber traffic.
       </Typography>

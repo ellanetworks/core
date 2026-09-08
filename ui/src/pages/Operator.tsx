@@ -45,6 +45,7 @@ import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const profileDescriptions: Record<string, string> = {
   A: "ECIES with X25519 (Curve25519)",
@@ -250,9 +251,7 @@ const Operator = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-        Operator
-      </Typography>
+      <PageTitle title="Operator" sx={{ mb: 1 }} />
 
       <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
         Review and configure your operator identifiers and core settings.

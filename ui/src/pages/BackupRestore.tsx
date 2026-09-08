@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useRef, useState } from "react";
+import PageTitle from "@/components/PageTitle";
 import {
   Alert,
   Box,
@@ -190,9 +191,7 @@ const BackupRestore = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4" component="h1">
-            Backup & Restore
-          </Typography>
+          <PageTitle title="Backup & Restore" />
           <Typography variant="body1" color="textSecondary">
             {pageDescription}
           </Typography>
