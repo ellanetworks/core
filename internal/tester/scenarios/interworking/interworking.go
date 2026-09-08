@@ -32,8 +32,6 @@ const (
 	enbTunIface   = "iwkenbtun"
 	s1enbNodeName = "Ella-Core-Tester-IWK-S1eNB"
 
-	datapathSettle = 500 * time.Millisecond
-
 	attachTimeout = 15 * time.Second
 	slaacTimeout  = 5 * time.Second
 

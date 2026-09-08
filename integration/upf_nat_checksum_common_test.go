@@ -38,10 +38,6 @@ const (
 func runNATChecksumSuite(t *testing.T, scenarioName string) {
 	t.Helper()
 
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
-
 	// source_nat only NATs IPv4.
 	if DetectIPFamily() == IPv6Only {
 		t.Skip("nat checksum test exercises IPv4 source_nat; skipping in IPv6-only mode")

@@ -6,16 +6,14 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 func TestIntegration5GHADrain(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA3GPP5G)
 
 	runHA3GPPScenario(t, "ha/drain_5g", func(ctx context.Context, leader *client.Client, nodeID int) error {
 		resp, err := leader.DrainClusterMember(ctx, nodeID)

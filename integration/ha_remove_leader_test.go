@@ -6,12 +6,12 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHARemoveLeader drains and removes the current leader,
@@ -19,9 +19,7 @@ import (
 // throughout, and that the removed node is fenced from accepting
 // writes against itself.
 func TestIntegrationHARemoveLeader(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

@@ -406,7 +406,7 @@ func probeAfterHandoverTo5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb
 		}
 	}
 
-	time.Sleep(datapathSettle)
+	time.Sleep(scenarios.DatapathSettleDelay)
 
 	if err := probe.Run(ctx, probe.ICMP, gnbTunIface, env.PingDestination(), scenarios.DefaultProbePort, wantsIPv6Probe(env)); err != nil {
 		return sessionFacts{}, fmt.Errorf("ping over N3 after the handover: %w", err)

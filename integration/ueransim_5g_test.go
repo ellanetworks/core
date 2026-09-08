@@ -6,18 +6,16 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 func TestIntegration5GUERANSIM(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	// UERANSIM does not correctly handle dual-stack NGAP TransportLayerAddress,
 	// so skip this integration until upstream dual-stack support is fixed.

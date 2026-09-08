@@ -204,7 +204,7 @@ func registerAndTunnel(g *gnb.GnodeB, sub subscriber, ranUENGAPID int64, tunName
 		return nil, nil, fmt.Errorf("create GTP tunnel %s: %w", tunName, err)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	awaitDownlinkReady()
 
 	return &ue2ueSession{
 		UEIPv4: session.UEIPv4,

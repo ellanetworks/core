@@ -5,10 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 type apiMatrixRunner func(ctx context.Context, t *testing.T, c *client.Client)
@@ -48,9 +48,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 }
 
 func TestAPIMatrix(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.APIMatrix)
 
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)

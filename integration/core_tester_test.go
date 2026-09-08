@@ -6,11 +6,11 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register every scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
@@ -145,9 +145,7 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 // t.Cleanup teardown), invokes env.RunScenario, and polls the usage API
 // when AssertUsageForIMSIs is set.
 func TestIntegrationTester(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.RequireSplit(t, "s1enb", suites.Datapath4G, suites.Datapath5G)
 
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)
