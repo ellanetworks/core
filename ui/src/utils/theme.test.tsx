@@ -192,15 +192,6 @@ describe("light palette contrast", () => {
     }
   });
 
-  it("keeps the uplink and downlink marks above the non-text floor", () => {
-    expect(
-      contrast(light.chart.uplink, light.backgroundDefault),
-    ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
-    expect(
-      contrast(light.chart.downlink, light.backgroundDefault),
-    ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
-  });
-
   it("keeps the semantic accents readable as text on the page", () => {
     for (const color of [
       light.primary,

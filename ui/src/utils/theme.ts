@@ -68,6 +68,13 @@ const theme = createTheme({
         },
       },
     },
+    MuiTableCell: {
+      styleOverrides: {
+        stickyHeader: ({ theme: t }) => ({
+          backgroundColor: t.vars.palette.backgroundSubtle,
+        }),
+      },
+    },
     MuiOutlinedInput: {
       styleOverrides: {
         notchedOutline: ({ theme: t }) => ({

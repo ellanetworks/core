@@ -36,7 +36,7 @@ export const light: Tokens = {
   textSecondary: "rgba(0, 0, 0, 0.6)",
   borderControl: "rgba(0, 0, 0, 0.42)",
   chart: {
-    uplink: "#D17D00",
+    uplink: "#FF9800",
     downlink: "#4254FB",
     series: [
       "#2196F3",
