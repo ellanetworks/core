@@ -20,6 +20,39 @@ const (
 	ResultReject = "reject"
 )
 
+const (
+	CollectorDatabaseStorage     = "database_storage"
+	CollectorDatabaseIPTotal     = "database_ip_addresses_total"
+	CollectorDatabaseIPAllocated = "database_ip_addresses_allocated"
+	CollectorUPFThroughput       = "upf_throughput"
+	CollectorUPFDlBuffer         = "upf_dl_buffer"
+	CollectorUPFRingbuf          = "upf_ringbuf"
+	CollectorUPFDatapath         = "upf_datapath"
+	CollectorUPFRoute            = "upf_route"
+	CollectorUPFProfiling        = "upf_profiling"
+)
+
+var allCollectors = []string{
+	CollectorDatabaseStorage,
+	CollectorDatabaseIPTotal,
+	CollectorDatabaseIPAllocated,
+	CollectorUPFThroughput,
+	CollectorUPFDlBuffer,
+	CollectorUPFRingbuf,
+	CollectorUPFDatapath,
+	CollectorUPFRoute,
+	CollectorUPFProfiling,
+}
+
+var collectionErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_metrics_collection_errors_total",
+	Help: "Total failed metric collections by collector. A failed collection omits its series rather than publishing a zero, so this counter is the signal that a value is missing because it could not be read.",
+}, []string{"collector"})
+
+func CollectionError(collector string) {
+	collectionErrors.WithLabelValues(collector).Inc()
+}
+
 var (
 	signalingMessages    *prometheus.CounterVec
 	registrationAttempts *prometheus.CounterVec
@@ -37,7 +70,11 @@ func RegisterMetrics() {
 		Help: "Total UE registration (5G) and attach/tracking-area-update (4G) attempts by RAT, type, and result.",
 	}, []string{"rat", "type", "result"})
 
-	prometheus.MustRegister(signalingMessages, registrationAttempts)
+	for _, collector := range allCollectors {
+		collectionErrors.WithLabelValues(collector)
+	}
+
+	prometheus.MustRegister(signalingMessages, registrationAttempts, collectionErrors)
 }
 
 // RegisterRadioGauges registers the connected-radio and registered-subscriber

@@ -156,37 +156,37 @@ func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
 	return rs
 }
 
-func GetN3RouteStats(bpfObjects *BpfObjects) RouteStats {
+func GetN3RouteStats(bpfObjects *BpfObjects) (RouteStats, bool) {
 	var stats []N3N6EntrypointRouteStat
 
 	err := bpfObjects.UplinkRouteStats.Lookup(uint32(0), &stats)
 	if err != nil {
 		logger.UpfLog.Warn("failed to fetch UPF N3 route stats", zap.Error(err))
-		return RouteStats{}
+		return RouteStats{}, false
 	}
 
-	return aggregateRouteStats(stats)
+	return aggregateRouteStats(stats), true
 }
 
-func GetN6RouteStats(bpfObjects *BpfObjects) RouteStats {
+func GetN6RouteStats(bpfObjects *BpfObjects) (RouteStats, bool) {
 	var stats []N3N6EntrypointRouteStat
 
 	err := bpfObjects.DownlinkRouteStats.Lookup(uint32(0), &stats)
 	if err != nil {
 		logger.UpfLog.Warn("failed to fetch UPF N6 route stats", zap.Error(err))
-		return RouteStats{}
+		return RouteStats{}, false
 	}
 
-	return aggregateRouteStats(stats)
+	return aggregateRouteStats(stats), true
 }
 
-func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
+func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) (uint64, bool) {
 	var n3Statistics []N3N6EntrypointUpfStatistic
 
 	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
 		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
-		return 0
+		return 0, false
 	}
 
 	var totalValue uint64
@@ -194,16 +194,16 @@ func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 		totalValue += statistic.ByteCounter.Bytes
 	}
 
-	return totalValue
+	return totalValue, true
 }
 
-func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) uint64 {
+func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) (uint64, bool) {
 	var n6Statistics []N3N6EntrypointUpfStatistic
 
 	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
 		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
-		return 0
+		return 0, false
 	}
 
 	var totalValue uint64
@@ -211,7 +211,7 @@ func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 		totalValue += statistic.ByteCounter.Bytes
 	}
 
-	return totalValue
+	return totalValue, true
 }
 
 // ProfileIndex mirrors the profile_index enum in profiling.h.

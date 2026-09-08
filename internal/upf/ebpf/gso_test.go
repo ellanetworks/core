@@ -257,7 +257,7 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 		}
 	}
 
-	rs := GetN6RouteStats(f.obj)
+	rs, _ := GetN6RouteStats(f.obj)
 	t.Logf("downlink: dropped=%d pass=%d tx=%d redirect=%d",
 		TotalDrops(f.obj, Downlink),
 		ForwardCount(f.obj, Downlink, ActionPass),

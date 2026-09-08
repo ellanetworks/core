@@ -4,8 +4,11 @@
 package upf
 
 import (
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 var flowReportsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -60,15 +63,29 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-			float64(ebpf.GetN3UplinkThroughputStats(bpfObjects)), "uplink")
+		uplink, uplinkOK := ebpf.GetN3UplinkThroughputStats(bpfObjects)
+		if uplinkOK {
+			ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
+				float64(uplink), "uplink")
+		} else {
+			metrics.CollectionError(metrics.CollectorUPFThroughput)
+		}
 
-		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-			float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects)), "downlink")
+		downlink, downlinkOK := ebpf.GetN6DownlinkThroughputStats(bpfObjects)
+		if downlinkOK {
+			ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
+				float64(downlink), "downlink")
+		} else {
+			metrics.CollectionError(metrics.CollectorUPFThroughput)
+		}
 	}))
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		c := bpfObjects.GetDlBufferCounters()
+		c, ok := bpfObjects.GetDlBufferCounters()
+		if !ok {
+			metrics.CollectionError(metrics.CollectorUPFDlBuffer)
+			return
+		}
 
 		for _, entry := range []struct {
 			result string
@@ -141,7 +158,9 @@ func RegisterMetrics() {
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		lost, err := ebpf.RingbufLost(bpfObjects)
 		if err != nil {
-			ch <- prometheus.NewInvalidMetric(ringbufLostDesc, err)
+			logger.UpfLog.Warn("failed to fetch UPF ringbuf lost counters", zap.Error(err))
+			metrics.CollectionError(metrics.CollectorUPFRingbuf)
+
 			return
 		}
 
@@ -160,7 +179,12 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
+		datapathCounters := ebpf.GetDatapathCounters(bpfObjects)
+		if len(datapathCounters) < 2 {
+			metrics.CollectionError(metrics.CollectorUPFDatapath)
+		}
+
+		for dir, counters := range datapathCounters {
 			for _, a := range []struct {
 				label string
 				index int
@@ -189,16 +213,26 @@ func RegisterMetrics() {
 
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		n3 := ebpf.GetN3RouteStats(bpfObjects)
-		n6 := ebpf.GetN6RouteStats(bpfObjects)
-
-		for _, entry := range []struct {
+		type routeStatsEntry struct {
 			direction string
 			stats     ebpf.RouteStats
-		}{
-			{"uplink", n3},
-			{"downlink", n6},
-		} {
+		}
+
+		entries := make([]routeStatsEntry, 0, 2)
+
+		if n3, ok := ebpf.GetN3RouteStats(bpfObjects); ok {
+			entries = append(entries, routeStatsEntry{"uplink", n3})
+		} else {
+			metrics.CollectionError(metrics.CollectorUPFRoute)
+		}
+
+		if n6, ok := ebpf.GetN6RouteStats(bpfObjects); ok {
+			entries = append(entries, routeStatsEntry{"downlink", n6})
+		} else {
+			metrics.CollectionError(metrics.CollectorUPFRoute)
+		}
+
+		for _, entry := range entries {
 			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.direction, "success")
 
 			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.direction, "no_neigh")
@@ -270,7 +304,13 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		stats, err := ebpf.ReadProfilingStats(bpfObjects)
-		if err != nil || stats == nil {
+		if err != nil {
+			metrics.CollectionError(metrics.CollectorUPFProfiling)
+
+			return
+		}
+
+		if stats == nil {
 			return
 		}
 
