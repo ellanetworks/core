@@ -94,6 +94,7 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 
 // DatapathCounters is one direction's packet accounting.
 type DatapathCounters struct {
+	Bytes        uint64
 	Forwarded    [UPFMaxAction]uint64
 	Dropped      [UPFDropReasonMax]uint64
 	NatEvictions uint64
@@ -110,6 +111,7 @@ func GetDatapathCounters(bpfObjects *BpfObjects) map[Direction]DatapathCounters 
 		}
 
 		out[dir] = DatapathCounters{
+			Bytes:        s.ByteCounter.Bytes,
 			Forwarded:    s.ForwardedActions,
 			Dropped:      s.DropReasons,
 			NatEvictions: s.NatEvictions,
@@ -178,40 +180,6 @@ func GetN6RouteStats(bpfObjects *BpfObjects) (RouteStats, bool) {
 	}
 
 	return aggregateRouteStats(stats), true
-}
-
-func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) (uint64, bool) {
-	var n3Statistics []N3N6EntrypointUpfStatistic
-
-	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &n3Statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
-		return 0, false
-	}
-
-	var totalValue uint64
-	for _, statistic := range n3Statistics {
-		totalValue += statistic.ByteCounter.Bytes
-	}
-
-	return totalValue, true
-}
-
-func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) (uint64, bool) {
-	var n6Statistics []N3N6EntrypointUpfStatistic
-
-	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &n6Statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
-		return 0, false
-	}
-
-	var totalValue uint64
-	for _, statistic := range n6Statistics {
-		totalValue += statistic.ByteCounter.Bytes
-	}
-
-	return totalValue, true
 }
 
 // ProfileIndex mirrors the profile_index enum in profiling.h.

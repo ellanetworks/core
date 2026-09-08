@@ -325,4 +325,26 @@ func TestDownlinkStatisticsAttached(t *testing.T) {
 	if ulBytes, _ := sumStats(t, f.obj.UplinkStatistics); ulBytes != 0 {
 		t.Errorf("uplink byte_counter = %d, want 0", ulBytes)
 	}
+
+	counters, ok := GetDatapathCounters(f.obj)[Downlink]
+	if !ok {
+		t.Fatal("GetDatapathCounters returned no downlink entry")
+	}
+
+	if counters.Bytes != dlBytes {
+		t.Errorf("GetDatapathCounters bytes = %d, want %d", counters.Bytes, dlBytes)
+	}
+
+	var frames uint64
+	for _, n := range counters.Forwarded {
+		frames += n
+	}
+
+	for _, n := range counters.Dropped {
+		frames += n
+	}
+
+	if frames != packets {
+		t.Errorf("frames accounted = %d, want %d", frames, packets)
+	}
 }

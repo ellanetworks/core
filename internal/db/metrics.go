@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -75,7 +74,6 @@ func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
 	size, err := c.db.GetSize()
 	if err != nil {
 		logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
-		metrics.CollectionError(metrics.CollectorDatabaseStorage)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.storageDesc, prometheus.GaugeValue, float64(size))
 	}
@@ -83,7 +81,6 @@ func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
 	total, err := c.db.GetIPAddressesTotal(ctx)
 	if err != nil {
 		logger.MetricsLog.Warn("Failed to get total IP addresses", zap.Error(err))
-		metrics.CollectionError(metrics.CollectorDatabaseIPTotal)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.ipTotalDesc, prometheus.GaugeValue, float64(total))
 	}
@@ -91,7 +88,6 @@ func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
 	allocated, err := c.db.GetIPAddressesAllocated(ctx)
 	if err != nil {
 		logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
-		metrics.CollectionError(metrics.CollectorDatabaseIPAllocated)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.ipAllocatedDesc, prometheus.GaugeValue, float64(allocated))
 	}

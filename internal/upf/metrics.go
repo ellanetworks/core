@@ -5,7 +5,6 @@ package upf
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -48,13 +47,6 @@ func RegisterMetrics() {
 		dlBufferEvicted.WithLabelValues(reason)
 	}
 
-	upfBytesDesc := prometheus.NewDesc(
-		"app_upf_bytes_total",
-		"The total number of bytes going through the data plane, by direction (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header.",
-		[]string{"direction"},
-		nil,
-	)
-
 	dlBufferCaptureDesc := prometheus.NewDesc(
 		"app_upf_dl_buffer_capture_attempts_total",
 		"Downlink packets for an idle UE the data plane offered to the buffer, by outcome: captured, or the reason the capture was refused.",
@@ -63,27 +55,8 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		uplink, uplinkOK := ebpf.GetN3UplinkThroughputStats(bpfObjects)
-		if uplinkOK {
-			ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-				float64(uplink), "uplink")
-		} else {
-			metrics.CollectionError(metrics.CollectorUPFThroughput)
-		}
-
-		downlink, downlinkOK := ebpf.GetN6DownlinkThroughputStats(bpfObjects)
-		if downlinkOK {
-			ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-				float64(downlink), "downlink")
-		} else {
-			metrics.CollectionError(metrics.CollectorUPFThroughput)
-		}
-	}))
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		c, ok := bpfObjects.GetDlBufferCounters()
 		if !ok {
-			metrics.CollectionError(metrics.CollectorUPFDlBuffer)
 			return
 		}
 
@@ -141,6 +114,13 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	upfBytesDesc := prometheus.NewDesc(
+		"app_upf_bytes_total",
+		"The total number of bytes going through the data plane, by direction (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header.",
+		[]string{"direction"},
+		nil,
+	)
+
 	natEvictionsDesc := prometheus.NewDesc(
 		"app_upf_nat_evictions_total",
 		"Conntrack entries the data plane found evicted under load and re-created, by the direction of the packet that repaired the pair.",
@@ -159,7 +139,6 @@ func RegisterMetrics() {
 		lost, err := ebpf.RingbufLost(bpfObjects)
 		if err != nil {
 			logger.UpfLog.Warn("failed to fetch UPF ringbuf lost counters", zap.Error(err))
-			metrics.CollectionError(metrics.CollectorUPFRingbuf)
 
 			return
 		}
@@ -179,12 +158,7 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		datapathCounters := ebpf.GetDatapathCounters(bpfObjects)
-		if len(datapathCounters) < 2 {
-			metrics.CollectionError(metrics.CollectorUPFDatapath)
-		}
-
-		for dir, counters := range datapathCounters {
+		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
 			for _, a := range []struct {
 				label string
 				index int
@@ -208,6 +182,9 @@ func RegisterMetrics() {
 
 			ch <- prometheus.MustNewConstMetric(natEvictionsDesc,
 				prometheus.CounterValue, float64(counters.NatEvictions), string(dir))
+
+			ch <- prometheus.MustNewConstMetric(upfBytesDesc,
+				prometheus.CounterValue, float64(counters.Bytes), string(dir))
 		}
 	}))
 
@@ -222,14 +199,10 @@ func RegisterMetrics() {
 
 		if n3, ok := ebpf.GetN3RouteStats(bpfObjects); ok {
 			entries = append(entries, routeStatsEntry{"uplink", n3})
-		} else {
-			metrics.CollectionError(metrics.CollectorUPFRoute)
 		}
 
 		if n6, ok := ebpf.GetN6RouteStats(bpfObjects); ok {
 			entries = append(entries, routeStatsEntry{"downlink", n6})
-		} else {
-			metrics.CollectionError(metrics.CollectorUPFRoute)
 		}
 
 		for _, entry := range entries {
@@ -304,13 +277,7 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		stats, err := ebpf.ReadProfilingStats(bpfObjects)
-		if err != nil {
-			metrics.CollectionError(metrics.CollectorUPFProfiling)
-
-			return
-		}
-
-		if stats == nil {
+		if err != nil || stats == nil {
 			return
 		}
 
