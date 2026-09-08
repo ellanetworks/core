@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { Theme } from "@mui/material/styles";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { PRODUCT } from "@/utils/product";
 
 const headerStyles = {
   backgroundColor: (theme: Theme) => theme.palette.backgroundSubtle,
@@ -53,8 +54,7 @@ const BackupRestore = () => {
     enabled: authReady && !!accessToken,
   });
 
-  const pageDescription =
-    "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
+  const pageDescription = `Create and download a full backup of ${PRODUCT.name}, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.`;
 
   const handleCreate = async () => {
     if (!authReady || !accessToken) {
@@ -159,7 +159,7 @@ const BackupRestore = () => {
         open={isRestoring}
         sx={{
           zIndex: (t) => t.zIndex.modal + 1,
-          color: "#fff",
+          color: "common.white",
           flexDirection: "column",
           gap: 2,
         }}
@@ -218,7 +218,7 @@ const BackupRestore = () => {
                 }}
               >
                 <Typography variant="body2" color="textSecondary">
-                  Generate and download a snapshot of your Ella Core
+                  Generate and download a snapshot of your {PRODUCT.name}{" "}
                   configuration and data. You can then use this file to restore
                   your system if needed.
                 </Typography>
@@ -281,9 +281,9 @@ const BackupRestore = () => {
                     ) : (
                       <>
                         <Typography variant="body2" color="textSecondary">
-                          Upload a previously created backup file to restore
-                          Ella Core to a previous state. This will overwrite
-                          your current configuration and data.
+                          Upload a previously created backup file to restore{" "}
+                          {PRODUCT.name} to a previous state. This will
+                          overwrite your current configuration and data.
                         </Typography>
 
                         <Box sx={{ flexGrow: 1 }} />

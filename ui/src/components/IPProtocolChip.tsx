@@ -11,17 +11,16 @@ const IPProtocolChip: React.FC<{ protocol: number; color?: string }> = ({
   color,
 }) => {
   const theme = useTheme();
+  const background =
+    color ?? theme.palette.chart.protocols[protocol] ?? theme.palette.grey[600];
 
   return (
     <Chip
       size="small"
       label={protocol === 0 ? "any" : formatProtocol(protocol)}
       sx={{
-        backgroundColor:
-          color ??
-          theme.palette.chart.protocols[protocol] ??
-          theme.palette.grey[600],
-        color: "#fff",
+        backgroundColor: background,
+        color: theme.palette.getContrastText(background),
         fontWeight: 600,
         fontSize: "0.75rem",
         height: 22,

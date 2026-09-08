@@ -56,6 +56,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
 import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
+import { PRODUCT } from "@/utils/product";
 
 const NoAdvertisedRoutesOverlay = () => (
   <Stack
@@ -353,8 +354,7 @@ export default function BGPTab() {
     { field: "peer", headerName: "Peer", flex: 1, minWidth: 140 },
   ];
 
-  const description =
-    "Border Gateway Protocol (BGP) allows Ella Core to advertise subscriber IP routes to upstream routers so that return traffic can reach connected UEs.";
+  const description = `Border Gateway Protocol (BGP) allows ${PRODUCT.name} to advertise subscriber IP routes to upstream routers so that return traffic can reach connected UEs.`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>

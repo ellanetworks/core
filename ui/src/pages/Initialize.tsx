@@ -19,6 +19,7 @@ import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const schema = yup.object().shape({
   email: yup
@@ -142,7 +143,7 @@ const InitializePage = () => {
       >
         <form onSubmit={handleSubmit} noValidate>
           <PageTitle
-            title="Initialize Ella Core"
+            title={`Initialize ${PRODUCT.name}`}
             size="h5"
             gutterBottom
             sx={{ textAlign: "center" }}

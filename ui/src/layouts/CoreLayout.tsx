@@ -7,7 +7,7 @@ import { createQueryClient } from "@/queries/queryClient";
 import { ThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { Outlet } from "react-router-dom";
-import theme from "@/utils/theme";
+import theme, { THEME_PROVIDER_PROPS } from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -17,7 +17,7 @@ export default function CoreLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={theme} {...THEME_PROVIDER_PROPS}>
         <CssBaseline />
         <AuthProvider>
           <DrawerLayout>

@@ -3,6 +3,7 @@
 
 import { Box, Container, Typography, Link } from "@mui/material";
 import { MAX_WIDTH } from "@/utils/layout";
+import { VENDOR } from "@/utils/product";
 
 export default function Footer() {
   return (
@@ -27,16 +28,16 @@ export default function Footer() {
             gap: "6px",
           }}
         >
-          © 2026 Ella Networks Inc.
+          © 2026 {VENDOR.company}
           <span>·</span>
           <Link
-            href="https://ellanetworks.com"
+            href={VENDOR.websiteUrl}
             target="_blank"
             rel="noopener noreferrer"
             color="textSecondary"
             underline="hover"
           >
-            ellanetworks.com
+            {VENDOR.websiteUrl.replace("https://", "")}
           </Link>
         </Typography>
       </Container>
