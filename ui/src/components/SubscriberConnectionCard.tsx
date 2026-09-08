@@ -106,9 +106,7 @@ const AlgorithmChip: React.FC<{
       size="small"
       icon={
         isInsecure ? (
-          <WarningAmberIcon
-            sx={{ fontSize: 14, color: "warning.contrastText" }}
-          />
+          <WarningAmberIcon sx={{ fontSize: 14, color: "common.black" }} />
         ) : undefined
       }
       label={
@@ -126,7 +124,7 @@ const AlgorithmChip: React.FC<{
         ...(isInsecure
           ? {
               backgroundColor: "warning.main",
-              color: "warning.contrastText",
+              color: "common.black",
             }
           : {
               backgroundColor: "success.main",
