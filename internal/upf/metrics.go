@@ -14,7 +14,7 @@ var flowReportsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
 }, []string{"reason"})
 
 var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Name: "app_upf_dl_buffer_evicted_total",
+	Name: "app_upf_dl_buffer_evictions_total",
 	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
 }, []string{"reason"})
 
@@ -55,7 +55,7 @@ func RegisterMetrics() {
 	)
 
 	dlBufferCaptureDesc := prometheus.NewDesc(
-		"app_upf_dl_buffer_capture_total",
+		"app_upf_dl_buffer_capture_attempts_total",
 		"Downlink packets for an idle UE the data plane offered to the buffer, by outcome: captured, or the reason the capture was refused.",
 		[]string{"result"},
 		nil,
@@ -87,7 +87,7 @@ func RegisterMetrics() {
 	}))
 
 	mapPressureDesc := prometheus.NewDesc(
-		"app_upf_bpf_map_pressure",
+		"app_upf_bpf_map_pressure_ratio",
 		"Fill ratio of a data plane BPF map, between 0 and 1. Only reported for a map at or above 75% of its capacity.",
 		[]string{"map"},
 		nil,
@@ -127,7 +127,7 @@ func RegisterMetrics() {
 	)
 
 	ringbufLostDesc := prometheus.NewDesc(
-		"app_upf_ringbuf_lost_total",
+		"app_upf_ringbuf_events_lost_total",
 		"Events the data plane raised but could not place in a ring buffer, by ring buffer name.",
 		[]string{"map"},
 		nil,
