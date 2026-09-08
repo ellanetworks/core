@@ -22,6 +22,7 @@ import RanNodeTypeChip from "@/components/RanNodeTypeChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 export default function RadiosList() {
   const { accessToken } = useAuth();
@@ -123,9 +124,7 @@ export default function RadiosList() {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-            {knownCount === undefined ? "Radios" : `Radios (${knownCount})`}
-          </Typography>
+          <PageTitle title="Radios" count={knownCount} sx={{ mb: 1 }} />
           <Typography variant="body1" color="textSecondary">
             {descriptionText}
           </Typography>

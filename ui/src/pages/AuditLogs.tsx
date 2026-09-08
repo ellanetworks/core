@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
+import PageTitle from "@/components/PageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -218,9 +219,7 @@ const AuditLog: React.FC = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4" component="h1">
-          Audit Logs
-        </Typography>
+        <PageTitle title="Audit Logs" />
 
         <Typography variant="body1" color="textSecondary">
           {descriptionText}

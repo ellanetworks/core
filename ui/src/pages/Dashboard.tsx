@@ -54,6 +54,7 @@ import {
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
+import PageTitle from "@/components/PageTitle";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -348,14 +349,20 @@ const Dashboard = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4" component="h1">
-          Ella Core{" "}
-          {statusLoading ? (
-            <CircularProgress size={22} sx={{ ml: 1 }} />
-          ) : (
-            (version ?? "—")
-          )}
-        </Typography>
+        <PageTitle
+          title="Ella Core"
+          documentTitle="Dashboard"
+          adornment={
+            <>
+              {" "}
+              {statusLoading ? (
+                <CircularProgress size={22} sx={{ ml: 1 }} />
+              ) : (
+                (version ?? "—")
+              )}
+            </>
+          }
+        />
       </Box>
 
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>

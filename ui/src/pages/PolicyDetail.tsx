@@ -41,6 +41,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import IPProtocolChip from "@/components/IPProtocolChip";
+import PageTitle from "@/components/PageTitle";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%", textAlign: "right" } as const;
@@ -262,67 +263,10 @@ const PolicyDetail: React.FC = () => {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={RouterLink}
-              to="/profiles"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Profiles
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography
-              component={RouterLink}
-              to={`/profiles/${profileName}`}
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              {profileName}
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary" }}
-            >
-              Policies
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              {name}
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Profiles", to: "/profiles" }}
+            title={name ?? ""}
+          />
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
             A policy defines the QoS parameters and network rules applied to a
             subscriber's session on a specific data network.
