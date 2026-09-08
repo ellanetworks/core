@@ -190,45 +190,27 @@ func RegisterMetrics() {
 
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		type routeStatsEntry struct {
-			direction string
-			stats     ebpf.RouteStats
-		}
-
-		entries := make([]routeStatsEntry, 0, 2)
-
-		if n3, ok := ebpf.GetN3RouteStats(bpfObjects); ok {
-			entries = append(entries, routeStatsEntry{"uplink", n3})
-		}
-
-		if n6, ok := ebpf.GetN6RouteStats(bpfObjects); ok {
-			entries = append(entries, routeStatsEntry{"downlink", n6})
-		}
-
-		for _, entry := range entries {
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.direction, "success")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.direction, "no_neigh")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.direction, "blackhole")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.direction, "unreachable")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.direction, "prohibit")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.direction, "no_src_addr")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.direction, "frag_needed")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.direction, "not_fwded")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.direction, "fwd_disabled")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.direction, "unsupp_lwt")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.direction, "error_ipv4")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.direction, "error_ipv6")
+		for dir, stats := range ebpf.GetRouteStats(bpfObjects) {
+			for _, entry := range []struct {
+				result string
+				value  uint64
+			}{
+				{"success", stats.FibSuccess},
+				{"no_neigh", stats.FibNoNeigh},
+				{"blackhole", stats.FibBlackhole},
+				{"unreachable", stats.FibUnreachable},
+				{"prohibit", stats.FibProhibit},
+				{"no_src_addr", stats.FibNoSrcAddr},
+				{"frag_needed", stats.FibFragNeeded},
+				{"not_fwded", stats.FibNotFwded},
+				{"fwd_disabled", stats.FibFwdDisabled},
+				{"unsupp_lwt", stats.FibUnsuppLwt},
+				{"error_ipv4", stats.FibError4},
+				{"error_ipv6", stats.FibError6},
+			} {
+				ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc,
+					prometheus.CounterValue, float64(entry.value), string(dir), entry.result)
+			}
 		}
 	}))
 
@@ -277,7 +259,13 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		stats, err := ebpf.ReadProfilingStats(bpfObjects)
-		if err != nil || stats == nil {
+		if err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF profiling stats", zap.Error(err))
+
+			return
+		}
+
+		if stats == nil {
 			return
 		}
 

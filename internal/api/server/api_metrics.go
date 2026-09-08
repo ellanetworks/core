@@ -4,18 +4,31 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
-	metricsScrapeTimeout       = 10 * time.Second
-	metricsMaxRequestsInFlight = 4
+	metricsScrapeTimeout       = 8 * time.Second
+	metricsMaxRequestsInFlight = 32
 )
+
+type metricsErrorLogger struct{}
+
+func (metricsErrorLogger) Println(v ...any) {
+	if logger.MetricsLog == nil {
+		return
+	}
+
+	logger.MetricsLog.Warn(strings.TrimSuffix(fmt.Sprintln(v...), "\n"))
+}
 
 var metricsHandler = sync.OnceValue(func() http.Handler {
 	return promhttp.InstrumentMetricHandler(
@@ -24,6 +37,8 @@ var metricsHandler = sync.OnceValue(func() http.Handler {
 			CoalesceGather:      true,
 			Timeout:             metricsScrapeTimeout,
 			MaxRequestsInFlight: metricsMaxRequestsInFlight,
+			ErrorHandling:       promhttp.ContinueOnError,
+			ErrorLog:            metricsErrorLogger{},
 		}),
 	)
 })

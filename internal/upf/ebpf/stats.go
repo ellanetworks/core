@@ -158,28 +158,31 @@ func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
 	return rs
 }
 
-func GetN3RouteStats(bpfObjects *BpfObjects) (RouteStats, bool) {
-	var stats []N3N6EntrypointRouteStat
-
-	err := bpfObjects.UplinkRouteStats.Lookup(uint32(0), &stats)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N3 route stats", zap.Error(err))
-		return RouteStats{}, false
+func routeStatsMap(bpfObjects *BpfObjects, dir Direction) *ebpf.Map {
+	if dir == Uplink {
+		return bpfObjects.UplinkRouteStats
 	}
 
-	return aggregateRouteStats(stats), true
+	return bpfObjects.DownlinkRouteStats
 }
 
-func GetN6RouteStats(bpfObjects *BpfObjects) (RouteStats, bool) {
-	var stats []N3N6EntrypointRouteStat
+func GetRouteStats(bpfObjects *BpfObjects) map[Direction]RouteStats {
+	out := make(map[Direction]RouteStats, 2)
 
-	err := bpfObjects.DownlinkRouteStats.Lookup(uint32(0), &stats)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N6 route stats", zap.Error(err))
-		return RouteStats{}, false
+	for _, dir := range []Direction{Uplink, Downlink} {
+		var stats []N3N6EntrypointRouteStat
+
+		if err := routeStatsMap(bpfObjects, dir).Lookup(uint32(0), &stats); err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF route stats",
+				zap.String("direction", string(dir)), zap.Error(err))
+
+			continue
+		}
+
+		out[dir] = aggregateRouteStats(stats)
 	}
 
-	return aggregateRouteStats(stats), true
+	return out
 }
 
 // ProfileIndex mirrors the profile_index enum in profiling.h.
@@ -233,11 +236,10 @@ func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
 
 	results := make([]ProfileEntry, ProfNumEntries)
 
-	for i := uint32(0); i < ProfNumEntries; i++ {
+	for i := range uint32(ProfNumEntries) {
 		var perCPU []bpfProfileEntry
 		if err := bpfObjects.ProfilingMap.Lookup(i, &perCPU); err != nil {
-			logger.UpfLog.Warn("failed to read profiling map", zap.Uint32("index", i), zap.Error(err))
-			continue
+			return nil, fmt.Errorf("read profiling entry %d: %w", i, err)
 		}
 
 		var totalNs, count uint64

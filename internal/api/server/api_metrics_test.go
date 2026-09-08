@@ -6,6 +6,7 @@ package server_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,8 +16,52 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var panicDesc = prometheus.NewDesc("panic_test_metric", "panics on collect", nil, nil)
+
+type panicCollector struct{}
+
+func (panicCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- panicDesc
+}
+
+func (panicCollector) Collect(chan<- prometheus.Metric) {
+	panic("collector exploded")
+}
+
+func TestMetricsHandlerServesTheRestWhenOneCollectorFails(t *testing.T) {
+	canary := prometheus.NewGauge(prometheus.GaugeOpts{Name: "failover_canary", Help: "canary"})
+	canary.Set(1)
+
+	broken := panicCollector{}
+
+	prometheus.MustRegister(canary, broken)
+
+	defer prometheus.Unregister(canary)
+
+	defer func() {
+		if !prometheus.Unregister(broken) {
+			t.Error("failing collector stayed registered and will pollute later tests")
+		}
+	}()
+
+	rr := httptest.NewRecorder()
+	server.GetMetrics().ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/metrics", nil))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want %d: one failing collector must not blank the endpoint", rr.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(rr.Body.String(), "failover_canary") {
+		t.Error("unrelated metric was suppressed by the failing collector")
+	}
+
+	if !strings.Contains(rr.Body.String(), "go_goroutines") {
+		t.Error("Go runtime metrics were suppressed by the failing collector")
+	}
+}
+
 func TestMetricsHandlerCoalescesConcurrentScrapes(t *testing.T) {
-	const scrapers = 4
+	const scrapers = 8
 
 	var collects atomic.Int64
 

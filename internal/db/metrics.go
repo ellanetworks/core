@@ -22,10 +22,7 @@ var (
 	DBQueryDuration *prometheus.HistogramVec
 )
 
-const (
-	metricsCollectTimeout = 2 * time.Second
-	dataNetworksPageSize  = 1000
-)
+const metricsCollectTimeout = 2 * time.Second
 
 type metricsCollector struct {
 	db *Database
@@ -132,29 +129,25 @@ func (db *Database) GetSize() (int64, error) {
 }
 
 func (db *Database) GetIPAddressesTotal(ctx context.Context) (int, error) {
+	dataNetworks, err := db.ListAllDataNetworks(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	var total int
 
-	for page := 1; ; page++ {
-		dataNetworks, count, err := db.ListDataNetworksPage(ctx, page, dataNetworksPageSize)
+	for _, dn := range dataNetworks {
+		ipv4Pool := dn.IPv4Pool
+
+		prefix, err := netip.ParsePrefix(ipv4Pool)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipv4Pool, err)
 		}
 
-		for _, dn := range dataNetworks {
-			ipv4Pool := dn.IPv4Pool
-
-			prefix, err := netip.ParsePrefix(ipv4Pool)
-			if err != nil {
-				return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipv4Pool, err)
-			}
-
-			total += countIPsInPrefix(prefix)
-		}
-
-		if len(dataNetworks) == 0 || page*dataNetworksPageSize >= count {
-			return total, nil
-		}
+		total += countIPsInPrefix(prefix)
 	}
+
+	return total, nil
 }
 
 func countIPsInPrefix(prefix netip.Prefix) int {

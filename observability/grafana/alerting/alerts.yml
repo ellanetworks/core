@@ -178,6 +178,7 @@ groups:
                     type: last
               expression: A
         for: 5m
+        noDataState: KeepLast
         labels:
           severity: warning
           component: smf
@@ -536,6 +537,7 @@ groups:
                     type: last
               expression: A
         for: 10m
+        noDataState: KeepLast
         labels:
           severity: warning
           component: db
@@ -584,6 +586,7 @@ groups:
                     type: last
               expression: A
         for: 5m
+        noDataState: KeepLast
         labels:
           severity: warning
           component: upf
@@ -624,6 +627,7 @@ groups:
               refId: C
               expression: ($B > 0) && ($A == 0)
         for: 10m
+        noDataState: KeepLast
         labels:
           severity: critical
           component: upf
@@ -667,6 +671,7 @@ groups:
                     type: last
               expression: A
         for: 2m
+        noDataState: KeepLast
         labels:
           severity: critical
           component: upf
