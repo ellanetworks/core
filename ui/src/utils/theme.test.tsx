@@ -113,41 +113,36 @@ describe("dark palette contrast", () => {
     dark.backgroundSubtle,
   ];
 
-  it.each([
-    ["primary", dark.primary],
-    ["success", dark.success],
-    ["error", dark.error],
-    ["warning", dark.warning],
-    ["info", dark.info],
-    ["link", dark.link],
-  ])("keeps %s readable on every dark surface", (_name, color) => {
-    for (const surface of surfaces) {
-      expect(contrast(color, surface)).toBeGreaterThanOrEqual(WCAG_AA);
+  it("keeps the semantic accents readable on every dark surface", () => {
+    for (const color of [
+      dark.primary,
+      dark.success,
+      dark.error,
+      dark.warning,
+      dark.info,
+      dark.link,
+    ]) {
+      for (const surface of surfaces) {
+        expect(contrast(color, surface)).toBeGreaterThanOrEqual(WCAG_AA);
+      }
     }
   });
 
-  it.each([...Object.values(dark.chart.protocols), ...dark.chart.series])(
-    "keeps a %s chip readable with the text MUI picks",
-    (color) => {
+  it("keeps every chip readable with the text MUI picks", () => {
+    for (const color of [
+      ...Object.values(dark.chart.protocols),
+      ...dark.chart.series,
+    ]) {
       expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
-    },
-  );
+    }
+  });
 
-  it.each(dark.chart.series.map((c, i) => [i, c] as const))(
-    "keeps chart series %s visible on the surfaces charts sit on",
-    (_index, color) => {
+  it("keeps chart series visible on the surfaces charts sit on", () => {
+    for (const color of dark.chart.series) {
       for (const surface of [dark.backgroundDefault, dark.backgroundPaper]) {
         expect(contrast(color, surface)).toBeGreaterThanOrEqual(WCAG_AA);
       }
-    },
-  );
-
-  it("steps light paper to subtle as far as dark does", () => {
-    expect(
-      contrast(light.backgroundPaper, light.backgroundSubtle),
-    ).toBeGreaterThanOrEqual(
-      contrast(dark.backgroundPaper, dark.backgroundSubtle) - 0.01,
-    );
+    }
   });
 
   it("separates the dark surfaces from each other", () => {
@@ -180,21 +175,22 @@ describe("dark palette contrast", () => {
 describe("light palette contrast", () => {
   const WCAG_NON_TEXT = 3;
 
-  it.each([...Object.values(light.chart.protocols), ...light.chart.series])(
-    "keeps a %s chip readable with the text MUI picks",
-    (color) => {
+  it("keeps every chip readable with the text MUI picks", () => {
+    for (const color of [
+      ...Object.values(light.chart.protocols),
+      ...light.chart.series,
+    ]) {
       expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
-    },
-  );
+    }
+  });
 
-  it.each(light.chart.series.map((c, i) => [i, c] as const))(
-    "keeps chart series %s above the non-text floor",
-    (_index, color) => {
+  it("keeps chart series above the non-text floor", () => {
+    for (const color of light.chart.series) {
       expect(contrast(color, light.backgroundDefault)).toBeGreaterThanOrEqual(
         WCAG_NON_TEXT,
       );
-    },
-  );
+    }
+  });
 
   it("keeps the uplink and downlink marks above the non-text floor", () => {
     expect(
@@ -205,15 +201,25 @@ describe("light palette contrast", () => {
     ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
   });
 
-  it.each([
-    ["primary", light.primary],
-    ["success", light.success],
-    ["error", light.error],
-    ["info", light.info],
-    ["link", light.link],
-  ])("keeps %s readable as text on the page", (_name, color) => {
-    expect(contrast(color, light.backgroundDefault)).toBeGreaterThanOrEqual(
-      WCAG_AA,
+  it("keeps the semantic accents readable as text on the page", () => {
+    for (const color of [
+      light.primary,
+      light.success,
+      light.error,
+      light.info,
+      light.link,
+    ]) {
+      expect(contrast(color, light.backgroundDefault)).toBeGreaterThanOrEqual(
+        WCAG_AA,
+      );
+    }
+  });
+
+  it("steps light paper to subtle as far as dark does", () => {
+    expect(
+      contrast(light.backgroundPaper, light.backgroundSubtle),
+    ).toBeGreaterThanOrEqual(
+      contrast(dark.backgroundPaper, dark.backgroundSubtle) - 0.01,
     );
   });
 });
@@ -230,15 +236,11 @@ describe("control boundaries", () => {
     ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
   });
 
-  it.each([
-    ["paper", dark.backgroundPaper],
-    ["subtle", dark.backgroundSubtle],
-  ])(
-    "keeps the dark input outline above the non-text floor on %s",
-    (_n, surface) => {
+  it("keeps the dark input outline above the non-text floor", () => {
+    for (const surface of [dark.backgroundPaper, dark.backgroundSubtle]) {
       expect(
         contrast(over("#FFFFFF", 0.36, surface), surface),
       ).toBeGreaterThanOrEqual(WCAG_NON_TEXT);
-    },
-  );
+    }
+  });
 });

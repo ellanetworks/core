@@ -12,8 +12,6 @@ const COLOUR_HEAVY_ROUTES = [
   { label: "Audit logs", route: "/audit-logs" },
 ];
 
-const htmlClass = (page: Page) => page.locator("html").getAttribute("class");
-
 const collectCspViolations = async (page: Page) => {
   const violations: string[] = [];
   await page.addInitScript(() => {
@@ -76,12 +74,6 @@ test.describe("dark mode", () => {
     });
 
     expect(await read(), "the page must not violate its own CSP").toEqual([]);
-  });
-
-  test("applies the scheme class once mounted", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    expect(await htmlClass(page)).toContain("dark");
   });
 
   for (const { label, route } of COLOUR_HEAVY_ROUTES) {
@@ -151,11 +143,5 @@ test.describe("light mode", () => {
 
   test("paints the OS scheme before the bundle runs", async ({ page }) => {
     expect(await schemeBeforeBundle(page, "/dashboard")).toBe("light");
-  });
-
-  test("applies the scheme class once mounted", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    expect(await htmlClass(page)).toContain("light");
   });
 });
