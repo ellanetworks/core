@@ -235,6 +235,7 @@ type N3N6EntrypointTcUpfStatistic struct {
 	}
 	ForwardedActions [8]uint64
 	DropReasons      [64]uint64
+	NatEvictions     uint64
 }
 
 type N3N6EntrypointTcUrrKey struct {
@@ -278,6 +279,7 @@ const (
 	N3N6EntrypointTcMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
 	N3N6EntrypointTcMapPdrsUplink          = "pdrs_uplink"
 	N3N6EntrypointTcMapQerWindows          = "qer_windows"
+	N3N6EntrypointTcMapRingbufLost         = "ringbuf_lost"
 	N3N6EntrypointTcMapRsEventMap          = "rs_event_map"
 	N3N6EntrypointTcMapSdfFilters          = "sdf_filters"
 	N3N6EntrypointTcMapUpfCalls            = "upf_calls"
@@ -377,6 +379,7 @@ type N3N6EntrypointTcMapSpecs struct {
 	PdrsDownlinkIp6     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink          *ebpf.MapSpec `ebpf:"pdrs_uplink"`
 	QerWindows          *ebpf.MapSpec `ebpf:"qer_windows"`
+	RingbufLost         *ebpf.MapSpec `ebpf:"ringbuf_lost"`
 	RsEventMap          *ebpf.MapSpec `ebpf:"rs_event_map"`
 	SdfFilters          *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UpfCalls            *ebpf.MapSpec `ebpf:"upf_calls"`
@@ -442,6 +445,7 @@ type N3N6EntrypointTcMaps struct {
 	PdrsDownlinkIp6     *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink          *ebpf.Map `ebpf:"pdrs_uplink"`
 	QerWindows          *ebpf.Map `ebpf:"qer_windows"`
+	RingbufLost         *ebpf.Map `ebpf:"ringbuf_lost"`
 	RsEventMap          *ebpf.Map `ebpf:"rs_event_map"`
 	SdfFilters          *ebpf.Map `ebpf:"sdf_filters"`
 	UpfCalls            *ebpf.Map `ebpf:"upf_calls"`
@@ -473,6 +477,7 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
 		m.QerWindows,
+		m.RingbufLost,
 		m.RsEventMap,
 		m.SdfFilters,
 		m.UpfCalls,

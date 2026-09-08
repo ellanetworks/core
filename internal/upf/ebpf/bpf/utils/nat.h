@@ -784,6 +784,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 					goto allocate;
 				}
 				NAT_WRITE_ONCE(other->refresh_ts, now);
+			} else {
+				ctx->statistics->nat_evictions += 1;
 			}
 		}
 
@@ -818,6 +820,7 @@ allocate:;
 			bpf_map_lookup_elem(&nat_ct, &natted);
 		if (existing && are_five_tuple_equal(orig, existing->peer)) {
 			NAT_WRITE_ONCE(existing->refresh_ts, now);
+			ctx->statistics->nat_evictions += 1;
 			reserved = true;
 		} else {
 			__u16 port = nat_random_port();
@@ -879,13 +882,16 @@ allocate:;
 // origin is the NAT-side entry stored under nat_key; its peer tuple keys the
 // UE-side entry.
 static __always_inline void
-nat_ct_mark_replied(const struct five_tuple *nat_key, struct nat_entry *origin)
+nat_ct_mark_replied(struct packet_context *ctx, const struct five_tuple *nat_key,
+		    struct nat_entry *origin)
 {
 	__u64 now = bpf_ktime_get_ns();
 
 	struct five_tuple ue_key = origin->peer;
 	struct nat_entry *ue = bpf_map_lookup_elem(&nat_ct, &ue_key);
 	if (!ue) {
+		ctx->statistics->nat_evictions += 1;
+
 		/* Only the mapping is known here; the long class waits for an
 		 * uplink packet. */
 		struct nat_entry restored = {};
@@ -1118,7 +1124,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 
 		struct five_tuple ue_frag = frag_origin->peer;
 
-		nat_ct_mark_replied(&key, frag_origin);
+		nat_ct_mark_replied(ctx, &key, frag_origin);
 
 		x->daddr = ue_frag.saddr;
 		x->l4_id = ue_frag.sport;
@@ -1156,7 +1162,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 		struct five_tuple ue_icmp = origin->peer;
 
 		if (nat_icmp_query_for_reply(ctx->icmp->type)) {
-			nat_ct_mark_replied(&key, origin);
+			nat_ct_mark_replied(ctx, &key, origin);
 			/* Only a reply carries an identifier; in an error the
 			 * same field holds the unused word or the next-hop
 			 * MTU. */
@@ -1192,7 +1198,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 
 		struct five_tuple ue_tcp = origin->peer;
 
-		nat_ct_mark_replied(&key, origin);
+		nat_ct_mark_replied(ctx, &key, origin);
 
 		x->daddr = ue_tcp.saddr;
 		x->l4_id = ue_tcp.sport;
@@ -1225,7 +1231,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 
 		struct five_tuple ue_udp = origin->peer;
 
-		nat_ct_mark_replied(&key, origin);
+		nat_ct_mark_replied(ctx, &key, origin);
 
 		x->daddr = ue_udp.saddr;
 		x->l4_id = ue_udp.sport;

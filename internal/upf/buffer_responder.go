@@ -273,6 +273,8 @@ func (b *BufferResponder) consume() {
 func (b *BufferResponder) handleRecord(sample []byte) {
 	hdr, payload, ok := parseDlBufferRecord(sample)
 	if !ok {
+		dlBufferEvicted.WithLabelValues(dlBufferEvictMalformed).Inc()
+
 		logger.UpfLog.Warn("malformed dl buffer record",
 			zap.Int("size", len(sample)))
 
@@ -316,6 +318,8 @@ func (b *BufferResponder) evictExpiredLocked(now time.Time) {
 			continue
 		}
 
+		dlBufferEvicted.WithLabelValues(dlBufferEvictTTL).Add(float64(len(q.packets)))
+
 		b.totalBytes -= q.bytes
 		delete(b.buffers, seid)
 	}
@@ -328,6 +332,8 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 		if !b.evictOldestLocked() {
 			return
 		}
+
+		dlBufferEvicted.WithLabelValues(dlBufferEvictByteBudget).Inc()
 	}
 
 	q, ok := b.buffers[seid]
@@ -338,6 +344,7 @@ func (b *BufferResponder) enqueue(seid uint64, qfi uint8, family uint8, pkt []by
 
 	for len(q.packets) >= maxPerQueuePackets {
 		b.dropHead(q)
+		dlBufferEvicted.WithLabelValues(dlBufferEvictQueueDepth).Inc()
 	}
 
 	q.packets = append(q.packets, queuedPacket{
@@ -458,6 +465,8 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 			b.mu.Unlock()
 
 			remaining := len(packets) - i
+			dlBufferEvicted.WithLabelValues(dlBufferEvictReinjectFailed).Add(float64(remaining))
+
 			logger.UpfLog.Warn("responder closed mid-drain, discarding remaining buffered packets",
 				logger.SEID(seid), zap.Int("count", remaining))
 
@@ -468,6 +477,8 @@ func (b *BufferResponder) drainQueue(seid uint64) {
 		b.mu.Unlock()
 
 		if err != nil {
+			dlBufferEvicted.WithLabelValues(dlBufferEvictReinjectFailed).Inc()
+
 			logger.UpfLog.Warn("failed to re-inject buffered packet",
 				logger.SEID(seid), zap.Error(err))
 
@@ -494,6 +505,8 @@ func (b *BufferResponder) Drop(seid uint64) {
 	if !ok {
 		return
 	}
+
+	dlBufferEvicted.WithLabelValues(dlBufferEvictSessionDrop).Add(float64(len(q.packets)))
 
 	b.totalBytes -= q.bytes
 	delete(b.buffers, seid)

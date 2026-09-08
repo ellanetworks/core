@@ -38,6 +38,7 @@
 #include "bpf/utils/routing.h"
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/nocp.h"
+#include "bpf/utils/ringbuf_lost.h"
 #include "bpf/utils/dl_buffer.h"
 
 #include "bpf/utils/pdr_maps.h"
@@ -253,8 +254,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		struct nocp notif = { .local_seid = pdr->local_seid,
 				      .pdr_id = pdr->pdr_id,
 				      .qfi = qer->qfi };
-		bpf_ringbuf_output(&nocp_map, (void *)&notif,
-				   sizeof(struct nocp), 0);
+		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
+			       RINGBUF_NOCP);
 
 		dl_buffer_capture(ctx, pdr, qer, ctx->ip4, 4);
 
@@ -447,8 +448,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		struct nocp notif = { .local_seid = pdr->local_seid,
 				      .pdr_id = pdr->pdr_id,
 				      .qfi = qer->qfi };
-		bpf_ringbuf_output(&nocp_map, (void *)&notif,
-				   sizeof(struct nocp), 0);
+		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
+			       RINGBUF_NOCP);
 
 		dl_buffer_capture(ctx, pdr, qer, ctx->ip6, 6);
 

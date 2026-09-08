@@ -39,6 +39,7 @@
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/rs_event.h"
 #include "bpf/utils/nocp.h"
+#include "bpf/utils/ringbuf_lost.h"
 #include "bpf/utils/dl_buffer.h"
 
 struct {
@@ -183,8 +184,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 		struct nocp notif = { .local_seid = dl_pdr->local_seid,
 				      .pdr_id = dl_pdr->pdr_id,
 				      .qfi = dl_qer->qfi };
-		bpf_ringbuf_output(&nocp_map, (void *)&notif,
-				   sizeof(struct nocp), 0);
+		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
+			       RINGBUF_NOCP);
 
 		dl_buffer_capture(ctx, dl_pdr, dl_qer,
 				  ctx->ip4 ? (const void *)ctx->ip4 :
@@ -416,8 +417,8 @@ handle_gtp_packet(struct packet_context *ctx)
 				};
 				__builtin_memcpy(&ev.ue_ipv6, &ctx->ip6->saddr,
 						 sizeof(struct in6_addr));
-				bpf_ringbuf_output(&rs_event_map, &ev,
-						   sizeof(ev), 0);
+				ringbuf_submit(&rs_event_map, &ev,
+					       sizeof(ev), RINGBUF_RS_EVENT);
 				PROFILE_END(PROF_N3_GTP_MANIP);
 				return drop_with(ctx,
 						 UPF_DROP_RS_INTERCEPTED);
