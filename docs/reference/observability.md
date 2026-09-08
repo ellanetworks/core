@@ -34,7 +34,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
 | app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
 | app_upf_bytes_total | The total number of bytes transmitted through the data plane, labeled by `direction` (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header. | Counter |
-| app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio; a value above the maximum means the occupancy bookkeeping has drifted. | Gauge |
+| app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio. | Gauge |
 | app_upf_bpf_map_max_entries | Capacity of a data plane BPF map, labeled by `map`, as declared by its `max_entries` attribute. | Gauge |
 | app_upf_nat_evictions_total | Conntrack entries the data plane found evicted under load and re-created, labeled by the `direction` of the packet that repaired the pair. | Counter |
 | app_upf_dl_buffer_capture_attempts_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`: `captured`, or why the capture was refused (`ring_full`, `too_large`, `gso`). | Counter |
