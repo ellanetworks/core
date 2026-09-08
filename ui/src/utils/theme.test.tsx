@@ -14,9 +14,11 @@ const Probe = () => {
       <span data-testid="primary">{t.palette.primary.main}</span>
       <span data-testid="link">{t.palette.link}</span>
       <span data-testid="subtle">{t.palette.backgroundSubtle}</span>
+      <span data-testid="canvas">{t.palette.background.default}</span>
+      <span data-testid="paper">{t.palette.background.paper}</span>
+      <span data-testid="text">{t.palette.text.primary}</span>
       <span data-testid="series0">{t.palette.chart.series[0]}</span>
       <span data-testid="protocol6">{t.palette.chart.protocols[6]}</span>
-      <span data-testid="protocolText">{t.palette.chart.protocolText}</span>
       <span data-testid="headerBg">{t.palette.DataGrid.headerBg}</span>
       <span data-testid="mode">{t.palette.mode}</span>
     </>
@@ -53,8 +55,22 @@ const contrast = (a: string, b: string) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-const DARK_DEFAULT = "#121212";
 const WCAG_AA = 4.5;
+
+const over = (hex: string, alpha: number, background: string) => {
+  const channel = (i: number) =>
+    Math.round(
+      alpha * parseInt(hex.slice(i, i + 2), 16) +
+        (1 - alpha) * parseInt(background.slice(i, i + 2), 16),
+    );
+  return `#${[1, 3, 5].map((i) => channel(i).toString(16).padStart(2, "0")).join("")}`;
+};
+
+const bestTextContrast = (background: string) =>
+  Math.max(
+    contrast("#FFFFFF", background),
+    contrast(over("#000000", 0.87, background), background),
+  );
 
 describe("theme color schemes", () => {
   it("resolves the light tokens", () => {
@@ -64,9 +80,11 @@ describe("theme color schemes", () => {
     expect(value("primary")).toBe(light.primary);
     expect(value("link")).toBe(light.link);
     expect(value("subtle")).toBe(light.backgroundSubtle);
+    expect(value("canvas")).toBe(light.backgroundDefault);
+    expect(value("paper")).toBe(light.backgroundPaper);
+    expect(value("text")).toBe(light.textPrimary);
     expect(value("series0")).toBe(light.chart.series[0]);
     expect(value("protocol6")).toBe(light.chart.protocols[6]);
-    expect(value("protocolText")).toBe(light.chart.protocolText);
     expect(value("headerBg")).toBe(light.backgroundSubtle);
   });
 
@@ -77,15 +95,21 @@ describe("theme color schemes", () => {
     expect(value("primary")).toBe(dark.primary);
     expect(value("link")).toBe(dark.link);
     expect(value("subtle")).toBe(dark.backgroundSubtle);
+    expect(value("canvas")).toBe(dark.backgroundDefault);
+    expect(value("paper")).toBe(dark.backgroundPaper);
+    expect(value("text")).toBe(dark.textPrimary);
     expect(value("series0")).toBe(dark.chart.series[0]);
     expect(value("protocol6")).toBe(dark.chart.protocols[6]);
-    expect(value("protocolText")).toBe(dark.chart.protocolText);
     expect(value("headerBg")).toBe(dark.backgroundSubtle);
   });
 });
 
 describe("dark palette contrast", () => {
-  const surfaces = [DARK_DEFAULT, dark.backgroundSubtle];
+  const surfaces = [
+    dark.backgroundDefault,
+    dark.backgroundPaper,
+    dark.backgroundSubtle,
+  ];
 
   it.each([
     ["primary", dark.primary],
@@ -102,25 +126,51 @@ describe("dark palette contrast", () => {
   it.each(Object.entries(dark.chart.protocols))(
     "keeps the protocol %s chip readable",
     (_protocol, color) => {
-      expect(contrast(color, dark.chart.protocolText)).toBeGreaterThanOrEqual(
-        WCAG_AA,
-      );
+      expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
     },
   );
 
   it.each(dark.chart.series.map((c, i) => [i, c] as const))(
-    "keeps chart series %s visible on the dark background",
+    "keeps chart series %s visible on the surfaces charts sit on",
     (_index, color) => {
-      expect(contrast(color, DARK_DEFAULT)).toBeGreaterThanOrEqual(WCAG_AA);
+      for (const surface of [dark.backgroundDefault, dark.backgroundPaper]) {
+        expect(contrast(color, surface)).toBeGreaterThanOrEqual(WCAG_AA);
+      }
     },
   );
 
-  it("keeps the uplink and downlink series visible", () => {
-    expect(contrast(dark.chart.uplink, DARK_DEFAULT)).toBeGreaterThanOrEqual(
-      WCAG_AA,
-    );
-    expect(contrast(dark.chart.downlink, DARK_DEFAULT)).toBeGreaterThanOrEqual(
-      WCAG_AA,
-    );
+  it("separates the dark surfaces from each other", () => {
+    expect(
+      contrast(dark.backgroundDefault, dark.backgroundPaper),
+    ).toBeGreaterThan(1.08);
+    expect(
+      contrast(dark.backgroundPaper, dark.backgroundSubtle),
+    ).toBeGreaterThan(1.2);
   });
+
+  it("keeps body text readable on every dark surface", () => {
+    for (const surface of surfaces) {
+      expect(contrast(dark.textPrimary, surface)).toBeGreaterThanOrEqual(7);
+    }
+  });
+
+  it("keeps the uplink and downlink series visible", () => {
+    for (const surface of [dark.backgroundDefault, dark.backgroundPaper]) {
+      expect(contrast(dark.chart.uplink, surface)).toBeGreaterThanOrEqual(
+        WCAG_AA,
+      );
+      expect(contrast(dark.chart.downlink, surface)).toBeGreaterThanOrEqual(
+        WCAG_AA,
+      );
+    }
+  });
+});
+
+describe("light palette contrast", () => {
+  it.each(Object.entries(light.chart.protocols))(
+    "keeps the protocol %s chip readable",
+    (_protocol, color) => {
+      expect(bestTextContrast(color)).toBeGreaterThanOrEqual(WCAG_AA);
+    },
+  );
 });

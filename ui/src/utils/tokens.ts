@@ -7,11 +7,14 @@ export interface Tokens {
   error: string;
   warning: string;
   link: string;
+  backgroundDefault: string;
+  backgroundPaper: string;
   backgroundSubtle: string;
+  textPrimary: string;
+  textSecondary: string;
   chart: {
     uplink: string;
     downlink: string;
-    protocolText: string;
     series: string[];
     protocols: Record<number, string>;
   };
@@ -23,11 +26,14 @@ export const light: Tokens = {
   error: "#C62828",
   warning: "#ED6C02",
   link: "#2B3FD4",
+  backgroundDefault: "#FFFFFF",
+  backgroundPaper: "#FFFFFF",
   backgroundSubtle: "#F5F5F5",
+  textPrimary: "rgba(0, 0, 0, 0.87)",
+  textSecondary: "rgba(0, 0, 0, 0.6)",
   chart: {
     uplink: "#FF9800",
     downlink: "#4254FB",
-    protocolText: "#FFFFFF",
     series: [
       "#2196F3",
       "#4CAF50",
@@ -54,36 +60,39 @@ export const light: Tokens = {
 };
 
 export const dark: Tokens = {
-  primary: "#89ABD2",
+  primary: "#5B9DFF",
   success: "#4ABF4B",
   error: "#EC9393",
   warning: "#F09142",
   link: "#97A3F7",
-  backgroundSubtle: "#1E1E1E",
+  backgroundDefault: "#14161B",
+  backgroundPaper: "#1C2027",
+  backgroundSubtle: "#2E333F",
+  textPrimary: "#E3E5EA",
+  textSecondary: "rgba(227, 229, 234, 0.66)",
   chart: {
     uplink: "#D99126",
-    downlink: "#6C77E5",
-    protocolText: "#0B0B0B",
+    downlink: "#7983E7",
     series: [
       "#3893DC",
       "#4CAE50",
       "#D99126",
-      "#DE4581",
-      "#C34BD7",
+      "#E35F93",
+      "#CA60DC",
       "#1FA1B2",
-      "#DD6640",
-      "#A27362",
-      "#648391",
+      "#DE6945",
+      "#AB8172",
+      "#718F9D",
       "#89C247",
-      "#6B7ACC",
+      "#7B88D1",
       "#CDDC38",
     ],
     protocols: {
       1: "#D99126",
       6: "#3893DC",
       17: "#4CAE50",
-      47: "#C34BD7",
-      58: "#DE4581",
+      47: "#CA60DC",
+      58: "#E35F93",
       132: "#1FA1B2",
     },
   },

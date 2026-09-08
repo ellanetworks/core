@@ -103,3 +103,22 @@ for (const { label, route, heading } of ROUTES) {
     await assertNoA11yViolations(page, label);
   });
 }
+
+test("the footer is the last thing on the page", async ({ page }) => {
+  await page.goto("/users");
+  await expect(page.getByRole("progressbar")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+
+  const gap = await page.evaluate(() => {
+    const footer = document.querySelector("footer");
+    const main = document.getElementById("main-content");
+    if (!footer || !main) return null;
+    return Math.round(
+      main.getBoundingClientRect().bottom -
+        footer.getBoundingClientRect().bottom,
+    );
+  });
+
+  expect(gap, "nothing may render below the footer").toBe(0);
+});

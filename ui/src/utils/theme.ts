@@ -8,7 +8,6 @@ import { dark, light, type Tokens } from "@/utils/tokens";
 export interface ChartPalette {
   uplink: string;
   downlink: string;
-  protocolText: string;
   series: string[];
   protocols: Record<number, string>;
 }
@@ -38,6 +37,14 @@ const paletteFor = (tokens: Tokens) => ({
   error: { main: tokens.error },
   warning: { main: tokens.warning },
   link: tokens.link,
+  background: {
+    default: tokens.backgroundDefault,
+    paper: tokens.backgroundPaper,
+  },
+  text: {
+    primary: tokens.textPrimary,
+    secondary: tokens.textSecondary,
+  },
   backgroundSubtle: tokens.backgroundSubtle,
   chart: tokens.chart,
   DataGrid: { headerBg: tokens.backgroundSubtle },

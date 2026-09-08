@@ -14,7 +14,6 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Typography,
   Menu,
   MenuItem,
 } from "@mui/material";
@@ -44,6 +43,7 @@ import {
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
+import ProductTitle from "@/components/ProductTitle";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -225,9 +225,7 @@ export default function DrawerLayout({
           )}
 
           <Logo width={50} height={50} />
-          <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
-            {PRODUCT.name}
-          </Typography>
+          <ProductTitle />
 
           <Box sx={{ flexGrow: 1 }} />
 
@@ -480,7 +478,7 @@ export default function DrawerLayout({
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
-          py: 3,
+          pt: 3,
         }}
       >
         <Toolbar />

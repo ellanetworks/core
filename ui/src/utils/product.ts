@@ -1,10 +1,20 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-export const PRODUCT = {
-  name: "Ella Core",
+export const DEFAULT_PRODUCT_NAME = "Ella Core";
+
+export const VENDOR = {
+  name: "Ella Networks",
   company: "Ella Networks Inc.",
-  logoAlt: "Ella Core Logo",
-  docsUrl: "https://docs.ellanetworks.com",
   websiteUrl: "https://ellanetworks.com",
 } as const;
+
+export const PRODUCT = {
+  name: DEFAULT_PRODUCT_NAME,
+  logoAlt: `${DEFAULT_PRODUCT_NAME} Logo`,
+  docsUrl: "https://docs.ellanetworks.com",
+};
+
+export const isRebranded = () => PRODUCT.name !== DEFAULT_PRODUCT_NAME;
+
+export const vendorAttribution = `Powered by ${VENDOR.name}`;

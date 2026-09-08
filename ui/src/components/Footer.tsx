@@ -3,7 +3,7 @@
 
 import { Box, Container, Typography, Link } from "@mui/material";
 import { MAX_WIDTH } from "@/utils/layout";
-import { PRODUCT } from "@/utils/product";
+import { VENDOR } from "@/utils/product";
 
 export default function Footer() {
   return (
@@ -28,16 +28,16 @@ export default function Footer() {
             gap: "6px",
           }}
         >
-          © 2026 {PRODUCT.company}
+          © 2026 {VENDOR.company}
           <span>·</span>
           <Link
-            href={PRODUCT.websiteUrl}
+            href={VENDOR.websiteUrl}
             target="_blank"
             rel="noopener noreferrer"
             color="textSecondary"
             underline="hover"
           >
-            {PRODUCT.websiteUrl.replace("https://", "")}
+            {VENDOR.websiteUrl.replace("https://", "")}
           </Link>
         </Typography>
       </Container>
