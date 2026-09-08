@@ -52,6 +52,10 @@ func startENBOpts(env scenarios.Env, datapath bool) (*s1enb.ENB, error) {
 	})
 }
 
+func awaitDownlinkReady() {
+	time.Sleep(scenarios.DatapathSettleDelay)
+}
+
 func wantsIPv6Probe(env scenarios.Env) bool {
 	return env.IPFamily() == scenarios.IPv6Only
 }
@@ -82,7 +86,7 @@ func handoverTunnelOpts(env scenarios.Env, res *s1enb.AttachResult, dlTEID uint3
 
 func awaitHandoverTunnelReady(env scenarios.Env, iface string) error {
 	if !wantsIPv6Probe(env) {
-		time.Sleep(500 * time.Millisecond)
+		awaitDownlinkReady()
 
 		return nil
 	}

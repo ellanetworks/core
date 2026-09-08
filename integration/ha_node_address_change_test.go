@@ -6,9 +6,10 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 const haFQDNComposeFile = "compose-fqdn.yaml"
@@ -18,9 +19,7 @@ const haFQDNComposeFile = "compose-fqdn.yaml"
 const rebindIPv4 = "10.100.0.123"
 
 func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

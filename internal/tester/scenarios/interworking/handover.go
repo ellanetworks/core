@@ -251,7 +251,7 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 		}
 	}
 
-	time.Sleep(datapathSettle)
+	time.Sleep(scenarios.DatapathSettleDelay)
 
 	if err := probe.Run(ctx, probe.ICMP, enbTunIface, env.PingDestination(), scenarios.DefaultProbePort, wantsIPv6Probe(env)); err != nil {
 		return sessionFacts{}, fmt.Errorf("ping over S1-U after the handover: %w", err)

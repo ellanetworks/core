@@ -6,10 +6,10 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHADrainResumeCycle drains a follower, resumes it,
@@ -17,9 +17,7 @@ import (
 // to catch state leaks across successive drains. Also asserts that
 // resuming an already-active node is a no-op.
 func TestIntegrationHADrainResumeCycle(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

@@ -5,12 +5,12 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GAttach brings up Ella Core, a real srsRAN eNB, and a real
@@ -21,9 +21,7 @@ import (
 // The UE's USIM (compose/srsenb/compose.yaml) matches the MME's hard-coded
 // subscriber (internal/mme/subscriber.go).
 func TestIntegration4GAttach(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G attach integration runs in IPv4 mode only")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -26,9 +27,7 @@ import (
 // path itself once the UE has arrived; the after-ping proves the AMF's path
 // switch handler reprogrammed the UPF downlink to the target gNB.
 func TestIntegration5GXnHandover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GXnHandover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -63,11 +62,7 @@ func TestIntegration5GXnHandover(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cleanupCancel()
 
-		for _, svc := range []string{"ella-core", "ella-core-tester"} {
-			if logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc); logErr == nil && t.Failed() {
-				t.Logf("=== %s logs ===\n%s", svc, logs)
-			}
-		}
+		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
 		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
 	})

@@ -185,7 +185,7 @@ func attachAndTunnelS1(e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface stri
 		return nil, fmt.Errorf("add GTP tunnel: %w", err)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	awaitDownlinkReady()
 
 	return &s1AttachResult{
 		ue:          ue,

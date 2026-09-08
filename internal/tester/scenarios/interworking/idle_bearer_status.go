@@ -179,7 +179,7 @@ func arriveOn5GSReportingBearerStatus(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, u *ue
 		return nil, fmt.Errorf("registration accept for the inter-system change: %w", err)
 	}
 
-	time.Sleep(datapathSettle)
+	time.Sleep(scenarios.DatapathSettleDelay)
 
 	return accept, nil
 }

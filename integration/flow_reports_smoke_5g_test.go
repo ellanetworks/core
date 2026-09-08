@@ -6,12 +6,12 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -21,9 +21,7 @@ import (
 // content. Batching the probes amortises the UPF's per-flow flush
 // latency across all three protocols.
 func TestIntegration5GFlowReportsSmoke(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	fp := familyParams(DetectIPFamily(), "gnb")
 

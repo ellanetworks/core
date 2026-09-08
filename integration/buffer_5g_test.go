@@ -5,11 +5,11 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -17,9 +17,7 @@ import (
 // TestIntegration5GBufferedDownlink runs the gnb buffered-downlink scenario.
 // TS 23.502 §4.2.3.3
 func TestIntegration5GBufferedDownlink(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	runBufferedSuite(t, "gnb/buffered_downlink")
 }

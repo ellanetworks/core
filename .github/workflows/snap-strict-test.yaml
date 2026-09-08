@@ -9,6 +9,7 @@ on:
 jobs:
   snap-build:
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -29,6 +30,7 @@ jobs:
       matrix:
         attach_mode: [xdp-generic, tcx]
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     steps:
       - name: Download the snap
         uses: actions/download-artifact@v8

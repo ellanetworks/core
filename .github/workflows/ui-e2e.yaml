@@ -9,6 +9,7 @@ on:
 jobs:
   ui-e2e:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
 
     steps:
       - name: Checkout

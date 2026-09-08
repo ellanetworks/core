@@ -4,17 +4,16 @@
 package integration_test
 
 import (
-	"os"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GNetworkRules runs the shared network-rule + flow-report suite
 // over 4G EPS bearers, asserting the UPF enforces every rule shape and records the
 // matching flow content across IPv4 and IPv6.
 func TestIntegration4GNetworkRules(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath4G)
 
 	runNetworkRulesAndFlowReports(t, "s1enb")
 }

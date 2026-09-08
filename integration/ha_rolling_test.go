@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 const (
@@ -26,9 +27,7 @@ const (
 )
 
 func TestIntegrationHARollingUpgrade(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.RollingUpgrade)
 
 	beginHATest(t)
 
