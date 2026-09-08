@@ -402,7 +402,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(rate(app_uplink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8) + (rate(app_downlink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8)",
+          "expr": "(rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\"}[$__rate_interval]) * 8) + (rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\"}[$__rate_interval]) * 8)",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
@@ -1604,7 +1604,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_uplink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8",
+          "expr": "rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\"}[$__rate_interval]) * 8",
           "interval": "1m",
           "legendFormat": "Uplink",
           "range": true,
@@ -1616,7 +1616,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_downlink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8",
+          "expr": "rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\"}[$__rate_interval]) * 8",
           "hide": false,
           "instant": false,
           "interval": "1m",

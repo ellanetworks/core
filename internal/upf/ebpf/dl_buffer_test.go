@@ -124,7 +124,12 @@ func TestDlBufferCaptureIPv4(t *testing.T) {
 		t.Error("no nocp notification: capture must never cost the page")
 	}
 
-	if got := obj.GetDlBufferCounters().Captured; got != 1 {
+	counters, ok := obj.GetDlBufferCounters()
+	if !ok {
+		t.Fatal("GetDlBufferCounters failed")
+	}
+
+	if got := counters.Captured; got != 1 {
 		t.Errorf("captured counter = %d, want 1", got)
 	}
 }

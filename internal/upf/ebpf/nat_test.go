@@ -1237,6 +1237,8 @@ func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 		t.Fatalf("reply with the NAT-side entry removed egressed on N3: %x", got)
 	}
 
+	before := natEvictions(t, f.obj, Uplink)
+
 	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
 	time.Sleep(100 * time.Millisecond)
 
@@ -1244,11 +1246,71 @@ func TestNATRepairEvictedNATSideEntry(t *testing.T) {
 		t.Fatalf("NAT-side entry not restored by the uplink packet: %v", err)
 	}
 
+	if got := natEvictions(t, f.obj, Uplink) - before; got != 1 {
+		t.Errorf("uplink nat_evictions rose by %d, want 1", got)
+	}
+
 	capFD = f.captureN3(t)
 	f.injectDownlink(t, reply)
 
 	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
 		t.Fatal("reply after pair repair did not egress on N3")
+	}
+}
+
+func natEvictions(t *testing.T, obj *BpfObjects, dir Direction) uint64 {
+	t.Helper()
+
+	counters, ok := GetDatapathCounters(obj)[dir]
+	if !ok {
+		t.Fatalf("no %s datapath counters", dir)
+	}
+
+	return counters.NatEvictions
+}
+
+func TestNATRepairEvictedUESideEntry(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415411
+		dlTEID = 0x4E415412
+		qfi    = 7
+		ueSP   = 1235
+		srvDP  = 80
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	ueKey := natFiveTuple(ueIP, serverIP, ueSP, srvDP, 6)
+
+	uplink := ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, nil))
+	reply := ethFrame(0x0800, ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, nil)))
+
+	f.injectUplink(t, uplinkGPDU(ulTEID, uplink))
+	time.Sleep(100 * time.Millisecond)
+
+	if err := f.obj.NatCt.Delete(&ueKey); err != nil {
+		t.Fatalf("delete UE-side entry: %v", err)
+	}
+
+	before := natEvictions(t, f.obj, Downlink)
+
+	capFD := f.captureN3(t)
+	f.injectDownlink(t, reply)
+
+	if captureMatching(capFD, time.Second, func(fr []byte) bool { return gtpInner(fr) != nil }) == nil {
+		t.Fatal("reply did not egress on N3 with only the NAT-side entry present")
+	}
+
+	if err := f.obj.NatCt.Lookup(&ueKey, new(N3N6EntrypointNatEntry)); err != nil {
+		t.Fatalf("UE-side entry not restored by the downlink packet: %v", err)
+	}
+
+	if got := natEvictions(t, f.obj, Downlink) - before; got != 1 {
+		t.Errorf("downlink nat_evictions rose by %d, want 1", got)
 	}
 }
 

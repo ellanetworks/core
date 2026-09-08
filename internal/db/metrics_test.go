@@ -157,7 +157,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	})
 
 	t.Run("GetIPAddressesTotal", func(t *testing.T) {
-		totalIPs, err := database.GetIPAddressesTotal()
+		totalIPs, err := database.GetIPAddressesTotal(context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't get total IP addresses: %s", err)
 		}
