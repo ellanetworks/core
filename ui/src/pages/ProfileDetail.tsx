@@ -42,6 +42,7 @@ import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const labelCellSx = {
   fontWeight: 600,
@@ -155,16 +156,14 @@ const ProfileDetail: React.FC = () => {
       {
         field: "session_ambr_uplink",
         headerName: "Session Bitrate Uplink",
-        description:
-          "Per-session uplink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description: `Per-session uplink bitrate cap (Session AMBR). Enforced by ${PRODUCT.name}.`,
         flex: 0.8,
         minWidth: 100,
       },
       {
         field: "session_ambr_downlink",
         headerName: "Session Bitrate Downlink",
-        description:
-          "Per-session downlink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description: `Per-session downlink bitrate cap (Session AMBR). Enforced by ${PRODUCT.name}.`,
         flex: 0.8,
         minWidth: 100,
       },

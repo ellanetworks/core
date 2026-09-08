@@ -44,7 +44,7 @@ import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
 const profileDescriptions: Record<string, string> = {
@@ -58,12 +58,6 @@ const algTooltips: Record<string, string> = {
   SNOW3G: "NAS security with SNOW 3G",
   AES: "NAS security with AES (AES-CTR ciphering / AES-CMAC integrity)",
 };
-
-const tableContainerSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-} as const;
 
 const Operator = () => {
   const theme = useTheme();
@@ -264,7 +258,7 @@ const Operator = () => {
       )}
 
       <Box sx={{ mt: 3 }}>
-        <TableContainer sx={tableContainerSx}>
+        <TableContainer sx={TABLE_CONTAINER_SX}>
           <Table>
             <TableBody>
               <TableRow>
@@ -574,7 +568,7 @@ const Operator = () => {
         </Stack>
 
         {!isLoading && operator?.homeNetworkKeys.length === 0 && (
-          <TableContainer sx={tableContainerSx}>
+          <TableContainer sx={TABLE_CONTAINER_SX}>
             <Table sx={{ tableLayout: "fixed" }}>
               <TableBody
                 sx={{
@@ -608,7 +602,7 @@ const Operator = () => {
         )}
 
         {isLoading && (
-          <TableContainer sx={tableContainerSx}>
+          <TableContainer sx={TABLE_CONTAINER_SX}>
             <Table>
               <TableBody>
                 {[1, 2].map((i) => (
@@ -633,7 +627,7 @@ const Operator = () => {
         )}
 
         {(operator?.homeNetworkKeys.length ?? 0) > 0 && (
-          <TableContainer sx={tableContainerSx}>
+          <TableContainer sx={TABLE_CONTAINER_SX}>
             <Table sx={{ tableLayout: "fixed" }}>
               <TableBody
                 sx={{

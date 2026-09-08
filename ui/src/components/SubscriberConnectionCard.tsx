@@ -104,13 +104,7 @@ const AlgorithmChip: React.FC<{
   return (
     <Chip
       size="small"
-      icon={
-        isInsecure ? (
-          <WarningAmberIcon
-            sx={{ fontSize: 14, color: "warning.contrastText" }}
-          />
-        ) : undefined
-      }
+      icon={isInsecure ? <WarningAmberIcon sx={{ fontSize: 14 }} /> : undefined}
       label={
         <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
           <Box component="span" sx={{ opacity: 0.85, fontWeight: 400 }}>
@@ -126,7 +120,8 @@ const AlgorithmChip: React.FC<{
         ...(isInsecure
           ? {
               backgroundColor: "warning.main",
-              color: "warning.contrastText",
+              color: "common.black",
+              "& .MuiChip-icon": { color: "common.black" },
             }
           : {
               backgroundColor: "success.main",

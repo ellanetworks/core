@@ -14,7 +14,6 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Typography,
   Menu,
   MenuItem,
 } from "@mui/material";
@@ -33,6 +32,10 @@ import {
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
   Person as PersonIcon,
+  Brightness6 as ThemeIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  Check as CheckIcon,
   Storage as StorageIcon,
   Lan as LanIcon,
   HelpCenter as SupportIcon,
@@ -40,18 +43,28 @@ import {
 } from "@mui/icons-material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
+import ProductTitle from "@/components/ProductTitle";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
+import { useColorScheme, useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
 import { logout } from "@/queries/auth";
+import { PRODUCT } from "@/utils/product";
 
 const drawerWidth = 250;
 
+const THEME_MODES = [
+  { value: "system", label: "System", Icon: ThemeIcon },
+  { value: "light", label: "Light", Icon: LightModeIcon },
+  { value: "dark", label: "Dark", Icon: DarkModeIcon },
+] as const;
+
 const drawerSelectedSx = {
+  "& .MuiListItemText-primary": { color: "primary.main" },
+
   "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },
@@ -118,6 +131,7 @@ export default function DrawerLayout({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
+  const { mode, setMode } = useColorScheme();
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -213,9 +227,7 @@ export default function DrawerLayout({
           )}
 
           <Logo width={50} height={50} />
-          <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
-            Ella Core
-          </Typography>
+          <ProductTitle />
 
           <Box sx={{ flexGrow: 1 }} />
 
@@ -241,6 +253,36 @@ export default function DrawerLayout({
               </ListItemIcon>
               <ListItemText primary="Profile" />
             </MenuItem>
+            <Divider />
+            <ListSubheader disableSticky role="presentation">
+              Theme
+            </ListSubheader>
+            {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role */}
+            <li role="group" aria-label="Theme">
+              {THEME_MODES.map(({ value, label, Icon }) => (
+                <MenuItem
+                  key={value}
+                  component="div"
+                  role="menuitemradio"
+                  aria-label={`${label} theme`}
+                  aria-checked={mode === value}
+                  selected={mode === value}
+                  onClick={() => {
+                    setMode(value);
+                    handleAccountClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <Icon fontSize="small" color="primary" />
+                  </ListItemIcon>
+                  <ListItemText primary={label} />
+                  {mode === value && (
+                    <CheckIcon fontSize="small" sx={{ ml: 2 }} />
+                  )}
+                </MenuItem>
+              ))}
+            </li>
+            <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" color="primary" />
@@ -380,7 +422,7 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component="a"
-                href="https://docs.ellanetworks.com"
+                href={PRODUCT.docsUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={handleNavClick}
@@ -445,7 +487,7 @@ export default function DrawerLayout({
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
-          py: 3,
+          pt: 3,
         }}
       >
         <Toolbar />

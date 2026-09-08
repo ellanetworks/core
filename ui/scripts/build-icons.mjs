@@ -50,10 +50,7 @@ function catShape(sourceSvg) {
   let shape = [[rings[0]]];
   for (let i = 1; i < rings.length; i++) shape = pc.xor(shape, [[rings[i]]]);
 
-  const band = pc.difference(
-    circlePoly(BAND.outer),
-    circlePoly(BAND.inner),
-  );
+  const band = pc.difference(circlePoly(BAND.outer), circlePoly(BAND.inner));
   const inBand = pc.intersection(shape, band);
   const area = (r) =>
     Math.abs(
@@ -151,7 +148,10 @@ async function rasterise(browser, svg, size, background) {
       `<img src="data:image/svg+xml;base64,${encoded}">`,
   );
   await page.waitForLoadState("networkidle");
-  const buffer = await page.screenshot({ type: "png", omitBackground: background === "transparent" });
+  const buffer = await page.screenshot({
+    type: "png",
+    omitBackground: background === "transparent",
+  });
   await page.close();
   return buffer;
 }

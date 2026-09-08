@@ -6,7 +6,22 @@ import { expect, type Page } from "@playwright/test";
 
 const ENFORCED_IMPACTS = new Set(["critical", "serious"]);
 
+async function settleAnimations(page: Page) {
+  await page
+    .waitForFunction(
+      () =>
+        document
+          .getAnimations()
+          .every((animation) => animation.playState !== "running"),
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(() => {});
+}
+
 export async function assertNoA11yViolations(page: Page, label: string) {
+  await settleAnimations(page);
+
   const { violations } = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();

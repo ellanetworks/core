@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { PRODUCT } from "@/utils/product";
 
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
@@ -98,8 +99,7 @@ const UserPage: React.FC = () => {
     [theme.palette.link],
   );
 
-  const descriptionText =
-    "Manage user accounts. Users can have different roles with varying levels of access to the Ella Core UI and API.";
+  const descriptionText = `Manage user accounts. Users can have different roles with varying levels of access to the ${PRODUCT.name} UI and API.`;
 
   return (
     <Box

@@ -260,7 +260,6 @@ export function occludedRing(cats) {
   );
 }
 
-
 export function polysToPath(polys) {
   return polys
     .map((poly) =>
@@ -275,4 +274,3 @@ export function polysToPath(polys) {
     )
     .join(" ");
 }
-

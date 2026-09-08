@@ -24,6 +24,7 @@ import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
+import { PRODUCT } from "@/utils/product";
 
 export default function RoutesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -73,8 +74,7 @@ export default function RoutesTab() {
     }
   };
 
-  const description =
-    "Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the node running Ella Core.";
+  const description = `Manage the routing table for subscriber traffic. Created routes are applied as kernel routes on the node running ${PRODUCT.name}.`;
 
   const columns: GridColDef<APIRoute>[] = useMemo(() => {
     return [

@@ -9,6 +9,7 @@ import {
   adminToken,
   ensureInitialized,
   ensureUser,
+  send,
 } from "./api";
 import { ROLES, ROLE_PASSWORD } from "./roles";
 
@@ -18,7 +19,7 @@ export const TOKEN_FILE = "e2e/.auth/admin-token.txt";
 setup("authenticate", async ({ request }) => {
   await ensureInitialized(request);
 
-  const response = await request.post("/api/v1/auth/login", {
+  const response = await send(request, "post", "/api/v1/auth/login", {
     data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
 

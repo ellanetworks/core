@@ -24,6 +24,7 @@ import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
+import { PRODUCT } from "@/utils/product";
 
 export default function SlicesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -79,8 +80,7 @@ export default function SlicesTab() {
     }
   };
 
-  const description =
-    "Network slices identify logical network partitions using a Slice/Service Type (SST) and an optional Slice Differentiator (SD). Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session.";
+  const description = `Network slices identify logical network partitions using a Slice/Service Type (SST) and an optional Slice Differentiator (SD). ${PRODUCT.name} uses slice information alongside the data network name to determine which policies apply to a subscriber's session.`;
 
   const columns: GridColDef<APISlice>[] = useMemo(() => {
     return [
