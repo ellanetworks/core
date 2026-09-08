@@ -397,7 +397,7 @@ func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 }
 
 // GetDlBufferCounters sums the per-CPU capture counters.
-func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
+func (bpfObjects *BpfObjects) GetDlBufferCounters() (DlBufferCounters, bool) {
 	var (
 		perCPU []N3N6EntrypointDlBufferCounters
 		total  DlBufferCounters
@@ -405,7 +405,7 @@ func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
 
 	if err := bpfObjects.DlBufferCountersMap.Lookup(uint32(0), &perCPU); err != nil {
 		logger.UpfLog.Warn("failed to fetch dl buffer counters", zap.Error(err))
-		return total
+		return total, false
 	}
 
 	for _, c := range perCPU {
@@ -415,7 +415,7 @@ func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
 		total.GSO += c.Gso
 	}
 
-	return total
+	return total, true
 }
 
 func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {

@@ -4,8 +4,10 @@
 package upf
 
 import (
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 var flowReportsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -45,13 +47,6 @@ func RegisterMetrics() {
 		dlBufferEvicted.WithLabelValues(reason)
 	}
 
-	upfBytesDesc := prometheus.NewDesc(
-		"app_upf_bytes_total",
-		"The total number of bytes going through the data plane, by direction (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header.",
-		[]string{"direction"},
-		nil,
-	)
-
 	dlBufferCaptureDesc := prometheus.NewDesc(
 		"app_upf_dl_buffer_capture_attempts_total",
 		"Downlink packets for an idle UE the data plane offered to the buffer, by outcome: captured, or the reason the capture was refused.",
@@ -60,15 +55,10 @@ func RegisterMetrics() {
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-			float64(ebpf.GetN3UplinkThroughputStats(bpfObjects)), "uplink")
-
-		ch <- prometheus.MustNewConstMetric(upfBytesDesc, prometheus.CounterValue,
-			float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects)), "downlink")
-	}))
-
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		c := bpfObjects.GetDlBufferCounters()
+		c, ok := bpfObjects.GetDlBufferCounters()
+		if !ok {
+			return
+		}
 
 		for _, entry := range []struct {
 			result string
@@ -124,6 +114,13 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	upfBytesDesc := prometheus.NewDesc(
+		"app_upf_bytes_total",
+		"The total number of bytes going through the data plane, by direction (uplink is N3 -> N6, downlink is N6 -> N3). This value includes the Ethernet header.",
+		[]string{"direction"},
+		nil,
+	)
+
 	natEvictionsDesc := prometheus.NewDesc(
 		"app_upf_nat_evictions_total",
 		"Conntrack entries the data plane found evicted under load and re-created, by the direction of the packet that repaired the pair.",
@@ -141,7 +138,8 @@ func RegisterMetrics() {
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		lost, err := ebpf.RingbufLost(bpfObjects)
 		if err != nil {
-			ch <- prometheus.NewInvalidMetric(ringbufLostDesc, err)
+			logger.UpfLog.Warn("failed to fetch UPF ringbuf lost counters", zap.Error(err))
+
 			return
 		}
 
@@ -184,44 +182,35 @@ func RegisterMetrics() {
 
 			ch <- prometheus.MustNewConstMetric(natEvictionsDesc,
 				prometheus.CounterValue, float64(counters.NatEvictions), string(dir))
+
+			ch <- prometheus.MustNewConstMetric(upfBytesDesc,
+				prometheus.CounterValue, float64(counters.Bytes), string(dir))
 		}
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		n3 := ebpf.GetN3RouteStats(bpfObjects)
-		n6 := ebpf.GetN6RouteStats(bpfObjects)
-
-		for _, entry := range []struct {
-			direction string
-			stats     ebpf.RouteStats
-		}{
-			{"uplink", n3},
-			{"downlink", n6},
-		} {
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.direction, "success")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.direction, "no_neigh")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.direction, "blackhole")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.direction, "unreachable")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.direction, "prohibit")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.direction, "no_src_addr")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.direction, "frag_needed")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.direction, "not_fwded")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.direction, "fwd_disabled")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.direction, "unsupp_lwt")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.direction, "error_ipv4")
-
-			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.direction, "error_ipv6")
+		for dir, stats := range ebpf.GetRouteStats(bpfObjects) {
+			for _, entry := range []struct {
+				result string
+				value  uint64
+			}{
+				{"success", stats.FibSuccess},
+				{"no_neigh", stats.FibNoNeigh},
+				{"blackhole", stats.FibBlackhole},
+				{"unreachable", stats.FibUnreachable},
+				{"prohibit", stats.FibProhibit},
+				{"no_src_addr", stats.FibNoSrcAddr},
+				{"frag_needed", stats.FibFragNeeded},
+				{"not_fwded", stats.FibNotFwded},
+				{"fwd_disabled", stats.FibFwdDisabled},
+				{"unsupp_lwt", stats.FibUnsuppLwt},
+				{"error_ipv4", stats.FibError4},
+				{"error_ipv6", stats.FibError6},
+			} {
+				ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc,
+					prometheus.CounterValue, float64(entry.value), string(dir), entry.result)
+			}
 		}
 	}))
 
@@ -270,7 +259,13 @@ func RegisterMetrics() {
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		stats, err := ebpf.ReadProfilingStats(bpfObjects)
-		if err != nil || stats == nil {
+		if err != nil {
+			logger.UpfLog.Warn("failed to fetch UPF profiling stats", zap.Error(err))
+
+			return
+		}
+
+		if stats == nil {
 			return
 		}
 

@@ -611,7 +611,7 @@ groups:
               to: 0
             datasourceUid: mimir
             model:
-              expr: sum(app_connected_radios) > 0
+              expr: sum(app_connected_radios)
               instant: true
               refId: B
           - refId: C
