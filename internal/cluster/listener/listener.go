@@ -340,18 +340,53 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	}
 
 	l.trackConn(tlsConn)
-	defer l.untrackConn(tlsConn)
 
 	if err := verifyConnection(l.cfg.Pin)(tlsConn.ConnectionState()); err != nil {
 		logger.RaftLog.Warn("Cluster connection rejected after handshake",
 			zap.String("remote", conn.RemoteAddr().String()),
 			zap.Error(err))
+		l.untrackConn(tlsConn)
+
 		_ = conn.Close()
 
 		return
 	}
 
-	handler(conn)
+	handler(&trackedConn{Conn: tlsConn, ln: l})
+}
+
+// trackedConn is the connection handed to an ALPN handler. Handlers own
+// the connection past the point where dispatch returns — they hand it to
+// a stream layer or an HTTP server — so the listener cannot untrack on
+// dispatch return without losing its handle on every live session.
+// Closing untracks instead, which keeps l.conns a map of the connections
+// CloseByPeerFingerprint must still be able to tear down.
+type trackedConn struct {
+	*tls.Conn
+
+	ln   *Listener
+	once sync.Once
+}
+
+func (c *trackedConn) Close() error {
+	c.once.Do(func() { c.ln.untrackConn(c.Conn) })
+
+	return c.Conn.Close()
+}
+
+// TLSConn returns the cluster TLS connection underlying c, unwrapping
+// the connection type the listener hands to ALPN handlers. The second
+// return is false for a connection that did not come from the cluster
+// listener.
+func TLSConn(c net.Conn) (*tls.Conn, bool) {
+	switch conn := c.(type) {
+	case *trackedConn:
+		return conn.Conn, true
+	case *tls.Conn:
+		return conn, true
+	default:
+		return nil, false
+	}
 }
 
 // trackConn registers a post-handshake connection so
