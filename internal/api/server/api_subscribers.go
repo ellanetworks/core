@@ -38,12 +38,12 @@ type UpdateSubscriberParams struct {
 }
 
 type SubscriberStatus struct {
-	Registered       bool     `json:"registered"`
-	ConnectionState  string   `json:"connection_state,omitempty"`
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	NumSessions      int      `json:"num_sessions"`
-	LastSeenAt       string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	Registered      bool     `json:"registered"`
+	ConnectionState string   `json:"connection_state,omitempty"`
+	Systems         []string `json:"systems,omitempty"`
+	NumSessions     int      `json:"num_sessions"`
+	LastSeenAt      string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
 }
 
 type Subscriber struct {
@@ -185,9 +185,9 @@ func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool 
 	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
 }
 
-// accessView is what one access — 4G or 5G — knows about a subscriber.
+// accessView is what one system — 4G or 5G — knows about a subscriber.
 type accessView struct {
-	rat           string
+	system        string
 	present       bool
 	registered    bool
 	connected     bool
@@ -200,7 +200,7 @@ func (v accessView) newerThan(other accessView) bool {
 }
 
 type mergedAccess struct {
-	RATs          []string
+	Systems       []string
 	Registered    bool
 	Connected     bool
 	LastSeenAt    time.Time
@@ -223,7 +223,7 @@ func mergeAccesses(views ...accessView) mergedAccess {
 			continue
 		}
 
-		merged.RATs = append(merged.RATs, v.rat)
+		merged.Systems = append(merged.Systems, v.system)
 		merged.Registered = merged.Registered || v.registered
 		merged.Connected = merged.Connected || v.connected
 
@@ -393,23 +393,23 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 			merged := mergeAccesses(
 				accessView{
-					rat: "4G", present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
-					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
-					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
-				},
-				accessView{
-					rat: "5G", present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
+					system: System5GS, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
 					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
+				},
+				accessView{
+					system: SystemEPS, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
+					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
+					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
 				},
 			)
 
 			subscriberStatus := SubscriberStatus{
-				Registered:       merged.Registered,
-				ConnectionState:  connectionState(on5G || on4G, merged.Connected),
-				RadioAccessTypes: merged.RATs,
-				NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
-				LastSeenRadio:    merged.LastSeenRadio,
+				Registered:      merged.Registered,
+				ConnectionState: connectionState(on5G || on4G, merged.Connected),
+				Systems:         merged.Systems,
+				NumSessions:     mme4G.NumSessions + amf5G.NumSessions,
+				LastSeenRadio:   merged.LastSeenRadio,
 			}
 
 			if !merged.LastSeenAt.IsZero() {

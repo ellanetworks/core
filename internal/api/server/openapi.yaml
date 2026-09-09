@@ -3911,15 +3911,16 @@ components:
             `registered` (TS 23.501 §5.3.3.2.2, TS 23.401 §4.6.1) — a device still
             registering is "connected" with `registered` false. Omitted when the core
             holds no context for the device.
-        radio_access_types:
+        systems:
           type: array
           items:
             type: string
-            enum: ["4G", "5G"]
+            enum: ["5GS", "EPS"]
           description: >-
-            Every access the subscriber is currently registered on. Usually one,
-            but a device moving between 4G and 5G holds both while it transfers
-            its sessions one at a time. Omitted if not connected.
+            Every system the subscriber is currently registered on, ordered 5G
+            first, matching a registration's `system` on the get-single response.
+            Usually one, but a device moving between 4G and 5G holds both while it
+            transfers its sessions one at a time. Omitted if not connected.
         num_sessions:
           type: integer
           description: >-

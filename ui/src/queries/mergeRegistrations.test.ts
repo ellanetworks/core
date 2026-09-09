@@ -57,14 +57,14 @@ describe("mergeRegistrations", () => {
 
     expect(merged.registered).toBe(false);
     expect(merged.connection_state).toBeUndefined();
-    expect(merged.radio_access_types).toEqual([]);
+    expect(merged.systems).toEqual([]);
     expect(merged.imei).toBe("");
     expect(merged.last_seen_radio).toBeUndefined();
   });
 
-  it("labels a 5GS registration 5G and an EPS one 4G", () => {
-    expect(mergeRegistrations([on5GS]).radio_access_types).toEqual(["5G"]);
-    expect(mergeRegistrations([onEPS]).radio_access_types).toEqual(["4G"]);
+  it("reports the system each registration belongs to", () => {
+    expect(mergeRegistrations([on5GS]).systems).toEqual(["5GS"]);
+    expect(mergeRegistrations([onEPS]).systems).toEqual(["EPS"]);
   });
 
   it("pairs the serving radio with that registration's algorithms", () => {
@@ -105,7 +105,7 @@ describe("mergeRegistrations", () => {
 
     expect(merged.registered).toBe(false);
     expect(merged.connection_state).toBeUndefined();
-    expect(merged.radio_access_types).toEqual([]);
+    expect(merged.systems).toEqual([]);
     expect(merged.last_seen_radio).toBe("enb-1");
     expect(merged.last_seen_at).toBe(newer);
   });
@@ -117,7 +117,7 @@ describe("mergeRegistrations", () => {
     ]);
 
     expect(merged.registered).toBe(true);
-    expect(merged.radio_access_types).toEqual(["5G"]);
+    expect(merged.systems).toEqual(["5GS"]);
     expect(merged.last_seen_radio).toBe("gnb-1");
     expect(merged.last_seen_at).toBe(older);
   });

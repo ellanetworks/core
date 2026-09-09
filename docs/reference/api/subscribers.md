@@ -37,7 +37,7 @@ This path returns the list of network subscribers, ordered by IMSI.
                 "status": {
                     "registered": true,
                     "connection_state": "connected",
-                    "radio_access_types": ["5G"],
+                    "systems": ["5GS"],
                     "num_sessions": 1,
                     "last_seen_at": "2026-03-16T12:34:56Z",
                     "last_seen_radio": "gNB-1"

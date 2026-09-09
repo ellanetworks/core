@@ -11,7 +11,7 @@ export type ConnectionState = "idle" | "connected";
 export type SubscriberListStatus = {
   registered?: boolean;
   connection_state?: ConnectionState;
-  radio_access_types?: string[];
+  systems?: System[];
   num_sessions?: number;
   last_seen_at?: string;
   last_seen_radio?: string;
@@ -55,7 +55,7 @@ export type Registration = {
 export type SubscriberDetailStatus = {
   registered: boolean;
   connection_state?: ConnectionState;
-  radio_access_types: string[];
+  systems: System[];
   imei: string;
   ciphering_algorithm: string;
   integrity_algorithm: string;
@@ -102,9 +102,7 @@ export function mergeRegistrations(
         : present.some((r) => r.connection_state === "connected")
           ? "connected"
           : "idle",
-    radio_access_types: present.map(
-      (r) => SYSTEM_ACCESS_LABELS[r.system] ?? r.system,
-    ),
+    systems: present.map((r) => r.system),
     imei: present.map((r) => r.imei ?? "").find(Boolean) ?? "",
     ciphering_algorithm: serving?.ciphering_algorithm ?? "",
     integrity_algorithm: serving?.integrity_algorithm ?? "",

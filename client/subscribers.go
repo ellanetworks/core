@@ -35,12 +35,12 @@ type DeleteSubscriberOptions struct {
 
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
-	Registered       bool     `json:"registered"`
-	ConnectionState  string   `json:"connection_state,omitempty"`
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	NumSessions      int      `json:"num_sessions"`
-	LastSeenAt       string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	Registered      bool     `json:"registered"`
+	ConnectionState string   `json:"connection_state,omitempty"`
+	Systems         []string `json:"systems,omitempty"`
+	NumSessions     int      `json:"num_sessions"`
+	LastSeenAt      string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
 }
 
 // Subscriber is the summary form returned by ListSubscribers.

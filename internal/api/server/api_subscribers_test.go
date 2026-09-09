@@ -44,12 +44,12 @@ type CreateSubscriberSuccessResponse struct {
 
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
-	Registered       bool     `json:"registered"`
-	ConnectionState  string   `json:"connection_state,omitempty"`
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	NumSessions      int      `json:"num_sessions"`
-	LastSeenAt       string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	Registered      bool     `json:"registered"`
+	ConnectionState string   `json:"connection_state,omitempty"`
+	Systems         []string `json:"systems,omitempty"`
+	NumSessions     int      `json:"num_sessions"`
+	LastSeenAt      string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
