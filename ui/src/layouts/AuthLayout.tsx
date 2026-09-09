@@ -26,7 +26,16 @@ export default function AuthLayout() {
             </Toolbar>
           </AppBar>
 
-          <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 3,
+              minHeight: "100vh",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <Toolbar />
             <Outlet />
           </Box>
