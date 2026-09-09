@@ -32,3 +32,9 @@
     color: #2979ff !important;
     font-weight: 700;
 }
+
+/* Material renders the header logo at 1.2rem; the mark needs more room to read. */
+.md-header__button.md-logo :is(img, svg) {
+  height: 2rem;
+  width: 2rem;
+}

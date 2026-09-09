@@ -11,5 +11,7 @@ export default function Logo({
   width?: number;
   height?: number;
 }) {
-  return <img src="/logo.svg" alt={logoAlt()} width={width} height={height} />;
+  return (
+    <img src="/logo-mark.svg" alt={logoAlt()} width={width} height={height} />
+  );
 }
