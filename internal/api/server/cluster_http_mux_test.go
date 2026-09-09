@@ -5,11 +5,9 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -127,80 +125,6 @@ func newLeaderTestDB(t *testing.T) *db.Database {
 	}
 
 	return testDB
-}
-
-func TestDrainLocalSideEffects_NoDeps(t *testing.T) {
-	// Clear any previously-set deps so this test sees the pre-Upgrade state.
-	clusterSideEffectDeps.Store(nil)
-
-	handler := DrainLocalSideEffects()
-
-	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, "/cluster/internal/drain-side-effects", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 when deps not installed, got %d", w.Code)
-	}
-
-	if !strings.Contains(w.Body.String(), "dependencies not yet installed") {
-		t.Errorf("expected deps-missing message, got %s", w.Body.String())
-	}
-}
-
-func TestResumeLocalSideEffects_NoDeps(t *testing.T) {
-	clusterSideEffectDeps.Store(nil)
-
-	handler := ResumeLocalSideEffects()
-
-	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, "/cluster/internal/resume-side-effects", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 when deps not installed, got %d", w.Code)
-	}
-}
-
-func TestDrainLocalSideEffects_HappyPath(t *testing.T) {
-	// AMF nil is acceptable (notifyRANsUnavailable treats nil as a no-op);
-	// BGP nil is also acceptable. With both nil, the handler still succeeds
-	// and reports zero notifications / bgpStopped=false.
-	SetClusterSideEffectDeps(ClusterSideEffectDeps{AMF: nil, BGP: nil})
-
-	t.Cleanup(func() { clusterSideEffectDeps.Store(nil) })
-
-	handler := DrainLocalSideEffects()
-
-	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, "/cluster/internal/drain-side-effects", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
-	}
-
-	var env struct {
-		Result DrainSideEffectsResponse `json:"result"`
-	}
-
-	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-
-	if env.Result.RANsNotified != 0 {
-		t.Errorf("expected 0 RANs notified with nil AMF, got %d", env.Result.RANsNotified)
-	}
-
-	if env.Result.BGPStopped {
-		t.Errorf("expected bgpStopped=false with nil BGP, got true")
-	}
 }
 
 func TestRemovedNodeFence_MissingPeerIdentity(t *testing.T) {

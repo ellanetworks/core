@@ -56,7 +56,9 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	tais, outBytes, accepted, reason, err := ngSetupOutcomeFor(req, operatorInfo, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
+	advertisedCapacity := amfInstance.RelativeCapacity()
+
+	tais, outBytes, accepted, reason, err := ngSetupOutcomeFor(req, operatorInfo, snssaiList, amfInstance.Name, advertisedCapacity)
 	if err != nil {
 		// §8.7.1.3 obliges an answer whenever the AMF cannot accept the setup,
 		// which includes being unable to build its own response.
@@ -96,7 +98,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// ran.RanID != nil guard gates all other NGAP handlers. The claim precedes
 	// the response because evicting a duplicate association aborts it, and the
 	// answer must not go out while the superseded one is still live.
-	evicted := amfInstance.ClaimRanID(ran, req.GlobalRANNodeID)
+	evicted := amfInstance.ClaimRanID(ran, req.GlobalRANNodeID, advertisedCapacity)
 	if evicted != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
 			zap.String("evicted_remote", amf.AddrString(evicted.RemoteAddr())),
@@ -136,7 +138,7 @@ func sendNGSetupProtocolFailure(ctx context.Context, ran *amf.Radio, ase *ngap.A
 // served TAI, otherwise an NG Setup Failure (TS 38.413 §8.7.1). reason is a
 // human-readable rejection summary, empty when accepted; tais is what the gNB
 // broadcasts, which the caller commits to the Radio only on accept.
-func ngSetupOutcomeFor(req *ngap.NGSetupRequest, operatorInfo *amf.OperatorInfo, snssaiList []models.Snssai, amfName string, relativeCapacity int64) (tais []amf.SupportedTAI, out []byte, accepted bool, reason string, err error) {
+func ngSetupOutcomeFor(req *ngap.NGSetupRequest, operatorInfo *amf.OperatorInfo, snssaiList []models.Snssai, amfName string, relativeCapacity uint8) (tais []amf.SupportedTAI, out []byte, accepted bool, reason string, err error) {
 	tais = supportedTAIs(req.SupportedTAList)
 
 	if cause, ok := servedTAICause(tais, operatorInfo); !ok {
@@ -247,7 +249,7 @@ func anySliceOverlap(tais []amf.SupportedTAI, operatorSlices []models.Snssai) bo
 	return false
 }
 
-func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, relativeCapacity int64) (*ngap.NGSetupResponse, error) {
+func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, relativeCapacity uint8) (*ngap.NGSetupResponse, error) {
 	if guami == nil {
 		return nil, fmt.Errorf("operator has no GUAMI")
 	}
@@ -271,7 +273,7 @@ func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfNa
 	return &ngap.NGSetupResponse{
 		AMFName:             amfName,
 		ServedGUAMIList:     ngap.ServedGUAMIList{{GUAMI: g}},
-		RelativeAMFCapacity: ngap.Ptr(uint8(relativeCapacity)),
+		RelativeAMFCapacity: ngap.Ptr(relativeCapacity),
 		PLMNSupportList:     ngap.PLMNSupportList{{PLMNIdentity: g.PLMNIdentity, SliceSupportList: slices}},
 	}, nil
 }

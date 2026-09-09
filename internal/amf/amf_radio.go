@@ -44,6 +44,10 @@ type Radio struct {
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
 	Log            *zap.Logger
+
+	advertisedCapacity   *uint8
+	retryNotBefore       time.Time
+	guamiUnavailableSent bool
 }
 
 // UpdateRadioName sets a radio's RAN node name under the registry lock, so a

@@ -51,6 +51,7 @@ const (
 	CauseRadioNetworkResourceOptimisationHandover      = 18 // resource-optimisation-handover
 	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
+	CauseRadioNetworkLoadBalancingTAURequired          = 22 // load-balancing-tau-required
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
 	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
 	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure

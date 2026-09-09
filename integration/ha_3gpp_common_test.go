@@ -33,6 +33,12 @@ import (
 func runHA3GPPFailover(t *testing.T, scenario string) {
 	t.Helper()
 
+	runHA3GPPScenario(t, scenario, nil)
+}
+
+func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.Context, leader *client.Client, leaderNodeID int) error) {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
@@ -224,8 +230,19 @@ func runHA3GPPFailover(t *testing.T, scenario string) {
 	// an SCTP ABORT (no handshake needed) as it reaps Core's sockets.
 	// The tester's blocked SCTPRead unblocks with io.EOF within ms,
 	// which drives the failover path.
-	if err := composeKill(ctx, composeDir, composeFile, leaderService); err != nil {
-		t.Fatalf("kill %s: %v", leaderService, err)
+	if onMarker == nil {
+		if err := composeKill(ctx, composeDir, composeFile, leaderService); err != nil {
+			t.Fatalf("kill %s: %v", leaderService, err)
+		}
+	} else {
+		leaderNodeID, err := nodeIDOf(ctx, nodeClients[leaderIdx])
+		if err != nil {
+			t.Fatalf("resolve leader node id: %v", err)
+		}
+
+		if err := onMarker(ctx, haClient, leaderNodeID); err != nil {
+			t.Fatalf("post-marker action: %v", err)
+		}
 	}
 
 	select {
@@ -591,4 +608,17 @@ func (w *markerWriter) Write(p []byte) (int, error) {
 	}
 
 	return len(p), nil
+}
+
+func nodeIDOf(ctx context.Context, c *client.Client) (int, error) {
+	status, err := c.GetStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get status: %w", err)
+	}
+
+	if status.Cluster == nil {
+		return 0, fmt.Errorf("node reports no cluster status")
+	}
+
+	return status.Cluster.NodeID, nil
 }

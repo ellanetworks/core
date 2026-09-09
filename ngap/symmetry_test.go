@@ -99,6 +99,9 @@ var renamedFiles = map[string]string{
 	"ran_config_update.go":      "enb_config_update.go",
 	"ran_config_update_test.go": "enb_config_update_test.go",
 
+	"amf_config_update.go":      "mme_config_update.go",
+	"amf_config_update_test.go": "mme_config_update_test.go",
+
 	// GUAMI replaces GUMMEI and is bit-string rather than octet shaped
 	// (TS 38.413 §9.3.3.3).
 	"ie_guami.go": "ie_gummei.go",

@@ -71,7 +71,7 @@ func TestLastSeenRadioFollowsARename(t *testing.T) {
 	conn := &sctp.SCTPConn{}
 	radio := newRadioForTest(amfInstance, conn, "gnb-a")
 	amfInstance.SetRadioForTest(conn, radio)
-	amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"))
+	amfInstance.ClaimRanID(radio, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
@@ -127,12 +127,12 @@ func TestLastSeenRadioFollowsAnXnPathSwitch(t *testing.T) {
 	sourceConn := &sctp.SCTPConn{}
 	source := newRadioForTest(amfInstance, sourceConn, "gnb-a")
 	amfInstance.SetRadioForTest(sourceConn, source)
-	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"))
+	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 
 	targetConn := &sctp.SCTPConn{}
 	target := newRadioForTest(amfInstance, targetConn, "gnb-b")
 	amfInstance.SetRadioForTest(targetConn, target)
-	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"))
+	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"), amf.DefaultRelativeCapacity)
 
 	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
@@ -200,12 +200,12 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 	sourceConn := &sctp.SCTPConn{}
 	source := newRadioForTest(amfInstance, sourceConn, "gnb-a")
 	amfInstance.SetRadioForTest(sourceConn, source)
-	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"))
+	amfInstance.ClaimRanID(source, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity)
 
 	targetConn := &sctp.SCTPConn{}
 	target := newRadioForTest(amfInstance, targetConn, "gnb-b")
 	amfInstance.SetRadioForTest(targetConn, target)
-	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"))
+	amfInstance.ClaimRanID(target, gnbGlobalRANNodeID(t, "ABCDE2"), amf.DefaultRelativeCapacity)
 
 	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {

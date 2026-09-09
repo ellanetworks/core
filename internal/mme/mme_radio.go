@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -40,6 +41,11 @@ type Radio struct {
 	// Log carries the eNB's RAN address for node-level correlation. Keyed by the
 	// immutable SCTP address, so it never goes stale.
 	Log *zap.Logger
+
+	advertisedCapacity      *uint8
+	retryNotBefore          time.Time
+	configUpdateOutstanding bool
+	configUpdateGuard       guard.Guard
 }
 
 // SupportedTAI is a Tracking Area Identity an eNB broadcasts: a served PLMN paired
@@ -215,12 +221,13 @@ func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
 // retain them (TS 36.413 §8.7.3.1), and Ella Core never offers UE retention. An
 // eNB repeating S1 Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the eNB has already forgotten.
-func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
+func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity uint8) {
 	id := ENBID(g)
 
 	m.mu.Lock()
 
 	radio.id = id
+	radio.advertisedCapacity = &advertisedCapacity
 
 	var stale S1APWriter
 
@@ -344,11 +351,22 @@ func (r *Radio) BindMMEForTest(m *MME) {
 func (m *MME) DisconnectRadio(conn *sctp.SCTPConn) {
 	m.mu.Lock()
 
+	var dropped *Radio
+
 	if radio, ok := m.reg.Radio(conn); ok {
 		m.reg.Disconnect(conn, radio)
+
+		dropped = radio
+		radio.advertisedCapacity = nil
+		radio.retryNotBefore = time.Time{}
+		radio.configUpdateOutstanding = false
 	}
 
 	m.mu.Unlock()
+
+	if dropped != nil {
+		dropped.configUpdateGuard.Stop()
+	}
 
 	m.reclaimUEsOnConnLoss(conn)
 }
@@ -433,6 +451,13 @@ type s1Release struct {
 	// pair selects the UE-S1AP-ID alternative: the full pair for a prepared target, or
 	// the MME-UE-S1AP-ID alone for a still-preparing target (no eNB-UE-S1AP-ID yet).
 	pair bool
+}
+
+func (m *MME) ConnectedRadios() []*Radio {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.reg.Connected()
 }
 
 func (m *MME) CountRadios() int {
