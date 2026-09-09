@@ -565,12 +565,20 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 
 		expiredKeys := natExpiredKeys(snapshot, nowNs, complete)
 		if len(expiredKeys) == 0 {
+			if complete {
+				u.se.BpfObjects.SetOccupancy(ebpf.MapNatCt, snapshotSize)
+			}
+
 			continue
 		}
 
 		count, err := u.se.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
+		}
+
+		if complete {
+			u.se.BpfObjects.SetOccupancy(ebpf.MapNatCt, snapshotSize-count)
 		}
 
 		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
@@ -917,6 +925,8 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 		expiredFlows []flowReport
 		cursor       bpf.MapBatchCursor
 		dropped      int
+		scanned      int
+		complete     bool
 	)
 
 	// The batch cursor is a bucket index. Iterate() resumes from a key, and
@@ -924,6 +934,8 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	// re-yields a prefix of the map and reports those flows twice.
 	for {
 		n, err := u.se.BpfObjects.FlowStats.BatchLookup(&cursor, keys, values, nil)
+
+		scanned += n
 
 		for i := range n {
 			value := values[i]
@@ -934,7 +946,8 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 		}
 
 		if err != nil {
-			if !errors.Is(err, bpf.ErrKeyNotExist) {
+			complete = errors.Is(err, bpf.ErrKeyNotExist)
+			if !complete {
 				logger.UpfLog.Warn("Flow entry scan failed", zap.Error(err))
 			}
 
@@ -949,12 +962,20 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	}
 
 	if len(expiredKeys) == 0 {
+		if complete {
+			u.se.BpfObjects.SetOccupancy(ebpf.MapFlowStats, scanned)
+		}
+
 		return
 	}
 
 	// Delete from the BPF map immediately so the kernel can reuse the slots
 	// as fast as possible, before we spend time forwarding reports.
 	count := u.deleteFlowKeys(expiredKeys)
+
+	if complete {
+		u.se.BpfObjects.SetOccupancy(ebpf.MapFlowStats, scanned-count)
+	}
 
 	logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
 
@@ -970,7 +991,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	}
 
 	if dropped > 0 {
-		flowReportsDropped.Add(float64(dropped))
+		flowReportsDropped.WithLabelValues(flowReportDropChannelFull).Add(float64(dropped))
 		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
 	}
 }

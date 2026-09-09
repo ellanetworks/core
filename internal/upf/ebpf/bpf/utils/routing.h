@@ -22,6 +22,7 @@
 #pragma once
 
 #include "bpf/utils/flow.h"
+#include "bpf/utils/ringbuf_lost.h"
 #include "bpf/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_endian.h>
@@ -220,7 +221,8 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 
 		__builtin_memcpy(ev.addr, fib_params.ipv6_dst,
 				 sizeof(fib_params.ipv6_dst));
-		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
+		ringbuf_submit(&no_neigh_map, &ev, sizeof(ev),
+			       RINGBUF_NO_NEIGH);
 		statistic->fib_lookup_ip4_no_neigh += 1;
 
 		return drop_with(ctx, UPF_DROP_FIB_NO_NEIGH);
@@ -322,7 +324,8 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 
 		__builtin_memcpy(ev.addr, fib_params.ipv6_dst,
 				 sizeof(fib_params.ipv6_dst));
-		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
+		ringbuf_submit(&no_neigh_map, &ev, sizeof(ev),
+			       RINGBUF_NO_NEIGH);
 		statistic->fib_lookup_ip6_no_neigh += 1;
 
 		return drop_with(ctx, UPF_DROP_FIB_NO_NEIGH);

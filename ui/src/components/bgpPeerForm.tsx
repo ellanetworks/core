@@ -38,6 +38,7 @@ import {
 import { detectPreset, type ImportPreset } from "@/utils/bgp";
 import TextControl from "@/components/form/TextControl";
 import NumberControl from "@/components/form/NumberControl";
+import { PRODUCT } from "@/utils/product";
 
 export const isPrefixEntryInvalid = (entry: BGPImportPrefix): boolean => {
   if (!entry.prefix) return false;
@@ -156,7 +157,8 @@ export const ImportPrefixEditor = <T extends FieldValues>({
         Import Prefix List
       </Typography>
       <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-        Control which routes this peer is allowed to advertise to Ella Core.
+        Control which routes this peer is allowed to advertise to {PRODUCT.name}
+        .
       </Typography>
 
       <ToggleButtonGroup

@@ -6,6 +6,7 @@ import { Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { getStatus } from "@/queries/status";
 import ErrorAlert from "@/components/ErrorAlert";
+import { PRODUCT } from "@/utils/product";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function Home() {
   return (
     <Box sx={{ p: 4, maxWidth: 640, mx: "auto" }}>
       <ErrorAlert
-        resource="Ella Core"
+        resource={PRODUCT.name}
         error={error}
         onRetry={() => {
           setError(null);

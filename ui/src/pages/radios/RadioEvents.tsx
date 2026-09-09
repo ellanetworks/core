@@ -58,6 +58,8 @@ import type { LogRow } from "@/components/EventDetails";
 import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
@@ -537,8 +539,7 @@ export default function RadioEvents() {
     [setSearchParams],
   );
 
-  const subDescription =
-    "Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between Ella Core and connected radios. These logs are useful for auditing and troubleshooting purposes.";
+  const subDescription = `Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between ${PRODUCT.name} and connected radios. These logs are useful for auditing and troubleshooting purposes.`;
 
   const handleSelectionChange = useCallback(
     (model: GridRowSelectionModel) => {
@@ -608,34 +609,10 @@ export default function RadioEvents() {
         }}
       >
         <Box>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={Link}
-              to="/radios"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Radios
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              Network Events
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Radios", to: "/radios" }}
+            title="Network Events"
+          />
           <Typography variant="body1" color="textSecondary">
             {subDescription}
           </Typography>

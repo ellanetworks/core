@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
+import PageTitle from "@/components/PageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -36,6 +37,7 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
+import { PRODUCT } from "@/utils/product";
 
 const DATE_ERROR_ID = "audit-logs-date-range-error";
 
@@ -54,8 +56,7 @@ const AuditLog: React.FC = () => {
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
   const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
-  const descriptionText =
-    "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
+  const descriptionText = `Review security-relevant actions performed in ${PRODUCT.name}. The audit log records who did what and when.`;
 
   const queryClient = useQueryClient();
 
@@ -218,9 +219,7 @@ const AuditLog: React.FC = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4" component="h1">
-          Audit Logs
-        </Typography>
+        <PageTitle title="Audit Logs" />
 
         <Typography variant="body1" color="textSecondary">
           {descriptionText}
@@ -335,7 +334,7 @@ const AuditLog: React.FC = () => {
           empty={
             <EmptyState
               primaryText="No audit logs yet"
-              secondaryText="Actions taken in Ella Core will be recorded here."
+              secondaryText={`Actions taken in ${PRODUCT.name} will be recorded here.`}
             />
           }
         >

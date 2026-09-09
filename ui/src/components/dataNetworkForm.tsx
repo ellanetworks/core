@@ -10,12 +10,13 @@ import {
   isValidIpv4Cidr,
   isValidIpv6PoolCidr,
 } from "@/utils/ip";
+import { PRODUCT } from "@/utils/product";
 
 export const dataNetworkNameRegex =
   /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
-export const IPV6_POOL_HELPER_TEXT =
-  "Prefix length between /48 and /60 — Ella Core delegates /64s from within the pool.";
+export const ipv6PoolHelperText = () =>
+  `Prefix length between /48 and /60 — ${PRODUCT.name} delegates /64s from within the pool.`;
 
 export const poolAndDnsSchema = {
   ipv4_pool: yup
@@ -70,7 +71,7 @@ export const DataNetworkFields = ({
     <TextControl
       name="ipv6_pool"
       label="IPv6 Pool"
-      helperText={IPV6_POOL_HELPER_TEXT}
+      helperText={ipv6PoolHelperText()}
       placeholder="e.g., 2001:db8::/48"
     />
     <TextControl name="dns" label="DNS" />

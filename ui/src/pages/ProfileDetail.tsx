@@ -41,6 +41,8 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const labelCellSx = {
   fontWeight: 600,
@@ -154,16 +156,14 @@ const ProfileDetail: React.FC = () => {
       {
         field: "session_ambr_uplink",
         headerName: "Session Bitrate Uplink",
-        description:
-          "Per-session uplink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description: `Per-session uplink bitrate cap (Session AMBR). Enforced by ${PRODUCT.name}.`,
         flex: 0.8,
         minWidth: 100,
       },
       {
         field: "session_ambr_downlink",
         headerName: "Session Bitrate Downlink",
-        description:
-          "Per-session downlink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description: `Per-session downlink bitrate cap (Session AMBR). Enforced by ${PRODUCT.name}.`,
         flex: 0.8,
         minWidth: 100,
       },
@@ -198,34 +198,10 @@ const ProfileDetail: React.FC = () => {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={RouterLink}
-              to="/profiles"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Profiles
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              {name}
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Profiles", to: "/profiles" }}
+            title={name ?? ""}
+          />
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
             A profile defines the aggregate bitrate limits for a subscriber and
             groups the QoS policies applied to their sessions.

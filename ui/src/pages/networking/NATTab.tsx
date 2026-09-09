@@ -14,6 +14,7 @@ import { getNATInfo, updateNATInfo, type NatInfo } from "@/queries/nat";
 import { getBGPSettings, type BGPSettings } from "@/queries/bgp";
 import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
+import { PRODUCT } from "@/utils/product";
 
 export default function NATTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -50,8 +51,7 @@ export default function NATTab() {
     },
   });
 
-  const description =
-    "Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode).";
+  const description = `Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses ${PRODUCT.name}'s N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode).`;
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>

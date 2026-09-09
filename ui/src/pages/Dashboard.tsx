@@ -17,7 +17,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
@@ -54,6 +53,8 @@ import {
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
+import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -117,6 +118,7 @@ type KpiCardProps = {
   onClick?: () => void;
   children?: React.ReactNode;
   minHeight?: number;
+  alignTop?: boolean;
 };
 
 function KpiCard({
@@ -127,6 +129,7 @@ function KpiCard({
   onClick,
   children,
   minHeight = 200,
+  alignTop = false,
 }: KpiCardProps) {
   const body =
     children ??
@@ -166,8 +169,8 @@ function KpiCard({
         sx={{
           flexGrow: 1,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          alignItems: alignTop ? "flex-start" : "center",
+          justifyContent: alignTop ? "flex-start" : "center",
           minHeight: minHeight,
         }}
       >
@@ -348,14 +351,20 @@ const Dashboard = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4" component="h1">
-          Ella Core{" "}
-          {statusLoading ? (
-            <CircularProgress size={22} sx={{ ml: 1 }} />
-          ) : (
-            (version ?? "—")
-          )}
-        </Typography>
+        <PageTitle
+          title={PRODUCT.name}
+          documentTitle="Dashboard"
+          adornment={
+            <>
+              {" "}
+              {statusLoading ? (
+                <CircularProgress size={22} sx={{ ml: 1 }} />
+              ) : (
+                (version ?? "—")
+              )}
+            </>
+          }
+        />
       </Box>
 
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
@@ -495,6 +504,7 @@ const Dashboard = () => {
             }
             loading={eventsLoading}
             minHeight={240}
+            alignTop
           >
             {radioEventsQuery.error ? (
               <Typography color="error" sx={{ p: 2 }}>
@@ -502,8 +512,6 @@ const Dashboard = () => {
               </Typography>
             ) : (
               <TableContainer
-                component={Paper}
-                elevation={0}
                 sx={{
                   width: "100%",
                   maxHeight: 220,
@@ -709,6 +717,7 @@ const Dashboard = () => {
             }
             loading={usageQuery.isLoading}
             minHeight={240}
+            alignTop
           >
             {usageQuery.isLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
@@ -718,8 +727,6 @@ const Dashboard = () => {
               </Typography>
             ) : (
               <TableContainer
-                component={Paper}
-                elevation={0}
                 sx={{
                   width: "100%",
                   maxHeight: 220,

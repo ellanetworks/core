@@ -107,6 +107,9 @@ type BpfObjects struct {
 
 	pagingMu   sync.Mutex
 	pagingList map[DataNotification]bool
+
+	occupancyMu sync.Mutex
+	occupancy   map[string]int
 }
 
 func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
@@ -119,6 +122,7 @@ func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex in
 		N3Vlan:           n3vlan,
 		N6Vlan:           n6vlan,
 		pagingList:       make(map[DataNotification]bool),
+		occupancy:        make(map[string]int),
 	}
 }
 
@@ -393,7 +397,7 @@ func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 }
 
 // GetDlBufferCounters sums the per-CPU capture counters.
-func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
+func (bpfObjects *BpfObjects) GetDlBufferCounters() (DlBufferCounters, bool) {
 	var (
 		perCPU []N3N6EntrypointDlBufferCounters
 		total  DlBufferCounters
@@ -401,7 +405,7 @@ func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
 
 	if err := bpfObjects.DlBufferCountersMap.Lookup(uint32(0), &perCPU); err != nil {
 		logger.UpfLog.Warn("failed to fetch dl buffer counters", zap.Error(err))
-		return total
+		return total, false
 	}
 
 	for _, c := range perCPU {
@@ -411,7 +415,7 @@ func (bpfObjects *BpfObjects) GetDlBufferCounters() DlBufferCounters {
 		total.GSO += c.Gso
 	}
 
-	return total
+	return total, true
 }
 
 func (bpfObjects *BpfObjects) IsAlreadyNotified(d DataNotification) bool {

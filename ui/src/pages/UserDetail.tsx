@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useEffect, useState } from "react";
-import { Box, Button, Skeleton, Typography } from "@mui/material";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { Box, Button, Skeleton } from "@mui/material";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getUser, type APIUser } from "@/queries/users";
 import {
@@ -28,6 +28,7 @@ import UserAPITokensCard from "@/components/UserAPITokensCard";
 import UserAuditLogsCard from "@/components/UserAuditLogsCard";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const UserDetail: React.FC = () => {
   const { email } = useParams<{ email: string }>();
@@ -134,34 +135,10 @@ const UserDetail: React.FC = () => {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline" }}
-          >
-            <Typography
-              component={RouterLink}
-              to="/users"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Users
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              {email}
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Users", to: "/users" }}
+            title={email ?? ""}
+          />
         </Box>
         {isAdmin && !isSelf && (
           <Button

@@ -17,8 +17,8 @@ import (
 func TestGetMetricsSuccess(t *testing.T) {
 	metricsText := `
 # HELP Some metric description
-app_downlink_bytes 1234
-app_uplink_bytes 5678
+app_upf_bytes_total{direction="downlink"} 1234
+app_upf_bytes_total{direction="uplink"} 5678
 `
 	resp := &client.RequestResponse{
 		StatusCode: 200,
@@ -41,12 +41,12 @@ app_uplink_bytes 5678
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	if v, ok := metrics["app_downlink_bytes"]; !ok || v != 1234 {
-		t.Errorf("Expected app_downlink_bytes to be 1234, got %v", v)
+	if v, ok := metrics[`app_upf_bytes_total{direction="downlink"}`]; !ok || v != 1234 {
+		t.Errorf("Expected downlink app_upf_bytes_total to be 1234, got %v", v)
 	}
 
-	if v, ok := metrics["app_uplink_bytes"]; !ok || v != 5678 {
-		t.Errorf("Expected app_uplink_bytes to be 5678, got %v", v)
+	if v, ok := metrics[`app_upf_bytes_total{direction="uplink"}`]; !ok || v != 5678 {
+		t.Errorf("Expected uplink app_upf_bytes_total to be 5678, got %v", v)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestGetMetricsRequesterError(t *testing.T) {
 
 // TestGetMetricsInvalidData verifies that invalid metric data (non-numeric value) returns an error.
 func TestGetMetricsInvalidData(t *testing.T) {
-	metricsText := `app_downlink_bytes notanumber`
+	metricsText := `app_upf_bytes_total notanumber`
 	resp := &client.RequestResponse{
 		StatusCode: 200,
 		Headers:    nil,

@@ -55,13 +55,8 @@ import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-
-const tableContainerSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-} as const;
+import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
@@ -547,34 +542,10 @@ const DataNetworkDetail: React.FC = () => {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={RouterLink}
-              to="/networking/data-networks"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Data Networks
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              {name}
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Data Networks", to: "/networking/data-networks" }}
+            title={name ?? ""}
+          />
         </Box>
         {canEdit && (
           <Box sx={{ display: "flex", gap: 1 }}>
@@ -1003,7 +974,7 @@ const DataNetworkDetail: React.FC = () => {
           }
         >
           {(framedRoutes) => (
-            <TableContainer sx={tableContainerSx}>
+            <TableContainer sx={TABLE_CONTAINER_SX}>
               <Table size="small">
                 <TableHead>
                   <TableRow>

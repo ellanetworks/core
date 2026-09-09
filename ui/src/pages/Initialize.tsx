@@ -18,6 +18,8 @@ import { ValidationError } from "yup";
 import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 const schema = yup.object().shape({
   email: yup
@@ -140,14 +142,12 @@ const InitializePage = () => {
         }}
       >
         <form onSubmit={handleSubmit} noValidate>
-          <Typography
-            variant="h5"
-            component="h1"
+          <PageTitle
+            title={`Initialize ${PRODUCT.name}`}
+            size="h5"
             gutterBottom
             sx={{ textAlign: "center" }}
-          >
-            Initialize Ella Core
-          </Typography>
+          />
           <Typography variant="body1" sx={{ marginBottom: 2 }}>
             Create the first user
           </Typography>

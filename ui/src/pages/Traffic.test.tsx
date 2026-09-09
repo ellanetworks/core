@@ -20,6 +20,7 @@ import type {
   FlowReportStatsResponse,
 } from "@/queries/flow_reports";
 import type { UsageResult } from "@/queries/usage";
+import { light } from "@/utils/tokens";
 import Traffic from "./Traffic";
 
 const api = setupApiServer();
@@ -742,8 +743,8 @@ const destinationArcs = () =>
 const fillsOf = (arcs: SVGPathElement[]) =>
   arcs.map((arc) => arc.getAttribute("fill"));
 
-const TCP_BLUE = "#2196F3";
-const UDP_GREEN = "#4CAF50";
+const TCP_BLUE = light.chart.protocols[6];
+const UDP_GREEN = light.chart.protocols[17];
 
 describe("Traffic pie chart selection", () => {
   const statsResolver = (params: URLSearchParams): FlowReportStatsResponse => {
