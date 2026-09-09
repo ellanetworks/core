@@ -33,7 +33,7 @@ import QueryState from "@/components/QueryState";
 import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { DENSE_ROW_HEIGHT, MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
@@ -189,12 +189,9 @@ const AuditLog: React.FC = () => {
             <Tooltip title={text || ""} enterDelay={500} placement="top-start">
               <Box
                 sx={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
                   overflow: "hidden",
-                  whiteSpace: "normal",
-                  lineHeight: 1.4,
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {text}
@@ -348,7 +345,7 @@ const AuditLog: React.FC = () => {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              getRowHeight={() => "auto"}
+              rowHeight={DENSE_ROW_HEIGHT}
             />
           )}
         </QueryState>

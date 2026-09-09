@@ -129,7 +129,7 @@ const LoginPage = () => {
     return (
       <Box
         sx={{
-          height: "100vh",
+          flexGrow: 1,
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
@@ -143,7 +143,7 @@ const LoginPage = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        flexGrow: 1,
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
