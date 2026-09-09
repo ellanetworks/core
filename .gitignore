@@ -1,7 +1,6 @@
 # ui
 ui/node_modules/*
 ui/dist/*
-ui/.logo-diff/
 ui/npm-debug.log*
 ui/*.tsbuildinfo
 ui/.env*.local
