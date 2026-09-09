@@ -32,7 +32,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
       },
       {
         field: "system",
-        headerName: "Access",
+        headerName: "System",
         width: 90,
         valueGetter: (_value, row: SessionInfo) =>
           row.system ? (SYSTEM_ACCESS_LABELS[row.system] ?? row.system) : "",

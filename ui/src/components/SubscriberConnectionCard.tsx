@@ -135,12 +135,10 @@ const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
   );
 };
 
-const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
-  accessTypes,
-}) => (
+const SystemChips: React.FC<{ systems: string[] }> = ({ systems }) => (
   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-    {accessTypes.map((accessType) => (
-      <AccessChip key={accessType} label={accessType} />
+    {systems.map((system) => (
+      <AccessChip key={system} label={system} />
     ))}
   </Box>
 );
@@ -164,7 +162,7 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
 }) => {
-  const accessTypes = (status.systems ?? []).map(
+  const systems = (status.systems ?? []).map(
     (system) => SYSTEM_ACCESS_LABELS[system] ?? system,
   );
 
@@ -185,10 +183,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="Connection"
           value={<ConnectionChip state={status.connection_state} />}
         />
-        {accessTypes.length > 0 && (
+        {systems.length > 0 && (
           <InfoRow
-            label={accessTypes.length > 1 ? "Access Types" : "Access Type"}
-            value={<AccessTypeChips accessTypes={accessTypes} />}
+            label={systems.length > 1 ? "Systems" : "System"}
+            value={<SystemChips systems={systems} />}
           />
         )}
         <InfoRow label="IMEI" value={status.imei} />

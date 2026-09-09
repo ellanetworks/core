@@ -255,7 +255,7 @@ const SubscriberPage: React.FC = () => {
       },
       {
         field: "access",
-        headerName: "Access",
+        headerName: "System",
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
