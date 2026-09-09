@@ -45,7 +45,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 
 	if id, dup := duplicateModifiedERABID(msg); dup {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication repeats an E-RAB ID; releasing UE context",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
 		m.ReleaseUEContext(ctx, ue, causeMultipleERABInstances)
 
 		return
@@ -53,7 +53,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 
 	if ebi, omitted := omittedEstablishedERAB(ue, msg); omitted {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication omits an established E-RAB; releasing UE context",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", ebi))
+			zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", ebi))
 		m.ReleaseUEContext(ctx, ue, causeERABModOmittedERAB)
 
 		return
@@ -74,7 +74,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("E-RAB Modification Indication",
-		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
+		zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)),
 		zap.Int("e-rabs-modified", len(modified)))
 
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)

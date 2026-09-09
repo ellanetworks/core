@@ -44,7 +44,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 
 	if !m.MatchAndSetTargetENB(ue, mmeUEID, enbUEID, radio.Conn) {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge with no matching preparation; dropping",
-			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)))
 
 		return
 	}
@@ -55,7 +55,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		addr, ok := enbTransportAddress(it.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge E-RAB has an invalid target address; treating as failed",
-				zap.Uint32("target-mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(it.ERABID)))
+				zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(it.ERABID)))
 
 			continue
 		}
@@ -67,7 +67,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 
 	if len(admitted) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no E-RAB; rejecting handover",
-			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)))
 		mme.SendUEContextRelease(ctx, m, radio.Conn, mmeUEID, enbUEID, true, causeHOFailureInTarget)
 		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
 
@@ -81,7 +81,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 
 	if sourceConn == nil {
 		logger.From(ctx, logger.MmeLog).Info("Forward Relocation Response",
-			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)),
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)),
 			zap.Int("admitted", len(admitted)),
 			zap.Int("not-admitted", len(unadmitted)))
 		m.FinishRelocationPreparation(ue, ack.TargetToSource, unadmitted)
@@ -104,7 +104,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Command",
-		zap.Uint32("mme-ue-id", uint32(sourceMMEID)),
+		zap.Uint32("mme_ue_s1ap_id", uint32(sourceMMEID)),
 		zap.Int("admitted", len(admitted)),
 		zap.Int("released", len(unadmitted)))
 	m.SendToRadio(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)

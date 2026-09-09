@@ -61,7 +61,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 	setup := len(result.Applied)
 
 	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",
-		zap.Uint32("mme-ue-id", uint32(mmeUEID)),
+		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)),
 		zap.Int("e-rabs-setup", setup),
 		zap.Int("e-rabs-released", len(result.Released)))
 
@@ -107,7 +107,7 @@ func setupBearers(ctx context.Context, mmeUEID s1ap.MMEUES1APID, items []setupBe
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("E-RAB setup item with an invalid eNB transport address",
-				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue
 		}

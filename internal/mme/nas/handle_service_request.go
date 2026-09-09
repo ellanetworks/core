@@ -81,7 +81,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	ue.PinKeNBFreshness()
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",
-		zap.Uint32("enb-ue-id", uint32(c.ENBUES1APID)),
+		zap.Uint32("enb_ue_s1ap_id", uint32(c.ENBUES1APID)),
 		zap.String("imsi", ue.IMSI()))
 
 	qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())

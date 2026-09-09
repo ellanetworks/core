@@ -179,7 +179,7 @@ func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts,
 	}
 
 	logger.GnbLogger.Debug("Tracking area update from 5GS complete",
-		zap.String("imsi", ue.IMSI), zap.Int64("mme-ue-id", mmeUEID), zap.Int64("enb-ue-id", enbUEID))
+		zap.String("imsi", ue.IMSI), zap.Int64("mme_ue_s1ap_id", mmeUEID), zap.Int64("enb_ue_s1ap_id", enbUEID))
 
 	return &AttachResult{
 		MMEUES1APID:  mmeUEID,
@@ -218,7 +218,7 @@ func (e *ENB) idleTrackingAreaUpdateReturningToIdle(ue *UE, enbUEID int64, timeo
 	}
 
 	logger.GnbLogger.Debug("Tracking area update from 5GS complete, UE returned to idle",
-		zap.String("imsi", ue.IMSI), zap.Int64("mme-ue-id", mmeUEID), zap.Int64("enb-ue-id", enbUEID))
+		zap.String("imsi", ue.IMSI), zap.Int64("mme_ue_s1ap_id", mmeUEID), zap.Int64("enb_ue_s1ap_id", enbUEID))
 
 	return &AttachResult{
 		MMEUES1APID:  mmeUEID,

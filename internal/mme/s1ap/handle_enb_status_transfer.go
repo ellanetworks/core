@@ -33,7 +33,7 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	targetConn, targetMMEID, targetENBID, ok := m.HandoverStatusTarget(ue)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Warn("eNB Status Transfer with no handover in progress", zap.Uint32("mme-ue-id", uint32(st.MMEUES1APID)))
+		logger.From(ctx, logger.MmeLog).Warn("eNB Status Transfer with no handover in progress", zap.Uint32("mme_ue_s1ap_id", uint32(st.MMEUES1APID)))
 
 		return
 	}

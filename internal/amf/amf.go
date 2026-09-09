@@ -870,8 +870,8 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 
 	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
 		logger.SUPI(supi.String()),
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID)),
 	)
 
 	return nil

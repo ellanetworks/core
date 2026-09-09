@@ -26,7 +26,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 		sendErrorIndication(ctx, ran, msg.AMFUENGAPID, nil, causeUnknownLocalUEID)
 
 		return
@@ -38,7 +38,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	if amfUe == nil || amfInstance.HandoverTarget(amfUe) != targetUe {
 		logger.WithTrace(ctx, ran.Log).Warn("ignoring Handover Failure not from the prepared handover target",
-			zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
+			zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 
 		return
 	}

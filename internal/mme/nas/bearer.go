@@ -230,7 +230,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
-		zap.Uint32("enb-ue-id", uint32(ueConn.ENBUES1APID)),
+		zap.Uint32("enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
 		zap.Uint8("nas-pdu-bearer", carrier),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),

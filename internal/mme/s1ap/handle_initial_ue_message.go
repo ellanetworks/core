@@ -53,9 +53,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
 	}
 
-	logger.From(ctx, c.Log()).Info("Initial UE Message",
-		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-	)
+	logger.From(ctx, c.Log()).Info("Initial UE Message")
 
 	// Optimistic S-TMSI resume: a security-protected message whose S-TMSI resolves a
 	// held, secured context is bound to that context only after the message verifies
@@ -91,7 +89,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 
 		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
-			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)), zap.Stringer("cause", cause))
+			zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)), zap.Stringer("cause", cause))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
 
 		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
@@ -100,7 +98,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	}
 
 	logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
-		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+		zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
 }

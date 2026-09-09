@@ -640,9 +640,7 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	a.mu.Unlock()
 
 	for _, ueConn := range stale {
-		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
-			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
+		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.WithTrace(ctx, ueConn.Log()).Error(err.Error())
@@ -668,8 +666,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID)),
 	)
 
 	return nil
