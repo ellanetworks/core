@@ -23,10 +23,13 @@ import (
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 
 var ErrBarrierTimeout = errors.New("raft barrier timed out")
+
+const boltOpenTimeout = 5 * time.Second
 
 // AutopilotConfig overrides autopilot's timing. A zero field keeps the
 // package default.
@@ -285,10 +288,15 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		var bsErr error
 
 		boltStore, bsErr = raftboltdb.New(raftboltdb.Options{
-			Path:   boltPath,
-			NoSync: false,
+			Path:        boltPath,
+			NoSync:      false,
+			BoltOptions: &bbolt.Options{Timeout: boltOpenTimeout},
 		})
 		if bsErr != nil {
+			if errors.Is(bsErr, bbolt.ErrTimeout) {
+				return fmt.Errorf("create bolt store at %s: timed out after %s waiting for the file lock: %w", boltPath, boltOpenTimeout, bsErr)
+			}
+
 			return fmt.Errorf("create bolt store at %s: %w", boltPath, bsErr)
 		}
 
