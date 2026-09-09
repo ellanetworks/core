@@ -65,40 +65,15 @@ const InfoRow: React.FC<{
   );
 };
 
-// 5G uses NEA/NIA names; 4G uses EEA/EIA (TS 33.401 §5).
-const CIPHERING_LABELS: Record<string, string> = {
-  NEA0: "NEA0",
-  NEA1: "NEA1",
-  NEA2: "NEA2",
-  NEA3: "NEA3",
-  EEA0: "EEA0",
-  EEA1: "EEA1",
-  EEA2: "EEA2",
-  EEA3: "EEA3",
-};
-
-const INTEGRITY_LABELS: Record<string, string> = {
-  NIA0: "NIA0",
-  NIA1: "NIA1",
-  NIA2: "NIA2",
-  NIA3: "NIA3",
-  EIA0: "EIA0",
-  EIA1: "EIA1",
-  EIA2: "EIA2",
-  EIA3: "EIA3",
-};
-
 /** NEA0/NIA0 (5G) and EEA0/EIA0 (4G) are null ciphering/integrity. */
 const INSECURE_ALGS = new Set(["NEA0", "NIA0", "EEA0", "EIA0"]);
 
 const AlgorithmChip: React.FC<{
   kind: string;
   alg?: string;
-  labels: Record<string, string>;
-}> = ({ kind, alg, labels }) => {
+}> = ({ kind, alg }) => {
   if (!alg) return null;
 
-  const display = labels[alg] ?? alg;
   const isInsecure = INSECURE_ALGS.has(alg);
 
   return (
@@ -110,7 +85,7 @@ const AlgorithmChip: React.FC<{
           <Box component="span" sx={{ opacity: 0.85, fontWeight: 400 }}>
             {kind}:
           </Box>
-          <Box component="span">{display}</Box>
+          <Box component="span">{alg}</Box>
         </Box>
       }
       sx={{
@@ -179,20 +154,8 @@ const SecurityAlgorithmsValue: React.FC<{
     <Box
       sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
     >
-      {ciphering && (
-        <AlgorithmChip
-          kind="Ciphering"
-          alg={ciphering}
-          labels={CIPHERING_LABELS}
-        />
-      )}
-      {integrity && (
-        <AlgorithmChip
-          kind="Integrity"
-          alg={integrity}
-          labels={INTEGRITY_LABELS}
-        />
-      )}
+      {ciphering && <AlgorithmChip kind="Ciphering" alg={ciphering} />}
+      {integrity && <AlgorithmChip kind="Integrity" alg={integrity} />}
     </Box>
   );
 };

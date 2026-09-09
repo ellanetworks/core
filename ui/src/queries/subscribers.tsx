@@ -31,22 +31,97 @@ export type ListSubscribersResponse = {
   total_count: number;
 };
 
-export type SubscriberDetailStatus = {
-  registered?: boolean;
-  connection_state?: ConnectionState;
-  radio_access_types?: string[];
+export type System = "5GS" | "EPS";
+
+export type AccessType = "3GPP" | "non-3GPP";
+
+export type UEConnection = {
+  amf_ue_ngap_id?: number;
+  ran_ue_ngap_id?: number;
+  mme_ue_s1ap_id?: number;
+  enb_ue_s1ap_id?: number;
+};
+
+export type Registration = {
+  system: System;
+  access_type: AccessType;
+  registered: boolean;
+  connection_state: ConnectionState | null;
+  radio?: string;
+  last_seen_at?: string;
+  pei?: string;
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;
+  connection: UEConnection | null;
+};
+
+export type SubscriberDetailStatus = {
+  registered: boolean;
+  connection_state?: ConnectionState;
+  radio_access_types: string[];
+  imei: string;
+  ciphering_algorithm: string;
+  integrity_algorithm: string;
   last_seen_at?: string;
   last_seen_radio?: string;
 };
+
+export const SYSTEM_ACCESS_LABELS: Record<System, string> = {
+  "5GS": "5G",
+  EPS: "4G",
+};
+
+const isPresent = (registration: Registration) =>
+  registration.connection_state !== null &&
+  registration.connection_state !== undefined;
+
+const seenAt = (registration?: Registration) =>
+  registration?.last_seen_at ? Date.parse(registration.last_seen_at) : 0;
+
+export function mergeRegistrations(
+  registrations: Registration[],
+): SubscriberDetailStatus {
+  const present = registrations.filter(isPresent);
+
+  const serving = present.reduce<Registration | undefined>(
+    (best, candidate) =>
+      !best || seenAt(candidate) > seenAt(best) ? candidate : best,
+    undefined,
+  );
+
+  const retained = registrations.reduce<Registration | undefined>(
+    (best, candidate) =>
+      !best || seenAt(candidate) > seenAt(best) ? candidate : best,
+    undefined,
+  );
+
+  const answering = serving ?? retained;
+
+  return {
+    registered: present.some((r) => r.registered),
+    connection_state:
+      present.length === 0
+        ? undefined
+        : present.some((r) => r.connection_state === "connected")
+          ? "connected"
+          : "idle",
+    radio_access_types: present.map(
+      (r) => SYSTEM_ACCESS_LABELS[r.system] ?? r.system,
+    ),
+    imei: present.map((r) => r.imei ?? r.pei ?? "").find(Boolean) ?? "",
+    ciphering_algorithm: serving?.ciphering_algorithm ?? "",
+    integrity_algorithm: serving?.integrity_algorithm ?? "",
+    last_seen_at: answering?.last_seen_at,
+    last_seen_radio: answering?.radio,
+  };
+}
 
 export type APISubscriber = {
   imsi: string;
   profile_name: string;
   description?: string;
-  status: SubscriberDetailStatus;
+  registrations: Registration[];
   sessions: SessionInfo[];
 };
 
@@ -195,7 +270,8 @@ export interface SliceInfo {
 }
 
 export interface SessionInfo {
-  radio_access_type: string; // "4G" | "5G"
+  system: System;
+  access_types: AccessType[];
   id: number;
   status: string;
   ip_type?: string; // IPv4 | IPv6 | IPv4v6

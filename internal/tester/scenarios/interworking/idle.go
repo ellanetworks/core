@@ -147,7 +147,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 	}
 
 	if !activeFlag {
-		return assertSessionOn(ctx, env, "4G", before.addrs)
+		return assertSessionOn(ctx, env, "EPS", before.addrs)
 	}
 
 	after, err := probeAfterHandover(ctx, env, e, handoverBearer{
@@ -247,7 +247,7 @@ func runIdleEPSTo5GS(ctx context.Context, env scenarios.Env, resume resumeUserPl
 		return err
 	}
 
-	if err := assertSessionOn(ctx, env, "4G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "EPS", before.addrs); err != nil {
 		return err
 	}
 
@@ -271,7 +271,7 @@ func runIdleEPSTo5GS(ctx context.Context, env scenarios.Env, resume resumeUserPl
 		return err
 	}
 
-	return assertSessionOn(ctx, env, "5G", before.addrs)
+	return assertSessionOn(ctx, env, "5GS", before.addrs)
 }
 
 type resumeUserPlane bool
@@ -388,7 +388,7 @@ func runIdleRoundTripThroughEPS(ctx context.Context, env scenarios.Env, _ any) e
 		return err
 	}
 
-	if err := assertSessionOn(ctx, env, "5G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "5GS", before.addrs); err != nil {
 		return err
 	}
 
@@ -442,7 +442,7 @@ func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gn
 		return nil, nil, nil, err
 	}
 
-	if err := assertSessionOn(ctx, env, "4G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "EPS", before.addrs); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -501,7 +501,7 @@ func roundTripReturnLeg(ctx context.Context, env scenarios.Env, e *s1enb.ENB, gN
 			"the UE arrived on a native 5G NAS security context the AMF still holds", got)
 	}
 
-	if err := assertSessionOn(ctx, env, "5G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "5GS", before.addrs); err != nil {
 		return err
 	}
 
@@ -538,7 +538,7 @@ func roundTripLeaveAgain(ctx context.Context, env scenarios.Env, e *s1enb.ENB, g
 		return err
 	}
 
-	return assertSessionOn(ctx, env, "4G", before.addrs)
+	return assertSessionOn(ctx, env, "EPS", before.addrs)
 }
 
 func runIdleRoundTripThrough5GS(ctx context.Context, env scenarios.Env, _ any) error {
@@ -568,7 +568,7 @@ func runIdleRoundTripThrough5GS(ctx context.Context, env scenarios.Env, _ any) e
 		return err
 	}
 
-	if err := assertSessionOn(ctx, env, "4G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "EPS", before.addrs); err != nil {
 		return err
 	}
 
@@ -594,7 +594,7 @@ func runIdleRoundTripThrough5GS(ctx context.Context, env scenarios.Env, _ any) e
 		return err
 	}
 
-	if err := assertSessionOn(ctx, env, "5G", before.addrs); err != nil {
+	if err := assertSessionOn(ctx, env, "5GS", before.addrs); err != nil {
 		return err
 	}
 
@@ -631,7 +631,7 @@ func roundTripReturnToEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB, 
 		return err
 	}
 
-	return assertSessionOn(ctx, env, "4G", before.addrs)
+	return assertSessionOn(ctx, env, "EPS", before.addrs)
 }
 
 func assertAdoptedSession(plain []byte) error {
@@ -667,9 +667,9 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
 		if err == nil {
 			for _, s := range sub.Sessions {
-				last = s.RadioAccessType
+				last = s.System
 
-				if s.RadioAccessType != want {
+				if s.System != want {
 					continue
 				}
 

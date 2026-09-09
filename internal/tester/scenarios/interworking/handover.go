@@ -100,7 +100,7 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "4G")
+	return assertRegisteredOn(ctx, env, "EPS")
 }
 
 // TS 23.003 §2.10.2.1.2
@@ -330,7 +330,7 @@ func runHandover5GSToEPSTargetRefuses(ctx context.Context, env scenarios.Env, _ 
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "5G")
+	return assertRegisteredOn(ctx, env, "5GS")
 }
 
 func refuseHandoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, ranUENGAPID int64) error {

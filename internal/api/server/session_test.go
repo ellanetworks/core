@@ -22,8 +22,12 @@ func TestSessionFrom5G_AllFields(t *testing.T) {
 		PolicyData:     &amf.PolicyDataExport{Ambr: &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}},
 	})
 
-	if s.RadioAccessType != "5G" || s.ID != 1 || s.Status != "active" {
+	if s.System != System5GS || s.ID != 1 || s.Status != "active" {
 		t.Fatalf("session = %+v", s)
+	}
+
+	if got := s.AccessTypes; len(got) != 1 || got[0] != AccessType3GPP {
+		t.Fatalf("AccessTypes = %v", got)
 	}
 
 	if s.IPType != "IPv4v6" || s.IPv4Address != "10.45.0.2" || s.IPv6Prefix != "2001:db8:ad50:8500::" {
@@ -63,7 +67,7 @@ func TestSessionFrom5G_NilSnssaiAndPolicy(t *testing.T) {
 	}
 }
 
-// A 4G PDN connection: radio_access_type 4G, the data network is the APN, and no
+// A 4G PDN connection: system EPS, the data network is the APN, and no
 // network slice.
 func TestSessionFrom4G(t *testing.T) {
 	s := sessionFrom4G(&mme.SubscriberSession{
@@ -75,8 +79,12 @@ func TestSessionFrom4G(t *testing.T) {
 		AMBRDownlink: "1 Gbps",
 	})
 
-	if s.RadioAccessType != "4G" || s.ID != 5 || s.Status != "active" {
+	if s.System != SystemEPS || s.ID != 5 || s.Status != "active" {
 		t.Fatalf("session = %+v", s)
+	}
+
+	if got := s.AccessTypes; len(got) != 1 || got[0] != AccessType3GPP {
+		t.Fatalf("AccessTypes = %v", got)
 	}
 
 	if s.IPType != "IPv6" || s.IPv6Prefix != "2001:db8::" || s.DataNetwork != "internet" {

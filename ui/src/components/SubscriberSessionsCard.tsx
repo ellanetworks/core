@@ -7,7 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
-import type { SessionInfo } from "@/queries/subscribers";
+import { SYSTEM_ACCESS_LABELS, type SessionInfo } from "@/queries/subscribers";
 import AccessChip from "@/components/AccessChip";
 
 interface SubscriberSessionsCardProps {
@@ -21,7 +21,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  const has5G = sessions.some((s) => s.radio_access_type === "5G");
+  const has5G = sessions.some((s) => s.system === "5GS");
 
   const columns: GridColDef<SessionInfo>[] = useMemo(
     () => [
@@ -31,9 +31,11 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         width: 60,
       },
       {
-        field: "radio_access_type",
+        field: "system",
         headerName: "Access",
         width: 90,
+        valueGetter: (_value, row: SessionInfo) =>
+          row.system ? (SYSTEM_ACCESS_LABELS[row.system] ?? row.system) : "",
         renderCell: (params: GridRenderCellParams<SessionInfo>) =>
           params.value ? (
             <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
@@ -186,7 +188,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         <EntityGrid<SessionInfo>
           rows={sessions}
           columns={columns}
-          getRowId={(row) => `${row.radio_access_type}-${row.id}`}
+          getRowId={(row) => `${row.system}-${row.id}`}
           hideFooter={sessions.length <= 25}
         />
       )}

@@ -60,23 +60,33 @@ type ListSubscribersResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
-type SubscriberDetailStatus struct {
-	Registered         bool     `json:"registered"`
-	ConnectionState    string   `json:"connection_state,omitempty"`
-	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
-	Imei               string   `json:"imei"`
-	CipheringAlgorithm string   `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string   `json:"integrity_algorithm"`
-	LastSeenAt         string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
+type UEConnection struct {
+	AmfUeNgapID *int64 `json:"amf_ue_ngap_id,omitempty"`
+	RanUeNgapID *int64 `json:"ran_ue_ngap_id,omitempty"`
+	MMEUeS1apID *int64 `json:"mme_ue_s1ap_id,omitempty"`
+	ENBUeS1apID *int64 `json:"enb_ue_s1ap_id,omitempty"`
+}
+
+type Registration struct {
+	System             string        `json:"system"`
+	AccessType         string        `json:"access_type"`
+	Registered         bool          `json:"registered"`
+	ConnectionState    *string       `json:"connection_state"`
+	Radio              string        `json:"radio,omitempty"`
+	LastSeenAt         string        `json:"last_seen_at,omitempty"`
+	Pei                string        `json:"pei,omitempty"`
+	Imei               string        `json:"imei,omitempty"`
+	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
+	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
+	Connection         *UEConnection `json:"connection"`
 }
 
 type SubscriberDetail struct {
-	Imsi        string                 `json:"imsi"`
-	ProfileName string                 `json:"profile_name"`
-	Description string                 `json:"description,omitempty"`
-	Status      SubscriberDetailStatus `json:"status"`
-	Sessions    []Session              `json:"sessions"`
+	Imsi          string         `json:"imsi"`
+	ProfileName   string         `json:"profile_name"`
+	Description   string         `json:"description,omitempty"`
+	Registrations []Registration `json:"registrations"`
+	Sessions      []Session      `json:"sessions"`
 }
 
 type SubscriberCredentials struct {
@@ -91,17 +101,24 @@ type SNSSAI struct {
 }
 
 type Session struct {
-	RadioAccessType string  `json:"radio_access_type"` // "4G" | "5G"
-	ID              uint8   `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
-	Status          string  `json:"status"`
-	IPType          string  `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address     string  `json:"ipv4_address,omitempty"`
-	IPv6Prefix      string  `json:"ipv6_prefix,omitempty"`
-	DataNetwork     string  `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
-	Slice           *SNSSAI `json:"slice,omitempty"`        // 5G only
-	AMBRUplink      string  `json:"ambr_uplink,omitempty"`
-	AMBRDownlink    string  `json:"ambr_downlink,omitempty"`
+	System       string   `json:"system"` // "5GS" | "EPS"
+	AccessTypes  []string `json:"access_types"`
+	ID           uint8    `json:"id"` // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
+	Status       string   `json:"status"`
+	IPType       string   `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address  string   `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string   `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string   `json:"data_network,omitempty"` // DNN (5GS) / APN (EPS)
+	Slice        *SNSSAI  `json:"slice,omitempty"`        // 5GS only
+	AMBRUplink   string   `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string   `json:"ambr_downlink,omitempty"`
 }
+
+const (
+	System5GS      = "5GS"
+	SystemEPS      = "EPS"
+	AccessType3GPP = "3GPP"
+)
 
 const (
 	CreateSubscriberAction = "create_subscriber"
@@ -178,9 +195,6 @@ type accessView struct {
 	present       bool
 	registered    bool
 	connected     bool
-	imei          string
-	ciphering     string
-	integrity     string
 	lastSeenAt    time.Time
 	lastSeenRadio string
 }
@@ -193,9 +207,6 @@ type mergedAccess struct {
 	RATs          []string
 	Registered    bool
 	Connected     bool
-	Imei          string
-	Ciphering     string
-	Integrity     string
 	LastSeenAt    time.Time
 	LastSeenRadio string
 }
@@ -220,10 +231,6 @@ func mergeAccesses(views ...accessView) mergedAccess {
 		merged.Registered = merged.Registered || v.registered
 		merged.Connected = merged.Connected || v.connected
 
-		if merged.Imei == "" {
-			merged.Imei = v.imei
-		}
-
 		if v.newerThan(serving) {
 			serving = v
 		}
@@ -234,7 +241,6 @@ func mergeAccesses(views ...accessView) mergedAccess {
 		answering = retained
 	}
 
-	merged.Ciphering, merged.Integrity = serving.ciphering, serving.integrity
 	merged.LastSeenAt, merged.LastSeenRadio = answering.lastSeenAt, answering.lastSeenRadio
 
 	return merged
@@ -488,54 +494,29 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			on4G bool
 		)
 
-		if mmeInstance != nil {
-			cs, on4G = mmeInstance.LookupSubscriber(imsi)
-		}
-
-		var mmeLastSeen mme.LastSeen
-
-		if mmeInstance != nil {
-			mmeLastSeen, _ = mmeInstance.LastSeen(imsi)
-		}
-
-		amfLastSeen, _ := amfInstance.LastSeen(imsi)
-
-		merged := mergeAccesses(
-			accessView{
-				rat: "4G", present: on4G, registered: cs.Registered, connected: cs.Connected, imei: cs.Imei,
-				ciphering: cs.CipheringAlgorithm, integrity: cs.IntegrityAlgorithm,
-				lastSeenAt: lastSeenAt(on4G, cs.LastSeenAt, mmeLastSeen.At), lastSeenRadio: mmeLastSeen.RadioName,
-			},
-			accessView{
-				rat: "5G", present: found, registered: snap.Registered, connected: snap.Connected, imei: snap.Imei,
-				ciphering: snap.CipheringAlgorithm, integrity: snap.IntegrityAlgorithm,
-				lastSeenAt: lastSeenAt(found, snap.LastSeenAt, amfLastSeen.At), lastSeenRadio: amfLastSeen.RadioName,
-			},
+		var (
+			mmeLastSeen      mme.LastSeen
+			mmeLastSeenKnown bool
 		)
 
-		subscriberStatus := SubscriberDetailStatus{
-			Registered:         merged.Registered,
-			ConnectionState:    connectionState(on4G || found, merged.Connected),
-			RadioAccessTypes:   merged.RATs,
-			LastSeenRadio:      merged.LastSeenRadio,
-			Imei:               merged.Imei,
-			CipheringAlgorithm: merged.Ciphering,
-			IntegrityAlgorithm: merged.Integrity,
+		if mmeInstance != nil {
+			cs, on4G = mmeInstance.LookupSubscriber(imsi)
+			mmeLastSeen, mmeLastSeenKnown = mmeInstance.LastSeen(imsi)
 		}
 
-		if !merged.LastSeenAt.IsZero() {
-			subscriberStatus.LastSeenAt = merged.LastSeenAt.UTC().Format(time.RFC3339)
+		amfLastSeen, amfLastSeenKnown := amfInstance.LastSeen(imsi)
+
+		registrations := make([]Registration, 0, 2)
+
+		if reg, ok := registrationFrom5G(snap, found, amfLastSeen, amfLastSeenKnown); ok {
+			registrations = append(registrations, reg)
+		}
+
+		if reg, ok := registrationFrom4G(cs, on4G, mmeLastSeen, mmeLastSeenKnown); ok {
+			registrations = append(registrations, reg)
 		}
 
 		sessions := make([]Session, 0, len(pduSessions)+len(cs.Sessions))
-
-		for i := range cs.Sessions {
-			if len(sessions) >= MaxSessions {
-				break
-			}
-
-			sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
-		}
 
 		if found {
 			for _, pdu := range pduSessions {
@@ -547,12 +528,20 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			}
 		}
 
+		for i := range cs.Sessions {
+			if len(sessions) >= MaxSessions {
+				break
+			}
+
+			sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
+		}
+
 		subscriber := SubscriberDetail{
-			Imsi:        dbSubscriber.Imsi,
-			ProfileName: profile.Name,
-			Description: dbSubscriber.Description,
-			Status:      subscriberStatus,
-			Sessions:    sessions,
+			Imsi:          dbSubscriber.Imsi,
+			ProfileName:   profile.Name,
+			Description:   dbSubscriber.Description,
+			Registrations: registrations,
+			Sessions:      sessions,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
@@ -866,17 +855,107 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 	})
 }
 
+func connectionStatePtr(connected bool) *string {
+	state := "idle"
+	if connected {
+		state = "connected"
+	}
+
+	return &state
+}
+
+func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen, known bool) (Registration, bool) {
+	if !present && !known {
+		return Registration{}, false
+	}
+
+	reg := Registration{
+		System:     System5GS,
+		AccessType: AccessType3GPP,
+		Radio:      retained.RadioName,
+	}
+
+	at := retained.At
+
+	if present {
+		reg.Registered = snap.Registered
+		reg.ConnectionState = connectionStatePtr(snap.Connected)
+		reg.Pei = snap.Pei
+		reg.Imei = snap.Imei
+		reg.CipheringAlgorithm = snap.CipheringAlgorithm
+		reg.IntegrityAlgorithm = snap.IntegrityAlgorithm
+
+		if !snap.LastSeenAt.IsZero() {
+			at = snap.LastSeenAt
+		}
+
+		if snap.Connection != nil {
+			amfID := snap.Connection.AmfUeNgapID
+			reg.Connection = &UEConnection{AmfUeNgapID: &amfID, RanUeNgapID: snap.Connection.RanUeNgapID}
+		}
+	}
+
+	if !at.IsZero() {
+		reg.LastSeenAt = at.UTC().Format(time.RFC3339)
+	}
+
+	return reg, true
+}
+
+func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.LastSeen, known bool) (Registration, bool) {
+	if !present && !known {
+		return Registration{}, false
+	}
+
+	reg := Registration{
+		System:     SystemEPS,
+		AccessType: AccessType3GPP,
+		Radio:      retained.RadioName,
+	}
+
+	at := retained.At
+
+	if present {
+		reg.Registered = cs.Registered
+		reg.ConnectionState = connectionStatePtr(cs.Connected)
+		reg.Imei = cs.Imei
+		reg.CipheringAlgorithm = cs.CipheringAlgorithm
+		reg.IntegrityAlgorithm = cs.IntegrityAlgorithm
+
+		if !cs.LastSeenAt.IsZero() {
+			at = cs.LastSeenAt
+		}
+
+		if cs.Connection != nil {
+			mmeID := int64(cs.Connection.MMEUES1APID)
+			reg.Connection = &UEConnection{MMEUeS1apID: &mmeID}
+
+			if cs.Connection.ENBUES1APID != nil {
+				enbID := int64(*cs.Connection.ENBUES1APID)
+				reg.Connection.ENBUeS1apID = &enbID
+			}
+		}
+	}
+
+	if !at.IsZero() {
+		reg.LastSeenAt = at.UTC().Format(time.RFC3339)
+	}
+
+	return reg, true
+}
+
 func sessionFrom4G(s *mme.SubscriberSession) Session {
 	return Session{
-		RadioAccessType: "4G",
-		ID:              s.BearerID,
-		Status:          "active",
-		IPType:          ipTypeName(uint8(s.PDNType)),
-		IPv4Address:     s.IPv4Address,
-		IPv6Prefix:      s.IPv6Prefix,
-		DataNetwork:     s.APN,
-		AMBRUplink:      s.AMBRUplink,
-		AMBRDownlink:    s.AMBRDownlink,
+		System:       SystemEPS,
+		AccessTypes:  []string{AccessType3GPP},
+		ID:           s.BearerID,
+		Status:       "active",
+		IPType:       ipTypeName(uint8(s.PDNType)),
+		IPv4Address:  s.IPv4Address,
+		IPv6Prefix:   s.IPv6Prefix,
+		DataNetwork:  s.APN,
+		AMBRUplink:   s.AMBRUplink,
+		AMBRDownlink: s.AMBRDownlink,
 	}
 }
 
@@ -887,13 +966,14 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	}
 
 	s := Session{
-		RadioAccessType: "5G",
-		ID:              pdu.PDUSessionID,
-		Status:          status,
-		IPType:          ipTypeName(pdu.PDUSessionType),
-		IPv4Address:     pdu.PDUIPV4Address,
-		IPv6Prefix:      pdu.PDUIPV6Prefix,
-		DataNetwork:     pdu.DNN,
+		System:      System5GS,
+		AccessTypes: []string{AccessType3GPP},
+		ID:          pdu.PDUSessionID,
+		Status:      status,
+		IPType:      ipTypeName(pdu.PDUSessionType),
+		IPv4Address: pdu.PDUIPV4Address,
+		IPv6Prefix:  pdu.PDUIPV6Prefix,
+		DataNetwork: pdu.DNN,
 	}
 	if pdu.Snssai != nil {
 		s.Slice = &SNSSAI{SST: pdu.Snssai.Sst, SD: pdu.Snssai.Sd}

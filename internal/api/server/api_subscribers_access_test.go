@@ -15,12 +15,12 @@ func TestMergeAccesses(t *testing.T) {
 		newer = time.Date(2026, 8, 17, 10, 5, 0, 0, time.UTC)
 
 		on4G = accessView{
-			rat: "4G", present: true, registered: true, connected: true, imei: "490154203237518",
-			ciphering: "EEA2", integrity: "EIA2", lastSeenRadio: "enb-1",
+			rat: "4G", present: true, registered: true, connected: true,
+			lastSeenRadio: "enb-1",
 		}
 		on5G = accessView{
-			rat: "5G", present: true, registered: true, connected: true, imei: "490154203237518",
-			ciphering: "NEA2", integrity: "NIA2", lastSeenRadio: "gnb-1",
+			rat: "5G", present: true, registered: true, connected: true,
+			lastSeenRadio: "gnb-1",
 		}
 	)
 
@@ -38,7 +38,6 @@ func TestMergeAccesses(t *testing.T) {
 
 	deregistered := func(v accessView) accessView {
 		v.present, v.registered, v.connected = false, false, false
-		v.imei, v.ciphering, v.integrity = "", "", ""
 
 		return v
 	}
@@ -58,8 +57,7 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:   at(on4G, older),
 			wantRATs: []string{"4G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
-				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: older,
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: older,
 			},
 		},
 		{
@@ -67,8 +65,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, older),
 			wantRATs: []string{"5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: older,
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
 		},
 		{
@@ -77,8 +74,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, older),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
-				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: newer,
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
 		},
 		{
@@ -87,8 +83,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 		{
@@ -97,8 +92,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), older),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "enb-1", Imei: "490154203237518",
-				Ciphering: "EEA2", Integrity: "EIA2", LastSeenAt: newer,
+				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
 		},
 		{
@@ -107,8 +101,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 		{
@@ -117,8 +110,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(on5G, older),
 			wantRATs: []string{"5G"},
 			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: older,
+				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
 		},
 		{
@@ -127,8 +119,7 @@ func TestMergeAccesses(t *testing.T) {
 			view5G:   at(idle(on5G), newer),
 			wantRATs: []string{"4G", "5G"},
 			want: mergedAccess{
-				Registered: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
+				Registered: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 		{
@@ -137,21 +128,6 @@ func TestMergeAccesses(t *testing.T) {
 			view5G: at(deregistered(on5G), newer),
 			want: mergedAccess{
 				LastSeenRadio: "gnb-1", LastSeenAt: newer,
-			},
-		},
-		{
-			// The IMEI describes the device, not the access, so the access that knows it
-			// answers even when it is not the serving one.
-			name:   "only the older access reported an IMEI",
-			view4G: at(on4G, older),
-			view5G: at(accessView{
-				rat: "5G", present: true, registered: true, connected: true, lastSeenRadio: "gnb-1",
-				ciphering: "NEA2", integrity: "NIA2",
-			}, newer),
-			wantRATs: []string{"4G", "5G"},
-			want: mergedAccess{
-				Registered: true, Connected: true, LastSeenRadio: "gnb-1", Imei: "490154203237518",
-				Ciphering: "NEA2", Integrity: "NIA2", LastSeenAt: newer,
 			},
 		},
 	} {
@@ -174,53 +150,10 @@ func TestMergeAccesses(t *testing.T) {
 				t.Errorf("LastSeenRadio = %q, want %q", got.LastSeenRadio, tc.want.LastSeenRadio)
 			}
 
-			if got.Imei != tc.want.Imei {
-				t.Errorf("Imei = %q, want %q", got.Imei, tc.want.Imei)
-			}
-
-			if got.Ciphering != tc.want.Ciphering || got.Integrity != tc.want.Integrity {
-				t.Errorf("algorithms = %q/%q, want %q/%q",
-					got.Ciphering, got.Integrity, tc.want.Ciphering, tc.want.Integrity)
-			}
-
 			if !got.LastSeenAt.Equal(tc.want.LastSeenAt) {
 				t.Errorf("LastSeenAt = %v, want %v", got.LastSeenAt, tc.want.LastSeenAt)
 			}
 		})
-	}
-}
-
-// The last-seen radio and the algorithms are read together, so they have to come from the
-// same access however the two accesses are staggered.
-func TestMergeAccessesNeverPairsARadioWithAnotherAccessesAlgorithms(t *testing.T) {
-	base := time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
-
-	for i := range 4 {
-		for j := range 4 {
-			view4G := accessView{
-				rat: "4G", present: true, lastSeenRadio: "enb-1",
-				ciphering: "EEA2", integrity: "EIA2", lastSeenAt: base.Add(time.Duration(i) * time.Minute),
-			}
-			view5G := accessView{
-				rat: "5G", present: true, lastSeenRadio: "gnb-1",
-				ciphering: "NEA2", integrity: "NIA2", lastSeenAt: base.Add(time.Duration(j) * time.Minute),
-			}
-
-			got := mergeAccesses(view4G, view5G)
-
-			switch got.LastSeenRadio {
-			case "enb-1":
-				if got.Ciphering != "EEA2" || got.Integrity != "EIA2" {
-					t.Errorf("4G=%d 5G=%d: radio enb-1 reported with %q/%q", i, j, got.Ciphering, got.Integrity)
-				}
-			case "gnb-1":
-				if got.Ciphering != "NEA2" || got.Integrity != "NIA2" {
-					t.Errorf("4G=%d 5G=%d: radio gnb-1 reported with %q/%q", i, j, got.Ciphering, got.Integrity)
-				}
-			default:
-				t.Errorf("4G=%d 5G=%d: no radio reported for two registered accesses", i, j)
-			}
-		}
 	}
 }
 

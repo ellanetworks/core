@@ -97,7 +97,7 @@ func runHandoverEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "5G")
+	return assertRegisteredOn(ctx, env, "5GS")
 }
 
 func runHandoverEPSTo5GSTargetRefuses(ctx context.Context, env scenarios.Env, _ any) error {
@@ -133,7 +133,7 @@ func runHandoverEPSTo5GSTargetRefuses(ctx context.Context, env scenarios.Env, _ 
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "4G")
+	return assertRegisteredOn(ctx, env, "EPS")
 }
 
 func attachAndProbeOverEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB) (*s1enb.UE, *s1enb.AttachResult, sessionFacts, error) {

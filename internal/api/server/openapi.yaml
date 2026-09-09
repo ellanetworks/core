@@ -3977,57 +3977,117 @@ components:
         result:
           $ref: "#/components/schemas/ListSubscribersResponse"
 
-    SubscriberDetailStatus:
+    UEConnection:
       type: object
+      description: >-
+        The UE-associated logical connection identity pair of a registration: the
+        AMF and RAN UE NGAP IDs in 5GS (TS 38.413 §9.3.3.1, §9.3.3.2), or the MME and
+        eNB UE S1AP IDs in EPS (TS 36.413 §9.2.3.3, §9.2.3.4). Only the pair belonging
+        to the registration's system is present. These identifiers are ephemeral: the
+        RAN allocates its own for the duration of one connected period and reuses it
+        afterwards, so a value identifies a subscriber only together with `radio` and
+        the time it was read.
       properties:
+        amf_ue_ngap_id:
+          type: integer
+          format: int64
+          description: "AMF UE NGAP ID (5GS). INTEGER (0..2^40-1)."
+        ran_ue_ngap_id:
+          type: integer
+          format: int64
+          description: >-
+            RAN UE NGAP ID (5GS). INTEGER (0..2^32-1), allocated by the serving NG-RAN
+            node. Absent until it is allocated, e.g. on a handover target before
+            HANDOVER REQUEST ACKNOWLEDGE (TS 38.413 §9.2.3.5).
+        mme_ue_s1ap_id:
+          type: integer
+          format: int64
+          description: "MME UE S1AP ID (EPS). INTEGER (0..2^32-1)."
+        enb_ue_s1ap_id:
+          type: integer
+          format: int64
+          description: >-
+            eNB UE S1AP ID (EPS). INTEGER (0..2^24-1), allocated by the serving eNB.
+            Absent until it is allocated.
+
+    Registration:
+      type: object
+      description: >-
+        One mobility-management context of a subscriber. A subscriber may hold
+        several: 5GS keeps an independent registration state per access type
+        (TS 23.501 §5.3.2.4), and a UE in dual-registration mode may be registered
+        to both 5GC and EPC at the same time (TS 23.501 §5.17.2.1). An entry is
+        present whenever the core holds a context for that system or still remembers
+        having served the subscriber there.
+      properties:
+        system:
+          type: string
+          enum: ["5GS", "EPS"]
+          description: >-
+            The system holding this registration — the 5G System (5GC) or the Evolved
+            Packet System (EPC). This is the core that registered the UE, independent
+            of the radio: an NSA device on NR radio is registered in EPS.
+        access_type:
+          type: string
+          enum: ["3GPP", "non-3GPP"]
+          description: >-
+            The access this registration was established over (TS 23.501 §5.3.2.4).
+            Always "3GPP" in this release.
         registered:
           type: boolean
+          description: >-
+            Whether the UE is registered in this system: RM state in 5GS
+            (TS 23.501 §5.3.2.2) and EMM state in EPS (TS 23.401 §4.6.2). False on an
+            entry the core remembers but no longer holds a context for.
         connection_state:
           type: string
+          nullable: true
           enum: ["idle", "connected"]
           description: >-
-            Whether the device holds a NAS signalling connection: CM state in 5G
-            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3). Independent of
-            `registered` (TS 23.501 §5.3.3.2.2, TS 23.401 §4.6.1) — a device still
-            registering is "connected" with `registered` false. Omitted when the core
-            holds no context for the device.
-        radio_access_types:
-          type: array
-          items:
-            type: string
-            enum: ["4G", "5G"]
+            Whether the UE holds a NAS signalling connection in this system: CM state
+            in 5GS (TS 23.501 §5.3.3.2) and ECM state in EPS (TS 23.401 §4.6.3).
+            Independent of `registered` — a UE still registering is "connected" with
+            `registered` false. Null when the core holds no context.
+        radio:
+          type: string
           description: >-
-            Every access the subscriber is currently registered on. When there is
-            more than one, last_seen_radio and the security algorithms below all
-            describe the serving access — the one that last heard from the UE —
-            so they can be read together.
+            Name of the radio serving this registration, or the last one that did once
+            the UE is idle or deregistered, in which case it may be stale. Held in
+            memory by the serving node: not shared across cluster nodes, and reset on
+            restart. Empty if never seen.
+        last_seen_at:
+          type: string
+          description: Timestamp of last activity in this system (RFC 3339).
+        pei:
+          type: string
+          description: >-
+            Permanent Equipment Identifier of the device, in its NAS-prefixed form
+            ("imei-…" / "imeisv-…"). 5GS only (TS 23.003 §6.4). Empty when unknown.
         imei:
           type: string
           description: >-
-            IMEI of the connected device. It identifies the device rather than an
-            access, so it is reported by whichever access knows it.
+            15-digit IMEI of the device (TS 23.003). On a 5GS registration this is
+            the IMEI carried by `pei`, present only when the PEI is an IMEI or IMEISV.
+            Empty when unknown.
         ciphering_algorithm:
           type: string
           description: >-
-            Ciphering algorithm negotiated on the serving access. Empty when that
-            access reports none.
+            NAS ciphering algorithm negotiated in this system: NEA0 / 128-NEA1..3 in
+            5GS (TS 33.501 Annex D), EEA0 / 128-EEA1..3 in EPS (TS 33.401 Annex B).
+            Empty when none is established.
         integrity_algorithm:
           type: string
           description: >-
-            Integrity algorithm negotiated on the serving access. Empty when that
-            access reports none.
-        last_seen_at:
-          type: string
-          description: Timestamp of last activity (RFC 3339).
-        last_seen_radio:
-          type: string
+            NAS integrity algorithm negotiated in this system: NIA0 / 128-NIA1..3 in
+            5GS, EIA0 / 128-EIA1..3 in EPS. Empty when none is established.
+        connection:
+          allOf:
+            - $ref: "#/components/schemas/UEConnection"
+          nullable: true
           description: >-
-            Name of the radio that last served the device. The core knows the serving node
-            only while the device is connected (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2), so
-            on an idle or deregistered device this is last known and may be stale. Held in
-            memory by the serving node: not shared across cluster nodes, and reset on
-            restart. Empty if never seen.
-      required: [registered, imei, ciphering_algorithm, integrity_algorithm]
+            The UE-associated logical connection, or null when the UE holds none
+            (CM-IDLE / ECM-IDLE, or deregistered).
+      required: [system, access_type, registered, connection_state, connection]
 
     SubscriberDetail:
       type: object
@@ -4040,14 +4100,20 @@ components:
           type: string
           maxLength: 64
           description: Free-text operator note. Absent when unset.
-        status:
-          $ref: "#/components/schemas/SubscriberDetailStatus"
+        registrations:
+          type: array
+          description: >-
+            Every mobility-management context the core holds or remembers for this
+            subscriber, ordered 5GS first. Empty for a subscriber the core has never
+            served.
+          items:
+            $ref: "#/components/schemas/Registration"
         sessions:
           type: array
-          description: "Active sessions for this subscriber (5G PDU sessions / 4G PDN connections)."
+          description: "Active sessions for this subscriber (5GS PDU sessions / EPS PDN connections)."
           items:
             $ref: "#/components/schemas/Session"
-      required: [imsi, profile_name, status]
+      required: [imsi, profile_name, registrations, sessions]
 
     SubscriberCredentials:
       type: object
@@ -4077,7 +4143,7 @@ components:
 
     SNSSAI:
       type: object
-      description: "5G network slice identifier (S-NSSAI). Absent for 4G sessions."
+      description: "5GS network slice identifier (S-NSSAI). Absent for EPS sessions."
       properties:
         sst:
           type: integer
@@ -4089,22 +4155,31 @@ components:
 
     Session:
       type: object
-      description: "A UE data session — a 5G PDU session or a 4G PDN connection."
+      description: "A UE data session — a 5GS PDU session or an EPS PDN connection."
       properties:
-        radio_access_type:
+        system:
           type: string
-          enum: ["4G", "5G"]
-          description: "The radio access technology serving this session."
+          enum: ["5GS", "EPS"]
+          description: "The system holding this session, matching a registration's `system`."
+        access_types:
+          type: array
+          items:
+            type: string
+            enum: ["3GPP", "non-3GPP"]
+          description: >-
+            Every access this session is carried over. A Multi-Access PDU Session is
+            associated with 3GPP and non-3GPP access simultaneously (TS 23.501
+            §5.6.1); any other session names exactly one.
         id:
           type: integer
-          description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
+          description: "Session identifier: the PDU Session ID (5GS) or the linked EPS Bearer ID (EPS)."
         status:
           type: string
           description: "Session status (e.g. active, inactive)."
         ip_type:
           type: string
           enum: ["IPv4", "IPv6", "IPv4v6"]
-          description: "Negotiated IP type (5G PDU Session Type / 4G PDN Type)."
+          description: "Negotiated IP type (5GS PDU Session Type / EPS PDN Type)."
         ipv4_address:
           type: string
           description: "Assigned IPv4 address. Omitted if unknown."
@@ -4113,7 +4188,7 @@ components:
           description: "Assigned IPv6 prefix (/64). Omitted if unknown."
         data_network:
           type: string
-          description: "Data network name (DNN in 5G / APN in 4G)."
+          description: "Data network name (DNN in 5GS / APN in EPS)."
         slice:
           $ref: "#/components/schemas/SNSSAI"
         ambr_uplink:
@@ -4122,7 +4197,7 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
-      required: [radio_access_type, id, status]
+      required: [system, access_types, id, status]
 
     CreateSubscriberParams:
       type: object

@@ -34,20 +34,26 @@ func assertRegisteredOn(ctx context.Context, env scenarios.Env, want string) err
 
 	deadline := time.Now().Add(sessionSettle)
 
-	var last []string
+	last := make([]string, 0, 2)
 
 	for {
 		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
 		if err == nil {
-			last = sub.Status.RadioAccessTypes
+			last = last[:0]
 
-			if sub.Status.Registered && slices.Equal(last, []string{want}) {
+			for _, reg := range sub.Registrations {
+				if reg.Registered {
+					last = append(last, reg.System)
+				}
+			}
+
+			if slices.Equal(last, []string{want}) {
 				return nil
 			}
 		}
 
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the subscriber is not registered on %s alone (radio access types %v)", want, last)
+			return fmt.Errorf("the subscriber is not registered on %s alone (registered systems %v)", want, last)
 		}
 
 		time.Sleep(statusPoll)

@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getSubscriber,
   deleteSubscriber,
+  mergeRegistrations,
   type APISubscriber,
 } from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
@@ -163,7 +164,9 @@ const SubscriberDetail: React.FC = () => {
                   gap: 3,
                 }}
               >
-                <SubscriberConnectionCard status={subscriber.status} />
+                <SubscriberConnectionCard
+                  status={mergeRegistrations(subscriber.registrations)}
+                />
               </Box>
             </Box>
 

@@ -134,7 +134,7 @@ func runIdleEPSTo5GSBearerStatus(ctx context.Context, env scenarios.Env, _ any) 
 		return err
 	}
 
-	return assertSessionOn(ctx, env, "5G", before.addrs)
+	return assertSessionOn(ctx, env, "5GS", before.addrs)
 }
 
 func arriveOn5GSReportingBearerStatus(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, u *ue.UE, epsGUTI eps.GUTI) ([]byte, error) {

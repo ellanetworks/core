@@ -322,11 +322,18 @@ func (ue *UeContext) SetLastSeenForTest(t time.Time) {
 
 type UESnapshot struct {
 	Imei               string
+	Pei                string
 	LastSeenAt         time.Time
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
 	Connected          bool
 	Registered         bool
+	Connection         *UEConnection
+}
+
+type UEConnection struct {
+	AmfUeNgapID int64
+	RanUeNgapID *int64
 }
 
 func (ue *UeContext) Snapshot() UESnapshot {
@@ -335,11 +342,20 @@ func (ue *UeContext) Snapshot() UESnapshot {
 
 	snap := UESnapshot{
 		Imei:               ue.Imei.IMEI(),
+		Pei:                ue.Imei.String(),
 		LastSeenAt:         ue.lastSeenTime(),
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
 		Connected:          ue.active.Load() != nil,
 		Registered:         ue.state == Registered || ue.state == DeregistrationInitiated,
+	}
+
+	if conn := ue.active.Load(); conn != nil {
+		snap.Connection = &UEConnection{AmfUeNgapID: int64(conn.AmfUeNgapID)}
+		if conn.RanUeNgapID != models.RanUeNgapIDUnspecified {
+			ranID := int64(conn.RanUeNgapID)
+			snap.Connection.RanUeNgapID = &ranID
+		}
 	}
 
 	return snap
