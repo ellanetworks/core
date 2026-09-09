@@ -103,8 +103,7 @@ type SessionSlice struct {
 // Session is a UE data session — a 5GS PDU session or an EPS PDN connection.
 type Session struct {
 	System       string        `json:"system"` // "5GS" | "EPS"
-	AccessTypes  []string      `json:"access_types"`
-	ID           uint8         `json:"id"` // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
+	ID           uint8         `json:"id"`     // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
 	Status       string        `json:"status"`
 	IPType       string        `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
 	IPv4Address  string        `json:"ipv4_address,omitempty"`

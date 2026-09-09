@@ -85,17 +85,16 @@ type Slice struct {
 }
 
 type Session struct {
-	System       string   `json:"system"`
-	AccessTypes  []string `json:"access_types"`
-	ID           uint8    `json:"id"`
-	Status       string   `json:"status"`
-	IPType       string   `json:"ip_type,omitempty"`
-	IPv4Address  string   `json:"ipv4_address,omitempty"`
-	IPv6Prefix   string   `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string   `json:"data_network,omitempty"`
-	Slice        *Slice   `json:"slice,omitempty"`
-	AMBRUplink   string   `json:"ambr_uplink,omitempty"`
-	AMBRDownlink string   `json:"ambr_downlink,omitempty"`
+	System       string `json:"system"`
+	ID           uint8  `json:"id"`
+	Status       string `json:"status"`
+	IPType       string `json:"ip_type,omitempty"`
+	IPv4Address  string `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string `json:"data_network,omitempty"`
+	Slice        *Slice `json:"slice,omitempty"`
+	AMBRUplink   string `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string `json:"ambr_downlink,omitempty"`
 }
 
 // SubscriberDetail matches the full representation in get-single responses.
@@ -790,10 +789,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if session.System != "5GS" {
 			t.Fatalf("expected session system '5GS', got %q", session.System)
-		}
-
-		if got := session.AccessTypes; len(got) != 1 || got[0] != "3GPP" {
-			t.Fatalf("expected session access_types [3GPP], got %v", got)
 		}
 
 		reg, ok := response.Result.registrationFor("5GS")

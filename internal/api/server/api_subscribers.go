@@ -99,23 +99,21 @@ type SNSSAI struct {
 }
 
 type Session struct {
-	System       string   `json:"system"` // "5GS" | "EPS"
-	AccessTypes  []string `json:"access_types"`
-	ID           uint8    `json:"id"` // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
-	Status       string   `json:"status"`
-	IPType       string   `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address  string   `json:"ipv4_address,omitempty"`
-	IPv6Prefix   string   `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string   `json:"data_network,omitempty"` // DNN (5GS) / APN (EPS)
-	Slice        *SNSSAI  `json:"slice,omitempty"`        // 5GS only
-	AMBRUplink   string   `json:"ambr_uplink,omitempty"`
-	AMBRDownlink string   `json:"ambr_downlink,omitempty"`
+	System       string  `json:"system"` // "5GS" | "EPS"
+	ID           uint8   `json:"id"`     // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
+	Status       string  `json:"status"`
+	IPType       string  `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address  string  `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string  `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string  `json:"data_network,omitempty"` // DNN (5GS) / APN (EPS)
+	Slice        *SNSSAI `json:"slice,omitempty"`        // 5GS only
+	AMBRUplink   string  `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string  `json:"ambr_downlink,omitempty"`
 }
 
 const (
-	System5GS      = "5GS"
-	SystemEPS      = "EPS"
-	AccessType3GPP = "3GPP"
+	System5GS = "5GS"
+	SystemEPS = "EPS"
 )
 
 const (
@@ -942,7 +940,6 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 func sessionFrom4G(s *mme.SubscriberSession) Session {
 	return Session{
 		System:       SystemEPS,
-		AccessTypes:  []string{AccessType3GPP},
 		ID:           s.BearerID,
 		Status:       "active",
 		IPType:       ipTypeName(uint8(s.PDNType)),
@@ -962,7 +959,6 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 
 	s := Session{
 		System:      System5GS,
-		AccessTypes: []string{AccessType3GPP},
 		ID:          pdu.PDUSessionID,
 		Status:      status,
 		IPType:      ipTypeName(pdu.PDUSessionType),

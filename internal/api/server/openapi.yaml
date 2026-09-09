@@ -4144,14 +4144,6 @@ components:
           type: string
           enum: ["5GS", "EPS"]
           description: "The system holding this session, matching a registration's `system`."
-        access_types:
-          type: array
-          items:
-            type: string
-            enum: ["3GPP", "non-3GPP"]
-          description: >-
-            Every access this session is carried over. Always ["3GPP"] in this
-            release.
         id:
           type: integer
           description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
@@ -4179,7 +4171,7 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
-      required: [system, access_types, id, status]
+      required: [system, id, status]
 
     CreateSubscriberParams:
       type: object

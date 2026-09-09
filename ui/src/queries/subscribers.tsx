@@ -33,8 +33,6 @@ export type ListSubscribersResponse = {
 
 export type System = "5GS" | "EPS";
 
-export type AccessType = "3GPP" | "non-3GPP";
-
 export type UEConnection = {
   amf_ue_ngap_id?: number;
   ran_ue_ngap_id?: number;
@@ -269,7 +267,6 @@ export interface SliceInfo {
 
 export interface SessionInfo {
   system: System;
-  access_types: AccessType[];
   id: number;
   status: string;
   ip_type?: string; // IPv4 | IPv6 | IPv4v6

@@ -45,7 +45,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5GS", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5GS", "access_types": ["3GPP"], "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5GS", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5GS", "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -117,10 +117,6 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	if subscriber.Sessions[0].System != "5GS" {
 		t.Fatalf("expected session system '5GS', got %s", subscriber.Sessions[0].System)
-	}
-
-	if got := subscriber.Sessions[0].AccessTypes; len(got) != 1 || got[0] != "3GPP" {
-		t.Fatalf("expected session access_types [3GPP], got %v", got)
 	}
 
 	if subscriber.Sessions[0].ID != 1 {

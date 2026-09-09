@@ -150,7 +150,6 @@ None
     "sessions": [
       {
         "system": "5GS",
-        "access_types": ["3GPP"],
         "id": 1,
         "status": "active",
         "ip_type": "IPv4v6",
@@ -207,7 +206,6 @@ A radio-allocated identifier is unique only within that radio's connection to th
 | Field | Description |
 | ----- | ----------- |
 | `system` | `5GS` or `EPS`, matching a registration's `system`. |
-| `access_types` | Every access the session is carried over. Always `["3GPP"]` in this release. |
 | `id` | PDU Session ID (5G) or linked EPS Bearer ID (4G). |
 | `status` | Session status (for example `active`, `inactive`). |
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |

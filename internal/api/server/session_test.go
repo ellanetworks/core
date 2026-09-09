@@ -26,10 +26,6 @@ func TestSessionFrom5G_AllFields(t *testing.T) {
 		t.Fatalf("session = %+v", s)
 	}
 
-	if got := s.AccessTypes; len(got) != 1 || got[0] != AccessType3GPP {
-		t.Fatalf("AccessTypes = %v", got)
-	}
-
 	if s.IPType != "IPv4v6" || s.IPv4Address != "10.45.0.2" || s.IPv6Prefix != "2001:db8:ad50:8500::" {
 		t.Fatalf("addressing = %+v", s)
 	}
@@ -81,10 +77,6 @@ func TestSessionFrom4G(t *testing.T) {
 
 	if s.System != SystemEPS || s.ID != 5 || s.Status != "active" {
 		t.Fatalf("session = %+v", s)
-	}
-
-	if got := s.AccessTypes; len(got) != 1 || got[0] != AccessType3GPP {
-		t.Fatalf("AccessTypes = %v", got)
 	}
 
 	if s.IPType != "IPv6" || s.IPv6Prefix != "2001:db8::" || s.DataNetwork != "internet" {
