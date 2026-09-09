@@ -53,10 +53,7 @@ SPDX-FileCopyrightText = "The Linux Kernel Authors"
 # UI non-source files that can't carry a comment header: JSON configs, binary
 # assets, and placeholders. (TypeScript/React/SCSS source carry per-file headers.)
 [[annotations]]
-path = [
-  "ui/*.json", "ui/**/*.json", "ui/**/*.ico", "ui/**/*.svg", "ui/**/*.png",
-  "ui/.gitkeep", "ui/**/.gitkeep",
-]
+path = ["ui/*.json", "ui/**/*.json", "ui/**/*.ico", "ui/**/*.svg", "ui/.gitkeep", "ui/**/.gitkeep"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
