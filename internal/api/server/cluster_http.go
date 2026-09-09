@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 	"net/http"
 	"sync"
@@ -124,16 +123,11 @@ func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
 		return ctx
 	}
 
-	tc, ok := oc.Conn.(*tls.Conn)
-	if !ok {
-		return ctx
-	}
-
 	if clusterListenerForPeerLookup == nil {
 		return ctx
 	}
 
-	id, err := clusterListenerForPeerLookup.PeerNodeID(tc)
+	id, err := clusterListenerForPeerLookup.PeerNodeID(oc.Conn)
 	if err != nil {
 		return ctx
 	}

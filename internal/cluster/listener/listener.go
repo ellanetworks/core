@@ -340,18 +340,43 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	}
 
 	l.trackConn(tlsConn)
-	defer l.untrackConn(tlsConn)
 
 	if err := verifyConnection(l.cfg.Pin)(tlsConn.ConnectionState()); err != nil {
 		logger.RaftLog.Warn("Cluster connection rejected after handshake",
 			zap.String("remote", conn.RemoteAddr().String()),
 			zap.Error(err))
+		l.untrackConn(tlsConn)
+
 		_ = conn.Close()
 
 		return
 	}
 
-	handler(conn)
+	handler(&trackedConn{Conn: tlsConn, ln: l})
+}
+
+type trackedConn struct {
+	*tls.Conn
+
+	ln   *Listener
+	once sync.Once
+}
+
+func (c *trackedConn) Close() error {
+	c.once.Do(func() { c.ln.untrackConn(c.Conn) })
+
+	return c.Conn.Close()
+}
+
+func TLSConn(c net.Conn) (*tls.Conn, bool) {
+	switch conn := c.(type) {
+	case *trackedConn:
+		return conn.Conn, true
+	case *tls.Conn:
+		return conn, true
+	default:
+		return nil, false
+	}
 }
 
 // trackConn registers a post-handshake connection so
