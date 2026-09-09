@@ -43,20 +43,27 @@ const FILL = 0.95;
 const ICO_SIZES = [16, 32, 48];
 const APPLE_SIZE = 180;
 
+const GROUND_CUT_Y = 45.7;
+
 const MARK = {
   minHole: 1.0,
   thicken: 0.25,
-  ringWidth: 2.3,
-  ringGap: 2.2,
-  outerRadius: 28.0,
-  reach: 22.6,
-  keyline: 1.8,
-  floorClearance: 0.6,
+  outerWidth: 1.9,
+  innerWidth: 1.9,
+  ringGap: 1.5,
+  keyline: 2.2,
+  haloBelowY: CENTRE + 6,
+  reachFraction: 1.03,
+  floorLines: 3,
+  floorThicken: 0.55,
+  floorMinGap: 1.5,
   tolerance: 0.02,
+  haloTolerance: 0.1,
 };
-const MARK_SIZES = [40, 50];
+const MARK_SIZES = [50];
 const MARK_MIN_RING_PX = 1.5;
 const MARK_INNER_ARCS = 3;
+const EAR_RAW_RADIUS = 23.48;
 
 function catShape(sourceSvg) {
   const black = blackPaths(sourceSvg);
@@ -124,7 +131,8 @@ function fitToFrame(mp) {
 
 function buildFaviconSvg(sourceSvg) {
   const { cat, area } = catShape(sourceSvg);
-  const mp = fitToFrame(simplifyCat(cat, area)).map((poly) =>
+  const { cat: catNoGround } = unweld(cat, area);
+  const mp = fitToFrame(simplifyCat(catNoGround, area)).map((poly) =>
     poly.map((ring) => simplify(ring, OUTLINE_TOLERANCE)),
   );
   const raw =
@@ -219,20 +227,38 @@ function scaleAboutCentre(mp, s) {
   );
 }
 
-function maxRadius(mp) {
-  let m = 0;
-  for (const poly of mp) {
-    for (const ring of poly) {
-      for (const [x, y] of ring) {
-        m = Math.max(m, Math.hypot(x - CENTRE, y - CENTRE));
-      }
-    }
-  }
-  return m;
+function halfPlane(lo, hi) {
+  return [
+    [
+      [-10, lo],
+      [70, lo],
+      [70, hi],
+      [-10, hi],
+      [-10, lo],
+    ],
+  ];
 }
 
-function buildMarkSvg(sourceSvg) {
-  const { cat, area } = catShape(sourceSvg);
+function spaceFloor(lines) {
+  const extent = (poly) => {
+    const ys = poly.flat().map((p) => p[1]);
+    return [Math.min(...ys), Math.max(...ys)];
+  };
+  const ordered = lines
+    .map((poly) => ({ poly, e: extent(poly) }))
+    .sort((a, b) => a.e[0] - b.e[0]);
+  const out = [];
+  let prevBottom = GROUND_CUT_Y;
+  for (const { poly, e } of ordered) {
+    const need = prevBottom + MARK.floorMinGap - e[0];
+    const dy = need > 0 ? need : 0;
+    out.push(poly.map((ring) => ring.map(([x, y]) => [x, y + dy])));
+    prevBottom = e[1] + dy;
+  }
+  return out;
+}
+
+function unweld(cat, area) {
   const kept = [];
   for (const poly of cat) {
     if (area(poly[0]) < MARK.minHole * 1.5) continue;
@@ -242,54 +268,76 @@ function buildMarkSvg(sourceSvg) {
     }
     kept.push(keep);
   }
-  kept.sort((x, y) => area(y[0]) - area(x[0]));
+  kept.sort((a, b) => area(b[0]) - area(a[0]));
   const body = [kept[0]];
-  const floor = kept.slice(1);
+  const cutTop = pc.intersection(body, halfPlane(-10, GROUND_CUT_Y));
+  const cutBottom = pc.intersection(body, halfPlane(GROUND_CUT_Y, 70));
+  const loose = kept.slice(1);
+  const floor = [...cutBottom, ...loose]
+    .map((poly) => {
+      const xs = poly[0].map((q) => q[0]);
+      return { poly, width: Math.max(...xs) - Math.min(...xs) };
+    })
+    .sort((a, b) => b.width - a.width)
+    .slice(0, MARK.floorLines)
+    .map((f) => f.poly);
+  return { cat: cutTop, floor: spaceFloor(floor) };
+}
 
-  const scale = MARK.reach / maxRadius(body);
-  const clean = (mp) =>
+function buildMarkSvg(sourceSvg) {
+  const { cat, area } = catShape(sourceSvg);
+  const { cat: catPolys, floor } = unweld(cat, area);
+
+  const rOuter = DISC_R - MARK.outerWidth / 2;
+  const rInner =
+    rOuter - MARK.outerWidth / 2 - MARK.ringGap - MARK.innerWidth / 2;
+  const ringOuterEdge = rInner + MARK.innerWidth / 2;
+  const ringInnerEdge = rInner - MARK.innerWidth / 2;
+
+  const scale = (ringInnerEdge * MARK.reachFraction) / EAR_RAW_RADIUS;
+  const place = (mp, tolerance) =>
     scaleAboutCentre(mp, scale).map((poly) =>
-      poly.map((ring) => snapRing(simplify(ring, MARK.tolerance))),
+      poly.map((ring) => snapRing(simplify(ring, tolerance))),
     );
-  const bodyMp = clean(body);
 
-  const rOuter = MARK.outerRadius - MARK.ringWidth / 2;
-  const rInner = rOuter - MARK.ringWidth - MARK.ringGap;
-  const floorLimit = rInner - MARK.ringWidth / 2 - MARK.floorClearance;
-  const floorMp =
-    floor.length > 0
-      ? pc.intersection(clean(floor), circlePoly(floorLimit))
-      : [];
-
-  const halo = dilate(bodyMp.flat(), MARK.keyline);
-  const innerBand = pc.difference(
-    circlePoly(rInner + MARK.ringWidth / 2),
-    circlePoly(rInner - MARK.ringWidth / 2),
+  const catMp = place(catPolys, MARK.tolerance);
+  const floorMp = pc.intersection(
+    place(floor, MARK.tolerance),
+    circlePoly(ringOuterEdge),
   );
-  const innerRing = pc.difference(innerBand, halo);
+  const halo = pc.intersection(
+    place(catPolys, MARK.haloTolerance),
+    halfPlane(-10, MARK.haloBelowY),
+  );
+  const band = pc.difference(
+    circlePoly(ringOuterEdge),
+    circlePoly(ringInnerEdge),
+  );
+  const innerRing = pc.difference(band, dilate(halo.flat(), MARK.keyline));
   if (innerRing.length !== MARK_INNER_ARCS) {
     throw new Error(
-      `expected the cat to break the inner ring into ${MARK_INNER_ARCS} arcs, ` +
-        `got ${innerRing.length}`,
+      `expected the inner ring in ${MARK_INNER_ARCS} arcs, got ${innerRing.length}`,
     );
   }
   const innerPath = innerRing.map((poly) =>
     poly.map((ring) => simplify(ring, MARK.tolerance)),
   );
 
-  const floorMaxR = floorMp.length > 0 ? maxRadius(floorMp) : 0;
-  const artwork = [...bodyMp, ...floorMp];
   const raw =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" role="img">` +
     `<title>Ella Core</title>` +
     `<circle cx="${CENTRE}" cy="${CENTRE}" r="${DISC_R}" fill="#fff"/>` +
     `<circle cx="${CENTRE}" cy="${CENTRE}" r="${rOuter.toFixed(3)}" fill="none" ` +
-    `stroke="#000" stroke-width="${MARK.ringWidth}"/>` +
+    `stroke="#000" stroke-width="${MARK.outerWidth}"/>` +
     `<path fill="#000" fill-rule="nonzero" d="${polysToPath(innerPath)}"/>` +
     `<path fill="#000" stroke="#000" fill-rule="evenodd" ` +
+    `stroke-width="${MARK.floorThicken}" stroke-linejoin="round" ` +
+    `stroke-linecap="round" d="${polysToPath(floorMp)}"/>` +
+    `<path fill="#000" stroke="#000" fill-rule="evenodd" ` +
     `stroke-width="${MARK.thicken}" stroke-linejoin="round" ` +
-    `d="${polysToPath(artwork)}"/>` +
+    `d="${polysToPath(catMp)}"/>` +
     `</svg>`;
+
   const { data } = optimize(raw, {
     multipass: true,
     floatPrecision: PRECISION,
@@ -311,8 +359,7 @@ function buildMarkSvg(sourceSvg) {
     rOuter,
     rInner,
     arcs: innerRing.length,
-    floorLimit,
-    floorMaxR,
+    ringPx: (MARK.innerWidth * 50) / 60,
   };
 }
 
@@ -341,7 +388,7 @@ try {
 
   console.log("\nmark rings must survive rasterisation:");
   for (const size of MARK_SIZES) {
-    const px = (MARK.ringWidth * size) / 60;
+    const px = (MARK.innerWidth * size) / 60;
     const pass = px >= MARK_MIN_RING_PX;
     if (!pass) ok = false;
     console.log(
@@ -365,9 +412,8 @@ fs.writeFileSync(FAVICON_SVG, favicon);
 fs.writeFileSync(LOGO_MARK, mark.svg);
 console.log(
   `logo-mark.svg ${mark.svg.length} B  rings r=${mark.rOuter.toFixed(2)}/${mark.rInner.toFixed(2)}, inner ring in ${mark.arcs} arcs\n` +
-    `  floor reaches r=${mark.floorMaxR.toFixed(2)}, ring band starts at r=${(mark.rInner - MARK.ringWidth / 2).toFixed(2)} ` +
-    `-> ${mark.floorMaxR < mark.rInner - MARK.ringWidth / 2 ? "clear of the ring" : "TOUCHES THE RING"}\n` +
-    `  keyline ${MARK.keyline} units = ${((MARK.keyline * 50) / 60).toFixed(2)} px at 50px`,
+    `  inner ring ${mark.arcs} arcs, ${mark.ringPx.toFixed(2)}px at 50px, ` +
+    `keyline ${MARK.keyline} units = ${((MARK.keyline * 50) / 60).toFixed(2)}px`,
 );
 console.log(
   `\nwrote public/favicon.svg, public/favicon.ico (${ICO_SIZES.join("/")}), ` +
