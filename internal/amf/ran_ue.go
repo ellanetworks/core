@@ -78,6 +78,7 @@ type UeConn struct {
 	n2Sessions n2Sessions
 	inboundNAS atomic.Uint32
 	log        atomic.Pointer[zap.Logger]
+	baseLog    atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -178,6 +179,25 @@ func (ueConn *UeConn) Log() *zap.Logger {
 
 func (ueConn *UeConn) setLog(l *zap.Logger) {
 	ueConn.log.Store(l)
+}
+
+func (ueConn *UeConn) bindLog(base *zap.Logger) {
+	ueConn.baseLog.Store(base)
+	ueConn.refreshLog()
+}
+
+func (ueConn *UeConn) refreshLog() {
+	base := ueConn.baseLog.Load()
+	if base == nil {
+		return
+	}
+
+	fields := []zap.Field{logger.AmfUeNgapID(ueConn.AmfUeNgapID)}
+	if ueConn.RanUeNgapID != models.RanUeNgapIDUnspecified {
+		fields = append(fields, logger.RanUeNgapID(ueConn.RanUeNgapID))
+	}
+
+	ueConn.setLog(base.With(fields...))
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
@@ -683,10 +703,11 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	ue.ncc = ncc
 	ue.mu.Unlock()
 
+	ueConn.bindLog(ran.Log)
+
 	a.mu.Unlock()
 
-	ueConn.setLog(ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID)))
-	ueConn.Log().Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	ueConn.Log().Info("ran ue switched to new Ran")
 
 	return true
 }

@@ -34,11 +34,14 @@ const (
 // NAS-guard supervision, and any in-flight handover. A fresh one is bound
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
+const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
+
 type UeConn struct {
 	ENBUES1APID               s1ap.ENBUES1APID
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
 	log                       atomic.Pointer[zap.Logger]
+	baseLog                   atomic.Pointer[zap.Logger]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
@@ -82,6 +85,25 @@ func (c *UeConn) Log() *zap.Logger {
 
 func (c *UeConn) setLog(l *zap.Logger) {
 	c.log.Store(l)
+}
+
+func (c *UeConn) bindLog(base *zap.Logger) {
+	c.baseLog.Store(base)
+	c.refreshLog()
+}
+
+func (c *UeConn) refreshLog() {
+	base := c.baseLog.Load()
+	if base == nil {
+		return
+	}
+
+	fields := []zap.Field{logger.MMEUeS1apID(uint32(c.MMEUES1APID))}
+	if c.ENBUES1APID != enbUES1APIDUnspecified {
+		fields = append(fields, logger.ENBUeS1apID(uint32(c.ENBUES1APID)))
+	}
+
+	c.setLog(base.With(fields...))
 }
 
 func (c *UeConn) ArrivedFrom5GS() bool {

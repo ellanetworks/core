@@ -258,6 +258,7 @@ func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapI
 	defer a.mu.Unlock()
 
 	ueConn.RanUeNgapID = newRanUeNgapID
+	ueConn.refreshLog()
 }
 
 func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID models.AmfUeNgapID) *UeConn {

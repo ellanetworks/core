@@ -777,7 +777,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		conn:        radio.Conn,
 		amf:         a,
 	}
-	ueConn.setLog(radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)))
+	ueConn.bindLog(radio.Log)
 
 	a.mu.Lock()
 	ueConn.setRadio(radioIDOf(radio), radio.name)
