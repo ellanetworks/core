@@ -9,12 +9,10 @@ const newer = "2026-08-17T10:05:00Z";
 
 const on5GS: Registration = {
   system: "5GS",
-  access_type: "3GPP",
   registered: true,
   connection_state: "connected",
   radio: "gnb-1",
   last_seen_at: older,
-  pei: "imeisv-4901542032375181",
   imei: "490154203237518",
   ciphering_algorithm: "128-NEA2",
   integrity_algorithm: "128-NIA2",
@@ -23,7 +21,6 @@ const on5GS: Registration = {
 
 const onEPS: Registration = {
   system: "EPS",
-  access_type: "3GPP",
   registered: true,
   connection_state: "connected",
   radio: "enb-1",
@@ -47,7 +44,6 @@ const idle = (r: Registration): Registration => ({
 
 const deregistered = (r: Registration): Registration => ({
   system: r.system,
-  access_type: r.access_type,
   registered: false,
   connection_state: null,
   radio: r.radio,

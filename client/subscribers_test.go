@@ -45,7 +45,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5GS", "access_type": "3GPP", "registered": true, "connection_state": "connected", "radio": "gnb-01", "pei": "imeisv-3535938300494715", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5GS", "access_types": ["3GPP"], "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5GS", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5GS", "access_types": ["3GPP"], "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -75,8 +75,8 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	reg := subscriber.Registrations[0]
 
-	if reg.System != "5GS" || reg.AccessType != "3GPP" {
-		t.Fatalf("expected a 5GS/3GPP registration, got %s/%s", reg.System, reg.AccessType)
+	if reg.System != "5GS" {
+		t.Fatalf("expected a 5GS registration, got %s", reg.System)
 	}
 
 	if !reg.Registered {
@@ -91,8 +91,8 @@ func TestGetSubscriber_Success(t *testing.T) {
 		t.Fatalf("expected Radio 'gnb-01', got %s", reg.Radio)
 	}
 
-	if reg.Pei != "imeisv-3535938300494715" {
-		t.Fatalf("expected Pei 'imeisv-3535938300494715', got %s", reg.Pei)
+	if reg.Imei != "359881234567890" {
+		t.Fatalf("expected Imei '359881234567890', got %s", reg.Imei)
 	}
 
 	if reg.CipheringAlgorithm != "128-NEA2" || reg.IntegrityAlgorithm != "128-NIA2" {

@@ -126,12 +126,10 @@ None
     "registrations": [
       {
         "system": "5GS",
-        "access_type": "3GPP",
         "registered": true,
         "connection_state": "connected",
         "radio": "gNB-1",
         "last_seen_at": "2026-03-16T12:34:56Z",
-        "pei": "imeisv-3535938300494715",
         "imei": "359881234567890",
         "ciphering_algorithm": "128-NEA2",
         "integrity_algorithm": "128-NIA2",
@@ -142,7 +140,6 @@ None
       },
       {
         "system": "EPS",
-        "access_type": "3GPP",
         "registered": false,
         "connection_state": null,
         "radio": "eNB-7",
@@ -176,20 +173,18 @@ None
 
 ### Registrations
 
-`registrations` holds one entry per mobility-management context, ordered 5GS first. It is empty for a subscriber the core has never served.
+`registrations` holds one entry per mobility-management context, ordered with 5G first. It is empty for a subscriber the core has never served.
 
 | Field | Description |
 | ----- | ----------- |
-| `system` | `5GS` or `EPS`. The core that registered the device, independent of the radio: an NSA device on NR radio is registered in `EPS`. |
-| `access_type` | `3GPP` or `non-3GPP`. Always `3GPP` in this release. |
-| `registered` | RM state in 5GS (TS 23.501 §5.3.2.2), EMM state in EPS (TS 23.401 §4.6.2). `false` on an entry the core remembers but holds no context for. |
-| `connection_state` | `connected` or `idle`. CM state in 5GS (TS 23.501 §5.3.3.2), ECM state in EPS (TS 23.401 §4.6.3). Independent of `registered`: a device still registering is `connected` with `registered` false. `null` when the core holds no context. |
+| `system` | `5GS` for 5G, `EPS` for 4G. The core that registered the device, independent of the radio: an NSA device on 5G radio reports `EPS`. |
+| `registered` | RM state in 5G, EMM state in 4G. `false` on an entry the core remembers but holds no context for. |
+| `connection_state` | `connected` or `idle`. CM state in 5G, ECM state in 4G. Independent of `registered`: a device still registering is `connected` with `registered` false. `null` when the core holds no context. |
 | `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered, in which case it may be stale. Held in memory by the serving node: not shared across cluster nodes, and reset on restart. |
 | `last_seen_at` | Timestamp of last activity in this system (RFC 3339). |
-| `pei` | Permanent Equipment Identifier in NAS-prefixed form (`imei-…` / `imeisv-…`). 5GS only (TS 23.003 §6.4). Absent once the core has released the context. |
-| `imei` | 15-digit IMEI. On a 5GS registration this is the IMEI carried by `pei`, present only when the PEI is an IMEI or IMEISV. Absent once the core has released the context. |
-| `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5GS (TS 33.501 Annex D), `EEA0` / `128-EEA1..3` in EPS (TS 33.401 Annex B). Absent once the core has released the context. |
-| `integrity_algorithm` | `NIA0` / `128-NIA1..3` in 5GS, `EIA0` / `128-EIA1..3` in EPS. Absent once the core has released the context. |
+| `imei` | 15-digit IMEI of the device. Absent once the core has released the context. |
+| `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent once the core has released the context. |
+| `integrity_algorithm` | `NIA0` / `128-NIA1..3` in 5G, `EIA0` / `128-EIA1..3` in 4G. Absent once the core has released the context. |
 | `connection` | UE-associated logical connection, or `null` when the device holds none. |
 
 ### Connection identifiers
@@ -198,26 +193,26 @@ None
 
 | Field | System | Description |
 | ----- | ------ | ----------- |
-| `amf_ue_ngap_id` | 5GS | AMF UE NGAP ID, `INTEGER (0..2^40-1)` (TS 38.413 §9.3.3.1). Allocated by the core. |
-| `ran_ue_ngap_id` | 5GS | RAN UE NGAP ID, `INTEGER (0..2^32-1)` (TS 38.413 §9.3.3.2). Allocated by the serving NG-RAN node. Absent until it is allocated, for example on a handover target before HANDOVER REQUEST ACKNOWLEDGE (TS 38.413 §9.2.3.5). |
-| `mme_ue_s1ap_id` | EPS | MME UE S1AP ID, `INTEGER (0..2^32-1)` (TS 36.413 §9.2.3.3). Allocated by the core. |
-| `enb_ue_s1ap_id` | EPS | eNB UE S1AP ID, `INTEGER (0..2^24-1)` (TS 36.413 §9.2.3.4). Allocated by the serving eNB. Absent until it is allocated. |
+| `amf_ue_ngap_id` | 5G | AMF UE NGAP ID, `INTEGER (0..2^40-1)`. Allocated by the core. |
+| `ran_ue_ngap_id` | 5G | RAN UE NGAP ID, `INTEGER (0..2^32-1)`. Allocated by the serving radio. Absent until the radio allocates one, for example on a handover target before it accepts the handover. |
+| `mme_ue_s1ap_id` | 4G | MME UE S1AP ID, `INTEGER (0..2^32-1)`. Allocated by the core. |
+| `enb_ue_s1ap_id` | 4G | eNB UE S1AP ID, `INTEGER (0..2^24-1)`. Allocated by the serving radio. Absent until the radio allocates one. |
 
 These values appear under the same names on Ella Core's log lines for the device.
 
-A RAN-allocated identifier is unique only within one NG or S1 interface instance and is reused after the connection ends, so it is not a stable device identifier.
+A radio-allocated identifier is unique only within that radio's connection to the core and is reused after the device disconnects, so it is not a stable device identifier.
 
 ### Sessions
 
 | Field | Description |
 | ----- | ----------- |
 | `system` | `5GS` or `EPS`, matching a registration's `system`. |
-| `access_types` | Every access the session is carried over. A Multi-Access PDU Session names both `3GPP` and `non-3GPP` (TS 23.501 §5.6.1); any other session names exactly one. |
-| `id` | PDU Session ID (5GS) or linked EPS Bearer ID (EPS). |
+| `access_types` | Every access the session is carried over. Always `["3GPP"]` in this release. |
+| `id` | PDU Session ID (5G) or linked EPS Bearer ID (4G). |
 | `status` | Session status (for example `active`, `inactive`). |
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |
-| `data_network` | DNN (5GS) or APN (EPS). |
-| `slice` | S-NSSAI. 5GS only. |
+| `data_network` | DNN (5G) or APN (4G). |
+| `slice` | S-NSSAI. 5G only. |
 
 ## Get Subscriber Credentials
 

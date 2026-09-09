@@ -322,7 +322,6 @@ func (ue *UeContext) SetLastSeenForTest(t time.Time) {
 
 type UESnapshot struct {
 	Imei               string
-	Pei                string
 	LastSeenAt         time.Time
 	CipheringAlgorithm string
 	IntegrityAlgorithm string
@@ -342,7 +341,6 @@ func (ue *UeContext) Snapshot() UESnapshot {
 
 	snap := UESnapshot{
 		Imei:               ue.Imei.IMEI(),
-		Pei:                ue.Imei.String(),
 		LastSeenAt:         ue.lastSeenTime(),
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),

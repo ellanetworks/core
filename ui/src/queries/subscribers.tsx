@@ -44,12 +44,10 @@ export type UEConnection = {
 
 export type Registration = {
   system: System;
-  access_type: AccessType;
   registered: boolean;
   connection_state: ConnectionState | null;
   radio?: string;
   last_seen_at?: string;
-  pei?: string;
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;
@@ -109,7 +107,7 @@ export function mergeRegistrations(
     radio_access_types: present.map(
       (r) => SYSTEM_ACCESS_LABELS[r.system] ?? r.system,
     ),
-    imei: present.map((r) => r.imei ?? r.pei ?? "").find(Boolean) ?? "",
+    imei: present.map((r) => r.imei ?? "").find(Boolean) ?? "",
     ciphering_algorithm: serving?.ciphering_algorithm ?? "",
     integrity_algorithm: serving?.integrity_algorithm ?? "",
     last_seen_at: answering?.last_seen_at,

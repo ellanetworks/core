@@ -69,12 +69,10 @@ type UEConnection struct {
 
 type Registration struct {
 	System             string        `json:"system"`
-	AccessType         string        `json:"access_type"`
 	Registered         bool          `json:"registered"`
 	ConnectionState    *string       `json:"connection_state"`
 	Radio              string        `json:"radio,omitempty"`
 	LastSeenAt         string        `json:"last_seen_at,omitempty"`
-	Pei                string        `json:"pei,omitempty"`
 	Imei               string        `json:"imei,omitempty"`
 	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
 	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
@@ -801,10 +799,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		reg, ok := response.Result.registrationFor("5GS")
 		if !ok {
 			t.Fatalf("expected a 5GS registration, got %+v", response.Result.Registrations)
-		}
-
-		if reg.AccessType != "3GPP" {
-			t.Fatalf("expected access_type '3GPP', got %q", reg.AccessType)
 		}
 
 		if reg.ConnectionState == nil || *reg.ConnectionState != "idle" {

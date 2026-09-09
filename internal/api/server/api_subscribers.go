@@ -69,12 +69,10 @@ type UEConnection struct {
 
 type Registration struct {
 	System             string        `json:"system"`
-	AccessType         string        `json:"access_type"`
 	Registered         bool          `json:"registered"`
 	ConnectionState    *string       `json:"connection_state"`
 	Radio              string        `json:"radio,omitempty"`
 	LastSeenAt         string        `json:"last_seen_at,omitempty"`
-	Pei                string        `json:"pei,omitempty"`
 	Imei               string        `json:"imei,omitempty"`
 	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
 	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
@@ -870,9 +868,8 @@ func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen
 	}
 
 	reg := Registration{
-		System:     System5GS,
-		AccessType: AccessType3GPP,
-		Radio:      retained.RadioName,
+		System: System5GS,
+		Radio:  retained.RadioName,
 	}
 
 	at := retained.At
@@ -880,7 +877,6 @@ func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen
 	if present {
 		reg.Registered = snap.Registered
 		reg.ConnectionState = connectionStatePtr(snap.Connected)
-		reg.Pei = snap.Pei
 		reg.Imei = snap.Imei
 		reg.CipheringAlgorithm = snap.CipheringAlgorithm
 		reg.IntegrityAlgorithm = snap.IntegrityAlgorithm
@@ -908,9 +904,8 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 	}
 
 	reg := Registration{
-		System:     SystemEPS,
-		AccessType: AccessType3GPP,
-		Radio:      retained.RadioName,
+		System: SystemEPS,
+		Radio:  retained.RadioName,
 	}
 
 	at := retained.At
