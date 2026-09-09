@@ -33,7 +33,12 @@ import QueryState from "@/components/QueryState";
 import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
-import { DENSE_ROW_HEIGHT, MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import {
+  DENSE_HEADER_HEIGHT,
+  DENSE_ROW_HEIGHT,
+  MAX_WIDTH,
+  PAGE_PADDING_X,
+} from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
@@ -345,7 +350,9 @@ const AuditLog: React.FC = () => {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
+              density="standard"
               rowHeight={DENSE_ROW_HEIGHT}
+              columnHeaderHeight={DENSE_HEADER_HEIGHT}
             />
           )}
         </QueryState>
