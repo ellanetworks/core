@@ -144,7 +144,7 @@ func arrivingAMF(t *testing.T, peer *epsPeerStub) (*amf.AMF, *amf.Radio, *arriva
 		t.Fatalf("NGRANIdentityToNGAP: %v", err)
 	}
 
-	amfInstance.ClaimRanID(radio, target)
+	amfInstance.ClaimRanID(radio, target, amf.DefaultRelativeCapacity)
 
 	return amfInstance, radio, sender, smfSbi
 }
@@ -492,7 +492,7 @@ func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 		t.Fatalf("NGRANIdentityToNGAP: %v", err)
 	}
 
-	amfInstance.ClaimRanID(radio, target)
+	amfInstance.ClaimRanID(radio, target, amf.DefaultRelativeCapacity)
 
 	_, err = amfInstance.ForwardRelocation(context.Background(), arrivingRequest())
 	if err == nil {

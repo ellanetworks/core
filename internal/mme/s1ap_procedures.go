@@ -30,6 +30,9 @@ const (
 	S1APProcedureENBConfigUpdate             S1APProcedure = "ENBConfigurationUpdate"
 	S1APProcedureENBConfigUpdateAck          S1APProcedure = "ENBConfigurationUpdateAcknowledge"
 	S1APProcedureENBConfigUpdateFailure      S1APProcedure = "ENBConfigurationUpdateFailure"
+	S1APProcedureMMEConfigUpdate             S1APProcedure = "MMEConfigurationUpdate"
+	S1APProcedureMMEConfigUpdateAck          S1APProcedure = "MMEConfigurationUpdateAcknowledge"
+	S1APProcedureMMEConfigUpdateFailure      S1APProcedure = "MMEConfigurationUpdateFailure"
 	S1APProcedureERABSetupRequest            S1APProcedure = "E-RABSetupRequest"
 	S1APProcedureERABSetupResponse           S1APProcedure = "E-RABSetupResponse"
 	S1APProcedureERABModifyRequest           S1APProcedure = "E-RABModifyRequest"
@@ -105,6 +108,8 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureReset
 	case s1ap.ProcENBConfigurationUpdate:
 		return S1APProcedureENBConfigUpdate
+	case s1ap.ProcMMEConfigurationUpdate:
+		return S1APProcedureMMEConfigUpdate
 	case s1ap.ProcERABSetup:
 		return S1APProcedureERABSetupRequest
 	case s1ap.ProcERABModify:
@@ -154,6 +159,8 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureResetAcknowledge
 	case s1ap.ProcENBConfigurationUpdate:
 		return S1APProcedureENBConfigUpdateAck
+	case s1ap.ProcMMEConfigurationUpdate:
+		return S1APProcedureMMEConfigUpdateAck
 	case s1ap.ProcERABSetup:
 		return S1APProcedureERABSetupResponse
 	case s1ap.ProcERABModify:
@@ -183,6 +190,8 @@ func s1apUnsuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureInitialContextSetupFailure
 	case s1ap.ProcENBConfigurationUpdate:
 		return S1APProcedureENBConfigUpdateFailure
+	case s1ap.ProcMMEConfigurationUpdate:
+		return S1APProcedureMMEConfigUpdateFailure
 	case s1ap.ProcPathSwitchRequest:
 		return S1APProcedurePathSwitchRequestFailure
 	case s1ap.ProcHandoverPreparation:

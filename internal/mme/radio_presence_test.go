@@ -15,7 +15,7 @@ func connectENB(t *testing.T, m *MME, name string, id uint32) *sctp.SCTPConn {
 
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: name})
-	m.ClaimENBID(m.RadioForConn(conn), testENBID(id))
+	m.ClaimENBID(m.RadioForConn(conn), testENBID(id), DefaultRelativeCapacity)
 
 	return conn
 }

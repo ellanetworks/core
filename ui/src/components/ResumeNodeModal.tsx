@@ -52,9 +52,8 @@ const ResumeNodeModal: React.FC<Props> = ({
             sx={{ mt: 1, pl: 2.5 }}
           >
             <li>
-              The AMF Status Indication sent at drain time — RANs treat this
-              node&apos;s GUAMI as available again only after the next NG Setup
-              (typically on RAN restart or SCTP reconnect).
+              Subscribers already moved off — they stay on the nodes they
+              re-attached to.
             </li>
             <li>
               Raft leadership transfer — if this node was the leader when

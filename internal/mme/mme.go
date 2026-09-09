@@ -89,10 +89,8 @@ type MME struct {
 	// §9.9.3.12A); nil falls back to the default.
 	EPSNetworkFeatureSupport *eps.NetworkFeatureSupport
 
-	// Name and RelativeCapacity are advertised in the S1 Setup Response (TS 36.413
-	// §9.1.8.4). Defaulted in New; not yet DB-wired.
 	Name             string
-	RelativeCapacity uint8
+	relativeCapacity atomic.Uint32
 
 	mu        sync.RWMutex
 	reg       *radioreg.Registry[S1APWriter, string, *Radio]
@@ -169,13 +167,12 @@ const defaultHandoverGuardTimeout = 10 * time.Second
 // to resolve a subscriber's default-bearer QoS; session is the SMF+PGW-C anchor
 // that allocates the UE IP. The MME never holds subscriber keys or the SQN.
 func New(cred credentialProvider, bearer bearerStore, session epsSessionManager) *MME {
-	return &MME{
+	m := &MME{
 		Cred:                     cred,
 		Bearer:                   bearer,
 		Session:                  session,
 		EPSNetworkFeatureSupport: &eps.NetworkFeatureSupport{IMSVoPS: true},
 		Name:                     "ella",
-		RelativeCapacity:         0xff,
 		reg:                      radioreg.New[S1APWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		conns:                    make(map[uint32]*UeConn),
 		UEs:                      make(map[etsi.SUPI]*UeContext),
@@ -194,6 +191,10 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 
 		handoverGuardTimeout: defaultHandoverGuardTimeout,
 	}
+
+	m.relativeCapacity.Store(uint32(DefaultRelativeCapacity))
+
+	return m
 }
 
 func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {

@@ -20,6 +20,7 @@ const (
 	NGAPProcedureRANConfigurationUpdateAcknowledge NGAPProcedure = "RANConfigurationUpdateAcknowledge"
 	NGAPProcedureRANConfigurationUpdateFailure     NGAPProcedure = "RANConfigurationUpdateFailure"
 	NGAPProcedureAMFStatusIndication               NGAPProcedure = "AMFStatusIndication"
+	NGAPProcedureAMFConfigurationUpdate            NGAPProcedure = "AMFConfigurationUpdate"
 	NGAPProcedureDownlinkRANConfigurationTransfer  NGAPProcedure = "DownlinkRANConfigurationTransfer"
 
 	// UE-associated NGAP procedures
@@ -47,6 +48,7 @@ func GetSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedurePaging, NGAPProcedureNGResetAcknowledge,
 		NGAPProcedureErrorIndication, NGAPProcedureRANConfigurationUpdateAcknowledge,
 		NGAPProcedureRANConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication,
+		NGAPProcedureAMFConfigurationUpdate,
 		NGAPProcedureDownlinkRANConfigurationTransfer:
 		return 0, nil
 

@@ -68,9 +68,9 @@ Useful for site- or tenant-partitioned deployments. Network-wide state still rep
 
 ## Draining a node
 
-Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down.
+Draining prepares a node for removal without disrupting traffic on its peers. A draining node hands Raft leadership to another voter if it held it, signals connected radios so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Its 5G subscribers keep their sessions and are moved to a sibling node by the radio. Its 4G subscribers are released a few at a time, each re-attaching on a sibling node after a brief interruption.
 
-Drain is triggered by an operator via the cluster API. Removal requires a drained node, unless it is forced.
+Drain is triggered by an operator via the cluster API. A node reports `draining` until it is empty, then `drained`; removal requires `drained`, unless it is forced. A node with no active peer has nowhere to send its subscribers and stays `draining`.
 
 ## Scaling the cluster
 

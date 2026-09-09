@@ -20,8 +20,9 @@ import (
 const ClusterMembersTableName = "cluster_members"
 
 const (
-	DrainStateActive  = "active"
-	DrainStateDrained = "drained"
+	DrainStateActive   = "active"
+	DrainStateDraining = "draining"
+	DrainStateDrained  = "drained"
 )
 
 const (
@@ -45,7 +46,7 @@ type ClusterMember struct {
 
 func IsValidDrainState(s string) bool {
 	switch s {
-	case DrainStateActive, DrainStateDrained:
+	case DrainStateActive, DrainStateDraining, DrainStateDrained:
 		return true
 	}
 

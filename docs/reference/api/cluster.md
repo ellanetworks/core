@@ -93,7 +93,7 @@ None
 
 ## Get Autopilot State
 
-This path returns the live autopilot view of the cluster: per-peer health, voter roster, and failure tolerance. Only the leader can produce this state; followers proxy the request to the leader automatically. Requires admin privileges.
+This path returns the live autopilot view of the cluster: per-peer health, voter roster, and failure tolerance. Requires admin privileges.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -138,7 +138,7 @@ None
 
 ## Drain Cluster Member
 
-This path drains a node and persists `drainState=drained`. The server runs the local drain side-effects on the target: signals connected RANs that this AMF's GUAMI is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the current leader. A node must be drained before it can be removed. Must be sent to the leader. Requires admin privileges.
+This path drains a node, moving its subscribers to the rest of the cluster so it can be restarted, upgraded, or removed. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -153,14 +153,14 @@ None.
 ```json
 {
     "result": {
-        "drainState": "drained"
+        "drainState": "draining"
     }
 }
 ```
 
 ## Resume Cluster Member
 
-This path reverses drain on a node: restarts the local BGP speaker (if BGP is enabled) and clears `drainState` back to `active`. RAN unavailability and transferred leadership are not reversed. Idempotent. Must be sent to the leader. Requires admin privileges.
+This path returns a drained node to service. Idempotent. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -182,7 +182,7 @@ None
 
 ## Mint Join Token
 
-This path mints a single-use HMAC token authorising `nodeID` to register its self-signed cluster certificate with the leader. The leader's own pinned certificate fingerprint is embedded in the token, so the joining node pins the bootstrap TLS handshake directly to the leader's certificate. Must be sent to the leader. Requires admin privileges.
+This path mints a single-use token authorising `nodeID` to join the cluster. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                               |
 | ------ | ---------------------------------- |
