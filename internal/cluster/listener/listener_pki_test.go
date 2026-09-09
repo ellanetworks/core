@@ -44,7 +44,12 @@ func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 		defer wg.Done()
 		defer func() { _ = conn.Close() }()
 
-		tc := conn.(*tls.Conn)
+		tc, ok := listener.TLSConn(conn)
+		if !ok {
+			t.Errorf("bootstrap handler got a non-cluster connection %T", conn)
+			return
+		}
+
 		if len(tc.ConnectionState().PeerCertificates) != 0 {
 			t.Errorf("bootstrap handler saw %d peer certs, want 0", len(tc.ConnectionState().PeerCertificates))
 		}

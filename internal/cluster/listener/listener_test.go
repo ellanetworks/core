@@ -5,7 +5,6 @@ package listener_test
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 // freePort returns an available TCP port on localhost.
@@ -237,7 +237,7 @@ func TestListener_PeerNodeID(t *testing.T) {
 		defer func() { _ = conn.Close() }()
 		defer wg.Done()
 
-		nodeID, err := ln1.PeerNodeID(conn.(*tls.Conn))
+		nodeID, err := ln1.PeerNodeID(conn)
 		if err != nil {
 			t.Errorf("PeerNodeID: %v", err)
 			return
@@ -415,4 +415,63 @@ func TestListener_UnknownALPN_Closed(t *testing.T) {
 	}
 
 	ln1.Stop()
+}
+
+func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
+	p := testutil.GenTestPKI(t, []int{1, 2})
+
+	ln1, addr1 := newTestListener(t, p, 1)
+
+	handed := make(chan net.Conn, 1)
+
+	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
+		handed <- conn
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ln1.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer ln1.Stop()
+
+	ln2, _ := newTestListener(t, p, 2)
+	defer ln2.Stop()
+
+	client, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+
+	defer func() { _ = client.Close() }()
+
+	var server net.Conn
+
+	select {
+	case server = <-handed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler never received the connection")
+	}
+
+	defer func() { _ = server.Close() }()
+
+	fp := pki.Fingerprint(p.Nodes[2].Cert)
+
+	if n := ln1.CloseByPeerFingerprint(fp); n != 1 {
+		t.Fatalf("CloseByPeerFingerprint closed %d connections, want 1", n)
+	}
+
+	_ = server.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	if _, err := server.Read(make([]byte, 1)); err == nil {
+		t.Fatal("connection still readable after CloseByPeerFingerprint")
+	}
+
+	_ = server.Close()
+
+	if n := ln1.CloseByPeerFingerprint(fp); n != 0 {
+		t.Fatalf("CloseByPeerFingerprint closed %d connections after the handler closed it, want 0", n)
+	}
 }
