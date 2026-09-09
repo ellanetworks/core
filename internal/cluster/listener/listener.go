@@ -355,12 +355,6 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	handler(&trackedConn{Conn: tlsConn, ln: l})
 }
 
-// trackedConn is the connection handed to an ALPN handler. Handlers own
-// the connection past the point where dispatch returns — they hand it to
-// a stream layer or an HTTP server — so the listener cannot untrack on
-// dispatch return without losing its handle on every live session.
-// Closing untracks instead, which keeps l.conns a map of the connections
-// CloseByPeerFingerprint must still be able to tear down.
 type trackedConn struct {
 	*tls.Conn
 
@@ -374,10 +368,6 @@ func (c *trackedConn) Close() error {
 	return c.Conn.Close()
 }
 
-// TLSConn returns the cluster TLS connection underlying c, unwrapping
-// the connection type the listener hands to ALPN handlers. The second
-// return is false for a connection that did not come from the cluster
-// listener.
 func TLSConn(c net.Conn) (*tls.Conn, bool) {
 	switch conn := c.(type) {
 	case *trackedConn:
