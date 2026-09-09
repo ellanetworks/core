@@ -36,9 +36,10 @@ const FAVICON_ICO = path.join(PUBLIC, "favicon.ico");
 const APPLE_TOUCH = path.join(PUBLIC, "apple-touch-icon.png");
 const LOGO_MARK = path.join(PUBLIC, "logo-mark.svg");
 
-const MIN_HOLE = 6;
+const MIN_OUTER = 9;
+const MIN_HOLE = Infinity;
 const OUTLINE_TOLERANCE = 0.08;
-const THICKEN = 0.8;
+const THICKEN = 0.6;
 const FILL = 0.95;
 const ICO_SIZES = [16, 32, 48];
 const APPLE_SIZE = 180;
@@ -94,7 +95,7 @@ function catShape(sourceSvg) {
 function simplifyCat(cat, area) {
   const out = [];
   for (const poly of cat) {
-    if (area(poly[0]) < MIN_HOLE * 1.5) continue;
+    if (area(poly[0]) < MIN_OUTER) continue;
     const keep = [poly[0]];
     for (let i = 1; i < poly.length; i++) {
       if (area(poly[i]) >= MIN_HOLE) keep.push(poly[i]);
