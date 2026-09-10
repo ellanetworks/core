@@ -19,7 +19,7 @@ A mobile network is broadly divided into two major components: the Core Network 
 
 #### 1. Core Network
 
-The Core is the heart of a mobile network. It is designed to manage all data and signaling flows within the network. 
+The Core is the heart of a mobile network. It manages all data and signaling flows within the network. 
 
 Key Functions of the mobile Core:
 
@@ -30,7 +30,7 @@ Key Functions of the mobile Core:
 
 #### 2. Radio Access Network (RAN)
 
-The Radio Access Network (RAN) is the interface between user devices and the core network. It is responsible for transmitting and receiving signals over the air, enabling connectivity between the device and the Core.
+The Radio Access Network (RAN) is the interface between user devices and the core network. It is responsible for transmitting and receiving signals over the air.
 
 Key Components of the RAN
 
@@ -39,7 +39,7 @@ Key Components of the RAN
 
 ## The problem with typical Mobile Core Networks
 
-Typical 4G and 5G Core networks are designed around a set of specialized components, collectively known as network functions (NFs). Each Network Function serves a specific role. Examples of key 5G network functions include:
+Typical cellular Core networks are designed around a set of specialized components, collectively known as network functions (NFs). Each Network Function serves a specific role. Examples of key 5G network functions include:
 
 - **Access and Mobility Management Function (AMF)**: Handles registration, connection, and mobility management for user devices.
 - **Session Management Function (SMF)**: Manages session lifecycle and assigns IP addresses to devices.
@@ -47,7 +47,7 @@ Typical 4G and 5G Core networks are designed around a set of specialized compone
 - **Authentication Server Function (AUSF)**: Verifies the identity of users and devices.
 - **Network Slice Selection Function (NSSF)**: Allocates resources for network slicing.
 
-These Network Functions are typically deployed as separate microservices, leveraging a distributed architecture for flexibility, scalability, and fault tolerance. However, this approach comes with significant complexity and overhead, including the need for extensive orchestration, inter-service communication, and resource management. This complexity results in high operational costs, that can be prohibitive for private deployments.
+These Network Functions are typically deployed as separate microservices (i.e. separate binaries, configuration files and network connections). However, this approach comes with significant complexity and overhead, including the need for orchestration. This results in high operational costs, that can be prohibitive for private deployments.
 
 <figure markdown="span">
   ![Typical 5G Core](../images/traditional_5g.svg){ width="700" }
@@ -56,7 +56,7 @@ These Network Functions are typically deployed as separate microservices, levera
 
 ## The Ella Core approach
 
-Ella Core was designed with the specific needs of private mobile networks in mind. For these users, simplicity, reliability, and security are what counts most. To address these requirements, we made the conscious decision to combine all 4G and 5G network functions into a single application.
+Ella Core is designed excplicitely and exclusively for private mobile networks. For these users, simplicity, reliability, and security are what counts most. To address these requirements, we made the conscious decision to combine all 4G and 5G network functions into a single application.
 
 Users only interact with Ella Core through a web-based user interface or a REST API, both of which are built into the application.
 
@@ -67,10 +67,10 @@ Users only interact with Ella Core through a web-based user interface or a REST 
 
 ### Network Functions are abstracted away
 
-Ella Core still performs the same functions as traditional mobile networks, and behind the scenes, it implements the same 3GPP standards and protocols. However, HTTP communication between Network Functions is replaced with in-process function calls.
+Ella Core still performs the same functions as traditional mobile networks, and towards radios and devices, it implements the same 3GPP standards and protocols. However, HTTP communication between Network Functions is replaced with in-process function calls.
 
 This design greatly simplifies the deployment and operation of the Core network, as there is no need to manage multiple services, databases, or network connections.
 
 ### The database is embedded
 
-Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and high availability through Raft-based clustering.
+Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process.
