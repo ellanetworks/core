@@ -37,7 +37,7 @@ This path returns the list of network subscribers, ordered by IMSI.
                 "status": {
                     "registered": true,
                     "connection_state": "connected",
-                    "systems": ["5GS"],
+                    "systems": ["5G"],
                     "num_sessions": 1,
                     "last_seen_at": "2026-03-16T12:34:56Z",
                     "last_seen_radio": "gNB-1"
@@ -125,7 +125,7 @@ None
     "description": "Warehouse gate reader",
     "registrations": [
       {
-        "system": "5GS",
+        "system": "5G",
         "registered": true,
         "connection_state": "connected",
         "radio": "gNB-1",
@@ -139,7 +139,7 @@ None
         }
       },
       {
-        "system": "EPS",
+        "system": "4G",
         "registered": false,
         "connection_state": null,
         "radio": "eNB-7",
@@ -149,7 +149,7 @@ None
     ],
     "sessions": [
       {
-        "system": "5GS",
+        "system": "5G",
         "id": 1,
         "status": "active",
         "ip_type": "IPv4v6",
@@ -176,7 +176,7 @@ None
 
 | Field | Description |
 | ----- | ----------- |
-| `system` | `5GS` for 5G, `EPS` for 4G. The core that registered the device, independent of the radio: an NSA device on 5G radio reports `EPS`. |
+| `system` | `5G` or `4G`. The core that registered the device, not the radio it uses: an NSA device on 5G radio reports `4G`. |
 | `registered` | RM state in 5G, EMM state in 4G. `false` on an entry the core remembers but holds no context for. |
 | `connection_state` | `connected` or `idle`. CM state in 5G, ECM state in 4G. Independent of `registered`: a device still registering is `connected` with `registered` false. `null` when the core holds no context. |
 | `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered, in which case it may be stale. Held in memory by the serving node: not shared across cluster nodes, and reset on restart. |
@@ -205,7 +205,7 @@ A radio-allocated identifier is unique only within that radio's connection to th
 
 | Field | Description |
 | ----- | ----------- |
-| `system` | `5GS` or `EPS`, matching a registration's `system`. |
+| `system` | `5G` or `4G`, matching a registration's `system`. |
 | `id` | PDU Session ID (5G) or linked EPS Bearer ID (4G). |
 | `status` | Session status (for example `active`, `inactive`). |
 | `ip_type` | `IPv4`, `IPv6` or `IPv4v6`. |

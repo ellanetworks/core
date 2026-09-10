@@ -93,23 +93,23 @@ type SubscriberDetail struct {
 	Sessions      []Session      `json:"sessions"`
 }
 
-// SessionSlice is the 5GS network slice identifier (S-NSSAI) of a session;
-// absent for EPS.
+// SessionSlice is the 5G network slice identifier (S-NSSAI) of a session;
+// absent for 4G.
 type SessionSlice struct {
 	SST int32  `json:"sst"`
 	SD  string `json:"sd,omitempty"`
 }
 
-// Session is a UE data session — a 5GS PDU session or an EPS PDN connection.
+// Session is a UE data session — a 5G PDU session or a 4G PDN connection.
 type Session struct {
-	System       string        `json:"system"` // "5GS" | "EPS"
-	ID           uint8         `json:"id"`     // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
+	System       string        `json:"system"` // "5G" | "4G"
+	ID           uint8         `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
 	Status       string        `json:"status"`
 	IPType       string        `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
 	IPv4Address  string        `json:"ipv4_address,omitempty"`
 	IPv6Prefix   string        `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string        `json:"data_network,omitempty"` // DNN (5GS) / APN (EPS)
-	Slice        *SessionSlice `json:"slice,omitempty"`        // 5GS only
+	DataNetwork  string        `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice        *SessionSlice `json:"slice,omitempty"`        // 5G only
 	AMBRUplink   string        `json:"ambr_uplink,omitempty"`
 	AMBRDownlink string        `json:"ambr_downlink,omitempty"`
 }

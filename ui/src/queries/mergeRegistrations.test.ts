@@ -7,8 +7,8 @@ import { mergeRegistrations, type Registration } from "@/queries/subscribers";
 const older = "2026-08-17T10:00:00Z";
 const newer = "2026-08-17T10:05:00Z";
 
-const on5GS: Registration = {
-  system: "5GS",
+const on5G: Registration = {
+  system: "5G",
   registered: true,
   connection_state: "connected",
   radio: "gnb-1",
@@ -19,8 +19,8 @@ const on5GS: Registration = {
   connection: { amf_ue_ngap_id: 12, ran_ue_ngap_id: 39 },
 };
 
-const onEPS: Registration = {
-  system: "EPS",
+const on4G: Registration = {
+  system: "4G",
   registered: true,
   connection_state: "connected",
   radio: "enb-1",
@@ -63,12 +63,12 @@ describe("mergeRegistrations", () => {
   });
 
   it("reports the system each registration belongs to", () => {
-    expect(mergeRegistrations([on5GS]).systems).toEqual(["5GS"]);
-    expect(mergeRegistrations([onEPS]).systems).toEqual(["EPS"]);
+    expect(mergeRegistrations([on5G]).systems).toEqual(["5G"]);
+    expect(mergeRegistrations([on4G]).systems).toEqual(["4G"]);
   });
 
   it("pairs the serving radio with that registration's algorithms", () => {
-    const merged = mergeRegistrations([at(on5GS, older), at(onEPS, newer)]);
+    const merged = mergeRegistrations([at(on5G, older), at(on4G, newer)]);
 
     expect(merged.last_seen_radio).toBe("enb-1");
     expect(merged.ciphering_algorithm).toBe("128-EEA2");
@@ -80,7 +80,7 @@ describe("mergeRegistrations", () => {
 
     for (const a of stamps) {
       for (const b of stamps) {
-        const merged = mergeRegistrations([at(on5GS, a), at(onEPS, b)]);
+        const merged = mergeRegistrations([at(on5G, a), at(on4G, b)]);
 
         if (merged.last_seen_radio === "gnb-1") {
           expect(merged.ciphering_algorithm).toBe("128-NEA2");
@@ -92,16 +92,16 @@ describe("mergeRegistrations", () => {
   });
 
   it("is connected when any registration is, and idle when none is", () => {
-    expect(mergeRegistrations([idle(on5GS), onEPS]).connection_state).toBe(
+    expect(mergeRegistrations([idle(on5G), on4G]).connection_state).toBe(
       "connected",
     );
-    expect(
-      mergeRegistrations([idle(on5GS), idle(onEPS)]).connection_state,
-    ).toBe("idle");
+    expect(mergeRegistrations([idle(on5G), idle(on4G)]).connection_state).toBe(
+      "idle",
+    );
   });
 
   it("keeps the last serving radio once the context is released", () => {
-    const merged = mergeRegistrations([deregistered(at(onEPS, newer))]);
+    const merged = mergeRegistrations([deregistered(at(on4G, newer))]);
 
     expect(merged.registered).toBe(false);
     expect(merged.connection_state).toBeUndefined();
@@ -112,17 +112,17 @@ describe("mergeRegistrations", () => {
 
   it("prefers a live registration over a more recent released one", () => {
     const merged = mergeRegistrations([
-      at(on5GS, older),
-      deregistered(at(onEPS, newer)),
+      at(on5G, older),
+      deregistered(at(on4G, newer)),
     ]);
 
     expect(merged.registered).toBe(true);
-    expect(merged.systems).toEqual(["5GS"]);
+    expect(merged.systems).toEqual(["5G"]);
     expect(merged.last_seen_radio).toBe("gnb-1");
     expect(merged.last_seen_at).toBe(older);
   });
 
   it("reports the IMEI rather than the prefixed PEI", () => {
-    expect(mergeRegistrations([on5GS]).imei).toBe("490154203237518");
+    expect(mergeRegistrations([on5G]).imei).toBe("490154203237518");
   });
 });

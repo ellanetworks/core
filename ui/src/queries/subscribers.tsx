@@ -31,7 +31,7 @@ export type ListSubscribersResponse = {
   total_count: number;
 };
 
-export type System = "5GS" | "EPS";
+export type System = "5G" | "4G";
 
 export type UEConnection = {
   amf_ue_ngap_id?: number;
@@ -61,11 +61,6 @@ export type SubscriberDetailStatus = {
   integrity_algorithm: string;
   last_seen_at?: string;
   last_seen_radio?: string;
-};
-
-export const SYSTEM_ACCESS_LABELS: Record<System, string> = {
-  "5GS": "5G",
-  EPS: "4G",
 };
 
 const isPresent = (registration: Registration) =>

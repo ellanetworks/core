@@ -99,7 +99,7 @@ func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "EPS")
+	return assertRegisteredOn(ctx, env, "4G")
 }
 
 func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
@@ -165,7 +165,7 @@ func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertRegisteredOn(ctx, env, "5GS")
+	return assertRegisteredOn(ctx, env, "5G")
 }
 
 func establishOn5GS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {

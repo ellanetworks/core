@@ -3905,13 +3905,13 @@ components:
         connection_state:
           type: string
           enum: ["idle", "connected"]
-          description: "CM state in 5GS, ECM state in EPS. Absent when the core holds no context."
+          description: "CM state in 5G, ECM state in 4G. Absent when the core holds no context."
         systems:
           type: array
           items:
             type: string
-            enum: ["5GS", "EPS"]
-          description: "Systems the core holds a context for, 5GS first. Absent when it holds none."
+            enum: ["5G", "4G"]
+          description: "Systems the core holds a context for, 5G first. Absent when it holds none."
         num_sessions:
           type: integer
           description: "Number of active sessions across every system."
@@ -3969,19 +3969,19 @@ components:
         amf_ue_ngap_id:
           type: integer
           format: int64
-          description: "AMF UE NGAP ID (5GS). INTEGER (0..2^40-1)."
+          description: "AMF UE NGAP ID (5G). INTEGER (0..2^40-1)."
         ran_ue_ngap_id:
           type: integer
           format: int64
-          description: "RAN UE NGAP ID (5GS). INTEGER (0..2^32-1). Absent until the radio allocates one."
+          description: "RAN UE NGAP ID (5G). INTEGER (0..2^32-1). Absent until the radio allocates one."
         mme_ue_s1ap_id:
           type: integer
           format: int64
-          description: "MME UE S1AP ID (EPS). INTEGER (0..2^32-1)."
+          description: "MME UE S1AP ID (4G). INTEGER (0..2^32-1)."
         enb_ue_s1ap_id:
           type: integer
           format: int64
-          description: "eNB UE S1AP ID (EPS). INTEGER (0..2^24-1). Absent until the radio allocates one."
+          description: "eNB UE S1AP ID (4G). INTEGER (0..2^24-1). Absent until the radio allocates one."
 
     Registration:
       type: object
@@ -3989,15 +3989,15 @@ components:
       properties:
         system:
           type: string
-          enum: ["5GS", "EPS"]
+          enum: ["5G", "4G"]
           description: "The core holding this registration."
         registered:
           type: boolean
-          description: "RM state in 5GS, EMM state in EPS. False on an entry the core only remembers."
+          description: "RM state in 5G, EMM state in 4G. False on an entry the core only remembers."
         connection_state:
           type: ["string", "null"]
           enum: ["idle", "connected", null]
-          description: "CM state in 5GS, ECM state in EPS. Null on an entry the core only remembers."
+          description: "CM state in 5G, ECM state in 4G. Null on an entry the core only remembers."
         radio:
           type: string
           description: "Radio serving this registration, or the last one that did. Absent when never seen."
@@ -4009,10 +4009,10 @@ components:
           description: "IMEI of the device (15 digits). Absent when the core does not hold it."
         ciphering_algorithm:
           type: string
-          description: "NAS ciphering algorithm: NEA0 / 128-NEA1..3 in 5GS, EEA0 / 128-EEA1..3 in EPS. Absent when none is established."
+          description: "NAS ciphering algorithm: NEA0 / 128-NEA1..3 in 5G, EEA0 / 128-EEA1..3 in 4G. Absent when none is established."
         integrity_algorithm:
           type: string
-          description: "NAS integrity algorithm: NIA0 / 128-NIA1..3 in 5GS, EIA0 / 128-EIA1..3 in EPS. Absent when none is established."
+          description: "NAS integrity algorithm: NIA0 / 128-NIA1..3 in 5G, EIA0 / 128-EIA1..3 in 4G. Absent when none is established."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
@@ -4033,7 +4033,7 @@ components:
           description: Free-text operator note. Absent when unset.
         registrations:
           type: array
-          description: "Mobility-management contexts the core holds or remembers, 5GS first."
+          description: "Mobility-management contexts the core holds or remembers, 5G first."
           items:
             $ref: "#/components/schemas/Registration"
         sessions:
@@ -4087,7 +4087,7 @@ components:
       properties:
         system:
           type: string
-          enum: ["5GS", "EPS"]
+          enum: ["5G", "4G"]
           description: "The system holding this session."
         id:
           type: integer

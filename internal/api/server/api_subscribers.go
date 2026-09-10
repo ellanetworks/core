@@ -99,21 +99,21 @@ type SNSSAI struct {
 }
 
 type Session struct {
-	System       string  `json:"system"` // "5GS" | "EPS"
-	ID           uint8   `json:"id"`     // PDU Session ID (5GS) / linked EPS Bearer ID (EPS)
+	System       string  `json:"system"` // "5G" | "4G"
+	ID           uint8   `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
 	Status       string  `json:"status"`
 	IPType       string  `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
 	IPv4Address  string  `json:"ipv4_address,omitempty"`
 	IPv6Prefix   string  `json:"ipv6_prefix,omitempty"`
-	DataNetwork  string  `json:"data_network,omitempty"` // DNN (5GS) / APN (EPS)
-	Slice        *SNSSAI `json:"slice,omitempty"`        // 5GS only
+	DataNetwork  string  `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice        *SNSSAI `json:"slice,omitempty"`        // 5G only
 	AMBRUplink   string  `json:"ambr_uplink,omitempty"`
 	AMBRDownlink string  `json:"ambr_downlink,omitempty"`
 }
 
 const (
-	System5GS = "5GS"
-	SystemEPS = "EPS"
+	System5G = "5G"
+	System4G = "4G"
 )
 
 const (
@@ -393,12 +393,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 			merged := mergeSystems(
 				systemView{
-					system: System5GS, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
+					system: System5G, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
 					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
 				},
 				systemView{
-					system: SystemEPS, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
+					system: System4G, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
 					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
 				},
@@ -866,7 +866,7 @@ func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen
 	}
 
 	reg := Registration{
-		System: System5GS,
+		System: System5G,
 		Radio:  retained.RadioName,
 	}
 
@@ -902,7 +902,7 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 	}
 
 	reg := Registration{
-		System: SystemEPS,
+		System: System4G,
 		Radio:  retained.RadioName,
 	}
 
@@ -939,7 +939,7 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 
 func sessionFrom4G(s *mme.SubscriberSession) Session {
 	return Session{
-		System:       SystemEPS,
+		System:       System4G,
 		ID:           s.BearerID,
 		Status:       "active",
 		IPType:       ipTypeName(uint8(s.PDNType)),
@@ -958,7 +958,7 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	}
 
 	s := Session{
-		System:      System5GS,
+		System:      System5G,
 		ID:          pdu.PDUSessionID,
 		Status:      status,
 		IPType:      ipTypeName(pdu.PDUSessionType),

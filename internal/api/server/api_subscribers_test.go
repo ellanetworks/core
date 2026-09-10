@@ -787,13 +787,13 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected session ID 1, got %d", session.ID)
 		}
 
-		if session.System != "5GS" {
-			t.Fatalf("expected session system '5GS', got %q", session.System)
+		if session.System != "5G" {
+			t.Fatalf("expected session system '5G', got %q", session.System)
 		}
 
-		reg, ok := response.Result.registrationFor("5GS")
+		reg, ok := response.Result.registrationFor("5G")
 		if !ok {
-			t.Fatalf("expected a 5GS registration, got %+v", response.Result.Registrations)
+			t.Fatalf("expected a 5G registration, got %+v", response.Result.Registrations)
 		}
 
 		if reg.ConnectionState == nil || *reg.ConnectionState != "idle" {

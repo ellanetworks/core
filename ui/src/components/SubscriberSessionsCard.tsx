@@ -7,7 +7,7 @@ import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
-import { SYSTEM_ACCESS_LABELS, type SessionInfo } from "@/queries/subscribers";
+import type { SessionInfo } from "@/queries/subscribers";
 import AccessChip from "@/components/AccessChip";
 
 interface SubscriberSessionsCardProps {
@@ -21,7 +21,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  const has5G = sessions.some((s) => s.system === "5GS");
+  const has5G = sessions.some((s) => s.system === "5G");
 
   const columns: GridColDef<SessionInfo>[] = useMemo(
     () => [
@@ -34,8 +34,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         field: "system",
         headerName: "System",
         width: 90,
-        valueGetter: (_value, row: SessionInfo) =>
-          row.system ? (SYSTEM_ACCESS_LABELS[row.system] ?? row.system) : "",
+        valueGetter: (_value, row: SessionInfo) => row.system ?? "",
         renderCell: (params: GridRenderCellParams<SessionInfo>) =>
           params.value ? (
             <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>

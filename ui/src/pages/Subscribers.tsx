@@ -21,7 +21,6 @@ import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 import {
   listSubscribers,
-  SYSTEM_ACCESS_LABELS,
   type APISubscriberSummary,
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
@@ -259,9 +258,7 @@ const SubscriberPage: React.FC = () => {
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          (row?.status?.systems ?? [])
-            .map((system) => SYSTEM_ACCESS_LABELS[system] ?? system)
-            .join(" "),
+          (row?.status?.systems ?? []).join(" "),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const systems = params.row?.status?.systems ?? [];
           if (systems.length === 0) return "—";
@@ -275,10 +272,7 @@ const SubscriberPage: React.FC = () => {
               }}
             >
               {systems.map((system) => (
-                <AccessChip
-                  key={system}
-                  label={SYSTEM_ACCESS_LABELS[system] ?? system}
-                />
+                <AccessChip key={system} label={system} />
               ))}
             </Box>
           );

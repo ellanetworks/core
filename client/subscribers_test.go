@@ -45,7 +45,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5GS", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5GS", "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5G", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5G", "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -75,8 +75,8 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	reg := subscriber.Registrations[0]
 
-	if reg.System != "5GS" {
-		t.Fatalf("expected a 5GS registration, got %s", reg.System)
+	if reg.System != "5G" {
+		t.Fatalf("expected a 5G registration, got %s", reg.System)
 	}
 
 	if !reg.Registered {
@@ -108,15 +108,15 @@ func TestGetSubscriber_Success(t *testing.T) {
 	}
 
 	if reg.Connection.MMEUeS1apID != nil || reg.Connection.ENBUeS1apID != nil {
-		t.Fatalf("expected no S1AP identities on a 5GS registration, got %+v", reg.Connection)
+		t.Fatalf("expected no S1AP identities on a 5G registration, got %+v", reg.Connection)
 	}
 
 	if len(subscriber.Sessions) != 1 {
 		t.Fatalf("expected 1 session, got %d", len(subscriber.Sessions))
 	}
 
-	if subscriber.Sessions[0].System != "5GS" {
-		t.Fatalf("expected session system '5GS', got %s", subscriber.Sessions[0].System)
+	if subscriber.Sessions[0].System != "5G" {
+		t.Fatalf("expected session system '5G', got %s", subscriber.Sessions[0].System)
 	}
 
 	if subscriber.Sessions[0].ID != 1 {

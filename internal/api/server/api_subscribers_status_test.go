@@ -15,11 +15,11 @@ func TestMergeSystems(t *testing.T) {
 		newer = time.Date(2026, 8, 17, 10, 5, 0, 0, time.UTC)
 
 		on4G = systemView{
-			system: SystemEPS, present: true, registered: true, connected: true,
+			system: System4G, present: true, registered: true, connected: true,
 			lastSeenRadio: "enb-1",
 		}
 		on5G = systemView{
-			system: System5GS, present: true, registered: true, connected: true,
+			system: System5G, present: true, registered: true, connected: true,
 			lastSeenRadio: "gnb-1",
 		}
 	)
@@ -55,7 +55,7 @@ func TestMergeSystems(t *testing.T) {
 		{
 			name:        "4G only",
 			view4G:      at(on4G, older),
-			wantSystems: []string{SystemEPS},
+			wantSystems: []string{System4G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: older,
 			},
@@ -63,7 +63,7 @@ func TestMergeSystems(t *testing.T) {
 		{
 			name:        "5G only",
 			view5G:      at(on5G, older),
-			wantSystems: []string{System5GS},
+			wantSystems: []string{System5G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
@@ -72,7 +72,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "both connected, 4G heard from last",
 			view4G:      at(on4G, newer),
 			view5G:      at(on5G, older),
-			wantSystems: []string{System5GS, SystemEPS},
+			wantSystems: []string{System5G, System4G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
@@ -81,7 +81,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "both connected, 5G heard from last",
 			view4G:      at(on4G, older),
 			view5G:      at(on5G, newer),
-			wantSystems: []string{System5GS, SystemEPS},
+			wantSystems: []string{System5G, System4G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
@@ -90,7 +90,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "4G connected, 5G registered but idle",
 			view4G:      at(on4G, newer),
 			view5G:      at(idle(on5G), older),
-			wantSystems: []string{System5GS, SystemEPS},
+			wantSystems: []string{System5G, System4G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
@@ -99,7 +99,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "the more recent system is idle, and still names the radio that served it",
 			view4G:      at(on4G, older),
 			view5G:      at(idle(on5G), newer),
-			wantSystems: []string{System5GS, SystemEPS},
+			wantSystems: []string{System5G, System4G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
@@ -108,7 +108,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "the deregistered system is more recent than the registered one",
 			view4G:      at(deregistered(on4G), newer),
 			view5G:      at(on5G, older),
-			wantSystems: []string{System5GS},
+			wantSystems: []string{System5G},
 			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
@@ -117,7 +117,7 @@ func TestMergeSystems(t *testing.T) {
 			name:        "both idle",
 			view4G:      at(idle(on4G), older),
 			view5G:      at(idle(on5G), newer),
-			wantSystems: []string{System5GS, SystemEPS},
+			wantSystems: []string{System5G, System4G},
 			want: mergedStatus{
 				Registered: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
