@@ -45,7 +45,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "imei": "", "ciphering_algorithm": "", "integrity_algorithm": ""}, "sessions": [{"radio_access_type": "5G", "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "registrations": [{"system": "5G", "registered": true, "connection_state": "connected", "radio": "gnb-01", "imei": "359881234567890", "ciphering_algorithm": "128-NEA2", "integrity_algorithm": "128-NIA2", "connection": {"amf_ue_ngap_id": 12, "ran_ue_ngap_id": 39}}], "sessions": [{"system": "5G", "id": 1, "status": "active", "ipv4_address": "10.45.0.2", "data_network": "internet", "slice": {"sst": 1, "sd": "000001"}, "ambr_uplink": "100 Mbps", "ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -69,20 +69,54 @@ func TestGetSubscriber_Success(t *testing.T) {
 		t.Fatalf("expected IMSI %s, got %s", imsi, subscriber.Imsi)
 	}
 
-	if subscriber.Status.Registered != false {
-		t.Fatalf("expected Registered false, got %v", subscriber.Status.Registered)
+	if len(subscriber.Registrations) != 1 {
+		t.Fatalf("expected 1 registration, got %d", len(subscriber.Registrations))
 	}
 
-	if subscriber.Status.CipheringAlgorithm != "" {
-		t.Fatalf("expected empty CipheringAlgorithm, got %s", subscriber.Status.CipheringAlgorithm)
+	reg := subscriber.Registrations[0]
+
+	if reg.System != "5G" {
+		t.Fatalf("expected a 5G registration, got %s", reg.System)
 	}
 
-	if subscriber.Status.IntegrityAlgorithm != "" {
-		t.Fatalf("expected empty IntegrityAlgorithm, got %s", subscriber.Status.IntegrityAlgorithm)
+	if !reg.Registered {
+		t.Fatalf("expected Registered true, got %v", reg.Registered)
+	}
+
+	if reg.ConnectionState == nil || *reg.ConnectionState != "connected" {
+		t.Fatalf("expected ConnectionState 'connected', got %v", reg.ConnectionState)
+	}
+
+	if reg.Radio != "gnb-01" {
+		t.Fatalf("expected Radio 'gnb-01', got %s", reg.Radio)
+	}
+
+	if reg.Imei != "359881234567890" {
+		t.Fatalf("expected Imei '359881234567890', got %s", reg.Imei)
+	}
+
+	if reg.CipheringAlgorithm != "128-NEA2" || reg.IntegrityAlgorithm != "128-NIA2" {
+		t.Fatalf("expected 128-NEA2/128-NIA2, got %s/%s", reg.CipheringAlgorithm, reg.IntegrityAlgorithm)
+	}
+
+	if reg.Connection == nil || reg.Connection.AmfUeNgapID == nil || *reg.Connection.AmfUeNgapID != 12 {
+		t.Fatalf("expected amf_ue_ngap_id 12, got %+v", reg.Connection)
+	}
+
+	if reg.Connection.RanUeNgapID == nil || *reg.Connection.RanUeNgapID != 39 {
+		t.Fatalf("expected ran_ue_ngap_id 39, got %+v", reg.Connection.RanUeNgapID)
+	}
+
+	if reg.Connection.MMEUeS1apID != nil || reg.Connection.ENBUeS1apID != nil {
+		t.Fatalf("expected no S1AP identities on a 5G registration, got %+v", reg.Connection)
 	}
 
 	if len(subscriber.Sessions) != 1 {
 		t.Fatalf("expected 1 session, got %d", len(subscriber.Sessions))
+	}
+
+	if subscriber.Sessions[0].System != "5G" {
+		t.Fatalf("expected session system '5G', got %s", subscriber.Sessions[0].System)
 	}
 
 	if subscriber.Sessions[0].ID != 1 {

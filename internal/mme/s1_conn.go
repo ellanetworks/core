@@ -29,6 +29,8 @@ const (
 	ICSCompleted
 )
 
+const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
+
 // UeConn is a UE's transient state for one UE-associated logical S1-connection
 // (TS 36.413): the S1AP identities, the eNB association, the connection-scoped
 // NAS-guard supervision, and any in-flight handover. A fresh one is bound
@@ -39,6 +41,7 @@ type UeConn struct {
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
 	log                       atomic.Pointer[zap.Logger]
+	baseLog                   atomic.Pointer[zap.Logger]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
@@ -82,6 +85,25 @@ func (c *UeConn) Log() *zap.Logger {
 
 func (c *UeConn) setLog(l *zap.Logger) {
 	c.log.Store(l)
+}
+
+func (c *UeConn) bindLog(base *zap.Logger) {
+	c.baseLog.Store(base)
+	c.refreshLog()
+}
+
+func (c *UeConn) refreshLog() {
+	base := c.baseLog.Load()
+	if base == nil {
+		return
+	}
+
+	fields := []zap.Field{logger.MMEUeS1apID(uint32(c.MMEUES1APID))}
+	if c.ENBUES1APID != enbUES1APIDUnspecified {
+		fields = append(fields, logger.ENBUeS1apID(uint32(c.ENBUES1APID)))
+	}
+
+	c.setLog(base.With(fields...))
 }
 
 func (c *UeConn) ArrivedFrom5GS() bool {

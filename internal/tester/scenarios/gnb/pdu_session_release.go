@@ -123,7 +123,13 @@ func awaitSessionCount(ctx context.Context, env scenarios.Env, imsi string, want
 		if err == nil {
 			got = len(sub.Sessions)
 			if got == want {
-				if !sub.Status.Registered {
+				registered := false
+
+				for _, reg := range sub.Registrations {
+					registered = registered || reg.Registered
+				}
+
+				if !registered {
 					return fmt.Errorf("the subscriber reports %d sessions but is no longer registered", got)
 				}
 

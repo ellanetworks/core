@@ -184,7 +184,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	logger.GnbLogger.Debug("Attach complete",
-		zap.String("imsi", ue.IMSI), zap.Int64("mme-ue-id", mmeUEID), zap.Int64("enb-ue-id", enbUEID))
+		zap.String("imsi", ue.IMSI), zap.Int64("mme_ue_s1ap_id", mmeUEID), zap.Int64("enb_ue_s1ap_id", enbUEID))
 
 	guti := accept.GUTI
 

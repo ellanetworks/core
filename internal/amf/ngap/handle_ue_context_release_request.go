@@ -43,7 +43,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	reportDiagnostics(ctx, ran, ngap.ProcUEContextReleaseRequest, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle UE Context Release Request", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle UE Context Release Request")
 
 	// An omitted Cause is an ignore-criticality absence: the NG-RAN node has
 	// dropped the radio connection either way, so the release proceeds under a

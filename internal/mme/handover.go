@@ -61,7 +61,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
 		m.mu.Unlock()
 		logger.MmeLog.Warn("Handover Required while a key-changing procedure is in progress",
-			zap.Uint32("mme-ue-id", uint32(reqMMEID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(reqMMEID)))
 
 		return 0, [32]byte{}, 0, false
 	}
@@ -90,9 +90,9 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ENBUES1APID: enbUES1APIDUnspecified, ue: ue}
 	targetConn.setConn(target)
-	targetConn.setLog(m.nodeLogLocked(target).With(logger.MMEUeS1apID(uint32(targetConn.MMEUES1APID))))
+	targetConn.bindLog(m.nodeLogLocked(target))
 	m.conns[tid] = targetConn
 
 	ho := &handoverContext{
@@ -220,9 +220,9 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 
 	held.prepared = true
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ENBUES1APID: enbUES1APIDUnspecified, ue: ue}
 	targetConn.setConn(target)
-	targetConn.setLog(m.nodeLogLocked(target).With(logger.MMEUeS1apID(uint32(targetConn.MMEUES1APID))))
+	targetConn.bindLog(m.nodeLogLocked(target))
 	m.conns[tid] = targetConn
 
 	delivery := make(chan relocationOutcome, 1)
@@ -284,6 +284,7 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 	}
 
 	ho.target.ENBUES1APID = ackENBID
+	ho.target.refreshLog()
 
 	return true
 }
@@ -471,7 +472,7 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 
 	ue.Conn().setConn(conn)
 	ue.Conn().ENBUES1APID = enbUEID
-	ue.Conn().setLog(m.nodeLogLocked(conn).With(logger.MMEUeS1apID(uint32(ue.Conn().MMEUES1APID))))
+	ue.Conn().bindLog(m.nodeLogLocked(conn))
 
 	m.refreshLastSeenLocked(ue, ue.Conn())
 
@@ -578,7 +579,7 @@ func (m *MME) unwindHandover(ctx context.Context, ue *UeContext, cause s1ap.Caus
 	}
 
 	logger.From(ctx, logger.MmeLog).Warn("S1 handover abandoned",
-		zap.Uint32("target-mme-ue-id", uint32(releaseTarget.MMEUES1APID)))
+		zap.Uint32("target_mme_ue_s1ap_id", uint32(releaseTarget.MMEUES1APID)))
 
 	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, cause)
 
@@ -626,7 +627,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 

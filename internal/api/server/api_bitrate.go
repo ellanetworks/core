@@ -68,7 +68,7 @@ func checkSessionAmbrEncodable(allow4G, allow5G bool, label, bitrate string) err
 
 	if allow4G {
 		if bps > MaxSessionAmbrBpsFor4G {
-			return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G (TS 24.008 §10.5.6.5B)", label, bitrate)
+			return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G", label, bitrate)
 		}
 	}
 
@@ -93,11 +93,11 @@ func checkUeAmbrEncodable(allow4G, allow5G bool, label, bitrate string) error {
 	}
 
 	if allow4G && bps > MaxUeAmbrBpsFor4G {
-		return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G (TS 36.413 BitRate)", label, bitrate)
+		return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G", label, bitrate)
 	}
 
 	if allow5G && bps > MaxUeAmbrBpsFor5G {
-		return fmt.Errorf("%s of %s exceeds the 4 Tbps ceiling of 5G (TS 38.413 BitRate)", label, bitrate)
+		return fmt.Errorf("%s of %s exceeds the 4 Tbps ceiling of 5G", label, bitrate)
 	}
 
 	return nil

@@ -154,7 +154,7 @@ const SubscriberPage: React.FC = () => {
       },
       {
         field: "last_seen_radio",
-        headerName: "Last radio",
+        headerName: "Last Radio",
         flex: 0.8,
         minWidth: 110,
         valueGetter: (_v, row: APISubscriberSummary) =>
@@ -253,15 +253,15 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "access",
-        headerName: "Access",
+        field: "systems",
+        headerName: "System",
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          (row?.status?.radio_access_types ?? []).join(" "),
+          (row?.status?.systems ?? []).join(" "),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const rats = params.row?.status?.radio_access_types ?? [];
-          if (rats.length === 0) return "—";
+          const systems = params.row?.status?.systems ?? [];
+          if (systems.length === 0) return "—";
           return (
             <Box
               sx={{
@@ -271,8 +271,8 @@ const SubscriberPage: React.FC = () => {
                 gap: 0.5,
               }}
             >
-              {rats.map((rat) => (
-                <AccessChip key={rat} label={rat} />
+              {systems.map((system) => (
+                <AccessChip key={system} label={system} />
               ))}
             </Box>
           );
@@ -290,7 +290,7 @@ const SubscriberPage: React.FC = () => {
       children: [
         { field: "registration" },
         { field: "connection" },
-        { field: "access" },
+        { field: "systems" },
       ],
     },
   ];

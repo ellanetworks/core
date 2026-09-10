@@ -26,7 +26,7 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 	ue := ueConn.UeContext()
 	if ue == nil {
 		logger.From(ctx, ran.Log).Warn("no AMF UE context for NRPPa transport",
-			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
+			zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)))
 
 		return
 	}
@@ -37,7 +37,7 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 	// correlates a pending measurement against.
 	if !ue.KnownNRPPaRoutingID(msg.RoutingID) {
 		logger.From(ctx, ran.Log).Warn("ignoring uplink NRPPa transport with an unknown Routing ID",
-			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
+			zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
 			zap.Binary("routing-id", msg.RoutingID))
 
 		return
@@ -46,7 +46,7 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 	ue.SetNRPPaMessage(msg.NRPPaPDU)
 
 	logger.From(ctx, ran.Log).Debug("stored uplink NRPPa PDU",
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
 		zap.Int("payload-len", len(msg.NRPPaPDU)),
 	)
 }

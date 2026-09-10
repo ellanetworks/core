@@ -243,7 +243,7 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) 
 	defer a.mu.RUnlock()
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			return ueConn
 		}
 	}
@@ -257,7 +257,8 @@ func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapI
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ueConn.RanUeNgapID = newRanUeNgapID
+	ueConn.setRanUeNgapID(newRanUeNgapID)
+	ueConn.refreshLog()
 }
 
 func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID models.AmfUeNgapID) *UeConn {

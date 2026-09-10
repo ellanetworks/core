@@ -618,7 +618,7 @@ func TestRefreshLocation_Success(t *testing.T) {
 		t.Fatal("AMF.FindUEByAmfUeNgapID returned nil - UE connection not registered")
 	}
 
-	t.Logf("Found UE connection: amfUeNgapID=%d, ranUeNgapID=%d", foundUeConn.AmfUeNgapID, foundUeConn.RanUeNgapID)
+	t.Logf("Found UE connection: amfUeNgapID=%d, ranUeNgapID=%d", foundUeConn.AmfUeNgapID, foundUeConn.RanUeNgapID())
 
 	ngap.HandleLocationReport(context.Background(), amfInstance, radio, msg)
 

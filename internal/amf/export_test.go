@@ -276,12 +276,12 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	}
 
 	security := jsonMap(t, ueExport, "security")
-	if cipherAlg, ok := security["ciphering_algorithm"].(string); !ok || cipherAlg != "NEA2" {
-		t.Fatalf("expected security.ciphering_algorithm to be 'NEA2', got %v", security["ciphering_algorithm"])
+	if cipherAlg, ok := security["ciphering_algorithm"].(string); !ok || cipherAlg != "128-NEA2" {
+		t.Fatalf("expected security.ciphering_algorithm to be '128-NEA2', got %v", security["ciphering_algorithm"])
 	}
 
-	if integrityAlg, ok := security["integrity_algorithm"].(string); !ok || integrityAlg != "NIA2" {
-		t.Fatalf("expected security.integrity_algorithm to be 'NIA2', got %v", security["integrity_algorithm"])
+	if integrityAlg, ok := security["integrity_algorithm"].(string); !ok || integrityAlg != "128-NIA2" {
+		t.Fatalf("expected security.integrity_algorithm to be '128-NIA2', got %v", security["integrity_algorithm"])
 	}
 
 	ngKsi := jsonMap(t, security, "ng_ksi")

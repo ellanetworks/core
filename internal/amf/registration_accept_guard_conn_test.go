@@ -42,9 +42,9 @@ func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testin
 	replacement := &UeConn{
 		conn:        replacementSender,
 		amf:         amfInstance,
-		RanUeNgapID: 2,
 		AmfUeNgapID: 2,
 	}
+	replacement.setRanUeNgapID(2)
 	replacement.setRadio("", "test-gNB")
 	replacement.setLog(zap.NewNop())
 

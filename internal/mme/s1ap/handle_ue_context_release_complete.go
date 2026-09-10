@@ -33,14 +33,14 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	// A Release Complete for a detached association removes only that connection; the UE
 	// stays active on its current association (TS 36.413 §8.3, §8.4).
 	if m.ReleaseDetachedConn(radio.Conn, mmeUEID, enbUEID) {
-		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 		return
 	}
 
 	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
 		logger.MmeLog.Info("UE Context Release Complete for a connection the MME no longer holds",
-			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint32("enb-ue-id", uint32(enbUEID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbUEID)))
 
 		return
 	}
@@ -57,7 +57,7 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	if ue.EMMState() != mme.EMMRegistered {
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
-		logger.MmeLog.Info("UE context released", zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+		logger.MmeLog.Info("UE context released", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 
 		return
 	}
@@ -69,5 +69,5 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	m.StartMobileReachable(ue)
 
 	logger.MmeLog.Info("UE moved to ECM-IDLE",
-		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
+		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
 }

@@ -25,10 +25,7 @@ func HandleNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 
 	reportDiagnostics(ctx, ran, ngap.ProcNASNonDeliveryIndication, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
-	fields := []zap.Field{
-		zap.Uint64("amf-ue-id", uint64(msg.AMFUENGAPID)),
-		zap.Uint32("ran-ue-id", uint32(msg.RANUENGAPID)),
-	}
+	var fields []zap.Field
 	if msg.Cause != nil {
 		fields = append(fields, logger.Cause(msg.Cause.String()))
 	}

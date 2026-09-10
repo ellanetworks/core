@@ -39,8 +39,8 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 		t.Fatal("FindUEByRanUeNgapID(1) is nil")
 	}
 
-	if ueConn.RanUeNgapID != 1 {
-		t.Errorf("RanUeNgapID = %d, want 1", ueConn.RanUeNgapID)
+	if ueConn.RanUeNgapID() != 1 {
+		t.Errorf("RanUeNgapID = %d, want 1", ueConn.RanUeNgapID())
 	}
 
 	if len(fakeNAS.Calls) != 1 {

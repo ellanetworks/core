@@ -158,15 +158,8 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 		// Never-attached defaults. Locks the contract against handler
 		// regressions and JSON-key drift across the cluster.
-		if got.Status.Registered {
-			t.Fatalf("node %d Status.Registered: got true, want false (subscriber never attached)", i+1)
-		}
-
-		if got.Status.ConnectionState != "" || got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
-			got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
-			got.Status.LastSeenRadio != "" {
-			t.Fatalf("node %d Status: expected zero-valued strings on a never-attached subscriber, got %+v",
-				i+1, got.Status)
+		if len(got.Registrations) != 0 {
+			t.Fatalf("node %d Registrations: got %d, want 0 (subscriber never attached)", i+1, len(got.Registrations))
 		}
 
 		if len(got.Sessions) != 0 {
@@ -193,8 +186,8 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 		Assert(t, subscribersContains(list.Items, imsi), fmt.Sprintf("node %d list missing %q after create", i+1, imsi))
 
-		// List response carries a different Status struct than Get-one,
-		// so the defaults are asserted independently.
+		// List response carries a merged Status struct where Get-one carries
+		// registrations, so the defaults are asserted independently.
 		for _, item := range list.Items {
 			if item.Imsi != imsi {
 				continue

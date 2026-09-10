@@ -31,7 +31,7 @@ func handleInitialContextSetupFailure(m *mme.MME, ctx context.Context, radio *mm
 
 	ue.TouchLastSeen()
 
-	fields := []zap.Field{zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID))}
+	fields := []zap.Field{zap.Uint32("mme_ue_s1ap_id", uint32(*msg.MMEUES1APID))}
 	if msg.Cause != nil {
 		fields = append(fields, zap.String("cause", mme.S1apCauseName(msg.Cause)))
 	}

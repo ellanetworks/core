@@ -43,6 +43,6 @@ func (e *ENB) handleDownlinkLPPaTransport(value []byte) {
 	}
 
 	logger.GnbLogger.Debug("s1enb: sent LPPa E-CID response",
-		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
+		zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)),
 		zap.Int64("esmlc-meas-id", parsed.Request.ESMLCUEMeasurementID))
 }

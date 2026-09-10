@@ -129,11 +129,11 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	fields := make([]zap.Field, 0, 3)
 	if msg.AMFUENGAPID != nil {
-		fields = append(fields, zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
+		fields = append(fields, zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 	}
 
 	if msg.RANUENGAPID != nil {
-		fields = append(fields, zap.Uint32("ran-ue-id", uint32(*msg.RANUENGAPID)))
+		fields = append(fields, zap.Uint32("ran_ue_ngap_id", uint32(*msg.RANUENGAPID)))
 	}
 
 	if msg.Cause != nil {

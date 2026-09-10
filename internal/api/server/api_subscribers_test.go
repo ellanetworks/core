@@ -44,12 +44,12 @@ type CreateSubscriberSuccessResponse struct {
 
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
-	Registered       bool     `json:"registered"`
-	ConnectionState  string   `json:"connection_state,omitempty"`
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	NumSessions      int      `json:"num_sessions"`
-	LastSeenAt       string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	Registered      bool     `json:"registered"`
+	ConnectionState string   `json:"connection_state,omitempty"`
+	Systems         []string `json:"systems,omitempty"`
+	NumSessions     int      `json:"num_sessions"`
+	LastSeenAt      string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
@@ -60,16 +60,23 @@ type ListSubscriber struct {
 	Status      ListSubscriberStatus `json:"status"`
 }
 
-// SubscriberDetailStatus matches the rich status in get-single responses.
-type SubscriberDetailStatus struct {
-	Registered         bool     `json:"registered"`
-	ConnectionState    string   `json:"connection_state,omitempty"`
-	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
-	Imei               string   `json:"imei"`
-	CipheringAlgorithm string   `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string   `json:"integrity_algorithm"`
-	LastSeenAt         string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
+type UEConnection struct {
+	AmfUeNgapID *int64 `json:"amf_ue_ngap_id,omitempty"`
+	RanUeNgapID *int64 `json:"ran_ue_ngap_id,omitempty"`
+	MMEUeS1apID *int64 `json:"mme_ue_s1ap_id,omitempty"`
+	ENBUeS1apID *int64 `json:"enb_ue_s1ap_id,omitempty"`
+}
+
+type Registration struct {
+	System             string        `json:"system"`
+	Registered         bool          `json:"registered"`
+	ConnectionState    *string       `json:"connection_state"`
+	Radio              string        `json:"radio,omitempty"`
+	LastSeenAt         string        `json:"last_seen_at,omitempty"`
+	Imei               string        `json:"imei,omitempty"`
+	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
+	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
+	Connection         *UEConnection `json:"connection"`
 }
 
 type Slice struct {
@@ -78,25 +85,35 @@ type Slice struct {
 }
 
 type Session struct {
-	RadioAccessType string `json:"radio_access_type"`
-	ID              uint8  `json:"id"`
-	Status          string `json:"status"`
-	IPType          string `json:"ip_type,omitempty"`
-	IPv4Address     string `json:"ipv4_address,omitempty"`
-	IPv6Prefix      string `json:"ipv6_prefix,omitempty"`
-	DataNetwork     string `json:"data_network,omitempty"`
-	Slice           *Slice `json:"slice,omitempty"`
-	AMBRUplink      string `json:"ambr_uplink,omitempty"`
-	AMBRDownlink    string `json:"ambr_downlink,omitempty"`
+	System       string `json:"system"`
+	ID           uint8  `json:"id"`
+	Status       string `json:"status"`
+	IPType       string `json:"ip_type,omitempty"`
+	IPv4Address  string `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string `json:"data_network,omitempty"`
+	Slice        *Slice `json:"slice,omitempty"`
+	AMBRUplink   string `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string `json:"ambr_downlink,omitempty"`
 }
 
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
-	Imsi        string                 `json:"imsi"`
-	ProfileName string                 `json:"profile_name"`
-	Description string                 `json:"description,omitempty"`
-	Status      SubscriberDetailStatus `json:"status"`
-	Sessions    []Session              `json:"sessions"`
+	Imsi          string         `json:"imsi"`
+	ProfileName   string         `json:"profile_name"`
+	Description   string         `json:"description,omitempty"`
+	Registrations []Registration `json:"registrations"`
+	Sessions      []Session      `json:"sessions"`
+}
+
+func (d SubscriberDetail) registrationFor(system string) (Registration, bool) {
+	for _, reg := range d.Registrations {
+		if reg.System == system {
+			return reg, true
+		}
+	}
+
+	return Registration{}, false
 }
 
 type GetSubscriberResponse struct {
@@ -332,20 +349,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected profileName %s, got %s", TestProfileName, response.Result.ProfileName)
 		}
 
-		if response.Result.Status.Registered != false {
-			t.Fatalf("expected registered false, got %v", response.Result.Status.Registered)
+		if response.Result.Registrations == nil {
+			t.Fatalf("expected registrations field to be present, got nil")
 		}
 
-		if response.Result.Status.Imei != "" {
-			t.Fatalf("expected empty imei, got %s", response.Result.Status.Imei)
-		}
-
-		if response.Result.Status.CipheringAlgorithm != "" {
-			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
-		}
-
-		if response.Result.Status.IntegrityAlgorithm != "" {
-			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
+		if len(response.Result.Registrations) != 0 {
+			t.Fatalf("expected 0 registrations for a subscriber the core has never seen, got %d", len(response.Result.Registrations))
 		}
 
 		if response.Result.Sessions == nil {
@@ -733,16 +742,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected profileName %s, got %s", TestProfileName, response.Result.ProfileName)
 		}
 
-		if response.Result.Status.Registered != false {
-			t.Fatalf("expected registered false, got %v", response.Result.Status.Registered)
-		}
-
-		if response.Result.Status.CipheringAlgorithm != "" {
-			t.Fatalf("expected empty cipheringAlgorithm, got %s", response.Result.Status.CipheringAlgorithm)
-		}
-
-		if response.Result.Status.IntegrityAlgorithm != "" {
-			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
+		if len(response.Result.Registrations) != 0 {
+			t.Fatalf("expected 0 registrations for a subscriber the core has never seen, got %d", len(response.Result.Registrations))
 		}
 
 		if response.Result.Sessions == nil {
@@ -786,16 +787,21 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected session ID 1, got %d", session.ID)
 		}
 
-		if session.RadioAccessType != "5G" {
-			t.Fatalf("expected radio_access_type '5G', got %q", session.RadioAccessType)
+		if session.System != "5G" {
+			t.Fatalf("expected session system '5G', got %q", session.System)
 		}
 
-		if got := response.Result.Status.RadioAccessTypes; len(got) != 1 || got[0] != "5G" {
-			t.Fatalf("expected radio_access_types [5G], got %v", got)
+		reg, ok := response.Result.registrationFor("5G")
+		if !ok {
+			t.Fatalf("expected a 5G registration, got %+v", response.Result.Registrations)
 		}
 
-		if got := response.Result.Status.ConnectionState; got != "idle" {
-			t.Fatalf("expected connection_state 'idle' for a registered UE with no NGAP association, got %q", got)
+		if reg.ConnectionState == nil || *reg.ConnectionState != "idle" {
+			t.Fatalf("expected connection_state 'idle' for a registered UE with no NGAP association, got %v", reg.ConnectionState)
+		}
+
+		if reg.Connection != nil {
+			t.Fatalf("expected no connection for a UE with no NGAP association, got %+v", reg.Connection)
 		}
 
 		// The UE holds no NG connection, so the PDU session survives with its user

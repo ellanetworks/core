@@ -21,7 +21,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  const has5G = sessions.some((s) => s.radio_access_type === "5G");
+  const has5G = sessions.some((s) => s.system === "5G");
 
   const columns: GridColDef<SessionInfo>[] = useMemo(
     () => [
@@ -31,9 +31,10 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         width: 60,
       },
       {
-        field: "radio_access_type",
-        headerName: "Access",
+        field: "system",
+        headerName: "System",
         width: 90,
+        valueGetter: (_value, row: SessionInfo) => row.system ?? "",
         renderCell: (params: GridRenderCellParams<SessionInfo>) =>
           params.value ? (
             <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
@@ -186,7 +187,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         <EntityGrid<SessionInfo>
           rows={sessions}
           columns={columns}
-          getRowId={(row) => `${row.radio_access_type}-${row.id}`}
+          getRowId={(row) => `${row.system}-${row.id}`}
           hideFooter={sessions.length <= 25}
         />
       )}
