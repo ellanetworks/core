@@ -44,11 +44,6 @@ sudo curl -o /usr/local/bin/ocudu_performance https://gitlab.com/ocudu/ocudu/-/r
 sudo chmod +x /usr/local/bin/ocudu_performance
 ```
 
-If you already cloned the OCUDU repository, copy it from your local checkout instead:
-
-```shell
-sudo install -m 0755 scripts/ocudu_performance /usr/local/bin/ocudu_performance
-```
 
 Create `/etc/systemd/system/n3ns.service`:
 
