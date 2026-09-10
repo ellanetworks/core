@@ -4,7 +4,7 @@ description: Add nodes to a running Ella Core high-availability cluster.
 
 # Scale Up a High Availability Cluster
 
-This guide walks through adding a node to an existing Ella Core high-availability cluster. For background on quorum, voter counts, and failover, see [High Availability](../explanation/high_availability.md). To bring up the initial cluster, see [Deploy a High Availability Cluster](deploy_ha_cluster.md).
+This guide walks through adding a node to an existing Ella Core high-availability cluster.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ This guide walks through adding a node to an existing Ella Core high-availabilit
 1. On any existing node, open the Ella Core UI and navigate to the **Cluster** page. Note which node carries the **Leader** chip.
 2. Open the **Cluster** page on the leader.
 3. Click **Add Node**, select the next free node ID (for example `4`), click **Mint Token**, and copy the token.
-4. On the new host, create `core.yaml` using the same shape as the other nodes. List every node — including the new one — in `peers`, and paste the token into `join-token`:
+4. On the new host, create `core.yaml` using the same shape as the other nodes. List every node (including the new one) in `peers`, and paste the token into `join-token`:
 
     ```yaml title="core.yaml (new node)"
     cluster:
@@ -48,10 +48,3 @@ On the **Cluster** page, confirm:
 - Exactly one node is **Leader**.
 - Every listed node is **Healthy**.
 - **Failure tolerance** matches the expected value (`1` for 3 voters, `2` for 5 voters).
-
-## Keep peer configs in sync
-
-On every existing node, add the new node's `host:port` to `cluster.peers` in `core.yaml`. The change takes effect at the next restart; no immediate restart is required.
-
-!!! note
-    All steps in this guide can also be performed via the REST API. See the [Cluster API reference](../reference/api/cluster.md) for details.

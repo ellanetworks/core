@@ -4,9 +4,7 @@ description: RESTful API reference for viewing radio information.
 
 # Radios
 
-Radios are automatically added to Ella Core as they connect to the network as long as they are configured to use the same Tracking Area Code (TAC), Mobile Country Code (MCC), and Mobile Network Code (MNC) as Ella Core.
-
-A radio that has completed its setup procedure remains listed as `offline` after it disconnects, until it is forgotten or its retention window elapses. The inventory is held in memory and does not survive a restart.
+Radios are automatically added to Ella Core after a successfull connection.
 
 The Radio API provides endpoints to view information about radios and to forget offline ones.
 
@@ -143,7 +141,7 @@ This path returns the details of a specific radio, connected or offline, includi
 
 ## Forget a Radio
 
-This path drops an offline radio from the inventory. A forgotten radio is listed again as `online` if it reconnects.
+This path drops an offline radio from the inventory.
 
 Requires the admin role.
 

@@ -220,6 +220,10 @@ This path returns the current flow reports retention policy.
 | ------ | -------------------------------- |
 | GET    | `/api/v1/flow-reports/retention` |
 
+### Parameters
+
+None
+
 ### Sample Response
 
 ```json

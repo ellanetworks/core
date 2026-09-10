@@ -14,39 +14,39 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `system` (object): The system logging configuration.
         - `level` (string): The log level. Options are `debug`, `info`, `warn`, `error`, and `fatal`.
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
-        - `path` (string): The path to the log file. This is only used if the output is set to `file`.
+        - `path` (string): The path to the log file. Only used if the output is set to `file`.
     - `audit` (object): The audit logging configuration.
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
-        - `path` (string): The path to the log file. This is only used if the output is set to `file`.
+        - `path` (string): The path to the log file. Only used if the output is set to `file`.
 - `db` (object): The database configuration.
-    - `path` (string): The path to the SQLite database file. The parent directory must already exist. The file should be named `ella.db`, as backup and restore expect that name.
+    - `path` (string): The path to the SQLite database file.
 - `interfaces` (object): The network interfaces configuration.
-    - `n2` (object): The configuration for the n2 interface (N2 in 5G, S1-MME in 4G). This is the control-plane interface to the radios; the same interface serves both 5G gNBs and 4G eNBs over SCTP.
-        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server binds to all IP addresses configured on this interface. Link-local addresses (IPv6 link-local and IPv4 link-local) are automatically excluded.
-        - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
+    - `n2` (object): The configuration for the n2 interface (N2 in 5G, S1-MME in 4G). This is the SCTP control-plane interface towards radios.
+        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server binds to all IP addresses configured on this interface.
+        - `address` (string): The IP address to listen on (optional: either name or address must be provided). When set, the server binds to this specific address.
         - `ngap-port` (int, optional): The SCTP port for the 5G N2 / NGAP listener. Default `38412`.
         - `s1ap-port` (int, optional): The SCTP port for the 4G S1-MME / S1AP listener. Default `36412`.
         - `port` (int, optional): Deprecated alias for `ngap-port`. Cannot be set together with `ngap-port`.
-    - `n3` (object): The configuration for the n3 interface (N3 in 5G, S1-U in 4G). This interface should be connected to the radios.
+    - `n3` (object): The configuration for the n3 interface (N3 in 5G, S1-U in 4G). This is the user plane interface towards radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on. Supports both IPv4 and IPv6 (optional: either name or address must be provided).
+        - `address` (string): The address to listen on (optional: either name or address must be provided).
     - `n6` (object): The configuration for the n6 interface (N6 in 5G, SGi in 4G). This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
-        - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
+        - `address` (string): The IP address to listen on (optional: either name or address must be provided). When set, the server binds to this specific address.
         - `port` (int): The port to listen on.
         - `tls` (object): The TLS configuration (optional).
             - `cert` (string): The path to the TLS certificate file (optional).
             - `key` (string): The path to the TLS key file (optional).
-- `datapath` (object, optional): The datapath configuration. When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
-    - `attach-mode` (string, optional): The kernel hook the datapath attaches to: `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
+- `datapath` (object): The datapath configuration (optional). When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
+    - `attach-mode` (string): The kernel hook the datapath attaches to (optional): `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
 - `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
     - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
-- `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering) for the walkthrough.
+- `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs as a standalone single-server instance.
     - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
@@ -58,7 +58,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
     - `snapshot-threshold` (int, optional): Minimum number of applied log entries between automatic snapshots.
-    - `trailing-logs` (int, optional): Number of Raft log entries retained after a snapshot so a briefly-disconnected follower can catch up by log replay instead of receiving a full snapshot. Defaults to `10240`, which is correct for the vast majority of deployments. Lower it only if the Raft log is growing unboundedly under sustained write load; raise it only if followers repeatedly fall behind and trigger snapshot installs. Setting it too low on a cluster with a large database can put followers in a loop where they keep downloading snapshots and never converge.
+    - `trailing-logs` (int, optional): Number of Raft log entries retained after a snapshot, so a lagging follower can catch up by log replay instead of a full snapshot install. Defaults to the Raft library's default, currently `10240`.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/core.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
@@ -109,46 +109,3 @@ cluster:
     - "10.0.0.2:7000"
     - "10.0.0.3:7000"
 ```
-
-!!! note
-    Write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader; reads are served by any node.
-
-## IPv6 Support
-
-Ella Core supports IPv6 addresses for the management interface (`api`), the radio interface (`n2`) and the GTPU interface (`n3`).
-
-The following example demonstrates using an IPv6 address for those interfaces:
-
-```yaml
-interfaces:
-  n2:
-    address: "2001:db8::1"
-  n3:
-    address: "2001:db8::1"
-  n6:
-    name: "ens3"
-  api:
-    address: "2001:db9::1"
-    port: 5002
-```
-
-The following example demonstrates using all non link-local addresses for those interfaces:
-
-```yaml
-interfaces:
-  n2:
-    name: "ens5"
-  n3:
-    name: "ens4"
-  n6:
-    name: "ens3"
-  api:
-    name: "ens0"
-    port: 5002
-```
-
-## GTP-U Transport over IPv6
-
-Ella Core supports GTP-U tunnels over IPv6 for the N3 / S1-U interface (between the core and the radio). When a radio advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 / S1-MME signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
-
-To ensure Ella Core always uses IPv4 or IPv6 for GTP-U, specify an address of that family in the configuration file, or ensure only IPs of that family are configured on the interface.

@@ -4,8 +4,6 @@ description: Advertise subscriber routes with BGP
 
 Ella Core includes an embedded BGP speaker that advertises `/32` (IPv4) or `/64` (IPv6) routes for each active subscriber. This guide walks through enabling BGP, adding a peer, and verifying the configuration.
 
-For background on how Ella Core uses BGP, see the [BGP Route Advertisement](../explanation/bgp.md) explanation.
-
 !!! note "NAT must be disabled"
     NAT and BGP are mutually exclusive. Disable NAT from the Networking > NAT tab before proceeding.
 

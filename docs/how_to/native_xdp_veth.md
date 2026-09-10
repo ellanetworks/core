@@ -4,7 +4,7 @@ description: Step-by-step instructions to use native XDP mode with veth interfac
 
 # Use native XDP with veth interfaces
 
-When Ella Core's N3 or N6 interface is a veth pair and XDP is set to `native` mode, you must attach a minimal XDP program to the peer side of the veth. Without it, downlink traffic will silently fail. 
+When Ella Core's N3 or N6 interface is a veth pair and XDP is set to `native` mode, the peer side of the veth must have an XDP program attached, or traffic redirected out of that interface fails. This guide attaches a minimal one.
 
 For an explanation of why this is needed, see [XDP redirect on veth pairs](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs).
 

@@ -4,7 +4,7 @@ description: RESTful API reference for logs.
 
 # Audit Logs
 
-In addition to system logs output, Ella Core exposes audit logs through its API. These logs are useful in the day-to-day operation of the network.
+In addition to system logs output, Ella Core exposes audit logs through its API.
 
 ## List Audit Logs
 
@@ -48,28 +48,6 @@ This path returns the list of audit logs.
 }
 ```
 
-## Update Audit Log Retention Policy
-
-This path update the audit log retention policy.
-
-| Method | Path                           |
-| ------ | ------------------------------ |
-| PUT    | `/api/v1/logs/audit/retention` |
-
-### Parameters
-
-- `days` (integer): The number of days to retain audit logs. Must be a positive integer.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Audit log retention policy updated successfully"
-    }
-}
-```
-
 ## Get Audit Log Retention Policy
 
 This path returns the current audit log retention policy.
@@ -88,6 +66,28 @@ None
 {
     "result": {
         "days": 7
+    }
+}
+```
+
+## Update Audit Log Retention Policy
+
+This path updates the audit log retention policy.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| PUT    | `/api/v1/logs/audit/retention` |
+
+### Parameters
+
+- `days` (integer): The number of days to retain audit logs. Must be a positive integer.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Audit log retention policy updated successfully"
     }
 }
 ```

@@ -4,11 +4,7 @@ description: RESTful API reference for managing policies.
 
 # Policies
 
-Policies define per-session QoS parameters for a specific (profile, slice, data network)
-combination. The Session AMBR caps the bitrate of a single PDU session and is
-enforced by Ella Core in the data plane. This is distinct from UE-AMBR (set on the
-profile), which caps aggregate throughput across all sessions and is enforced by
-the radio.
+Policies define per-session QoS parameters for a specific (profile, slice, data network) combination.
 
 ## List Policies
 

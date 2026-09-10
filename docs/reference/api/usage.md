@@ -4,8 +4,6 @@ description: RESTful API reference for managing subscriber usage data.
 
 # Usage
 
-This section describes the RESTful API for managing subscriber usage data.
-
 ## Get Subscriber Usage
 
 This path retrieves usage data for network subscribers.
@@ -72,6 +70,10 @@ This path returns the current subscriber usage retention policy.
 | ------ | --------------------------------------- |
 | GET    | `/api/v1/subscriber-usage/retention` |
 
+### Parameters
+
+None
+
 ### Sample Response
 
 ```json
@@ -81,6 +83,7 @@ This path returns the current subscriber usage retention policy.
     }
 }
 ```
+
 ## Update Subscriber Usage Retention Policy
 
 This path updates the subscriber usage retention policy.
