@@ -18,7 +18,7 @@ None
 
 ### Response Headers
 
-When clustering is enabled, the response includes an `X-Ella-Role` header with the Raft role of the responding node (`Leader`, `Follower`, or `Candidate`). Load balancers can use this header to direct write traffic to the leader.
+When clustering is enabled, the response includes an `X-Ella-Role` header with the Raft role of the responding node (`Leader`, `Follower`, `Candidate`, `Shutdown`, or `Unknown`). Load balancers can use this header to direct write traffic to the leader.
 
 ### Sample Response
 

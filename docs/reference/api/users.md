@@ -183,7 +183,7 @@ This path updates the password of a specific system user. After a successful pas
 
 ## Create an API Token
 
-This path creates a new API token for the authenticated user. The API token can be used to authenticate with Ella Core's RESTful API. The API token will have the same permissions as your user account. Actions performed with the token will be logged under your user account.
+This path creates a new API token for the authenticated user. The token has the same permissions as your user account, and actions performed with it are logged under your user account. Maximum 12 tokens per user.
 
 | Method | Path                          |
 | ------ | ----------------------------- |
@@ -191,7 +191,7 @@ This path creates a new API token for the authenticated user. The API token can 
 
 ### Parameters
 
-- `name` (string): The name of the API token.
+- `name` (string): The name of the API token (3–50 characters).
 - `expires_at` (string, optional): The expiration date of the API token in RFC 3339 format. If not provided, the token will never expire.
 
 ### Sample Response
@@ -299,7 +299,7 @@ This path returns a paginated list of API tokens belonging to the specified user
 
 ## Create an API Token for a User (Admin)
 
-This path creates a new API token for the specified user. The token will have the same permissions as the target user's account. Actions performed with the token will be logged under the target user's account. Requires admin privileges. Maximum 12 tokens per user.
+This path creates a new API token for the specified user, as [Create an API Token](#create-an-api-token) does for the authenticated user. Requires admin privileges.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |

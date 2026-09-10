@@ -772,7 +772,7 @@ This path enables or disables local switching. The change is applied to the user
 
 ## Get BGP Settings
 
-Returns the current BGP configuration.
+This path returns the current BGP configuration.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -817,11 +817,16 @@ None
 }
 ```
 
-The `rejectedPrefixes` array lists prefixes that are always rejected by the safety filter. These are derived from the N3 interface address, N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, multicast). They are read-only and cannot be configured.
+The `rejectedPrefixes` array is read-only and lists the prefixes the safety filter always rejects, derived from:
+
+- The N3 interface address
+- The N6 interface subnets
+- The data network IP pools
+- Built-in prefixes: link-local, loopback, and multicast
 
 ## Update BGP Settings
 
-Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Changing the local AS or router ID triggers a restart of the speaker.
+This path updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Changing the local AS or router ID triggers a restart of the speaker.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -846,7 +851,7 @@ Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Cha
 
 ## List BGP Peers
 
-Returns the list of configured BGP peers with live session status.
+This path returns the list of configured BGP peers with live session status.
 
 | Method | Path                          |
 | ------ | ----------------------------- |
@@ -894,7 +899,7 @@ Returns the list of configured BGP peers with live session status.
 
 ## Get a BGP Peer
 
-Returns the details of a specific BGP peer.
+This path returns the details of a specific BGP peer.
 
 | Method | Path                              |
 | ------ | --------------------------------- |
@@ -932,7 +937,7 @@ None
 
 ## Create a BGP Peer
 
-Adds a new BGP peer. If BGP is running, the peer is added to the live speaker immediately.
+This path adds a new BGP peer. If BGP is running, the peer is added to the live speaker immediately.
 
 | Method | Path                          |
 | ------ | ----------------------------- |
@@ -959,7 +964,7 @@ Adds a new BGP peer. If BGP is running, the peer is added to the live speaker im
 
 ## Update a BGP Peer
 
-Updates an existing BGP peer. If BGP is running, the peer is reconfigured in the live speaker.
+This path updates an existing BGP peer. If BGP is running, the peer is reconfigured in the live speaker.
 
 | Method | Path                              |
 | ------ | --------------------------------- |
@@ -986,7 +991,7 @@ Updates an existing BGP peer. If BGP is running, the peer is reconfigured in the
 
 ## Delete a BGP Peer
 
-Removes a BGP peer by ID. If BGP is running, the peer is removed from the live speaker immediately and any routes learned from that peer are withdrawn from the kernel.
+This path removes a BGP peer by ID. If BGP is running, the peer is removed from the live speaker immediately and any routes learned from that peer are withdrawn from the kernel.
 
 | Method | Path                              |
 | ------ | --------------------------------- |
@@ -1008,7 +1013,7 @@ None
 
 ## Get BGP Advertised Routes
 
-Returns the routes currently advertised to BGP peers (subscriber /32 routes).
+This path returns the routes currently advertised to BGP peers (subscriber /32 routes).
 
 | Method | Path                                      |
 | ------ | ----------------------------------------- |
@@ -1036,7 +1041,7 @@ None
 
 ## Get BGP Learned Routes
 
-Returns the routes learned from BGP peers that passed the safety filter and import prefix list, and are currently installed in the kernel.
+This path returns the routes learned from BGP peers that passed the safety filter and import prefix list, and are currently installed in the kernel.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |

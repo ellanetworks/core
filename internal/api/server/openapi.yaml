@@ -113,15 +113,16 @@ paths:
         "200":
           description: |
             System status. When clustering is enabled, the response includes an
-            `X-Ella-Role` header (`Leader`, `Follower`, or `Candidate`) that
-            load balancers can use to direct write traffic to the leader node.
+            `X-Ella-Role` header (`Leader`, `Follower`, `Candidate`,
+            `Shutdown`, or `Unknown`) that load balancers can use to direct
+            write traffic to the leader node.
           headers:
             X-Ella-Role:
               description: Raft role of the responding node. Only present when clustering is enabled.
               required: false
               schema:
                 type: string
-                enum: [Leader, Follower, Candidate]
+                enum: [Leader, Follower, Candidate, Shutdown, Unknown]
           content:
             application/json:
               schema:
