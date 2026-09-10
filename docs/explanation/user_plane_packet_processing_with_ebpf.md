@@ -76,4 +76,6 @@ When Ella Core's N3 interface is a veth pair, the data plane forwards downlink p
 
 Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 / S1-U interface. The inner UE payload can be IPv4 or IPv6, independent of the transport address family. The chosen transport address family depends on how the N3 / S1-U interface is configured, and what the radio advertises. If both sides are dual-stack, Ella Core prefers IPv6.
 
+At startup Ella Core resolves both an IPv4 and an IPv6 address from the configured interface and advertises them to the radio — to the gNB in the NGAP `TransportLayerAddress` (per 3GPP TS 38.414 Section 5.1), and to the eNB in the S1AP Transport Layer Address (per 3GPP TS 36.413) — each a 160-bit field carrying both families. The gNB selects its preferred address family in its response; for 4G, when the eNB offers both families, the IPv6 endpoint is used. Subsequent encapsulation and decapsulation use the matching outer header type.
+
 **GTP echo:** Echo Request/Response messages are handled for both IPv4 and IPv6 transport, as required for GTP-U path management.
