@@ -35,7 +35,7 @@ Install Ella Core using the [How-to Install guide](install.md) and install OCUDU
 
 ## 2. Create a network namespace for N3
 
-Create a linux network namespace `n3ns` for the N3 interface between OCUDU and Ella Core. We use a systemd service so the namespace and veth pair are recreated automatically on boot.
+Create a linux network namespace `n3ns` for the N3 interface between OCUDU and Ella Core.
 
 Install the OCUDU performance script:
 
