@@ -155,7 +155,7 @@ const SubscriberPage: React.FC = () => {
       },
       {
         field: "last_seen_radio",
-        headerName: "Last radio",
+        headerName: "Last Radio",
         flex: 0.8,
         minWidth: 110,
         valueGetter: (_v, row: APISubscriberSummary) =>
@@ -254,7 +254,7 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "access",
+        field: "systems",
         headerName: "System",
         flex: 0.4,
         minWidth: 90,
@@ -296,7 +296,7 @@ const SubscriberPage: React.FC = () => {
       children: [
         { field: "registration" },
         { field: "connection" },
-        { field: "access" },
+        { field: "systems" },
       ],
     },
   ];
