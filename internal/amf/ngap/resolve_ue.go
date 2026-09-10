@@ -61,10 +61,10 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 			return nil, false
 		}
 
-		if ranID != nil && ueConn.RanUeNgapID != models.RanUeNgapID(*ranID) {
+		if ranID != nil && ueConn.RanUeNgapID() != models.RanUeNgapID(*ranID) {
 			logger.WithTrace(ctx, ran.Log).Warn("Inconsistent remote RAN-UE-NGAP-ID",
 				zap.Uint64("amf_ue_ngap_id", uint64(*amfID)),
-				zap.Uint32("stored_ran_ue_ngap_id", uint32(ueConn.RanUeNgapID)),
+				zap.Uint32("stored_ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 				zap.Uint32("received_ran_ue_ngap_id", uint32(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 

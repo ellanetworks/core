@@ -3905,39 +3905,23 @@ components:
         connection_state:
           type: string
           enum: ["idle", "connected"]
-          description: >-
-            Whether the device holds a NAS signalling connection: CM state in 5G
-            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3). Independent of
-            `registered` (TS 23.501 §5.3.3.2.2, TS 23.401 §4.6.1) — a device still
-            registering is "connected" with `registered` false. Omitted when the core
-            holds no context for the device.
+          description: "CM state in 5GS, ECM state in EPS. Absent when the core holds no context."
         systems:
           type: array
           items:
             type: string
             enum: ["5GS", "EPS"]
-          description: >-
-            Every system the subscriber is currently registered on, ordered 5G
-            first, matching a registration's `system` on the get-single response.
-            Usually one, but a device moving between 4G and 5G holds both while it
-            transfers its sessions one at a time. Omitted if not connected.
+          description: "Systems the core holds a context for, 5GS first. Absent when it holds none."
         num_sessions:
           type: integer
-          description: >-
-            Number of active sessions (5G PDU sessions / 4G PDN connections) for
-            this subscriber, across every access it is registered on.
+          description: "Number of active sessions across every system."
         last_seen_at:
           type: string
           format: date-time
-          description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
+          description: "Timestamp when the subscriber was last seen (RFC 3339). Absent when never seen."
         last_seen_radio:
           type: string
-          description: >-
-            Name of the radio that last served the device. The core knows the serving node
-            only while the device is connected (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2), so
-            on an idle or deregistered device this is last known and may be stale. Held in
-            memory by the serving node: not shared across cluster nodes, and reset on
-            restart. Omitted if never seen.
+          description: "Radio that last served the device. Absent when never seen."
       required: [registered, num_sessions]
 
     Subscriber:
@@ -3980,97 +3964,60 @@ components:
 
     UEConnection:
       type: object
-      description: >-
-        The UE-associated logical connection identity pair of a registration: the
-        AMF and RAN UE NGAP IDs in 5G, or the MME and eNB UE S1AP IDs in 4G. Only the
-        pair belonging to the registration's system is present. These identifiers are
-        ephemeral: the radio allocates its own for the duration of one connected
-        period and reuses it afterwards, so a value identifies a subscriber only
-        together with `radio` and the time it was read.
+      description: "Identity pair of a registration's UE-associated logical connection. Only the pair of the registration's system is present."
       properties:
         amf_ue_ngap_id:
           type: integer
           format: int64
-          description: "AMF UE NGAP ID (5G). INTEGER (0..2^40-1)."
+          description: "AMF UE NGAP ID (5GS). INTEGER (0..2^40-1)."
         ran_ue_ngap_id:
           type: integer
           format: int64
-          description: >-
-            RAN UE NGAP ID (5G). INTEGER (0..2^32-1), allocated by the serving radio.
-            Absent until the radio allocates one, e.g. on a handover target before it
-            accepts the handover.
+          description: "RAN UE NGAP ID (5GS). INTEGER (0..2^32-1). Absent until the radio allocates one."
         mme_ue_s1ap_id:
           type: integer
           format: int64
-          description: "MME UE S1AP ID (4G). INTEGER (0..2^32-1)."
+          description: "MME UE S1AP ID (EPS). INTEGER (0..2^32-1)."
         enb_ue_s1ap_id:
           type: integer
           format: int64
-          description: >-
-            eNB UE S1AP ID (4G). INTEGER (0..2^24-1), allocated by the serving radio.
-            Absent until it is allocated.
+          description: "eNB UE S1AP ID (EPS). INTEGER (0..2^24-1). Absent until the radio allocates one."
 
     Registration:
       type: object
-      description: >-
-        One mobility-management context of a subscriber. A device in dual-registration
-        mode may be registered on 4G and 5G at the same time, so a subscriber may hold
-        several. An entry is present whenever the core holds a context for that system
-        or still remembers having served the subscriber there.
+      description: "One mobility-management context the core holds or remembers for a subscriber."
       properties:
         system:
           type: string
           enum: ["5GS", "EPS"]
-          description: >-
-            The core that registered the device: "5GS" for 5G, "EPS" for 4G. This is
-            independent of the radio: an NSA device on 5G radio reports "EPS".
+          description: "The core holding this registration."
         registered:
           type: boolean
-          description: >-
-            Whether the device is registered in this system: RM state in 5G and EMM
-            state in 4G. False on an entry the core remembers but no longer holds a
-            context for.
+          description: "RM state in 5GS, EMM state in EPS. False on an entry the core only remembers."
         connection_state:
-          type: string
-          nullable: true
-          enum: ["idle", "connected"]
-          description: >-
-            Whether the device holds a NAS signalling connection in this system: CM
-            state in 5G and ECM state in 4G. Independent of `registered` — a device
-            still registering is "connected" with `registered` false. Null when the
-            core holds no context.
+          type: ["string", "null"]
+          enum: ["idle", "connected", null]
+          description: "CM state in 5GS, ECM state in EPS. Null on an entry the core only remembers."
         radio:
           type: string
-          description: >-
-            Name of the radio serving this registration, or the last one that did once
-            the device is idle or deregistered, in which case it may be stale. Held in
-            memory by the serving node: not shared across cluster nodes, and reset on
-            restart. Empty if never seen.
+          description: "Radio serving this registration, or the last one that did. Absent when never seen."
         last_seen_at:
           type: string
-          description: Timestamp of last activity in this system (RFC 3339).
+          description: "Timestamp of last activity in this system (RFC 3339). Absent when never seen."
         imei:
           type: string
-          description: >-
-            15-digit IMEI of the device. Empty when unknown or once the core has
-            released the context.
+          description: "IMEI of the device (15 digits). Absent when the core does not hold it."
         ciphering_algorithm:
           type: string
-          description: >-
-            NAS ciphering algorithm negotiated in this system: NEA0 / 128-NEA1..3 in
-            5G, EEA0 / 128-EEA1..3 in 4G. Empty when none is established.
+          description: "NAS ciphering algorithm: NEA0 / 128-NEA1..3 in 5GS, EEA0 / 128-EEA1..3 in EPS. Absent when none is established."
         integrity_algorithm:
           type: string
-          description: >-
-            NAS integrity algorithm negotiated in this system: NIA0 / 128-NIA1..3 in
-            5G, EIA0 / 128-EIA1..3 in 4G. Empty when none is established.
+          description: "NAS integrity algorithm: NIA0 / 128-NIA1..3 in 5GS, EIA0 / 128-EIA1..3 in EPS. Absent when none is established."
         connection:
-          allOf:
+          oneOf:
             - $ref: "#/components/schemas/UEConnection"
-          nullable: true
-          description: >-
-            The UE-associated logical connection, or null when the device holds none
-            (CM-IDLE / ECM-IDLE, or deregistered).
+            - type: "null"
+          description: "UE-associated logical connection. Null when the device holds none."
       required: [system, registered, connection_state, connection]
 
     SubscriberDetail:
@@ -4086,10 +4033,7 @@ components:
           description: Free-text operator note. Absent when unset.
         registrations:
           type: array
-          description: >-
-            Every mobility-management context the core holds or remembers for this
-            subscriber, ordered 5G first. Empty for a subscriber the core has never
-            served.
+          description: "Mobility-management contexts the core holds or remembers, 5GS first."
           items:
             $ref: "#/components/schemas/Registration"
         sessions:
@@ -4144,7 +4088,7 @@ components:
         system:
           type: string
           enum: ["5GS", "EPS"]
-          description: "The system holding this session, matching a registration's `system`."
+          description: "The system holding this session."
         id:
           type: integer
           description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
@@ -4246,8 +4190,7 @@ components:
         description:
           type: string
         remote_prefix:
-          type: string
-          nullable: true
+          type: ["string", "null"]
           description: "CIDR notation (e.g. \"10.0.0.0/24\") or null."
         protocol:
           type: integer
@@ -4308,7 +4251,6 @@ components:
           description: Name of the data network this policy applies to.
         rules:
           $ref: "#/components/schemas/PolicyRules"
-          nullable: true
           description: "Optional network rules organized by direction (uplink/downlink)."
         default:
           type: boolean
@@ -4899,8 +4841,7 @@ components:
           type: string
           description: "Lease type (e.g. \"dynamic\")."
         session_id:
-          type: integer
-          nullable: true
+          type: ["integer", "null"]
           description: PDU session ID, or null if the lease is not tied to an active session.
       required: [address, imsi, type, session_id]
 
@@ -4945,8 +4886,7 @@ components:
           enum: [reserved, active]
           description: "\"active\" when bound to a session, otherwise \"reserved\"."
         session_id:
-          type: integer
-          nullable: true
+          type: ["integer", "null"]
           description: PDU session ID when active, or null when reserved.
       required: [imsi, data_network, ip_version, address, status, session_id]
 

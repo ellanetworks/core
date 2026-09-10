@@ -20,7 +20,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	logger.WithTrace(ctx, sourceUe.Log()).Debug("Handle Handover Cancel", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, sourceUe.Log()).Debug("Handle Handover Cancel", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID())), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
 	sourceUe.TouchLastSeen()
 
 	cause := ngap.Cause{

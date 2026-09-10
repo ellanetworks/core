@@ -182,8 +182,8 @@ None
 | `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered, in which case it may be stale. Held in memory by the serving node: not shared across cluster nodes, and reset on restart. |
 | `last_seen_at` | Timestamp of last activity in this system (RFC 3339). |
 | `imei` | 15-digit IMEI of the device. Absent once the core has released the context. |
-| `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent once the core has released the context. |
-| `integrity_algorithm` | `NIA0` / `128-NIA1..3` in 5G, `EIA0` / `128-EIA1..3` in 4G. Absent once the core has released the context. |
+| `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent when none is established. |
+| `integrity_algorithm` | `NIA0` / `128-NIA1..3` in 5G, `EIA0` / `128-EIA1..3` in 4G. Absent when none is established. |
 | `connection` | UE-associated logical connection, or `null` when the device holds none. |
 
 ### Connection identifiers

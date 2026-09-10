@@ -773,10 +773,10 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 
 	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
-		RanUeNgapID: ranUeNgapID,
 		conn:        radio.Conn,
 		amf:         a,
 	}
+	ueConn.setRanUeNgapID(ranUeNgapID)
 	ueConn.bindLog(radio.Log)
 
 	a.mu.Lock()
@@ -871,7 +871,7 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
 		logger.SUPI(supi.String()),
 		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 	)
 
 	return nil

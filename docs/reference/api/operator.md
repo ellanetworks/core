@@ -202,7 +202,7 @@ This path updates the NAS security algorithm preference order for ciphering and 
 - `ciphering` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
 - `integrity` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
 
-These algorithm names are RAT-neutral: Ella Core signals them as NEA/NIA to 5G subscribers and as EEA/EIA to 4G subscribers (`NULL` → NEA0/EEA0, `SNOW3G` → NEA1/EEA1, `AES` → NEA2/EEA2).
+These algorithm names are RAT-neutral: Ella Core signals them as NEA/NIA to 5G subscribers and as EEA/EIA to 4G subscribers (`NULL` → NEA0/EEA0, `SNOW3G` → 128-NEA1/128-EEA1, `AES` → 128-NEA2/128-EEA2).
 
 ### Sample Request
 

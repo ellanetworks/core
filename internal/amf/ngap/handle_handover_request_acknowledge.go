@@ -213,7 +213,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	logger.WithTrace(ctx, targetUe.Log()).Debug("handle handover request acknowledge", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log()).Debug("handle handover request acknowledge", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID())), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
 
 	sourceUe.SendHandoverCommand(ctx, admitted, releaseItems(ctx, targetUe, unadmitted, targetCauses), msg.TargetToSourceTransparentContainer)
 }

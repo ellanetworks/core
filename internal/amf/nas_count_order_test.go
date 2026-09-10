@@ -105,9 +105,9 @@ func newDownlinkOrderUE(t *testing.T) (*UeContext, *downlinkOrderConn) {
 	ueConn := &UeConn{
 		conn:        sender,
 		amf:         radio.amf,
-		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 	}
+	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
 	ueConn.setLog(zap.NewNop())
 	ueConn.amf.AttachUeConn(ue, ueConn)

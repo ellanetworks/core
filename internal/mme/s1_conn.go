@@ -29,13 +29,13 @@ const (
 	ICSCompleted
 )
 
+const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
+
 // UeConn is a UE's transient state for one UE-associated logical S1-connection
 // (TS 36.413): the S1AP identities, the eNB association, the connection-scoped
 // NAS-guard supervision, and any in-flight handover. A fresh one is bound
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
-const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
-
 type UeConn struct {
 	ENBUES1APID               s1ap.ENBUES1APID
 	MMEUES1APID               s1ap.MMEUES1APID

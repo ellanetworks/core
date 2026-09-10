@@ -625,7 +625,7 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 		return err
 	}
 
-	pkt, err := downlinkNASTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), nasPdu)
+	pkt, err := downlinkNASTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), nasPdu)
 	if err != nil {
 		return err
 	}
@@ -652,7 +652,7 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 		return err
 	}
 
-	pkt, err := downlinkUEAssociatedNRPPaTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), routingID, nrppaPdu)
+	pkt, err := downlinkUEAssociatedNRPPaTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), routingID, nrppaPdu)
 	if err != nil {
 		return fmt.Errorf("build downlink NRPPa transport: %w", err)
 	}
@@ -692,7 +692,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 		return
 	}
 
-	pkt, err := ueContextReleaseCommandBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause)
+	pkt, err := ueContextReleaseCommandBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
@@ -767,7 +767,7 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
-	pkt, err := pduSessionResourceSetupBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), ambrUp, ambrDown, nasPdu, list)
+	pkt, err := pduSessionResourceSetupBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), ambrUp, ambrDown, nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -799,7 +799,7 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 		return err
 	}
 
-	pkt, err := pduSessionResourceReleaseBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), nasPdu, list)
+	pkt, err := pduSessionResourceReleaseBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -917,7 +917,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 
 	pkt, err := initialContextSetupBytes(
 		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
-		ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.RANUENGAPID(ueConn.RanUeNgapID()),
 		ambrUp,
 		ambrDown,
 		allowedNssai,
@@ -963,7 +963,7 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 
 	pkt, err := pduSessionResourceModifyBytes(
 		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
-		ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.RANUENGAPID(ueConn.RanUeNgapID()),
 		pduSessionResourceModifyList,
 	)
 	if err != nil {
@@ -991,7 +991,7 @@ func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGA
 // FAILURE, which §8.4.1.3 has the AMF pass on to the source NG-RAN node; it is
 // nil where preparation failed before any target answered.
 func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) {
-	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause, criticalityDiagnostics, targetFailure)
+	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause, criticalityDiagnostics, targetFailure)
 	if err != nil {
 		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Preparation Failure", zap.Error(err))
 		return
@@ -1012,7 +1012,7 @@ func handoverCancelAcknowledgeBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 }
 
 func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
-	pkt, err := handoverCancelAcknowledgeBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID))
+	pkt, err := handoverCancelAcknowledgeBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()))
 	if err != nil {
 		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
 		return
@@ -1160,7 +1160,7 @@ func (ueConn *UeConn) SendHandoverCommand(
 	targetToSource ngap.TargetToSourceTransparentContainer,
 ) {
 	pkt, err := handoverCommandBytes(
-		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()),
 		ueConn.HandOverType, admitted, toRelease, targetToSource, nil,
 	)
 	if err != nil {
@@ -1178,7 +1178,7 @@ func (ueConn *UeConn) SendHandoverCommandToEPS(
 	nasSecurityParameters ngap.NASSecurityParametersFromNGRAN,
 ) {
 	pkt, err := handoverCommandBytes(
-		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()),
 		ngap.HandoverTypeFiveGSToEPS, nil, toRelease, targetToSource, nasSecurityParameters,
 	)
 	if err != nil {
@@ -1220,7 +1220,7 @@ func downlinkRANStatusTransferBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 // SendDownlinkRANStatusTransfer relays the source node's PDCP SN/HFN status to
 // the handover target. The container is opaque to the AMF (TS 38.413 §9.3.1.108).
 func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, container ngap.StatusTransferContainer) {
-	pkt, err := downlinkRANStatusTransferBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), container)
+	pkt, err := downlinkRANStatusTransferBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), container)
 	if err != nil {
 		logger.From(ctx, ueConn.Log()).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
 		return
@@ -1282,7 +1282,7 @@ func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
 	}
 
 	pkt, err := pathSwitchRequestAcknowledgeBytes(
-		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()),
 		ueSecurityCapability, ncc, nh, switched, released, allowed,
 	)
 	if err != nil {
@@ -1311,7 +1311,7 @@ func locationReportingControlBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPI
 // SendLocationReportingControl asks the NG-RAN node to start, change or stop
 // reporting this UE's location (TS 38.413 §8.12.1).
 func (ueConn *UeConn) SendLocationReportingControl(ctx context.Context, eventType ngap.EventType) error {
-	pkt, err := locationReportingControlBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), eventType)
+	pkt, err := locationReportingControlBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), eventType)
 	if err != nil {
 		return fmt.Errorf("build LocationReportingControl: %w", err)
 	}

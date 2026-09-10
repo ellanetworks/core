@@ -29,7 +29,7 @@ func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Ra
 
 	amfInstance.AttachUeConn(amfUe, oldConn)
 	oldAmfID = int64(oldConn.AmfUeNgapID)
-	oldRanID = int64(oldConn.RanUeNgapID)
+	oldRanID = int64(oldConn.RanUeNgapID())
 
 	newConn, err := amfInstance.NewUeConn(ran, 2)
 	if err != nil {

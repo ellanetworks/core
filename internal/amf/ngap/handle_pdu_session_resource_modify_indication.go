@@ -66,7 +66,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 	confirm := &ngap.PDUSessionResourceModifyConfirm{
 		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(ueConn.AmfUeNgapID)),
-		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(ueConn.RanUeNgapID)),
+		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(ueConn.RanUeNgapID())),
 		PDUSessionResourceModify: modifyList,
 		PDUSessionResourceFailed: failedList,
 	}

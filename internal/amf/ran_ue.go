@@ -51,7 +51,7 @@ const releaseGuardTimeout = 5 * time.Second
 // capture the returned pointer in a local and reuse it — the pointer may change between
 // calls.
 type UeConn struct {
-	RanUeNgapID  models.RanUeNgapID
+	ranUeNgapID  atomic.Int64
 	AmfUeNgapID  models.AmfUeNgapID
 	HandOverType ngap.HandoverType
 	Tai          models.Tai
@@ -193,8 +193,8 @@ func (ueConn *UeConn) refreshLog() {
 	}
 
 	fields := []zap.Field{logger.AmfUeNgapID(ueConn.AmfUeNgapID)}
-	if ueConn.RanUeNgapID != models.RanUeNgapIDUnspecified {
-		fields = append(fields, logger.RanUeNgapID(ueConn.RanUeNgapID))
+	if ranUeNgapID := ueConn.RanUeNgapID(); ranUeNgapID != models.RanUeNgapIDUnspecified {
+		fields = append(fields, logger.RanUeNgapID(ranUeNgapID))
 	}
 
 	ueConn.setLog(base.With(fields...))
@@ -203,6 +203,14 @@ func (ueConn *UeConn) refreshLog() {
 // Parent returns the UeContext this connection is bound to, or nil when bare.
 func (ueConn *UeConn) Parent() *UeContext {
 	return ueConn.ue.Load()
+}
+
+func (ueConn *UeConn) RanUeNgapID() models.RanUeNgapID {
+	return models.RanUeNgapID(ueConn.ranUeNgapID.Load())
+}
+
+func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
+	ueConn.ranUeNgapID.Store(int64(ranUeNgapID))
 }
 
 // Release stops the NAS guard and clears this connection from its UeContext. Clearing
@@ -632,7 +640,7 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	var stale []*UeConn
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			stale = append(stale, ueConn)
 		}
 	}
@@ -667,7 +675,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	logger.AmfLog.Info("ran ue removed",
 		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 	)
 
 	return nil
@@ -690,7 +698,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 
 	ueConn.conn = ran.Conn
 	ueConn.setRadio(radioIDOf(ran), ran.name)
-	ueConn.RanUeNgapID = ranUeNgapID
+	ueConn.setRanUeNgapID(ranUeNgapID)
 
 	if supi := ue.Supi(); supi.IsIMSI() {
 		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
@@ -720,11 +728,11 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 	}
 
 	ueConn := &UeConn{
-		RanUeNgapID: ranUeNgapID,
 		AmfUeNgapID: amfUeNgapID,
 		conn:        radio.Conn,
 		amf:         radio.amf,
 	}
+	ueConn.setRanUeNgapID(ranUeNgapID)
 	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()

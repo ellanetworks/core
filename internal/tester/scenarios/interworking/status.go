@@ -37,23 +37,28 @@ func assertRegisteredOn(ctx context.Context, env scenarios.Env, want string) err
 	last := make([]string, 0, 2)
 
 	for {
+		registered := false
+
 		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
 		if err == nil {
 			last = last[:0]
 
 			for _, reg := range sub.Registrations {
-				if reg.Registered {
-					last = append(last, reg.System)
+				if reg.ConnectionState == nil {
+					continue
 				}
+
+				last = append(last, reg.System)
+				registered = registered || reg.Registered
 			}
 
-			if slices.Equal(last, []string{want}) {
+			if registered && slices.Equal(last, []string{want}) {
 				return nil
 			}
 		}
 
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the subscriber is not registered on %s alone (registered systems %v)", want, last)
+			return fmt.Errorf("the subscriber is not registered on %s alone (systems with a context %v)", want, last)
 		}
 
 		time.Sleep(statusPoll)

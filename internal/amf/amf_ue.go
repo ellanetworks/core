@@ -339,20 +339,22 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
+	conn := ue.active.Load()
+
 	snap := UESnapshot{
 		Imei:               ue.Imei.IMEI(),
 		LastSeenAt:         ue.lastSeenTime(),
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),
-		Connected:          ue.active.Load() != nil,
+		Connected:          conn != nil,
 		Registered:         ue.state == Registered || ue.state == DeregistrationInitiated,
 	}
 
-	if conn := ue.active.Load(); conn != nil {
+	if conn != nil {
 		snap.Connection = &UEConnection{AmfUeNgapID: int64(conn.AmfUeNgapID)}
-		if conn.RanUeNgapID != models.RanUeNgapIDUnspecified {
-			ranID := int64(conn.RanUeNgapID)
-			snap.Connection.RanUeNgapID = &ranID
+		if ranID := conn.RanUeNgapID(); ranID != models.RanUeNgapIDUnspecified {
+			id := int64(ranID)
+			snap.Connection.RanUeNgapID = &id
 		}
 	}
 
