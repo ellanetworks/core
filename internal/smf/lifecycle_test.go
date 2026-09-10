@@ -996,12 +996,12 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	call := amfCb.modifyCalls[0]
 	amfCb.mu.Unlock()
 
-	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil, 0, nil)
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("build old policy modification command: %v", err)
 	}
 
-	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil)
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("build new policy modification command: %v", err)
 	}
@@ -1055,7 +1055,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil, 0, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1092,7 +1092,7 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1988,45 +1988,6 @@ func buildHandoverRequestAcknowledgeTransferWithQFI(teid uint32, ip net.IP, qfi 
 }
 
 // TS 24.501 §6.4.2.4, §7.3.1
-func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, ref := setupSessionWithTunnel(t, s)
-
-	const pti = 7
-
-	n1Msg := buildPDUSessionModificationRequest(smCtx.PDUSessionID, pti)
-
-	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, n1Msg)
-	if err != nil {
-		t.Fatalf("UpdateSmContextN1Msg (modification) failed: %v", err)
-	}
-
-	if rsp == nil || rsp.N1Msg == nil {
-		t.Fatal("expected a Modification Reject N1 message (TS 24.501 §6.4.2.4), got none")
-	}
-
-	if rsp.ReleaseN2 {
-		t.Error("modification reject must not signal N2 release")
-	}
-
-	// PDU SESSION MODIFICATION REJECT: header (EPD, PSI, PTI, type) + mandatory cause.
-	raw := rsp.N1Msg
-	if len(raw) < 5 || raw[3] != uint8(fgs.MsgPDUSessionModificationReject) {
-		t.Fatalf("expected PDUSessionModificationReject, got % x", raw)
-	}
-
-	if got := raw[2]; got != pti {
-		t.Errorf("reject PTI = %d, want %d (echoed from request)", got, pti)
-	}
-
-	if got := raw[4]; fgs.GSMCause(got) != fgs.GSMCauseRequestRejectedUnspecified {
-		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, fgs.GSMCauseRequestRejectedUnspecified)
-	}
-}
-
 // TS 24.501 §7.3.1 b)
 func TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()

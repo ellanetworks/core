@@ -115,17 +115,9 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case *fgs.PDUSessionModificationRequest:
-		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received; rejecting", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		// The UE cannot set its own QoS; the authorized QoS is network-determined
-		// and not modifiable on UE request, so the request is rejected
-		// (TS 24.501 clause 6.4.2.4).
-		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), fgs.GSMCauseRequestRejectedUnspecified)
-		if err != nil {
-			return nil, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
-		}
-
-		return &UpdateResult{N1Msg: n1SmMsg}, nil
+		return s.handleUERequestedModification(ctx, smContext, msg, pti)
 
 	case *fgs.PDUSessionReleaseComplete:
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -147,6 +139,10 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
+
+		if pti != 0 {
+			smContext.ueParams.ModificationDone = true
+		}
 
 		if smContext.pendingPolicy != nil {
 			smContext.PolicyData = smContext.pendingPolicy

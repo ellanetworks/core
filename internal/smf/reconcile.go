@@ -343,7 +343,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		mappedEPSQoS = &nas.MappedEPSQoS{QosData: policy.QosData, Ambr: policy.Ambr}
 	}
 
-	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, n1Ambr, n1QoS, n1DNS, smContext.EBI, mappedEPSQoS)
+	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, 0, n1Ambr, n1QoS, n1DNS, smContext.EBI, mappedEPSQoS, nil)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
