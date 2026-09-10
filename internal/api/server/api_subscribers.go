@@ -185,8 +185,8 @@ func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool 
 	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
 }
 
-// accessView is what one system — 4G or 5G — knows about a subscriber.
-type accessView struct {
+// systemView is what one system — 4G or 5G — knows about a subscriber.
+type systemView struct {
 	system        string
 	present       bool
 	registered    bool
@@ -195,11 +195,11 @@ type accessView struct {
 	lastSeenRadio string
 }
 
-func (v accessView) newerThan(other accessView) bool {
+func (v systemView) newerThan(other systemView) bool {
 	return !other.present || v.lastSeenAt.After(other.lastSeenAt)
 }
 
-type mergedAccess struct {
+type mergedStatus struct {
 	Systems       []string
 	Registered    bool
 	Connected     bool
@@ -207,11 +207,11 @@ type mergedAccess struct {
 	LastSeenRadio string
 }
 
-func mergeAccesses(views ...accessView) mergedAccess {
+func mergeSystems(views ...systemView) mergedStatus {
 	var (
-		merged   mergedAccess
-		serving  accessView
-		retained accessView
+		merged   mergedStatus
+		serving  systemView
+		retained systemView
 	)
 
 	for _, v := range views {
@@ -391,13 +391,13 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			amf5G, on5G := amf5GStatus[dbSubscriber.Imsi]
 			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
 
-			merged := mergeAccesses(
-				accessView{
+			merged := mergeSystems(
+				systemView{
 					system: System5GS, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
 					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
 				},
-				accessView{
+				systemView{
 					system: SystemEPS, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
 					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
 					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,

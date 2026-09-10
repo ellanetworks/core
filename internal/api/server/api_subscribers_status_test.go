@@ -9,34 +9,34 @@ import (
 	"time"
 )
 
-func TestMergeAccesses(t *testing.T) {
+func TestMergeSystems(t *testing.T) {
 	var (
 		older = time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
 		newer = time.Date(2026, 8, 17, 10, 5, 0, 0, time.UTC)
 
-		on4G = accessView{
+		on4G = systemView{
 			system: SystemEPS, present: true, registered: true, connected: true,
 			lastSeenRadio: "enb-1",
 		}
-		on5G = accessView{
+		on5G = systemView{
 			system: System5GS, present: true, registered: true, connected: true,
 			lastSeenRadio: "gnb-1",
 		}
 	)
 
-	at := func(v accessView, seen time.Time) accessView {
+	at := func(v systemView, seen time.Time) systemView {
 		v.lastSeenAt = seen
 
 		return v
 	}
 
-	idle := func(v accessView) accessView {
+	idle := func(v systemView) systemView {
 		v.connected = false
 
 		return v
 	}
 
-	deregistered := func(v accessView) accessView {
+	deregistered := func(v systemView) systemView {
 		v.present, v.registered, v.connected = false, false, false
 
 		return v
@@ -44,19 +44,19 @@ func TestMergeAccesses(t *testing.T) {
 
 	for _, tc := range []struct {
 		name        string
-		view4G      accessView
-		view5G      accessView
+		view4G      systemView
+		view5G      systemView
 		wantSystems []string
-		want        mergedAccess
+		want        mergedStatus
 	}{
 		{
-			name: "neither access holds a registration",
+			name: "neither system holds a registration",
 		},
 		{
 			name:        "4G only",
 			view4G:      at(on4G, older),
 			wantSystems: []string{SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: older,
 			},
 		},
@@ -64,7 +64,7 @@ func TestMergeAccesses(t *testing.T) {
 			name:        "5G only",
 			view5G:      at(on5G, older),
 			wantSystems: []string{System5GS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
 		},
@@ -73,7 +73,7 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:      at(on4G, newer),
 			view5G:      at(on5G, older),
 			wantSystems: []string{System5GS, SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
 		},
@@ -82,7 +82,7 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:      at(on4G, older),
 			view5G:      at(on5G, newer),
 			wantSystems: []string{System5GS, SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
@@ -91,25 +91,25 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:      at(on4G, newer),
 			view5G:      at(idle(on5G), older),
 			wantSystems: []string{System5GS, SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "enb-1", LastSeenAt: newer,
 			},
 		},
 		{
-			name:        "the more recent access is idle, and still names the radio that served it",
+			name:        "the more recent system is idle, and still names the radio that served it",
 			view4G:      at(on4G, older),
 			view5G:      at(idle(on5G), newer),
 			wantSystems: []string{System5GS, SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 		{
-			name:        "the deregistered access is more recent than the registered one",
+			name:        "the deregistered system is more recent than the registered one",
 			view4G:      at(deregistered(on4G), newer),
 			view5G:      at(on5G, older),
 			wantSystems: []string{System5GS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, Connected: true, LastSeenRadio: "gnb-1", LastSeenAt: older,
 			},
 		},
@@ -118,21 +118,21 @@ func TestMergeAccesses(t *testing.T) {
 			view4G:      at(idle(on4G), older),
 			view5G:      at(idle(on5G), newer),
 			wantSystems: []string{System5GS, SystemEPS},
-			want: mergedAccess{
+			want: mergedStatus{
 				Registered: true, LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 		{
-			name:   "deregistered on both accesses",
+			name:   "deregistered on both systems",
 			view4G: at(deregistered(on4G), older),
 			view5G: at(deregistered(on5G), newer),
-			want: mergedAccess{
+			want: mergedStatus{
 				LastSeenRadio: "gnb-1", LastSeenAt: newer,
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := mergeAccesses(tc.view5G, tc.view4G)
+			got := mergeSystems(tc.view5G, tc.view4G)
 
 			if !slices.Equal(got.Systems, tc.wantSystems) {
 				t.Errorf("Systems = %v, want %v", got.Systems, tc.wantSystems)
@@ -166,7 +166,7 @@ func TestConnectionState(t *testing.T) {
 	}{
 		{name: "a context holding a signalling connection", present: true, connected: true, want: "connected"},
 		{name: "a context with no signalling connection", present: true, want: "idle"},
-		{name: "no context on either access", want: ""},
+		{name: "no context on either system", want: ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := connectionState(tc.present, tc.connected); got != tc.want {
@@ -183,14 +183,14 @@ func TestLastSeenAtPrefersTheLiveContext(t *testing.T) {
 	)
 
 	if got := lastSeenAt(true, live, retained); !got.Equal(live) {
-		t.Errorf("registered access = %v, want the live timestamp %v", got, live)
+		t.Errorf("registered system = %v, want the live timestamp %v", got, live)
 	}
 
 	if got := lastSeenAt(false, live, retained); !got.Equal(retained) {
-		t.Errorf("deregistered access = %v, want the retained timestamp %v", got, retained)
+		t.Errorf("deregistered system = %v, want the retained timestamp %v", got, retained)
 	}
 
 	if got := lastSeenAt(true, time.Time{}, retained); !got.Equal(retained) {
-		t.Errorf("registered access with no live timestamp = %v, want %v", got, retained)
+		t.Errorf("registered system with no live timestamp = %v, want %v", got, retained)
 	}
 }
