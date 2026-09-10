@@ -38,8 +38,6 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle Location Report",
-		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
 		zap.Int("report-area", int(msg.LocationReportingRequestType.ReportArea)))
 
 	switch msg.LocationReportingRequestType.EventType {

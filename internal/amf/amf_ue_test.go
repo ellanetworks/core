@@ -72,9 +72,9 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 		expected string
 	}{
 		{"NEA0", nas.CipheringNull, "NEA0"},
-		{"NEA1", nas.CipheringSNOW3G, "NEA1"},
-		{"NEA2", nas.CipheringAES, "NEA2"},
-		{"NEA3", nas.CipheringZUC, "NEA3"},
+		{"NEA1", nas.CipheringSNOW3G, "128-NEA1"},
+		{"NEA2", nas.CipheringAES, "128-NEA2"},
+		{"NEA3", nas.CipheringZUC, "128-NEA3"},
 		{"unknown", 0xFF, ""},
 	}
 
@@ -98,9 +98,9 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 		expected string
 	}{
 		{"NIA0", nas.IntegrityNull, "NIA0"},
-		{"NIA1", nas.IntegritySNOW3G, "NIA1"},
-		{"NIA2", nas.IntegrityAES, "NIA2"},
-		{"NIA3", nas.IntegrityZUC, "NIA3"},
+		{"NIA1", nas.IntegritySNOW3G, "128-NIA1"},
+		{"NIA2", nas.IntegrityAES, "128-NIA2"},
+		{"NIA3", nas.IntegrityZUC, "128-NIA3"},
 		{"unknown", 0xFF, ""},
 	}
 

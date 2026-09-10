@@ -548,7 +548,7 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 
 	c := &UeConn{m: m, ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id)}
 	c.setConn(conn)
-	c.setLog(m.nodeLogLocked(conn).With(logger.MMEUeS1apID(uint32(c.MMEUES1APID))))
+	c.bindLog(m.nodeLogLocked(conn))
 	m.conns[id] = c
 
 	return c

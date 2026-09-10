@@ -38,8 +38,8 @@ Administrators configure a single, RAT-neutral set of ciphering and integrity al
 | Algorithm | 5G | 4G |
 |-----------|-----|-----|
 | NULL | NEA0 / NIA0 | EEA0 / EIA0 |
-| SNOW 3G | NEA1 / NIA1 | EEA1 / EIA1 |
-| AES | NEA2 / NIA2 | EEA2 / EIA2 |
+| SNOW 3G | 128-NEA1 / 128-NIA1 | 128-EEA1 / 128-EIA1 |
+| AES | 128-NEA2 / 128-NIA2 | 128-EEA2 / 128-EIA2 |
 
 !!! warning
     Null algorithms (NEA0/NIA0 on 5G, EEA0/EIA0 on 4G) provide no security protection. Only enable them for testing or device compatibility.

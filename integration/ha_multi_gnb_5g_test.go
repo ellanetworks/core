@@ -252,8 +252,19 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 				t.Fatalf("GetSubscriber(%s) on %s: %v", imsi, gn.service, err)
 			}
 
-			if !sub.Status.Registered {
-				t.Errorf("%s: subscriber %s: expected Registered=true, got false", gn.service, imsi)
+			registered := false
+
+			for _, reg := range sub.Registrations {
+				if reg.System == "5G" && reg.Registered {
+					registered = true
+
+					break
+				}
+			}
+
+			if !registered {
+				t.Errorf("%s: subscriber %s: expected a registered 5G registration, got %+v",
+					gn.service, imsi, sub.Registrations)
 			}
 
 			if len(sub.Sessions) == 0 {

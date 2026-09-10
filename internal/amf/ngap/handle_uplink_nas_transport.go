@@ -30,9 +30,7 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 			logger.WithTrace(ctx, ueConn.Log()).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Error("No UE Context of UeConn",
-			zap.Uint64("amf-ue-id", uint64(msg.AMFUENGAPID)),
-			zap.Uint32("ran-ue-id", uint32(msg.RANUENGAPID)))
+		logger.WithTrace(ctx, ueConn.Log()).Error("No UE Context of UeConn")
 
 		return
 	}

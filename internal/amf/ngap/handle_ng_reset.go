@@ -69,7 +69,7 @@ func releaseListedUEs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 			// ignored; one naming a UE this AMF has already lost is equally
 			// nothing to release. Both are still echoed by the caller.
 			logger.WithTrace(ctx, ran.Log).Warn("NG Reset names a UE this AMF does not hold",
-				zap.Any("amf-ue-id", item.AMFUENGAPID), zap.Any("ran-ue-id", item.RANUENGAPID))
+				zap.Any("amf_ue_ngap_id", item.AMFUENGAPID), zap.Any("ran_ue_ngap_id", item.RANUENGAPID))
 
 			continue
 		}

@@ -667,9 +667,9 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
 		if err == nil {
 			for _, s := range sub.Sessions {
-				last = s.RadioAccessType
+				last = s.System
 
-				if s.RadioAccessType != want {
+				if s.System != want {
 					continue
 				}
 

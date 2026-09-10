@@ -98,7 +98,7 @@ describe("apiFetch error mapping", () => {
     stubFetch(async () =>
       jsonResponse(400, {
         error:
-          "session_ambr_uplink of 20 Gbps exceeds the 10 Gbps ceiling of a profile that allows 4G (TS 24.008 §10.5.6.5B)",
+          "session_ambr_uplink of 20 Gbps exceeds the 10 Gbps ceiling of a profile that allows 4G",
       }),
     );
 

@@ -51,7 +51,7 @@ const releaseGuardTimeout = 5 * time.Second
 // capture the returned pointer in a local and reuse it — the pointer may change between
 // calls.
 type UeConn struct {
-	RanUeNgapID  models.RanUeNgapID
+	ranUeNgapID  atomic.Int64
 	AmfUeNgapID  models.AmfUeNgapID
 	HandOverType ngap.HandoverType
 	Tai          models.Tai
@@ -78,6 +78,7 @@ type UeConn struct {
 	n2Sessions n2Sessions
 	inboundNAS atomic.Uint32
 	log        atomic.Pointer[zap.Logger]
+	baseLog    atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -180,9 +181,36 @@ func (ueConn *UeConn) setLog(l *zap.Logger) {
 	ueConn.log.Store(l)
 }
 
+func (ueConn *UeConn) bindLog(base *zap.Logger) {
+	ueConn.baseLog.Store(base)
+	ueConn.refreshLog()
+}
+
+func (ueConn *UeConn) refreshLog() {
+	base := ueConn.baseLog.Load()
+	if base == nil {
+		return
+	}
+
+	fields := []zap.Field{logger.AmfUeNgapID(ueConn.AmfUeNgapID)}
+	if ranUeNgapID := ueConn.RanUeNgapID(); ranUeNgapID != models.RanUeNgapIDUnspecified {
+		fields = append(fields, logger.RanUeNgapID(ranUeNgapID))
+	}
+
+	ueConn.setLog(base.With(fields...))
+}
+
 // Parent returns the UeContext this connection is bound to, or nil when bare.
 func (ueConn *UeConn) Parent() *UeContext {
 	return ueConn.ue.Load()
+}
+
+func (ueConn *UeConn) RanUeNgapID() models.RanUeNgapID {
+	return models.RanUeNgapID(ueConn.ranUeNgapID.Load())
+}
+
+func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
+	ueConn.ranUeNgapID.Store(int64(ranUeNgapID))
 }
 
 // Release stops the NAS guard and clears this connection from its UeContext. Clearing
@@ -612,7 +640,7 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	var stale []*UeConn
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			stale = append(stale, ueConn)
 		}
 	}
@@ -620,9 +648,7 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	a.mu.Unlock()
 
 	for _, ueConn := range stale {
-		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
-			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
+		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.WithTrace(ctx, ueConn.Log()).Error(err.Error())
@@ -648,8 +674,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 	)
 
 	return nil
@@ -672,7 +698,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 
 	ueConn.conn = ran.Conn
 	ueConn.setRadio(radioIDOf(ran), ran.name)
-	ueConn.RanUeNgapID = ranUeNgapID
+	ueConn.setRanUeNgapID(ranUeNgapID)
 
 	if supi := ue.Supi(); supi.IsIMSI() {
 		a.lastSeen.refresh(supi.IMSI(), radioIDOf(ran), ran.name, ue.lastSeenTime())
@@ -683,10 +709,11 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	ue.ncc = ncc
 	ue.mu.Unlock()
 
+	ueConn.bindLog(ran.Log)
+
 	a.mu.Unlock()
 
-	ueConn.setLog(ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID)))
-	ueConn.Log().Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	ueConn.Log().Info("ran ue switched to new Ran")
 
 	return true
 }
@@ -701,11 +728,11 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 	}
 
 	ueConn := &UeConn{
-		RanUeNgapID: ranUeNgapID,
 		AmfUeNgapID: amfUeNgapID,
 		conn:        radio.Conn,
 		amf:         radio.amf,
 	}
+	ueConn.setRanUeNgapID(ranUeNgapID)
 	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()

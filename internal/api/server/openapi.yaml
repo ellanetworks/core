@@ -3905,38 +3905,23 @@ components:
         connection_state:
           type: string
           enum: ["idle", "connected"]
-          description: >-
-            Whether the device holds a NAS signalling connection: CM state in 5G
-            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3). Independent of
-            `registered` (TS 23.501 §5.3.3.2.2, TS 23.401 §4.6.1) — a device still
-            registering is "connected" with `registered` false. Omitted when the core
-            holds no context for the device.
-        radio_access_types:
+          description: "CM state in 5G, ECM state in 4G. Absent when the core holds no context."
+        systems:
           type: array
           items:
             type: string
-            enum: ["4G", "5G"]
-          description: >-
-            Every access the subscriber is currently registered on. Usually one,
-            but a device moving between 4G and 5G holds both while it transfers
-            its sessions one at a time. Omitted if not connected.
+            enum: ["5G", "4G"]
+          description: "Systems the core holds a context for, 5G first. Absent when it holds none."
         num_sessions:
           type: integer
-          description: >-
-            Number of active sessions (5G PDU sessions / 4G PDN connections) for
-            this subscriber, across every access it is registered on.
+          description: "Number of active sessions across every system."
         last_seen_at:
           type: string
           format: date-time
-          description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
+          description: "Timestamp when the subscriber was last seen (RFC 3339). Absent when never seen."
         last_seen_radio:
           type: string
-          description: >-
-            Name of the radio that last served the device. The core knows the serving node
-            only while the device is connected (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2), so
-            on an idle or deregistered device this is last known and may be stale. Held in
-            memory by the serving node: not shared across cluster nodes, and reset on
-            restart. Omitted if never seen.
+          description: "Radio that last served the device. Absent when never seen."
       required: [registered, num_sessions]
 
     Subscriber:
@@ -3977,57 +3962,63 @@ components:
         result:
           $ref: "#/components/schemas/ListSubscribersResponse"
 
-    SubscriberDetailStatus:
+    UEConnection:
       type: object
+      description: "Identity pair of a registration's UE-associated logical connection. Only the pair of the registration's system is present."
       properties:
+        amf_ue_ngap_id:
+          type: integer
+          format: int64
+          description: "AMF UE NGAP ID (5G). INTEGER (0..2^40-1)."
+        ran_ue_ngap_id:
+          type: integer
+          format: int64
+          description: "RAN UE NGAP ID (5G). INTEGER (0..2^32-1). Absent until the radio allocates one."
+        mme_ue_s1ap_id:
+          type: integer
+          format: int64
+          description: "MME UE S1AP ID (4G). INTEGER (0..2^32-1)."
+        enb_ue_s1ap_id:
+          type: integer
+          format: int64
+          description: "eNB UE S1AP ID (4G). INTEGER (0..2^24-1). Absent until the radio allocates one."
+
+    Registration:
+      type: object
+      description: "One mobility-management context the core holds or remembers for a subscriber."
+      properties:
+        system:
+          type: string
+          enum: ["5G", "4G"]
+          description: "The core holding this registration."
         registered:
           type: boolean
+          description: "RM state in 5G, EMM state in 4G. False on an entry the core only remembers."
         connection_state:
+          type: ["string", "null"]
+          enum: ["idle", "connected", null]
+          description: "CM state in 5G, ECM state in 4G. Null on an entry the core only remembers."
+        radio:
           type: string
-          enum: ["idle", "connected"]
-          description: >-
-            Whether the device holds a NAS signalling connection: CM state in 5G
-            (TS 23.501 §5.3.3.2) and ECM state in 4G (TS 23.401 §4.6.3). Independent of
-            `registered` (TS 23.501 §5.3.3.2.2, TS 23.401 §4.6.1) — a device still
-            registering is "connected" with `registered` false. Omitted when the core
-            holds no context for the device.
-        radio_access_types:
-          type: array
-          items:
-            type: string
-            enum: ["4G", "5G"]
-          description: >-
-            Every access the subscriber is currently registered on. When there is
-            more than one, last_seen_radio and the security algorithms below all
-            describe the serving access — the one that last heard from the UE —
-            so they can be read together.
-        imei:
-          type: string
-          description: >-
-            IMEI of the connected device. It identifies the device rather than an
-            access, so it is reported by whichever access knows it.
-        ciphering_algorithm:
-          type: string
-          description: >-
-            Ciphering algorithm negotiated on the serving access. Empty when that
-            access reports none.
-        integrity_algorithm:
-          type: string
-          description: >-
-            Integrity algorithm negotiated on the serving access. Empty when that
-            access reports none.
+          description: "Radio serving this registration, or the last one that did. Absent when never seen."
         last_seen_at:
           type: string
-          description: Timestamp of last activity (RFC 3339).
-        last_seen_radio:
+          description: "Timestamp of last activity in this system (RFC 3339). Absent when never seen."
+        imei:
           type: string
-          description: >-
-            Name of the radio that last served the device. The core knows the serving node
-            only while the device is connected (TS 23.501 §5.4.2, TS 23.401 §4.6.3.2), so
-            on an idle or deregistered device this is last known and may be stale. Held in
-            memory by the serving node: not shared across cluster nodes, and reset on
-            restart. Empty if never seen.
-      required: [registered, imei, ciphering_algorithm, integrity_algorithm]
+          description: "IMEI of the device (15 digits). Absent when the core does not hold it."
+        ciphering_algorithm:
+          type: string
+          description: "NAS ciphering algorithm: NEA0 / 128-NEA1..3 in 5G, EEA0 / 128-EEA1..3 in 4G. Absent when none is established."
+        integrity_algorithm:
+          type: string
+          description: "NAS integrity algorithm: NIA0 / 128-NIA1..3 in 5G, EIA0 / 128-EIA1..3 in 4G. Absent when none is established."
+        connection:
+          oneOf:
+            - $ref: "#/components/schemas/UEConnection"
+            - type: "null"
+          description: "UE-associated logical connection. Null when the device holds none."
+      required: [system, registered, connection_state, connection]
 
     SubscriberDetail:
       type: object
@@ -4040,14 +4031,17 @@ components:
           type: string
           maxLength: 64
           description: Free-text operator note. Absent when unset.
-        status:
-          $ref: "#/components/schemas/SubscriberDetailStatus"
+        registrations:
+          type: array
+          description: "Mobility-management contexts the core holds or remembers, 5G first."
+          items:
+            $ref: "#/components/schemas/Registration"
         sessions:
           type: array
           description: "Active sessions for this subscriber (5G PDU sessions / 4G PDN connections)."
           items:
             $ref: "#/components/schemas/Session"
-      required: [imsi, profile_name, status]
+      required: [imsi, profile_name, registrations, sessions]
 
     SubscriberCredentials:
       type: object
@@ -4091,10 +4085,10 @@ components:
       type: object
       description: "A UE data session — a 5G PDU session or a 4G PDN connection."
       properties:
-        radio_access_type:
+        system:
           type: string
-          enum: ["4G", "5G"]
-          description: "The radio access technology serving this session."
+          enum: ["5G", "4G"]
+          description: "The system holding this session."
         id:
           type: integer
           description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
@@ -4122,7 +4116,7 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
-      required: [radio_access_type, id, status]
+      required: [system, id, status]
 
     CreateSubscriberParams:
       type: object
@@ -4196,8 +4190,7 @@ components:
         description:
           type: string
         remote_prefix:
-          type: string
-          nullable: true
+          type: ["string", "null"]
           description: "CIDR notation (e.g. \"10.0.0.0/24\") or null."
         protocol:
           type: integer
@@ -4258,7 +4251,6 @@ components:
           description: Name of the data network this policy applies to.
         rules:
           $ref: "#/components/schemas/PolicyRules"
-          nullable: true
           description: "Optional network rules organized by direction (uplink/downlink)."
         default:
           type: boolean
@@ -4849,8 +4841,7 @@ components:
           type: string
           description: "Lease type (e.g. \"dynamic\")."
         session_id:
-          type: integer
-          nullable: true
+          type: ["integer", "null"]
           description: PDU session ID, or null if the lease is not tied to an active session.
       required: [address, imsi, type, session_id]
 
@@ -4895,8 +4886,7 @@ components:
           enum: [reserved, active]
           description: "\"active\" when bound to a session, otherwise \"reserved\"."
         session_id:
-          type: integer
-          nullable: true
+          type: ["integer", "null"]
           description: PDU session ID when active, or null when reserved.
       required: [imsi, data_network, ip_version, address, status, session_id]
 
