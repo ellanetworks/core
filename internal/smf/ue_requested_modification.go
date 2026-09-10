@@ -6,6 +6,7 @@ package smf
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
@@ -24,6 +25,29 @@ type UEIndicatedParams struct {
 
 func requestsQoS(req *fgs.PDUSessionModificationRequest) bool {
 	return len(req.RequestedQoSRules) > 0 || len(req.RequestedQoSFlows) > 0
+}
+
+func requestsDNSServer(req *fgs.PDUSessionModificationRequest) bool {
+	if req.ExtendedPCO == nil {
+		return false
+	}
+
+	for _, id := range req.ExtendedPCO.ContainerIDs() {
+		switch id {
+		case naslib.PCOContainerDNSServerIPv4Address, naslib.PCOContainerDNSServerIPv6Address:
+			return true
+		}
+	}
+
+	return false
+}
+
+func (smContext *SMContext) dnsForModification(req *fgs.PDUSessionModificationRequest) net.IP {
+	if !requestsDNSServer(req) || smContext.PolicyData == nil {
+		return nil
+	}
+
+	return smContext.PolicyData.DNS
 }
 
 func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMContext, req *fgs.PDUSessionModificationRequest, pti uint8) (*UpdateResult, error) {
@@ -49,7 +73,9 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 
 	smContext.recordUEIndicatedParams(req, alwaysOn)
 
-	n1SmMsg, err := smfNas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, pti, nil, nil, nil, 0, nil, alwaysOn)
+	dns := smContext.dnsForModification(req)
+
+	n1SmMsg, err := smfNas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, pti, nil, nil, dns, 0, nil, alwaysOn)
 	if err != nil {
 		return nil, fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
@@ -69,7 +95,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 		})
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("accepted a UE-requested PDU session modification",
-		zap.Bool("always_on_answered", alwaysOn != nil),
+		zap.Bool("always_on_answered", alwaysOn != nil), zap.Bool("dns_answered", dns != nil),
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return &UpdateResult{N1Msg: n1SmMsg}, nil
