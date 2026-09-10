@@ -15,6 +15,7 @@ Ella Core can be hosted with radio software like [OCUDU](https://ocudu.org/) (pr
 
 To follow this guide, you will need:
 
+- Ubuntu Server 24.04
 - A host with a network interface
 - An OCUDU-compatible SDR
 
@@ -36,20 +37,69 @@ Install Ella Core using the [How-to Install guide](install.md) and install OCUDU
 
 Create a linux network namespace `n3ns` for the N3 interface between OCUDU and Ella Core.
 
+Install the OCUDU performance script:
+
 ```shell
-ip netns add n3ns
-ip link add n3-upf-veth type veth peer name n3-ran-veth
-ip link set n3-ran-veth netns n3ns
-ip addr add 10.202.0.3/24 dev n3-upf-veth
-ip -n n3ns addr add 10.202.0.5/24 dev n3-ran-veth
-ip -n n3ns link set lo up
-ip -n n3ns link set dev n3-ran-veth up
-ip link set dev n3-upf-veth up
-ethtool -K eth0 gro off
-ip netns exec n3ns ethtool -K n3-ran-veth tso off gso off
+sudo curl -o /usr/local/bin/ocudu_performance https://gitlab.com/ocudu/ocudu/-/raw/dev/scripts/ocudu_performance
+sudo chmod +x /usr/local/bin/ocudu_performance
+```
+
+
+Create `/etc/systemd/system/n3ns.service`:
+
+```ini
+[Unit]
+Description=N3 Network Setup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+
+ExecStartPre=-ip netns delete n3ns
+ExecStart=ip netns add n3ns
+ExecStart=ip link add n3-upf-veth type veth peer name n3-ran-veth
+ExecStart=ip link set n3-ran-veth netns n3ns
+ExecStart=ip addr add 10.202.0.3/24 dev n3-upf-veth
+ExecStart=ip -n n3ns addr add 10.202.0.5/24 dev n3-ran-veth
+ExecStart=ip -n n3ns link set lo up
+ExecStart=ip -n n3ns link set dev n3-ran-veth up
+ExecStart=ip link set dev n3-upf-veth up
+ExecStart=ethtool -K eth0 gro off
+ExecStart=ip netns exec n3ns ethtool -K n3-ran-veth tso off gso off
+ExecStart=/usr/local/bin/ocudu_performance -y
+ExecStop=-ip netns delete n3ns
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```shell
+sudo systemctl daemon-reload
+sudo systemctl enable --now n3ns.service
 ```
 
 `tcx` mode requires both interfaces to deliver unmerged packets — see [Disable merged packets](disable_merged_packets.md).
+
+Make sure `eth0` is not optional in `/etc/netplan/50-cloud-init.yaml`:
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      optional: false
+```
+
+Then apply the Netplan configuration:
+
+```shell
+sudo netplan apply
+```
 
 ## 3. Configure Ella Core
 
@@ -84,10 +134,20 @@ telemetry:
 !!! note
     We use `tcx` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `xdp-native` and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
 
-Start Ella Core:
+Create the override file `/etc/systemd/system/snap.ella-core.cored.service.d/override.conf`:
+
+```ini
+[Unit]
+Requires=n3ns.service
+Wants=network-online.target
+After=n3ns.service network-online.target
+```
+
+Then reload systemd and start Ella Core:
 
 ```shell
-sudo snap start ella-core
+sudo systemctl daemon-reload
+sudo snap start --enable ella-core.cored
 ```
 
 ## 4. Configure OCUDU
@@ -149,10 +209,34 @@ pcap:
   ngap_enable: disable
 ```
 
-Start OCUDU in the `n3ns` namespace:
+Save this configuration to `/etc/gnb.yml`, then create a systemd service to run OCUDU in the `n3ns` namespace.
+
+Create `/etc/systemd/system/gnb.service`:
+
+```ini
+[Unit]
+Description=OCUDU gNB
+Documentation=https://docs.ocudu.org/
+Requires=n3ns.service
+Wants=network-online.target
+After=n3ns.service network-online.target
+
+[Service]
+User=root
+Group=root
+Restart=on-failure
+NetworkNamespacePath=/var/run/netns/n3ns
+ExecStart=/usr/local/bin/gnb -c /etc/gnb.yml
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start OCUDU:
 
 ```shell
-sudo ip netns exec n3ns ./gnb -c gnb.yaml
+sudo systemctl daemon-reload
+sudo systemctl enable --now gnb.service
 ```
 
 You should see OCUDU logs indicating successful connection to Ella Core
