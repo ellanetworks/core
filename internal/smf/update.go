@@ -140,7 +140,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		if smContext.pendingPolicy != nil {
+		if pti == networkRequestedPTI && smContext.pendingPolicy != nil {
 			smContext.PolicyData = smContext.pendingPolicy
 			smContext.pendingPolicy = nil
 		}
@@ -153,7 +153,10 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
-		smContext.pendingPolicy = nil
+
+		if pti == networkRequestedPTI {
+			smContext.pendingPolicy = nil
+		}
 
 		return nil, nil
 

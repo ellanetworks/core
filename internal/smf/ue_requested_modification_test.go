@@ -46,6 +46,21 @@ func decodeModificationCommand(t *testing.T, raw []byte) *fgs.PDUSessionModifica
 	return cmd
 }
 
+func decodeModificationReject(t *testing.T, raw []byte) *fgs.PDUSessionModificationReject {
+	t.Helper()
+
+	if raw == nil {
+		t.Fatal("expected a Modification Reject, got none")
+	}
+
+	rej, err := fgs.ParsePDUSessionModificationReject(raw)
+	if err != nil {
+		t.Fatalf("expected a PDU Session Modification Reject, got % x: %v", raw, err)
+	}
+
+	return rej
+}
+
 func TestUERequestedModification_CapabilityIndicationAccepted(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -135,14 +150,11 @@ func TestUERequestedModification_QoSRequestRejected(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg: %v", err)
 	}
 
-	if rsp == nil || rsp.N1Msg == nil {
-		t.Fatal("expected a Modification Reject, got none")
+	if rsp == nil {
+		t.Fatal("expected a Modification Reject, got no result")
 	}
 
-	rej, err := fgs.ParsePDUSessionModificationReject(rsp.N1Msg)
-	if err != nil {
-		t.Fatalf("expected a PDU Session Modification Reject, got % x: %v", rsp.N1Msg, err)
-	}
+	rej := decodeModificationReject(t, rsp.N1Msg)
 
 	if uint8(rej.PTI) != pti {
 		t.Errorf("reject PTI = %d, want %d (echoed from the request)", rej.PTI, pti)
@@ -157,13 +169,15 @@ func TestUERequestedModification_QoSRequestRejected(t *testing.T) {
 	}
 }
 
-func TestUERequestedModification_UEReportedErrorAccepted(t *testing.T) {
+func TestUERequestedModification_UEReportedErrorDeletionRejected(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	n1Msg := modificationRequest(t, smCtx.PDUSessionID, 4, func(req *fgs.PDUSessionModificationRequest) {
+	const pti = 4
+
+	n1Msg := modificationRequest(t, smCtx.PDUSessionID, pti, func(req *fgs.PDUSessionModificationRequest) {
 		cause := fgs.GSMCauseSemanticErrorsInPacketFilters
 		req.Cause = &cause
 		req.RequestedQoSRules = fgs.QoSRules{fgs.DefaultQoSRule(1, 1)}
@@ -174,7 +188,53 @@ func TestUERequestedModification_UEReportedErrorAccepted(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg: %v", err)
 	}
 
-	decodeModificationCommand(t, rsp.N1Msg)
+	if rsp == nil {
+		t.Fatal("expected a Modification Reject, got no result")
+	}
+
+	rej := decodeModificationReject(t, rsp.N1Msg)
+
+	if rej.Cause != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Errorf("reject cause = %s, want %s (the SMF performs no QoS rule deletion, TS 24.501 §6.4.2.4.1)", rej.Cause, fgs.GSMCauseRequestRejectedUnspecified)
+	}
+
+	if smCtx.IsPTIInUse(pti) {
+		t.Error("a rejected request starts no procedure, so its PTI stays free")
+	}
+}
+
+func TestUERequestedModification_MappedEPSBearerDeletionRejected(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const pti = 8
+
+	n1Msg := modificationRequest(t, smCtx.PDUSessionID, pti, func(req *fgs.PDUSessionModificationRequest) {
+		cause := fgs.GSMCauseInvalidMappedEPSBearerIdentity
+		req.Cause = &cause
+		req.MappedEPSBearerContexts = fgs.MappedEPSBearerContexts{{EPSBearerIdentity: 5, Operation: fgs.MappedEPSBearerOpDelete}}
+	})
+
+	rsp, err := s.UpdateSmContextN1Msg(t.Context(), ref, n1Msg)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg: %v", err)
+	}
+
+	if rsp == nil {
+		t.Fatal("expected a Modification Reject, got no result")
+	}
+
+	rej := decodeModificationReject(t, rsp.N1Msg)
+
+	if rej.Cause != fgs.GSMCauseRequestRejectedUnspecified {
+		t.Errorf("reject cause = %s, want %s (TS 24.501 §6.4.2.1 f), §6.4.2.4.1)", rej.Cause, fgs.GSMCauseRequestRejectedUnspecified)
+	}
+
+	if smCtx.IsPTIInUse(pti) {
+		t.Error("a rejected request starts no procedure, so its PTI stays free")
+	}
 }
 
 func TestUERequestedModification_CompleteClearsThePTI(t *testing.T) {
@@ -255,5 +315,73 @@ func TestUERequestedModification_NoDNSRequestLeavesThePCOOut(t *testing.T) {
 
 	if cmd := decodeModificationCommand(t, rsp.N1Msg); cmd.ExtendedPCO != nil {
 		t.Errorf("the UE asked for nothing, but the command carried protocol options: %+v", cmd.ExtendedPCO)
+	}
+}
+
+func TestUERequestedModification_IgnoredDuringRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const releasePTI, modifyPTI = 5, 6
+
+	if _, err := s.UpdateSmContextN1Msg(t.Context(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, releasePTI)); err != nil {
+		t.Fatalf("release request: %v", err)
+	}
+
+	rsp, err := s.UpdateSmContextN1Msg(t.Context(), ref, modificationRequest(t, smCtx.PDUSessionID, modifyPTI, nil))
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (modification): %v", err)
+	}
+
+	if rsp != nil && rsp.N1Msg != nil {
+		t.Errorf("the colliding request must be ignored, got a 5GSM answer % x", rsp.N1Msg)
+	}
+
+	if smCtx.IsPTIInUse(modifyPTI) {
+		t.Error("an ignored request starts no procedure, so its PTI stays free")
+	}
+
+	if !smCtx.IsPTIInUse(releasePTI) {
+		t.Error("the release command is still outstanding, so its PTI stays in use")
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Error("the release must proceed, not be abandoned by the colliding request")
+	}
+}
+
+func TestUERequestedModification_IgnoredDuringNetworkModification(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const firstPTI, secondPTI = 5, 6
+
+	if _, err := s.UpdateSmContextN1Msg(t.Context(), ref, modificationRequest(t, smCtx.PDUSessionID, firstPTI, nil)); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (first request): %v", err)
+	}
+
+	if !smCtx.IsPTIInUse(firstPTI) {
+		t.Fatal("the first command left its PTI free")
+	}
+
+	rsp, err := s.UpdateSmContextN1Msg(t.Context(), ref, modificationRequest(t, smCtx.PDUSessionID, secondPTI, nil))
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (second request): %v", err)
+	}
+
+	if rsp != nil && rsp.N1Msg != nil {
+		t.Errorf("the colliding request must be ignored, got a 5GSM answer % x", rsp.N1Msg)
+	}
+
+	if smCtx.IsPTIInUse(secondPTI) {
+		t.Error("an ignored request starts no procedure, so its PTI stays free")
+	}
+
+	if !smCtx.IsPTIInUse(firstPTI) {
+		t.Error("the outstanding procedure must proceed, keeping its PTI in use")
 	}
 }

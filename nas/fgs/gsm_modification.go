@@ -19,8 +19,8 @@ type PDUSessionModificationRequest struct {
 	GSMCapability            *GSMCapability                    // optional (IEI 0x28)
 	Cause                    *GSMCause                         // optional (IEI 0x59)
 	MaxPacketFilters         *uint16                           // optional (IEI 0x55)
-	IntegrityProtMaxDataRate *[2]byte                          // optional (IEI 0x13)
 	AlwaysOnRequested        *bool                             // optional (IEI 0xB), value bit 1
+	IntegrityProtMaxDataRate *[2]byte                          // optional (IEI 0x13)
 	RequestedQoSRules        QoSRules                          // optional (IEI 0x7A)
 	RequestedQoSFlows        QoSFlowDescriptions               // optional (IEI 0x79)
 	ExtendedPCO              *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
@@ -81,12 +81,12 @@ func (m *PDUSessionModificationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TV3(ieiMaxPacketFilters, []byte{uint8(*m.MaxPacketFilters >> 8), uint8(*m.MaxPacketFilters)})
 	}
 
-	if m.IntegrityProtMaxDataRate != nil {
-		o.TV3(ieiIntegrityProtMaxRate, m.IntegrityProtMaxDataRate[:])
-	}
-
 	if m.AlwaysOnRequested != nil {
 		o.TV1(ieiAlwaysOnRequested, boolBit(*m.AlwaysOnRequested, 0))
+	}
+
+	if m.IntegrityProtMaxDataRate != nil {
+		o.TV3(ieiIntegrityProtMaxRate, m.IntegrityProtMaxDataRate[:])
 	}
 
 	if m.RequestedQoSRules != nil {

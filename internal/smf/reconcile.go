@@ -343,7 +343,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		mappedEPSQoS = &nas.MappedEPSQoS{QosData: policy.QosData, Ambr: policy.Ambr}
 	}
 
-	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, 0, n1Ambr, n1QoS, n1DNS, smContext.EBI, mappedEPSQoS, nil)
+	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, networkRequestedPTI, n1Ambr, n1QoS, n1DNS, smContext.EBI, mappedEPSQoS, nil)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
@@ -375,7 +375,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// A network-requested modification uses PTI "no procedure transaction
 	// identity assigned" (0) and awaits the UE's Modification Complete or
 	// Command Reject (TS 24.501).
-	smContext.MarkPTIInUse(0)
+	smContext.MarkPTIInUse(networkRequestedPTI)
 
 	// T3591 retransmits the command until the UE replies; on the final expiry
 	// the procedure is aborted and the session stays PDU SESSION ACTIVE
@@ -385,7 +385,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	s.armRetransmit(smContext, s.t3591,
 		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1Msg, n2Msg) },
 		func(sc *SMContext) {
-			sc.ClearPTIInUse(0)
+			sc.ClearPTIInUse(networkRequestedPTI)
 			// Discard the uncommitted policy: the UE never confirmed, so the session
 			// keeps its previous configuration and the backstop re-attempts (TS 24.501
 			// §6.3.2.5).

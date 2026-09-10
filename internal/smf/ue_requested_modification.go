@@ -15,8 +15,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func requestsQoS(req *fgs.PDUSessionModificationRequest) bool {
-	return len(req.RequestedQoSRules) > 0 || len(req.RequestedQoSFlows) > 0
+func requestsQoSChange(req *fgs.PDUSessionModificationRequest) bool {
+	return len(req.RequestedQoSRules) > 0 || len(req.RequestedQoSFlows) > 0 || len(req.MappedEPSBearerContexts) > 0
+}
+
+func qoSChangeRejectCause(req *fgs.PDUSessionModificationRequest) fgs.GSMCause {
+	if req.Cause != nil {
+		return fgs.GSMCauseRequestRejectedUnspecified
+	}
+
+	return fgs.GSMCauseFiveGSQoSNotAccepted
 }
 
 func requestsDNSServer(req *fgs.PDUSessionModificationRequest) bool {
@@ -43,22 +51,33 @@ func (smContext *SMContext) dnsForModification(req *fgs.PDUSessionModificationRe
 }
 
 func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMContext, req *fgs.PDUSessionModificationRequest, pti uint8) (*UpdateResult, error) {
-	if req.Cause == nil && requestsQoS(req) {
-		logger.WithTrace(ctx, logger.SmfLog).Info("rejecting a UE request to set the session's QoS",
+	if smContext.networkProcedureOutstanding() {
+		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring a UE-requested PDU session modification that collided with an outstanding network-requested procedure",
+			zap.Bool("releasing", smContext.releasing),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), fgs.GSMCauseFiveGSQoSNotAccepted)
-		if err != nil {
-			return nil, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
-		}
-
-		return &UpdateResult{N1Msg: n1SmMsg}, nil
+		return nil, nil
 	}
 
 	if req.Cause != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Info("the UE reported an error against its own QoS state",
 			zap.Stringer("cause", *req.Cause),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	}
+
+	if requestsQoSChange(req) {
+		cause := qoSChangeRejectCause(req)
+
+		logger.WithTrace(ctx, logger.SmfLog).Info("rejecting a UE request to change the session's QoS",
+			zap.Stringer("cause", cause),
+			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
+		if err != nil {
+			return nil, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
+		}
+
+		return &UpdateResult{N1Msg: n1SmMsg}, nil
 	}
 
 	alwaysOn := alwaysOnIndication(req.AlwaysOnRequested)

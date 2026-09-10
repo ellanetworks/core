@@ -100,6 +100,10 @@ func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
 }
 
+func (smContext *SMContext) networkProcedureOutstanding() bool {
+	return smContext.releasing || smContext.procedureTimer.Active()
+}
+
 func (smContext *SMContext) upConnectionActive() bool {
 	return smContext.Tunnel != nil && smContext.Tunnel.Downlink == DownlinkForwarding
 }
