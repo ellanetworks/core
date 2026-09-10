@@ -37,7 +37,7 @@ Install Ella Core using the [How-to Install guide](install.md) and install OCUDU
 
 Create a linux network namespace `n3ns` for the N3 interface between OCUDU and Ella Core. We use a systemd service so the namespace and veth pair are recreated automatically on boot.
 
-The `n3ns.service` below calls `/usr/local/bin/ocudu_performance -y`, but this script is not installed by OCUDU. Install it manually from `scripts/ocudu_performance` in the OCUDU git repository:
+Install the OCUDU performance script:
 
 ```shell
 sudo curl -o /usr/local/bin/ocudu_performance https://gitlab.com/ocudu/ocudu/-/raw/dev/scripts/ocudu_performance
