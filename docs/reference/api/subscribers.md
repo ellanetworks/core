@@ -20,9 +20,9 @@ This path returns the list of network subscribers, ordered by IMSI.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
-| `radio`    | query | str  |         |         | Filter by radio name. Returns registered subscribers whose last-seen radio is this one, so an idle subscriber still matches the radio that last served it. |
-| `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
-| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. Case is ignored for ASCII letters only. |
+| `radio`    | query | str  |         |         | Filter by radio name. |
+| `data_network` | query | str |     |         | Filter by data network name.|
+| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. |
 
 ### Sample Response
 
@@ -68,7 +68,7 @@ This path creates a new network subscriber.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `profile_name` (string): The profile name of the subscriber. Must be the name of an existing profile.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
-- `description` (optional string): A free-text note about the subscriber. At most 64 characters; surrounding whitespace is trimmed.
+- `description` (optional string): A free-text note about the subscriber. At most 64 characters.
 
 ### Sample Response
 
@@ -91,7 +91,7 @@ This path updates an existing network subscriber.
 ### Parameters
 
 - `profile_name` (string): The profile name of the subscriber.
-- `description` (optional string): A free-text note about the subscriber. At most 64 characters; surrounding whitespace is trimmed. This path replaces the subscriber in full, so omitting the field clears the stored note.
+- `description` (optional string): A free-text note about the subscriber. At most 64 characters. This path replaces the subscriber in full, so omitting the field clears the stored note.
 
 ### Sample Response
 
@@ -172,14 +172,14 @@ None
 
 ### Registrations
 
-`registrations` holds one entry per mobility-management context, ordered with 5G first. It is empty for a subscriber the core has never served.
+`registrations` holds one entry per mobility-management context. It is empty for a subscriber the core has never served.
 
 | Field | Description |
 | ----- | ----------- |
-| `system` | `5G` or `4G`. The core that registered the device, not the radio it uses: an NSA device on 5G radio reports `4G`. |
+| `system` | `5G` or `4G`. The core that registered the device. |
 | `registered` | RM state in 5G, EMM state in 4G. `false` on an entry the core remembers but holds no context for. |
-| `connection_state` | `connected` or `idle`. CM state in 5G, ECM state in 4G. Independent of `registered`: a device still registering is `connected` with `registered` false. `null` when the core holds no context. |
-| `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered, in which case it may be stale. Held in memory by the serving node: not shared across cluster nodes, and reset on restart. |
+| `connection_state` | `connected`, `idle`, or `null`. CM state in 5G, ECM state in 4G. |
+| `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered. |
 | `last_seen_at` | Timestamp of last activity in this system (RFC 3339). |
 | `imei` | 15-digit IMEI of the device. Absent once the core has released the context. |
 | `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent when none is established. |
@@ -197,10 +197,6 @@ None
 | `mme_ue_s1ap_id` | 4G | MME UE S1AP ID, `INTEGER (0..2^32-1)`. Allocated by the core. |
 | `enb_ue_s1ap_id` | 4G | eNB UE S1AP ID, `INTEGER (0..2^24-1)`. Allocated by the serving radio. Absent until the radio allocates one. |
 
-These values appear under the same names on Ella Core's log lines for the device.
-
-A radio-allocated identifier is unique only within that radio's connection to the core and is reused after the device disconnects, so it is not a stable device identifier.
-
 ### Sessions
 
 | Field | Description |
@@ -214,9 +210,7 @@ A radio-allocated identifier is unique only within that radio's connection to th
 
 ## Get Subscriber Credentials
 
-This path returns the authentication credentials for a specific subscriber. The response includes the subscriber's permanent key, OPc, and sequence number. This is the preferred way to retrieve credentials and replaces the deprecated fields on the List and Get responses.
-
-An audit log entry is created each time credentials are viewed.
+This path returns the authentication credentials for a specific subscriber. 
 
 | Method | Path                                      |
 | ------ | ----------------------------------------- |

@@ -4,11 +4,11 @@ description: RESTful API reference for managing the Operator Information - ID, T
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Tracking Information, Operator Code (OP), NAS Security Algorithms, and the Service Provider Name (SPN).
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms and Service Provider Name.
 
 ## Get Operator Information
 
-This path returns the complete operator information. This includes the Operator ID and Tracking Information. The Operator Code is never returned.
+This path returns the complete operator information.
 
 | Method | Path               |
 | ------ | ------------------ |
@@ -79,7 +79,7 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 
 ## Update the Operator Tracking Information
 
-This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator. Radios will need to be configured with one or more of these TACs to connect to the network.
+This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator.
 
 | Method | Path                        |
 | ------ | --------------------------- |

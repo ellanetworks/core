@@ -20,28 +20,6 @@ None
 
 When clustering is enabled, the response includes an `X-Ella-Role` header with the Raft role of the responding node (`Leader`, `Follower`, or `Candidate`). Load balancers can use this header to direct write traffic to the leader.
 
-### Fields
-
-Top‑level (always present):
-
-- `version` (string): Software version.
-- `revision` (string): Git commit hash.
-- `initialized` (boolean): True once the system has at least one user.
-- `ready` (boolean): True once the node has completed full startup.
-- `schemaVersion` (integer): Shared‑database schema version this binary expects. Reported in both standalone and HA modes.
-- `datapathAttachMode` (string): Mechanism the data plane attached with — `xdp-native`, `tcx`, or `xdp-generic`.
-
-The nested `cluster` object is present only when HA is enabled:
-
-- `enabled` (boolean): Always `true` inside this object.
-- `role` (string): Raft role of this node — `Leader`, `Follower`, or `Candidate`.
-- `nodeId` (integer): Raft node ID of this instance.
-- `isLeader` (boolean): Convenience — `role == "Leader"`.
-- `leaderNodeId` (integer): Raft node ID of the current leader; zero when unknown.
-- `leaderAPIAddress` (string): HTTP API URL of the current leader. Omitted when the leader is unknown.
-- `appliedIndex` (integer): Last Raft log index applied by this node.
-- `clusterId` (string): Cluster ID from the operator configuration. Omitted when not set.
-
 ### Sample Response
 
 ```json

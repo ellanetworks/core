@@ -4,8 +4,6 @@ description: RESTful API reference for generating a support bundle.
 
 # Support Bundle
 
-Generate a support bundle containing system diagnostics, configuration, and database-derived JSON to help with debugging. Sensitive fields (for example private keys) are redacted where possible; however you should inspect the bundle contents before sharing it with Ella Networks support.
-
 ## Generate Support Bundle
 
 | Method | Path |
@@ -18,29 +16,33 @@ None
 
 ### Response
 
-On success the server returns `200` with the body containing a gzipped tar archive and a `Content-Disposition` header recommending a filename like `ella-support-<timestamp>.tar.gz`. The response Content-Type is `application/gzip`.
+| Property | Value |
+| -------- | ----- |
+| Status | `200` |
+| `Content-Type` | `application/gzip` |
+| `Content-Disposition` | `attachment; filename="ella-support-<YYYYMMDD_HHMMSS>.tar.gz"` |
+| Body | gzipped tar archive |
 
-The archive contains a best-effort collection of relevant diagnostics (database-derived JSON exports, YAML configuration files, system/network diagnostics, and eBPF maps data). The bundle is intended to be inspected locally before sharing.
+!!! warning
+    Redaction is limited to the fields listed under [Redacted fields](#redacted-fields). Inspect the archive before sharing it.
 
-## Bundle Contents
+### Archive contents
 
-### Database and Configuration
-- `db.json`: Database export containing operator configuration, policies, data networks, and subscriber information (with sensitive fields redacted)
-- `config.yaml`: Runtime configuration file
-- `system/`: System information including version, OS release, kernel version, memory, CPU, disk space, and network diagnostics
+Each member is best-effort: a collector that fails writes an error file in its place, and the request still returns `200`.
 
-### eBPF Maps
-The bundle includes eBPF map data in a `bpf/` directory (best-effort):
-- Each map is exported as compressed NDJSON (`mapname.ndjson.gz`) with decoded key/value entries using generated Go struct types for accurate field representation
-- Each map includes a corresponding `mapname_metadata.json` file containing:
-  - Map name, type (Hash, Array, RingBuf, etc.), key/value sizes
-  - Number of entries reported and whether entries were truncated
-  - Snapshot timestamp
-  - Any error encountered during export
+| Path | Contents |
+| ---- | -------- |
+| `db.json` | Database export: `bundle_metadata`, `operator`, `home_network_keys`, `policies`, `networking`, `subscribers`, `ip_leases`, `radio_logs` |
+| `config.yaml` | Runtime configuration file |
+| `amf_ues.json` | Live AMF and SMF UE state |
+| `mme_ues.json` | Live MME UE state |
+| `system/` | Version, OS release, kernel, memory, CPU, disk and network diagnostics |
+| `bpf/` | eBPF map entries as gzipped NDJSON, with a `_metadata.json` index |
 
-**Default configuration:**
-- **Excluded maps**: `nat_ct`, `flow_stats` (excluded due to potentially large size)
-- **Max entries per map**: `10000` (entries beyond this limit are truncated with `truncated: true`)
-- **Ring buffer maps**: Automatically skipped (cannot be iterated); includes `no_neigh_map` and `nocp_map` ringbuf variant
+### Redacted fields
 
-If BPF map export fails, an error file `bpf/error.txt` is included in the bundle instead.
+| Field | Value in the bundle |
+| ----- | ------------------- |
+| `operator.OperatorCode` | `*` |
+| `home_network_keys[].PrivateKey` | `*` |
+| `subscribers[]` | `imsi` only; keys, OPc and sequence numbers are not exported |

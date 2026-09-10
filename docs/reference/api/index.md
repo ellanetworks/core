@@ -4,7 +4,7 @@ description: RESTful API reference for managing Ella Core.
 
 # API
 
-Ella Core exposes a RESTful API for managing subscribers, radios, data networks, profiles, slices, policies, users, routes, operator configuration, and subscriber location (beta).
+You can perform all operations on Ella Core via its RESTful API.
 
 ## Authentication
 
@@ -30,10 +30,8 @@ Ella Core's API responses are JSON objects with the following structure:
 The full API is described by an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) specification embedded in the binary. Fetch it from any running Ella Core instance:
 
 ```
-GET /api/v1/openapi.yaml
+GET /api/v1/openapi.yaml  # Unauthenticated
 ```
-
-This endpoint is unauthenticated. The spec can be used to generate client libraries, import into tools like Postman or Swagger UI, or integrate with AI agents and automation frameworks that consume OpenAPI definitions.
 
 ## Status codes
 

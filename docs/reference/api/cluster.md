@@ -71,7 +71,7 @@ This path removes a node from the Raft cluster. The node must be drained first (
 
 ## Promote a Cluster Member
 
-This path promotes a nonvoter node to a voter in the Raft cluster. Autopilot promotes healthy nonvoters automatically; use this endpoint to promote immediately. Must be sent to the leader. Requires admin privileges.
+This path promotes a nonvoter node to a voter in the Raft cluster. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |
@@ -93,7 +93,7 @@ None
 
 ## Get Autopilot State
 
-This path returns the live autopilot view of the cluster: per-peer health, voter roster, and failure tolerance. Requires admin privileges.
+This path returns the live autopilot view of the cluster. Requires admin privileges.
 
 | Method | Path                         |
 | ------ | ---------------------------- |

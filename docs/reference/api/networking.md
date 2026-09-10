@@ -135,7 +135,7 @@ None
 
 ## List IPv4 Allocations
 
-This path returns a paginated list of IPv4 address allocations (leases) for a specific data network.
+This path returns IPv4 address allocations (leases) for a specific data network.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -168,11 +168,9 @@ This path returns a paginated list of IPv4 address allocations (leases) for a sp
 }
 ```
 
-Each item contains the subscriber's assigned IPv4 address.
-
 ## List IPv6 Allocations
 
-This path returns a paginated list of IPv6 address allocations (leases) for a specific data network.
+This path returns IPv6 address allocations (leases) for a specific data network.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -205,11 +203,9 @@ This path returns a paginated list of IPv6 address allocations (leases) for a sp
 }
 ```
 
-Each item contains the subscriber's assigned IPv6 /64 prefix.
-
 ## List Static IPs
 
-This path returns the static IP reservations for a specific data network.
+This path returns static IP reservations for a specific data network.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -243,7 +239,7 @@ None
 
 ## Create a Static IP
 
-This path pins an address to a subscriber on a data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned.
+This path pins an address to a subscriber on a data network.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -341,7 +337,7 @@ None
 
 ## Create Framed Routes
 
-This path sets a subscriber's framed-route set on a data network. It is rejected if the subscriber already has framed routes here (use the update path to replace them), if NAT is enabled, if a prefix overlaps a UE pool, a route, or another subscriber's framed route, or if the subscriber's profile does not bind the data network. At most 8 prefixes per family are allowed, and each is masked to its network form.
+This path sets a subscriber's framed-route set on a data network. At most 8 prefixes per family are allowed, and each is masked to its network form.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -365,7 +361,7 @@ This path sets a subscriber's framed-route set on a data network. It is rejected
 
 ## Update Framed Routes
 
-This path replaces a subscriber's entire framed-route set on a data network; an empty set clears it. The same overlap and NAT rules as create apply. A change to a live session releases it so the UE re-establishes with the new routes.
+This path replaces a subscriber's entire framed-route set on a data network. A change to a live session releases it so the UE re-establishes with the new routes.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
@@ -481,7 +477,7 @@ This path updates the N3 interface settings.
 
 ### Parameters
 
-- `external_address` (string): The external address to be used for the N3 / S1-U interface. This address is advertised to the radio in the GTP tunnel Transport Layer Address — to a gNB in the NGAP PDU Session Resource Setup Request (5G), or to an eNB in the S1AP E-RAB Setup (4G) — and the radio uses it to set up the GTP-U tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 / S1-U interface address is not reachable by the radio. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
+- `external_address` (string): The external address to be used for the N3 / S1-U interface. This address is advertised to the radio in the GTP tunnel Transport Layer Address. The radio uses it to set up the GTP-U tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 / S1-U interface address is not reachable by the radio. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
 
 ### Sample Response
 
@@ -726,7 +722,7 @@ This path updates the flow accounting configuration.
 
 # Local Switch
 
-Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE on the same UPF is forwarded locally instead of being routed out over N6. It is disabled by default.
+Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE is forwarded locally instead of being routed out over N6. It is disabled by default.
 
 ## Get Local Switch Info
 
@@ -896,12 +892,6 @@ Returns the list of configured BGP peers with live session status.
 }
 ```
 
-The `hasPassword` field indicates whether MD5 authentication is configured for the peer. The actual password is never returned by the API.
-
-The `state`, `uptime`, `prefixesSent`, `prefixesReceived`, and `prefixesAccepted` fields reflect the live BGP session status. They are empty/omitted when BGP is not running. The `uptime` field is only present when the session state is `established`.
-
-The `importPrefixes` field contains the per-peer import prefix list. When set to `[{"prefix": "0.0.0.0/0", "maxLength": 32}]`, all routes are accepted. An empty array means no routes are accepted from this peer.
-
 ## Get a BGP Peer
 
 Returns the details of a specific BGP peer.
@@ -1044,8 +1034,6 @@ None
 }
 ```
 
-Each route includes the `subscriber` IMSI that owns the IP address being advertised.
-
 ## Get BGP Learned Routes
 
 Returns the routes learned from BGP peers that passed the safety filter and import prefix list, and are currently installed in the kernel.
@@ -1073,5 +1061,3 @@ None
     }
 }
 ```
-
-

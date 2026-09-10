@@ -138,7 +138,7 @@ None
 
 ## Update My Password
 
-This path updates the password of the currently authenticated user. The user must provide their current password for verification. After a successful password change, all existing sessions for the user are invalidated.
+This path updates the password of the currently authenticated user. After a successful password change, all existing sessions for the user are invalidated.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
