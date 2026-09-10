@@ -4,7 +4,7 @@ description: Upgrade a running Ella Core high-availability cluster one node at a
 
 # Perform a Rolling Upgrade
 
-This guide walks through upgrading every node in a running Ella Core high-availability cluster, one at a time, without taking the cluster offline. For background on mixed-version clusters, draining, and schema coordination, see [High Availability](../explanation/high_availability.md).
+This guide walks through upgrading every node in a running Ella Core high-availability cluster, one at a time, without taking the cluster offline.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ Repeat these steps for each node, **upgrading the leader last**. **Drain** and *
 
 1. Open the **Cluster** page on any healthy node and note which node carries the **Leader** chip. Its **API Address** column gives the URL.
 2. Open the **Cluster** page on the leader.
-3. Pick the next node to upgrade — a follower, unless this is the last pass.
+3. Pick the next node to upgrade, a follower, unless this is the last pass.
 4. Click **Drain** next to that node. Wait until its **Drain State** is `drained`.
 5. On that host, refresh the snap:
 
@@ -37,6 +37,3 @@ After every node has been refreshed, open the **Cluster** page and confirm:
 - Every node's **Version** column shows the target release.
 - The mixed-version warning banner is gone.
 - Every node is **Healthy** and its **Drain State** is `active`.
-
-!!! note
-    All steps in this guide can also be performed via the REST API. See the [Cluster API reference](../reference/api/cluster.md) for details.
