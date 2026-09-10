@@ -25,7 +25,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context")
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()
@@ -66,7 +66,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 	confirm := &ngap.PDUSessionResourceModifyConfirm{
 		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(ueConn.AmfUeNgapID)),
-		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(ueConn.RanUeNgapID)),
+		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(ueConn.RanUeNgapID())),
 		PDUSessionResourceModify: modifyList,
 		PDUSessionResourceFailed: failedList,
 	}

@@ -104,14 +104,14 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 		sendErrorIndication(ctx, ran, msg.AMFUENGAPID, msg.RANUENGAPID, causeUnknownLocalUEID)
 
 		return
 	}
 
 	targetUe.TouchLastSeen()
-	logger.WithTrace(ctx, targetUe.Log()).Debug("Handle Handover Request Acknowledge", zap.Uint32("ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(targetUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log()).Debug("Handle Handover Request Acknowledge")
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
@@ -213,8 +213,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	logger.WithTrace(ctx, targetUe.Log()).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
-		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log()).Debug("handle handover request acknowledge", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID())), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
 
 	sourceUe.SendHandoverCommand(ctx, admitted, releaseItems(ctx, targetUe, unadmitted, targetCauses), msg.TargetToSourceTransparentContainer)
 }

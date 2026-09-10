@@ -324,11 +324,11 @@ const ProfileDetail: React.FC = () => {
                     <TableRow>
                       <TableCell sx={labelCellSx}>
                         <Tooltip
-                          title="Radio access technologies subscribers on this profile may use (TS 23.501 §5.3.4)."
+                          title="Systems subscribers on this profile may use."
                           arrow
                           placement="top"
                         >
-                          <span>Access</span>
+                          <span>Systems</span>
                         </Tooltip>
                       </TableCell>
                       <TableCell sx={valueCellSx}>

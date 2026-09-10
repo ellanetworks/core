@@ -26,7 +26,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// subscriber deletion, so a re-attach would fail authentication regardless.
 	if ue.EMMState() == mme.EMMDeregistrationInitiated {
 		logger.From(ctx, logger.MmeLog).Info("ignoring Attach Request during network-initiated detach",
-			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(ueConn.MMEUES1APID)))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
@@ -38,7 +38,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// earlier attach with the new one.
 	if ue.RegStep() == mme.RegStepContextSetup && bytes.Equal(plain, ueConn.AttachRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs; resending Attach Accept",
-			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(ueConn.MMEUES1APID)))
 		ueConn.ResendAttachAccept(ctx)
 
 		return nasreply.Handled()
@@ -48,7 +48,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	if step := ue.RegStep(); step == mme.RegStepAuthenticating || step == mme.RegStepSecurityMode {
 		if len(plain) > 0 && bytes.Equal(plain, ueConn.AttachRequestPlain) {
 			logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs before Attach Accept; ignoring (TS 24.301 §5.5.1.2.7 case e)",
-				zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+				zap.Uint32("mme_ue_s1ap_id", uint32(ueConn.MMEUES1APID)))
 
 			return nasreply.Handled()
 		}
@@ -67,7 +67,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		return nasreply.Handled()
 	} else if !served {
 		logger.From(ctx, logger.MmeLog).Info("Attach rejected [Tracking area not allowed]",
-			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(ueConn.MMEUES1APID)))
 		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseTrackingAreaNotAllowed)
 
 		return nasreply.Handled()

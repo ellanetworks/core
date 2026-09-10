@@ -35,12 +35,12 @@ type DeleteSubscriberOptions struct {
 
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
-	Registered       bool     `json:"registered"`
-	ConnectionState  string   `json:"connection_state,omitempty"`
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	NumSessions      int      `json:"num_sessions"`
-	LastSeenAt       string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	Registered      bool     `json:"registered"`
+	ConnectionState string   `json:"connection_state,omitempty"`
+	Systems         []string `json:"systems,omitempty"`
+	NumSessions     int      `json:"num_sessions"`
+	LastSeenAt      string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
 }
 
 // Subscriber is the summary form returned by ListSubscribers.
@@ -65,25 +65,32 @@ type ListSubscribersResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
-// SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
-type SubscriberDetailStatus struct {
-	Registered         bool     `json:"registered"`
-	ConnectionState    string   `json:"connection_state,omitempty"`
-	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
-	Imei               string   `json:"imei"`
-	CipheringAlgorithm string   `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string   `json:"integrity_algorithm"`
-	LastSeenAt         string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
+type UEConnection struct {
+	AmfUeNgapID *int64 `json:"amf_ue_ngap_id,omitempty"`
+	RanUeNgapID *int64 `json:"ran_ue_ngap_id,omitempty"`
+	MMEUeS1apID *int64 `json:"mme_ue_s1ap_id,omitempty"`
+	ENBUeS1apID *int64 `json:"enb_ue_s1ap_id,omitempty"`
+}
+
+type Registration struct {
+	System             string        `json:"system"`
+	Registered         bool          `json:"registered"`
+	ConnectionState    *string       `json:"connection_state"`
+	Radio              string        `json:"radio,omitempty"`
+	LastSeenAt         string        `json:"last_seen_at,omitempty"`
+	Imei               string        `json:"imei,omitempty"`
+	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
+	IntegrityAlgorithm string        `json:"integrity_algorithm,omitempty"`
+	Connection         *UEConnection `json:"connection"`
 }
 
 // SubscriberDetail is the full form returned by GetSubscriber.
 type SubscriberDetail struct {
-	Imsi        string                 `json:"imsi"`
-	ProfileName string                 `json:"profile_name"`
-	Description string                 `json:"description,omitempty"`
-	Status      SubscriberDetailStatus `json:"status"`
-	Sessions    []Session              `json:"sessions"`
+	Imsi          string         `json:"imsi"`
+	ProfileName   string         `json:"profile_name"`
+	Description   string         `json:"description,omitempty"`
+	Registrations []Registration `json:"registrations"`
+	Sessions      []Session      `json:"sessions"`
 }
 
 // SessionSlice is the 5G network slice identifier (S-NSSAI) of a session;
@@ -93,19 +100,18 @@ type SessionSlice struct {
 	SD  string `json:"sd,omitempty"`
 }
 
-// Session is a UE data session — a 5G PDU session or a 4G PDN connection —
-// self-describing via RadioAccessType.
+// Session is a UE data session — a 5G PDU session or a 4G PDN connection.
 type Session struct {
-	RadioAccessType string        `json:"radio_access_type"` // "4G" | "5G"
-	ID              uint8         `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
-	Status          string        `json:"status"`
-	IPType          string        `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address     string        `json:"ipv4_address,omitempty"`
-	IPv6Prefix      string        `json:"ipv6_prefix,omitempty"`
-	DataNetwork     string        `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
-	Slice           *SessionSlice `json:"slice,omitempty"`        // 5G only
-	AMBRUplink      string        `json:"ambr_uplink,omitempty"`
-	AMBRDownlink    string        `json:"ambr_downlink,omitempty"`
+	System       string        `json:"system"` // "5G" | "4G"
+	ID           uint8         `json:"id"`     // PDU Session ID (5G) / linked EPS Bearer ID (4G)
+	Status       string        `json:"status"`
+	IPType       string        `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address  string        `json:"ipv4_address,omitempty"`
+	IPv6Prefix   string        `json:"ipv6_prefix,omitempty"`
+	DataNetwork  string        `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice        *SessionSlice `json:"slice,omitempty"`        // 5G only
+	AMBRUplink   string        `json:"ambr_uplink,omitempty"`
+	AMBRDownlink string        `json:"ambr_downlink,omitempty"`
 }
 
 type SubscriberCredentials struct {

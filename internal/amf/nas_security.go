@@ -13,11 +13,11 @@ func cipheringAlgName(alg nas.CipheringAlgorithm) string {
 	case nas.CipheringNull:
 		return "NEA0"
 	case nas.CipheringSNOW3G:
-		return "NEA1"
+		return "128-NEA1"
 	case nas.CipheringAES:
-		return "NEA2"
+		return "128-NEA2"
 	case nas.CipheringZUC:
-		return "NEA3"
+		return "128-NEA3"
 	default:
 		return ""
 	}
@@ -28,11 +28,11 @@ func integrityAlgName(alg nas.IntegrityAlgorithm) string {
 	case nas.IntegrityNull:
 		return "NIA0"
 	case nas.IntegritySNOW3G:
-		return "NIA1"
+		return "128-NIA1"
 	case nas.IntegrityAES:
-		return "NIA2"
+		return "128-NIA2"
 	case nas.IntegrityZUC:
-		return "NIA3"
+		return "128-NIA3"
 	default:
 		return ""
 	}

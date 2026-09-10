@@ -52,7 +52,7 @@ func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Failure",
-		zap.Uint32("target-mme-ue-id", uint32(*fail.MMEUES1APID)),
+		zap.Uint32("target_mme_ue_s1ap_id", uint32(*fail.MMEUES1APID)),
 		zap.String("cause", mme.S1apCauseName(&cause)))
 
 	m.FailHandoverToSource(ctx, ue, cause)

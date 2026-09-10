@@ -401,7 +401,7 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 		export.LastActivity.RadioNode = r.radioName()
 
 		rc := &RANConnectionExport{
-			RanUeNgapID: int64(r.RanUeNgapID),
+			RanUeNgapID: int64(r.RanUeNgapID()),
 			AmfUeNgapID: int64(r.AmfUeNgapID),
 			RanTai:      r.Tai,
 			RadioName:   r.radioName(),

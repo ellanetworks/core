@@ -431,8 +431,8 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		t.Error("expected UeConn to be switched to targetRan")
 	}
 
-	if sourceUe.RanUeNgapID != models.RanUeNgapID(targetRanUeNgapID) {
-		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, sourceUe.RanUeNgapID)
+	if sourceUe.RanUeNgapID() != models.RanUeNgapID(targetRanUeNgapID) {
+		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, sourceUe.RanUeNgapID())
 	}
 
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 0 {

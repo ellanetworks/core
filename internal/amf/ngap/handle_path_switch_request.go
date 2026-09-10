@@ -50,14 +50,14 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn := amfInstance.LookupUeConn(models.AmfUeNgapID(msg.SourceAMFUENGAPID))
 	if ueConn == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source-amf-ue-id", uint64(msg.SourceAMFUENGAPID)))
+		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source_amf_ue_ngap_id", uint64(msg.SourceAMFUENGAPID)))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 
 		return
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle Path Switch Request", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle Path Switch Request")
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
