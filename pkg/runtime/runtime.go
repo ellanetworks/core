@@ -171,7 +171,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if cfg.Cluster.Enabled {
 		dataDir := filepath.Dir(cfg.DB.Path)
 
-		restored, err := maybeRestoreFromBundle(dataDir)
+		restored, err := maybeRestoreFromBundle(cfg.DB.Path)
 		if err != nil {
 			return fmt.Errorf("restore bundle: %w", err)
 		}
