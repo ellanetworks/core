@@ -995,6 +995,43 @@ func (ue *UE) SendPDUSessionReleaseRequest(amfUENGAPID int64, ranUENGAPID int64,
 	return pti, nil
 }
 
+func (ue *UE) SendPDUSessionModificationRequest(amfUENGAPID int64, ranUENGAPID int64, opts *PDUSessionModificationRequestOpts) (uint8, error) {
+	if opts == nil {
+		return 0, fmt.Errorf("PDUSessionModificationRequestOpts is nil")
+	}
+
+	shaped := *opts
+	shaped.PTI = ue.nextPTI()
+
+	modification, err := BuildPDUSessionModificationRequest(&shaped)
+	if err != nil {
+		return 0, fmt.Errorf("could not build PDU Session Modification Request: %v", err)
+	}
+
+	uplink, err := BuildUplinkNasTransportSM(shaped.PDUSessionID, modification)
+	if err != nil {
+		return 0, fmt.Errorf("could not build Uplink NAS Transport for PDU Session Modification: %v", err)
+	}
+
+	encodedPdu, err := ue.EncodeNasPduWithSecurity(uplink, uint8(fgs.SHTIntegrityProtectedCiphered))
+	if err != nil {
+		return 0, fmt.Errorf("error encoding %s IMSI UE NAS Uplink NAS Transport for PDU Session Modification Msg", ue.UeSecurity.Supi)
+	}
+
+	if err := ue.Gnb.SendUplinkNAS(encodedPdu, amfUENGAPID, ranUENGAPID); err != nil {
+		return 0, fmt.Errorf("could not send UplinkNASTransport for PDU Session Modification: %v", err)
+	}
+
+	logger.UeLogger.Debug(
+		"Sent PDU Session Modification Request",
+		zap.String("IMSI", ue.UeSecurity.Supi),
+		zap.Uint8("PDU Session ID", shaped.PDUSessionID),
+		zap.Uint8("PTI", shaped.PTI),
+	)
+
+	return shaped.PTI, nil
+}
+
 func (ue *UE) sendPDUSessionRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai, requestType fgs.RequestType) error {
 	pduReq, err := BuildPduSessionEstablishmentRequest(&PduSessionEstablishmentRequestOpts{
 		PDUSessionID:   pduSessionID,

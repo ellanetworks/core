@@ -62,8 +62,8 @@ func TestBearerResourceModificationRejected(t *testing.T) {
 		t.Fatalf("PTI = %d, want 7 (echoed from the request)", reject.PTI)
 	}
 
-	if reject.Cause != eps.ESMCauseRequestRejectedUnspecified {
-		t.Fatalf("ESM cause = %d, want %d (request rejected, unspecified)", reject.Cause, eps.ESMCauseRequestRejectedUnspecified)
+	if reject.Cause != eps.ESMCauseEPSQoSNotAccepted {
+		t.Fatalf("ESM cause = %d, want %d (EPS QoS not accepted)", reject.Cause, eps.ESMCauseEPSQoSNotAccepted)
 	}
 }
 

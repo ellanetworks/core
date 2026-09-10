@@ -161,6 +161,8 @@ type SMF struct {
 // (TS 24.501 §6.3.2.5, §6.3.3).
 const maxSMProcedureRetransmissions = 4
 
+const networkRequestedPTI uint8 = 0
+
 // Option configures an SMF instance.
 type Option func(*SMF)
 

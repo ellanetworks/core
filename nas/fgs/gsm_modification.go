@@ -16,12 +16,14 @@ type PDUSessionModificationRequest struct {
 	PDUSessionID PDUSessionID
 	PTI          nas.ProcedureTransactionIdentity
 
-	GSMCapability     *GSMCapability                    // optional (IEI 0x28)
-	Cause             *GSMCause                         // optional (IEI 0x59)
-	AlwaysOnRequested *bool                             // optional (IEI 0xB), value bit 1
-	RequestedQoSRules QoSRules                          // optional (IEI 0x7A)
-	RequestedQoSFlows QoSFlowDescriptions               // optional (IEI 0x79)
-	ExtendedPCO       *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
+	GSMCapability            *GSMCapability                    // optional (IEI 0x28)
+	Cause                    *GSMCause                         // optional (IEI 0x59)
+	MaxPacketFilters         *uint16                           // optional (IEI 0x55)
+	AlwaysOnRequested        *bool                             // optional (IEI 0xB), value bit 1
+	IntegrityProtMaxDataRate *[2]byte                          // optional (IEI 0x13)
+	RequestedQoSRules        QoSRules                          // optional (IEI 0x7A)
+	RequestedQoSFlows        QoSFlowDescriptions               // optional (IEI 0x79)
+	ExtendedPCO              *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
 
 	// MappedEPSBearerContexts is present when the UE asks to delete one or more
 	// mapped EPS bearer contexts (TS 24.501 §8.3.7.10).
@@ -75,8 +77,16 @@ func (m *PDUSessionModificationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TV3(iei5GSMCause, []byte{uint8(*m.Cause)})
 	}
 
+	if m.MaxPacketFilters != nil {
+		o.TV3(ieiMaxPacketFilters, []byte{uint8(*m.MaxPacketFilters >> 8), uint8(*m.MaxPacketFilters)})
+	}
+
 	if m.AlwaysOnRequested != nil {
 		o.TV1(ieiAlwaysOnRequested, boolBit(*m.AlwaysOnRequested, 0))
+	}
+
+	if m.IntegrityProtMaxDataRate != nil {
+		o.TV3(ieiIntegrityProtMaxRate, m.IntegrityProtMaxDataRate[:])
 	}
 
 	if m.RequestedQoSRules != nil {
@@ -151,6 +161,20 @@ func ParsePDUSessionModificationRequest(b []byte) (*PDUSessionModificationReques
 
 			cause := GSMCause(value[0])
 			out.Cause = &cause
+		case ieiMaxPacketFilters:
+			if len(value) != 2 {
+				return false, fmt.Errorf("nas/fgs: maximum number of supported packet filters is %d octets, want 2", len(value))
+			}
+
+			count := uint16(value[0])<<8 | uint16(value[1])
+			out.MaxPacketFilters = &count
+		case ieiIntegrityProtMaxRate:
+			if len(value) != 2 {
+				return false, fmt.Errorf("nas/fgs: integrity protection maximum data rate is %d octets, want 2", len(value))
+			}
+
+			rate := [2]byte{value[0], value[1]}
+			out.IntegrityProtMaxDataRate = &rate
 		case ieiAlwaysOnRequested:
 			// TS 24.501 table 9.11.4.4.1 assigns both values — 0 "not requested",
 			// 1 "requested" — so the element carries its own meaning and the field
@@ -316,6 +340,8 @@ type PDUSessionModificationCommand struct {
 	PTI          nas.ProcedureTransactionIdentity
 	SessionAMBR  *SessionAMBR // optional (IEI 0x2A)
 
+	AlwaysOn *bool // optional (IEI 0x8), value bit 1
+
 	// MappedEPSBearerContexts carries the EPS bearer contexts the session's QoS
 	// flows map to (IEI 0x75). TS 24.501 §6.1.4.2 has the SMF provide them only
 	// when the network supports N26; it is also how an EBI revocation strips the
@@ -346,6 +372,10 @@ func (m *PDUSessionModificationCommand) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiSessionAMBR, raw)
+	}
+
+	if m.AlwaysOn != nil {
+		o.TV1(ieiAlwaysOnIndication, boolBit(*m.AlwaysOn, 0))
 	}
 
 	if m.MappedEPSBearerContexts != nil {
@@ -404,6 +434,8 @@ func ParsePDUSessionModificationCommand(b []byte) (*PDUSessionModificationComman
 			}
 
 			out.SessionAMBR = &parsed
+		case ieiAlwaysOnIndication:
+			out.AlwaysOn = tv1Flag(value)
 		case ieiMappedEPSBearerContext:
 			parsed, err := ParseMappedEPSBearerContexts(value)
 			if err != nil {

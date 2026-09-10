@@ -192,6 +192,64 @@ func (g *GnodeB) ReleasePDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uin
 	return nil
 }
 
+func (g *GnodeB) ModifyPDUSession(u *ue.UE, ranUENGAPID int64, opts *ue.PDUSessionModificationRequestOpts, timeout time.Duration) (*fgs.PDUSessionModificationCommand, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionModificationRequestOpts is nil")
+	}
+
+	pti, err := u.SendPDUSessionModificationRequest(g.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("send PDU Session Modification Request for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	raw, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationCommand), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await PDU Session Modification Command for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	command, err := fgs.ParsePDUSessionModificationCommand(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse PDU Session Modification Command for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	if uint8(command.PTI) != pti {
+		return nil, fmt.Errorf("PDU Session Modification Command for session %d carries PTI %d, want the requested %d", opts.PDUSessionID, command.PTI, pti)
+	}
+
+	if uint8(command.PDUSessionID) != opts.PDUSessionID {
+		return nil, fmt.Errorf("PDU Session Modification Command carries PDU session %d, want %d", command.PDUSessionID, opts.PDUSessionID)
+	}
+
+	return command, nil
+}
+
+func (g *GnodeB) RefusePDUSessionModification(u *ue.UE, ranUENGAPID int64, opts *ue.PDUSessionModificationRequestOpts, timeout time.Duration) (*fgs.PDUSessionModificationReject, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionModificationRequestOpts is nil")
+	}
+
+	pti, err := u.SendPDUSessionModificationRequest(g.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("send PDU Session Modification Request for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	raw, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationReject), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await PDU Session Modification Reject for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	reject, err := fgs.ParsePDUSessionModificationReject(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse PDU Session Modification Reject for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	if uint8(reject.PTI) != pti {
+		return nil, fmt.Errorf("PDU Session Modification Reject for session %d carries PTI %d, want the requested %d", opts.PDUSessionID, reject.PTI, pti)
+	}
+
+	return reject, nil
+}
+
 // MovePDUSessionFromEPS requests an existing EPS PDN connection over NR as a PDU
 // session (TS 23.502 §4.11.2.2), the idle-mode inter-system change without N26.
 // It differs from EstablishPDUSession only in the NAS Request Type.

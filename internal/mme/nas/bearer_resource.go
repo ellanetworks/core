@@ -37,7 +37,7 @@ func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeCont
 
 	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
 	if cause == 0 {
-		cause = eps.ESMCauseRequestRejectedUnspecified
+		cause = eps.ESMCauseEPSQoSNotAccepted
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected",
