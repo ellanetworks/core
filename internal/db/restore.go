@@ -53,11 +53,11 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 }
 
 // extractBackupArchive reads a backup tar.gz from r and writes the
-// database file into destDir. The archive carries exactly two members:
+// database file to dbDestPath. The archive carries exactly two members:
 // manifest.json and ella.db. Unknown members, missing required members,
 // oversize files, duplicate entries, and path traversal attempts are
 // rejected.
-func extractBackupArchive(r io.Reader, destDir string) error {
+func extractBackupArchive(r io.Reader, dbDestPath string) error {
 	gzReader, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("failed to open gzip stream: %w", err)
@@ -129,7 +129,7 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
 			}
 
-			if err := writeArchiveMember(filepath.Join(destDir, DBFilename), tarReader, hdr.Size); err != nil {
+			if err := writeArchiveMember(dbDestPath, tarReader, hdr.Size); err != nil {
 				return fmt.Errorf("failed to write %s: %w", DBFilename, err)
 			}
 
@@ -151,15 +151,15 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 	return nil
 }
 
-// ExtractForRestore extracts a backup bundle into destDir. Used by the
-// offline first-boot recovery path before db.NewDatabase has run.
+// ExtractForRestore extracts a backup bundle's database to dbPath. Used by
+// the offline first-boot recovery path before db.NewDatabase has run.
 //
 // After extraction, fsm_state.lastApplied is reset to 0 in the
 // extracted database. The backup captures the source leader's
 // lastApplied, but the DR-restored node bootstraps raft fresh at
 // index 0 — without the reset, FSM.Apply would skip the first writes
 // as "already applied" until raft caught up to the source's index.
-func ExtractForRestore(bundlePath, destDir string) error {
+func ExtractForRestore(bundlePath, dbPath string) error {
 	f, err := os.Open(bundlePath) // #nosec: G304 -- path comes from the operator via fixed-path convention
 	if err != nil {
 		return fmt.Errorf("open bundle: %w", err)
@@ -167,15 +167,17 @@ func ExtractForRestore(bundlePath, destDir string) error {
 
 	defer func() { _ = f.Close() }()
 
+	destDir := filepath.Dir(dbPath)
+
 	if err := os.MkdirAll(destDir, 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", destDir, err)
 	}
 
-	if err := extractBackupArchive(f, destDir); err != nil {
+	if err := extractBackupArchive(f, dbPath); err != nil {
 		return err
 	}
 
-	return resetFSMStateInRestoredDB(filepath.Join(destDir, DBFilename))
+	return resetFSMStateInRestoredDB(dbPath)
 }
 
 // resetFSMStateInRestoredDB opens the extracted ella.db with a
@@ -200,7 +202,7 @@ func resetFSMStateInRestoredDB(dbPath string) error {
 }
 
 func writeArchiveMember(destPath string, src io.Reader, size int64) error {
-	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600) // #nosec: G304 — destination is under db.Dir()
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600) // #nosec: G304 — destination is the configured database path or a staging file under db.Dir()
 	if err != nil {
 		return err
 	}
@@ -431,11 +433,11 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	defer func() { _ = os.RemoveAll(stageDir) }()
 
-	if err := extractBackupArchive(backupFile, stageDir); err != nil {
+	stagedDB := filepath.Join(stageDir, DBFilename)
+
+	if err := extractBackupArchive(backupFile, stagedDB); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
-
-	stagedDB := filepath.Join(stageDir, DBFilename)
 
 	if err := validateSQLiteFile(ctx, stagedDB); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
