@@ -17,12 +17,16 @@ type MappedEPSQoS struct {
 	Ambr    models.Ambr
 }
 
-func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, qosData *models.QosData, dns net.IP, epsBearerIdentity uint8, mappedEPSQoS *MappedEPSQoS) ([]byte, error) {
-	if ambr == nil && qosData == nil && dns == nil {
-		return nil, fmt.Errorf("at least one of ambr, qosData, or dns must be provided")
+func BuildPDUSessionModificationCommand(pduSessionID uint8, pti uint8, ambr *models.Ambr, qosData *models.QosData, dns net.IP, epsBearerIdentity uint8, mappedEPSQoS *MappedEPSQoS, alwaysOn *bool) ([]byte, error) {
+	if pti == 0 && ambr == nil && qosData == nil && dns == nil && alwaysOn == nil {
+		return nil, fmt.Errorf("at least one of ambr, qosData, dns, or alwaysOn must be provided")
 	}
 
-	m := &fgs.PDUSessionModificationCommand{PDUSessionID: fgs.PDUSessionID(pduSessionID)}
+	m := &fgs.PDUSessionModificationCommand{
+		PDUSessionID: fgs.PDUSessionID(pduSessionID),
+		PTI:          nas.ProcedureTransactionIdentity(pti),
+		AlwaysOn:     alwaysOn,
+	}
 
 	if ambr != nil {
 		sessAMBR, err := ModelsToSessionAMBR(ambr)

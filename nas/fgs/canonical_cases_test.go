@@ -35,8 +35,10 @@ var canonicalValues = map[uint8][]byte{
 	ieiGMMCapability:                 {0x00},
 	ieiGUTI5G:                        {0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01},
 	ieiIMEISVRequest:                 {0x01},
+	ieiIntegrityProtMaxRate:          {0xff, 0xff},
 	ieiLocalTimeZone:                 {0x00},
 	ieiMICOIndication:                {0x01},
+	ieiMaxPacketFilters:              {0x00, 0x10},
 	ieiNASMessageContainer:           {uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest), 0x01, 0x00, 0x01, 0x00},
 	ieiNetworkDaylightSavingTime:     {0x00},
 	ieiNon3GppDeregTimer:             {0x21},
@@ -94,6 +96,11 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		t.Fatalf("encode QoS flow descriptions: %v", err)
 	}
 
+	mappedBearers, err := MappedEPSBearerContexts{{EPSBearerIdentity: 5, Operation: MappedEPSBearerOpDelete}}.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode mapped EPS bearer contexts: %v", err)
+	}
+
 	// An IEI is message-scoped, so an element sharing one with another message's
 	// element needs its own value here (TS 24.501 §8: 0x25 is the allowed PDU
 	// session status in 5GMM and the DNN in 5GSM, 0x77 the 5G-GUTI and the IMEISV).
@@ -107,6 +114,8 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		ieiEAPMessageSession:  {0x01, 0x00, 0x00, 0x04},
 		ieiAlwaysOnIndication: {0x01},
 		ieiAlwaysOnRequested:  {0x01},
+
+		ieiMappedEPSBearerContext: mappedBearers,
 	}
 
 	return []canonicalCase{
@@ -192,13 +201,13 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		{
 			name:   "PDUSessionEstablishmentAccept (TS 24.501 §8.3.2)",
 			bare:   &PDUSessionEstablishmentAccept{},
-			order:  []canonicalIE{{iei5GSMCause, nas.IETV3}, {ieiPDUAddress, nas.IETLV}, {ieiRQTimerValue, nas.IETV3}, {ieiSNSSAI, nas.IETLV}, {ieiAlwaysOnIndication, nas.IETV1}, {ieiEAPMessageSession, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}, {ieiDNN, nas.IETLV}},
+			order:  []canonicalIE{{iei5GSMCause, nas.IETV3}, {ieiPDUAddress, nas.IETLV}, {ieiRQTimerValue, nas.IETV3}, {ieiSNSSAI, nas.IETLV}, {ieiAlwaysOnIndication, nas.IETV1}, {ieiMappedEPSBearerContext, nas.IETLVE}, {ieiEAPMessageSession, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}, {ieiDNN, nas.IETLV}},
 			values: qos,
 		},
 		{
 			name:   "PDUSessionModificationRequest (TS 24.501 §8.3.7)",
 			bare:   &PDUSessionModificationRequest{},
-			order:  []canonicalIE{{iei5GSMCapability, nas.IETLV}, {iei5GSMCause, nas.IETV3}, {ieiAlwaysOnRequested, nas.IETV1}, {ieiAuthorizedQoSRules, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
+			order:  []canonicalIE{{iei5GSMCapability, nas.IETLV}, {iei5GSMCause, nas.IETV3}, {ieiMaxPacketFilters, nas.IETV3}, {ieiAlwaysOnRequested, nas.IETV1}, {ieiIntegrityProtMaxRate, nas.IETV3}, {ieiAuthorizedQoSRules, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiMappedEPSBearerContext, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
 			values: qos,
 		},
 		{
@@ -209,7 +218,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		{
 			name:   "PDUSessionModificationCommand (TS 24.501 §8.3.9)",
 			bare:   &PDUSessionModificationCommand{},
-			order:  []canonicalIE{{ieiSessionAMBR, nas.IETLV}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
+			order:  []canonicalIE{{ieiSessionAMBR, nas.IETLV}, {ieiAlwaysOnIndication, nas.IETV1}, {ieiMappedEPSBearerContext, nas.IETLVE}, {ieiQoSFlowDescription, nas.IETLVE}, {ieiExtendedPCO, nas.IETLVE}},
 			values: qos,
 		},
 		{

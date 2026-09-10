@@ -72,19 +72,20 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 }
 
 var scenarioFollowsDeploymentIPFamily = map[string]bool{
-	"interworking/transfer_5gs_to_eps":                true,
-	"interworking/transfer_eps_to_5gs":                true,
-	"interworking/handover_5gs_to_eps":                true,
-	"interworking/handover_5gs_to_eps_target_refuses": true,
-	"interworking/handover_eps_to_5gs":                true,
-	"interworking/handover_eps_to_5gs_target_refuses": true,
-	"interworking/idle_5gs_to_eps":                    true,
-	"interworking/idle_5gs_to_eps_returning_to_idle":  true,
-	"interworking/idle_eps_to_5gs":                    true,
-	"interworking/idle_eps_to_5gs_returning_to_idle":  true,
-	"interworking/idle_round_trip_through_eps":        true,
-	"interworking/idle_round_trip_through_5gs":        true,
-	"interworking/idle_eps_to_5gs_bearer_status":      true,
+	"interworking/transfer_5gs_to_eps":                  true,
+	"interworking/transfer_eps_to_5gs":                  true,
+	"interworking/handover_5gs_to_eps":                  true,
+	"interworking/handover_5gs_to_eps_target_refuses":   true,
+	"interworking/handover_eps_to_5gs":                  true,
+	"interworking/handover_eps_to_5gs_target_refuses":   true,
+	"interworking/idle_5gs_to_eps":                      true,
+	"interworking/idle_5gs_to_eps_returning_to_idle":    true,
+	"interworking/idle_eps_to_5gs":                      true,
+	"interworking/idle_eps_to_5gs_returning_to_idle":    true,
+	"interworking/idle_round_trip_through_eps":          true,
+	"interworking/idle_round_trip_through_5gs":          true,
+	"interworking/idle_eps_to_5gs_bearer_status":        true,
+	"interworking/idle_eps_to_5gs_session_modification": true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

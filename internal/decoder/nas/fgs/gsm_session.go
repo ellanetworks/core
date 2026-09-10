@@ -45,13 +45,15 @@ func gsmOptionalCause(c *fgs.GSMCause, unrecognized []naslib.RawIE) *GSMOptional
 // QoS rules or flows, and the mapped EPS bearers that follow it to 4G
 // (TS 24.501 §8.3.7).
 type PDUSessionModificationRequest struct {
-	Capability5GSM                       *Capability5GSM                     `json:"capability_5gsm,omitempty"`
-	Cause5GSM                            *utils.EnumField                    `json:"cause_5g_s_m,omitempty"`
-	AlwaysonPDUSessionRequested          *bool                               `json:"alwayson_pdu_session_requested,omitempty"`
-	RequestedQosRules                    []QosRule                           `json:"requested_qos_rules,omitempty"`
-	RequestedQosFlowDescriptions         []QoSFlowDescription                `json:"requested_qos_flow_descriptions,omitempty"`
-	ExtendedProtocolConfigurationOptions *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
-	MappedEPSBearerContexts              []MappedEPSBearerContext            `json:"mapped_eps_bearer_contexts,omitempty"`
+	Capability5GSM                        *Capability5GSM                     `json:"capability_5gsm,omitempty"`
+	Cause5GSM                             *utils.EnumField                    `json:"cause_5g_s_m,omitempty"`
+	MaximumNumberOfSupportedPacketFilters *uint16                             `json:"maximum_number_of_supported_packet_filters,omitempty"`
+	IntegrityProtectionMaximumDataRate    *IntegrityProtectionMaximumDataRate `json:"integrity_protection_maximum_data_rate,omitempty"`
+	AlwaysonPDUSessionRequested           *bool                               `json:"alwayson_pdu_session_requested,omitempty"`
+	RequestedQosRules                     []QosRule                           `json:"requested_qos_rules,omitempty"`
+	RequestedQosFlowDescriptions          []QoSFlowDescription                `json:"requested_qos_flow_descriptions,omitempty"`
+	ExtendedProtocolConfigurationOptions  *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
+	MappedEPSBearerContexts               []MappedEPSBearerContext            `json:"mapped_eps_bearer_contexts,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -76,6 +78,15 @@ func buildPDUSessionModificationRequest(msg *fgs.PDUSessionModificationRequest) 
 		out.Cause5GSM = &cause
 	}
 
+	out.MaximumNumberOfSupportedPacketFilters = msg.MaxPacketFilters
+
+	if msg.IntegrityProtMaxDataRate != nil {
+		out.IntegrityProtectionMaximumDataRate = &IntegrityProtectionMaximumDataRate{
+			Uplink:   msg.IntegrityProtMaxDataRate[0],
+			Downlink: msg.IntegrityProtMaxDataRate[1],
+		}
+	}
+
 	if msg.MappedEPSBearerContexts != nil {
 		out.MappedEPSBearerContexts = MappedEPSBearerContextsFromNAS(msg.MappedEPSBearerContexts)
 	}
@@ -89,6 +100,7 @@ func buildPDUSessionModificationRequest(msg *fgs.PDUSessionModificationRequest) 
 // session actually gets (TS 24.501 §8.3.9).
 type PDUSessionModificationCommand struct {
 	SessionAMBR                          *SessionAMBR                        `json:"session_ambr,omitempty"`
+	AlwaysonPDUSessionIndication         *bool                               `json:"alwayson_pdu_session_indication,omitempty"`
 	MappedEPSBearerContexts              []MappedEPSBearerContext            `json:"mapped_eps_bearer_contexts,omitempty"`
 	AuthorizedQosFlowDescriptions        []QoSFlowDescription                `json:"authorized_qos_flow_descriptions,omitempty"`
 	ExtendedProtocolConfigurationOptions *nasie.ProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
@@ -98,6 +110,7 @@ type PDUSessionModificationCommand struct {
 
 func buildPDUSessionModificationCommand(msg *fgs.PDUSessionModificationCommand) *PDUSessionModificationCommand {
 	out := &PDUSessionModificationCommand{
+		AlwaysonPDUSessionIndication:         msg.AlwaysOn,
 		AuthorizedQosFlowDescriptions:        QosFlowDescriptionsFromNAS(msg.QoSFlowDescriptions),
 		ExtendedProtocolConfigurationOptions: nasie.ExtendedPCO(msg.ExtendedPCO),
 	}
