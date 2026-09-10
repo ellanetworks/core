@@ -66,24 +66,6 @@ func (ue *UeContext) PDNCount() int {
 	return len(ue.Pdns)
 }
 
-func (ue *UeContext) BeginUnchangedBearerModification(p *PdnConnection) bool {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if p.Deactivating || p.Modifying {
-		return false
-	}
-
-	p.Modifying = true
-	p.PendingDNConfig = p.DnConfig
-	p.PendingSessAmbrDLBps = p.SessAmbrDLBps
-	p.PendingSessAmbrULBps = p.SessAmbrULBps
-	p.PendingQCI = p.Qci
-	p.PendingARP = p.Arp
-
-	return true
-}
-
 // CommitBearerModification commits a PDN connection's pending in-place
 // modification, reporting false (a no-op) if no modification was in flight
 // (TS 24.301 §6.4.2.3).

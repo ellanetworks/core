@@ -15,14 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type UEIndicatedParams struct {
-	Capability           *fgs.GSMCapability
-	MaxPacketFilters     *uint16
-	IntegrityMaxDataRate *[2]byte
-	AlwaysOnGranted      bool
-	ModificationDone     bool
-}
-
 func requestsQoS(req *fgs.PDUSessionModificationRequest) bool {
 	return len(req.RequestedQoSRules) > 0 || len(req.RequestedQoSFlows) > 0
 }
@@ -71,8 +63,6 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 
 	alwaysOn := alwaysOnIndication(req.AlwaysOnRequested)
 
-	smContext.recordUEIndicatedParams(req, alwaysOn)
-
 	dns := smContext.dnsForModification(req)
 
 	n1SmMsg, err := smfNas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, pti, nil, nil, dns, 0, nil, alwaysOn)
@@ -99,27 +89,4 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return &UpdateResult{N1Msg: n1SmMsg}, nil
-}
-
-func (smContext *SMContext) recordUEIndicatedParams(req *fgs.PDUSessionModificationRequest, alwaysOn *bool) {
-	if req.GSMCapability != nil {
-		smContext.ueParams.Capability = req.GSMCapability
-	}
-
-	if req.MaxPacketFilters != nil {
-		smContext.ueParams.MaxPacketFilters = req.MaxPacketFilters
-	}
-
-	if req.IntegrityProtMaxDataRate != nil {
-		smContext.ueParams.IntegrityMaxDataRate = req.IntegrityProtMaxDataRate
-	}
-
-	smContext.ueParams.AlwaysOnGranted = alwaysOn != nil && *alwaysOn
-}
-
-func (smContext *SMContext) UEIndicatedParams() UEIndicatedParams {
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	return smContext.ueParams
 }

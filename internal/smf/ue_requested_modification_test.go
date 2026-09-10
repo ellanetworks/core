@@ -87,19 +87,6 @@ func TestUERequestedModification_CapabilityIndicationAccepted(t *testing.T) {
 		t.Error("the UE asked for no always-on session, so TS 24.501 §6.3.2.2 b) 2) leaves the indication out")
 	}
 
-	params := smCtx.UEIndicatedParams()
-	if params.Capability == nil || !params.Capability.RqoS {
-		t.Errorf("5GSM capability = %+v, want reflective QoS recorded", params.Capability)
-	}
-
-	if params.MaxPacketFilters == nil || *params.MaxPacketFilters != 64 {
-		t.Errorf("maximum supported packet filters = %v, want 64", params.MaxPacketFilters)
-	}
-
-	if params.IntegrityMaxDataRate == nil {
-		t.Error("integrity protection maximum data rate was not recorded")
-	}
-
 	if !smCtx.IsPTIInUse(pti) {
 		t.Error("the command is outstanding, so its PTI is in use (TS 24.501 §7.3.1)")
 	}
@@ -128,10 +115,6 @@ func TestUERequestedModification_AlwaysOnAnsweredNotAllowed(t *testing.T) {
 
 	if *cmd.AlwaysOn {
 		t.Error("always-on indication = required, want not allowed")
-	}
-
-	if smCtx.UEIndicatedParams().AlwaysOnGranted {
-		t.Error("the session was recorded as always-on although the request was refused")
 	}
 }
 
@@ -194,7 +177,7 @@ func TestUERequestedModification_UEReportedErrorAccepted(t *testing.T) {
 	decodeModificationCommand(t, rsp.N1Msg)
 }
 
-func TestUERequestedModification_CompleteRecordsSuccess(t *testing.T) {
+func TestUERequestedModification_CompleteClearsThePTI(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
@@ -206,18 +189,14 @@ func TestUERequestedModification_CompleteRecordsSuccess(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg (request): %v", err)
 	}
 
-	if smCtx.UEIndicatedParams().ModificationDone {
-		t.Error("the procedure is recorded as done before the UE completed it")
+	if !smCtx.IsPTIInUse(pti) {
+		t.Fatal("the outstanding command left its PTI free")
 	}
 
 	complete := []byte{uint8(fgs.EPD5GSM), smCtx.PDUSessionID, pti, uint8(fgs.MsgPDUSessionModificationComplete)}
 
 	if _, err := s.UpdateSmContextN1Msg(t.Context(), ref, complete); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg (complete): %v", err)
-	}
-
-	if !smCtx.UEIndicatedParams().ModificationDone {
-		t.Error("the UE completed the procedure, but it was not recorded as done")
 	}
 
 	if smCtx.IsPTIInUse(pti) {

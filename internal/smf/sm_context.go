@@ -77,8 +77,6 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
-	ueParams UEIndicatedParams
-
 	releasing                bool // guarded by Mutex
 	n1Released               bool
 	n2Released               bool

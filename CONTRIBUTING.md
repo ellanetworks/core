@@ -112,9 +112,8 @@ Ella Core's frontend is built with [Vite](https://vite.dev/) and static files ar
 
 ### Troubleshooting
 
-Restore LXD bridge connectivity when Docker is running on the same system:
+Running Docker on the same system as Ella Core can cause containers to lose connectivity to each other, because an `inet filter` nftables table takes precedence over the rules Docker installs. The symptom is that every integration scenario fails to reach the core (`no N2 peer reachable`, `no S1-MME peer reachable`) while `docker compose up` and the host-published API port still work. `iptables -L` does not show the offending table. Restore Docker networking with:
 
 ```shell
-sudo iptables -I DOCKER-USER -i lxdbr0 -j ACCEPT
-sudo iptables -I DOCKER-USER -o lxdbr0 -j ACCEPT
+sudo nft delete table inet filter
 ```

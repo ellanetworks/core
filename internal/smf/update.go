@@ -140,10 +140,6 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		if pti != 0 {
-			smContext.ueParams.ModificationDone = true
-		}
-
 		if smContext.pendingPolicy != nil {
 			smContext.PolicyData = smContext.pendingPolicy
 			smContext.pendingPolicy = nil

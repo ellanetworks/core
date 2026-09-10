@@ -30,7 +30,7 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.BearerResourceAllocationRequest:
 		return handleBearerResourceAllocationRequest(ctx, ue, ueConn, msg)
 	case *eps.BearerResourceModificationRequest:
-		return handleBearerResourceModificationRequest(ctx, m, ue, ueConn, msg)
+		return handleBearerResourceModificationRequest(ctx, ue, ueConn, msg)
 	case *eps.ActivateDefaultEPSBearerContextAccept:
 		return handleActivateDefaultBearerAccept(ctx, m, ue, msg)
 	case *eps.ActivateDefaultEPSBearerContextReject:
