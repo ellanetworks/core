@@ -137,7 +137,6 @@ func neighbourFor(ifindex int, ip net.IP) netlink.Neigh {
 	return netlink.Neigh{
 		LinkIndex: ifindex,
 		IP:        ip,
-		Flags:     netlink.NTF_EXT_LEARNED,
 		FlagsExt:  netlink.NTF_EXT_MANAGED,
 	}
 }

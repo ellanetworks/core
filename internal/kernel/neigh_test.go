@@ -139,12 +139,8 @@ func TestNexthopsFromRoutes_NoRoutes(t *testing.T) {
 	}
 }
 
-func TestSetNeighbourFlags(t *testing.T) {
+func TestNeighbourForIsKernelManaged(t *testing.T) {
 	n := neighbourFor(7, net.ParseIP("33.33.33.7"))
-
-	if n.Flags&netlink.NTF_EXT_LEARNED == 0 {
-		t.Error("entry must carry NTF_EXT_LEARNED so the kernel exempts it from garbage collection")
-	}
 
 	if n.FlagsExt&netlink.NTF_EXT_MANAGED == 0 {
 		t.Error("entry must carry NTF_EXT_MANAGED so the kernel auto-refreshes it")
