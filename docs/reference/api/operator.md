@@ -4,11 +4,11 @@ description: RESTful API reference for managing the Operator Information - ID, T
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Tracking Information, Operator Code (OP), NAS Security Algorithms, and the Service Provider Name (SPN).
+The Operator API provides endpoints to manage the Operator Information used to identify the operator: MCC, MNC, Tracking information, OP, NAS security algorithms and Service Provider Name.
 
 ## Get Operator Information
 
-This path returns the complete operator information. This includes the Operator ID and Tracking Information. The Operator Code is never returned.
+This path returns the complete operator information.
 
 | Method | Path               |
 | ------ | ------------------ |
@@ -79,7 +79,7 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 
 ## Update the Operator Tracking Information
 
-This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator. Radios will need to be configured with one or more of these TACs to connect to the network.
+This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator.
 
 | Method | Path                        |
 | ------ | --------------------------- |
@@ -123,7 +123,7 @@ This path updates the Operator Code (OP). The OP is a 32-character hexadecimal s
 
 ## Create a Home Network Key
 
-Adds a new home network key for SUCI de-concealment. The key is identified by a (keyIdentifier, scheme) pair. Profile A keys use Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
+This path adds a new home network key for SUCI de-concealment. The key is identified by a (keyIdentifier, scheme) pair. Profile A keys use Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |
@@ -147,7 +147,7 @@ Adds a new home network key for SUCI de-concealment. The key is identified by a 
 
 ## Get a Home Network Key's Private Key
 
-Returns the private key for a home network key. This is a sensitive operation that is recorded in the audit log. Only administrators and network managers can access this endpoint.
+This path returns the private key for a home network key. This is a sensitive operation that is recorded in the audit log. Only administrators and network managers can access this endpoint.
 
 | Method | Path                                                      |
 | ------ | --------------------------------------------------------- |
@@ -169,7 +169,7 @@ Returns the private key for a home network key. This is a sensitive operation th
 
 ## Delete a Home Network Key
 
-Removes a home network key. UEs using this key will no longer be able to register.
+This path removes a home network key. UEs using this key will no longer be able to register.
 
 | Method | Path                                        |
 | ------ | ------------------------------------------- |
@@ -202,7 +202,13 @@ This path updates the NAS security algorithm preference order for ciphering and 
 - `ciphering` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
 - `integrity` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
 
-These algorithm names are RAT-neutral: Ella Core signals them as NEA/NIA to 5G subscribers and as EEA/EIA to 4G subscribers (`NULL` → NEA0/EEA0, `SNOW3G` → NEA1/EEA1, `AES` → NEA2/EEA2).
+These algorithm names are RAT-neutral: Ella Core signals them as NEA/NIA to 5G subscribers and as EEA/EIA to 4G subscribers.
+
+| Name | 5G | 4G |
+| ---- | -- | -- |
+| `NULL` | NEA0 / NIA0 | EEA0 / EIA0 |
+| `SNOW3G` | 128-NEA1 / 128-NIA1 | 128-EEA1 / 128-EIA1 |
+| `AES` | 128-NEA2 / 128-NIA2 | 128-EEA2 / 128-EIA2 |
 
 ### Sample Request
 

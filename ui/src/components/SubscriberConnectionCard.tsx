@@ -65,58 +65,27 @@ const InfoRow: React.FC<{
   );
 };
 
-// 5G uses NEA/NIA names; 4G uses EEA/EIA (TS 33.401 §5).
-const CIPHERING_LABELS: Record<string, string> = {
-  NEA0: "NEA0",
-  NEA1: "NEA1",
-  NEA2: "NEA2",
-  NEA3: "NEA3",
-  EEA0: "EEA0",
-  EEA1: "EEA1",
-  EEA2: "EEA2",
-  EEA3: "EEA3",
-};
-
-const INTEGRITY_LABELS: Record<string, string> = {
-  NIA0: "NIA0",
-  NIA1: "NIA1",
-  NIA2: "NIA2",
-  NIA3: "NIA3",
-  EIA0: "EIA0",
-  EIA1: "EIA1",
-  EIA2: "EIA2",
-  EIA3: "EIA3",
-};
-
 /** NEA0/NIA0 (5G) and EEA0/EIA0 (4G) are null ciphering/integrity. */
 const INSECURE_ALGS = new Set(["NEA0", "NIA0", "EEA0", "EIA0"]);
 
 const AlgorithmChip: React.FC<{
   kind: string;
   alg?: string;
-  labels: Record<string, string>;
-}> = ({ kind, alg, labels }) => {
+}> = ({ kind, alg }) => {
   if (!alg) return null;
 
-  const display = labels[alg] ?? alg;
   const isInsecure = INSECURE_ALGS.has(alg);
 
   return (
     <Chip
       size="small"
-      icon={
-        isInsecure ? (
-          <WarningAmberIcon
-            sx={{ fontSize: 14, color: "warning.contrastText" }}
-          />
-        ) : undefined
-      }
+      icon={isInsecure ? <WarningAmberIcon sx={{ fontSize: 14 }} /> : undefined}
       label={
         <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
           <Box component="span" sx={{ opacity: 0.85, fontWeight: 400 }}>
             {kind}:
           </Box>
-          <Box component="span">{display}</Box>
+          <Box component="span">{alg}</Box>
         </Box>
       }
       sx={{
@@ -126,7 +95,8 @@ const AlgorithmChip: React.FC<{
         ...(isInsecure
           ? {
               backgroundColor: "warning.main",
-              color: "warning.contrastText",
+              color: "common.black",
+              "& .MuiChip-icon": { color: "common.black" },
             }
           : {
               backgroundColor: "success.main",
@@ -164,12 +134,10 @@ const ConnectionChip: React.FC<{ state?: ConnectionState }> = ({ state }) => {
   );
 };
 
-const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
-  accessTypes,
-}) => (
+const SystemChips: React.FC<{ systems: string[] }> = ({ systems }) => (
   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-    {accessTypes.map((accessType) => (
-      <AccessChip key={accessType} label={accessType} />
+    {systems.map((system) => (
+      <AccessChip key={system} label={system} />
     ))}
   </Box>
 );
@@ -184,20 +152,8 @@ const SecurityAlgorithmsValue: React.FC<{
     <Box
       sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
     >
-      {ciphering && (
-        <AlgorithmChip
-          kind="Ciphering"
-          alg={ciphering}
-          labels={CIPHERING_LABELS}
-        />
-      )}
-      {integrity && (
-        <AlgorithmChip
-          kind="Integrity"
-          alg={integrity}
-          labels={INTEGRITY_LABELS}
-        />
-      )}
+      {ciphering && <AlgorithmChip kind="Ciphering" alg={ciphering} />}
+      {integrity && <AlgorithmChip kind="Integrity" alg={integrity} />}
     </Box>
   );
 };
@@ -205,7 +161,7 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
 }) => {
-  const accessTypes = status.radio_access_types ?? [];
+  const systems = status.systems ?? [];
 
   return (
     <Card
@@ -224,10 +180,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="Connection"
           value={<ConnectionChip state={status.connection_state} />}
         />
-        {accessTypes.length > 0 && (
+        {systems.length > 0 && (
           <InfoRow
-            label={accessTypes.length > 1 ? "Access Types" : "Access Type"}
-            value={<AccessTypeChips accessTypes={accessTypes} />}
+            label={systems.length > 1 ? "Systems" : "System"}
+            value={<SystemChips systems={systems} />}
           />
         )}
         <InfoRow label="IMEI" value={status.imei} />

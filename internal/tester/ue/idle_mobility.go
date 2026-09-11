@@ -70,6 +70,7 @@ type IdleRegistrationOpts struct {
 	EPSNASMessageContainer []byte
 	PDUSessionStatus       *[16]bool
 	UplinkDataStatus       *[16]bool
+	EPSBearerContextStatus *nas.EPSBearerContextStatus
 	Mapped                 MappedFromEPSIdle
 }
 
@@ -95,6 +96,7 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 	if native != nil {
 		cleartext.PDUSessionStatus = opts.PDUSessionStatus
 		cleartext.UplinkDataStatus = opts.UplinkDataStatus
+		cleartext.EPSBearerContextStatus = opts.EPSBearerContextStatus
 		cleartext.IncludeCapability = true
 		cleartext.InitialNASMessage = true
 	} else {
@@ -157,6 +159,7 @@ func (ue *UE) armReplay(opts IdleRegistrationOpts) error {
 		EPSNASMessageContainer: opts.EPSNASMessageContainer,
 		GMMCapability:          &fgs.GMMCapability{RestrictEC: true, LPP: true, HOAttach: true, S1Mode: true},
 		UESecurityCapability:   &ue.UeSecurity.UeSecurityCapability,
+		EPSBearerContextStatus: opts.EPSBearerContextStatus,
 	}
 
 	if opts.PDUSessionStatus != nil {
@@ -179,6 +182,7 @@ func (ue *UE) armReplay(opts IdleRegistrationOpts) error {
 	}
 
 	ue.replayRegistration = replayBytes
+	ue.replayPending = true
 
 	return nil
 }

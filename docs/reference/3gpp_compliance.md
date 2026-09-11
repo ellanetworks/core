@@ -4,11 +4,11 @@ description: The 3GPP procedures, interfaces, and capabilities Ella Core impleme
 
 # 3GPP Compliance
 
-Ella Core implements 3GPP-standard interfaces for 4G and 5G SA.
+Ella Core implements 3GPP-standard interfaces for signalling.
 
 !!! note
 
-    Need a procedure or capability that is not supported for a production deployment? Open an [enhancement proposal](https://github.com/ellanetworks/core/issues/new?template=enhancement_proposal.yml) and tell us about your use case.
+    Open an [enhancement proposal](https://github.com/ellanetworks/core/issues/new?template=enhancement_proposal.yml) if you notice a 3GPP-compliance gap or require a new capability for a production deployment.
 
 ## Supported
 
@@ -49,12 +49,12 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Subscriber identity concealment.** SUCI with the null scheme, Profile A, and Profile B, on 5G.
 - **Ciphering and integrity.** The null, SNOW 3G, and AES algorithms: EEA0/1/2 and EIA0/1/2 on 4G, NEA0/1/2 and NIA0/1/2 on 5G.
 
-### Location
+### Location (beta)
 
-Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. See the [Location API](api/location.md), which is beta.
+Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. See the [Location API](api/location.md).
 
 ## Limitations
 
-- **No voice.** Ella Core provides no IMS, VoLTE, or VoNR.
+- **No voice.** Ella Core provides no VoLTE, or VoNR, or IMS integration.
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
-- **No roaming.** Ella Core is a self-contained core for a single network; there is no S6a, S8, or inter-operator interface.
+- **No roaming.** Ella Core does not support roaming between networks.

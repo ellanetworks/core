@@ -13,26 +13,16 @@ You will need a Linux machine with the following software installed:
 - Npm
 - Rockcraft
 
-### 1. Setup local Docker registry
+### 1. Build and Deploy Ella
 
-Create a local registry
-
-```shell
-docker run -d -p 5000:5000 --name registry registry:2
-```
-
-### 2. Build and Deploy Ella
-
-Build the image and push it to the local registry
+Build the image and load it into Docker
 
 ```shell
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.16.0_amd64.rock docker-daemon:ella-core:latest
-docker tag ella-core:latest localhost:5000/ella-core:latest
-docker push localhost:5000/ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.17.0_amd64.rock docker-daemon:ella-core:latest
 ```
 
-### 3. Run the integration tests
+### 2. Run the integration tests
 
 ```shell
 INTEGRATION=1 go test ./integration/... -v
@@ -93,7 +83,7 @@ uvx --with-requirements requirements-docs.txt mkdocs build
 ```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.16.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.17.0_amd64.rock docker-daemon:ella-core:latest
 docker run ella-core:latest
 ```
 
@@ -122,9 +112,8 @@ Ella Core's frontend is built with [Vite](https://vite.dev/) and static files ar
 
 ### Troubleshooting
 
-Restore LXD bridge connectivity when Docker is running on the same system:
+Running Docker on the same system as Ella Core can cause containers to lose connectivity to each other, because an `inet filter` nftables table takes precedence over the rules Docker installs. The symptom is that every integration scenario fails to reach the core (`no N2 peer reachable`, `no S1-MME peer reachable`) while `docker compose up` and the host-published API port still work. `iptables -L` does not show the offending table. Restore Docker networking with:
 
 ```shell
-sudo iptables -I DOCKER-USER -i lxdbr0 -j ACCEPT
-sudo iptables -I DOCKER-USER -o lxdbr0 -j ACCEPT
+sudo nft delete table inet filter
 ```

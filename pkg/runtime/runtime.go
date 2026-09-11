@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/drain"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -170,7 +171,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if cfg.Cluster.Enabled {
 		dataDir := filepath.Dir(cfg.DB.Path)
 
-		restored, err := maybeRestoreFromBundle(dataDir)
+		restored, err := maybeRestoreFromBundle(cfg.DB.Path)
 		if err != nil {
 			return fmt.Errorf("restore bundle: %w", err)
 		}
@@ -554,6 +555,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
 
+	drainWakeup, stopDrainWakeup := dbInstance.Changefeed().Wakeup(db.TopicClusterMembers)
+	defer stopDrainWakeup()
+
+	drainReconciler := drain.New(dbInstance, bgpService, drainWakeup, mmeInstance, amfInstance)
+	drainReconciler.Start()
+
+	defer drainReconciler.Stop()
+
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   amf.NGAPPPID,
 		Name:   "NGAP",
@@ -742,7 +751,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 		if buildErr != nil {
 			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
 		} else {
-			for _, ran := range amfInstance.ConnectedRadios() {
+			for _, ran := range amfInstance.SetupCompleteRadios() {
 				ran.SendToRadio(ctx, amf.NGAPProcedureAMFStatusIndication, pkt)
 			}
 		}
@@ -896,29 +905,23 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 	return out, nil
 }
 
-// resolveN3Addresses scans the N3 interface and returns the first non-link-local
-// IPv4 and IPv6 addresses found. The configured address (cfg.Interfaces.N3.Address)
-// is used as the primary address for its family; the interface is then scanned
-// for an address of the other family.
 func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
-	if n3Interface.Address != "" {
-		if addr, err := netip.ParseAddr(n3Interface.Address); err == nil {
-			if addr.Is4() {
-				n3IPv4 = n3Interface.Address
-			} else {
-				n3IPv6 = n3Interface.Address
-			}
+	if n3Interface.AddressExplicit && n3Interface.Address != "" {
+		addr, err := netip.ParseAddr(n3Interface.Address)
+		if err != nil {
+			return "", ""
 		}
+
+		if addr.Is4() {
+			return n3Interface.Address, ""
+		}
+
+		return "", n3Interface.Address
 	}
 
-	ifaceName := n3Interface.Name
-	if n3Interface.VlanConfig != nil {
-		ifaceName = n3Interface.VlanConfig.MasterInterface
-	}
-
-	ips, err := getInterfaceIPs(ifaceName)
+	ips, err := getInterfaceIPs(n3Interface.Name)
 	if err != nil {
-		return n3IPv4, n3IPv6
+		return "", ""
 	}
 
 	for _, ipStr := range ips {

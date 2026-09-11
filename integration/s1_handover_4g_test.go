@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -24,9 +25,7 @@ import (
 // ACKNOWLEDGE → COMMAND → STATUS TRANSFER → NOTIFY) and switched the UPF downlink
 // to the target eNB only at notify (TS 36.413 §8.4, TS 23.401 §5.5.1.2.2).
 func TestIntegration4GS1Handover(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Handover4G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration4GS1Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -61,11 +60,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cleanupCancel()
 
-		for _, svc := range []string{"ella-core", "ella-core-tester"} {
-			if logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc); logErr == nil && t.Failed() {
-				t.Logf("=== %s logs ===\n%s", svc, logs)
-			}
-		}
+		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
 		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
 	})

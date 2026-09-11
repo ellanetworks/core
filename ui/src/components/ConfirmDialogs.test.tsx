@@ -90,11 +90,11 @@ describe("DrainNodeModal", () => {
     render();
 
     expect(dialog()).toHaveAccessibleName("Drain node 2?");
-    expect(screen.queryByText(/AMF Status Indication/)).not.toBeVisible();
+    expect(screen.queryByText(/stop selecting this node/)).not.toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /What this does/ }));
     await waitFor(() =>
-      expect(screen.getByText(/AMF Status Indication/)).toBeVisible(),
+      expect(screen.getByText(/stop selecting this node/)).toBeVisible(),
     );
   });
 
@@ -108,14 +108,14 @@ describe("DrainNodeModal", () => {
 
   it("passes the drain result to onSuccess and closes", async () => {
     const user = userEvent.setup();
-    api.post(PATH, () => ({ drainState: "drained" }));
+    api.post(PATH, () => ({ drainState: "draining" }));
     const { onClose, onSuccess } = render();
 
     await user.click(button(/^Drain$/));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0]).toMatchObject({
-      drainState: "drained",
+      drainState: "draining",
     });
     expect(onClose).toHaveBeenCalled();
   });

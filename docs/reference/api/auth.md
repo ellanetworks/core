@@ -8,7 +8,7 @@ This section describes the RESTful API for system user authentication.
 
 ## Login
 
-This path logs the user in and sets an httpOnly session cookie valid for 30 days.
+This path logs the user in and sets an `httpOnly` session cookie valid for 30 days.
 
 | Method | Path                 |
 | ------ | -------------------- |
@@ -57,7 +57,7 @@ None
 
 ## Lookup a JWT Token
 
-This path returns whether a JWT token is valid. The token must be sent in the `Authorization` header, like other authenticated requests.
+This path returns whether a JWT token is valid. The token must be sent in the `Authorization` header.
 
 | Method | Path                        |
 | ------ | --------------------------- |
@@ -79,7 +79,7 @@ None
 
 ## Rotate Secret
 
-Generates a new JWT signing secret. All existing user sessions are immediately invalidated — users must re-authenticate. API tokens (prefixed `ellacore_`) are not affected. Requires admin role.
+Generates a new JWT signing secret. All existing user sessions are immediately invalidated. API tokens (prefixed `ellacore_`) are not affected. Requires admin role.
 
 | Method | Path                           |
 | ------ | ------------------------------ |

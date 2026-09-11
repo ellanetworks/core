@@ -5,21 +5,19 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GDetach brings a real srsUE to EMM-REGISTERED, then stops it
 // (SIGTERM → srsUE switch-off → Detach Request) and verifies the MME runs the
 // detach: Detach Request → S1 UE Context Release with srsenb → context deletion.
 func TestIntegration4GDetach(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G detach integration runs in IPv4 mode only")

@@ -9,6 +9,7 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 

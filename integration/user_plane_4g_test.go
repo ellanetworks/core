@@ -5,12 +5,12 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GUserPlane attaches a real srsUE and verifies bidirectional
@@ -19,9 +19,7 @@ import (
 // decap and the PSC-less downlink GTP-U encapsulation end to end — the user
 // plane is broken if no replies come back.
 func TestIntegration4GUserPlane(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")
@@ -95,9 +93,7 @@ func TestIntegration4GUserPlane(t *testing.T) {
 // configures a global fd45:: address; forwarding is broken if no replies come.
 // The S1-U transport stays IPv4 (compose-dualstack.yaml adds IPv6 on N6 only).
 func TestIntegration4GUserPlaneIPv6(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs with IPv4 S1-U transport only")

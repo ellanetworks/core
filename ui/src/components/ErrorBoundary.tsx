@@ -3,6 +3,7 @@
 
 import React from "react";
 import { Alert, AlertTitle, Box, Button, Collapse, Link } from "@mui/material";
+import { PRODUCT } from "@/utils/product";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -54,9 +55,9 @@ class ErrorBoundary extends React.Component<
           }
         >
           <AlertTitle>Something went wrong in the interface</AlertTitle>
-          This page stopped responding because of an error in Ella Core&apos;s
-          web interface. Your network is unaffected. Reloading usually clears
-          it.
+          This page stopped responding because of an error in {PRODUCT.name}
+          &apos;s web interface. Your network is unaffected. Reloading usually
+          clears it.
           {detail && (
             <Box sx={{ mt: 1 }}>
               <Link

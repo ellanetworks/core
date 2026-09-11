@@ -18,23 +18,28 @@ These metrics are used to monitor the health of the Go runtime and garbage colle
 
 ### Custom metrics
 
-These metrics are used to monitor the health of the system and the performance of the network. These metrics start with the `app_` prefix. The following custom metrics are exposed by Ella Core:
+These metrics are used to monitor the health of the system and the performance of your private network. These metrics start with the `app_` prefix. The following custom metrics are exposed by Ella Core:
 
 | Metric | Description    | Type  |
 | ------------------- | --------- | --------- |
 | app_connected_radios            | Number of radios currently connected to Ella Core, labeled by `rat`.                  | Gauge   |
-| app_signaling_messages_total | Total radio signaling messages, labeled by `rat` (NGAP for 5G, S1AP for 4G), `direction` (inbound, outbound), and `type`. | Counter |
-| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat` (5GS, EPS).            | Gauge   |
+| app_signaling_messages_total | Total radio signaling messages, labeled by `rat`, `direction`, and `type`. | Counter |
+| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat`.            | Gauge   |
 | app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
 | app_sessions_total | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
-| app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` (5G PDU sessions, 4G EPS sessions) and `result`. | Counter |
+| app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` and `result`. | Counter |
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
-| app_upf_datapath_forward_total | Packets the data plane forwarded, with labels for direction (uplink, downlink) and the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in `xdp-native`, `xdp-generic` and `tcx`. | Counter |
-| app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
-| app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
-| app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
-| app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
+| app_upf_datapath_forward_total | Packets the data plane forwarded, labeled by `direction` and `action`. | Counter |
+| app_upf_datapath_drop_total | Packets the data plane did not forward, labeled by `direction` and reason. | Counter |
+| app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane labeled by `direction` and `result`. | Counter |
+| app_upf_bytes_total | Total number of bytes transmitted through the data plane, labeled by `direction`. This value includes the Ethernet header. | Counter |
+| app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio. | Gauge |
+| app_upf_bpf_map_max_entries | Capacity of a data plane BPF map, labeled by `map`. | Gauge |
+| app_upf_nat_evictions_total | Conntrack entries the data plane found evicted under load and re-created, labeled by the `direction`. | Counter |
+| app_upf_dl_buffer_capture_attempts_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`. | Counter |
+| app_upf_dl_buffer_evictions_total | Buffered downlink packets discarded before re-injection, labeled by `reason`. | Counter |
+| app_upf_ringbuf_events_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map`. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |
@@ -44,16 +49,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
 
 !!! note
-    When clustering is enabled, Ella Core also exports the full upstream [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`). These cover cluster state, leadership, replication, FSM apply latency, and snapshotting. The most useful ones for HA monitoring are:
-
-    - `raft_state_leader`, `raft_state_follower`, `raft_state_candidate` — counters incremented on each state transition. Rate indicates leadership flapping.
-    - `raft_leader_lastContact` — time since the leader last heard from a majority of peers (leader-only). Stale values indicate leader isolation.
-    - `raft_peers` — number of servers in the cluster configuration.
-    - `raft_fsm_apply` — FSM apply latency histogram. Covers the changeset apply path.
-    - `raft_replication_appendEntries_rpc`, `raft_replication_heartbeat` — per-peer replication latency, labeled by `peer_id`. Slow or absent values indicate an unhealthy follower.
-    - `raft_transition_heartbeat_timeout`, `raft_transition_leader_lease_timeout` — counters for failure-driven transitions.
-    - `raft_oldestLogAge` — age of the oldest retained log entry. Growing unbounded indicates snapshot/compaction is stuck.
-    - `raft_commitTime`, `raft_commitNumLogs` — commit latency and batch size on the leader.
+    When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).
 
 ## 2. Logs
 
@@ -133,7 +129,7 @@ Ella Core ships with [Grafana](https://grafana.com/) dashboards that you can imp
 
 ### Network Health 
 
-This dashboard uses Prometheus metrics to provide real-time visibility into all aspects of your mobile private network deployment, from radio connectivity and subscriber sessions to system performance and data plane throughput.
+This dashboard uses Prometheus metrics to provide real-time visibility into your mobile private network.
 
 <figure markdown="span">
   ![Network Health Dashboard](../images/dashboard_network_health.png){ width="800" }
@@ -146,7 +142,7 @@ This dashboard uses Prometheus metrics to provide real-time visibility into all 
 
 ### Deep Dive (for developers)
 
-This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and behavior of Ella Core at a granular level. We recommend running Grafana Alloy to collect all signals ([example configuration file](https://github.com/ellanetworks/core/tree/main/observability/alloy)). A complete [example observability stack](https://github.com/ellanetworks/core/tree/main/observability) (Grafana, Mimir, Loki, Tempo, Pyroscope) is provided as a Docker Compose setup.
+This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and internal behavior of Ella Core. We recommend running Grafana Alloy to collect all signals ([example configuration file](https://github.com/ellanetworks/core/tree/main/observability/alloy)). A complete [example observability stack](https://github.com/ellanetworks/core/tree/main/observability) (Grafana, Mimir, Loki, Tempo, Pyroscope) is provided as a Docker Compose setup.
 
 <figure markdown="span">
   ![Deep Dive Dashboard](../images/dashboard_deep_dive.png){ width="800" }

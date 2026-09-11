@@ -5,9 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GServiceRequest attaches a real srsUE, lets srsenb's inactivity
@@ -17,9 +18,7 @@ import (
 // ECM-CONNECTED) — no Paging and no user plane required (the GW buffers the
 // packet while the bearer re-establishes).
 func TestIntegration4GServiceRequest(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")

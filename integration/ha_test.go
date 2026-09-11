@@ -13,12 +13,11 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 func TestIntegrationHAClusterFormation(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -176,9 +175,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 }
 
 func TestIntegrationHAFollowerProxy(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -292,9 +289,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 }
 
 func TestIntegrationHALeaderFailure(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -504,9 +499,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 }
 
 func TestIntegrationHADrainLeadership(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -564,8 +557,8 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("DrainClusterMember failed: %v", err)
 	}
 
-	if drainResp.DrainState != "drained" {
-		t.Fatalf("expected drainState drained, got %q", drainResp.DrainState)
+	if drainResp.DrainState != "draining" && drainResp.DrainState != "drained" {
+		t.Fatalf("expected drainState draining or drained, got %q", drainResp.DrainState)
 	}
 
 	HALog(t, "drain accepted, waiting for new leader")
@@ -621,9 +614,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 }
 
 func TestIntegrationHAScaleUpDown(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -764,6 +755,10 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("failed to drain node 4: %v", err)
 	}
 
+	if err := waitForDrained(ctx, leader, 4); err != nil {
+		t.Fatalf("node 4 never completed its drain: %v", err)
+	}
+
 	err = leader.RemoveClusterMember(ctx, 4, false)
 	if err != nil {
 		t.Fatalf("failed to remove node 4 from cluster: %v", err)
@@ -873,9 +868,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 }
 
 func TestIntegrationHAQuorumRecovery(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -1057,9 +1050,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 //     accepts handshakes immediately on boot
 //   - fresh joiners authenticating against the restored cluster
 func TestIntegrationHADisasterRecovery(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -1316,9 +1307,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 // (bare-base rocks skip update-alternatives), so we use the absolute
 // path of the family-specific binary.
 func TestIntegrationHANetworkPartition(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

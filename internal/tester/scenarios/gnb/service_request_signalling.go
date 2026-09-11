@@ -66,7 +66,7 @@ func runServiceRequestSignalling(_ context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("UEContextReleaseProcedure after the signalling service request failed: %v", err)
 	}
 
-	_, err = gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
+	_, err = gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("the PDU session did not survive the signalling service request: %v", err)
 	}

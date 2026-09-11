@@ -46,6 +46,7 @@ var pinnedChangesetOps = map[string]int{
 	"DeleteUser":                       1,
 	"EditSubscriberSeqNum":             1,
 	"IncrementDailyUsage":              1,
+	"IncrementDailyUsageBatch":         1,
 	"InitClusterJoinHMACKey":           12,
 	"InitializeOperator":               1,
 	"InsertAuditLog":                   1,

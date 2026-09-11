@@ -4,9 +4,11 @@
 package smf
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
@@ -63,5 +65,45 @@ func TestHandleHandoverRequestAcknowledgeTransfer_BadInput(t *testing.T) {
 
 	if err := handleHandoverRequestAcknowledgeTransfer([]byte{0xff, 0xff}, smContext); err == nil {
 		t.Fatal("expected an error for undecodable transfer, got nil")
+	}
+}
+
+func TestModificationCompleteCommitsOnlyTheNetworkRequestedPolicy(t *testing.T) {
+	const uePTI = 6
+
+	current := &Policy{QosData: models.QosData{Var5qi: 9}}
+	pending := &Policy{QosData: models.QosData{Var5qi: 7}}
+
+	s := &SMF{}
+	smContext := &SMContext{SessionIdentity: SessionIdentity{PDUSessionID: 1}, PolicyData: current, pendingPolicy: pending}
+	smContext.MarkPTIInUse(networkRequestedPTI)
+	smContext.MarkPTIInUse(uePTI)
+
+	complete := func(pti uint8) []byte {
+		return []byte{uint8(fgs.EPD5GSM), smContext.PDUSessionID, pti, uint8(fgs.MsgPDUSessionModificationComplete)}
+	}
+
+	if _, err := s.handleUpdateN1Msg(context.Background(), complete(uePTI), smContext); err != nil {
+		t.Fatalf("handleUpdateN1Msg (UE-requested complete): %v", err)
+	}
+
+	if smContext.PolicyData != current {
+		t.Error("a UE-requested modification must not commit the network-requested policy (TS 24.501 §6.3.2.2)")
+	}
+
+	if smContext.pendingPolicy != pending {
+		t.Error("the network-requested procedure is still outstanding, so its pending policy must be kept")
+	}
+
+	if _, err := s.handleUpdateN1Msg(context.Background(), complete(networkRequestedPTI), smContext); err != nil {
+		t.Fatalf("handleUpdateN1Msg (network-requested complete): %v", err)
+	}
+
+	if smContext.PolicyData != pending {
+		t.Error("the network-requested complete must commit the pending policy")
+	}
+
+	if smContext.pendingPolicy != nil {
+		t.Error("the committed policy must be cleared")
 	}
 }

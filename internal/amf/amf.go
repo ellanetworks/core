@@ -162,7 +162,7 @@ type AMF struct {
 	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
 	lastSeen                 lastSeenStore
-	RelativeCapacity         int64
+	relativeCapacity         atomic.Uint32
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
 	T3502Value               time.Duration
@@ -459,7 +459,7 @@ func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Ra
 // retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
 // gNB repeating NG Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the gNB has already forgotten.
-func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio {
+func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) *Radio {
 	newID := util.RANNodeIDToModels(ranNodeID)
 	present := ranPresentFor(ranNodeID.Kind)
 
@@ -485,6 +485,8 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio 
 
 	radio.RanPresent = present
 	radio.RanID = &newID
+	radio.advertisedCapacity = &advertisedCapacity
+	radio.guamiUnavailableSent = false
 	amf.reg.Claim(key, radio)
 	amf.mu.Unlock()
 
@@ -596,6 +598,22 @@ func (amf *AMF) ConnectedRadios() []*Radio {
 	return amf.reg.Connected()
 }
 
+func (amf *AMF) SetupCompleteRadios() []*Radio {
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
+
+	connected := amf.reg.Connected()
+	out := make([]*Radio, 0, len(connected))
+
+	for _, ran := range connected {
+		if ran.RanID != nil {
+			out = append(out, ran)
+		}
+	}
+
+	return out
+}
+
 func (amf *AMF) CountRadios() int {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
@@ -623,6 +641,10 @@ func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
+
+	ran.advertisedCapacity = nil
+	ran.retryNotBefore = time.Time{}
+	ran.guamiUnavailableSent = false
 
 	amf.reg.Disconnect(ran.Conn, ran)
 }
@@ -708,7 +730,6 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		tmsi:                     etsi.NewTMSIAllocator(),
 		connIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
 		Name:                     "amf",
-		RelativeCapacity:         0xff,
 		TimeZone:                 localTimeZone(time.Now()),
 		T3502Value:               720 * time.Second,
 		T3512Value:               3600 * time.Second,
@@ -718,6 +739,8 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
+
+	a.relativeCapacity.Store(uint32(DefaultRelativeCapacity))
 
 	return a
 }
@@ -750,11 +773,11 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 
 	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
-		RanUeNgapID: ranUeNgapID,
 		conn:        radio.Conn,
 		amf:         a,
 	}
-	ueConn.setLog(radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)))
+	ueConn.setRanUeNgapID(ranUeNgapID)
+	ueConn.bindLog(radio.Log)
 
 	a.mu.Lock()
 	ueConn.setRadio(radioIDOf(radio), radio.name)
@@ -847,8 +870,8 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 
 	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
 		logger.SUPI(supi.String()),
-		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 	)
 
 	return nil

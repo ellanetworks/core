@@ -53,7 +53,8 @@ func s1apStreamForProcedure(p S1APProcedure) uint16 {
 	case S1APProcedureS1SetupResponse, S1APProcedureS1SetupFailure,
 		S1APProcedurePaging, S1APProcedureResetAcknowledge,
 		S1APProcedureErrorIndication,
-		S1APProcedureENBConfigUpdateAck, S1APProcedureENBConfigUpdateFailure:
+		S1APProcedureENBConfigUpdateAck, S1APProcedureENBConfigUpdateFailure,
+		S1APProcedureMMEConfigUpdate:
 		return S1apStreamNonUE
 	default:
 		return S1apStreamUE

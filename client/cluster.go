@@ -89,10 +89,6 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
-// DrainClusterMember drains the given node. The server runs the
-// node-local side-effects (AMF Status Indication, BGP stop), commits
-// drainState=drained through Raft, and transfers leadership when the
-// target is the current leader.
 func (c *Client) DrainClusterMember(ctx context.Context, nodeID int) (*DrainResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -113,9 +109,6 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID int) (*DrainResp
 	return &drainResp, nil
 }
 
-// ResumeClusterMember restarts the BGP speaker on the target (if BGP
-// is enabled) and clears drainState back to active. AMF Status
-// Indication and Raft leadership transfers are not reversed.
 func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -181,12 +174,6 @@ type MintJoinTokenResponse struct {
 	ExpiresAt int64  `json:"expiresAt"`
 }
 
-// MintClusterJoinToken mints a single-use HMAC-signed token that
-// authorises a joining node to register its self-signed cluster
-// certificate with the leader. The joining node puts the token in
-// its `cluster.join-token` config field; the leader's pinned
-// certificate fingerprint is embedded in the token so the joiner
-// pins the bootstrap TLS handshake directly to the leader's cert.
 func (c *Client) MintClusterJoinToken(ctx context.Context, opts *MintJoinTokenOptions) (*MintJoinTokenResponse, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("MintClusterJoinToken: opts must not be nil")

@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/probe"
@@ -14,14 +13,27 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/spf13/pflag"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	netRuleAllowedIMSI     = "001017271246610"
-	netRuleBlockedIMSI     = "001017271246611"
-	netRuleAllowedIPv6IMSI = "001017271246612"
-	netRuleBlockedIPv6IMSI = "001017271246613"
+	numNetRuleParallel = 5
+
+	netRuleAllowedIMSI     = "001017271246620"
+	netRuleBlockedIMSI     = "001017271246625"
+	netRuleAllowedIPv6IMSI = "001017271246630"
+	netRuleBlockedIPv6IMSI = "001017271246635"
 )
+
+func netRuleFixture(startIMSI string) scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, numNetRuleParallel)
+
+	for i := range numNetRuleParallel {
+		subs[i] = scenarios.DefaultSubscriberWith(nthIMSI(startIMSI, i), "")
+	}
+
+	return scenarios.FixtureSpec{Subscribers: subs}
+}
 
 type probeParams struct {
 	Protocol       string
@@ -41,12 +53,10 @@ func init() {
 		Name:      "s1enb/connectivity_expect_allowed",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIMSI, "s1enbnra0", true, false)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIMSI, "s1enbnra", true, false)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleAllowedIMSI, "")},
-			}
+			return netRuleFixture(netRuleAllowedIMSI)
 		},
 	})
 
@@ -54,12 +64,10 @@ func init() {
 		Name:      "s1enb/connectivity_expect_blocked",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIMSI, "s1enbnrb0", false, false)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIMSI, "s1enbnrb", false, false)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleBlockedIMSI, "")},
-			}
+			return netRuleFixture(netRuleBlockedIMSI)
 		},
 	})
 
@@ -67,12 +75,10 @@ func init() {
 		Name:      "s1enb/connectivity_expect_allowed_ipv6",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIPv6IMSI, "s1enbnra6", true, true)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIPv6IMSI, "s1enbnrav6", true, true)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleAllowedIPv6IMSI, "")},
-			}
+			return netRuleFixture(netRuleAllowedIPv6IMSI)
 		},
 	})
 
@@ -80,23 +86,49 @@ func init() {
 		Name:      "s1enb/connectivity_expect_blocked_ipv6",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIPv6IMSI, "s1enbnrb6", false, true)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIPv6IMSI, "s1enbnrbv6", false, true)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleBlockedIPv6IMSI, "")},
-			}
+			return netRuleFixture(netRuleBlockedIPv6IMSI)
 		},
 	})
 }
 
-func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed, ipv6 bool) error {
-	proto, err := probe.ParseProtocol(params.Protocol)
+func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, startIMSI, tunIfacePrefix string, expectAllowed, ipv6 bool) error {
+	e, err := startENBWithDatapath(env)
 	if err != nil {
-		return err
+		return fmt.Errorf("start eNB: %w", err)
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	defer func() { _ = e.Close() }()
+
+	eg := errgroup.Group{}
+
+	for i := range numNetRuleParallel {
+		eg.Go(func() error {
+			return runS1ENBNetworkRuleUE(
+				ctx, e, params,
+				nthIMSI(startIMSI, i),
+				fmt.Sprintf("%s%d", tunIfacePrefix, i),
+				netRuleSourcePorts(params.SourcePortBase, i),
+				expectAllowed, ipv6,
+			)
+		})
+	}
+
+	return eg.Wait()
+}
+
+func netRuleSourcePorts(base, ue int) int {
+	if base == 0 {
+		return 0
+	}
+
+	return base + ue*probe.AttemptCount
+}
+
+func runS1ENBNetworkRuleUE(ctx context.Context, e *s1enb.ENB, params *probeParams, imsi, tunIface string, srcPortBase int, expectAllowed, ipv6 bool) error {
+	proto, err := probe.ParseProtocol(params.Protocol)
 	if err != nil {
 		return err
 	}
@@ -105,24 +137,6 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 	if err != nil {
 		return err
 	}
-
-	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
-	if err != nil {
-		return fmt.Errorf("parse eNB ID %q: %w", scenarios.DefaultGNBID, err)
-	}
-
-	g := env.FirstGNB()
-
-	e, err := s1enb.Start(&s1enb.StartOpts{
-		ENBID: uint32(enbID), MCC: scenarios.DefaultMCC, MNC: scenarios.DefaultMNC, TAC: scenarios.DefaultTAC,
-		Name: s1enbName, CoreS1MMEAddress: s1mme,
-		ENBAddress: g.N2Address, ENBN3Address: g.N3Address, EnableDatapath: true,
-	})
-	if err != nil {
-		return fmt.Errorf("start eNB: %w", err)
-	}
-
-	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(imsi, k, opc)
 	if ipv6 {
@@ -168,12 +182,11 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 		if err := s1enb.WaitForULAAddr(tunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
 			return fmt.Errorf("await SLAAC address: %w", err)
 		}
-	} else {
-		// Let the UPF program the downlink endpoint before probing.
-		time.Sleep(500 * time.Millisecond)
 	}
 
-	probeErr := probe.RunFromSourcePorts(ctx, proto, tunIface, dst, scenarios.DefaultProbePort, ipv6, params.SourcePortBase)
+	awaitDownlinkReady()
+
+	probeErr := probe.RunFromSourcePorts(ctx, proto, tunIface, dst, scenarios.DefaultProbePort, ipv6, srcPortBase)
 
 	if expectAllowed && probeErr != nil {
 		return fmt.Errorf("%s probe to %s was blocked but expected to be allowed: %w", proto, dst, probeErr)

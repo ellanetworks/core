@@ -43,7 +43,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if amfInstance.FindUEByRanUeNgapID(ran, targetUeConn.RanUeNgapID) != nil {
+	if amfInstance.FindUEByRanUeNgapID(ran, targetUeConn.RanUeNgapID()) != nil {
 		t.Fatal("expected target UeConn to be removed after release complete")
 	}
 }
@@ -70,7 +70,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if amfInstance.FindUEByRanUeNgapID(ran, ueConn.RanUeNgapID) != nil {
+	if amfInstance.FindUEByRanUeNgapID(ran, ueConn.RanUeNgapID()) != nil {
 		t.Fatal("expected UeConn to be removed after release complete")
 	}
 }

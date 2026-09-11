@@ -20,6 +20,8 @@ import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
+import { PRODUCT } from "@/utils/product";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -82,11 +84,9 @@ export default function Profile() {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-        My Profile
-      </Typography>
+      <PageTitle title="My Profile" sx={{ mb: 1 }} />
       <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
-        Manage how you authenticate with Ella Core.
+        Manage how you authenticate with {PRODUCT.name}.
       </Typography>
 
       <Box

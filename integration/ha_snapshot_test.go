@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHASnapshotInstallOnNewJoiner forces a Raft snapshot
@@ -22,9 +23,7 @@ import (
 // up by log replay), reads pre-snapshot rows locally, and continues to
 // replicate writes after the install.
 func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 

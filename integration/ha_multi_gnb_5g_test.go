@@ -15,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register the multi/cluster_traffic_5g scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
@@ -26,9 +27,7 @@ import (
 // allocator under cross-node contention, and per-core UPF locality
 // for GTP-U termination.
 func TestIntegration5GMultiGNB(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.Datapath5G)
 
 	if f := DetectIPFamily(); f == IPv6Only || f == DualStack {
 		t.Skipf("skipping: TestIntegration5GMultiGNB is IPv4-only (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -253,8 +252,19 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 				t.Fatalf("GetSubscriber(%s) on %s: %v", imsi, gn.service, err)
 			}
 
-			if !sub.Status.Registered {
-				t.Errorf("%s: subscriber %s: expected Registered=true, got false", gn.service, imsi)
+			registered := false
+
+			for _, reg := range sub.Registrations {
+				if reg.System == "5G" && reg.Registered {
+					registered = true
+
+					break
+				}
+			}
+
+			if !registered {
+				t.Errorf("%s: subscriber %s: expected a registered 5G registration, got %+v",
+					gn.service, imsi, sub.Registrations)
 			}
 
 			if len(sub.Sessions) == 0 {

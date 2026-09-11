@@ -179,6 +179,11 @@ func handle5GSMPayload(ue *UE, payload []byte, amfUENGAPID int64, ranUENGAPID in
 		if err != nil {
 			return fmt.Errorf("could not handle PDU Session Release Command: %v", err)
 		}
+	case fgs.MsgPDUSessionModificationCommand:
+		err := handlePDUSessionModificationCommand(ue, payload, amfUENGAPID, ranUENGAPID)
+		if err != nil {
+			return fmt.Errorf("could not handle PDU Session Modification Command: %v", err)
+		}
 	default:
 		logger.UeLogger.Warn("5GSM message type not implemented", zap.String("Message Type", getGSMMessageName(pcMsgType)))
 	}

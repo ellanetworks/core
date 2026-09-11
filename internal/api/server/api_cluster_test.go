@@ -463,8 +463,8 @@ func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
 		t.Fatalf("get member: %s", err)
 	}
 
-	if member.DrainState != db.DrainStateDrained {
-		t.Errorf("expected drainState=%s, got %s", db.DrainStateDrained, member.DrainState)
+	if member.DrainState != db.DrainStateDraining {
+		t.Errorf("expected drainState=%s, got %s", db.DrainStateDraining, member.DrainState)
 	}
 
 	// Resume clears the state back to active.
@@ -566,7 +566,7 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 		t.Fatalf("upsert self: %s", err)
 	}
 
-	if err := env.DB.SetDrainState(ctx, self, db.DrainStateDrained); err != nil {
+	if err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
 		t.Fatalf("seed drained state: %s", err)
 	}
 
@@ -579,8 +579,8 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 		t.Fatalf("expected 200 on idempotent drain, got %d (body: %s)", status, body)
 	}
 
-	if !strings.Contains(body, `"drainState":"drained"`) {
-		t.Errorf("expected drainState=drained in body, got %s", body)
+	if !strings.Contains(body, `"drainState":"draining"`) {
+		t.Errorf("expected drainState=draining in body, got %s", body)
 	}
 }
 

@@ -21,15 +21,14 @@
 
 #pragma once
 
-#include "bpf/utils/flow.h"
-#include "bpf/utils/routing.h"
-#include "bpf/utils/trace.h"
-#include "bpf/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
 #include "bpf/utils/common.h"
-#include "bpf/utils/frag_needed.h"
+#include "bpf/utils/routing.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/profiling.h"
+#include "bpf/utils/flow.h"
 #include "bpf/utils/gtp.h"
 #include "bpf/utils/tailcall.h"
 #include "bpf/utils/pdr.h"
@@ -39,6 +38,9 @@
 #include "bpf/utils/urr.h"
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/rs_event.h"
+#include "bpf/utils/nocp.h"
+#include "bpf/utils/ringbuf_lost.h"
+#include "bpf/utils/dl_buffer.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -179,6 +181,17 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	ctx->interface = INTERFACE_N6;
 
 	if (dl_far->action & (FAR_BUFF | FAR_NOCP)) {
+		struct nocp notif = { .local_seid = dl_pdr->local_seid,
+				      .pdr_id = dl_pdr->pdr_id,
+				      .qfi = dl_qer->qfi };
+		ringbuf_submit(&nocp_map, &notif, sizeof(struct nocp),
+			       RINGBUF_NOCP);
+
+		dl_buffer_capture(ctx, dl_pdr, dl_qer,
+				  ctx->ip4 ? (const void *)ctx->ip4 :
+					     (const void *)ctx->ip6,
+				  ctx->ip4 ? 4 : 6);
+
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(dl_far->action & FAR_FORW)) {
@@ -197,7 +210,9 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	}
 	if (dl_qer->dl_maximum_bitrate != 0) {
 		const __u64 packet_size =
-			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
+			ctx_len_from(ctx->ctx_buff, ctx->data_end,
+				     ctx->ip4 ? (const void *)ctx->ip4 :
+						(const void *)ctx->ip6);
 		struct qer_window *window =
 			qer_window_for(dl_pdr->local_seid, dl_pdr->qer_id);
 		if (window &&
@@ -245,6 +260,8 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	if (ctx_action_forwards(tunnel_ret)) {
 		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, dl_pdr->local_seid, dl_pdr->urr_id,
+				 billed_bytes);
+		update_urr_bytes(ctx, ul_pdr->local_seid, ul_pdr->urr_id,
 				 billed_bytes);
 	}
 
@@ -400,8 +417,8 @@ handle_gtp_packet(struct packet_context *ctx)
 				};
 				__builtin_memcpy(&ev.ue_ipv6, &ctx->ip6->saddr,
 						 sizeof(struct in6_addr));
-				bpf_ringbuf_output(&rs_event_map, &ev,
-						   sizeof(ev), 0);
+				ringbuf_submit(&rs_event_map, &ev,
+					       sizeof(ev), RINGBUF_RS_EVENT);
 				PROFILE_END(PROF_N3_GTP_MANIP);
 				return drop_with(ctx,
 						 UPF_DROP_RS_INTERCEPTED);
@@ -480,8 +497,6 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (dl_pdr) {
 			upf_printk("upf: local switch teid:%d", teid);
 			account_flow(ctx, n3_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
-			const __u64 ul_billed = ctx_full_len(ctx->ctx_buff);
-			update_urr_bytes(ctx, pdr->local_seid, pdr->urr_id, ul_billed);
 			const __u32 lskey = 0;
 			struct pdr_info *ul_stash =
 				bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);

@@ -44,6 +44,10 @@ type Radio struct {
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
 	Log            *zap.Logger
+
+	advertisedCapacity   *uint8
+	retryNotBefore       time.Time
+	guamiUnavailableSent bool
 }
 
 // UpdateRadioName sets a radio's RAN node name under the registry lock, so a
@@ -239,7 +243,7 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) 
 	defer a.mu.RUnlock()
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID == ranUeNgapID {
+		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			return ueConn
 		}
 	}
@@ -253,7 +257,8 @@ func (a *AMF) UpdateUERanNgapID(ueConn *UeConn, newRanUeNgapID models.RanUeNgapI
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ueConn.RanUeNgapID = newRanUeNgapID
+	ueConn.setRanUeNgapID(newRanUeNgapID)
+	ueConn.refreshLog()
 }
 
 func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID models.AmfUeNgapID) *UeConn {

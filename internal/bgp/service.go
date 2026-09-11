@@ -717,6 +717,10 @@ func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
 	origin := bgppacket.NewPathAttributeOrigin(0) // IGP
 
 	if prefix.Addr().Is6() {
+		if !b.n6AddrV6.IsValid() {
+			return nil, fmt.Errorf("no IPv6 next-hop: the N6 interface has no global IPv6 address")
+		}
+
 		mpReach, err := bgppacket.NewPathAttributeMpReachNLRI(
 			family,
 			[]bgppacket.PathNLRI{{NLRI: nlri}},
@@ -731,6 +735,10 @@ func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
 			Nlri:   nlri,
 			Attrs:  []bgppacket.PathAttributeInterface{origin, mpReach},
 		}, nil
+	}
+
+	if !b.n6AddrV4.IsValid() {
+		return nil, fmt.Errorf("no IPv4 next-hop: the N6 interface has no IPv4 address")
 	}
 
 	nextHop, err := bgppacket.NewPathAttributeNextHop(b.n6AddrV4)

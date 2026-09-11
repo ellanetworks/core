@@ -151,13 +151,14 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	pduSessionStatus, err := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
-	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "synchronise PDU session status", err)
-		return
-	}
+	pduSessionStatus := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
 
 	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-	_ = amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+	initialContextSetup := false
+	if ueConn := ue.Conn(); ueConn != nil {
+		_, initialContextSetup = ueConn.ClaimN2Setup(false)
+	}
+
+	_ = amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, nil, nil, nil, initialContextSetup, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 }

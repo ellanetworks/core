@@ -6,12 +6,12 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegrationHARemoveLeader drains and removes the current leader,
@@ -19,9 +19,7 @@ import (
 // throughout, and that the removed node is fenced from accepting
 // writes against itself.
 func TestIntegrationHARemoveLeader(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.HA)
 
 	beginHATest(t)
 
@@ -88,15 +86,20 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 		t.Fatalf("drain leader: %v", err)
 	}
 
-	if drainResp.DrainState != "drained" {
+	if drainResp.DrainState != "draining" && drainResp.DrainState != "drained" {
 		writer.stop()
-		t.Fatalf("drainState = %q, want drained", drainResp.DrainState)
+		t.Fatalf("drainState = %q, want draining or drained", drainResp.DrainState)
 	}
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		writer.stop()
 		t.Fatalf("no new leader after drain: %v", err)
+	}
+
+	if err := waitForDrained(ctx, newLeader, leaderNodeID); err != nil {
+		writer.stop()
+		t.Fatalf("drained leader never completed its drain: %v", err)
 	}
 
 	if err := newLeader.RemoveClusterMember(ctx, leaderNodeID, false); err != nil {

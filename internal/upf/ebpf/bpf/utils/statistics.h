@@ -48,4 +48,5 @@ struct upf_statistic {
 	__u64 forwarded_actions[UPF_MAX_ACTION];
 	/* Indexed by enum upf_drop_reason; aborts land here too. */
 	__u64 drop_reasons[UPF_DROP_REASON_MAX];
+	__u64 nat_evictions;
 };

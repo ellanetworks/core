@@ -472,7 +472,18 @@ func (ue *UE) buildServiceRequest() ([]byte, error) {
 // of the given EPS update type (TS 24.301 §8.2.29); activeFlag requests the
 // network re-establish the radio bearer.
 func (ue *UE) buildTrackingAreaUpdateRequest(updateType eps.EPSUpdateType, activeFlag bool, guti *eps.EPSMobileIdentity) ([]byte, error) {
-	plain, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: updateType, ActiveFlag: activeFlag, OldGUTI: *guti}).MarshalBinary()
+	return ue.buildTrackingAreaUpdateRequestWithBearerStatus(updateType, activeFlag, guti, nil)
+}
+
+func (ue *UE) buildTrackingAreaUpdateRequestWithBearerStatus(updateType eps.EPSUpdateType, activeFlag bool,
+	guti *eps.EPSMobileIdentity, status *nas.EPSBearerContextStatus,
+) ([]byte, error) {
+	plain, err := (&eps.TrackingAreaUpdateRequest{
+		EPSUpdateType:          updateType,
+		ActiveFlag:             activeFlag,
+		OldGUTI:                *guti,
+		EPSBearerContextStatus: status,
+	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build Tracking Area Update Request: %w", err)
 	}

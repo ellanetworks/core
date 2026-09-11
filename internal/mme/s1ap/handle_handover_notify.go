@@ -33,7 +33,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	admitted, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		if _, _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
-			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
 		}
 
 		return
@@ -52,7 +52,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released during the user-plane switch",
-			zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
+			zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
 
 		return
 	}
@@ -64,8 +64,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Notify",
-		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),
-		zap.Uint32("target-enb-ue-id", uint32(notify.ENBUES1APID)))
+		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
+		zap.Uint32("target_enb_ue_s1ap_id", uint32(notify.ENBUES1APID)))
 
 	if sourceConn == nil {
 		m.CompleteRelocation(ctx, ue)

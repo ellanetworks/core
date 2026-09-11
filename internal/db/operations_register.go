@@ -23,8 +23,9 @@ var (
 
 // Daily usage
 var (
-	opIncrementDailyUsage = registerChangesetOp("IncrementDailyUsage", (*Database).applyIncrementDailyUsage)
-	opClearDailyUsage     = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
+	opIncrementDailyUsage      = registerChangesetOp("IncrementDailyUsage", (*Database).applyIncrementDailyUsage)
+	opIncrementDailyUsageBatch = registerChangesetOpReturning[DailyUsageBatch, droppedDailyUsage]("IncrementDailyUsageBatch", (*Database).applyIncrementDailyUsageBatch)
+	opClearDailyUsage          = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
 )
 
 // IP leases. ip_leases.nodeID added in v9.
@@ -158,9 +159,9 @@ var (
 
 // Cluster members. cluster_members table introduced in v9.
 var (
-	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9))
+	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9))
-	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9))
+	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

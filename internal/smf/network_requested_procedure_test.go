@@ -320,3 +320,62 @@ func TestT3591StopsOnModificationComplete(t *testing.T) {
 		t.Error("expected PTI 0 cleared after Modification Complete")
 	}
 }
+
+func TestReleaseRequestIgnoredDuringRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(time.Hour))
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const firstPTI, secondPTI = 5, 6
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, firstPTI)); err != nil {
+		t.Fatalf("first release request: %v", err)
+	}
+
+	rsp, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, secondPTI))
+	if err != nil {
+		t.Fatalf("second release request: %v", err)
+	}
+
+	if rsp != nil && rsp.N1Msg != nil {
+		t.Errorf("the colliding request must be ignored, got a 5GSM answer % x", rsp.N1Msg)
+	}
+
+	if got := releaseCallCount(amfCb); got != 1 {
+		t.Errorf("ReleaseSession calls = %d, want 1 (TS 24.501 §6.3.3.5 c): the colliding request sends no second command)", got)
+	}
+
+	if smCtx.IsPTIInUse(secondPTI) {
+		t.Error("an ignored request starts no procedure, so its PTI stays free")
+	}
+
+	if !smCtx.IsPTIInUse(firstPTI) {
+		t.Error("the outstanding release keeps its PTI in use")
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Error("the outstanding release must proceed, not be restarted or abandoned")
+	}
+}
+
+func TestCollidingReleaseRequestDoesNotResetT3592(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := smf.New(pcf, store, upf, amfCb, smf.WithT3592(procedureTimerInterval))
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("first release request: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, 6)); err != nil {
+		t.Fatalf("second release request: %v", err)
+	}
+
+	waitFor(t, "session local release after T3592 expiry", func() bool { return s.GetSession(ref) == nil })
+
+	if got := releaseCallCount(amfCb); got != 5 {
+		t.Errorf("ReleaseSession calls = %d, want 5 (1 initial + 4 retransmissions); the colliding request must not restart the budget", got)
+	}
+}

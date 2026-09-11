@@ -57,29 +57,6 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	return nil
 }
 
-func (s *SMF) HandleUsageReport(ctx context.Context, report *models.UsageReport) error {
-	ctx, span := tracer.Start(ctx, "smf/handle_usage_report")
-	defer span.End()
-
-	smContext := s.GetSessionBySEID(report.SEID)
-	if smContext == nil || !smContext.Supi.IsIMSI() {
-		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
-	}
-
-	if err := s.store.IncrementDailyUsage(ctx, smContext.Supi.IMSI(), report.UplinkVolume, report.DownlinkVolume); err != nil {
-		return fmt.Errorf("failed to update data volume for imsi %s: %v", smContext.Supi.String(), err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Debug(
-		"Processed usage report",
-		logger.SUPI(smContext.Supi.String()),
-		logger.UplinkVolume(report.UplinkVolume),
-		logger.DownlinkVolume(report.DownlinkVolume),
-	)
-
-	return nil
-}
-
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/send_flow_reports",
 		trace.WithAttributes(attribute.Int("batch_size", len(reqs))),
@@ -116,6 +93,44 @@ func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequ
 	return nil
 }
 
-func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
-	return s.store.IncrementDailyUsage(ctx, imsi, uplinkBytes, downlinkBytes)
+func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageReport) error {
+	ctx, span := tracer.Start(ctx, "smf/handle_usage_reports")
+	defer span.End()
+
+	usages := make([]models.SubscriberUsage, 0, len(reports))
+
+	for _, report := range reports {
+		smContext := s.GetSessionBySEID(report.SEID)
+		if smContext == nil || !smContext.Supi.IsIMSI() {
+			logger.WithTrace(ctx, logger.SmfLog).Error(
+				"usage bytes lost: the SEID no longer resolves to a subscriber",
+				logger.SEID(report.SEID),
+				logger.UplinkVolume(report.UplinkVolume),
+				logger.DownlinkVolume(report.DownlinkVolume),
+			)
+
+			continue
+		}
+
+		usages = append(usages, models.SubscriberUsage{
+			IMSI:           smContext.Supi.IMSI(),
+			UplinkVolume:   report.UplinkVolume,
+			DownlinkVolume: report.DownlinkVolume,
+		})
+	}
+
+	if len(usages) == 0 {
+		return nil
+	}
+
+	if err := s.store.IncrementDailyUsageBatch(ctx, usages); err != nil {
+		return fmt.Errorf("failed to update data volume for %d subscribers: %w", len(usages), err)
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Debug(
+		"Processed usage reports",
+		zap.Int("subscribers", len(usages)),
+	)
+
+	return nil
 }

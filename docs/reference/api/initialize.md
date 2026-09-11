@@ -8,7 +8,7 @@ This section describes the RESTful API for initializing Ella Core. Initializatio
 
 ## Initialize the System
 
-This path initializes the system by creating the first admin user. This endpoint can only be called if no users exist in the system.
+This path initializes the system. This endpoint can only be called if no users exist in the system.
 
 | Method | Path            |
 | ------ | --------------- |

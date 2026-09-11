@@ -237,10 +237,10 @@ func runPinSubscriber(ctx context.Context, pki *pkiState, dbInstance *db.Databas
 	}
 }
 
-// maybeRestoreFromBundle extracts restore.bundle under dataDir when
-// present and ella.db does not yet exist.
-func maybeRestoreFromBundle(dataDir string) (bool, error) {
-	bundlePath := filepath.Join(dataDir, "restore.bundle")
+// maybeRestoreFromBundle extracts restore.bundle from the database
+// directory when present and the database file does not yet exist.
+func maybeRestoreFromBundle(dbPath string) (bool, error) {
+	bundlePath := filepath.Join(filepath.Dir(dbPath), "restore.bundle")
 
 	if _, err := os.Stat(bundlePath); err != nil {
 		if os.IsNotExist(err) {
@@ -250,15 +250,15 @@ func maybeRestoreFromBundle(dataDir string) (bool, error) {
 		return false, fmt.Errorf("stat restore.bundle: %w", err)
 	}
 
-	dbPath := filepath.Join(dataDir, db.DBFilename)
 	if _, err := os.Stat(dbPath); err == nil {
-		logger.EllaLog.Warn("ella.db already exists; ignoring restore.bundle",
-			zap.String("bundle", bundlePath))
+		logger.EllaLog.Warn("database file already exists; ignoring restore.bundle",
+			zap.String("bundle", bundlePath),
+			zap.String("path", dbPath))
 
 		return false, nil
 	}
 
-	if err := db.ExtractForRestore(bundlePath, dataDir); err != nil {
+	if err := db.ExtractForRestore(bundlePath, dbPath); err != nil {
 		return false, fmt.Errorf("extract restore bundle: %w", err)
 	}
 

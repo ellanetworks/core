@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/pki"
 )
@@ -71,8 +72,13 @@ func verifyConnection(pinFn PinFunc) func(tls.ConnectionState) error {
 // PeerNodeID returns the peer's nodeID by parsing the SPIFFE URI
 // SAN of its leaf. The leaf has already been pinned by
 // verifyConnection during the handshake, so no DB lookup is needed.
-func PeerNodeID(conn *tls.Conn) (int, error) {
-	state := conn.ConnectionState()
+func PeerNodeID(conn net.Conn) (int, error) {
+	tlsConn, ok := TLSConn(conn)
+	if !ok {
+		return 0, fmt.Errorf("cluster TLS: connection is not a cluster TLS connection")
+	}
+
+	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return 0, fmt.Errorf("cluster TLS: no peer certificates after handshake")
 	}
@@ -89,6 +95,6 @@ func peerNodeIDFromCert(cert *x509.Certificate) (int, error) {
 	return nodeID, nil
 }
 
-func (l *Listener) PeerNodeID(conn *tls.Conn) (int, error) {
+func (l *Listener) PeerNodeID(conn net.Conn) (int, error) {
 	return PeerNodeID(conn)
 }

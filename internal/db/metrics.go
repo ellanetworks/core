@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,50 +22,79 @@ var (
 	DBQueryDuration *prometheus.HistogramVec
 )
 
+const metricsCollectTimeout = 2 * time.Second
+
+type metricsCollector struct {
+	db *Database
+
+	storageDesc     *prometheus.Desc
+	ipTotalDesc     *prometheus.Desc
+	ipAllocatedDesc *prometheus.Desc
+}
+
+func newMetricsCollector(db *Database) *metricsCollector {
+	return &metricsCollector{
+		db: db,
+		storageDesc: prometheus.NewDesc(
+			"app_database_storage_bytes",
+			"Storage used by the Ella Core SQLite database file on disk, in bytes.",
+			nil,
+			nil,
+		),
+		ipTotalDesc: prometheus.NewDesc(
+			"app_ip_addresses_total",
+			"The total number of IP addresses available for subscribers",
+			nil,
+			nil,
+		),
+		ipAllocatedDesc: prometheus.NewDesc(
+			"app_ip_addresses_allocated_total",
+			"The total number of IP addresses currently allocated to subscribers",
+			nil,
+			nil,
+		),
+	}
+}
+
+func (c *metricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.storageDesc
+
+	ch <- c.ipTotalDesc
+
+	ch <- c.ipAllocatedDesc
+}
+
+func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
+	ctx, cancel := context.WithTimeout(context.Background(), metricsCollectTimeout)
+	defer cancel()
+
+	size, err := c.db.GetSize()
+	if err != nil {
+		logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.storageDesc, prometheus.GaugeValue, float64(size))
+	}
+
+	total, err := c.db.GetIPAddressesTotal(ctx)
+	if err != nil {
+		logger.MetricsLog.Warn("Failed to get total IP addresses", zap.Error(err))
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.ipTotalDesc, prometheus.GaugeValue, float64(total))
+	}
+
+	allocated, err := c.db.GetIPAddressesAllocated(ctx)
+	if err != nil {
+		logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
+	} else {
+		ch <- prometheus.MustNewConstMetric(c.ipAllocatedDesc, prometheus.GaugeValue, float64(allocated))
+	}
+}
+
 func RegisterMetrics(db *Database) {
 	if DBQueryDuration != nil {
 		// Already registered, skip
 		return
 	}
-
-	dbStorageUsed := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_database_storage_bytes",
-		Help: "Storage used by the Ella Core SQLite database file on disk, in bytes.",
-	}, func() float64 {
-		size, err := db.GetSize()
-		if err != nil {
-			logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
-			return 0
-		}
-
-		return float64(size)
-	})
-
-	ipAddressesTotal := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_ip_addresses_total",
-		Help: "The total number of IP addresses available for subscribers",
-	}, func() float64 {
-		total, err := db.GetIPAddressesTotal()
-		if err != nil {
-			logger.MetricsLog.Warn("Failed to get total IP addresses", zap.Error(err))
-			return 0
-		}
-
-		return float64(total)
-	})
-
-	ipAddressesAllocated := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_ip_addresses_allocated_total",
-		Help: "The total number of IP addresses currently allocated to subscribers",
-	}, func() float64 {
-		allocated, err := db.GetIPAddressesAllocated(context.Background())
-		if err != nil {
-			logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
-			return 0
-		}
-
-		return float64(allocated)
-	})
 
 	DBQueriesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -83,9 +113,7 @@ func RegisterMetrics(db *Database) {
 		[]string{"table", "operation"},
 	)
 
-	prometheus.MustRegister(dbStorageUsed)
-	prometheus.MustRegister(ipAddressesTotal)
-	prometheus.MustRegister(ipAddressesAllocated)
+	prometheus.MustRegister(newMetricsCollector(db))
 	prometheus.MustRegister(DBQueryDuration)
 	prometheus.MustRegister(DBQueriesTotal)
 }
@@ -100,8 +128,8 @@ func (db *Database) GetSize() (int64, error) {
 	return fileInfo.Size(), nil
 }
 
-func (db *Database) GetIPAddressesTotal() (int, error) {
-	dataNetworks, _, err := db.ListDataNetworksPage(context.Background(), 1, 1000)
+func (db *Database) GetIPAddressesTotal(ctx context.Context) (int, error) {
+	dataNetworks, err := db.ListAllDataNetworks(ctx)
 	if err != nil {
 		return 0, err
 	}

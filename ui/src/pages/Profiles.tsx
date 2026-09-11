@@ -106,9 +106,10 @@ const ProfilesPage: React.FC = () => {
         minWidth: 160,
       },
       {
-        field: "access",
-        headerName: "Access",
-        description: "Radio access technologies this profile permits (4G / 5G)",
+        field: "systems",
+        headerName: "Systems",
+        description:
+          "Systems this profile permits subscribers to use (4G / 5G)",
         flex: 0.6,
         minWidth: 110,
         renderCell: (params: GridRenderCellParams<APIProfile>) => (

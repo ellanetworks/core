@@ -68,8 +68,8 @@ func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 			t.Fatal("CommitPathSwitch must commit the staged NH chain")
 		}
 
-		if ueConn.RanUeNgapID != 99 {
-			t.Errorf("RanUeNgapID = %d, want 99", ueConn.RanUeNgapID)
+		if ueConn.RanUeNgapID() != 99 {
+			t.Errorf("RanUeNgapID = %d, want 99", ueConn.RanUeNgapID())
 		}
 
 		if ueConn.Radio() != target {

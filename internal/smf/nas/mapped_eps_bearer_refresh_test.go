@@ -18,7 +18,7 @@ func refreshedCommand(t *testing.T, ebi uint8, mapped *smfNas.MappedEPSQoS) *fgs
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("50 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 6, Arp: &models.Arp{PriorityLevel: 8}}
 
-	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qos, nil, ebi, mapped)
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, 0, ambr, qos, nil, ebi, mapped, nil)
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}

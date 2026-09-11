@@ -46,13 +46,8 @@ import { formatDateTime } from "@/utils/formatters";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import { Tooltip } from "@mui/material";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-
-const tableContainerSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-} as const;
+import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
@@ -318,34 +313,10 @@ const RadioDetail: React.FC = () => {
         }}
       >
         <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-          >
-            <Typography
-              component={RouterLink}
-              to="/radios"
-              variant="h4"
-              sx={{
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Radios
-            </Typography>
-            <Typography
-              component="span"
-              variant="h4"
-              sx={{ color: "text.secondary", mx: 1 }}
-            >
-              /
-            </Typography>
-            <Typography component="span" variant="h4">
-              {radioLabel}
-            </Typography>
-          </Typography>
+          <PageTitle
+            parent={{ label: "Radios", to: "/radios" }}
+            title={radioLabel}
+          />
         </Box>
         {role === "Admin" && (
           <Box sx={{ display: "flex", gap: 1 }}>
@@ -392,7 +363,7 @@ const RadioDetail: React.FC = () => {
                   </Typography>
                   <TableContainer
                     sx={{
-                      ...tableContainerSx,
+                      ...TABLE_CONTAINER_SX,
                       height: EMBEDDED_GRID_HEIGHT,
                       overflow: "auto",
                     }}
@@ -554,7 +525,7 @@ const RadioDetail: React.FC = () => {
                     empty={
                       <TableContainer
                         sx={{
-                          ...tableContainerSx,
+                          ...TABLE_CONTAINER_SX,
                           height: EMBEDDED_GRID_HEIGHT,
                         }}
                       >
@@ -612,7 +583,7 @@ const RadioDetail: React.FC = () => {
                   resource="recent events for this radio"
                   isEmpty={(data) => (data.items ?? []).length === 0}
                   empty={
-                    <TableContainer sx={tableContainerSx}>
+                    <TableContainer sx={TABLE_CONTAINER_SX}>
                       <Box sx={{ p: 3, textAlign: "center" }}>
                         <Typography variant="body2" color="textSecondary">
                           No recent events for this radio.

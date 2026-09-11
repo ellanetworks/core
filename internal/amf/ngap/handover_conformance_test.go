@@ -231,8 +231,8 @@ func TestN2HandoverCommandCarriesMandatoryIEs(t *testing.T) {
 		t.Errorf("HANDOVER COMMAND AMF UE NGAP ID = %d, want the source's %d", cmd.AMFUENGAPID, env.sourceUe.AmfUeNgapID)
 	}
 
-	if cmd.RANUENGAPID != ngap.RANUENGAPID(env.sourceUe.RanUeNgapID) {
-		t.Errorf("HANDOVER COMMAND RAN UE NGAP ID = %d, want the source's %d", cmd.RANUENGAPID, env.sourceUe.RanUeNgapID)
+	if cmd.RANUENGAPID != ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()) {
+		t.Errorf("HANDOVER COMMAND RAN UE NGAP ID = %d, want the source's %d", cmd.RANUENGAPID, env.sourceUe.RanUeNgapID())
 	}
 
 	if cmd.HandoverType != ngap.HandoverTypeIntra5GS {
@@ -688,7 +688,7 @@ func TestN2HandoverCancelReleasesTargetAndAcknowledges(t *testing.T) {
 
 	HandleHandoverCancel(context.Background(), env.amf, env.sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),
-		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()),
 		Cause:       &cause,
 	})
 
@@ -711,8 +711,8 @@ func TestN2HandoverCancelReleasesTargetAndAcknowledges(t *testing.T) {
 		t.Errorf("acknowledge AMF UE NGAP ID = %v, want the source's %d", ack.AMFUENGAPID, env.sourceUe.AmfUeNgapID)
 	}
 
-	if ack.RANUENGAPID == nil || *ack.RANUENGAPID != ngap.RANUENGAPID(env.sourceUe.RanUeNgapID) {
-		t.Errorf("acknowledge RAN UE NGAP ID = %v, want the source's %d", ack.RANUENGAPID, env.sourceUe.RanUeNgapID)
+	if ack.RANUENGAPID == nil || *ack.RANUENGAPID != ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()) {
+		t.Errorf("acknowledge RAN UE NGAP ID = %v, want the source's %d", ack.RANUENGAPID, env.sourceUe.RanUeNgapID())
 	}
 
 	if env.amf.HandoverInProgress(env.ue) {
@@ -728,7 +728,7 @@ func TestN2HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 
 	HandleHandoverCancel(context.Background(), env.amf, env.sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),
-		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()),
 	})
 
 	if len(env.target.SentUEContextReleaseCommands) != 1 {
@@ -752,7 +752,7 @@ func TestN2DownlinkRanStatusTransferAddressesTheTargetWithTheSameContainer(t *te
 
 	HandleUplinkRanStatusTransfer(context.Background(), env.amf, env.sourceRan, &ngap.UplinkRANStatusTransfer{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),
-		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()),
 		Container:   container,
 	})
 
@@ -802,7 +802,7 @@ func TestN2StatusTransferWithNoHandoverIsNotRelayed(t *testing.T) {
 
 	HandleUplinkRanStatusTransfer(context.Background(), env.amf, env.sourceRan, &ngap.UplinkRANStatusTransfer{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),
-		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()),
 		Container:   ngap.StatusTransferContainer{0x01},
 	})
 
@@ -826,7 +826,7 @@ func TestN2HandoverCancelDuringCommitDoesNotTearDown(t *testing.T) {
 
 	HandleHandoverCancel(context.Background(), env.amf, env.sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),
-		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(env.sourceUe.RanUeNgapID()),
 	})
 
 	if !env.amf.HandoverInProgress(env.ue) {

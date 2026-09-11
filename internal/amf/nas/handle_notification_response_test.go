@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -106,6 +107,16 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	if !slices.Contains(r, "1") || !slices.Contains(r, "5") || !slices.Contains(r, "8") || !slices.Contains(r, "15") {
 		t.Fatalf("expected SM Context 1, 5, 8, and 15 to be released, released: %v", r)
 	}
+
+	for _, pduSessionID := range []uint8{1, 5, 8, 15} {
+		if _, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+			t.Errorf("TS 24.501 §5.6.3.3: PDU session %d must be released on the AMF side too, not only in the SMF", pduSessionID)
+		}
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(11); !ok {
+		t.Error("PDU session 11 was reported active and must be kept")
+	}
 }
 
 func buildTestNotificationResponse(t *testing.T, pduSessionStatus []byte) *fgs.NotificationResponse {
@@ -131,4 +142,46 @@ func mustBytes(b []byte, err error) []byte {
 	}
 
 	return b
+}
+
+func TestHandleNotificationResponse_SmfReleaseFails_EveryReportedSessionIsStillReleased(t *testing.T) {
+	smf := fakeSmf{ReleaseSmContextError: errors.New("pfcp session deletion failed")}
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, &smf)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build test UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+	ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	_ = ue.CreateSmContext(1, "1", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(5, "5", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(11, "11", &models.Snssai{}, "internet")
+
+	var psi [16]bool
+
+	psi[11] = true
+
+	handleNotificationResponse(t.Context(), amfInstance, ue, buildTestNotificationResponse(t, mustBytes(fgs.PSIBitmap{PSI: psi}.MarshalBinary())))
+
+	if len(smf.ReleaseSmContextCalls) != 2 {
+		t.Fatalf("release calls = %v, want one per reported session: a failure must not abandon the rest", smf.ReleaseSmContextCalls)
+	}
+
+	for _, pduSessionID := range []uint8{1, 5} {
+		if _, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+			t.Errorf("PDU session %d: the AMF-side local release is not conditional on the SMF request succeeding (TS 24.501 §5.6.3.3 a)1))", pduSessionID)
+		}
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(11); !ok {
+		t.Error("PDU session 11 was reported active and must be kept")
+	}
 }

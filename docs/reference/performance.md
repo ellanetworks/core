@@ -4,7 +4,7 @@ description: Reference for performance results - data plane throughput and laten
 
 # Performance
 
-This reference document contains performance test results of Ella Core, covering data plane throughput and latency as well as session support.
+This reference document contains performance test results of Ella Core, covering data plane throughput, latency, and session support.
 
 ## Results
 
@@ -16,8 +16,7 @@ The following table outlines the performance test results of Ella Core's data pl
 | ------------- | --------------- |
 | 10+           | 10+             |
 
-The tests could saturate the 10Gbps connection consistently, with or without NAT enabled, with CPU
-usage peaking at 8%.
+The tests could saturate the 10Gbps connection consistently, with or without NAT enabled, with CPU usage peaking at 8%.
 
 ### Throughput (TRex)
 
@@ -39,8 +38,7 @@ The test results for the `tcx` mode are:
 
 The packet size represents only the IP packet for the subscribers and ignores Ethernet and GTP encapsulation.
 
-Downlink performance is better as the number of packets increases as the flows are able to handled by
-different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
+Downlink performance is better as the number of packets increases as the flows are able to handled by different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
 The uplink flows are all seen by the NIC drivers as the same flow, because of the GTP encapsulation.
 
 When enabling NAT, we got the following results in `xdp-native` mode:

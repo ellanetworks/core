@@ -53,8 +53,8 @@ func TestConnectedSubscribers(t *testing.T) {
 		t.Fatalf("NumSessions = %d, want 1", st.NumSessions)
 	}
 
-	if st.CipheringAlgorithm != "EEA2" || st.IntegrityAlgorithm != "EIA2" {
-		t.Fatalf("algorithms = %q/%q, want EEA2/EIA2", st.CipheringAlgorithm, st.IntegrityAlgorithm)
+	if st.CipheringAlgorithm != "128-EEA2" || st.IntegrityAlgorithm != "128-EIA2" {
+		t.Fatalf("algorithms = %q/%q, want 128-EEA2/128-EIA2", st.CipheringAlgorithm, st.IntegrityAlgorithm)
 	}
 
 	if len(st.Sessions) != 1 {

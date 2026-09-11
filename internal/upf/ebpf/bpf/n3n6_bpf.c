@@ -297,9 +297,14 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	context.data = ctx_data(ctx);
 	context.data_end = ctx_data_end(ctx);
 
+	const bool reinject = frame_is_reinjected(ctx);
+
 	PROFILE_START(PROF_N6_TOTAL);
 	enum ctx_action ret = process_downlink(&context);
 	PROFILE_END(PROF_N6_TOTAL);
+
+	if (reinject && ret == CTX_ACT_OK)
+		ret = drop_with(&context, UPF_DROP_REINJECT_UNOWNED);
 
 	return record_action(&context, ret);
 }
@@ -353,10 +358,11 @@ int upf_local_switch_func(struct __ctx_buff *ctx)
 	if (!ul_pdr)
 		return record_action(&context, DEFAULT_CTX_ACTION);
 
+	const __u64 billed_bytes = ctx_full_len(ctx);
+
 	enum ctx_action ret = local_switch_to_ue(&context, dl_pdr, ul_pdr);
 
 	if (ctx_action_forwards(ret)) {
-		const __u64 billed_bytes = ctx_full_len(ctx);
 		const __u32 dlkey = 0;
 		struct upf_statistic *dl_stats =
 			bpf_map_lookup_elem(&downlink_statistics, &dlkey);

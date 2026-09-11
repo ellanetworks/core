@@ -21,11 +21,17 @@ type ConnectedSubscriber struct {
 	LastSeenAt         time.Time // most recent evidence the UE was present, zero if none
 	Connected          bool
 	Registered         bool
-	CipheringAlgorithm string // EPS NAS ciphering, e.g. "EEA2" (TS 33.401)
-	IntegrityAlgorithm string // EPS NAS integrity, e.g. "EIA2"
+	CipheringAlgorithm string // EPS NAS ciphering, e.g. "128-EEA2" (TS 33.401)
+	IntegrityAlgorithm string // EPS NAS integrity, e.g. "128-EIA2"
+	Connection         *UEConnection
 	// Sessions are the UE's PDN connections, one per active APN, ordered by EPS
 	// bearer identity (TS 23.401).
 	Sessions []SubscriberSession
+}
+
+type UEConnection struct {
+	MMEUES1APID uint32
+	ENBUES1APID *uint32
 }
 
 // SubscriberSession is one PDN connection of an attached UE — a default EPS
@@ -53,6 +59,14 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		LastSeenAt:         snap.LastSeenAt,
 		CipheringAlgorithm: snap.CipheringAlgorithm,
 		IntegrityAlgorithm: snap.IntegrityAlgorithm,
+	}
+
+	if conn := ue.Conn(); conn != nil {
+		cs.Connection = &UEConnection{MMEUES1APID: uint32(conn.MMEUES1APID)}
+		if conn.ENBUES1APID != enbUES1APIDUnspecified {
+			enbID := uint32(conn.ENBUES1APID)
+			cs.Connection.ENBUES1APID = &enbID
+		}
 	}
 
 	cs.Sessions = append(cs.Sessions, m.pdnSessionViews(ue)...)
@@ -153,11 +167,11 @@ func cipheringAlgName(eea nas.CipheringAlgorithm) string {
 	case 0:
 		return "EEA0"
 	case 1:
-		return "EEA1"
+		return "128-EEA1"
 	case 2:
-		return "EEA2"
+		return "128-EEA2"
 	case 3:
-		return "EEA3"
+		return "128-EEA3"
 	default:
 		return ""
 	}
@@ -168,11 +182,11 @@ func integrityAlgName(eia nas.IntegrityAlgorithm) string {
 	case 0:
 		return "EIA0"
 	case 1:
-		return "EIA1"
+		return "128-EIA1"
 	case 2:
-		return "EIA2"
+		return "128-EIA2"
 	case 3:
-		return "EIA3"
+		return "128-EIA3"
 	default:
 		return ""
 	}

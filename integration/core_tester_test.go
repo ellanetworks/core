@@ -6,11 +6,11 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	// Side-effect import to register every scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
@@ -26,6 +26,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/s1_handover":                      "multi-eNB datapath, covered by TestIntegration4GS1Handover",
 	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
 	"ha/failover_connectivity_4g":            "multi-core HA topology, covered by TestIntegration4GHAFailover",
+	"ha/drain_4g":                            "multi-core HA topology, covered by TestIntegration4GHADrain",
+	"ha/drain_5g":                            "multi-core HA topology, covered by TestIntegration5GHADrain",
 	"multi/cluster_traffic_5g":               "multi-core HA topology, covered by TestIntegration5GMultiGNB",
 	"gnb/connectivity_expect_blocked":        "test-only harness; requires a pre-installed deny rule",
 	"gnb/connectivity_expect_allowed":        "test-only harness; minimal allow-path",
@@ -47,6 +49,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/framed_route_ipv6":                "requires NAT disabled; covered by TestIntegration4GFramedRouting",
 	"gnb/ue2ue":                              "requires NAT disabled; covered by TestIntegration5GUE2UE",
 	"s1enb/ue2ue":                            "requires NAT disabled; covered by TestIntegration4GUE2UE",
+	"gnb/buffered_downlink":                  "requires local switch enabled; covered by TestIntegration5GBufferedDownlink",
+	"s1enb/buffered_downlink":                "requires local switch enabled; covered by TestIntegration4GBufferedDownlink",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -68,18 +72,20 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 }
 
 var scenarioFollowsDeploymentIPFamily = map[string]bool{
-	"interworking/transfer_5gs_to_eps":                true,
-	"interworking/transfer_eps_to_5gs":                true,
-	"interworking/handover_5gs_to_eps":                true,
-	"interworking/handover_5gs_to_eps_target_refuses": true,
-	"interworking/handover_eps_to_5gs":                true,
-	"interworking/handover_eps_to_5gs_target_refuses": true,
-	"interworking/idle_5gs_to_eps":                    true,
-	"interworking/idle_5gs_to_eps_returning_to_idle":  true,
-	"interworking/idle_eps_to_5gs":                    true,
-	"interworking/idle_eps_to_5gs_returning_to_idle":  true,
-	"interworking/idle_round_trip_through_eps":        true,
-	"interworking/idle_round_trip_through_5gs":        true,
+	"interworking/transfer_5gs_to_eps":                  true,
+	"interworking/transfer_eps_to_5gs":                  true,
+	"interworking/handover_5gs_to_eps":                  true,
+	"interworking/handover_5gs_to_eps_target_refuses":   true,
+	"interworking/handover_eps_to_5gs":                  true,
+	"interworking/handover_eps_to_5gs_target_refuses":   true,
+	"interworking/idle_5gs_to_eps":                      true,
+	"interworking/idle_5gs_to_eps_returning_to_idle":    true,
+	"interworking/idle_eps_to_5gs":                      true,
+	"interworking/idle_eps_to_5gs_returning_to_idle":    true,
+	"interworking/idle_round_trip_through_eps":          true,
+	"interworking/idle_round_trip_through_5gs":          true,
+	"interworking/idle_eps_to_5gs_bearer_status":        true,
+	"interworking/idle_eps_to_5gs_session_modification": true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
@@ -96,6 +102,12 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"gnb/connectivity_multi_pdu_session": {
 		IPv6Only: true,
 	},
+	"gnb/service_request_pdu_session_status": {
+		IPv6Only: true,
+	},
+	"gnb/mobility_registration_pdu_session_status": {
+		IPv6Only: true,
+	},
 	"gnb/connectivity_multiple_policies_per_profile": {
 		IPv6Only: true,
 	},
@@ -104,6 +116,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		DualStack: true,
 	},
 	"s1enb/connectivity_multi_pdn": {
+		IPv6Only: true,
+	},
+	"s1enb/tau_bearer_context_status": {
 		IPv6Only: true,
 	},
 	"s1enb/connectivity": {
@@ -131,9 +146,7 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 // t.Cleanup teardown), invokes env.RunScenario, and polls the usage API
 // when AssertUsageForIMSIs is set.
 func TestIntegrationTester(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.RequireSplit(t, "s1enb", suites.Datapath4G, suites.Datapath5G)
 
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)

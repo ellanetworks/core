@@ -188,7 +188,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 	export := UeContextExport{
 		Identity: UEIdentityExport{
 			Supi:   ue.supi.String(),
-			Pei:    ue.Imei.IMEI(),
+			Pei:    ue.Imei.String(),
 			PlmnID: plmn,
 			// Direct reads: already under ue.mu, which Tmsi()/OldTmsi() take again.
 			Tmsi:    tmsiExport(ue.tmsi),

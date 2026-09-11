@@ -4,8 +4,8 @@ site_url: https://docs.ellanetworks.com/
 docs_dir: docs
 theme:
   name: material
-  logo: images/logo.svg
-  favicon: images/logo.svg
+  logo: images/logo-mark.svg
+  favicon: images/favicon.svg
   palette:
     primary: custom
   font:

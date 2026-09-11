@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -89,7 +90,7 @@ func TestExtractBackupArchive_PathTraversalRejected(t *testing.T) {
 		{name: "../etc/passwd", data: []byte("nope")},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected path traversal rejection")
 	} else if !strings.Contains(err.Error(), "invalid tar entry name") {
 		t.Fatalf("unexpected error: %v", err)
@@ -104,7 +105,7 @@ func TestExtractBackupArchive_NonRegularRejected(t *testing.T) {
 		{name: DBFilename, typeflag: tar.TypeSymlink},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected non-regular tar entry rejection")
 	} else if !strings.Contains(err.Error(), "unexpected tar entry type") {
 		t.Fatalf("unexpected error: %v", err)
@@ -120,7 +121,7 @@ func TestExtractBackupArchive_DuplicateRejected(t *testing.T) {
 		{name: DBFilename, data: []byte("second")},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected duplicate tar entry rejection")
 	} else if !strings.Contains(err.Error(), "duplicate tar entry") {
 		t.Fatalf("unexpected error: %v", err)
@@ -135,7 +136,7 @@ func TestExtractBackupArchive_DuplicateManifestRejected(t *testing.T) {
 		{name: manifestArchiveName, data: validManifestBytes(t, BackupManifestVersion)},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected duplicate manifest rejection")
 	}
 }
@@ -147,7 +148,7 @@ func TestExtractBackupArchive_MissingManifest(t *testing.T) {
 		{name: DBFilename, data: []byte("data")},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected missing manifest rejection")
 	} else if !strings.Contains(err.Error(), "manifest") {
 		t.Fatalf("unexpected error: %v", err)
@@ -162,7 +163,7 @@ func TestExtractBackupArchive_BadVersionRejected(t *testing.T) {
 		{name: DBFilename, data: []byte("data")},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected manifest version rejection")
 	} else if !strings.Contains(err.Error(), "manifest version") {
 		t.Fatalf("unexpected error: %v", err)
@@ -177,7 +178,7 @@ func TestExtractBackupArchive_UnknownMemberRejected(t *testing.T) {
 		{name: "stranger.db", data: []byte("?")},
 	})
 
-	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(body), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected unknown member rejection")
 	} else if !strings.Contains(err.Error(), "unexpected backup member") {
 		t.Fatalf("unexpected error: %v", err)
@@ -218,7 +219,7 @@ func TestExtractBackupArchive_OversizeMemberRejected(t *testing.T) {
 		t.Fatalf("gz close: %v", err)
 	}
 
-	if err := extractBackupArchive(bytes.NewReader(gzBuf.Bytes()), tmp); err == nil {
+	if err := extractBackupArchive(bytes.NewReader(gzBuf.Bytes()), filepath.Join(tmp, DBFilename)); err == nil {
 		t.Fatal("expected oversize entry rejection")
 	} else if !strings.Contains(err.Error(), "invalid size") {
 		t.Fatalf("unexpected error: %v", err)

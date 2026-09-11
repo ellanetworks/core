@@ -9,7 +9,6 @@ import {
   IconButton,
   InputAdornment,
   TextField,
-  Typography,
   CircularProgress,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
@@ -18,6 +17,7 @@ import { ValidationError } from "yup";
 import { login, refresh } from "@/queries/auth";
 import { getStatus } from "@/queries/status";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import PageTitle from "@/components/PageTitle";
 
 const schema = yup.object().shape({
   email: yup
@@ -129,7 +129,7 @@ const LoginPage = () => {
     return (
       <Box
         sx={{
-          height: "100vh",
+          flexGrow: 1,
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
@@ -143,7 +143,7 @@ const LoginPage = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        flexGrow: 1,
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -165,14 +165,12 @@ const LoginPage = () => {
         }}
       >
         <form onSubmit={handleSubmit} noValidate>
-          <Typography
-            variant="h5"
-            component="h1"
+          <PageTitle
+            title="Login"
+            size="h5"
             gutterBottom
             sx={{ textAlign: "center" }}
-          >
-            Login
-          </Typography>
+          />
 
           <TextField
             label="Email"

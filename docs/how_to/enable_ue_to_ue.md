@@ -4,12 +4,7 @@ description: Enable UE-to-UE communication with local switching
 
 # Enable UE-to-UE communication
 
-By default, traffic from one UE destined for another UE on the same UPF is routed out over N6 and back, which requires the upstream network to route between subscriber subnets and typically fails when NAT is enabled. Local switching forwards such traffic directly inside the user plane, so two UEs served by the same Ella Core instance can reach each other without traversing N6.
-
-Local switching is disabled by default for improved security.
-
-!!! warning
-    Enabling local switching lets subscribers initiate connections to each other. Review your [policies](../reference/api/policies.md) and ensure they only permit the traffic your deployment intends to allow between UEs.
+Local Switching allows two UEs served by Ella Core to communicate directly with each other.
 
 ## Enable local switching
 

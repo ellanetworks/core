@@ -19,7 +19,8 @@ func TMSI(val string) zap.Field { return zap.String("tmsi", val) }
 func AmfUeNgapID(val models.AmfUeNgapID) zap.Field { return zap.Int64("amf_ue_ngap_id", int64(val)) }
 
 func RanUeNgapID(val models.RanUeNgapID) zap.Field { return zap.Int64("ran_ue_ngap_id", int64(val)) }
-func MMEUeS1apID(val uint32) zap.Field             { return zap.Uint32("mme-ue-id", val) }
+func MMEUeS1apID(val uint32) zap.Field             { return zap.Uint32("mme_ue_s1ap_id", val) }
+func ENBUeS1apID(val uint32) zap.Field             { return zap.Uint32("enb_ue_s1ap_id", val) }
 func PDUSessionID(val uint8) zap.Field             { return zap.Uint8("pdu_session_id", val) }
 func DNN(val string) zap.Field                     { return zap.String("dnn", val) }
 func SST(val uint8) zap.Field                      { return zap.Uint8("sst", val) }

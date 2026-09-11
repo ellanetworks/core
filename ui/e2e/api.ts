@@ -9,16 +9,42 @@ const TOKEN_FILE = "e2e/.auth/admin-token.txt";
 export const ADMIN_EMAIL = "e2e-admin@ellanetworks.com";
 export const ADMIN_PASSWORD = "E2eAdminPassw0rd!";
 
+const READY_TIMEOUT_MS = 20_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function send(
+  request: APIRequestContext,
+  method: "get" | "post" | "put" | "delete",
+  path: string,
+  opts: { token?: string; data?: unknown } = {},
+) {
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+
+  for (;;) {
+    const response = await request[method](path, {
+      data: opts.data as never,
+      headers: opts.token
+        ? { Authorization: `Bearer ${opts.token}` }
+        : undefined,
+    });
+
+    if (response.status() !== 503 || Date.now() >= deadline) {
+      return response;
+    }
+
+    const retryAfter = Number(response.headers()["retry-after"]);
+    await sleep(Number.isFinite(retryAfter) ? retryAfter * 1000 : 500);
+  }
+}
+
 async function json<T>(
   request: APIRequestContext,
-  method: "get" | "post" | "delete",
+  method: "get" | "post" | "put" | "delete",
   path: string,
   opts: { token?: string; data?: unknown } = {},
 ): Promise<T> {
-  const response = await request[method](path, {
-    data: opts.data as never,
-    headers: opts.token ? { Authorization: `Bearer ${opts.token}` } : undefined,
-  });
+  const response = await send(request, method, path, opts);
 
   if (!response.ok()) {
     throw new Error(
@@ -48,7 +74,7 @@ export async function ensureInitialized(
 ): Promise<void> {
   if (await isInitialized(request)) return;
 
-  const response = await request.post("/api/v1/init", {
+  const response = await send(request, "post", "/api/v1/init", {
     data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
 
@@ -89,21 +115,25 @@ export async function ensureUser(
   password: string,
   roleId: number,
 ): Promise<void> {
-  const existing = await request.get(
+  const existing = await send(
+    request,
+    "get",
     `/api/v1/users/${encodeURIComponent(email)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { token },
   );
   if (existing.ok()) return;
 
-  const response = await request.post("/api/v1/users", {
-    headers: { Authorization: `Bearer ${token}` },
+  const response = await send(request, "post", "/api/v1/users", {
+    token,
     data: { email, password, role_id: roleId },
   });
 
   if (!response.ok()) {
-    const retry = await request.get(
+    const retry = await send(
+      request,
+      "get",
       `/api/v1/users/${encodeURIComponent(email)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { token },
     );
     if (!retry.ok()) {
       throw new Error(
@@ -153,7 +183,10 @@ export async function deleteSubscriberIfPresent(
   token: string,
   imsi: string,
 ): Promise<void> {
-  await request.delete(`/api/v1/subscribers/${encodeURIComponent(imsi)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  await send(
+    request,
+    "delete",
+    `/api/v1/subscribers/${encodeURIComponent(imsi)}`,
+    { token },
+  );
 }

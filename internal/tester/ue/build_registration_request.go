@@ -26,6 +26,7 @@ type RegistrationRequestOpts struct {
 	AdditionalGUTI         *fgs.MobileIdentity
 	MobileIdentity         *fgs.MobileIdentity
 	InitialNASMessage      bool
+	EPSBearerContextStatus *nas.EPSBearerContextStatus
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -93,6 +94,7 @@ func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.Registratio
 		UEStatus:               opts.UEStatus,
 		EPSNASMessageContainer: opts.EPSNASMessageContainer,
 		AdditionalGUTI:         opts.AdditionalGUTI,
+		EPSBearerContextStatus: opts.EPSBearerContextStatus,
 	}
 
 	if opts.IncludeCapability {

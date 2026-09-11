@@ -86,7 +86,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	send := func(wire []byte) error {
-		if response.N2Msg != nil {
+		if response.N2Msg != nil && ueConn.RANHoldsUEContext() {
 			list := ngap.PDUSessionResourceToReleaseListRelCmd{
 				{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(response.N2Msg)},
 			}

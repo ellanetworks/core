@@ -127,6 +127,9 @@ var messageParsers = []messageParser{
 	{"ParseUEContextReleaseComplete", func(v []byte) error { _, err := ParseUEContextReleaseComplete(v); return err }},
 	{"ParseUEContextReleaseRequest", func(v []byte) error { _, err := ParseUEContextReleaseRequest(v); return err }},
 	{"ParseRANConfigurationUpdate", func(v []byte) error { _, err := ParseRANConfigurationUpdate(v); return err }},
+	{"ParseAMFConfigurationUpdate", func(v []byte) error { _, err := ParseAMFConfigurationUpdate(v); return err }},
+	{"ParseAMFConfigurationUpdateAcknowledge", func(v []byte) error { _, err := ParseAMFConfigurationUpdateAcknowledge(v); return err }},
+	{"ParseAMFConfigurationUpdateFailure", func(v []byte) error { _, err := ParseAMFConfigurationUpdateFailure(v); return err }},
 	{"ParseRANConfigurationUpdateAcknowledge", func(v []byte) error {
 		_, err := ParseRANConfigurationUpdateAcknowledge(v)
 		return err

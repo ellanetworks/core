@@ -17,15 +17,17 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 	cause := GSMCauseRegularDeactivation
 
 	in := &PDUSessionModificationRequest{
-		PDUSessionID:      5,
-		PTI:               3,
-		GSMCapability:     &GSMCapability{RqoS: true},
-		Cause:             &cause,
-		AlwaysOnRequested: ptr(true),
-		RequestedQoSFlows: QoSFlowDescriptions{FiveQIQoSFlow(1, 9, QoSFlowOpCreate)},
+		PDUSessionID:             5,
+		PTI:                      3,
+		GSMCapability:            &GSMCapability{RqoS: true},
+		Cause:                    &cause,
+		MaxPacketFilters:         ptr(uint16(0x1000)),
+		IntegrityProtMaxDataRate: &[2]byte{0xff, 0xff},
+		AlwaysOnRequested:        ptr(true),
+		RequestedQoSFlows:        QoSFlowDescriptions{FiveQIQoSFlow(1, 9, QoSFlowOpCreate)},
 		Unrecognized: []nas.RawIE{
-			// Maximum number of supported packet filters, a TV the table frames.
-			{IEI: ieiMaxPacketFilters, Format: nas.IETV3, Value: []byte{0x10, 0x00}},
+			// IP header compression configuration, a TLV the table frames.
+			{IEI: ieiIPHeaderCompression, Format: nas.IETLV, Value: []byte{0x00, 0x00}},
 		},
 	}
 
@@ -64,8 +66,16 @@ func TestPDUSessionModificationRequestRoundTrip(t *testing.T) {
 		t.Errorf("requested QoS flow descriptions = %+v", out.RequestedQoSFlows)
 	}
 
+	if out.MaxPacketFilters == nil || *out.MaxPacketFilters != 0x1000 {
+		t.Errorf("maximum number of supported packet filters = %v, want 4096", out.MaxPacketFilters)
+	}
+
+	if out.IntegrityProtMaxDataRate == nil || *out.IntegrityProtMaxDataRate != [2]byte{0xff, 0xff} {
+		t.Errorf("integrity protection maximum data rate = %v, want ff ff", out.IntegrityProtMaxDataRate)
+	}
+
 	if len(out.Unrecognized) != 1 {
-		t.Errorf("unmodelled elements = %+v, want the packet-filter maximum preserved", out.Unrecognized)
+		t.Errorf("unmodelled elements = %+v, want the header-compression element preserved", out.Unrecognized)
 	}
 
 	again, err := out.MarshalBinary()

@@ -184,7 +184,7 @@ func (a *AMF) relocateFromEPS(
 
 	logger.From(ctx, logger.AmfLog).Info("Handover Request (EPS to 5GS)",
 		logger.SUPI(ue.Supi().String()),
-		zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)),
+		zap.Uint64("target_amf_ue_ngap_id", uint64(targetUe.AmfUeNgapID)),
 		zap.Int("pdu-sessions", len(sessions)))
 
 	err = targetUe.SendHandoverRequest(ctx, HandoverRequestOpts{

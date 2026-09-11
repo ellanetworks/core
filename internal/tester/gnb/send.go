@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +19,7 @@ const (
 	NGAPProcedureNGSetupRequest         NGAPProcedure = "NGSetupRequest"
 	NGAPProcedureNGReset                NGAPProcedure = "NGReset"
 	NGAPProcedureRANConfigurationUpdate NGAPProcedure = "RANConfigurationUpdate"
+	NGAPProcedureAMFConfigUpdateAck     NGAPProcedure = "AMFConfigurationUpdateAcknowledge"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialUEMessage                  NGAPProcedure = "InitialUEMessage"
@@ -36,12 +38,14 @@ const (
 	NGAPProcedureHandoverCancel                    NGAPProcedure = "HandoverCancel"
 	NGAPProcedureUplinkRANStatusTransfer           NGAPProcedure = "UplinkRANStatusTransfer"
 	NGAPProcedureUplinkNRPPaTransport              NGAPProcedure = "UplinkNRPPaTransport"
+	NGAPProcedureErrorIndication                   NGAPProcedure = "ErrorIndication"
 	NGAPProcedureUERadioCapabilityInfoIndication   NGAPProcedure = "UERadioCapabilityInfoIndication"
 )
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
-	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate:
+	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate,
+		NGAPProcedureAMFConfigUpdateAck:
 		return 0, nil
 
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,
@@ -112,6 +116,25 @@ func (g *GnodeB) SendUplinkNASTransport(opts *UplinkNasTransportOpts) error {
 	}
 
 	return g.SendMessage(pdu, NGAPProcedureUplinkNASTransport)
+}
+
+func (g *GnodeB) SendErrorIndication(amfUENGAPID, ranUENGAPID int64, cause ngap.Cause, procedureCode ngap.ProcedureCode) error {
+	msg := &ngap.ErrorIndication{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(amfUENGAPID)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(ranUENGAPID)),
+		Cause:       ngap.Ptr(cause),
+		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
+			ProcedureCode:     ngap.Ptr(procedureCode),
+			TriggeringMessage: ngap.Ptr(ngap.TriggeringInitiatingMessage),
+		},
+	}
+
+	pkt, err := msg.Marshal()
+	if err != nil {
+		return fmt.Errorf("couldn't build ErrorIndication: %w", err)
+	}
+
+	return g.SendToRan(pkt, NGAPProcedureErrorIndication)
 }
 
 func (g *GnodeB) SendInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) error {

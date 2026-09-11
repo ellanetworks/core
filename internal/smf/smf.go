@@ -76,7 +76,7 @@ type DNNStore interface {
 // data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
-	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
+	IncrementDailyUsageBatch(ctx context.Context, usages []models.SubscriberUsage) error
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 
@@ -160,6 +160,8 @@ type SMF struct {
 // the first four T3591/T3592 expiries and the procedure is aborted on the fifth
 // (TS 24.501 §6.3.2.5, §6.3.3).
 const maxSMProcedureRetransmissions = 4
+
+const networkRequestedPTI uint8 = 0
 
 // Option configures an SMF instance.
 type Option func(*SMF)

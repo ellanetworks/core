@@ -20,6 +20,7 @@ type InitialUEMessageOpts struct {
 	Tac                   string
 	GnbID                 string
 	RRCEstablishmentCause ngap.RRCEstablishmentCause
+	OmitUEContextRequest  bool
 }
 
 func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {
@@ -57,7 +58,10 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {
 		NASPDU:                  ngap.NASPDU(opts.NasPDU),
 		UserLocationInformation: uli,
 		RRCEstablishmentCause:   ngap.Ptr(opts.RRCEstablishmentCause),
-		UEContextRequest:        ngap.Ptr(ngap.UEContextRequested),
+	}
+
+	if !opts.OmitUEContextRequest {
+		msg.UEContextRequest = ngap.Ptr(ngap.UEContextRequested)
 	}
 
 	// The AMF Set ID (10 bits) and AMF Pointer (6 bits) sit in octets 6-7 of the

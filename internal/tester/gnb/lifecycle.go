@@ -18,9 +18,9 @@ import (
 // AMF. s1enb.PDNResult is its EPS counterpart.
 //
 // It is a snapshot. The gNB reallocates a downlink TEID every time the network
-// re-establishes the session (service request, handover), so a scenario tears
-// down the tunnel it built with the DLTEID it built it from, never with a value
-// read back later.
+// re-establishes the session (service request, handover), unless a scenario
+// pinned the tunnel's TEID, so a scenario tears down the tunnel it built with
+// the DLTEID it built it from, never with a value read back later.
 type PDUSessionResult struct {
 	PDUSessionID uint8
 	UEIPv4       string
@@ -43,18 +43,54 @@ type PDUSessionResult struct {
 // RegistrationResult reports the NGAP identifiers and the PDU session an
 // initial registration established. s1enb.AttachResult is its EPS counterpart.
 type RegistrationResult struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-	Session     PDUSessionResult
+	AMFUENGAPID      int64
+	RANUENGAPID      int64
+	Session          PDUSessionResult
+	PDUSessionStatus *fgs.PSIBitmap
+}
+
+func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
+	pduSessionStatus *[16]bool, timeout time.Duration,
+) (*RegistrationResult, error) {
+	generation := g.sessionGeneration()
+
+	g.AddUE(ranUENGAPID, u)
+
+	if err := u.SendMobilityRegistrationRequest(ranUENGAPID, []uint8{pduSessionID}, pduSessionStatus); err != nil {
+		return nil, fmt.Errorf("send Registration Request (mobility updating): %w", err)
+	}
+
+	plain, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await Registration Accept for the mobility registration update: %w", err)
+	}
+
+	accept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		return nil, fmt.Errorf("parse Registration Accept: %w", err)
+	}
+
+	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RegistrationResult{
+		AMFUENGAPID:      g.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:      ranUENGAPID,
+		Session:          session,
+		PDUSessionStatus: accept.PDUSessionStatus,
+	}, nil
 }
 
 // ServiceRequestResult reports the NGAP identifiers and the re-established N3
 // endpoint from a completed service request. s1enb.ServiceRequestResult is its
 // EPS counterpart.
 type ServiceRequestResult struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-	Session     PDUSessionResult
+	AMFUENGAPID      int64
+	RANUENGAPID      int64
+	Session          PDUSessionResult
+	PDUSessionStatus *fgs.PSIBitmap
 }
 
 // Register drives a full initial registration with the UE's default PDU session
@@ -156,6 +192,64 @@ func (g *GnodeB) ReleasePDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uin
 	return nil
 }
 
+func (g *GnodeB) ModifyPDUSession(u *ue.UE, ranUENGAPID int64, opts *ue.PDUSessionModificationRequestOpts, timeout time.Duration) (*fgs.PDUSessionModificationCommand, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionModificationRequestOpts is nil")
+	}
+
+	pti, err := u.SendPDUSessionModificationRequest(g.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("send PDU Session Modification Request for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	raw, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationCommand), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await PDU Session Modification Command for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	command, err := fgs.ParsePDUSessionModificationCommand(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse PDU Session Modification Command for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	if uint8(command.PTI) != pti {
+		return nil, fmt.Errorf("PDU Session Modification Command for session %d carries PTI %d, want the requested %d", opts.PDUSessionID, command.PTI, pti)
+	}
+
+	if uint8(command.PDUSessionID) != opts.PDUSessionID {
+		return nil, fmt.Errorf("PDU Session Modification Command carries PDU session %d, want %d", command.PDUSessionID, opts.PDUSessionID)
+	}
+
+	return command, nil
+}
+
+func (g *GnodeB) RefusePDUSessionModification(u *ue.UE, ranUENGAPID int64, opts *ue.PDUSessionModificationRequestOpts, timeout time.Duration) (*fgs.PDUSessionModificationReject, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionModificationRequestOpts is nil")
+	}
+
+	pti, err := u.SendPDUSessionModificationRequest(g.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("send PDU Session Modification Request for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	raw, err := u.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionModificationReject), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("await PDU Session Modification Reject for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	reject, err := fgs.ParsePDUSessionModificationReject(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse PDU Session Modification Reject for session %d: %w", opts.PDUSessionID, err)
+	}
+
+	if uint8(reject.PTI) != pti {
+		return nil, fmt.Errorf("PDU Session Modification Reject for session %d carries PTI %d, want the requested %d", opts.PDUSessionID, reject.PTI, pti)
+	}
+
+	return reject, nil
+}
+
 // MovePDUSessionFromEPS requests an existing EPS PDN connection over NR as a PDU
 // session (TS 23.502 §4.11.2.2), the idle-mode inter-system change without N26.
 // It differs from EstablishPDUSession only in the NAS Request Type.
@@ -189,41 +283,24 @@ func (g *GnodeB) openPDUSession(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	return &session, nil
 }
 
-// MobilityRegistrationUpdate re-registers a UE the AMF already knows under a new
-// RAN UE NGAP ID (TS 23.502 §4.2.2.2.2), re-establishing its user plane.
-// ENB.PeriodicTrackingAreaUpdate is the closest EPS counterpart.
-func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration) (*RegistrationResult, error) {
-	generation := g.sessionGeneration()
-
-	g.AddUE(ranUENGAPID, u)
-
-	if err := u.SendMobilityRegistrationRequest(ranUENGAPID, []uint8{pduSessionID}); err != nil {
-		return nil, fmt.Errorf("send Registration Request (mobility updating): %w", err)
-	}
-
-	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), timeout); err != nil {
-		return nil, fmt.Errorf("await Registration Accept for the mobility registration update: %w", err)
-	}
-
-	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RegistrationResult{
-		AMFUENGAPID: g.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-		Session:     session,
-	}, nil
+// ServiceRequestOpts tunes a service-request re-establishment.
+type ServiceRequestOpts struct {
+	// DLTEID pins the downlink TEID reported at the next re-establishment
+	// of the session. Zero allocates a fresh one.
+	DLTEID uint32
 }
 
 // ServiceRequest performs a mobile-originated service request for a UE in
 // CM-IDLE (TS 23.502 §4.2.3.2), re-establishing the PDU session's user plane.
-// ENB.ServiceRequest is its EPS counterpart.
-func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration) (*ServiceRequestResult, error) {
+// opts may be nil. ENB.ServiceRequest is its EPS counterpart.
+func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeout time.Duration, opts *ServiceRequestOpts) (*ServiceRequestResult, error) {
 	var status [16]bool
 
 	status[pduSessionID] = true
+
+	if opts != nil && opts.DLTEID != 0 {
+		g.PinDLTEID(ranUENGAPID, int64(pduSessionID), opts.DLTEID)
+	}
 
 	generation := g.sessionGeneration()
 
@@ -231,8 +308,14 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 		return nil, fmt.Errorf("send Service Request: %w", err)
 	}
 
-	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), timeout); err != nil {
+	plain, err := u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), timeout)
+	if err != nil {
 		return nil, fmt.Errorf("await Service Accept: %w", err)
+	}
+
+	accept, err := fgs.ParseServiceAccept(plain)
+	if err != nil {
+		return nil, fmt.Errorf("parse Service Accept: %w", err)
 	}
 
 	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
@@ -241,9 +324,10 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 	}
 
 	return &ServiceRequestResult{
-		AMFUENGAPID: g.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-		Session:     session,
+		AMFUENGAPID:      g.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:      ranUENGAPID,
+		Session:          session,
+		PDUSessionStatus: accept.PDUSessionStatus,
 	}, nil
 }
 

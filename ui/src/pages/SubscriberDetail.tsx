@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getSubscriber,
   deleteSubscriber,
+  mergeRegistrations,
   type APISubscriber,
 } from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +30,7 @@ import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import PageTitle from "@/components/PageTitle";
 
 const SubscriberDetail: React.FC = () => {
   const { imsi } = useParams<{ imsi: string }>();
@@ -101,34 +103,10 @@ const SubscriberDetail: React.FC = () => {
       >
         <Box sx={{ flex: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}>
-            <Typography
-              variant="h4"
-              component="h1"
-              sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-            >
-              <Typography
-                component={RouterLink}
-                to="/subscribers"
-                variant="h4"
-                sx={{
-                  color: "text.secondary",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                Subscribers
-              </Typography>
-              <Typography
-                component="span"
-                variant="h4"
-                sx={{ color: "text.secondary", mx: 1 }}
-              >
-                /
-              </Typography>
-              <Typography component="span" variant="h4">
-                {imsi}
-              </Typography>
-            </Typography>
+            <PageTitle
+              parent={{ label: "Subscribers", to: "/subscribers" }}
+              title={imsi ?? ""}
+            />
           </Box>
         </Box>
         {canEdit && (
@@ -186,7 +164,9 @@ const SubscriberDetail: React.FC = () => {
                   gap: 3,
                 }}
               >
-                <SubscriberConnectionCard status={subscriber.status} />
+                <SubscriberConnectionCard
+                  status={mergeRegistrations(subscriber.registrations)}
+                />
               </Box>
             </Box>
 

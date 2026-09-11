@@ -4,7 +4,7 @@ description: Reference for supported mobile radios and user equipment (UE).
 
 # Supported Mobile Equipment
 
-Ella Core's control plane and user plane interfaces follow 3GPP standards. This means that any radio and user equipment (UE) that follows the same standards should be compatible.
+Ella Core's signalling interfaces follow 3GPP standards. Any 3GPP-compliant radio and user equipment (UE) should be compatible.
 
 This lists contains radios and UEs that were explicitely validated against Ella Core.
 

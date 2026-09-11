@@ -130,8 +130,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 		return fmt.Errorf("add GTP tunnel: %w", err)
 	}
 
-	// Let the UPF program the downlink endpoint before pinging.
-	time.Sleep(500 * time.Millisecond)
+	awaitDownlinkReady()
 
 	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return err
@@ -150,7 +149,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 
 	e.CloseTunnel(res.DLTEID)
 
-	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout)
+	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)
 	}
@@ -167,8 +166,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 
 	defer e.CloseTunnel(sr.DLTEID)
 
-	// Let the UPF program the downlink endpoint before pinging.
-	time.Sleep(500 * time.Millisecond)
+	awaitDownlinkReady()
 
 	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping after service request: %w", err)

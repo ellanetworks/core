@@ -5,10 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/integration/suites"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -20,9 +20,7 @@ import (
 // a Session-AMBR change arrives in a Modify EPS Bearer Context Request carrying the
 // new APN-AMBR — without re-establishing the bearer.
 func TestIntegration4GSessionModification(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skipf("TestIntegration4GSessionModification runs in IPv4 mode, current %s", DetectIPFamily())

@@ -332,7 +332,7 @@ func beginHATest(t *testing.T) {
 
 // writeFailureReports writes detailed failure reports to files.
 func writeFailureReports(t *testing.T, testPrefix string) {
-	logDir := os.Getenv("HA_CLUSTER_LOG_DIR")
+	logDir := os.Getenv("INTEGRATION_LOG_DIR")
 	if logDir == "" {
 		logDir = filepath.Join(os.TempDir(), "integration-failures")
 	}

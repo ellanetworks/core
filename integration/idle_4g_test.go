@@ -5,18 +5,17 @@ package integration_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/integration/suites"
 )
 
 // TestIntegration4GIdle attaches a real srsUE, then lets srsenb's inactivity
 // timer release the UE. The MME must move the UE to ECM-IDLE and retain its EMM
 // context (it stays EMM-REGISTERED), rather than deleting it as on a detach.
 func TestIntegration4GIdle(t *testing.T) {
-	if os.Getenv("INTEGRATION") == "" {
-		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-	}
+	suites.Require(t, suites.SRSRAN4G)
 
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G integration runs in IPv4 mode only")

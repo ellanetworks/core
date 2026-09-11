@@ -153,14 +153,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	// Defaults for a never-attached subscriber. Locks the contract
 	// against handler regressions and JSON-key drift.
-	if got.Status.Registered {
-		t.Fatalf("Status.Registered: got true, want false (subscriber never attached)")
-	}
-
-	if got.Status.ConnectionState != "" || got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
-		got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
-		got.Status.LastSeenRadio != "" {
-		t.Fatalf("Status: expected zero-valued strings on a never-attached subscriber, got %+v", got.Status)
+	if len(got.Registrations) != 0 {
+		t.Fatalf("Registrations: got %d, want 0 (subscriber never attached)", len(got.Registrations))
 	}
 
 	if len(got.Sessions) != 0 {
@@ -187,8 +181,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	Assert(t, contains(afterCreate.Items, imsi), fmt.Sprintf("list after create missing %q", imsi))
 
-	// List response carries a different Status struct than Get-one, so
-	// the defaults are asserted independently.
+	// List response carries a merged Status struct where Get-one carries
+	// registrations, so the defaults are asserted independently.
 	for _, item := range afterCreate.Items {
 		if item.Imsi != imsi {
 			continue
