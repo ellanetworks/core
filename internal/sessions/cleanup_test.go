@@ -97,3 +97,43 @@ func countSessions(t *testing.T, database *db.Database, userID string) int {
 
 	return n
 }
+
+func TestCleanUpLeavesUnexpiredSessionsAlone(t *testing.T) {
+	database := newCleanupTestDB(t)
+	ctx := context.Background()
+
+	userID, err := database.CreateUser(ctx, &db.User{
+		Email:          "unexpired@example.com",
+		RoleID:         db.RoleAdmin,
+		HashedPassword: "not-a-real-hash",
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	now := time.Now()
+
+	if err := database.CreateSession(ctx, &db.Session{
+		UserID:    userID,
+		TokenHash: make([]byte, 32),
+		CreatedAt: now.Add(-time.Hour).Unix(),
+		ExpiresAt: now.Add(time.Hour).Unix(),
+	}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	expired, err := database.CountExpiredSessions(ctx, time.Now().Unix())
+	if err != nil {
+		t.Fatalf("count expired sessions: %v", err)
+	}
+
+	if expired != 0 {
+		t.Fatalf("CountExpiredSessions = %d, want 0: the gate must skip the replicated delete", expired)
+	}
+
+	runCleanupPass(ctx, database)
+
+	if n := countSessions(t, database, userID); n != 1 {
+		t.Fatalf("CountSessionsByUser = %d, want 1: cleanup must not touch an unexpired session", n)
+	}
+}

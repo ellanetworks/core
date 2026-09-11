@@ -5,6 +5,7 @@ package kernel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -13,9 +14,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sys/unix"
 )
 
 var tracer = otel.Tracer("ella-core/kernel")
+
+var errNoRouteToNeighbour = errors.New("no route to neighbour")
 
 // AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
 func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) error {
@@ -28,17 +32,9 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 		))
 	defer span.End()
 
-	nlNeigh := netlink.Neigh{
-		LinkIndex: ifindex,
-		IP:        neigh.AsSlice(),
-		FlagsExt:  netlink.NTF_EXT_MANAGED,
-	}
-
-	return netlink.NeighSet(&nlNeigh)
+	return setNeighbour(ifindex, neigh.AsSlice())
 }
 
-// AddNeighbour adds the provided IP as a neighbour
-// on all links that have an address in the same subnet.
 func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 	_, span := tracer.Start(
 		ctx,
@@ -48,44 +44,96 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 		))
 	defer span.End()
 
-	neighIP := neigh.AsSlice()
+	dst := neigh.AsSlice()
 
-	links, err := netlink.LinkList()
-	if err != nil {
-		return fmt.Errorf("could not list network links: %v", err)
+	routes, err := netlink.RouteGetWithOptions(dst, &netlink.RouteGetOptions{FIBMatch: true})
+	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+		return fmt.Errorf("could not resolve route to %s: %w", neigh, err)
 	}
 
-	added := false
+	hops := nexthopsFromRoutes(dst, routes)
+	if len(hops) == 0 {
+		return fmt.Errorf("%w: %s", errNoRouteToNeighbour, neigh)
+	}
 
-	for _, l := range links {
-		addrs, err := netlink.AddrList(l, netlink.FAMILY_ALL)
-		if err != nil {
-			return fmt.Errorf("could not list addresses for link: %v", err)
-		}
+	span.SetAttributes(attribute.Int("nexthops", len(hops)))
 
-		for _, a := range addrs {
-			if a.Contains(neighIP) {
-				err = addNeighbourForLink(neighIP, l)
-				if err != nil {
-					return fmt.Errorf("could not add neighbour for link: %v", err)
-				}
+	var firstErr error
 
-				added = true
+	installed := 0
+
+	for _, h := range hops {
+		if err := setNeighbour(h.ifindex, h.ip); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("could not add neighbour %s on link %d: %w", h.ip, h.ifindex, err)
 			}
+
+			continue
 		}
+
+		installed++
 	}
 
-	if !added {
-		return fmt.Errorf("could not add neighbour")
+	span.SetAttributes(attribute.Int("nexthops.installed", installed))
+
+	if installed == 0 {
+		return firstErr
 	}
 
 	return nil
 }
 
+type nexthop struct {
+	ifindex int
+	ip      net.IP
+}
+
+func nexthopsFromRoutes(dst net.IP, routes []netlink.Route) []nexthop {
+	var hops []nexthop
+
+	add := func(ifindex int, ip net.IP) {
+		if ifindex <= 0 {
+			return
+		}
+
+		hops = append(hops, nexthop{ifindex: ifindex, ip: ip})
+	}
+
+	for _, r := range routes {
+		if len(r.MultiPath) > 0 {
+			for _, mp := range r.MultiPath {
+				add(mp.LinkIndex, nexthopAddr(dst, mp.Gw, mp.Via))
+			}
+
+			continue
+		}
+
+		add(r.LinkIndex, nexthopAddr(dst, r.Gw, r.Via))
+	}
+
+	return hops
+}
+
+func nexthopAddr(dst net.IP, gw net.IP, via netlink.Destination) net.IP {
+	if gw != nil {
+		return gw
+	}
+
+	if v, ok := via.(*netlink.Via); ok && v != nil && v.Addr != nil {
+		return v.Addr
+	}
+
+	return dst
+}
+
 func addNeighbourForLink(neigh net.IP, link netlink.Link) error {
+	return setNeighbour(link.Attrs().Index, neigh)
+}
+
+func setNeighbour(ifindex int, ip net.IP) error {
 	nlNeigh := netlink.Neigh{
-		LinkIndex: link.Attrs().Index,
-		IP:        neigh,
+		LinkIndex: ifindex,
+		IP:        ip,
 		FlagsExt:  netlink.NTF_EXT_MANAGED,
 	}
 

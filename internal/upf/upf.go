@@ -37,6 +37,7 @@ const (
 	ConnTrackTimeout     = 10 * time.Minute
 	natGCInterval        = 10 * time.Second
 	natGCBatchSize       = 4096
+	flowScanBatchSize    = 1024
 	InactiveFlowTimeout  = 30 * time.Second
 	ActiveFlowTimeout    = 30 * time.Minute
 	maxInFlightFlows     = 16384
@@ -901,12 +902,10 @@ func (u *UPF) listenForMissingNeighbours() {
 // after the value has been read but before it is removed. The deleted entry will therefore contain a slightly
 // stale counter. This inaccuracy is accepted as a reasonable trade-off to
 // avoid per-key Lookup+Delete syscall pairs that would double the map load.
-func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flowReport) {
-	const scanBatch = 1024
-
+func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flowReport,
+	keys []ebpf.N3N6EntrypointFlow, values []ebpf.N3N6EntrypointFlowStats,
+) {
 	var (
-		keys         = make([]ebpf.N3N6EntrypointFlow, scanBatch)
-		values       = make([]ebpf.N3N6EntrypointFlowStats, scanBatch)
 		expiredKeys  []ebpf.N3N6EntrypointFlow
 		expiredFlows []flowReport
 		cursor       bpf.MapBatchCursor
@@ -1010,7 +1009,11 @@ func (u *UPF) deleteFlowKeys(keys []ebpf.N3N6EntrypointFlow) int {
 }
 
 func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
-	var ts unix.Timespec
+	var (
+		ts     unix.Timespec
+		keys   = make([]ebpf.N3N6EntrypointFlow, flowScanBatchSize)
+		values = make([]ebpf.N3N6EntrypointFlowStats, flowScanBatchSize)
+	)
 
 	ticker := time.NewTicker(InactiveFlowTimeout / 2)
 	defer ticker.Stop()
@@ -1026,7 +1029,8 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 				return
 			}
 
-			u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
+			u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
+				keys, values)
 
 			return
 		case <-ticker.C:
@@ -1037,7 +1041,8 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 			continue
 		}
 
-		u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch)
+		u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
+			keys, values)
 	}
 }
 

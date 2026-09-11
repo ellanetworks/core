@@ -420,3 +420,104 @@ func TestDeleteExpiredSessions_TypedResultSurvivesForwardWire(t *testing.T) {
 		t.Fatalf("typed decode mismatch: got %d, want %d", got, fsmCount)
 	}
 }
+
+func TestCountExpiredSessions(t *testing.T) {
+	database := setupTestDB(t)
+	ctx := context.Background()
+
+	userID, err := database.CreateUser(ctx, &db.User{
+		Email:          "countexpired@example.com",
+		HashedPassword: "afewfawe12321",
+	})
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	now := time.Now()
+
+	if n, err := database.CountExpiredSessions(ctx, now.Unix()); err != nil || n != 0 {
+		t.Fatalf("CountExpiredSessions on an empty table = (%d, %v), want (0, nil)", n, err)
+	}
+
+	for i, expiresAt := range []int64{
+		now.Add(-time.Hour).Unix(),
+		now.Add(-time.Minute).Unix(),
+		now.Add(time.Hour).Unix(),
+	} {
+		hash := make([]byte, 32)
+		hash[0] = byte(i + 1)
+
+		if err := database.CreateSession(ctx, &db.Session{
+			UserID:    userID,
+			TokenHash: hash,
+			CreatedAt: now.Add(-2 * time.Hour).Unix(),
+			ExpiresAt: expiresAt,
+		}); err != nil {
+			t.Fatalf("Couldn't complete CreateSession: %s", err)
+		}
+	}
+
+	n, err := database.CountExpiredSessions(ctx, now.Unix())
+	if err != nil {
+		t.Fatalf("Couldn't complete CountExpiredSessions: %s", err)
+	}
+
+	if n != 2 {
+		t.Fatalf("CountExpiredSessions = %d, want 2", n)
+	}
+
+	deleted, err := database.DeleteExpiredSessions(ctx)
+	if err != nil {
+		t.Fatalf("Couldn't complete DeleteExpiredSessions: %s", err)
+	}
+
+	if deleted != n {
+		t.Fatalf("DeleteExpiredSessions deleted %d, but CountExpiredSessions reported %d", deleted, n)
+	}
+
+	if after, err := database.CountExpiredSessions(ctx, now.Unix()); err != nil || after != 0 {
+		t.Fatalf("CountExpiredSessions after cleanup = (%d, %v), want (0, nil)", after, err)
+	}
+
+	remaining, err := database.CountSessionsByUser(ctx, userID)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountSessionsByUser: %s", err)
+	}
+
+	if remaining != 1 {
+		t.Fatalf("CountSessionsByUser = %d, want 1 (the unexpired session must survive)", remaining)
+	}
+}
+
+func TestCountExpiredSessionsIsInclusiveOfTheCutoff(t *testing.T) {
+	database := setupTestDB(t)
+	ctx := context.Background()
+
+	userID, err := database.CreateUser(ctx, &db.User{
+		Email:          "cutoff@example.com",
+		HashedPassword: "afewfawe12321",
+	})
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	cutoff := time.Now().Unix()
+
+	if err := database.CreateSession(ctx, &db.Session{
+		UserID:    userID,
+		TokenHash: make([]byte, 32),
+		CreatedAt: cutoff - 3600,
+		ExpiresAt: cutoff,
+	}); err != nil {
+		t.Fatalf("Couldn't complete CreateSession: %s", err)
+	}
+
+	n, err := database.CountExpiredSessions(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountExpiredSessions: %s", err)
+	}
+
+	if n != 1 {
+		t.Fatalf("CountExpiredSessions = %d, want 1: the count must match the DELETE's <= cutoff", n)
+	}
+}

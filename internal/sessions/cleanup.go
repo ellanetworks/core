@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -51,6 +52,18 @@ func runCleanupPass(ctx context.Context, dbInstance *db.Database) {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
+
+	expired, err := dbInstance.CountExpiredSessions(tickCtx, time.Now().Unix())
+	if err != nil {
+		span.RecordError(err)
+		logger.WithTrace(tickCtx, logger.SessionsLog).Warn("error counting expired sessions, deleting unconditionally", zap.Error(err))
+	} else {
+		span.SetAttributes(attribute.Int("sessions.expired", expired))
+
+		if expired == 0 {
+			return
+		}
+	}
 
 	numDel, err := dbInstance.DeleteExpiredSessions(tickCtx)
 	if err != nil {

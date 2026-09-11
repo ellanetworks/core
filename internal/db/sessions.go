@@ -26,6 +26,7 @@ const (
 	deleteSessionByTokenHashStmt = "DELETE FROM %s WHERE token_hash==$Session.token_hash"       // #nosec: G101
 	deleteExpiredSessionsStmt    = "DELETE FROM %s WHERE expires_at <= $SessionCutoff.now_unix" // #nosec: G101
 	countSessionsByUserStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$UserIDArgs.user_id"
+	countExpiredSessionsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE expires_at <= $SessionCutoff.now_unix" // #nosec: G101
 	deleteOldestSessionsStmt     = "DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE user_id==$DeleteOldestArgs.user_id ORDER BY created_at ASC LIMIT $DeleteOldestArgs.limit)"
 	deleteAllSessionsForUserStmt = "DELETE FROM %s WHERE user_id==$UserIDArgs.user_id"
 	deleteAllSessionsStmt        = "DELETE FROM %s"
@@ -217,6 +218,39 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 	var result NumItems
 
 	err := db.conn().Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return result.Count, nil
+}
+
+func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("COUNT"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "select").Inc()
+
+	var result NumItems
+
+	err := db.conn().Query(ctx, db.countExpiredSessionsStmt, SessionCutoff{NowUnix: nowUnix}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

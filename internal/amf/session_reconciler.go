@@ -151,7 +151,7 @@ func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
 			continue
 		}
 
-		policy, reason := amf.fetchSessionPolicy(ref)
+		policy, reason := amf.fetchSessionPolicy(ctx, ref)
 
 		// ReconcileSkip signals a transient error; let the backstop timer retry.
 		if reason == models.ReconcileSkip {
@@ -186,7 +186,7 @@ func permanentPolicyFailure(err error) bool {
 // (the admin changed SST/SD). Returns (nil, ReconcileSkip) when the policy
 // cannot be determined (transient DB error, session gone, nil policy) so the
 // caller skips reconciliation and the backstop retries later.
-func (amf *AMF) fetchSessionPolicy(smContextRef string) (*models.SessionPolicyDelta, models.SessionReconcileReason) {
+func (amf *AMF) fetchSessionPolicy(ctx context.Context, smContextRef string) (*models.SessionPolicyDelta, models.SessionReconcileReason) {
 	sm := amf.Session.GetSession(smContextRef)
 	if sm == nil {
 		// Session already removed from the SMF pool (e.g. after a
@@ -194,7 +194,7 @@ func (amf *AMF) fetchSessionPolicy(smContextRef string) (*models.SessionPolicyDe
 		return nil, models.ReconcileSkip
 	}
 
-	policy, err := amf.Session.GetSessionPolicy(context.Background(), sm.Supi, sm.Snssai, sm.Dnn)
+	policy, err := amf.Session.GetSessionPolicy(ctx, sm.Supi, sm.Snssai, sm.Dnn)
 	if err != nil {
 		if permanentPolicyFailure(err) {
 			logger.AmfLog.Debug("session policy not found, triggering slice mismatch release",

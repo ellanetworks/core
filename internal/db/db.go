@@ -286,6 +286,7 @@ type Database struct {
 	deleteSessionByTokenHashStmt *sqlair.Statement
 	deleteExpiredSessionsStmt    *sqlair.Statement
 	countSessionsByUserStmt      *sqlair.Statement
+	countExpiredSessionsStmt     *sqlair.Statement
 	deleteOldestSessionsStmt     *sqlair.Statement
 	deleteAllSessionsForUserStmt *sqlair.Statement
 	deleteAllSessionsStmt        *sqlair.Statement
@@ -1655,6 +1656,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteSessionByTokenHashStmt, fmt.Sprintf(deleteSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
 		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}}},
 		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
+		{&db.countExpiredSessionsStmt, fmt.Sprintf(countExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}, NumItems{}}},
 		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
 		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
 		{&db.deleteAllSessionsStmt, fmt.Sprintf(deleteAllSessionsStmt, SessionsTableName), nil},
