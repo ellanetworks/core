@@ -477,7 +477,7 @@ This path updates the N3 interface settings.
 
 ### Parameters
 
-- `external_address` (string): The external address to be used for the N3 / S1-U interface. This address is advertised to the radio in the GTP tunnel Transport Layer Address. The radio uses it to set up the GTP-U tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 / S1-U interface address is not reachable by the radio. Accepts an IPv4 address, an IPv6 address, or one of each separated by a comma. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
+- `external_address` (string): The external address to be used for the N3 / S1-U interface. This address is advertised to the radio in the GTP tunnel Transport Layer Address. The radio uses it to set up the GTP-U tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 / S1-U interface address is not reachable by the radio. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
 
 ### Sample Response
 

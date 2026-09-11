@@ -9,16 +9,10 @@ import (
 	"strings"
 )
 
-// ParseN3ExternalAddress parses the operator-configured N3 / S1-U external
-// address into the endpoints to advertise in the Transport Layer Address. It
-// accepts a single IPv4 address, a single IPv6 address, or one of each
-// separated by a comma. A family the operator did not name comes back as the
-// zero Addr, so the advertisement carries exactly the families that were
-// configured and nothing else.
 func ParseN3ExternalAddress(s string) (v4, v6 netip.Addr, err error) {
-	fields := strings.Split(s, ",")
+	fields := strings.SplitSeq(s, ",")
 
-	for _, field := range fields {
+	for field := range fields {
 		field = strings.TrimSpace(field)
 		if field == "" {
 			return netip.Addr{}, netip.Addr{}, fmt.Errorf("external address %q: empty address", s)

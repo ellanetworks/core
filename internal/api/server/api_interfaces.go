@@ -175,10 +175,6 @@ func UpdateN3Interface(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// Empty means "use the local interface IP"; the upf reconciler
-		// resolves that against each node's local config when applying.
-		// A non-empty value must name one IPv4 address, one IPv6 address,
-		// or one of each separated by a comma.
 		if params.ExternalAddress != "" {
 			if _, _, err := models.ParseN3ExternalAddress(params.ExternalAddress); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be an IPv4 address, an IPv6 address, or an IPv4 and an IPv6 address separated by a comma", err, logger.APILog)

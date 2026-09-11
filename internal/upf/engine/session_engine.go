@@ -204,9 +204,6 @@ func (pc *SessionEngine) GetAdvertisedN3AddressIPv6() netip.Addr {
 	return pc.advertisedN3AddressIPv6
 }
 
-// SetAdvertisedN3Addresses replaces both advertised N3 endpoints at once. A
-// zero Addr clears that family, so a configuration naming a single family
-// stops advertising the other one.
 func (pc *SessionEngine) SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 netip.Addr) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()

@@ -77,9 +77,6 @@ type SettingsReconciler struct {
 	appliedFilters     map[string]filterSnapshot
 }
 
-// advertisedN3Addresses is the pair of endpoints signalled to the radio in the
-// Transport Layer Address. Either half may be the zero Addr, meaning that
-// family is not advertised.
 type advertisedN3Addresses struct {
 	v4 netip.Addr
 	v6 netip.Addr
@@ -107,12 +104,6 @@ type filterSnapshot struct {
 	downlink []models.FilterRule
 }
 
-// NewSettingsReconciler wires a reconciler. fallbackN3IPv4 and fallbackN3IPv6
-// are the local node's configured N3 addresses used when
-// n3_settings.external_address is empty; either may be the zero Addr when the
-// N3 interface has no address of that family. changefeed may be nil in tests
-// that drive Reconcile() directly; production callers always pass a non-nil
-// broker.
 func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IPv4, fallbackN3IPv6 netip.Addr) *SettingsReconciler {
 	return &SettingsReconciler{
 		updater:        updater,
