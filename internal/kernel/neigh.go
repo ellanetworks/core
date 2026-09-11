@@ -33,13 +33,8 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 	return setNeighbour(ifindex, neigh.AsSlice())
 }
 
-// ErrNoRouteToNeighbour is returned when the kernel has no route to the address,
-// so there is no link on which a neighbour entry would be meaningful.
 var ErrNoRouteToNeighbour = errors.New("no route to neighbour")
 
-// AddNeighbour resolves the address against the kernel routing table and adds a
-// neighbour entry for each nexthop the kernel would forward through: the address
-// itself when it is directly connected, or the gateway when it is not.
 func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 	_, span := tracer.Start(
 		ctx,
