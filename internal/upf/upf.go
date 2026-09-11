@@ -94,7 +94,7 @@ func (u *UPF) DatapathAttachMode() string {
 	return u.attachedMode
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -181,18 +181,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	// Start the RA responder for IPv6 prefix delegation (RS → RA via veth).
-	var n3IPv4Addr netip.Addr
-	if parsed, err := netip.ParseAddr(n3IPv4); err == nil && parsed.Is4() {
-		n3IPv4Addr = parsed
-	}
-
-	var n3IPv6Addr netip.Addr
-	if parsed, err := netip.ParseAddr(n3IPv6); err == nil && parsed.Is6() {
-		n3IPv6Addr = parsed
-	}
-
-	if n3IPv4Addr.IsValid() || n3IPv6Addr.IsValid() {
-		raResp, err := NewRAResponder(bpfObjects, n3IPv4Addr, n3IPv6Addr, n3Iface.Index)
+	if n3IPv4.IsValid() || n3IPv6.IsValid() {
+		raResp, err := NewRAResponder(bpfObjects, n3IPv4, n3IPv6, n3Iface.Index)
 		if err != nil {
 			logger.UpfLog.Warn("failed to create RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
 		} else {
@@ -206,8 +196,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		}
 	} else {
 		logger.UpfLog.Warn("skipping RA responder startup because no N3 transport address is available",
-			zap.String("n3_ipv4", n3IPv4),
-			zap.String("n3_ipv6", n3IPv6),
+			zap.Stringer("n3_ipv4", n3IPv4),
+			zap.Stringer("n3_ipv6", n3IPv6),
 			zap.String("n3_interface", n3AttachmentInterface),
 		)
 	}
@@ -320,12 +310,8 @@ func (u *UPF) UnregisterIPv6Session(ulTEID uint32) {
 	u.raResponder.UnregisterSession(ulTEID)
 }
 
-func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
-	if newN3Addr.Is4() {
-		u.se.SetAdvertisedN3Address(newN3Addr)
-	} else {
-		u.se.SetAdvertisedN3AddressIPv6(newN3Addr)
-	}
+func (u *UPF) UpdateAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 netip.Addr) {
+	u.se.SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6)
 }
 
 func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {

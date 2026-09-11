@@ -232,10 +232,12 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
 
+	advertisedN3IPv4, advertisedN3IPv6 := conn.GetAdvertisedN3Addresses()
+
 	return &models.EstablishResponse{
 		N3TEID: uplinkTEID(createdPDRs),
-		N3IPv4: conn.GetAdvertisedN3Address(),
-		N3IPv6: conn.GetAdvertisedN3AddressIPv6(),
+		N3IPv4: advertisedN3IPv4,
+		N3IPv6: advertisedN3IPv6,
 	}, nil
 }
 

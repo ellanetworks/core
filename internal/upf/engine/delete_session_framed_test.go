@@ -39,7 +39,7 @@ func TestDeleteSessionRemovesFramedRoutes(t *testing.T) {
 
 	t.Cleanup(func() { _ = obj.Close() })
 
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", "2.3.4.5", "", "2.3.4.5", "", obj, nil)
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, nil)
 	if err != nil {
 		t.Fatalf("new session engine: %v", err)
 	}

@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"net/netip"
 	"reflect"
 	"testing"
 
@@ -29,12 +30,12 @@ func TestResolveN3AddressesConfiguredIPv6IsAuthoritative(t *testing.T) {
 		AddressExplicit: true,
 	})
 
-	if n3IPv4 != "" {
-		t.Fatalf("n3IPv4 = %q, want empty", n3IPv4)
+	if n3IPv4.IsValid() {
+		t.Fatalf("n3IPv4 = %v, want empty", n3IPv4)
 	}
 
-	if got, want := n3IPv6, "2001:db8::1"; got != want {
-		t.Fatalf("n3IPv6 = %q, want %q", got, want)
+	if got, want := n3IPv6, netip.MustParseAddr("2001:db8::1"); got != want {
+		t.Fatalf("n3IPv6 = %v, want %v", got, want)
 	}
 }
 
@@ -57,12 +58,12 @@ func TestResolveN3AddressesConfiguredIPv4IsAuthoritative(t *testing.T) {
 		AddressExplicit: true,
 	})
 
-	if got, want := n3IPv4, "192.0.2.1"; got != want {
-		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	if got, want := n3IPv4, netip.MustParseAddr("192.0.2.1"); got != want {
+		t.Fatalf("n3IPv4 = %v, want %v", got, want)
 	}
 
-	if n3IPv6 != "" {
-		t.Fatalf("n3IPv6 = %q, want empty", n3IPv6)
+	if n3IPv6.IsValid() {
+		t.Fatalf("n3IPv6 = %v, want empty", n3IPv6)
 	}
 }
 
@@ -82,12 +83,12 @@ func TestResolveN3AddressesDerivedAddressStillScansBothFamilies(t *testing.T) {
 		Address: "2001:db8::20",
 	})
 
-	if got, want := n3IPv4, "192.0.2.20"; got != want {
-		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	if got, want := n3IPv4, netip.MustParseAddr("192.0.2.20"); got != want {
+		t.Fatalf("n3IPv4 = %v, want %v", got, want)
 	}
 
-	if got, want := n3IPv6, "2001:db8::20"; got != want {
-		t.Fatalf("n3IPv6 = %q, want %q", got, want)
+	if got, want := n3IPv6, netip.MustParseAddr("2001:db8::20"); got != want {
+		t.Fatalf("n3IPv6 = %v, want %v", got, want)
 	}
 }
 
@@ -112,12 +113,12 @@ func TestResolveN3AddressesScansVlanNetdevNotMaster(t *testing.T) {
 		VlanConfig: &config.VlanConfig{MasterInterface: "ens4"},
 	})
 
-	if got, want := n3IPv4, "10.1.1.5"; got != want {
-		t.Fatalf("n3IPv4 = %q, want %q", got, want)
+	if got, want := n3IPv4, netip.MustParseAddr("10.1.1.5"); got != want {
+		t.Fatalf("n3IPv4 = %v, want %v", got, want)
 	}
 
-	if got, want := n3IPv6, "2001:db8::5"; got != want {
-		t.Fatalf("n3IPv6 = %q, want %q", got, want)
+	if got, want := n3IPv6, netip.MustParseAddr("2001:db8::5"); got != want {
+		t.Fatalf("n3IPv6 = %v, want %v", got, want)
 	}
 }
 
@@ -139,7 +140,7 @@ func TestResolveN3AddressesUsesScannedAddressesWhenUnconfigured(t *testing.T) {
 
 	n3IPv4, n3IPv6 := resolveN3Addresses(config.N3Interface{Name: "n3eth0"})
 
-	if got := []string{n3IPv4, n3IPv6}; !reflect.DeepEqual(got, expected) {
+	if got := []string{n3IPv4.String(), n3IPv6.String()}; !reflect.DeepEqual(got, expected) {
 		t.Fatalf("resolved addresses = %v, want %v", got, expected)
 	}
 }

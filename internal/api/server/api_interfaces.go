@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/netip"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type N2Interface struct {
@@ -175,12 +175,9 @@ func UpdateN3Interface(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// Empty means "use the local interface IP"; the upf reconciler
-		// resolves that against each node's local config when applying.
-		// A non-empty value must be a valid IP.
 		if params.ExternalAddress != "" {
-			if _, err := netip.ParseAddr(params.ExternalAddress); err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", err, logger.APILog)
+			if _, _, err := models.ParseN3ExternalAddress(params.ExternalAddress); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be an IPv4 address, an IPv6 address, or an IPv4 and an IPv6 address separated by a comma", err, logger.APILog)
 				return
 			}
 		}
