@@ -56,16 +56,13 @@ func runCleanupPass(ctx context.Context, dbInstance *db.Database) {
 	expired, err := dbInstance.CountExpiredSessions(tickCtx, time.Now().Unix())
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to count expired sessions")
-		logger.WithTrace(tickCtx, logger.SessionsLog).Error("error counting expired sessions", zap.Error(err))
+		logger.WithTrace(tickCtx, logger.SessionsLog).Warn("error counting expired sessions, deleting unconditionally", zap.Error(err))
+	} else {
+		span.SetAttributes(attribute.Int("sessions.expired", expired))
 
-		return
-	}
-
-	span.SetAttributes(attribute.Int("sessions.expired", expired))
-
-	if expired == 0 {
-		return
+		if expired == 0 {
+			return
+		}
 	}
 
 	numDel, err := dbInstance.DeleteExpiredSessions(tickCtx)

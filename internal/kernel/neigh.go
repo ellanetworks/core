@@ -58,10 +58,26 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 
 	span.SetAttributes(attribute.Int("nexthops", len(hops)))
 
+	var firstErr error
+
+	installed := 0
+
 	for _, h := range hops {
 		if err := setNeighbour(h.ifindex, h.ip); err != nil {
-			return fmt.Errorf("could not add neighbour %s on link %d: %w", h.ip, h.ifindex, err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("could not add neighbour %s on link %d: %w", h.ip, h.ifindex, err)
+			}
+
+			continue
 		}
+
+		installed++
+	}
+
+	span.SetAttributes(attribute.Int("nexthops.installed", installed))
+
+	if installed == 0 {
+		return firstErr
 	}
 
 	return nil
