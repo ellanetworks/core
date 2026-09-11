@@ -7,7 +7,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { updateN3Settings } from "@/queries/interfaces";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipv4Regex, ipv6Regex } from "@/utils/ip";
+import { addressFamily } from "@/utils/ip";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import { PRODUCT } from "@/utils/product";
@@ -35,13 +35,12 @@ const schema = yup.object({
         const parts = value.split(",").map((part) => part.trim());
         if (parts.length > 2) return false;
 
-        const v4 = parts.filter((part) => ipv4Regex.test(part));
-        const v6 = parts.filter((part) => ipv6Regex.test(part));
+        const families = parts.map(addressFamily);
+        if (families.some((family) => family === null)) return false;
 
         return (
-          v4.length + v6.length === parts.length &&
-          v4.length <= 1 &&
-          v6.length <= 1
+          families.filter((family) => family === 4).length <= 1 &&
+          families.filter((family) => family === 6).length <= 1
         );
       },
     ),
@@ -74,7 +73,7 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit N3 Interface"
-      description={`Configure an external address (IPv4 or IPv6) for N3. ${PRODUCT.name} will advertise this address to radios which will use it to establish GTP tunnels. Use this if ${PRODUCT.name} is behind a proxy, NAT, or load-balancer. If not set, ${PRODUCT.name} will use N3's address as defined in the config file.`}
+      description={`Configure an external address for N3: one IPv4 address, one IPv6 address, or one of each separated by a comma. ${PRODUCT.name} will advertise this address to radios which will use it to establish GTP tunnels. Use this if ${PRODUCT.name} is behind a proxy, NAT, or load-balancer. If not set, ${PRODUCT.name} will use N3's address as defined in the config file.`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update N3 external address"
@@ -85,7 +84,7 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
       <TextControl<FormValues>
         name="externalAddress"
         label="External Address"
-        helperText="Leave empty to use N3's configured address. Supports both IPv4 and IPv6."
+        helperText="Leave empty to use N3's configured address. Example: 203.0.113.5, 2001:db8::5"
         showErrorWhileTyping
         autoFocus
       />

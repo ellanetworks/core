@@ -7,6 +7,31 @@ export const ipv4Regex =
 export const ipv6Regex =
   /^((([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,7}:)|(([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})|(([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3})|(([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4})|(([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5})|([0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6}))|(:((:[0-9a-fA-F]{1,4}){1,7}|:))|fe80:(:[0-9a-fA-F]{0,4}){0,4}%?[0-9a-fA-F]{0,4}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
+const ipv4MappedDottedRegex =
+  /^::ffff:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})$/i;
+
+const ipv4MappedHexRegex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+
+export function unmapIpv4Mapped(value: string): string {
+  const dotted = value.match(ipv4MappedDottedRegex);
+  if (dotted) return dotted[1];
+
+  const hex = value.match(ipv4MappedHexRegex);
+  if (!hex) return value;
+
+  const high = parseInt(hex[1], 16);
+  const low = parseInt(hex[2], 16);
+
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
+export function addressFamily(value: string): 4 | 6 | null {
+  if (ipv4Regex.test(unmapIpv4Mapped(value))) return 4;
+  if (ipv6Regex.test(value)) return 6;
+
+  return null;
+}
+
 export const ipRegex = new RegExp(
   `(${ipv4Regex.source})|(${ipv6Regex.source})`,
 );

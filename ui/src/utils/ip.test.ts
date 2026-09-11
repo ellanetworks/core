@@ -9,6 +9,8 @@ import {
   ipRegex,
   ipv4Regex,
   ipv6Regex,
+  addressFamily,
+  unmapIpv4Mapped,
   isValidCidr,
   isValidIpv4Cidr,
   isValidIpv6Cidr,
@@ -149,5 +151,39 @@ describe("address regexes", () => {
   it("ipRegex accepts either family", () => {
     expect(ipRegex.test("10.0.0.1")).toBe(true);
     expect(ipRegex.test("2001:db8::1")).toBe(true);
+  });
+});
+
+describe("unmapIpv4Mapped", () => {
+  it.each([
+    ["::ffff:10.0.0.1", "10.0.0.1"],
+    ["::FFFF:255.255.255.255", "255.255.255.255"],
+    ["::ffff:a00:1", "10.0.0.1"],
+    ["10.0.0.1", "10.0.0.1"],
+    ["2001:db8::1", "2001:db8::1"],
+    ["::1.2.3.4", "::1.2.3.4"],
+    ["::ffff:0:1.2.3.4", "::ffff:0:1.2.3.4"],
+  ])("maps %s to %s", (value, expected) => {
+    expect(unmapIpv4Mapped(value)).toBe(expected);
+  });
+});
+
+describe("addressFamily", () => {
+  it.each(["10.0.0.1", "::ffff:10.0.0.1", "::ffff:a00:1"])(
+    "classifies %s as IPv4",
+    (v) => {
+      expect(addressFamily(v)).toBe(4);
+    },
+  );
+
+  it.each(["2001:db8::1", "::1", "::", "::1.2.3.4"])(
+    "classifies %s as IPv6",
+    (v) => {
+      expect(addressFamily(v)).toBe(6);
+    },
+  );
+
+  it.each(["", "banana", "256.0.0.1", "10.0.0.1/24"])("rejects %s", (v) => {
+    expect(addressFamily(v)).toBeNull();
   });
 });

@@ -190,18 +190,11 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 	return nil
 }
 
-func (pc *SessionEngine) GetAdvertisedN3Address() netip.Addr {
+func (pc *SessionEngine) GetAdvertisedN3Addresses() (netip.Addr, netip.Addr) {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 
-	return pc.advertisedN3AddressIPv4
-}
-
-func (pc *SessionEngine) GetAdvertisedN3AddressIPv6() netip.Addr {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
-
-	return pc.advertisedN3AddressIPv6
+	return pc.advertisedN3AddressIPv4, pc.advertisedN3AddressIPv6
 }
 
 func (pc *SessionEngine) SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 netip.Addr) {

@@ -296,7 +296,7 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 	if settings.ExternalAddress != "" {
 		v4, v6, err := models.ParseN3ExternalAddress(settings.ExternalAddress)
 		if err != nil {
-			return fmt.Errorf("invalid %w", err)
+			return err
 		}
 
 		desired = advertisedN3Addresses{v4: v4, v6: v6}
