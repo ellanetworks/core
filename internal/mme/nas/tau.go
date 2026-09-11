@@ -268,16 +268,19 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 		return nil, err
 	}
 
+	// Matches the attach accept: reporting the combined update as served keeps a
+	// voice-centric UE from disabling E-UTRAN (TS 23.221 §7.2a). No SGs
+	// interface backs the CS registration.
+	updateResult := eps.EPSUpdateResultTA
+	if opts.combined {
+		updateResult = eps.EPSUpdateResultCombined
+	}
+
 	accept := &eps.TrackingAreaUpdateAccept{
-		EPSUpdateResult:       eps.EPSUpdateResultTA,
+		EPSUpdateResult:       updateResult,
 		GUTI:                  &guti,
 		TAIList:               &taiList,
 		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap()),
-	}
-
-	if opts.combined {
-		cause := eps.EMMCauseCSDomainNotAvailable
-		accept.Cause = &cause
 	}
 
 	if opts.bearerStatus {
