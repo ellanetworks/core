@@ -212,54 +212,10 @@ func (pc *SessionEngine) SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 n
 	pc.advertisedN3AddressIPv6 = newN3AddrIPv6
 }
 
-func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
+func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
-	}
-
-	var n3AddrIPv4 netip.Addr
-
-	if n3IPv4 != "" {
-		parsed, err := netip.ParseAddr(n3IPv4)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse N3 IPv4 address: %s", n3IPv4)
-		}
-
-		n3AddrIPv4 = parsed
-	}
-
-	var n3AddrIPv6 netip.Addr
-
-	if n3IPv6 != "" {
-		parsed, err := netip.ParseAddr(n3IPv6)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse N3 IPv6 address: %s", n3IPv6)
-		}
-
-		n3AddrIPv6 = parsed
-	}
-
-	var advertisedN3AddrIPv4 netip.Addr
-
-	if advertisedN3IPv4 != "" {
-		parsed, err := netip.ParseAddr(advertisedN3IPv4)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse advertised N3 IPv4 address: %w", err)
-		}
-
-		advertisedN3AddrIPv4 = parsed
-	}
-
-	var advertisedN3AddrIPv6 netip.Addr
-
-	if advertisedN3IPv6 != "" {
-		parsed, err := netip.ParseAddr(advertisedN3IPv6)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse advertised N3 IPv6 address: %w", err)
-		}
-
-		advertisedN3AddrIPv6 = parsed
 	}
 
 	conn := &SessionEngine{
@@ -267,10 +223,10 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, 
 		policyToSEIDs:           make(map[string]map[uint64]struct{}),
 		nodeID:                  nodeID,
 		nodeAddrV4:              addrV4,
-		n3AddressIPv4:           n3AddrIPv4,
-		n3AddressIPv6:           n3AddrIPv6,
-		advertisedN3AddressIPv4: advertisedN3AddrIPv4,
-		advertisedN3AddressIPv6: advertisedN3AddrIPv6,
+		n3AddressIPv4:           n3IPv4,
+		n3AddressIPv6:           n3IPv6,
+		advertisedN3AddressIPv4: advertisedN3IPv4,
+		advertisedN3AddressIPv6: advertisedN3IPv6,
 		BpfObjects:              bpfObjects,
 		FteIDResourceManager:    resourceManager,
 		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),

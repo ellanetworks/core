@@ -5,6 +5,7 @@ package engine_test
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -15,10 +16,10 @@ func TestModifySessionSessionNotFound(t *testing.T) {
 	conn, err := engine.NewSessionEngine(
 		"1.2.3.4",
 		"nodeId",
-		"2.3.4.5",
-		"",
-		"2.3.4.5",
-		"",
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
 		nil,
 		nil,
 	)
@@ -38,10 +39,10 @@ func TestDeleteSessionAccepted(t *testing.T) {
 	conn, err := engine.NewSessionEngine(
 		"1.2.3.4",
 		"nodeId",
-		"2.3.4.5",
-		"",
-		"2.3.4.5",
-		"",
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
 		nil,
 		nil,
 	)
@@ -70,10 +71,10 @@ func TestDeleteSessionNotFound(t *testing.T) {
 	conn, err := engine.NewSessionEngine(
 		"1.2.3.4",
 		"nodeId",
-		"2.3.4.5",
-		"",
-		"2.3.4.5",
-		"",
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
 		nil,
 		nil,
 	)
@@ -91,10 +92,10 @@ func TestModifySessionAccepted(t *testing.T) {
 	conn, err := engine.NewSessionEngine(
 		"1.2.3.4",
 		"nodeId",
-		"2.3.4.5",
-		"",
-		"2.3.4.5",
-		"",
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
+		netip.MustParseAddr("2.3.4.5"),
+		netip.Addr{},
 		nil,
 		nil,
 	)

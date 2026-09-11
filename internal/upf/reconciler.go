@@ -73,7 +73,7 @@ type SettingsReconciler struct {
 
 	stateMu            sync.Mutex
 	appliedSettings    *DatapathSettings
-	appliedN3Addresses *advertisedN3Addresses
+	appliedN3Addresses advertisedN3Addresses
 	appliedFilters     map[string]filterSnapshot
 }
 
@@ -84,19 +84,6 @@ type advertisedN3Addresses struct {
 
 func (a advertisedN3Addresses) valid() bool {
 	return a.v4.IsValid() || a.v6.IsValid()
-}
-
-func (a advertisedN3Addresses) String() string {
-	switch {
-	case a.v4.IsValid() && a.v6.IsValid():
-		return a.v4.String() + "," + a.v6.String()
-	case a.v6.IsValid():
-		return a.v6.String()
-	case a.v4.IsValid():
-		return a.v4.String()
-	default:
-		return ""
-	}
 }
 
 type filterSnapshot struct {
@@ -323,17 +310,18 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 	current := r.appliedN3Addresses
 	r.stateMu.Unlock()
 
-	if current != nil && *current == desired {
+	if current == desired {
 		return nil
 	}
 
 	r.updater.UpdateAdvertisedN3Addresses(desired.v4, desired.v6)
 
 	r.stateMu.Lock()
-	r.appliedN3Addresses = &desired
+	r.appliedN3Addresses = desired
 	r.stateMu.Unlock()
 
-	logger.UpfLog.Info("applied advertised N3 addresses", zap.String("addresses", desired.String()))
+	logger.UpfLog.Info("applied advertised N3 addresses",
+		zap.Stringer("ipv4", desired.v4), zap.Stringer("ipv6", desired.v6))
 
 	return nil
 }

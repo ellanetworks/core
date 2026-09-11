@@ -397,11 +397,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if err != nil {
 			logger.EllaLog.Warn("Ignoring invalid N3 external address from N3 settings", zap.Error(err))
 		} else {
-			advertisedN3IPv4 = addrString(externalIPv4)
-			advertisedN3IPv6 = addrString(externalIPv6)
+			advertisedN3IPv4 = externalIPv4
+			advertisedN3IPv6 = externalIPv6
 			logger.EllaLog.Debug("Using N3 external address from N3 settings",
-				zap.String("n3_external_ipv4", advertisedN3IPv4),
-				zap.String("n3_external_ipv6", advertisedN3IPv6))
+				zap.Stringer("n3_external_ipv4", advertisedN3IPv4),
+				zap.Stringer("n3_external_ipv6", advertisedN3IPv6))
 		}
 	}
 
@@ -417,9 +417,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
-	fallbackN3IPv4, _ := netip.ParseAddr(n3IPv4)
-	fallbackN3IPv6, _ := netip.ParseAddr(n3IPv6)
-	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3IPv4, fallbackN3IPv6)
+	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), n3IPv4, n3IPv6)
 	upfReconciler.Start()
 
 	defer upfReconciler.Stop()
@@ -907,31 +905,23 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 	return out, nil
 }
 
-func addrString(addr netip.Addr) string {
-	if !addr.IsValid() {
-		return ""
-	}
-
-	return addr.String()
-}
-
-func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
+func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 netip.Addr) {
 	if n3Interface.AddressExplicit && n3Interface.Address != "" {
 		addr, err := netip.ParseAddr(n3Interface.Address)
 		if err != nil {
-			return "", ""
+			return netip.Addr{}, netip.Addr{}
 		}
 
 		if addr.Is4() {
-			return n3Interface.Address, ""
+			return addr, netip.Addr{}
 		}
 
-		return "", n3Interface.Address
+		return netip.Addr{}, addr
 	}
 
 	ips, err := getInterfaceIPs(n3Interface.Name)
 	if err != nil {
-		return "", ""
+		return netip.Addr{}, netip.Addr{}
 	}
 
 	for _, ipStr := range ips {
@@ -940,10 +930,10 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 			continue
 		}
 
-		if addr.Is4() && n3IPv4 == "" {
-			n3IPv4 = ipStr
-		} else if addr.Is6() && n3IPv6 == "" {
-			n3IPv6 = ipStr
+		if addr.Is4() && !n3IPv4.IsValid() {
+			n3IPv4 = addr
+		} else if addr.Is6() && !n3IPv6.IsValid() {
+			n3IPv6 = addr
 		}
 	}
 

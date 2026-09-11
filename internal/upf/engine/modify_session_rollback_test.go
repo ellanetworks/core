@@ -45,7 +45,7 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 		t.Fatalf("new fteid resource manager: %v", err)
 	}
 
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", "2.3.4.5", "", "2.3.4.5", "", obj, rm)
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
 	if err != nil {
 		t.Fatalf("new session engine: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
 		t.Fatalf("new fteid resource manager: %v", err)
 	}
 
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", "2.3.4.5", "", "2.3.4.5", "", obj, rm)
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
 	if err != nil {
 		t.Fatalf("new session engine: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestModifySessionUpdatePDRKeyChangeCommit(t *testing.T) {
 		t.Fatalf("new fteid resource manager: %v", err)
 	}
 
-	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", "2.3.4.5", "", "2.3.4.5", "", obj, rm)
+	conn, err := engine.NewSessionEngine("1.2.3.4", "nodeId", netip.MustParseAddr("2.3.4.5"), netip.Addr{}, netip.MustParseAddr("2.3.4.5"), netip.Addr{}, obj, rm)
 	if err != nil {
 		t.Fatalf("new session engine: %v", err)
 	}

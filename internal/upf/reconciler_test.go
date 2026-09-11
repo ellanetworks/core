@@ -251,7 +251,7 @@ func TestReconcile_N3UsesFallbackWhenExternalEmpty(t *testing.T) {
 	}
 
 	if got := len(updater.n3Calls); got != 1 || updater.n3Calls[0] != fallback {
-		t.Fatalf("expected N3 call with fallback %s, got %v", fallback, updater.n3Calls)
+		t.Fatalf("expected N3 call with fallback %v, got %v", fallback, updater.n3Calls)
 	}
 }
 
@@ -270,7 +270,7 @@ func TestReconcile_N3PrefersExternalWhenSet(t *testing.T) {
 
 	want := advertisedN3Addresses{v4: netip.MustParseAddr("172.16.1.1")}
 	if got := len(updater.n3Calls); got != 1 || updater.n3Calls[0] != want {
-		t.Fatalf("expected N3 call with external %s, got %v", want, updater.n3Calls)
+		t.Fatalf("expected N3 call with external %v, got %v", want, updater.n3Calls)
 	}
 }
 
