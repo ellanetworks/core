@@ -28,10 +28,21 @@ const schema = yup.object({
     .default("")
     .test(
       "empty-or-ipv4-or-ipv6",
-      "External address must be a valid IPv4 or IPv6 address",
+      "External address must be an IPv4 address, an IPv6 address, or one of each separated by a comma",
       (value) => {
         if (!value) return true;
-        return ipv4Regex.test(value) || ipv6Regex.test(value);
+
+        const parts = value.split(",").map((part) => part.trim());
+        if (parts.length > 2) return false;
+
+        const v4 = parts.filter((part) => ipv4Regex.test(part));
+        const v6 = parts.filter((part) => ipv6Regex.test(part));
+
+        return (
+          v4.length + v6.length === parts.length &&
+          v4.length <= 1 &&
+          v6.length <= 1
+        );
       },
     ),
 });

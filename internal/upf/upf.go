@@ -320,12 +320,8 @@ func (u *UPF) UnregisterIPv6Session(ulTEID uint32) {
 	u.raResponder.UnregisterSession(ulTEID)
 }
 
-func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
-	if newN3Addr.Is4() {
-		u.se.SetAdvertisedN3Address(newN3Addr)
-	} else {
-		u.se.SetAdvertisedN3AddressIPv6(newN3Addr)
-	}
+func (u *UPF) UpdateAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 netip.Addr) {
+	u.se.SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6)
 }
 
 func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {

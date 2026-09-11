@@ -5463,7 +5463,7 @@ components:
       properties:
         external_address:
           type: string
-          description: "External/advertised IP address. Empty string to use default."
+          description: "External/advertised IP address: an IPv4 address, an IPv6 address, or one of each separated by a comma. Empty string to use default."
 
     # -- Radios ----------------------------------------------------------
     PlmnID:

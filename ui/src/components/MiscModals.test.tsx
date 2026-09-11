@@ -56,7 +56,7 @@ describe("EditInterfaceN3Modal", () => {
     await user.type(field(/External Address/), "not-an-ip");
 
     await screen.findByText(
-      "External address must be a valid IPv4 or IPv6 address",
+      "External address must be an IPv4 address, an IPv6 address, or one of each separated by a comma",
     );
     expect(button(/^Update$/)).toBeDisabled();
   });

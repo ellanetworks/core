@@ -49,7 +49,7 @@ type DatapathSettings struct {
 // *UPF satisfies it.
 type Updater interface {
 	ApplyDatapathSettings(settings DatapathSettings) error
-	UpdateAdvertisedN3Address(addr netip.Addr)
+	UpdateAdvertisedN3Addresses(v4, v6 netip.Addr)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
 
@@ -61,20 +61,45 @@ type Updater interface {
 // calls re-attach XDP / re-write eBPF maps, so calling them
 // unconditionally on every tick would disrupt the data plane.
 type SettingsReconciler struct {
-	updater      Updater
-	store        SettingsStore
-	changefeed   *db.Changefeed
-	fallbackN3IP netip.Addr
-	backstop     time.Duration
+	updater    Updater
+	store      SettingsStore
+	changefeed *db.Changefeed
+	fallbackN3 advertisedN3Addresses
+	backstop   time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	stateMu          sync.Mutex
-	appliedSettings  *DatapathSettings
-	appliedN3Address netip.Addr
-	appliedFilters   map[string]filterSnapshot
+	stateMu            sync.Mutex
+	appliedSettings    *DatapathSettings
+	appliedN3Addresses *advertisedN3Addresses
+	appliedFilters     map[string]filterSnapshot
+}
+
+// advertisedN3Addresses is the pair of endpoints signalled to the radio in the
+// Transport Layer Address. Either half may be the zero Addr, meaning that
+// family is not advertised.
+type advertisedN3Addresses struct {
+	v4 netip.Addr
+	v6 netip.Addr
+}
+
+func (a advertisedN3Addresses) valid() bool {
+	return a.v4.IsValid() || a.v6.IsValid()
+}
+
+func (a advertisedN3Addresses) String() string {
+	switch {
+	case a.v4.IsValid() && a.v6.IsValid():
+		return a.v4.String() + "," + a.v6.String()
+	case a.v6.IsValid():
+		return a.v6.String()
+	case a.v4.IsValid():
+		return a.v4.String()
+	default:
+		return ""
+	}
 }
 
 type filterSnapshot struct {
@@ -82,16 +107,18 @@ type filterSnapshot struct {
 	downlink []models.FilterRule
 }
 
-// NewSettingsReconciler wires a reconciler. fallbackN3IP is the local
-// node's configured N3 address used when n3_settings.external_address
-// is empty. changefeed may be nil in tests that drive Reconcile()
-// directly; production callers always pass a non-nil broker.
-func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IP netip.Addr) *SettingsReconciler {
+// NewSettingsReconciler wires a reconciler. fallbackN3IPv4 and fallbackN3IPv6
+// are the local node's configured N3 addresses used when
+// n3_settings.external_address is empty; either may be the zero Addr when the
+// N3 interface has no address of that family. changefeed may be nil in tests
+// that drive Reconcile() directly; production callers always pass a non-nil
+// broker.
+func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IPv4, fallbackN3IPv6 netip.Addr) *SettingsReconciler {
 	return &SettingsReconciler{
 		updater:        updater,
 		store:          store,
 		changefeed:     changefeed,
-		fallbackN3IP:   fallbackN3IP,
+		fallbackN3:     advertisedN3Addresses{v4: fallbackN3IPv4, v6: fallbackN3IPv6},
 		backstop:       upfReconcileBackstop,
 		appliedFilters: make(map[string]filterSnapshot),
 	}
@@ -286,36 +313,36 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 		return err
 	}
 
-	desired := r.fallbackN3IP
+	desired := r.fallbackN3
 
 	if settings.ExternalAddress != "" {
-		parsed, err := netip.ParseAddr(settings.ExternalAddress)
+		v4, v6, err := models.ParseN3ExternalAddress(settings.ExternalAddress)
 		if err != nil {
-			return fmt.Errorf("invalid external address %q: %w", settings.ExternalAddress, err)
+			return fmt.Errorf("invalid %w", err)
 		}
 
-		desired = parsed
+		desired = advertisedN3Addresses{v4: v4, v6: v6}
 	}
 
-	if !desired.IsValid() {
+	if !desired.valid() {
 		return nil
 	}
 
 	r.stateMu.Lock()
-	current := r.appliedN3Address
+	current := r.appliedN3Addresses
 	r.stateMu.Unlock()
 
-	if current == desired {
+	if current != nil && *current == desired {
 		return nil
 	}
 
-	r.updater.UpdateAdvertisedN3Address(desired)
+	r.updater.UpdateAdvertisedN3Addresses(desired.v4, desired.v6)
 
 	r.stateMu.Lock()
-	r.appliedN3Address = desired
+	r.appliedN3Addresses = &desired
 	r.stateMu.Unlock()
 
-	logger.UpfLog.Info("applied advertised N3 address", zap.String("address", desired.String()))
+	logger.UpfLog.Info("applied advertised N3 addresses", zap.String("addresses", desired.String()))
 
 	return nil
 }

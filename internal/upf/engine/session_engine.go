@@ -204,18 +204,15 @@ func (pc *SessionEngine) GetAdvertisedN3AddressIPv6() netip.Addr {
 	return pc.advertisedN3AddressIPv6
 }
 
-func (pc *SessionEngine) SetAdvertisedN3Address(newN3Addr netip.Addr) {
+// SetAdvertisedN3Addresses replaces both advertised N3 endpoints at once. A
+// zero Addr clears that family, so a configuration naming a single family
+// stops advertising the other one.
+func (pc *SessionEngine) SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 netip.Addr) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	pc.advertisedN3AddressIPv4 = newN3Addr
-}
-
-func (pc *SessionEngine) SetAdvertisedN3AddressIPv6(newN3Addr netip.Addr) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
-	pc.advertisedN3AddressIPv6 = newN3Addr
+	pc.advertisedN3AddressIPv4 = newN3AddrIPv4
+	pc.advertisedN3AddressIPv6 = newN3AddrIPv6
 }
 
 func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {

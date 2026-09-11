@@ -37,6 +37,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	mmenas "github.com/ellanetworks/core/internal/mme/nas"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
@@ -392,15 +393,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	advertisedN3IPv6 := n3IPv6
 
 	if n3Settings != nil && n3Settings.ExternalAddress != "" {
-		externalAddr, err := netip.ParseAddr(n3Settings.ExternalAddress)
-		if err == nil {
-			if externalAddr.Is4() {
-				advertisedN3IPv4 = n3Settings.ExternalAddress
-				logger.EllaLog.Debug("Using N3 external IPv4 address from N3 settings", zap.String("n3_external_address", advertisedN3IPv4))
-			} else {
-				advertisedN3IPv6 = n3Settings.ExternalAddress
-				logger.EllaLog.Debug("Using N3 external IPv6 address from N3 settings", zap.String("n3_external_address", advertisedN3IPv6))
-			}
+		externalIPv4, externalIPv6, err := models.ParseN3ExternalAddress(n3Settings.ExternalAddress)
+		if err != nil {
+			logger.EllaLog.Warn("Ignoring invalid N3 external address from N3 settings", zap.Error(err))
+		} else {
+			advertisedN3IPv4 = addrString(externalIPv4)
+			advertisedN3IPv6 = addrString(externalIPv6)
+			logger.EllaLog.Debug("Using N3 external address from N3 settings",
+				zap.String("n3_external_ipv4", advertisedN3IPv4),
+				zap.String("n3_external_ipv6", advertisedN3IPv6))
 		}
 	}
 
@@ -416,8 +417,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
-	fallbackN3, _ := netip.ParseAddr(n3IPv4)
-	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3)
+	fallbackN3IPv4, _ := netip.ParseAddr(n3IPv4)
+	fallbackN3IPv6, _ := netip.ParseAddr(n3IPv6)
+	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3IPv4, fallbackN3IPv6)
 	upfReconciler.Start()
 
 	defer upfReconciler.Stop()
@@ -903,6 +905,14 @@ func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeI
 	}
 
 	return out, nil
+}
+
+func addrString(addr netip.Addr) string {
+	if !addr.IsValid() {
+		return ""
+	}
+
+	return addr.String()
 }
 
 func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {

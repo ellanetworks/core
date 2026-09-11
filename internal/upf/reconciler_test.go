@@ -89,7 +89,7 @@ type filterCall struct {
 type fakeUpdater struct {
 	mu                sync.Mutex
 	settingsCalls     []DatapathSettings
-	n3Calls           []netip.Addr
+	n3Calls           []advertisedN3Addresses
 	filterCalls       []filterCall
 	settingsErr       error
 	updateFiltersErr  error
@@ -140,11 +140,11 @@ func (f *fakeUpdater) flowCalls() []bool {
 	return out
 }
 
-func (f *fakeUpdater) UpdateAdvertisedN3Address(addr netip.Addr) {
+func (f *fakeUpdater) UpdateAdvertisedN3Addresses(v4, v6 netip.Addr) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.n3Calls = append(f.n3Calls, addr)
+	f.n3Calls = append(f.n3Calls, advertisedN3Addresses{v4: v4, v6: v6})
 }
 
 func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
@@ -167,15 +167,15 @@ func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID string, directio
 	return nil
 }
 
-func newReconciler(updater Updater, store SettingsStore, fallback netip.Addr) *SettingsReconciler {
-	return NewSettingsReconciler(updater, store, nil, fallback)
+func newReconciler(updater Updater, store SettingsStore, fallback advertisedN3Addresses) *SettingsReconciler {
+	return NewSettingsReconciler(updater, store, nil, fallback.v4, fallback.v6)
 }
 
 func TestReconcile_NATAppliesOnFirstTickAndSkipsWhenUnchanged(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("first reconcile: %v", err)
@@ -198,7 +198,7 @@ func TestReconcile_NATFiresOnChange(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile 1: %v", err)
@@ -221,7 +221,7 @@ func TestReconcile_FlowAccountingDiff(t *testing.T) {
 	store := &fakeStore{flowAccounting: true}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("first reconcile: %v", err)
@@ -239,7 +239,10 @@ func TestReconcile_FlowAccountingDiff(t *testing.T) {
 func TestReconcile_N3UsesFallbackWhenExternalEmpty(t *testing.T) {
 	store := &fakeStore{n3External: ""}
 	updater := &fakeUpdater{}
-	fallback := netip.MustParseAddr("10.0.0.5")
+	fallback := advertisedN3Addresses{
+		v4: netip.MustParseAddr("10.0.0.5"),
+		v6: netip.MustParseAddr("2001:db8::1"),
+	}
 
 	r := newReconciler(updater, store, fallback)
 
@@ -253,18 +256,21 @@ func TestReconcile_N3UsesFallbackWhenExternalEmpty(t *testing.T) {
 }
 
 func TestReconcile_N3PrefersExternalWhenSet(t *testing.T) {
-	external := "172.16.1.1"
-	store := &fakeStore{n3External: external}
+	store := &fakeStore{n3External: "172.16.1.1"}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{
+		v4: netip.MustParseAddr("10.0.0.5"),
+		v6: netip.MustParseAddr("2001:db8::1"),
+	})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 
-	if got := len(updater.n3Calls); got != 1 || updater.n3Calls[0].String() != external {
-		t.Fatalf("expected N3 call with external %s, got %v", external, updater.n3Calls)
+	want := advertisedN3Addresses{v4: netip.MustParseAddr("172.16.1.1")}
+	if got := len(updater.n3Calls); got != 1 || updater.n3Calls[0] != want {
+		t.Fatalf("expected N3 call with external %s, got %v", want, updater.n3Calls)
 	}
 }
 
@@ -272,7 +278,7 @@ func TestReconcile_N3RejectsInvalidExternal(t *testing.T) {
 	store := &fakeStore{n3External: "not-an-ip"}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	err := r.Reconcile(context.Background())
 	if err == nil {
@@ -284,7 +290,7 @@ func TestReconcile_N3HandlesGetN3SettingsNotFound(t *testing.T) {
 	store := &fakeStore{n3GetErr: db.ErrNotFound}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("ErrNotFound should be tolerated, got %v", err)
@@ -306,7 +312,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 	}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile 1: %v", err)
@@ -388,7 +394,7 @@ func TestReconcile_FilterUpdateFailureRetried(t *testing.T) {
 	}
 	updater := &fakeUpdater{updateFiltersErr: errors.New("map write failed")}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	if err := r.Reconcile(context.Background()); err == nil {
 		t.Fatal("expected reconcile to return an error when UpdateFilters fails")
@@ -445,7 +451,7 @@ func TestReconcile_FilterUplinkFailureDoesNotSkipDownlink(t *testing.T) {
 		},
 	}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	if err := r.Reconcile(context.Background()); err == nil {
 		t.Fatal("expected error when uplink update fails")
@@ -478,7 +484,7 @@ func TestReconcile_FilterClearFailureRetried(t *testing.T) {
 	}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("initial apply: %v", err)
@@ -525,7 +531,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{}
 
-	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"))
+	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"), netip.Addr{})
 	r.backstop = time.Hour
 
 	r.Start()
@@ -576,7 +582,7 @@ func TestReconcile_PropagatesNATError(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{settingsErr: errors.New("xdp attach failed")}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("10.0.0.5"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("10.0.0.5")})
 
 	err := r.Reconcile(context.Background())
 	if err == nil {
@@ -628,7 +634,7 @@ func TestStart_FiltersDoNotWaitOnASettingsReload(t *testing.T) {
 		},
 	}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 	r.Start()
 
 	defer func() {
@@ -647,7 +653,7 @@ func TestReconcile_TogglesShareOneDatapathApply(t *testing.T) {
 	store := &fakeStore{natEnabled: true, flowAccounting: true, localSwitch: true}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -671,7 +677,7 @@ func TestReconcile_OneChangedToggleReappliesAllOfThem(t *testing.T) {
 	store := &fakeStore{natEnabled: true}
 	updater := &fakeUpdater{}
 
-	r := newReconciler(updater, store, netip.MustParseAddr("1.2.3.4"))
+	r := newReconciler(updater, store, advertisedN3Addresses{v4: netip.MustParseAddr("1.2.3.4")})
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("first reconcile: %v", err)

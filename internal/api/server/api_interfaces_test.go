@@ -185,7 +185,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 
-		if updateResponse.Error != "Invalid external address. Must be a valid IP address" {
+		if updateResponse.Error != "Invalid external address. Must be an IPv4 address, an IPv6 address, or an IPv4 and an IPv6 address separated by a comma" {
 			t.Fatalf("expected no error, got %s", updateResponse.Error)
 		}
 	})
