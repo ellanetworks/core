@@ -300,9 +300,6 @@ func (l *Listener) AdvertiseAddress() string {
 	return l.cfg.AdvertiseAddress
 }
 
-// BoundAddress returns the address the listener is actually bound to,
-// or "" before Start succeeds. Unlike AdvertiseAddress it reflects the
-// kernel-assigned port when BindAddress requested port 0.
 func (l *Listener) BoundAddress() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
