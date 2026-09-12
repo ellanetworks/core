@@ -56,12 +56,19 @@ type UE struct {
 	kenbCount                 uint32
 	contextFromAuthentication bool
 	pti                       nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
+	netCapUEA                 nas.AlgorithmSet
+	netCapUIA                 nas.AlgorithmSet
+	msNetCap                  *eps.MSNetworkCapability
+	sentNetCap                eps.UENetworkCapability
+	sentMSNetCap              *eps.MSNetworkCapability
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
 	return &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
+		netCapUEA: 0xc0, netCapUIA: 0x40,
+		msNetCap:   &eps.MSNetworkCapability{GEAExtended: 0x18, Rest: []byte{0x65, 0xb1, 0x3e}},
 		attachType: eps.AttachTypeEPS, requestType: eps.RequestTypeInitialRequest,
 	}
 }
@@ -173,7 +180,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSAttachType:       attachType,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
-		UENetworkCapability: ue.ueNetworkCapability(),
+		UENetworkCapability: *ue.advertise(ue.ueNetworkCapability(), nil),
 		ESMMessageContainer: esm,
 	}
 
@@ -261,6 +268,12 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 	smc, err := eps.ParseSecurityModeCommand(wire[6:])
 	if err != nil {
 		return nil, fmt.Errorf("parse Security Mode Command: %w", err)
+	}
+
+	if want := eps.ReplayedUESecurityCapability(ue.sentNetCap, ue.sentMSNetCap); !smc.ReplayedUESecurityCapability.Equal(want) {
+		return nil, fmt.Errorf("security mode command replays UE security capability %s, want the %s the UE advertised: "+
+			"a real UE answers Security Mode Reject with EMM cause #23 (TS 24.301 §5.4.3.5)",
+			smc.ReplayedUESecurityCapability, want)
 	}
 
 	ue.eea = uint8(smc.CipheringAlgorithm)
@@ -560,6 +573,32 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	copy(k[:], out[16:32])
 
 	return k, nil
+}
+
+func (ue *UE) advertise(c eps.UENetworkCapability, ms *eps.MSNetworkCapability) *eps.UENetworkCapability {
+	ue.sentNetCap, ue.sentMSNetCap = c, ms
+
+	return &c
+}
+
+func (ue *UE) interworkingNetworkCapability() eps.UENetworkCapability {
+	return eps.UENetworkCapability{
+		EEA: ue.netCapEEA, EIA: ue.netCapEIA,
+		HasUMTS: true, UEA: ue.netCapUEA, UIA: ue.netCapUIA,
+		Rest: []byte{0x19},
+	}
+}
+
+func (ue *UE) interworkingExtraIEs() []nas.RawIE {
+	return []nas.RawIE{
+		{IEI: 0xA0, Format: nas.IETV1, After: 0x58, Value: []byte{0x01}},
+		{IEI: 0x90, Format: nas.IETV1, After: 0x31, Value: []byte{0x00}},
+		{IEI: 0xC0, Format: nas.IETV1, After: 0xE0, Value: []byte{0x01}},
+		{IEI: 0x11, Format: nas.IETLV, After: 0x31, Value: []byte{0x57, 0x58, 0xa6}},
+		{IEI: 0x20, Format: nas.IETLV, After: 0x31, Value: []byte{0x61, 0x14, 0x04, 0xe2, 0x91, 0x81, 0x40, 0x04, 0x80, 0x90}},
+		{IEI: 0x40, Format: nas.IETLV, After: 0x31, Value: []byte{0x04, 0x02, 0x60, 0x04, 0x00, 0x02, 0x1f, 0x02}},
+		{IEI: 0x5D, Format: nas.IETLV, After: 0x31, Value: []byte{0x03}},
+	}
 }
 
 func (ue *UE) ueNetworkCapability() eps.UENetworkCapability {

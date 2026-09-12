@@ -58,6 +58,7 @@ func (ue *UE) InstallMappedSecurityContextForIdleMobility(in IdleMobilityFrom5GS
 
 type IdleTrackingAreaUpdateOpts struct {
 	GUTI         eps.GUTI
+	UpdateType   eps.EPSUpdateType
 	ActiveFlag   bool
 	BearerStatus *nas.EPSBearerContextStatus
 	Security     IdleMobilityFrom5GS
@@ -67,14 +68,16 @@ func (ue *UE) BuildIdleTrackingAreaUpdate(opts IdleTrackingAreaUpdateOpts) ([]by
 	gutiType := eps.GUTITypeNative
 
 	plain, err := (&eps.TrackingAreaUpdateRequest{
-		EPSUpdateType:          eps.EPSUpdateTypeTA,
+		EPSUpdateType:          opts.UpdateType,
 		ActiveFlag:             opts.ActiveFlag,
-		NASKeySetIdentifier:    nas.KeySetIdentifier{Value: opts.Security.EKSI, Mapped: true},
+		NASKeySetIdentifier:    nas.KeySetIdentifier{Value: opts.Security.EKSI},
 		OldGUTI:                eps.GUTIIdentity(opts.GUTI),
 		OldGUTIType:            &gutiType,
-		UEStatus:               &eps.UEStatus{N1ModeReg: true},
+		UEStatus:               &eps.UEStatus{S1ModeReg: true, N1ModeReg: true},
 		EPSBearerContextStatus: opts.BearerStatus,
-		UENetworkCapability:    &eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+		UENetworkCapability:    ue.advertise(ue.interworkingNetworkCapability(), ue.msNetCap),
+		MSNetworkCapability:    ue.msNetCap,
+		Unrecognized:           ue.interworkingExtraIEs(),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)
@@ -190,6 +193,7 @@ func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts,
 		ULTEID:       uint32(erab.GTPTEID),
 		DLTEID:       dlTEID,
 		BearerStatus: accept.EPSBearerContextStatus,
+		EMMCause:     accept.Cause,
 	}, nil
 }
 
@@ -225,6 +229,7 @@ func (e *ENB) idleTrackingAreaUpdateReturningToIdle(ue *UE, enbUEID int64, timeo
 		ENBUES1APID:  enbUEID,
 		GUTI:         accept.GUTI,
 		BearerStatus: accept.EPSBearerContextStatus,
+		EMMCause:     accept.Cause,
 	}, nil
 }
 
@@ -238,7 +243,7 @@ func (ue *UE) BuildTrackingAreaUpdateForContainer(guti eps.GUTI, status *nas.EPS
 		OldGUTIType:            &gutiType,
 		UEStatus:               &eps.UEStatus{S1ModeReg: true},
 		EPSBearerContextStatus: status,
-		UENetworkCapability:    &eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+		UENetworkCapability:    ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}, nil),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("s1enb: build the enclosed Tracking Area Update Request: %w", err)
