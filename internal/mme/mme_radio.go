@@ -279,7 +279,7 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity ui
 		return err
 	}
 
-	key, ok := ranID.Key()
+	key, ok := ranID.Ref()
 	if !ok {
 		return fmt.Errorf("mme: Global eNB ID %s carries no node identity", ranID.String())
 	}
@@ -316,7 +316,7 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity ui
 
 // TS 36.413 §8.4.2
 func (m *MME) FindConnectedRadioByRanID(ranID models.GlobalRanNodeID) (*Radio, bool) {
-	key, ok := ranID.Key()
+	key, ok := ranID.Ref()
 	if !ok {
 		return nil, false
 	}
@@ -568,7 +568,7 @@ func (m *MME) ListRadios() []RadioInfo {
 }
 
 func (m *MME) FindRadioInfoByRanID(ranID models.GlobalRanNodeID) (RadioInfo, bool) {
-	key, ok := ranID.Key()
+	key, ok := ranID.Ref()
 	if !ok {
 		return RadioInfo{}, false
 	}
@@ -588,7 +588,7 @@ func (m *MME) ForgetRadio(ranID models.GlobalRanNodeID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key, ok := ranID.Key()
+	key, ok := ranID.Ref()
 	if !ok {
 		return ErrRadioNotFound
 	}

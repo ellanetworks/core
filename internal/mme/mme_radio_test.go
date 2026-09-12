@@ -51,7 +51,7 @@ func claimENBID(t *testing.T, m *MME, radio *Radio, g s1ap.GlobalENBID) {
 func testENBKey(t *testing.T, value uint32) string {
 	t.Helper()
 
-	key, ok := testRanNodeID(t, value).Key()
+	key, ok := testRanNodeID(t, value).Ref()
 	if !ok {
 		t.Fatalf("test eNB %d has no registry key", value)
 	}

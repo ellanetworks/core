@@ -421,7 +421,7 @@ func radioIDOf(radio *Radio) string {
 }
 
 func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
-	key, ok := ranNodeID.Key()
+	key, ok := ranNodeID.Ref()
 	if !ok {
 		return nil, false
 	}
@@ -446,7 +446,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 		return nil, err
 	}
 
-	key, ok := newID.Key()
+	key, ok := newID.Ref()
 	if !ok {
 		return nil, fmt.Errorf("amf: Global RAN Node ID %s carries no node identity", newID.String())
 	}
@@ -502,7 +502,7 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) (bool,
 		return false, err
 	}
 
-	key, ok := newID.Key()
+	key, ok := newID.Ref()
 	if !ok {
 		return false, fmt.Errorf("amf: Global RAN Node ID %s carries no node identity", newID.String())
 	}
@@ -620,7 +620,7 @@ func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 }
 
 func (amf *AMF) FindRadioInfoByRanID(ranNodeID models.GlobalRanNodeID) (RadioInfo, bool) {
-	key, ok := ranNodeID.Key()
+	key, ok := ranNodeID.Ref()
 	if !ok {
 		return RadioInfo{}, false
 	}
@@ -637,7 +637,7 @@ func (amf *AMF) FindRadioInfoByRanID(ranNodeID models.GlobalRanNodeID) (RadioInf
 }
 
 func (amf *AMF) ForgetRadio(ranNodeID models.GlobalRanNodeID) error {
-	key, ok := ranNodeID.Key()
+	key, ok := ranNodeID.Ref()
 	if !ok {
 		return ErrRadioNotFound
 	}

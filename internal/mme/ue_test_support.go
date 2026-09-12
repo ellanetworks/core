@@ -216,7 +216,7 @@ func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
 		return
 	}
 
-	key, ok := ranID.Key()
+	key, ok := ranID.Ref()
 	if !ok {
 		return
 	}

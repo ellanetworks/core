@@ -31,7 +31,6 @@ type GlobalRanNodeID struct {
 }
 
 type ranNodeAlternative struct {
-	tag      string
 	nodeType string
 	id       string
 }
@@ -39,17 +38,17 @@ type ranNodeAlternative struct {
 func (g GlobalRanNodeID) alternative() (ranNodeAlternative, bool) {
 	switch {
 	case g.GNbID != nil:
-		return ranNodeAlternative{"gnb", RanNodeTypeGNB, g.GNbID.GNBValue}, true
+		return ranNodeAlternative{RanNodeTypeGNB, g.GNbID.GNBValue}, true
 	case g.NgeNbID != "":
-		return ranNodeAlternative{"ngenb", RanNodeTypeNgENB, g.NgeNbID}, true
+		return ranNodeAlternative{RanNodeTypeNgENB, g.NgeNbID}, true
 	case g.ENbID != "":
-		return ranNodeAlternative{"enb", RanNodeTypeENB, g.ENbID}, true
+		return ranNodeAlternative{RanNodeTypeENB, g.ENbID}, true
 	case g.N3IwfID != "":
-		return ranNodeAlternative{"n3iwf", RanNodeTypeN3IWF, g.N3IwfID}, true
+		return ranNodeAlternative{RanNodeTypeN3IWF, g.N3IwfID}, true
 	case g.WAgfID != "":
-		return ranNodeAlternative{"wagf", RanNodeTypeWAGF, g.WAgfID}, true
+		return ranNodeAlternative{RanNodeTypeWAGF, g.WAgfID}, true
 	case g.TngfID != "":
-		return ranNodeAlternative{"tngf", RanNodeTypeTNGF, g.TngfID}, true
+		return ranNodeAlternative{RanNodeTypeTNGF, g.TngfID}, true
 	}
 
 	return ranNodeAlternative{}, false
@@ -78,7 +77,7 @@ func RanNodeIDKey(id *GlobalRanNodeID) (string, bool) {
 		return "", false
 	}
 
-	return id.Key()
+	return id.Ref()
 }
 
 func (g GlobalRanNodeID) Ref() (string, bool) {
@@ -111,25 +110,6 @@ func (g GlobalRanNodeID) String() string {
 	}
 
 	return ref
-}
-
-func (g GlobalRanNodeID) Key() (string, bool) {
-	alt, ok := g.alternative()
-	if !ok {
-		return "", false
-	}
-
-	node := alt.tag + ":" + alt.id
-	if g.GNbID != nil {
-		node = fmt.Sprintf("%s:%d:%s", alt.tag, g.GNbID.BitLength, alt.id)
-	}
-
-	plmn := ""
-	if g.PlmnID != nil {
-		plmn = g.PlmnID.Mcc + "-" + g.PlmnID.Mnc
-	}
-
-	return plmn + "/" + g.Nid + "/" + node, true
 }
 
 func parsePlmnID(s string) (PlmnID, error) {

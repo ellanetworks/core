@@ -76,23 +76,23 @@ func TestGlobalRanNodeIDDistinguishesEveryLeg(t *testing.T) {
 		{PlmnID: plmn(), NgeNbID: "MacroNGeNB-00008"},
 	}
 
-	keys := make(map[string]string, len(ids))
+	refs := make(map[string]string, len(ids))
 
 	for _, id := range ids {
-		key, ok := id.Key()
+		ref, ok := id.Ref()
 		if !ok {
-			t.Fatalf("%s has no key", id)
+			t.Fatalf("%s has no ref", id)
 		}
 
-		if prev, clash := keys[key]; clash {
-			t.Errorf("%s and %s share key %q", prev, id, key)
+		if prev, clash := refs[ref]; clash {
+			t.Errorf("%s and %s share ref %q", prev, id, ref)
 		}
 
-		keys[key] = id.String()
+		refs[ref] = id.String()
 	}
 
-	if len(keys) != len(ids) {
-		t.Errorf("%d identities produced %d keys", len(ids), len(keys))
+	if len(refs) != len(ids) {
+		t.Errorf("%d identities produced %d refs", len(ids), len(refs))
 	}
 }
 
@@ -119,11 +119,9 @@ func TestRanNodeRefRoundTrip(t *testing.T) {
 			t.Fatalf("ParseRanNodeRef(%q) = %v", ref, err)
 		}
 
-		want, _ := id.Key()
-
-		got, ok := back.Key()
-		if !ok || got != want {
-			t.Errorf("%q parsed to key %q, want %q", ref, got, want)
+		got, ok := back.Ref()
+		if !ok || got != ref {
+			t.Errorf("%q parsed back to %q", ref, got)
 		}
 	}
 }
