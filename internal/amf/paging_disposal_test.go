@@ -89,26 +89,6 @@ func TestSuspendRegistrationFailsThePendingTransfer(t *testing.T) {
 	}
 }
 
-func TestPagingAnsweredMovesToDelivering(t *testing.T) {
-	_, ue, _ := pagedUE(t)
-
-	ue.PagingAnswered()
-
-	if req := ue.PagingPending(); req == nil || req.Req.PduSessionID != 5 {
-		t.Fatalf("pending = %+v, want the paged request still held for delivery", req)
-	}
-
-	if state := ue.PagingState(); state != PagingDelivering {
-		t.Errorf("paging state = %s after the UE answered, want Delivering", state)
-	}
-
-	ue.PagingDelivered()
-
-	if state := ue.PagingState(); state != PagingIdle {
-		t.Errorf("paging state = %s after delivery, want Idle", state)
-	}
-}
-
 func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 	a, ue, fakeSmf := pagedUE(t)
 
@@ -301,7 +281,17 @@ func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 		t.Errorf("paging state = %s after the UE re-established its connection, want Delivering", state)
 	}
 
+	if req := ue.PagingPending(); req == nil || req.Req.PduSessionID != 5 {
+		t.Fatalf("pending = %+v, want the paged request still held for delivery", req)
+	}
+
 	if ue.PagingActiveForTest() {
 		t.Error("the paging supervision guard is still armed after the UE answered")
+	}
+
+	ue.PagingDelivered()
+
+	if state := ue.PagingState(); state != PagingIdle {
+		t.Errorf("paging state = %s after delivery, want Idle", state)
 	}
 }
