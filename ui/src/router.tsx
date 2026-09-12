@@ -53,8 +53,8 @@ export default function AppRouter() {
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<RadiosList />} />
         <Route path="radios/events" element={<RadioEvents />} />
-        <Route path="radios/:ranNodeType/:id" element={<RadioDetail />} />
-        <Route path="radios/:name" element={<RadioByName />} />
+        <Route path="radios/by-name/:name" element={<RadioByName />} />
+        <Route path="radios/:ref" element={<RadioDetail />} />
         <Route path="profiles" element={<Profiles />} />
         <Route path="profiles/:name" element={<ProfileDetail />} />
         <Route

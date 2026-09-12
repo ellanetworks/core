@@ -34,6 +34,8 @@ var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseM
 // site means.
 var causeUnspecified = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
 
+var causeSemanticError = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolSemanticError}
+
 // handleS1Setup answers an eNB's S1 Setup Request with an S1 Setup Response when
 // the eNB broadcasts a TAI this MME serves, otherwise an S1 Setup Failure
 // (TS 36.413).
@@ -91,14 +93,28 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		return
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
+	tais, err := mme.EnbSupportedTAIs(req.SupportedTAs)
+	if err != nil {
+		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+		sendS1SetupFailure(m, ctx, conn, causeSemanticError, nil)
+
+		return
+	}
 
 	// Claim the eNB's identity and broadcast TAIs only on accept; until then the
 	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).
 	if radio := m.RadioForConn(conn); radio != nil {
-		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
-		m.ClaimENBID(radio, req.GlobalENBID, advertisedCapacity)
+		m.UpdateRadioSupportedTAs(radio, tais)
+
+		if err := m.ClaimENBID(radio, req.GlobalENBID, advertisedCapacity); err != nil {
+			logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+			sendS1SetupFailure(m, ctx, conn, causeSemanticError, nil)
+
+			return
+		}
 	}
+
+	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
 }

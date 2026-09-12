@@ -12,8 +12,7 @@ import (
 )
 
 type GetRadioOptions struct {
-	RanNodeType string `json:"ran_node_type"`
-	ID          string `json:"id"`
+	Ref string `json:"ref"`
 }
 
 type PlmnID struct {
@@ -37,21 +36,27 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name           string `json:"name"`
-	ID             string `json:"id"`
-	Address        string `json:"address"`
-	RanNodeType    string `json:"type"`
-	Status         string `json:"status"`
-	ConnectedAt    string `json:"connected_at"`
-	LastSeenAt     string `json:"last_seen_at"`
-	DisconnectedAt string `json:"disconnected_at"`
-	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{ranNodeType}/{id}) for supported TAIs.
+	Name           string  `json:"name"`
+	Ref            string  `json:"ref"`
+	ID             string  `json:"id"`
+	PlmnID         *PlmnID `json:"plmn,omitempty"`
+	BitLength      *int32  `json:"bit_length,omitempty"`
+	Address        string  `json:"address"`
+	RanNodeType    string  `json:"type"`
+	Status         string  `json:"status"`
+	ConnectedAt    string  `json:"connected_at"`
+	LastSeenAt     string  `json:"last_seen_at"`
+	DisconnectedAt string  `json:"disconnected_at"`
+	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{ref}) for supported TAIs.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
 type RadioDetail struct {
 	Name           string         `json:"name"`
+	Ref            string         `json:"ref"`
 	ID             string         `json:"id"`
+	PlmnID         *PlmnID        `json:"plmn,omitempty"`
+	BitLength      *int32         `json:"bit_length,omitempty"`
 	Address        string         `json:"address"`
 	Status         string         `json:"status"`
 	ConnectedAt    string         `json:"connected_at"`
@@ -62,8 +67,7 @@ type RadioDetail struct {
 }
 
 type ForgetRadioOptions struct {
-	RanNodeType string `json:"ran_node_type"`
-	ID          string `json:"id"`
+	Ref string `json:"ref"`
 }
 
 type ListRadiosResponse struct {
@@ -116,11 +120,15 @@ type RadioEventContent struct {
 	Raw     string `json:"raw"`
 }
 
+func radioPath(ref string) string {
+	return "api/v1/ran/radios/" + url.PathEscape(ref)
+}
+
 func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*RadioDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/ran/radios/" + url.PathEscape(opts.RanNodeType) + "/" + url.PathEscape(opts.ID),
+		Path:   radioPath(opts.Ref),
 	})
 	if err != nil {
 		return nil, err
@@ -140,7 +148,7 @@ func (c *Client) ForgetRadio(ctx context.Context, opts *ForgetRadioOptions) erro
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/ran/radios/" + url.PathEscape(opts.RanNodeType) + "/" + url.PathEscape(opts.ID),
+		Path:   radioPath(opts.Ref),
 	})
 
 	return err

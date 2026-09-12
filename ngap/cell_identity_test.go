@@ -83,7 +83,10 @@ func TestGlobalRANNodeIDHex(t *testing.T) {
 	}{
 		{nodeID(0x000102, 24), "000102"},
 		{nodeID(0x1a2b3, 20), "1a2b3"},
-		{nodeID(0x3fffff, 22), "fffffc"},
+		{nodeID(0x3fffff, 22), "3fffff"},
+		{nodeID(0x2a, 22), "00002a"},
+		{nodeID(0xa8, 24), "0000a8"},
+		{GlobalRANNodeID{Kind: RANNodeIDShortMacroNgENB, Value: 0x34b89, Bits: 18}, "34b89"},
 	}
 
 	for _, tt := range tests {

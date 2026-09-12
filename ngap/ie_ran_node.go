@@ -4,7 +4,6 @@
 package ngap
 
 import (
-	"encoding/hex"
 	"fmt"
 )
 
@@ -206,16 +205,10 @@ func (g GlobalRANNodeID) splitCellIdentity(id uint64, width int) (uint64, bool) 
 	return id & (1<<uint(cellBits) - 1), true
 }
 
-// Hex renders the node identifier as the hex digits its bit length covers,
-// left-aligned in the bit string as the wire carries it.
 func (g GlobalRANNodeID) Hex() string {
-	b := make([]byte, (g.Bits+7)/8)
-
-	for i := range g.Bits {
-		if g.Value&(1<<uint(g.Bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
+	if g.Bits <= 0 {
+		return ""
 	}
 
-	return hex.EncodeToString(b)[:(g.Bits+3)/4]
+	return fmt.Sprintf("%0*x", (g.Bits+3)/4, g.Value)
 }

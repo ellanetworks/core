@@ -23,24 +23,31 @@ func TestRANNodeIDToModels(t *testing.T) {
 		wantNgENB string
 		wantN3IWF string
 	}{
-		{name: "gNB 22 bits", kind: ngap.RANNodeIDGNB, value: 0x3fabcd, bits: 22, wantGNB: "feaf34"},
+		{name: "gNB 22 bits", kind: ngap.RANNodeIDGNB, value: 0x3fabcd, bits: 22, wantGNB: "3fabcd"},
 		{name: "gNB 24 bits", kind: ngap.RANNodeIDGNB, value: 0x000102, bits: 24, wantGNB: "000102"},
 		{name: "gNB 28 bits", kind: ngap.RANNodeIDGNB, value: 0xabcdef1, bits: 28, wantGNB: "abcdef1"},
 		{name: "gNB 32 bits", kind: ngap.RANNodeIDGNB, value: 0xdeadbeef, bits: 32, wantGNB: "deadbeef"},
 		{name: "macro ng-eNB", kind: ngap.RANNodeIDMacroNgENB, value: 0xabcde, bits: 20, wantNgENB: "MacroNGeNB-abcde"},
-		{name: "short macro ng-eNB", kind: ngap.RANNodeIDShortMacroNgENB, value: 0x3abcd, bits: 18, wantNgENB: "SMacroNGeNB-eaf34"},
-		{name: "long macro ng-eNB", kind: ngap.RANNodeIDLongMacroNgENB, value: 0x1abcde, bits: 21, wantNgENB: "LMacroNGeNB-d5e6f0"},
+		{name: "short macro ng-eNB", kind: ngap.RANNodeIDShortMacroNgENB, value: 0x3abcd, bits: 18, wantNgENB: "SMacroNGeNB-3abcd"},
+		{name: "long macro ng-eNB", kind: ngap.RANNodeIDLongMacroNgENB, value: 0x1abcde, bits: 21, wantNgENB: "LMacroNGeNB-1abcde"},
 		{name: "N3IWF", kind: ngap.RANNodeIDN3IWF, value: 0xbeef, bits: 16, wantN3IWF: "beef"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := util.RANNodeIDToModels(ngap.GlobalRANNodeID{
+			got, err := util.RANNodeIDToModels(ngap.GlobalRANNodeID{
 				Kind:         tt.kind,
 				PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
 				Value:        tt.value,
 				Bits:         tt.bits,
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got.PlmnID == nil || got.PlmnID.Mcc != "208" || got.PlmnID.Mnc != "93" {
+				t.Errorf("plmnId = %+v, want 208/93", got.PlmnID)
+			}
 
 			if got.NgeNbID != tt.wantNgENB || got.N3IwfID != tt.wantN3IWF {
 				t.Errorf("ng-eNB/N3IWF = %q/%q, want %q/%q", got.NgeNbID, got.N3IwfID, tt.wantNgENB, tt.wantN3IWF)
@@ -121,7 +128,12 @@ func TestPLMNRoundTrip(t *testing.T) {
 				t.Fatalf("encoded %x, want %x", got, tt.want)
 			}
 
-			if back := util.PLMNToModels(tt.want); back != tt.plmn {
+			back, err := util.PLMNToModels(tt.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if back != tt.plmn {
 				t.Errorf("decoded %+v, want %+v", back, tt.plmn)
 			}
 

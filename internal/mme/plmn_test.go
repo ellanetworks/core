@@ -51,7 +51,12 @@ func TestDecodePLMNRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if got := decodePLMN(encoded); got != want {
+			got, err := decodePLMN(encoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got != want {
 				t.Errorf("decodePLMN round-trip: got %+v, want %+v", got, want)
 			}
 		})
@@ -81,7 +86,11 @@ func TestENBSupportedTAIs(t *testing.T) {
 		{"999", "01", "000007"},
 	}
 
-	got := EnbSupportedTAIs(tas)
+	got, err := EnbSupportedTAIs(tas)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if len(got) != len(want) {
 		t.Fatalf("EnbSupportedTAIs: got %d TAIs, want %d", len(got), len(want))
 	}

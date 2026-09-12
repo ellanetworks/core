@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
+	"go.uber.org/zap"
 )
 
 // UpdateLocation records the UE's serving cell (E-UTRAN CGI + TAI) from an S1AP
@@ -17,8 +19,18 @@ import (
 // of the 6-hex-digit TAC (TS 23.003, matching the gNB TAI rendering).
 func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 	curTime := time.Now().UTC()
-	plmnID := decodePLMN(tai.PLMNIdentity)
-	ePlmnID := decodePLMN(cgi.PLMNIdentity)
+
+	plmnID, err := decodePLMN(tai.PLMNIdentity)
+	if err != nil {
+		logger.MmeLog.Warn("could not decode the TAI PLMN of a User Location", zap.Error(err))
+		return
+	}
+
+	ePlmnID, err := decodePLMN(cgi.PLMNIdentity)
+	if err != nil {
+		logger.MmeLog.Warn("could not decode the cell PLMN of a User Location", zap.Error(err))
+		return
+	}
 
 	// A fresh EutraLocation is built every call rather than mutated in place: the
 	// snapshot published under ue.mu is aliased by concurrent LMF/API readers, so

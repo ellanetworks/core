@@ -35,9 +35,15 @@ func handleENBConfigurationTransfer(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	targetRadio, ok := m.FindConnectedRadioByGlobalENBID(target.GlobalENBID)
+	targetID, err := mme.RanNodeID(target.GlobalENBID)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not decode the Target eNB-ID of a SON Configuration Transfer", zap.Error(err))
+		return
+	}
+
+	targetRadio, ok := m.FindConnectedRadioByRanID(targetID)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Warn("SON Configuration Transfer target eNB not connected", zap.String("target-enb", mme.ENBID(target.GlobalENBID)))
+		logger.From(ctx, logger.MmeLog).Warn("SON Configuration Transfer target eNB not connected", zap.Stringer("target-enb", targetID))
 		return
 	}
 

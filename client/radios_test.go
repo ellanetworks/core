@@ -26,10 +26,7 @@ func TestGetRadio_Success(t *testing.T) {
 	}
 	name := "my-radio"
 
-	getRouteOpts := &client.GetRadioOptions{
-		RanNodeType: "gNB",
-		ID:          "000102",
-	}
+	getRouteOpts := &client.GetRadioOptions{Ref: "gNB:001-01:000102@24"}
 
 	ctx := context.Background()
 
@@ -301,7 +298,7 @@ func TestForgetRadio_Success(t *testing.T) {
 	}
 	clientObj := &client.Client{Requester: fake}
 
-	err := clientObj.ForgetRadio(context.Background(), &client.ForgetRadioOptions{RanNodeType: "gNB", ID: "000102"})
+	err := clientObj.ForgetRadio(context.Background(), &client.ForgetRadioOptions{Ref: "gNB:001-01:000102@24"})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -314,7 +311,7 @@ func TestForgetRadio_Success(t *testing.T) {
 		t.Errorf("expected method DELETE, got: %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/ran/radios/gNB/000102" {
-		t.Errorf("expected path 'api/v1/ran/radios/gNB/000102', got: %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/ran/radios/gNB:001-01:000102@24" {
+		t.Errorf("expected path 'api/v1/ran/radios/gNB:001-01:000102@24', got: %s", fake.lastOpts.Path)
 	}
 }

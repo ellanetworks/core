@@ -19,9 +19,14 @@ var (
 )
 
 func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIdentity, error) {
+	selectedPLMN, err := decodePLMN(target.SelectedTAI.PLMNIdentity)
+	if err != nil {
+		return interworking.NGRANIdentity{}, fmt.Errorf("mme: selected 5GS TAI: %w", err)
+	}
+
 	out := interworking.NGRANIdentity{
 		SelectedTAI: interworking.FiveGSTAI{
-			PlmnID: decodePLMN(target.SelectedTAI.PLMNIdentity),
+			PlmnID: selectedPLMN,
 			TAC:    uint32(target.SelectedTAI.TAC),
 		},
 	}
@@ -34,8 +39,13 @@ func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIde
 			return interworking.NGRANIdentity{}, fmt.Errorf("%w: no gNB identity is %d bits wide", ErrUnusableTargetNGRAN, id.GNBID.Bits)
 		}
 
+		plmn, err := decodePLMN(id.PLMNIdentity)
+		if err != nil {
+			return interworking.NGRANIdentity{}, fmt.Errorf("mme: target gNB: %w", err)
+		}
+
 		out.Kind = interworking.NGRANNodeGNB
-		out.PlmnID = decodePLMN(id.PLMNIdentity)
+		out.PlmnID = plmn
 		out.ID = id.GNBID.Value
 		out.Bits = uint8(id.GNBID.Bits)
 	case node.NgENB != nil:
@@ -51,8 +61,13 @@ func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIde
 			return interworking.NGRANIdentity{}, fmt.Errorf("%w: unknown ng-eNB identity kind %d", ErrUnusableTargetNGRAN, id.ENBID.Kind)
 		}
 
+		plmn, err := decodePLMN(id.PLMNIdentity)
+		if err != nil {
+			return interworking.NGRANIdentity{}, fmt.Errorf("mme: target ng-eNB: %w", err)
+		}
+
 		out.Kind = interworking.NGRANNodeNgENB
-		out.PlmnID = decodePLMN(id.PLMNIdentity)
+		out.PlmnID = plmn
 		out.ID = id.ENBID.Value
 		out.Bits = bits
 	default:
