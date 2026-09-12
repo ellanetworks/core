@@ -30,6 +30,7 @@ This path returns the list of radios in the inventory.
 | Field             | Type   | Description |
 | ----------------- | ------ | ----------- |
 | `name`            | string | Radio name. |
+| `ref`             | string | Radio identity, and the path segment that addresses it. Empty on a radio that has not completed setup. |
 | `id`              | string | Radio identifier. |
 | `plmn`            | object | The PLMN the radio belongs to. |
 | `bit_length`      | int    | Bit length of the gNB ID (22–32). Present on gNBs only. |
@@ -91,13 +92,11 @@ This path returns the details of a specific radio, connected or offline, includi
 | ------ | ------------------------------- |
 | GET    | `/api/v1/ran/radios/{ref}`      |
 
-A radio is addressed by the identity it claimed on setup, returned in its `ref` field: `{type}:{mcc}-{mnc}:{id}`, with the id carrying `@{bitLength}` for a gNB — for example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. Two radios sharing a Global RAN Node ID under different PLMNs are distinct radios, and so are two gNB IDs of the same value at different widths, since both render the same zero-padded hex.
-
 ### Path Parameters
 
 | Name  | Type   | Description |
 | ----- | ------ | ----------- |
-| `ref` | string | Radio identity, as returned in a radio's `ref` field. The PLMN reads `-` for a radio that reported none, and an SNPN carries its NID as a third field. |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Sample Response
 
@@ -165,7 +164,7 @@ Requires the admin role.
 
 | Name  | Type   | Description |
 | ----- | ------ | ----------- |
-| `ref` | string | Radio identity, as returned in a radio's `ref` field. |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Response Codes
 
