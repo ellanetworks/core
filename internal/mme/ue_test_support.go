@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme/procedure"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -286,6 +285,6 @@ func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
 	return ue.downlink().Next()
 }
 
-func (ue *UeContext) SetPagedBearerForTest(ebi uint8, arp *models.Arp) {
-	ue.beginPaging(&MTRequest{Ebi: ebi, Arp: arp})
+func (ue *UeContext) SetPagedBearerForTest(ebi uint8) {
+	ue.beginPaging(&MTRequest{Ebi: ebi})
 }

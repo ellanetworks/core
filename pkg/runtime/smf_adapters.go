@@ -491,14 +491,13 @@ func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduS
 	return err
 }
 
-func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp, fiveQI int32) (models.N1N2MessageTransferCause, error) {
+func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error) {
 	return a.amf.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
 		N2Class:                 models.N2ClassSM,
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN2Information: n2Msg,
 		Arp:                     arp,
-		FiveQI:                  fiveQI,
 	})
 }
 

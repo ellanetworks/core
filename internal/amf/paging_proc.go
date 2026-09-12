@@ -35,9 +35,7 @@ func (s PagingState) String() string {
 }
 
 type MTRequest struct {
-	Req    models.N1N2MessageTransferRequest
-	Arp    *models.Arp
-	FiveQI int32
+	Req models.N1N2MessageTransferRequest
 }
 
 func (r *MTRequest) Request() *models.N1N2MessageTransferRequest {
@@ -54,7 +52,7 @@ func outranks(candidate, current *models.Arp) bool {
 	}
 
 	if current == nil {
-		return true
+		return false
 	}
 
 	return candidate.PriorityLevel < current.PriorityLevel
@@ -95,19 +93,37 @@ func (ue *UeContext) MTDeliveryInProgress() bool {
 
 func (ue *UeContext) beginPaging(req *MTRequest) (models.N1N2MessageTransferCause, error) {
 	ue.paging.mu.Lock()
-	defer ue.paging.mu.Unlock()
 
-	if ue.paging.state == PagingAttempting && !outranks(req.Arp, ue.paging.pending.arp()) {
-		return "", &models.N1N2MessageTransferError{
+	if ue.paging.state == PagingAttempting && !outranks(req.arp(), ue.paging.pending.arp()) {
+		rejected := &models.N1N2MessageTransferError{
 			Cause:  models.N1N2ErrHigherPriorityRequestOngoing,
 			Detail: models.N1N2MsgTxfrErrDetail{HighestPrioArp: ue.paging.pending.arp()},
 		}
+
+		ue.paging.mu.Unlock()
+
+		return "", rejected
 	}
 
+	displaced := ue.paging.pending
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
 
+	ue.paging.mu.Unlock()
+
+	if displaced != nil && !sameDelivery(displaced, req) {
+		ue.notifyMTDeliveryFailure(displaced, models.N1N2FailureCauseUnspecified)
+	}
+
 	return models.N1N2AttemptingToReachUE, nil
+}
+
+func sameDelivery(a, b *MTRequest) bool {
+	if a.Req.Standalone() || b.Req.Standalone() {
+		return false
+	}
+
+	return a.Req.PduSessionID == b.Req.PduSessionID
 }
 
 func (r *MTRequest) arp() *models.Arp {
@@ -115,7 +131,7 @@ func (r *MTRequest) arp() *models.Arp {
 		return nil
 	}
 
-	return r.Arp
+	return r.Req.Arp
 }
 
 func (ue *UeContext) PagingAnswered() {
@@ -158,11 +174,7 @@ func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequ
 	ue.paging.guard.Stop()
 
 	ue.paging.mu.Lock()
-
-	dropped := ue.paging.pending
-	ue.paging.pending = nil
-	ue.paging.state = PagingIdle
-
+	dropped := ue.takePendingLocked()
 	ue.paging.mu.Unlock()
 
 	if dropped != nil {
@@ -170,6 +182,66 @@ func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequ
 	}
 
 	ue.Conn().ResumeDeferredReleaseIfSettled()
+
+	return dropped
+}
+
+func (ue *UeContext) PagingUnanswered(cause models.N1N2MessageTransferCause) (*MTRequest, bool) {
+	if ue == nil {
+		return nil, false
+	}
+
+	ue.paging.guard.Stop()
+
+	ue.paging.mu.Lock()
+
+	if ue.Conn() != nil {
+		ue.paging.mu.Unlock()
+
+		return nil, false
+	}
+
+	dropped := ue.takePendingLocked()
+
+	ue.paging.mu.Unlock()
+
+	if dropped != nil {
+		ue.notifyMTDeliveryFailure(dropped, cause)
+	}
+
+	return dropped, true
+}
+
+func (ue *UeContext) PagingAttemptFailed(req *MTRequest, cause models.N1N2MessageTransferCause) {
+	if ue == nil {
+		return
+	}
+
+	ue.paging.mu.Lock()
+
+	if ue.paging.pending != req {
+		ue.paging.mu.Unlock()
+
+		return
+	}
+
+	dropped := ue.takePendingLocked()
+
+	ue.paging.mu.Unlock()
+
+	ue.paging.guard.Stop()
+
+	if dropped != nil {
+		ue.notifyMTDeliveryFailure(dropped, cause)
+	}
+
+	ue.Conn().ResumeDeferredReleaseIfSettled()
+}
+
+func (ue *UeContext) takePendingLocked() *MTRequest {
+	dropped := ue.paging.pending
+	ue.paging.pending = nil
+	ue.paging.state = PagingIdle
 
 	return dropped
 }

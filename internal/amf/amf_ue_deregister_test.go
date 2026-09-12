@@ -20,6 +20,7 @@ type deregisterTestSmf struct {
 	deactivateCalls       []string
 	suppressCalls         int
 	transferFailures      []models.N1N2MessageTransferCause
+	failedSessions        []uint8
 	clearSuppressionCalls int
 	onRelease             func(context.Context, string) error
 
@@ -53,9 +54,10 @@ func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef 
 	return nil
 }
 
-func (s *deregisterTestSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, _ uint8, cause models.N1N2MessageTransferCause) error {
+func (s *deregisterTestSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, pduSessionID uint8, cause models.N1N2MessageTransferCause) error {
 	s.suppressCalls++
 	s.transferFailures = append(s.transferFailures, cause)
+	s.failedSessions = append(s.failedSessions, pduSessionID)
 
 	return nil
 }

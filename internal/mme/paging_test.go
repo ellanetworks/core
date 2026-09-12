@@ -108,7 +108,7 @@ func TestPageNoENBs(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 }
@@ -131,7 +131,7 @@ func TestPageFiltersByServedTAI(t *testing.T) {
 	foreign := &captureConn{}
 	m.IndexRadioForTest(foreign, []SupportedTAI{{Tai: models.Tai{PlmnID: &p, Tac: "0000ff"}}})
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestPageFiltersByServedTAI(t *testing.T) {
 func TestPageUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
 
-	if err := m.Page(context.Background(), "001010000000999", 5, nil); err == nil {
+	if err := m.Page(context.Background(), "001010000000999", 5); err == nil {
 		t.Fatal("Page should error for an unknown IMSI")
 	}
 }
@@ -159,7 +159,7 @@ func TestPagingRetransmitsThenAbandons(t *testing.T) {
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -183,7 +183,7 @@ func TestPagingStoppedOnReconnect(t *testing.T) {
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 

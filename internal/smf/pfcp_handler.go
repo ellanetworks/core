@@ -39,7 +39,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 			return fmt.Errorf("no MME registered to page EPS UE %s", supi.IMSI())
 		}
 
-		return s.mme.Page(ctx, supi.IMSI(), ebi, epsArp(policy))
+		return s.mme.Page(ctx, supi.IMSI(), ebi)
 	}
 
 	if policy == nil || tunnel == nil {
@@ -51,7 +51,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	cause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp, policy.QosData.Var5qi)
+	cause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp)
 	if err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
@@ -62,14 +62,6 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		zap.String("cause", cause.String()))
 
 	return nil
-}
-
-func epsArp(policy *Policy) *models.Arp {
-	if policy == nil {
-		return nil
-	}
-
-	return policy.QosData.Arp
 }
 
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {

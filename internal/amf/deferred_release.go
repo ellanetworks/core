@@ -36,7 +36,9 @@ func (ueConn *UeConn) DeferRelease(cause ngap.Cause) {
 	}
 
 	held := cause
-	ueConn.deferredCause.Store(&held)
+	if !ueConn.deferredCause.CompareAndSwap(nil, &held) {
+		return
+	}
 
 	ueConn.deferGuard.ArmOnce(deferredReleaseTimeout, func() {
 		logger.From(context.Background(), ueConn.Log()).Warn("deferred UE Context Release deadline reached; releasing the NG connection",
@@ -68,8 +70,12 @@ func (ueConn *UeConn) resumeDeferredRelease(ctx context.Context) {
 
 	logger.From(ctx, ueConn.Log()).Info("resuming the deferred UE Context Release: the pending downlink traffic or signalling has settled")
 
-	ueConn.ReleaseAction = UeContextN2NormalRelease
-	ueConn.SendUEContextReleaseCommand(ctx, *cause)
+	a := ueConn.amf
+	if a == nil {
+		return
+	}
+
+	a.ReleaseOnRANRequest(ctx, ueConn, *cause, nil)
 }
 
 func (ueConn *UeConn) cancelDeferredRelease() {

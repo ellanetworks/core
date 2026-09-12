@@ -22,15 +22,27 @@ const (
 
 func (c N1N2MessageTransferCause) String() string { return string(c) }
 
-const N1N2ErrHigherPriorityRequestOngoing = "HIGHER_PRIORITY_REQUEST_ONGOING"
+type N1N2ApplicationError string
+
+const (
+	N1N2ErrContextNotFound                    N1N2ApplicationError = "CONTEXT_NOT_FOUND"
+	N1N2ErrHigherPriorityRequestOngoing       N1N2ApplicationError = "HIGHER_PRIORITY_REQUEST_ONGOING"
+	N1N2ErrTemporaryRejectRegistrationOngoing N1N2ApplicationError = "TEMPORARY_REJECT_REGISTRATION_ONGOING"
+	N1N2ErrTemporaryRejectHandoverOngoing     N1N2ApplicationError = "TEMPORARY_REJECT_HANDOVER_ONGOING"
+	N1N2ErrTemporaryRejectSROngoing           N1N2ApplicationError = "TEMPORARY_REJECT_SR_ONGOING"
+	N1N2ErrUEInCMIdleState                    N1N2ApplicationError = "UE_IN_CM_IDLE_STATE"
+	N1N2ErrUnspecified                        N1N2ApplicationError = "UNSPECIFIED"
+)
+
+func (e N1N2ApplicationError) String() string { return string(e) }
 
 type N1N2MsgTxfrErrDetail struct {
 	HighestPrioArp *Arp
 }
 
 type N1N2MessageTransferError struct {
-	Cause  string
+	Cause  N1N2ApplicationError
 	Detail N1N2MsgTxfrErrDetail
 }
 
-func (e *N1N2MessageTransferError) Error() string { return e.Cause }
+func (e *N1N2MessageTransferError) Error() string { return string(e.Cause) }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -144,9 +143,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
 func (m *MME) ReleaseUEContextLocally(ue *UeContext, trigger string) {
-	if ue.PagingState() == PagingDelivering {
-		ue.PagingFailed(models.EPSPagingUENotResponding)
-	}
+	ue.settleDeliveryOnRelease()
 
 	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
 

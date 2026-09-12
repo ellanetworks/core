@@ -221,6 +221,12 @@ type fakeSmf struct {
 	DuplicatePDUResponse      []byte
 	DuplicatePDUError         error
 	DuplicatePDUCalls         []SmfDuplicatePDUCall
+	TransferFailures          []SmfTransferFailure
+}
+
+type SmfTransferFailure struct {
+	PDUSessionID uint8
+	Cause        models.N1N2MessageTransferCause
 }
 
 type SmfUpdateN1MsgCall struct {
@@ -330,7 +336,9 @@ func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
 	return s.Error
 }
 
-func (s *fakeSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, _ uint8, _ models.N1N2MessageTransferCause) error {
+func (s *fakeSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, pduSessionID uint8, cause models.N1N2MessageTransferCause) error {
+	s.TransferFailures = append(s.TransferFailures, SmfTransferFailure{PDUSessionID: pduSessionID, Cause: cause})
+
 	return s.Error
 }
 

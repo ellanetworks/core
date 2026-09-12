@@ -281,6 +281,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	ue.SetSecuredForTest(true)
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	m := buildTestServiceRequest()
 
@@ -538,6 +539,7 @@ func TestHandleServiceRequestMTReadsOperatorOnce(t *testing.T) {
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -606,6 +608,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -679,6 +682,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -743,6 +747,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -840,6 +845,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -947,6 +953,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)
@@ -1071,6 +1078,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceStateForTest(amf.Registered)

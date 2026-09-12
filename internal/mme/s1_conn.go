@@ -46,7 +46,7 @@ type UeConn struct {
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
 	m                         *MME
-	ICS                       ICSState
+	ics                       atomic.Int32
 	secureExchangeEstablished bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
@@ -181,4 +181,20 @@ func (c *UeConn) MarkCipheringStarted() {
 	if c != nil {
 		c.cipheringStarted.Store(true)
 	}
+}
+
+func (c *UeConn) ICS() ICSState {
+	if c == nil {
+		return ICSNotStarted
+	}
+
+	return ICSState(c.ics.Load())
+}
+
+func (c *UeConn) SetICS(state ICSState) {
+	if c == nil {
+		return
+	}
+
+	c.ics.Store(int32(state))
 }

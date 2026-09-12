@@ -36,7 +36,7 @@ func TestUserInactivityIsDeferredWhileAnMTDeliveryIsInProgress(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.SetPagedBearerForTest(5, nil)
+	ue.SetPagedBearerForTest(5)
 	ue.PagingAnswered()
 
 	deliverReleaseRequest(t, m, cc, inactivityRelease(ue))
@@ -56,7 +56,7 @@ func TestOtherCausesReleaseDespiteAnMTDeliveryInProgress(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.SetPagedBearerForTest(5, nil)
+	ue.SetPagedBearerForTest(5)
 	ue.PagingAnswered()
 
 	req := inactivityRelease(ue)

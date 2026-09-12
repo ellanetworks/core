@@ -73,6 +73,7 @@ func (e *ENB) ReleaseContext(mmeUEID, enbUEID int64, cause s1ap.Cause, timeout t
 type ServiceRequestResult struct {
 	MMEUES1APID int64
 	ENBUES1APID int64
+	GUTI        *eps.EPSMobileIdentity
 	UpfAddress  string // S-GW/UPF S1-U address (uplink target)
 	ULTEID      uint32 // S-GW/UPF uplink TEID
 	DLTEID      uint32 // eNB downlink TEID reported to the MME
@@ -151,7 +152,13 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 		return nil, err
 	}
 
+	reallocated, err := e.answerGUTIReallocation(ue, int64(ics.MMEUES1APID), enbUEID, timeout)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ServiceRequestResult{
+		GUTI:              reallocated,
 		UERadioCapability: []byte(ics.UERadioCapability),
 		MMEUES1APID:       int64(ics.MMEUES1APID),
 		ENBUES1APID:       enbUEID,

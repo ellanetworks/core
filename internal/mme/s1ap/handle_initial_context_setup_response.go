@@ -82,7 +82,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 	}
 
 	if ueConn != nil {
-		ueConn.ICS = mme.ICSCompleted
+		ueConn.SetICS(mme.ICSCompleted)
 	}
 
 	// With the radio bearers up, a pending data-network change becomes deliverable.

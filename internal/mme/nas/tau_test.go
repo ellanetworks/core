@@ -271,7 +271,7 @@ func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ICS = mme.ICSCompleted
+	ue.Conn().SetICS(mme.ICSCompleted)
 
 	m.AddDefaultPDN(ue)
 

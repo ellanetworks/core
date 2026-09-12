@@ -241,3 +241,53 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(
 			len(sender.SentUEContextReleaseCommands))
 	}
 }
+
+// TS 23.502 §4.2.6: a deferred AN Release must complete as the release it deferred, not
+// as a plain N2 release — a UE that never reached 5GMM-REGISTERED has its context and its
+// PDU sessions torn down.
+func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillReleasesTheContext(t *testing.T) {
+	fakeSmf := &fakeSmfSbi{}
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.RegistrationInitiated)
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	if err := amfUe.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not open a PDU session resource setup transaction")
+	}
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 0 {
+		t.Fatalf("UEContextReleaseCommand count = %d, want 0 while the N2 setup is open", len(sender.SentUEContextReleaseCommands))
+	}
+
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("UEContextReleaseCommand count = %d, want 1 once the pending signalling settles", len(sender.SentUEContextReleaseCommands))
+	}
+
+	if ueConn.ReleaseAction != amf.UeContextReleaseUeContext {
+		t.Errorf("ReleaseAction = %v, want the context-releasing action for a UE that is not registered", ueConn.ReleaseAction)
+	}
+
+	if got := fakeSmf.ReleaseSmContextCalls; len(got) != 1 || got[0] != "ref-1" {
+		t.Errorf("ReleaseSmContext calls = %v, want the PDU session of the unregistered UE released", got)
+	}
+}

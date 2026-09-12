@@ -371,7 +371,7 @@ func (f *fakeAMF) ReleaseSession(_ context.Context, supi etsi.SUPI, pduSessionID
 	return f.err
 }
 
-func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp, _ int32) (models.N1N2MessageTransferCause, error) {
+func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -408,7 +408,7 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
-func (f *fakeMME) Page(_ context.Context, imsi string, _ uint8, _ *models.Arp) error {
+func (f *fakeMME) Page(_ context.Context, imsi string, _ uint8) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

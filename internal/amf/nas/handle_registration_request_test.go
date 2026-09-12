@@ -273,6 +273,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	}
 
 	ue.ArmPagingForTest(10*time.Minute, 10)
+	amfInstance.AttachUeConn(ue, ue.Conn())
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {

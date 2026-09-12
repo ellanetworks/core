@@ -6,6 +6,7 @@ package amf_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -780,8 +781,11 @@ func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testin
 		t.Fatalf("PDUSessionResourceSetupRequest count = %d, want 1", sender.pduSessionSetupCalls)
 	}
 
-	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
-		t.Fatalf("second transfer: %v", err)
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+
+	var rejected *models.N1N2MessageTransferError
+	if !errors.As(err, &rejected) || rejected.Cause != models.N1N2ErrTemporaryRejectSROngoing {
+		t.Fatalf("second transfer = %v, want TEMPORARY_REJECT_SR_ONGOING (TS 29.518 table 6.1.7.3-1)", err)
 	}
 
 	if sender.pduSessionSetupCalls != 1 {

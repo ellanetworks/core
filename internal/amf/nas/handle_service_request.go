@@ -276,7 +276,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	ue.PagingAnswered()
 	conn.StopNASGuard()
 
 	// TS 24.501: an integrity-protected SERVICE REQUEST carrying a NAS

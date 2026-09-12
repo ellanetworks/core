@@ -111,6 +111,22 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	requestData := ue.PagingPending().Request()
 
+	deliveredPending := false
+
+	defer func() {
+		if requestData == nil {
+			return
+		}
+
+		if deliveredPending {
+			ue.PagingDelivered()
+
+			return
+		}
+
+		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+	}()
+
 	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest, requestData))
 
 	n2Setup := ueConn.N2Setup(proc)
@@ -238,14 +254,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
 				}
 
-				ue.PagingDelivered()
+				deliveredPending = true
 
 				return
 			}
 
 			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
-				ue.PagingDelivered()
 				// UE referenced a PDU session id it holds no context for; release the
 				// half-updated registration to avoid leaking it.
 				abortRegistration(ctx, amfInstance, ue, "UE referenced unknown PDU session id", nil)
@@ -281,7 +296,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				}
 
 				if n1Msg == nil {
-					return stage(nil)
+					if err := stage(nil); err != nil {
+						return err
+					}
+
+					deliveredPending = true
+
+					return nil
 				}
 
 				plain, err := amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
@@ -289,7 +310,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					return err
 				}
 
-				return ue.SendDownlinkNAS(plain, sht, stage)
+				if err := ue.SendDownlinkNAS(plain, sht, stage); err != nil {
+					return err
+				}
+
+				deliveredPending = true
+
+				return nil
 			}
 		}
 	}

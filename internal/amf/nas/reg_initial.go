@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -57,6 +58,10 @@ func abortRegistrationRetainingContext(ctx context.Context, amfInstance *amf.AMF
 }
 
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
+	if ue.MTDeliveryInProgress() {
+		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+	}
+
 	ue.ClearRegistrationData(ctx)
 
 	conn := ue.Conn()

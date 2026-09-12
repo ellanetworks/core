@@ -23,6 +23,10 @@ func (c *UeConn) MTSignallingPending() bool {
 		return true
 	}
 
+	if c.ICS() == ICSPending {
+		return true
+	}
+
 	return c.nasGuard.Active() || c.esmInfoGuard.Active()
 }
 
@@ -32,7 +36,9 @@ func (c *UeConn) DeferRelease(cause s1ap.Cause) {
 	}
 
 	held := cause
-	c.deferredCause.Store(&held)
+	if !c.deferredCause.CompareAndSwap(nil, &held) {
+		return
+	}
 
 	c.deferGuard.ArmOnce(deferredReleaseTimeout, func() {
 		logger.From(context.Background(), c.Log()).Warn("deferred UE Context Release deadline reached; releasing the S1 connection",

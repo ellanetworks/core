@@ -36,7 +36,6 @@ func (s PagingState) String() string {
 
 type MTRequest struct {
 	Ebi uint8
-	Arp *models.Arp
 }
 
 type pagingProc struct {
@@ -120,11 +119,7 @@ func (ue *UeContext) PagingFailed(cause models.EPSPagingFailureCause) *MTRequest
 	ue.paging.guard.Stop()
 
 	ue.paging.mu.Lock()
-
-	dropped := ue.paging.pending
-	ue.paging.pending = nil
-	ue.paging.state = PagingIdle
-
+	dropped := ue.takePendingLocked()
 	ue.paging.mu.Unlock()
 
 	ue.ClearLPPaBuffered()
@@ -138,8 +133,50 @@ func (ue *UeContext) PagingFailed(cause models.EPSPagingFailureCause) *MTRequest
 	return dropped
 }
 
+func (ue *UeContext) PagingUnanswered(cause models.EPSPagingFailureCause) (*MTRequest, bool) {
+	if ue == nil {
+		return nil, false
+	}
+
+	ue.paging.guard.Stop()
+
+	ue.paging.mu.Lock()
+
+	if ue.Connected() {
+		ue.paging.mu.Unlock()
+
+		return nil, false
+	}
+
+	dropped := ue.takePendingLocked()
+
+	ue.paging.mu.Unlock()
+
+	ue.ClearLPPaBuffered()
+
+	if dropped != nil {
+		ue.notifyMTDeliveryFailure(dropped, cause)
+	}
+
+	return dropped, true
+}
+
+func (ue *UeContext) settleDeliveryOnRelease() {
+	if ue.PagingState() == PagingDelivering {
+		ue.PagingFailed(models.EPSPagingUENotResponding)
+	}
+}
+
+func (ue *UeContext) takePendingLocked() *MTRequest {
+	dropped := ue.paging.pending
+	ue.paging.pending = nil
+	ue.paging.state = PagingIdle
+
+	return dropped
+}
+
 func (ue *UeContext) notifyMTDeliveryFailure(req *MTRequest, cause models.EPSPagingFailureCause) {
-	if ue.session == nil || req == nil {
+	if ue.session == nil || req == nil || req.Ebi == 0 {
 		return
 	}
 

@@ -26,13 +26,13 @@ var errPagingSkipped = errors.New("paging skipped")
 // retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
 // covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
 // missing context or marshal failure is reported.
-func (m *MME) Page(ctx context.Context, imsi string, ebi uint8, arp *models.Arp) error {
+func (m *MME) Page(ctx context.Context, imsi string, ebi uint8) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
-	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi, Arp: arp}) }
+	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi}) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
@@ -135,9 +135,12 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 	m.mu.RUnlock()
 
-	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
+	dropped, abandoned := ue.PagingUnanswered(models.EPSPagingUENotResponding)
+	if !abandoned {
+		return
+	}
 
-	dropped := ue.PagingFailed(models.EPSPagingUENotResponding)
+	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
 	if m.Session == nil {
 		return

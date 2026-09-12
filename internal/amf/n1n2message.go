@@ -165,14 +165,16 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 }
 
 // storeN1N2AndPage buffers a downlink request and pages the idle UE
-// (TS 23.502 §4.2.3.3). An earlier request already being paged for is not displaced; the
-// caller is told to retry (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
+// (TS 23.502 §4.2.3.3). An earlier request already being paged for is displaced only by a
+// higher-priority one, whose consumer is then notified that its transfer failed
+// (TS 29.518 §5.2.2.3.2); otherwise the caller is told to retry
+// (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
 func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	if err := guardIdlePaging(ue); err != nil {
 		return "", err
 	}
 
-	return amf.pageIdleUE(ctx, ue, &MTRequest{Req: req, Arp: req.Arp, FiveQI: req.FiveQI})
+	return amf.pageIdleUE(ctx, ue, &MTRequest{Req: req})
 }
 
 // ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
@@ -330,11 +332,11 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	}
 
 	if ue.State() == RegistrationInitiated {
-		return "", &models.N1N2MessageTransferError{Cause: string(models.N1N2TemporaryRejectRegistrationOngoing)}
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectRegistrationOngoing}
 	}
 
 	if ue.Procedures().Active(procedure.N2Handover) {
-		return "", &models.N1N2MessageTransferError{Cause: string(models.N1N2TemporaryRejectHandoverOngoing)}
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectHandoverOngoing}
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
@@ -346,7 +348,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 			logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
 				zap.Uint8("pdu_session_id", req.PduSessionID))
 
-			return models.N1N2N2MsgNotTransferred, nil
+			return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 		}
 
 		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
@@ -386,7 +388,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
 			zap.Uint8("pdu_session_id", req.PduSessionID))
 
-		return models.N1N2TransferInitiated, nil
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 	}
 
 	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)

@@ -24,10 +24,6 @@ func (s *SMF) HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pdu
 		zap.Uint8("pdu_session_id", pduSessionID),
 		zap.String("cause", cause.String()))
 
-	if cause != models.N1N2UENotResponding {
-		return nil
-	}
-
 	s.suppressDownlinkDataNotification(ctx, smContext)
 
 	return nil
@@ -48,10 +44,6 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 		zap.String("imsi", imsi),
 		zap.Uint8("ebi", ebi),
 		zap.String("cause", cause.String()))
-
-	if cause != models.EPSPagingUENotResponding {
-		return nil
-	}
 
 	s.suppressDownlinkDataNotification(ctx, smContext)
 

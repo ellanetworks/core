@@ -740,6 +740,8 @@ func (m *MME) freeUeConnLocked(ue *UeContext) {
 
 // FreeUeConn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
 func (m *MME) FreeUeConn(ue *UeContext) {
+	ue.settleDeliveryOnRelease()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

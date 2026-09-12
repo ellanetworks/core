@@ -208,6 +208,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	ue.active.Store(ueConn)
 
 	a.stopIdleTimersLocked(ue)
+	ue.PagingAnswered()
 
 	return displaced
 }

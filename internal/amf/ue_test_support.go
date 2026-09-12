@@ -287,5 +287,5 @@ func (ue *UeContext) SetPagedRequestForTest(req *models.N1N2MessageTransferReque
 		return
 	}
 
-	ue.forcePagingStateForTest(&MTRequest{Req: *req, Arp: req.Arp, FiveQI: req.FiveQI})
+	ue.forcePagingStateForTest(&MTRequest{Req: *req})
 }

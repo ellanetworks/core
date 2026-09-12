@@ -85,10 +85,13 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
-	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
-
 	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
-	dropped := ue.PagingFailed(models.N1N2UENotResponding)
+	dropped, abandoned := ue.PagingUnanswered(models.N1N2UENotResponding)
+	if !abandoned {
+		return
+	}
+
+	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
 	if amf.Session == nil {
 		return
@@ -139,7 +142,7 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (
 	}
 
 	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
-		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+		ue.PagingAttemptFailed(req, models.N1N2FailureCauseUnspecified)
 
 		return "", fmt.Errorf("send paging: %w", err)
 	}
@@ -155,15 +158,15 @@ func guardIdlePaging(ue *UeContext) error {
 	}
 
 	if ue.State() == RegistrationInitiated {
-		return &models.N1N2MessageTransferError{Cause: string(models.N1N2TemporaryRejectRegistrationOngoing)}
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectRegistrationOngoing}
 	}
 
 	if ue.Procedures().Active(procedure.N2Handover) {
-		return &models.N1N2MessageTransferError{Cause: string(models.N1N2TemporaryRejectHandoverOngoing)}
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectHandoverOngoing}
 	}
 
 	if ue.State() != Registered {
-		return &models.N1N2MessageTransferError{Cause: string(models.N1N2FailureCauseUnspecified)}
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrContextNotFound}
 	}
 
 	return nil
