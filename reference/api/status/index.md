@@ -1,0 +1,57 @@
+# Status
+
+## Get the status
+
+This path returns the status of Ella core.
+
+| Method | Path             |
+| ------ | ---------------- |
+| GET    | `/api/v1/status` |
+
+### Parameters
+
+None
+
+### Response Headers
+
+When clustering is enabled, the response includes an `X-Ella-Role` header with the Raft role of the responding node (`Leader`, `Follower`, `Candidate`, `Shutdown`, or `Unknown`). Load balancers can use this header to direct write traffic to the leader.
+
+### Sample Response
+
+```
+{
+    "result": {
+        "version": "v1.17.0",
+        "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
+        "initialized": true,
+        "ready": true,
+        "schemaVersion": 9,
+        "datapathAttachMode": "xdp-native"
+    }
+}
+```
+
+When clustering is enabled, the response includes a `cluster` object:
+
+```
+{
+    "result": {
+        "version": "v1.17.0",
+        "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
+        "initialized": true,
+        "ready": true,
+        "schemaVersion": 9,
+        "datapathAttachMode": "xdp-native",
+        "cluster": {
+            "enabled": true,
+            "role": "Leader",
+            "nodeId": 1,
+            "isLeader": true,
+            "leaderNodeId": 1,
+            "appliedIndex": 42,
+            "clusterId": "my-cluster",
+            "leaderAPIAddress": "https://10.0.0.1:5002"
+        }
+    }
+}
+```
