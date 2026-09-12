@@ -37,7 +37,7 @@ func (ue *UE) BuildPlainTrackingAreaUpdateRequest(guti eps.EPSMobileIdentity) ([
 		EPSUpdateType:       eps.EPSUpdateTypeTA,
 		NASKeySetIdentifier: nas.NoKeySet,
 		OldGUTI:             guti,
-		UENetworkCapability: ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}),
+		UENetworkCapability: ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}, nil),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)

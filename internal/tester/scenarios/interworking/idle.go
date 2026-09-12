@@ -342,7 +342,11 @@ func arriveOn5GSFromEPS(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, u *ue.UE, epsGUTI e
 		return err
 	}
 
-	return assertReactivation(accept, resume)
+	if err := assertReactivation(accept, resume); err != nil {
+		return err
+	}
+
+	return assertUserPlane(gNodeB, ranUENGAPID, resume)
 }
 
 func assertReactivation(plain []byte, resume resumeUserPlane) error {
@@ -356,8 +360,25 @@ func assertReactivation(plain []byte, resume resumeUserPlane) error {
 		return errors.New("the registration accept reports no PDU session reactivation result, " +
 			"so the AMF did not act on the uplink data status the UE arrived with")
 	case !bool(resume) && accept.PDUSessionReactivationResult != nil:
-		return fmt.Errorf("the registration accept reports the reactivation result %+v though the UE asked for no user plane, "+
-			"so the AMF re-established one the UE is not ready to use", accept.PDUSessionReactivationResult)
+		return fmt.Errorf("the registration accept reports the reactivation result %+v though the UE sent no uplink data status, "+
+			"so the AMF answered an element the UE did not send", accept.PDUSessionReactivationResult)
+	}
+
+	return nil
+}
+
+func assertUserPlane(gNodeB *gnb.GnodeB, ranUENGAPID int64, resume resumeUserPlane) error {
+	session, ok := gNodeB.PDUSession(ranUENGAPID, movedPDUSessionID)
+
+	switch {
+	case bool(resume) && !ok:
+		return fmt.Errorf("the gNB holds no PDU session %d after the arrival, so the AMF re-established no user plane",
+			movedPDUSessionID)
+	case bool(resume) && session.ULTEID == 0:
+		return fmt.Errorf("PDU session %d arrived with no uplink TEID, so its N3 tunnel cannot carry traffic",
+			movedPDUSessionID)
+	case !bool(resume) && ok:
+		return fmt.Errorf("the gNB holds PDU session %d though the UE asked for no user plane", movedPDUSessionID)
 	}
 
 	return nil

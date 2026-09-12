@@ -82,9 +82,7 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 	native := ue.nativeContextForIdleArrival()
 
 	cleartext := &RegistrationRequestOpts{
-		RegistrationType: uint8(fgs.RegistrationTypeMobilityUpdating),
-		// Unverified: the reference network carries no EPS traffic, so no
-		// inter-system change was observed to copy the bit from.
+		RegistrationType:       uint8(fgs.RegistrationTypeMobilityUpdating),
 		FollowOnRequest:        true,
 		UESecurity:             ue.UeSecurity,
 		UEStatus:               &fgs.UEStatus{S1ModeReg: true},

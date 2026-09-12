@@ -70,12 +70,14 @@ func (ue *UE) BuildIdleTrackingAreaUpdate(opts IdleTrackingAreaUpdateOpts) ([]by
 	plain, err := (&eps.TrackingAreaUpdateRequest{
 		EPSUpdateType:          opts.UpdateType,
 		ActiveFlag:             opts.ActiveFlag,
-		NASKeySetIdentifier:    nas.KeySetIdentifier{Value: opts.Security.EKSI, Mapped: true},
+		NASKeySetIdentifier:    nas.KeySetIdentifier{Value: opts.Security.EKSI},
 		OldGUTI:                eps.GUTIIdentity(opts.GUTI),
 		OldGUTIType:            &gutiType,
-		UEStatus:               &eps.UEStatus{N1ModeReg: true},
+		UEStatus:               &eps.UEStatus{S1ModeReg: true, N1ModeReg: true},
 		EPSBearerContextStatus: opts.BearerStatus,
-		UENetworkCapability:    ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}),
+		UENetworkCapability:    ue.advertise(ue.interworkingNetworkCapability(), ue.msNetCap),
+		MSNetworkCapability:    ue.msNetCap,
+		Unrecognized:           ue.interworkingExtraIEs(),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)
@@ -241,7 +243,7 @@ func (ue *UE) BuildTrackingAreaUpdateForContainer(guti eps.GUTI, status *nas.EPS
 		OldGUTIType:            &gutiType,
 		UEStatus:               &eps.UEStatus{S1ModeReg: true},
 		EPSBearerContextStatus: status,
-		UENetworkCapability:    ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}),
+		UENetworkCapability:    ue.advertise(eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}, nil),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("s1enb: build the enclosed Tracking Area Update Request: %w", err)
