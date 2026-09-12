@@ -5,9 +5,12 @@ package models
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+var nidPattern = regexp.MustCompile(`^[A-Fa-f0-9]{11}$`)
 
 const (
 	RanNodeTypeUnknown = "Unknown"
@@ -153,6 +156,10 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 		return GlobalRanNodeID{}, fmt.Errorf("radio %q is not <type>:<plmn>:<id>", ref)
 	}
 
+	if nid != "" && !nidPattern.MatchString(nid) {
+		return GlobalRanNodeID{}, fmt.Errorf("NID %q is not 11 hexadecimal digits", nid)
+	}
+
 	out := GlobalRanNodeID{Nid: nid}
 
 	if plmn != "-" {
@@ -169,7 +176,7 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 		return GlobalRanNodeID{}, fmt.Errorf("node ID is required")
 	}
 
-	if strings.EqualFold(nodeType, RanNodeTypeGNB) {
+	if nodeType == RanNodeTypeGNB {
 		if !hasBits {
 			return GlobalRanNodeID{}, fmt.Errorf("a gNB is identified by its gNB ID and bit length, as <id>@<bits>")
 		}
@@ -192,16 +199,16 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 		return GlobalRanNodeID{}, fmt.Errorf("only a gNB ID carries a bit length")
 	}
 
-	switch {
-	case strings.EqualFold(nodeType, RanNodeTypeNgENB):
+	switch nodeType {
+	case RanNodeTypeNgENB:
 		out.NgeNbID = value
-	case strings.EqualFold(nodeType, RanNodeTypeENB):
+	case RanNodeTypeENB:
 		out.ENbID = value
-	case strings.EqualFold(nodeType, RanNodeTypeN3IWF):
+	case RanNodeTypeN3IWF:
 		out.N3IwfID = value
-	case strings.EqualFold(nodeType, RanNodeTypeWAGF):
+	case RanNodeTypeWAGF:
 		out.WAgfID = value
-	case strings.EqualFold(nodeType, RanNodeTypeTNGF):
+	case RanNodeTypeTNGF:
 		out.TngfID = value
 	default:
 		return GlobalRanNodeID{}, fmt.Errorf("unknown RAN node type %q", nodeType)

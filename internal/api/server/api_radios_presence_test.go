@@ -353,18 +353,31 @@ func TestForgetRadioWrongNodeType(t *testing.T) {
 	}
 }
 
-func TestForgetRadioNodeTypeIsCaseInsensitive(t *testing.T) {
+func TestForgetRadioRejectsANonCanonicalRef(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	env.AMF.DisconnectRadio(context.Background(), connectAPIRadio(env.AMF, "gnb-offline"))
+	env.AMF.DisconnectRadio(context.Background(), connectAPIRadioID(env.AMF, "gnb-offline",
+		gnbRanNodeID("001", "01", "00002a", 24)))
 
-	statusCode, response, err := forgetRadio(env.Server.URL, client, token, "gnb", "gnb-offline")
-	if err != nil {
-		t.Fatalf("couldn't forget radio: %s", err)
+	for _, ref := range []string{"gnb:001-01:00002a@24", "gNB:001-01:00002A@24"} {
+		statusCode, _, err := apiDo[ForgetRadioResponse](client, "DELETE",
+			env.Server.URL+"/api/v1/ran/radios/"+ref, token, nil)
+		if err != nil {
+			t.Fatalf("couldn't forget radio: %s", err)
+		}
+
+		if statusCode == http.StatusOK {
+			t.Errorf("ref %q forgot a radio it does not name", ref)
+		}
 	}
 
-	if statusCode != http.StatusOK {
-		t.Fatalf("expected status %d, got %d (%q)", http.StatusOK, statusCode, response.Error)
+	_, listResponse, err := listRadiosWithStatus(env.Server.URL, client, token, "")
+	if err != nil {
+		t.Fatalf("couldn't list radios: %s", err)
+	}
+
+	if len(listResponse.Result.Items) != 1 {
+		t.Errorf("radios after the refused forgets = %+v, want the radio to survive", listResponse.Result.Items)
 	}
 }
 

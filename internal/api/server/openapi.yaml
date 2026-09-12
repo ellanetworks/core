@@ -3441,7 +3441,7 @@ components:
         The radio's identity, as reported in its `ref` field:
         `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example
         `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. The PLMN is `-` on a radio
-        that reported none; an SNPN carries its NID as a third field.
+        that reported none; an SNPN carries its 11-digit NID as a third field.
     EmailPath:
       name: email
       in: path

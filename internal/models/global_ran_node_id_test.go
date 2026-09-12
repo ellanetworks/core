@@ -139,6 +139,9 @@ func TestParseRanNodeRefRejects(t *testing.T) {
 		"eNB:1-01:MacroeNB-00008",
 		"eNB:001-0:MacroeNB-00008",
 		"hNB:001-01:00008",
+		"gnb:001-01:00002a@22",
+		"eNB:001-01:00000000:MacroeNB-00008",
+		"eNB:001-01:00000000abcd:MacroeNB-00008",
 	} {
 		if _, err := models.ParseRanNodeRef(ref); err == nil {
 			t.Errorf("ParseRanNodeRef(%q) = nil error, want a rejection", ref)
