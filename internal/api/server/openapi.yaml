@@ -2461,11 +2461,7 @@ paths:
       operationId: getRadio
       tags: [Radios]
       summary: Get a radio
-      description: >-
-        Returns the details of a specific radio base station, connected or offline. A radio
-        is addressed by the identity it claimed on setup, as reported in its `ref` field,
-        because node names are not unique across offline radios and a radio that never
-        reported one still has an identity.
+      description: Returns the details of a radio base station, connected or offline.
       parameters:
         - $ref: "#/components/parameters/RadioRef"
       responses:
@@ -2487,10 +2483,8 @@ paths:
       tags: [Radios]
       summary: Forget an offline radio
       description: >-
-        Drops an offline radio from the list, for a decommissioned site or a stale entry
-        left behind by a radio whose identity changed. It applies only to offline radios: a
-        connected radio is removed when its association drops, not on request. A forgotten
-        radio is listed again as online if it reconnects.
+        Drops an offline radio from the list. A connected radio is rejected with 409, and a
+        forgotten radio is listed again if it reconnects.
       parameters:
         - $ref: "#/components/parameters/RadioRef"
       responses:
@@ -3445,11 +3439,9 @@ components:
         pattern: "^[^:]+:[^:]+(:[^:]+)?:[^:]+$"
       description: >-
         The radio's identity, as reported in its `ref` field:
-        `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB — for example
-        `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. The PLMN reads `-` for a
-        radio that reported none, and an SNPN carries its NID as a third field. Two radios
-        sharing a Global RAN Node ID under different PLMNs, and two gNB IDs of the same
-        value at different widths, are distinct radios with distinct refs.
+        `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example
+        `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. The PLMN is `-` on a radio
+        that reported none; an SNPN carries its NID as a third field.
     EmailPath:
       name: email
       in: path
@@ -5506,7 +5498,7 @@ components:
           type: string
         ref:
           type: string
-          description: The radio's identity, and the path segment that addresses it; empty on a radio that has not completed setup.
+          description: The radio's identity, and the path segment that addresses it. Empty on a radio that has not completed setup.
         id:
           type: string
           description: Node identifier of the Global RAN Node ID, without the PLMN.
@@ -5556,7 +5548,7 @@ components:
           type: string
         ref:
           type: string
-          description: The radio's identity, and the path segment that addresses it; empty on a radio that has not completed setup.
+          description: The radio's identity, and the path segment that addresses it. Empty on a radio that has not completed setup.
         id:
           type: string
           description: Node identifier of the Global RAN Node ID, without the PLMN.

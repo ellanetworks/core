@@ -55,10 +55,7 @@ func forgetRadio(url string, client *http.Client, token string, nodeType, id str
 }
 
 func connectAPIRadio(amfInstance *amf.AMF, name string) *amf.Radio {
-	return connectAPIRadioID(amfInstance, name, models.GlobalRanNodeID{
-		PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
-		GNbID:  &models.GNbID{BitLength: testRadioBitLength, GNBValue: name},
-	})
+	return connectAPIRadioID(amfInstance, name, gnbRanNodeID("001", "01", name, testRadioBitLength))
 }
 
 func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRanNodeID) *amf.Radio {
@@ -69,10 +66,10 @@ func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRan
 	return radio
 }
 
-func gnbRanNodeID(mcc, mnc string, bitLength int32) models.GlobalRanNodeID {
+func gnbRanNodeID(mcc, mnc, value string, bitLength int32) models.GlobalRanNodeID {
 	return models.GlobalRanNodeID{
 		PlmnID: &models.PlmnID{Mcc: mcc, Mnc: mnc},
-		GNbID:  &models.GNbID{BitLength: bitLength, GNBValue: "00002a"},
+		GNbID:  &models.GNbID{BitLength: bitLength, GNBValue: value},
 	}
 }
 
@@ -444,9 +441,9 @@ func TestForgetRadioAddressesOneIdentity(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
 	for _, radio := range []*amf.Radio{
-		connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", 22)),
-		connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", 24)),
-		connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", 24)),
+		connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", "00002a", 22)),
+		connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24)),
+		connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", "00002a", 24)),
 	} {
 		env.AMF.DisconnectRadio(context.Background(), radio)
 	}
@@ -481,9 +478,9 @@ func TestForgetRadioAddressesOneIdentity(t *testing.T) {
 func TestGetRadioAddressesOneIdentity(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", 22))
-	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", 24))
-	connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", 24))
+	connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", "00002a", 22))
+	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24))
+	connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", "00002a", 24))
 
 	for _, tc := range []struct{ path, want string }{
 		{"gNB:001-01:00002a@22", "gnb-22bit"},
@@ -509,7 +506,7 @@ func TestGetRadioAddressesOneIdentity(t *testing.T) {
 func TestGetRadioRejectsAGNBWithoutABitLength(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", 24))
+	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24))
 
 	statusCode, _, err := apiDo[GetRadioResponse](client, "GET",
 		env.Server.URL+"/api/v1/ran/radios/gNB:001-01:00002a", token, nil)

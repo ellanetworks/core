@@ -132,7 +132,7 @@ func (g GlobalRanNodeID) Key() (string, bool) {
 	return plmn + "/" + g.Nid + "/" + node, true
 }
 
-func ParsePlmnID(s string) (PlmnID, error) {
+func parsePlmnID(s string) (PlmnID, error) {
 	mcc, mnc, ok := strings.Cut(s, "-")
 	if !ok {
 		return PlmnID{}, fmt.Errorf("PLMN %q is not <mcc>-<mnc>", s)
@@ -176,7 +176,7 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 	out := GlobalRanNodeID{Nid: nid}
 
 	if plmn != "-" {
-		p, err := ParsePlmnID(plmn)
+		p, err := parsePlmnID(plmn)
 		if err != nil {
 			return GlobalRanNodeID{}, err
 		}

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -266,8 +265,6 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	}
 }
 
-const RanNodeTypeENB = models.RanNodeTypeENB
-
 func radioPathIdentity(r *http.Request) (models.GlobalRanNodeID, error) {
 	ref := r.PathValue("ref")
 	if ref == "" {
@@ -275,10 +272,6 @@ func radioPathIdentity(r *http.Request) (models.GlobalRanNodeID, error) {
 	}
 
 	return models.ParseRanNodeRef(ref)
-}
-
-func isENBType(nodeType string) bool {
-	return strings.EqualFold(nodeType, RanNodeTypeENB)
 }
 
 func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
@@ -289,7 +282,7 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		if isENBType(ranID.RanNodeType()) {
+		if ranID.ENbID != "" {
 			if mmeInstance == nil {
 				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 				return
@@ -362,7 +355,7 @@ func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		forgetErr := amf.ErrRadioNotFound
 
 		switch {
-		case !isENBType(ranID.RanNodeType()):
+		case ranID.ENbID == "":
 			forgetErr = amfInstance.ForgetRadio(ranID)
 		case mmeInstance != nil:
 			forgetErr = mmeInstance.ForgetRadio(ranID)
