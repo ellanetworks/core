@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -412,24 +411,6 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 	return amf.reg.Radio(conn)
 }
 
-// radioIDKey is the radiosByID index key for a Global RAN Node ID, prefixed by
-// node type so the gNB/ng-eNB/N3IWF identifier spaces cannot collide. Returns
-// false when no identifier is set.
-func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
-	switch {
-	case id == nil:
-		return "", false
-	case id.GNbID != nil:
-		return "gnb:" + id.GNbID.GNBValue, true
-	case id.NgeNbID != "":
-		return "ngenb:" + id.NgeNbID, true
-	case id.N3IwfID != "":
-		return "n3iwf:" + id.N3IwfID, true
-	}
-
-	return "", false
-}
-
 func radioIDOf(radio *Radio) string {
 	key, ok := radio.IDKey()
 	if !ok {
@@ -440,7 +421,7 @@ func radioIDOf(radio *Radio) string {
 }
 
 func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
-	key, ok := radioIDKey(&ranNodeID)
+	key, ok := ranNodeID.Ref()
 	if !ok {
 		return nil, false
 	}
@@ -459,13 +440,15 @@ func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Ra
 // retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
 // gNB repeating NG Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the gNB has already forgotten.
-func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) *Radio {
-	newID := util.RANNodeIDToModels(ranNodeID)
-	present := ranPresentFor(ranNodeID.Kind)
+func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) (*Radio, error) {
+	newID, err := util.RANNodeIDToModels(ranNodeID)
+	if err != nil {
+		return nil, err
+	}
 
-	key, ok := radioIDKey(&newID)
+	key, ok := newID.Ref()
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("amf: Global RAN Node ID %s carries no node identity", newID.String())
 	}
 
 	amf.mu.Lock()
@@ -479,11 +462,10 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 		delete(amf.reg.ByConn, evicted.Conn)
 	}
 
-	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
+	if oldKey, ok := models.RanNodeIDKey(radio.RanID); ok && oldKey != key {
 		amf.reg.Unclaim(oldKey)
 	}
 
-	radio.RanPresent = present
 	radio.RanID = &newID
 	radio.advertisedCapacity = &advertisedCapacity
 	radio.guamiUnavailableSent = false
@@ -502,7 +484,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 		}
 	}
 
-	return evicted
+	return evicted, nil
 }
 
 // RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN
@@ -514,48 +496,34 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 // same reason it never evicts an incumbent holding the same identity: it reports
 // false and leaves the registry untouched, so a conflicting update costs nobody
 // their sessions.
-func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
-	newID := util.RANNodeIDToModels(ranNodeID)
+func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) (bool, error) {
+	newID, err := util.RANNodeIDToModels(ranNodeID)
+	if err != nil {
+		return false, err
+	}
 
-	key, ok := radioIDKey(&newID)
+	key, ok := newID.Ref()
 	if !ok {
-		return false
+		return false, fmt.Errorf("amf: Global RAN Node ID %s carries no node identity", newID.String())
 	}
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
 	if holder, taken := amf.reg.ClaimedBy(key); taken && holder != radio && holder.connected() {
-		return false
+		return false, nil
 	}
 
-	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey == key {
-		return true
+	if oldKey, ok := models.RanNodeIDKey(radio.RanID); ok && oldKey == key {
+		return true, nil
 	} else if ok {
 		amf.reg.Unclaim(oldKey)
 	}
 
-	radio.RanPresent = ranPresentFor(ranNodeID.Kind)
 	radio.RanID = &newID
 	amf.reg.Claim(key, radio)
 
-	return true
-}
-
-// ranPresentFor maps a Global RAN Node ID alternative onto the node kind the
-// Radio records. The three ng-eNB macro variants are one kind here: they differ
-// only in identifier width, which RanID already carries.
-func ranPresentFor(kind ngap.RANNodeIDKind) int {
-	switch kind {
-	case ngap.RANNodeIDGNB:
-		return RanPresentGNbID
-	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
-		return RanPresentNgeNbID
-	case ngap.RANNodeIDN3IWF:
-		return RanPresentN3IwfID
-	}
-
-	return 0
+	return true, nil
 }
 
 func (amf *AMF) ListRadios() []RadioInfo {
@@ -583,9 +551,11 @@ func named(name string) func(*Radio) bool {
 	return func(r *Radio) bool { return r.name == name }
 }
 
-func identified(nodeType, id string) func(*Radio) bool {
+func identifiedBy(key string) func(*Radio) bool {
 	return func(r *Radio) bool {
-		return strings.EqualFold(r.RanNodeTypeName(), nodeType) && r.NodeID() == id
+		k, ok := models.RanNodeIDKey(r.RanID)
+
+		return ok && k == key
 	}
 }
 
@@ -649,11 +619,33 @@ func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 	amf.reg.Disconnect(ran.Conn, ran)
 }
 
-func (amf *AMF) ForgetRadio(nodeType, id string) error {
+func (amf *AMF) FindRadioInfoByRanID(ranNodeID models.GlobalRanNodeID) (RadioInfo, bool) {
+	key, ok := ranNodeID.Ref()
+	if !ok {
+		return RadioInfo{}, false
+	}
+
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	online, forgotten := amf.reg.Forget(identified(nodeType, id))
+	radio, ok := amf.reg.ClaimedBy(key)
+	if !ok {
+		return RadioInfo{}, false
+	}
+
+	return radio.info(), true
+}
+
+func (amf *AMF) ForgetRadio(ranNodeID models.GlobalRanNodeID) error {
+	key, ok := ranNodeID.Ref()
+	if !ok {
+		return ErrRadioNotFound
+	}
+
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	online, forgotten := amf.reg.Forget(identifiedBy(key))
 
 	switch {
 	case online:
@@ -694,7 +686,7 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 
 	amf.reg.Track(radio.Conn, radio)
 
-	if key, ok := radioIDKey(radio.RanID); ok {
+	if key, ok := models.RanNodeIDKey(radio.RanID); ok {
 		amf.reg.Claim(key, radio)
 	}
 }

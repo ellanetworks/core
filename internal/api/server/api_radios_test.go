@@ -39,6 +39,7 @@ type SupportedTAI struct {
 
 type Radio struct {
 	Name           string         `json:"name"`
+	Ref            string         `json:"ref"`
 	ID             string         `json:"id"`
 	Address        string         `json:"address"`
 	RanNodeType    string         `json:"type"`
@@ -80,7 +81,6 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-001",
 		},
 	}
-	ran1.RanPresent = amf.RanPresentGNbID
 	amfInstance.UpdateRadioName(&ran1, "gnb-001")
 	amfInstance.UpdateRadioSupportedTAIs(&ran1, []amf.SupportedTAI{
 		{
@@ -107,7 +107,6 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-002",
 		},
 	}
-	ran2.RanPresent = amf.RanPresentGNbID
 	amfInstance.UpdateRadioName(&ran2, "gnb-002")
 	amfInstance.UpdateRadioSupportedTAIs(&ran2, []amf.SupportedTAI{
 		{

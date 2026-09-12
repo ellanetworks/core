@@ -44,8 +44,18 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, uli ngap.UserLocationI
 
 func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationInformation) (models.UserLocation, *models.Tai, bool) {
 	curTime := time.Now().UTC()
-	cellPlmnID := decodePLMN(uli.PLMNIdentity)
-	plmnID := decodePLMN(uli.TAI.PLMNIdentity)
+
+	cellPlmnID, err := decodePLMN(uli.PLMNIdentity)
+	if err != nil {
+		logger.AmfLog.Warn("could not decode the cell PLMN of a User Location Information", zap.Error(err))
+		return models.UserLocation{}, nil, false
+	}
+
+	plmnID, err := decodePLMN(uli.TAI.PLMNIdentity)
+	if err != nil {
+		logger.AmfLog.Warn("could not decode the TAI PLMN of a User Location Information", zap.Error(err))
+		return models.UserLocation{}, nil, false
+	}
 
 	tai := &models.Tai{
 		PlmnID: &plmnID,
@@ -157,6 +167,6 @@ func ageOfLocation(ts ngap.TimeStamp, now time.Time) int32 {
 }
 
 // decodePLMN mirrors the MME's helper of the same name.
-func decodePLMN(p ngap.PLMNIdentity) models.PlmnID {
+func decodePLMN(p ngap.PLMNIdentity) (models.PlmnID, error) {
 	return util.PLMNToModels(p)
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -35,23 +36,41 @@ func listRadiosQuery(url string, client *http.Client, token string, query string
 	return apiDo[ListRadiosResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios?%s", url, query), token, nil)
 }
 
+const testRadioBitLength = 24
+
+func radioRefFor(nodeType, id string) string {
+	if strings.EqualFold(nodeType, "gNB") {
+		return fmt.Sprintf("%s:001-01:%s@%d", nodeType, id, testRadioBitLength)
+	}
+
+	return fmt.Sprintf("%s:001-01:%s", nodeType, id)
+}
+
 func getRadioDetail(url string, client *http.Client, token string, nodeType, id string) (int, *GetRadioResponse, error) {
-	return apiDo[GetRadioResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), token, nil)
+	return apiDo[GetRadioResponse](client, "GET", fmt.Sprintf("%s/api/v1/ran/radios/%s", url, radioRefFor(nodeType, id)), token, nil)
 }
 
 func forgetRadio(url string, client *http.Client, token string, nodeType, id string) (int, *ForgetRadioResponse, error) {
-	return apiDo[ForgetRadioResponse](client, "DELETE", fmt.Sprintf("%s/api/v1/ran/radios/%s/%s", url, nodeType, id), token, nil)
+	return apiDo[ForgetRadioResponse](client, "DELETE", fmt.Sprintf("%s/api/v1/ran/radios/%s", url, radioRefFor(nodeType, id)), token, nil)
 }
 
 func connectAPIRadio(amfInstance *amf.AMF, name string) *amf.Radio {
-	radio := &amf.Radio{
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: name}},
-		RanPresent: amf.RanPresentGNbID,
-	}
+	return connectAPIRadioID(amfInstance, name, gnbRanNodeID("001", "01", name, testRadioBitLength))
+}
+
+func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRanNodeID) *amf.Radio {
+	radio := &amf.Radio{RanID: &ranID}
 	amfInstance.UpdateRadioName(radio, name)
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), radio)
 
 	return radio
+}
+
+func gnbRanNodeID(mcc, mnc, value string, bitLength int32) models.GlobalRanNodeID {
+	return models.GlobalRanNodeID{
+		PlmnID: &models.PlmnID{Mcc: mcc, Mnc: mnc},
+		GNbID:  &models.GNbID{BitLength: bitLength, GNBValue: value},
+	}
 }
 
 func findRadio(items []Radio, name string) (Radio, bool) {
@@ -334,18 +353,31 @@ func TestForgetRadioWrongNodeType(t *testing.T) {
 	}
 }
 
-func TestForgetRadioNodeTypeIsCaseInsensitive(t *testing.T) {
+func TestForgetRadioRejectsANonCanonicalRef(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	env.AMF.DisconnectRadio(context.Background(), connectAPIRadio(env.AMF, "gnb-offline"))
+	env.AMF.DisconnectRadio(context.Background(), connectAPIRadioID(env.AMF, "gnb-offline",
+		gnbRanNodeID("001", "01", "00002a", 24)))
 
-	statusCode, response, err := forgetRadio(env.Server.URL, client, token, "gnb", "gnb-offline")
-	if err != nil {
-		t.Fatalf("couldn't forget radio: %s", err)
+	for _, ref := range []string{"gnb:001-01:00002a@24", "gNB:001-01:00002A@24"} {
+		statusCode, _, err := apiDo[ForgetRadioResponse](client, "DELETE",
+			env.Server.URL+"/api/v1/ran/radios/"+ref, token, nil)
+		if err != nil {
+			t.Fatalf("couldn't forget radio: %s", err)
+		}
+
+		if statusCode == http.StatusOK {
+			t.Errorf("ref %q forgot a radio it does not name", ref)
+		}
 	}
 
-	if statusCode != http.StatusOK {
-		t.Fatalf("expected status %d, got %d (%q)", http.StatusOK, statusCode, response.Error)
+	_, listResponse, err := listRadiosWithStatus(env.Server.URL, client, token, "")
+	if err != nil {
+		t.Fatalf("couldn't list radios: %s", err)
+	}
+
+	if len(listResponse.Result.Items) != 1 {
+		t.Errorf("radios after the refused forgets = %+v, want the radio to survive", listResponse.Result.Items)
 	}
 }
 
@@ -412,5 +444,124 @@ func TestForgetRadioIsAdminOnly(t *testing.T) {
 
 	if statusCode != http.StatusOK {
 		t.Errorf("expected status %d for an admin, got %d", http.StatusOK, statusCode)
+	}
+}
+
+// TS 29.571: a gNB ID is rendered zero-padded to its width, so the same hex at
+// two widths — or under two PLMNs — is two radios. Each must be addressable on
+// its own.
+func TestForgetRadioAddressesOneIdentity(t *testing.T) {
+	env, client, token := setupRadioPresenceTest(t)
+
+	for _, radio := range []*amf.Radio{
+		connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", "00002a", 22)),
+		connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24)),
+		connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", "00002a", 24)),
+	} {
+		env.AMF.DisconnectRadio(context.Background(), radio)
+	}
+
+	statusCode, response, err := apiDo[ForgetRadioResponse](client, "DELETE",
+		env.Server.URL+"/api/v1/ran/radios/gNB:001-01:00002a@22", token, nil)
+	if err != nil {
+		t.Fatalf("couldn't forget radio: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (%q)", http.StatusOK, statusCode, response.Error)
+	}
+
+	_, listResponse, err := listRadiosWithStatus(env.Server.URL, client, token, "")
+	if err != nil {
+		t.Fatalf("couldn't list radios: %s", err)
+	}
+
+	var names []string
+	for _, radio := range listResponse.Result.Items {
+		names = append(names, radio.Name)
+	}
+
+	slices.Sort(names)
+
+	if !slices.Equal(names, []string{"gnb-24bit", "gnb-visited"}) {
+		t.Errorf("radios after forgetting the 22-bit gNB = %v, want the 24-bit and the visited-PLMN one", names)
+	}
+}
+
+func TestGetRadioAddressesOneIdentity(t *testing.T) {
+	env, client, token := setupRadioPresenceTest(t)
+
+	connectAPIRadioID(env.AMF, "gnb-22bit", gnbRanNodeID("001", "01", "00002a", 22))
+	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24))
+	connectAPIRadioID(env.AMF, "gnb-visited", gnbRanNodeID("208", "93", "00002a", 24))
+
+	for _, tc := range []struct{ path, want string }{
+		{"gNB:001-01:00002a@22", "gnb-22bit"},
+		{"gNB:001-01:00002a@24", "gnb-24bit"},
+		{"gNB:208-93:00002a@24", "gnb-visited"},
+	} {
+		statusCode, response, err := apiDo[GetRadioResponse](client, "GET",
+			env.Server.URL+"/api/v1/ran/radios/"+tc.path, token, nil)
+		if err != nil {
+			t.Fatalf("couldn't get radio %s: %s", tc.path, err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("%s: expected status %d, got %d", tc.path, http.StatusOK, statusCode)
+		}
+
+		if response.Result.Name != tc.want {
+			t.Errorf("%s resolved to %q, want %q", tc.path, response.Result.Name, tc.want)
+		}
+	}
+}
+
+func TestGetRadioRejectsAGNBWithoutABitLength(t *testing.T) {
+	env, client, token := setupRadioPresenceTest(t)
+
+	connectAPIRadioID(env.AMF, "gnb-24bit", gnbRanNodeID("001", "01", "00002a", 24))
+
+	statusCode, _, err := apiDo[GetRadioResponse](client, "GET",
+		env.Server.URL+"/api/v1/ran/radios/gNB:001-01:00002a", token, nil)
+	if err != nil {
+		t.Fatalf("couldn't get radio: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Errorf("expected status %d addressing a gNB without its bit length, got %d", http.StatusBadRequest, statusCode)
+	}
+}
+
+func TestListedRadioRefAddressesTheRadio(t *testing.T) {
+	env, client, token := setupRadioPresenceTest(t)
+
+	connectAPIRadio(env.AMF, "gnb-online")
+
+	_, listResponse, err := listRadiosWithStatus(env.Server.URL, client, token, "")
+	if err != nil {
+		t.Fatalf("couldn't list radios: %s", err)
+	}
+
+	if len(listResponse.Result.Items) != 1 {
+		t.Fatalf("expected 1 radio, got %+v", listResponse.Result.Items)
+	}
+
+	ref := listResponse.Result.Items[0].Ref
+	if ref == "" {
+		t.Fatal("listed radio carries no ref")
+	}
+
+	statusCode, response, err := apiDo[GetRadioResponse](client, "GET",
+		env.Server.URL+"/api/v1/ran/radios/"+ref, token, nil)
+	if err != nil {
+		t.Fatalf("couldn't get radio by its ref: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("ref %q returned status %d, want %d", ref, statusCode, http.StatusOK)
+	}
+
+	if response.Result.Ref != ref {
+		t.Errorf("detail ref = %q, want the listed %q", response.Result.Ref, ref)
 	}
 }

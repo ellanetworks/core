@@ -34,9 +34,14 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, err
 	}
 
-	target, ok := m.FindConnectedRadioByGlobalENBID(globalENBID)
+	ranID, err := RanNodeID(globalENBID)
+	if err != nil {
+		return none, fmt.Errorf("mme: target eNB: %w", err)
+	}
+
+	target, ok := m.FindConnectedRadioByRanID(ranID)
 	if !ok {
-		return none, fmt.Errorf("%w: %s", ErrUnknownTargetENB, ENBID(globalENBID))
+		return none, fmt.Errorf("%w: %s", ErrUnknownTargetENB, ranID.String())
 	}
 
 	// The tracking area is the one the source RAN selected, PLMN included — on a
@@ -88,7 +93,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, ErrRelocationInProgress
 	}
 
-	resp, err := m.relocate(ctx, ue, target, ENBID(globalENBID), req)
+	resp, err := m.relocate(ctx, ue, target, ranID.String(), req)
 	if err != nil {
 		m.dropRelocation(ctx, ue)
 

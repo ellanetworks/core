@@ -64,11 +64,18 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	targetRanNodeID := util.RANNodeIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
+	targetRanNodeID, err := util.RANNodeIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
+	if err != nil {
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Target ID cannot be decoded]", zap.Error(err))
+
+		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
+
+		return
+	}
 
 	targetRan, ok := amfInstance.FindConnectedRadioByRanID(targetRanNodeID)
 	if !ok {
-		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Stringer("target-ran-node-id", targetRanNodeID))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
 

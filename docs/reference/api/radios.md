@@ -30,7 +30,10 @@ This path returns the list of radios in the inventory.
 | Field             | Type   | Description |
 | ----------------- | ------ | ----------- |
 | `name`            | string | Radio name. |
+| `ref`             | string | Radio identity, and the path segment that addresses it. Empty on a radio that has not completed setup. |
 | `id`              | string | Radio identifier. |
+| `plmn`            | object | The PLMN the radio belongs to. |
+| `bit_length`      | int    | Bit length of the gNB ID (22–32). Present on gNBs only. |
 | `address`         | string | Radio address. On an offline radio, the last known address. |
 | `type`            | string | Radio type: `gNB`, `ng-eNB`, `eNB`, `N3IWF`, or `Unknown`. |
 | `status`          | string | `online` if the radio is currently associated with this node, `offline` otherwise. |
@@ -47,7 +50,10 @@ This path returns the list of radios in the inventory.
         "items": [
             {
                 "name": "gnb1",
-                "id": "001:01:000102",
+                "ref": "gNB:001-01:000102@24",
+                "id": "000102",
+                "plmn": { "mcc": "001", "mnc": "01" },
+                "bit_length": 24,
                 "address": "10.1.107.203/192.168.251.5:9487",
                 "type": "gNB",
                 "status": "online",
@@ -58,7 +64,10 @@ This path returns the list of radios in the inventory.
             },
             {
                 "name": "gnb2",
-                "id": "001:01:000103",
+                "ref": "gNB:001-01:000103@24",
+                "id": "000103",
+                "plmn": { "mcc": "001", "mnc": "01" },
+                "bit_length": 24,
                 "address": "10.1.107.204/192.168.251.6:9487",
                 "type": "gNB",
                 "status": "offline",
@@ -79,16 +88,15 @@ This path returns the list of radios in the inventory.
 
 This path returns the details of a specific radio, connected or offline, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| GET    | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
+| Method | Path                            |
+| ------ | ------------------------------- |
+| GET    | `/api/v1/ran/radios/{ref}`      |
 
 ### Path Parameters
 
-| Name          | Type   | Description |
-| ------------- | ------ | ----------- |
-| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
-| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
+| Name  | Type   | Description |
+| ----- | ------ | ----------- |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Sample Response
 
@@ -96,7 +104,10 @@ This path returns the details of a specific radio, connected or offline, includi
 {
     "result": {
         "name": "gnb1",
-        "id": "001:01:000102",
+        "ref": "gNB:001-01:000102@24",
+        "id": "000102",
+        "plmn": { "mcc": "001", "mnc": "01" },
+        "bit_length": 24,
         "address": "10.1.107.203/192.168.251.5:9487",
         "status": "online",
         "connected_at": "2025-08-12T16:58:00Z",
@@ -145,16 +156,15 @@ This path drops an offline radio from the inventory.
 
 Requires the admin role.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| DELETE | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
+| Method | Path                            |
+| ------ | ------------------------------- |
+| DELETE | `/api/v1/ran/radios/{ref}`      |
 
 ### Path Parameters
 
-| Name          | Type   | Description |
-| ------------- | ------ | ----------- |
-| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
-| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
+| Name  | Type   | Description |
+| ----- | ------ | ----------- |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Response Codes
 

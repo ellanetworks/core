@@ -33,12 +33,7 @@ const RadioByName: React.FC = () => {
       }
     >
       {(radio) =>
-        radio && (
-          <Navigate
-            to={`/radios/${radioPath({ type: radio.type, id: radio.id })}`}
-            replace
-          />
-        )
+        radio && <Navigate to={`/radios/${radioPath(radio.ref)}`} replace />
       }
     </QueryState>
   );

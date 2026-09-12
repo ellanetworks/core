@@ -136,7 +136,10 @@ func rejectENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 // only in that case and so may be zero otherwise.
 func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn s1ap.PLMNIdentity, tacs []uint16) (tais []mme.SupportedTAI, out []byte, accepted bool, reason string, err error) {
 	if len(req.SupportedTAs) > 0 {
-		tais = mme.EnbSupportedTAIs(req.SupportedTAs)
+		tais, err = mme.EnbSupportedTAIs(req.SupportedTAs)
+		if err != nil {
+			return nil, nil, false, "", err
+		}
 
 		if cause, ok := servedTAICause(req.SupportedTAs, plmn, tacs); !ok {
 			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: s1ap.Ptr(cause)}).Marshal()

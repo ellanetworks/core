@@ -584,7 +584,7 @@ const Dashboard = () => {
                           <TableCell sx={{ whiteSpace: "nowrap" }}>
                             {row.radio ? (
                               <Link
-                                to={`/radios/${encodeURIComponent(row.radio)}`}
+                                to={`/radios/by-name/${encodeURIComponent(row.radio)}`}
                                 style={{ textDecoration: "none" }}
                               >
                                 <Typography

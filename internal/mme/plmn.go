@@ -36,11 +36,11 @@ func EncodePLMN(plmn models.PlmnID) (s1ap.PLMNIdentity, error) {
 
 // decodePLMN decodes a 3-octet TBCD PLMN identity into its MCC/MNC pair
 // (TS 23.003).
-func decodePLMN(p s1ap.PLMNIdentity) models.PlmnID {
+func decodePLMN(p s1ap.PLMNIdentity) (models.PlmnID, error) {
 	plmn, err := nas.ParsePLMN([3]byte(p))
 	if err != nil {
-		return models.PlmnID{}
+		return models.PlmnID{}, fmt.Errorf("invalid PLMN identity %x: %w", [3]byte(p), err)
 	}
 
-	return models.PlmnID{Mcc: plmn.MCC, Mnc: plmn.MNC}
+	return models.PlmnID{Mcc: plmn.MCC, Mnc: plmn.MNC}, nil
 }

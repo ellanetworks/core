@@ -34,6 +34,8 @@ var causeNoServedTAC = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseM
 // site means.
 var causeUnspecified = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
 
+var causeSemanticError = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolSemanticError}
+
 // HandleNGSetupRequest answers a gNB's NG Setup Request with an NG Setup
 // Response when the gNB broadcasts a TAI this AMF serves, otherwise an NG Setup
 // Failure (TS 38.413 §8.7.1).
@@ -98,7 +100,14 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// ran.RanID != nil guard gates all other NGAP handlers. The claim precedes
 	// the response because evicting a duplicate association aborts it, and the
 	// answer must not go out while the superseded one is still live.
-	evicted := amfInstance.ClaimRanID(ran, req.GlobalRANNodeID, advertisedCapacity)
+	evicted, err := amfInstance.ClaimRanID(ran, req.GlobalRANNodeID, advertisedCapacity)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected", zap.Error(err))
+		sendNGSetupFailure(ctx, ran, causeSemanticError, nil)
+
+		return
+	}
+
 	if evicted != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
 			zap.String("evicted_remote", amf.AddrString(evicted.RemoteAddr())),
@@ -139,7 +148,10 @@ func sendNGSetupProtocolFailure(ctx context.Context, ran *amf.Radio, ase *ngap.A
 // human-readable rejection summary, empty when accepted; tais is what the gNB
 // broadcasts, which the caller commits to the Radio only on accept.
 func ngSetupOutcomeFor(req *ngap.NGSetupRequest, operatorInfo *amf.OperatorInfo, snssaiList []models.Snssai, amfName string, relativeCapacity uint8) (tais []amf.SupportedTAI, out []byte, accepted bool, reason string, err error) {
-	tais = supportedTAIs(req.SupportedTAList)
+	tais, err = supportedTAIs(req.SupportedTAList)
+	if err != nil {
+		return nil, nil, false, "", err
+	}
 
 	if cause, ok := servedTAICause(tais, operatorInfo); !ok {
 		out, err = (&ngap.NGSetupFailure{Cause: &cause}).Marshal()
@@ -204,14 +216,17 @@ func servedTAICause(tais []amf.SupportedTAI, operatorInfo *amf.OperatorInfo) (ca
 // supportedTAIs flattens the gNB's Supported TA List into one entry per
 // broadcast PLMN, which is how the AMF tracks what a radio serves. The TAC is
 // rendered as six hex digits, matching the three-octet NR TAC.
-func supportedTAIs(list ngap.SupportedTAList) []amf.SupportedTAI {
+func supportedTAIs(list ngap.SupportedTAList) ([]amf.SupportedTAI, error) {
 	tais := make([]amf.SupportedTAI, 0, len(list))
 
 	for _, ta := range list {
 		tac := fmt.Sprintf("%06x", uint32(ta.TAC))
 
 		for _, bp := range ta.BroadcastPLMNList {
-			plmnID := util.PLMNToModels(bp.PLMNIdentity)
+			plmnID, err := util.PLMNToModels(bp.PLMNIdentity)
+			if err != nil {
+				return nil, fmt.Errorf("amf: broadcast PLMN of TAC %s: %w", tac, err)
+			}
 
 			tai := amf.SupportedTAI{Tai: models.Tai{Tac: tac, PlmnID: &plmnID}}
 			for _, s := range bp.TAISliceSupportList {
@@ -222,7 +237,7 @@ func supportedTAIs(list ngap.SupportedTAList) []amf.SupportedTAI {
 		}
 	}
 
-	return tais
+	return tais, nil
 }
 
 func anyServedTAI(tais []amf.SupportedTAI, served []models.Tai) bool {

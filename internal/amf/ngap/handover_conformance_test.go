@@ -49,10 +49,9 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		Conn:       targetSender,
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
+		Log:   logger.AmfLog,
+		Conn:  targetSender,
+		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 	targetRan.BindAMFForTest(amfInstance)
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
