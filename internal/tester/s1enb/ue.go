@@ -56,6 +56,7 @@ type UE struct {
 	kenbCount                 uint32
 	contextFromAuthentication bool
 	pti                       nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
+	sentNetCap                eps.UENetworkCapability
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
@@ -173,7 +174,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSAttachType:       attachType,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
-		UENetworkCapability: ue.ueNetworkCapability(),
+		UENetworkCapability: *ue.advertise(ue.ueNetworkCapability()),
 		ESMMessageContainer: esm,
 	}
 
@@ -261,6 +262,12 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 	smc, err := eps.ParseSecurityModeCommand(wire[6:])
 	if err != nil {
 		return nil, fmt.Errorf("parse Security Mode Command: %w", err)
+	}
+
+	if want := eps.ReplayedUESecurityCapability(ue.sentNetCap, nil); !smc.ReplayedUESecurityCapability.Equal(want) {
+		return nil, fmt.Errorf("security mode command replays UE security capability %s, want the %s the UE advertised: "+
+			"a real UE answers Security Mode Reject with EMM cause #23 (TS 24.301 §5.4.3.5)",
+			smc.ReplayedUESecurityCapability, want)
 	}
 
 	ue.eea = uint8(smc.CipheringAlgorithm)
@@ -560,6 +567,12 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	copy(k[:], out[16:32])
 
 	return k, nil
+}
+
+func (ue *UE) advertise(c eps.UENetworkCapability) *eps.UENetworkCapability {
+	ue.sentNetCap = c
+
+	return &c
 }
 
 func (ue *UE) ueNetworkCapability() eps.UENetworkCapability {
