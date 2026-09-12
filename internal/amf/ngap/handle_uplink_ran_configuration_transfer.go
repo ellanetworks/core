@@ -29,7 +29,11 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
+	targetID, err := util.RANNodeIDToModels(target.GlobalRANNodeID)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("could not decode the Target RAN Node ID of a SON Configuration Transfer", zap.Error(err))
+		return
+	}
 
 	targetRadio, ok := amfInstance.FindConnectedRadioByRanID(targetID)
 	if !ok {

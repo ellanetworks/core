@@ -20,13 +20,13 @@ import (
 // PLMNToModels renders a PLMN identity as MCC/MNC digit strings. The middle
 // octet's high nibble is the third MNC digit, or "f" for a two-digit MNC
 // (TS 23.003 §2.2).
-func PLMNToModels(id ngap.PLMNIdentity) models.PlmnID {
+func PLMNToModels(id ngap.PLMNIdentity) (models.PlmnID, error) {
 	p, err := nas.ParsePLMN([3]byte(id))
 	if err != nil {
-		return models.PlmnID{}
+		return models.PlmnID{}, fmt.Errorf("invalid PLMN identity %x: %w", [3]byte(id), err)
 	}
 
-	return models.PlmnID{Mcc: p.MCC, Mnc: p.MNC}
+	return models.PlmnID{Mcc: p.MCC, Mnc: p.MNC}, nil
 }
 
 // PLMNToNGAP encodes MCC/MNC digit strings into a PLMN identity.
@@ -74,24 +74,28 @@ func SNSSAIToNGAP(snssai models.Snssai) (ngap.SNSSAI, error) {
 
 // RANNodeIDToModels renders a Global RAN Node ID as the model form. The ng-eNB
 // prefixes distinguish the three macro variants, which share the models field.
-func RANNodeIDToModels(id ngap.GlobalRANNodeID) models.GlobalRanNodeID {
+func RANNodeIDToModels(id ngap.GlobalRANNodeID) (models.GlobalRanNodeID, error) {
 	h := id.Hex()
-	plmn := PLMNToModels(id.PLMNIdentity)
+
+	plmn, err := PLMNToModels(id.PLMNIdentity)
+	if err != nil {
+		return models.GlobalRanNodeID{}, fmt.Errorf("could not decode the Global RAN Node ID PLMN: %w", err)
+	}
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
-		return models.GlobalRanNodeID{PlmnID: &plmn, GNbID: &models.GNbID{BitLength: int32(id.Bits), GNBValue: h}}
+		return models.GlobalRanNodeID{PlmnID: &plmn, GNbID: &models.GNbID{BitLength: int32(id.Bits), GNBValue: h}}, nil
 	case ngap.RANNodeIDMacroNgENB:
-		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "MacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "MacroNGeNB-" + h}, nil
 	case ngap.RANNodeIDShortMacroNgENB:
-		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "SMacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "SMacroNGeNB-" + h}, nil
 	case ngap.RANNodeIDLongMacroNgENB:
-		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "LMacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "LMacroNGeNB-" + h}, nil
 	case ngap.RANNodeIDN3IWF:
-		return models.GlobalRanNodeID{PlmnID: &plmn, N3IwfID: h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, N3IwfID: h}, nil
 	}
 
-	return models.GlobalRanNodeID{}
+	return models.GlobalRanNodeID{}, fmt.Errorf("unknown Global RAN Node ID kind %d", id.Kind)
 }
 
 // GUAMIToNGAP splits a 24-bit AMF identifier into the three bit strings a

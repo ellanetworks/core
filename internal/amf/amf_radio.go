@@ -136,6 +136,7 @@ func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 // be a gNB, ng-eNB, or N3IWF).
 type RadioInfo struct {
 	Name           string
+	Ref            string
 	ID             string
 	PlmnID         *models.PlmnID
 	BitLength      *int32
@@ -169,6 +170,7 @@ func (r *Radio) info() RadioInfo {
 
 	return RadioInfo{
 		Name:           r.name,
+		Ref:            r.nodeRef(),
 		ID:             r.NodeID(),
 		PlmnID:         r.nodePlmnID(),
 		BitLength:      r.nodeBitLength(),
@@ -324,6 +326,16 @@ func (r *Radio) NodeID() string {
 	}
 
 	return r.RanID.NodeID()
+}
+
+func (r *Radio) nodeRef() string {
+	if r.RanID == nil {
+		return ""
+	}
+
+	ref, _ := r.RanID.Ref()
+
+	return ref
 }
 
 func (r *Radio) nodePlmnID() *models.PlmnID {

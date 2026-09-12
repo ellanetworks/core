@@ -53,8 +53,7 @@ const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
 
 const RadioDetail: React.FC = () => {
-  const { ranNodeType, id } = useParams<{ ranNodeType: string; id: string }>();
-  const identity = ranNodeType && id ? { type: ranNodeType, id } : undefined;
+  const { ref } = useParams<{ ref: string }>();
   const navigate = useNavigate();
   const { accessToken, authReady, role } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -68,23 +67,27 @@ const RadioDetail: React.FC = () => {
   }, [authReady, accessToken, navigate]);
 
   const radioQuery = useQuery<APIRadioDetail>({
-    queryKey: ["radio", ranNodeType, id],
-    queryFn: () => getRadio(accessToken!, identity!),
-    enabled: authReady && !!accessToken && !!identity,
+    queryKey: ["radio", ref],
+    queryFn: () => getRadio(accessToken!, ref!),
+    enabled: authReady && !!accessToken && !!ref,
     refetchInterval: 5000,
     retry: false,
   });
 
   const radioName = radioQuery.data?.name;
-  const radioLabel = radioName || `${ranNodeType} ${id}`;
+  const radioLabel =
+    radioName ||
+    (radioQuery.data
+      ? `${radioQuery.data.type} ${radioQuery.data.id}`
+      : (ref ?? ""));
 
   const canForget = radioQuery.data?.status === "offline";
 
   const handleForgetConfirm = async () => {
-    if (!identity || !accessToken) return;
+    if (!ref || !accessToken) return;
 
     try {
-      await forgetRadio(accessToken, identity);
+      await forgetRadio(accessToken, ref);
       setForgetConfirmOpen(false);
       showSnackbar(`Radio "${radioLabel}" forgotten.`, "success");
       navigate("/radios");

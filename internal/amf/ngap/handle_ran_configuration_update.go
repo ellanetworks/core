@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -71,9 +70,14 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	// §8.7.2.2: "If the Global RAN Node ID IE is included ... the AMF shall
 	// associate the TNLA to the NG-C interface instance using the Global RAN
 	// Node ID." Re-keying leaves UE contexts alone, as §8.7.2.1 requires.
-	if req.GlobalRANNodeID != nil && !amfInstance.RebindRanID(ran, *req.GlobalRANNodeID) {
-		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
-			zap.Stringer("global-ran-node-id", util.RANNodeIDToModels(*req.GlobalRANNodeID)))
+	if req.GlobalRANNodeID != nil {
+		switch rebound, err := amfInstance.RebindRanID(ran, *req.GlobalRANNodeID); {
+		case err != nil:
+			logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID that cannot be decoded", zap.Error(err))
+		case !rebound:
+			logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
+				zap.String("global-ran-node-id", req.GlobalRANNodeID.Hex()))
+		}
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
@@ -92,7 +96,10 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 // consulted only in that case and so may be nil otherwise.
 func ranConfigUpdateOutcomeFor(req *ngap.RANConfigurationUpdate, operatorInfo *amf.OperatorInfo) (tais []amf.SupportedTAI, out []byte, accepted bool, reason string, err error) {
 	if len(req.SupportedTAList) > 0 {
-		tais = supportedTAIs(req.SupportedTAList)
+		tais, err = supportedTAIs(req.SupportedTAList)
+		if err != nil {
+			return nil, nil, false, "", err
+		}
 
 		if cause, ok := servedTAICause(tais, operatorInfo); !ok {
 			out, err = (&ngap.RANConfigurationUpdateFailure{Cause: &cause}).Marshal()

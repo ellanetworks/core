@@ -35,12 +35,15 @@ func TestRANNodeIDToModels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := util.RANNodeIDToModels(ngap.GlobalRANNodeID{
+			got, err := util.RANNodeIDToModels(ngap.GlobalRANNodeID{
 				Kind:         tt.kind,
 				PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
 				Value:        tt.value,
 				Bits:         tt.bits,
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			if got.PlmnID == nil || got.PlmnID.Mcc != "208" || got.PlmnID.Mnc != "93" {
 				t.Errorf("plmnId = %+v, want 208/93", got.PlmnID)
@@ -125,7 +128,12 @@ func TestPLMNRoundTrip(t *testing.T) {
 				t.Fatalf("encoded %x, want %x", got, tt.want)
 			}
 
-			if back := util.PLMNToModels(tt.want); back != tt.plmn {
+			back, err := util.PLMNToModels(tt.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if back != tt.plmn {
 				t.Errorf("decoded %+v, want %+v", back, tt.plmn)
 			}
 

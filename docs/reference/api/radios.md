@@ -49,6 +49,7 @@ This path returns the list of radios in the inventory.
         "items": [
             {
                 "name": "gnb1",
+                "ref": "gNB:001-01:000102@24",
                 "id": "000102",
                 "plmn": { "mcc": "001", "mnc": "01" },
                 "bit_length": 24,
@@ -62,6 +63,7 @@ This path returns the list of radios in the inventory.
             },
             {
                 "name": "gnb2",
+                "ref": "gNB:001-01:000103@24",
                 "id": "000103",
                 "plmn": { "mcc": "001", "mnc": "01" },
                 "bit_length": 24,
@@ -85,16 +87,17 @@ This path returns the list of radios in the inventory.
 
 This path returns the details of a specific radio, connected or offline, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| GET    | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
+| Method | Path                            |
+| ------ | ------------------------------- |
+| GET    | `/api/v1/ran/radios/{ref}`      |
+
+A radio is addressed by the identity it claimed on setup, returned in its `ref` field: `{type}:{mcc}-{mnc}:{id}`, with the id carrying `@{bitLength}` for a gNB — for example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. Two radios sharing a Global RAN Node ID under different PLMNs are distinct radios, and so are two gNB IDs of the same value at different widths, since both render the same zero-padded hex.
 
 ### Path Parameters
 
-| Name          | Type   | Description |
-| ------------- | ------ | ----------- |
-| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
-| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
+| Name  | Type   | Description |
+| ----- | ------ | ----------- |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field. The PLMN reads `-` for a radio that reported none, and an SNPN carries its NID as a third field. |
 
 ### Sample Response
 
@@ -102,6 +105,7 @@ This path returns the details of a specific radio, connected or offline, includi
 {
     "result": {
         "name": "gnb1",
+        "ref": "gNB:001-01:000102@24",
         "id": "000102",
         "plmn": { "mcc": "001", "mnc": "01" },
         "bit_length": 24,
@@ -153,16 +157,15 @@ This path drops an offline radio from the inventory.
 
 Requires the admin role.
 
-| Method | Path                                       |
-| ------ | ------------------------------------------ |
-| DELETE | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
+| Method | Path                            |
+| ------ | ------------------------------- |
+| DELETE | `/api/v1/ran/radios/{ref}`      |
 
 ### Path Parameters
 
-| Name          | Type   | Description |
-| ------------- | ------ | ----------- |
-| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
-| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
+| Name  | Type   | Description |
+| ----- | ------ | ----------- |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field. |
 
 ### Response Codes
 

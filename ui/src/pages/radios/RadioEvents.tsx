@@ -313,6 +313,7 @@ export default function RadioEvents() {
       ? [
           {
             name: radioFilter,
+            ref: "",
             id: radioFilter,
             address: "",
             type: "",
@@ -460,7 +461,7 @@ export default function RadioEvents() {
               }}
             >
               <Link
-                to={`/radios/${encodeURIComponent(radioName)}`}
+                to={`/radios/by-name/${encodeURIComponent(radioName)}`}
                 style={{ textDecoration: "none" }}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >

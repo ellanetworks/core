@@ -2456,19 +2456,18 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/ran/radios/{ranNodeType}/{id}:
+  /api/v1/ran/radios/{ref}:
     get:
       operationId: getRadio
       tags: [Radios]
       summary: Get a radio
       description: >-
         Returns the details of a specific radio base station, connected or offline. A radio
-        is addressed by the identity it claimed on setup — its node type paired with its
-        Global RAN Node ID — because node names are not unique across offline radios and a
-        radio that never reported one still has an identity.
+        is addressed by the identity it claimed on setup, as reported in its `ref` field,
+        because node names are not unique across offline radios and a radio that never
+        reported one still has an identity.
       parameters:
-        - $ref: "#/components/parameters/RanNodeType"
-        - $ref: "#/components/parameters/RadioID"
+        - $ref: "#/components/parameters/RadioRef"
       responses:
         "200":
           description: Radio details.
@@ -2476,6 +2475,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RadioResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -2491,8 +2492,7 @@ paths:
         connected radio is removed when its association drops, not on request. A forgotten
         radio is listed again as online if it reconnects.
       parameters:
-        - $ref: "#/components/parameters/RanNodeType"
-        - $ref: "#/components/parameters/RadioID"
+        - $ref: "#/components/parameters/RadioRef"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -3436,23 +3436,20 @@ components:
         minimum: 1
         maximum: 100
       description: Items per page.
-    RanNodeType:
-      name: ranNodeType
+    RadioRef:
+      name: ref
       in: path
       required: true
       schema:
         type: string
-        enum: [gNB, ng-eNB, N3IWF, eNB]
+        pattern: "^[^:]+:[^:]+(:[^:]+)?:[^:]+$"
       description: >-
-        RAN node type, matched case-insensitively so it may be spelled as the API renders
-        it ("gNB") or as a lowercase URL segment ("gnb").
-    RadioID:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: string
-      description: Global RAN Node ID, as reported in a radio's `id` field.
+        The radio's identity, as reported in its `ref` field:
+        `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB — for example
+        `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. The PLMN reads `-` for a
+        radio that reported none, and an SNPN carries its NID as a third field. Two radios
+        sharing a Global RAN Node ID under different PLMNs, and two gNB IDs of the same
+        value at different widths, are distinct radios with distinct refs.
     EmailPath:
       name: email
       in: path
@@ -5507,6 +5504,9 @@ components:
       properties:
         name:
           type: string
+        ref:
+          type: string
+          description: The radio's identity, and the path segment that addresses it; empty on a radio that has not completed setup.
         id:
           type: string
           description: Node identifier of the Global RAN Node ID, without the PLMN.
@@ -5543,10 +5543,10 @@ components:
         supported_tais:
           type: array
           deprecated: true
-          description: "Deprecated: use GET /api/v1/ran/radios/{ranNodeType}/{id} for full radio details including supported TAIs."
+          description: "Deprecated: use GET /api/v1/ran/radios/{ref} for full radio details including supported TAIs."
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, type, status, connected_at, last_seen_at, disconnected_at, supported_tais]
+      required: [name, ref, id, address, type, status, connected_at, last_seen_at, disconnected_at, supported_tais]
 
     RadioDetail:
       type: object
@@ -5554,6 +5554,9 @@ components:
       properties:
         name:
           type: string
+        ref:
+          type: string
+          description: The radio's identity, and the path segment that addresses it; empty on a radio that has not completed setup.
         id:
           type: string
           description: Node identifier of the Global RAN Node ID, without the PLMN.
@@ -5591,7 +5594,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, status, connected_at, last_seen_at, disconnected_at, type, supported_tais]
+      required: [name, ref, id, address, status, connected_at, last_seen_at, disconnected_at, type, supported_tais]
 
     RadioResponseEnvelope:
       type: object

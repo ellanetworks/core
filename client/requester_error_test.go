@@ -471,10 +471,7 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 			return err
 		}},
 		{"GetRadio", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			getRadioOpts := &client.GetRadioOptions{
-				RanNodeType: "gNB",
-				ID:          "ffffff",
-			}
+			getRadioOpts := &client.GetRadioOptions{Ref: "gNB:001-01:ffffff@24"}
 
 			_, err := c.GetRadio(ctx, getRadioOpts)
 
@@ -520,7 +517,7 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 			return err
 		}},
 		{"ForgetRadio", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			return c.ForgetRadio(ctx, &client.ForgetRadioOptions{RanNodeType: "gNB", ID: "000102"})
+			return c.ForgetRadio(ctx, &client.ForgetRadioOptions{Ref: "gNB:001-01:000102@24"})
 		}},
 		{"CreateRoute", func(t *testing.T, ctx context.Context, c *client.Client) error {
 			createRouteOpts := &client.CreateRouteOptions{

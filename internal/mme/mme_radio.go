@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -58,6 +57,7 @@ type SupportedTAI struct {
 
 type RadioInfo struct {
 	Name           string
+	Ref            string
 	ID             string
 	PlmnID         *models.PlmnID
 	Address        string
@@ -98,6 +98,7 @@ func (r *Radio) SetDisconnectedAt(t time.Time) {
 func (r *Radio) info() RadioInfo {
 	return RadioInfo{
 		Name:           r.name,
+		Ref:            r.nodeRef(),
 		ID:             r.NodeID(),
 		PlmnID:         r.nodePlmnID(),
 		RanNodeType:    r.RanNodeTypeName(),
@@ -112,29 +113,34 @@ func (r *Radio) info() RadioInfo {
 
 // EnbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
 // eNB broadcasts: one entry per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
-func EnbSupportedTAIs(tas s1ap.SupportedTAs) []SupportedTAI {
+func EnbSupportedTAIs(tas s1ap.SupportedTAs) ([]SupportedTAI, error) {
 	out := make([]SupportedTAI, 0, len(tas))
+
 	for _, ta := range tas {
 		// TS 23.003: the 16-bit LTE TAC is the two least-significant octets of the
 		// 6-hex-digit TAC, matching how gNB TAIs render theirs.
 		tac := fmt.Sprintf("%06x", uint16(ta.TAC))
+
 		for _, plmn := range ta.BroadcastPLMNs {
-			p := decodePLMN(plmn)
+			p, err := decodePLMN(plmn)
+			if err != nil {
+				return nil, fmt.Errorf("mme: broadcast PLMN of TAC %s: %w", tac, err)
+			}
+
 			out = append(out, SupportedTAI{Tai: models.Tai{PlmnID: &p, Tac: tac}})
 		}
 	}
 
-	return out
+	return out, nil
 }
 
-func ENBID(g s1ap.GlobalENBID) string {
-	return RanNodeID(g).String()
-}
+func RanNodeID(g s1ap.GlobalENBID) (models.GlobalRanNodeID, error) {
+	plmn, err := decodePLMN(g.PLMNIdentity)
+	if err != nil {
+		return models.GlobalRanNodeID{}, fmt.Errorf("could not decode the Global eNB ID PLMN: %w", err)
+	}
 
-func RanNodeID(g s1ap.GlobalENBID) models.GlobalRanNodeID {
-	plmn := decodePLMN(g.PLMNIdentity)
-
-	return models.GlobalRanNodeID{PlmnID: &plmn, ENbID: g.ENBID.String()}
+	return models.GlobalRanNodeID{PlmnID: &plmn, ENbID: g.ENBID.String()}, nil
 }
 
 func (r *Radio) RanNodeTypeName() string {
@@ -143,6 +149,16 @@ func (r *Radio) RanNodeTypeName() string {
 	}
 
 	return r.ranID.RanNodeType()
+}
+
+func (r *Radio) nodeRef() string {
+	if r.ranID == nil {
+		return ""
+	}
+
+	ref, _ := r.ranID.Ref()
+
+	return ref
 }
 
 func (r *Radio) nodePlmnID() *models.PlmnID {
@@ -165,7 +181,7 @@ func (r *Radio) NodeID() string {
 func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 	s := &Radio{Conn: key, m: m, name: info.Name, address: info.Address, connectedAt: info.ConnectedAt, supportedTAIs: info.SupportedTAIs}
 	if info.ID != "" {
-		s.ranID = &models.GlobalRanNodeID{ENbID: info.ID}
+		s.ranID = &models.GlobalRanNodeID{PlmnID: info.PlmnID, ENbID: info.ID}
 	}
 
 	s.lastSeen.Store(info.LastSeenAt.UnixNano())
@@ -257,12 +273,15 @@ func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
 // retain them (TS 36.413 §8.7.3.1), and Ella Core never offers UE retention. An
 // eNB repeating S1 Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the eNB has already forgotten.
-func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity uint8) {
-	ranID := RanNodeID(g)
+func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity uint8) error {
+	ranID, err := RanNodeID(g)
+	if err != nil {
+		return err
+	}
 
 	key, ok := ranID.Key()
 	if !ok {
-		return
+		return fmt.Errorf("mme: Global eNB ID %s carries no node identity", ranID.String())
 	}
 
 	m.mu.Lock()
@@ -291,11 +310,13 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity ui
 			_ = sc.Abort()
 		}
 	}
+
+	return nil
 }
 
 // TS 36.413 §8.4.2
-func (m *MME) FindConnectedRadioByGlobalENBID(g s1ap.GlobalENBID) (*Radio, bool) {
-	key, ok := RanNodeID(g).Key()
+func (m *MME) FindConnectedRadioByRanID(ranID models.GlobalRanNodeID) (*Radio, bool) {
+	key, ok := ranID.Key()
 	if !ok {
 		return nil, false
 	}
@@ -524,9 +545,11 @@ func named(name string) func(*Radio) bool {
 	return func(r *Radio) bool { return r.name == name }
 }
 
-func identified(nodeType, id string) func(*Radio) bool {
+func identifiedBy(key string) func(*Radio) bool {
 	return func(r *Radio) bool {
-		return strings.EqualFold(r.RanNodeTypeName(), nodeType) && r.NodeID() == id
+		k, ok := models.RanNodeIDKey(r.ranID)
+
+		return ok && k == key
 	}
 }
 
@@ -544,11 +567,33 @@ func (m *MME) ListRadios() []RadioInfo {
 	return out
 }
 
-func (m *MME) ForgetRadio(nodeType, id string) error {
+func (m *MME) FindRadioInfoByRanID(ranID models.GlobalRanNodeID) (RadioInfo, bool) {
+	key, ok := ranID.Key()
+	if !ok {
+		return RadioInfo{}, false
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	online, forgotten := m.reg.Forget(identified(nodeType, id))
+	radio, ok := m.reg.ClaimedBy(key)
+	if !ok {
+		return RadioInfo{}, false
+	}
+
+	return radio.info(), true
+}
+
+func (m *MME) ForgetRadio(ranID models.GlobalRanNodeID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key, ok := ranID.Key()
+	if !ok {
+		return ErrRadioNotFound
+	}
+
+	online, forgotten := m.reg.Forget(identifiedBy(key))
 
 	switch {
 	case online:

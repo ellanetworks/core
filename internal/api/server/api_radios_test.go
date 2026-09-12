@@ -39,6 +39,7 @@ type SupportedTAI struct {
 
 type Radio struct {
 	Name           string         `json:"name"`
+	Ref            string         `json:"ref"`
 	ID             string         `json:"id"`
 	Address        string         `json:"address"`
 	RanNodeType    string         `json:"type"`

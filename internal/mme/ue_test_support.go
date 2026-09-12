@@ -211,7 +211,10 @@ func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
 }
 
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
-	ranID := RanNodeID(g)
+	ranID, err := RanNodeID(g)
+	if err != nil {
+		return
+	}
 
 	key, ok := ranID.Key()
 	if !ok {

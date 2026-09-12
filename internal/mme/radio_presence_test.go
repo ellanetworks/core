@@ -15,7 +15,7 @@ func connectENB(t *testing.T, m *MME, name string, id uint32) *sctp.SCTPConn {
 
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: name})
-	m.ClaimENBID(m.RadioForConn(conn), testENBID(id), DefaultRelativeCapacity)
+	claimENBID(t, m, m.RadioForConn(conn), testENBID(id))
 
 	return conn
 }
@@ -128,19 +128,19 @@ func TestMMEFindConnectedRadioByGlobalENBIDSkipsOffline(t *testing.T) {
 
 	conn := connectENB(t, m, "enb-a", 1)
 
-	if _, ok := m.FindConnectedRadioByGlobalENBID(testENBID(1)); !ok {
+	if _, ok := m.FindConnectedRadioByRanID(testRanNodeID(t, 1)); !ok {
 		t.Fatal("a connected eNB did not resolve by its Global eNB ID")
 	}
 
 	m.DisconnectRadio(conn)
 
-	if _, ok := m.FindConnectedRadioByGlobalENBID(testENBID(1)); ok {
+	if _, ok := m.FindConnectedRadioByRanID(testRanNodeID(t, 1)); ok {
 		t.Error("an offline eNB resolved as a handover target")
 	}
 
 	connectENB(t, m, "enb-a", 1)
 
-	if _, ok := m.FindConnectedRadioByGlobalENBID(testENBID(1)); !ok {
+	if _, ok := m.FindConnectedRadioByRanID(testRanNodeID(t, 1)); !ok {
 		t.Error("a reconnected eNB did not resolve by its Global eNB ID")
 	}
 }
@@ -183,7 +183,7 @@ func TestMMEForgetRadio(t *testing.T) {
 	conn := connectENB(t, m, "enb-a", 1)
 	m.DisconnectRadio(conn)
 
-	if err := m.ForgetRadio("eNB", testENBNodeID(1)); err != nil {
+	if err := m.ForgetRadio(mustRanNodeID(t, testENBID(1))); err != nil {
 		t.Fatalf("ForgetRadio() = %v, want nil", err)
 	}
 
@@ -195,7 +195,7 @@ func TestMMEForgetRadio(t *testing.T) {
 func TestMMEForgetRadioUnknown(t *testing.T) {
 	m := newTestMME(t)
 
-	if err := m.ForgetRadio("eNB", testENBNodeID(99)); err != ErrRadioNotFound {
+	if err := m.ForgetRadio(mustRanNodeID(t, testENBID(99))); err != ErrRadioNotFound {
 		t.Errorf("ForgetRadio() = %v, want ErrRadioNotFound", err)
 	}
 }
@@ -205,7 +205,7 @@ func TestMMEForgetRadioOnline(t *testing.T) {
 
 	connectENB(t, m, "enb-a", 1)
 
-	if err := m.ForgetRadio("eNB", testENBNodeID(1)); err != ErrRadioOnline {
+	if err := m.ForgetRadio(mustRanNodeID(t, testENBID(1))); err != ErrRadioOnline {
 		t.Errorf("ForgetRadio() = %v, want ErrRadioOnline", err)
 	}
 
@@ -220,7 +220,7 @@ func TestMMEForgottenRadioReappearsOnReconnect(t *testing.T) {
 	conn := connectENB(t, m, "enb-a", 1)
 	m.DisconnectRadio(conn)
 
-	if err := m.ForgetRadio("eNB", testENBNodeID(1)); err != nil {
+	if err := m.ForgetRadio(mustRanNodeID(t, testENBID(1))); err != nil {
 		t.Fatalf("ForgetRadio() = %v, want nil", err)
 	}
 

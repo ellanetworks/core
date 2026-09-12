@@ -57,6 +57,7 @@ type SupportedTAI struct {
 
 type Radio struct {
 	Name           string  `json:"name"`
+	Ref            string  `json:"ref"`
 	ID             string  `json:"id"`
 	PlmnID         *PlmnID `json:"plmn,omitempty"`
 	BitLength      *int32  `json:"bit_length,omitempty"`
@@ -81,6 +82,7 @@ type ListRadiosResponse struct {
 
 type RadioDetail struct {
 	Name           string         `json:"name"`
+	Ref            string         `json:"ref"`
 	ID             string         `json:"id"`
 	PlmnID         *PlmnID        `json:"plmn,omitempty"`
 	BitLength      *int32         `json:"bit_length,omitempty"`
@@ -196,6 +198,7 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 
 			items = append(items, Radio{
 				Name:           radio.Name,
+				Ref:            radio.Ref,
 				ID:             radio.ID,
 				PlmnID:         convertPlmnID(radio.PlmnID),
 				BitLength:      radio.BitLength,
@@ -217,6 +220,7 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 
 				items = append(items, Radio{
 					Name:           enb.Name,
+					Ref:            enb.Ref,
 					ID:             enb.ID,
 					PlmnID:         convertPlmnID(enb.PlmnID),
 					Address:        enb.Address,
@@ -262,20 +266,15 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	}
 }
 
-const RanNodeTypeENB = "eNB"
+const RanNodeTypeENB = models.RanNodeTypeENB
 
-func radioPathIdentity(r *http.Request) (nodeType, id string, err error) {
-	nodeType = r.PathValue("ranNodeType")
-	id = r.PathValue("id")
-
-	switch {
-	case nodeType == "":
-		return "", "", fmt.Errorf("ranNodeType parameter is required")
-	case id == "":
-		return "", "", fmt.Errorf("id parameter is required")
+func radioPathIdentity(r *http.Request) (models.GlobalRanNodeID, error) {
+	ref := r.PathValue("ref")
+	if ref == "" {
+		return models.GlobalRanNodeID{}, fmt.Errorf("ref parameter is required")
 	}
 
-	return nodeType, id, nil
+	return models.ParseRanNodeRef(ref)
 }
 
 func isENBType(nodeType string) bool {
@@ -284,63 +283,36 @@ func isENBType(nodeType string) bool {
 
 func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		nodeType, id, err := radioPathIdentity(r)
+		ranID, err := radioPathIdentity(r)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Missing radio identity", err, logger.APILog)
 			return
 		}
 
-		if isENBType(nodeType) {
+		if isENBType(ranID.RanNodeType()) {
 			if mmeInstance == nil {
 				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 				return
 			}
 
-			for _, enb := range mmeInstance.ListRadios() {
-				if enb.ID != id {
-					continue
-				}
-
-				result := RadioDetail{
-					Name:           enb.Name,
-					ID:             enb.ID,
-					PlmnID:         convertPlmnID(enb.PlmnID),
-					Address:        enb.Address,
-					Status:         radioStatus(enb.Connected),
-					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
-					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
-					DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
-					RanNodeType:    enb.RanNodeType,
-					SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
-				}
-
-				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
-
+			enb, ok := mmeInstance.FindRadioInfoByRanID(ranID)
+			if !ok {
+				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
-
-			return
-		}
-
-		for _, radio := range amfInstance.ListRadios() {
-			if radio.ID != id || !strings.EqualFold(radio.RanNodeType, nodeType) {
-				continue
-			}
-
 			result := RadioDetail{
-				Name:           radio.Name,
-				ID:             radio.ID,
-				PlmnID:         convertPlmnID(radio.PlmnID),
-				BitLength:      radio.BitLength,
-				Address:        radio.Address,
-				Status:         radioStatus(radio.Connected),
-				ConnectedAt:    formatRadioTime(radio.ConnectedAt),
-				LastSeenAt:     formatRadioTime(radio.LastSeenAt),
-				DisconnectedAt: formatRadioTime(radio.DisconnectedAt),
-				RanNodeType:    radio.RanNodeType,
-				SupportedTAIs:  convertRadioTaiToReturnTai(radio.SupportedTAIs),
+				Name:           enb.Name,
+				Ref:            enb.Ref,
+				ID:             enb.ID,
+				PlmnID:         convertPlmnID(enb.PlmnID),
+				Address:        enb.Address,
+				Status:         radioStatus(enb.Connected),
+				ConnectedAt:    formatRadioTime(enb.ConnectedAt),
+				LastSeenAt:     formatRadioTime(enb.LastSeenAt),
+				DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
+				RanNodeType:    enb.RanNodeType,
+				SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
 			}
 
 			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
@@ -348,7 +320,28 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+		radio, ok := amfInstance.FindRadioInfoByRanID(ranID)
+		if !ok {
+			writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+			return
+		}
+
+		result := RadioDetail{
+			Name:           radio.Name,
+			Ref:            radio.Ref,
+			ID:             radio.ID,
+			PlmnID:         convertPlmnID(radio.PlmnID),
+			BitLength:      radio.BitLength,
+			Address:        radio.Address,
+			Status:         radioStatus(radio.Connected),
+			ConnectedAt:    formatRadioTime(radio.ConnectedAt),
+			LastSeenAt:     formatRadioTime(radio.LastSeenAt),
+			DisconnectedAt: formatRadioTime(radio.DisconnectedAt),
+			RanNodeType:    radio.RanNodeType,
+			SupportedTAIs:  convertRadioTaiToReturnTai(radio.SupportedTAIs),
+		}
+
+		writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
 	}
 }
 
@@ -360,7 +353,7 @@ func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		nodeType, id, err := radioPathIdentity(r)
+		ranID, err := radioPathIdentity(r)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Missing radio identity", err, logger.APILog)
 			return
@@ -369,10 +362,10 @@ func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		forgetErr := amf.ErrRadioNotFound
 
 		switch {
-		case !isENBType(nodeType):
-			forgetErr = amfInstance.ForgetRadio(nodeType, id)
+		case !isENBType(ranID.RanNodeType()):
+			forgetErr = amfInstance.ForgetRadio(ranID)
 		case mmeInstance != nil:
-			forgetErr = mmeInstance.ForgetRadio(nodeType, id)
+			forgetErr = mmeInstance.ForgetRadio(ranID)
 		}
 
 		switch {
@@ -388,6 +381,6 @@ func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Radio forgotten successfully"}, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), ForgetRadioAction, email, getClientIP(r), "User forgot radio: "+nodeType+"/"+id)
+		logger.LogAuditEvent(r.Context(), ForgetRadioAction, email, getClientIP(r), "User forgot radio: "+ranID.String())
 	}
 }

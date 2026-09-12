@@ -22,7 +22,10 @@ import (
 var operatorPLMN = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 func operatorPlmnID() *models.PlmnID {
-	plmn := util.PLMNToModels(operatorPLMN)
+	plmn, err := util.PLMNToModels(operatorPLMN)
+	if err != nil {
+		panic(err)
+	}
 
 	return &plmn
 }
