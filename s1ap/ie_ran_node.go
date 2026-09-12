@@ -4,7 +4,6 @@
 package s1ap
 
 import (
-	"encoding/hex"
 	"fmt"
 )
 
@@ -157,17 +156,41 @@ type FiveGSTAI struct {
 	_            ieExtensions `per:",skip"`
 }
 
-// Hex renders the eNB identifier as the hex digits its bit length covers,
-// left-aligned in the bit string as the wire carries it.
 func (e ENBID) Hex() string {
-	bits := enbIDBits[e.Kind]
-	b := make([]byte, (bits+7)/8)
-
-	for i := range bits {
-		if e.Value&(1<<uint(bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
+	bits, ok := enbIDBits[e.Kind]
+	if !ok {
+		return ""
 	}
 
-	return hex.EncodeToString(b)[:(bits+3)/4]
+	return fmt.Sprintf("%0*x", (bits+3)/4, e.Value)
+}
+
+func (k ENBIDKind) Bits() (int, bool) {
+	bits, ok := enbIDBits[k]
+
+	return bits, ok
+}
+
+func (k ENBIDKind) Prefix() string {
+	switch k {
+	case ENBIDMacro:
+		return "MacroeNB-"
+	case ENBIDHome:
+		return "HomeeNB-"
+	case ENBIDShortMacro:
+		return "SMacroeNB-"
+	case ENBIDLongMacro:
+		return "LMacroeNB-"
+	}
+
+	return ""
+}
+
+func (e ENBID) String() string {
+	hex := e.Hex()
+	if hex == "" {
+		return ""
+	}
+
+	return e.Kind.Prefix() + hex
 }

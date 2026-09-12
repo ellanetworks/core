@@ -75,10 +75,9 @@ func TestUplinkRANConfigurationTransfer_UndecodableTargetIsDropped(t *testing.T)
 	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &targetID,
-		Conn:       targetSender,
-		Log:        sourceRan.Log,
+		RanID: &targetID,
+		Conn:  targetSender,
+		Log:   sourceRan.Log,
 	}
 
 	amfInstance := newTestAMF()
@@ -112,10 +111,9 @@ func TestUplinkRANConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &targetID,
-		Conn:       targetSender,
-		Log:        sourceRan.Log,
+		RanID: &targetID,
+		Conn:  targetSender,
+		Log:   sourceRan.Log,
 	}
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})

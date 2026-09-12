@@ -57,8 +57,8 @@ func TestClaimRanID_NoExistingRadio(t *testing.T) {
 		t.Fatal("expected radio.RanID and RanID.GNbID to be populated")
 	}
 
-	if radio.RanPresent != amf.RanPresentGNbID {
-		t.Errorf("expected RanPresent=%d, got %d", amf.RanPresentGNbID, radio.RanPresent)
+	if got := radio.RanNodeTypeName(); got != "gNB" {
+		t.Errorf("RanNodeTypeName() = %q, want gNB", got)
 	}
 
 	if amfInstance.CountRadios() != 1 {
@@ -171,5 +171,61 @@ func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 
 	if got := amfInstance.CountUeConnsForTest(); got != 0 {
 		t.Fatalf("expected the radio's UE contexts to be released, %d remain", got)
+	}
+}
+
+func claimGNB(t *testing.T, a *amf.AMF, name string, id ngap.GlobalRANNodeID) *amf.Radio {
+	t.Helper()
+
+	conn := &sctp.SCTPConn{}
+
+	radio := newRadioForTest(a, conn, name)
+	a.SetRadioForTest(conn, radio)
+
+	if evicted := a.ClaimRanID(radio, id, amf.DefaultRelativeCapacity); evicted != nil {
+		t.Fatalf("claiming %s evicted %q", name, a.RadioNameForTest(evicted))
+	}
+
+	return radio
+}
+
+func TestClaimRanID_BitLengthIsPartOfTheIdentity(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	narrow := gnbGlobalRANNodeID(t, "00002A")
+	narrow.Bits = 22
+
+	wide := gnbGlobalRANNodeID(t, "00002A")
+	wide.Bits = 24
+
+	first := claimGNB(t, amfInstance, "gNB-22bit", narrow)
+	second := claimGNB(t, amfInstance, "gNB-24bit", wide)
+
+	if first == second {
+		t.Fatal("the two widths produced one radio")
+	}
+
+	if got := len(amfInstance.ListRadios()); got != 2 {
+		t.Errorf("ListRadios() = %d radios, want 2", got)
+	}
+}
+
+func TestClaimRanID_PLMNIsPartOfTheIdentity(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	home := gnbGlobalRANNodeID(t, "000102")
+
+	visited := gnbGlobalRANNodeID(t, "000102")
+	visited.PLMNIdentity = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+	first := claimGNB(t, amfInstance, "gNB-plmn-a", home)
+	second := claimGNB(t, amfInstance, "gNB-plmn-b", visited)
+
+	if first == second {
+		t.Fatal("the two PLMNs produced one radio")
+	}
+
+	if got := len(amfInstance.ListRadios()); got != 2 {
+		t.Errorf("ListRadios() = %d radios, want 2", got)
 	}
 }

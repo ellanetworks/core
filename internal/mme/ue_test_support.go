@@ -211,8 +211,15 @@ func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
 }
 
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
+	ranID := RanNodeID(g)
+
+	key, ok := ranID.Key()
+	if !ok {
+		return
+	}
+
 	m.mu.Lock()
-	m.reg.Claim(ENBID(g), &Radio{Conn: conn, id: ENBID(g)})
+	m.reg.Claim(key, &Radio{Conn: conn, ranID: &ranID})
 	m.mu.Unlock()
 }
 

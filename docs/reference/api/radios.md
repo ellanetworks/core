@@ -31,6 +31,8 @@ This path returns the list of radios in the inventory.
 | ----------------- | ------ | ----------- |
 | `name`            | string | Radio name. |
 | `id`              | string | Radio identifier. |
+| `plmn`            | object | The PLMN the radio belongs to. |
+| `bit_length`      | int    | Bit length of the gNB ID (22–32). Present on gNBs only. |
 | `address`         | string | Radio address. On an offline radio, the last known address. |
 | `type`            | string | Radio type: `gNB`, `ng-eNB`, `eNB`, `N3IWF`, or `Unknown`. |
 | `status`          | string | `online` if the radio is currently associated with this node, `offline` otherwise. |
@@ -47,7 +49,9 @@ This path returns the list of radios in the inventory.
         "items": [
             {
                 "name": "gnb1",
-                "id": "001:01:000102",
+                "id": "000102",
+                "plmn": { "mcc": "001", "mnc": "01" },
+                "bit_length": 24,
                 "address": "10.1.107.203/192.168.251.5:9487",
                 "type": "gNB",
                 "status": "online",
@@ -58,7 +62,9 @@ This path returns the list of radios in the inventory.
             },
             {
                 "name": "gnb2",
-                "id": "001:01:000103",
+                "id": "000103",
+                "plmn": { "mcc": "001", "mnc": "01" },
+                "bit_length": 24,
                 "address": "10.1.107.204/192.168.251.6:9487",
                 "type": "gNB",
                 "status": "offline",
@@ -96,7 +102,9 @@ This path returns the details of a specific radio, connected or offline, includi
 {
     "result": {
         "name": "gnb1",
-        "id": "001:01:000102",
+        "id": "000102",
+        "plmn": { "mcc": "001", "mnc": "01" },
+        "bit_length": 24,
         "address": "10.1.107.203/192.168.251.5:9487",
         "status": "online",
         "connected_at": "2025-08-12T16:58:00Z",

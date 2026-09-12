@@ -68,7 +68,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRan, ok := amfInstance.FindConnectedRadioByRanID(targetRanNodeID)
 	if !ok {
-		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Stringer("target-ran-node-id", targetRanNodeID))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
 

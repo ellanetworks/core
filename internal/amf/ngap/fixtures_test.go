@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -19,6 +20,12 @@ import (
 )
 
 var operatorPLMN = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+func operatorPlmnID() *models.PlmnID {
+	plmn := util.PLMNToModels(operatorPLMN)
+
+	return &plmn
+}
 
 type fakeDBInstance struct {
 	BarFrom5G   bool

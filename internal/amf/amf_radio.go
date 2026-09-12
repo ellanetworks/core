@@ -21,19 +21,12 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	RanPresentGNbID   = 1
-	RanPresentNgeNbID = 2
-	RanPresentN3IwfID = 3
-)
-
 // Radio represents one SCTP association to a gNB.
 // All mutations happen on the single goroutine serving this connection.
 // Do not access Radio fields from other goroutines without synchronization.
 type Radio struct {
-	RanPresent int
-	RanID      *models.GlobalRanNodeID
-	Conn       NGAPWriter
+	RanID *models.GlobalRanNodeID
+	Conn  NGAPWriter
 	// name and supportedTAIs are written through UpdateRadioName /
 	// UpdateRadioSupportedTAIs under amf.mu so a concurrent status read never sees a
 	// half-written value. connectedAt is set once at construction. Guarded by amf.mu.
@@ -144,6 +137,8 @@ func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 type RadioInfo struct {
 	Name           string
 	ID             string
+	PlmnID         *models.PlmnID
+	BitLength      *int32
 	Address        string
 	RanNodeType    string
 	Connected      bool
@@ -158,7 +153,7 @@ func (r *Radio) connected() bool {
 }
 
 func (r *Radio) IDKey() (string, bool) {
-	return radioIDKey(r.RanID)
+	return models.RanNodeIDKey(r.RanID)
 }
 
 func (r *Radio) DisconnectedAt() time.Time {
@@ -175,6 +170,8 @@ func (r *Radio) info() RadioInfo {
 	return RadioInfo{
 		Name:           r.name,
 		ID:             r.NodeID(),
+		PlmnID:         r.nodePlmnID(),
+		BitLength:      r.nodeBitLength(),
 		Address:        addr,
 		RanNodeType:    r.RanNodeTypeName(),
 		Connected:      r.connected(),
@@ -326,31 +323,33 @@ func (r *Radio) NodeID() string {
 		return ""
 	}
 
-	switch r.RanPresent {
-	case RanPresentGNbID:
-		if r.RanID.GNbID != nil {
-			return r.RanID.GNbID.GNBValue
-		}
-	case RanPresentNgeNbID:
-		return r.RanID.NgeNbID
-	case RanPresentN3IwfID:
-		return r.RanID.N3IwfID
+	return r.RanID.NodeID()
+}
+
+func (r *Radio) nodePlmnID() *models.PlmnID {
+	if r.RanID == nil {
+		return nil
 	}
 
-	return ""
+	return r.RanID.PlmnID
+}
+
+func (r *Radio) nodeBitLength() *int32 {
+	if r.RanID == nil || r.RanID.GNbID == nil {
+		return nil
+	}
+
+	bits := r.RanID.GNbID.BitLength
+
+	return &bits
 }
 
 func (r *Radio) RanNodeTypeName() string {
-	switch r.RanPresent {
-	case RanPresentGNbID:
-		return "gNB"
-	case RanPresentNgeNbID:
-		return "ng-eNB"
-	case RanPresentN3IwfID:
-		return "N3IWF"
-	default:
-		return "Unknown"
+	if r.RanID == nil {
+		return models.RanNodeTypeUnknown
 	}
+
+	return r.RanID.RanNodeType()
 }
 
 var (

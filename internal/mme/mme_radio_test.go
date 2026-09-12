@@ -17,6 +17,21 @@ func testENBID(value uint32) s1ap.GlobalENBID {
 	}
 }
 
+func testENBNodeID(value uint32) string {
+	return RanNodeID(testENBID(value)).ENbID
+}
+
+func testENBKey(t *testing.T, value uint32) string {
+	t.Helper()
+
+	key, ok := RanNodeID(testENBID(value)).Key()
+	if !ok {
+		t.Fatalf("test eNB %d has no registry key", value)
+	}
+
+	return key
+}
+
 func TestENBTable(t *testing.T) {
 	m := newTestMME(t)
 
@@ -81,7 +96,7 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	m := newTestMME(t)
 
 	enbID := testENBID(1)
-	id := ENBID(enbID)
+	id := testENBKey(t, 1)
 
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)
@@ -133,5 +148,37 @@ func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 
 	if got := len(m.ConnsOnConn(c)); got != 0 {
 		t.Fatalf("expected the eNB's UE contexts to be released, %d remain", got)
+	}
+}
+
+func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
+	m := newTestMME(t)
+
+	macro := testENBID(8)
+
+	home := testENBID(8)
+	home.ENBID.Kind = s1ap.ENBIDHome
+
+	c1 := new(sctp.SCTPConn)
+	c2 := new(sctp.SCTPConn)
+
+	m.trackRadio(c1, RadioInfo{Name: "enb-macro"})
+	m.ClaimENBID(m.RadioForConn(c1), macro, DefaultRelativeCapacity)
+
+	m.trackRadio(c2, RadioInfo{Name: "enb-home"})
+	m.ClaimENBID(m.RadioForConn(c2), home, DefaultRelativeCapacity)
+
+	first, ok := m.FindConnectedRadioByGlobalENBID(macro)
+	if !ok || first.Conn != S1APWriter(c1) {
+		t.Error("the macro eNB no longer resolves to its own association")
+	}
+
+	second, ok := m.FindConnectedRadioByGlobalENBID(home)
+	if !ok || second.Conn != S1APWriter(c2) {
+		t.Error("the home eNB does not resolve to its own association")
+	}
+
+	if got := len(m.ListRadios()); got != 2 {
+		t.Errorf("ListRadios() = %d eNBs, want 2", got)
 	}
 }

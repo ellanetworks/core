@@ -412,24 +412,6 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 	return amf.reg.Radio(conn)
 }
 
-// radioIDKey is the radiosByID index key for a Global RAN Node ID, prefixed by
-// node type so the gNB/ng-eNB/N3IWF identifier spaces cannot collide. Returns
-// false when no identifier is set.
-func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
-	switch {
-	case id == nil:
-		return "", false
-	case id.GNbID != nil:
-		return "gnb:" + id.GNbID.GNBValue, true
-	case id.NgeNbID != "":
-		return "ngenb:" + id.NgeNbID, true
-	case id.N3IwfID != "":
-		return "n3iwf:" + id.N3IwfID, true
-	}
-
-	return "", false
-}
-
 func radioIDOf(radio *Radio) string {
 	key, ok := radio.IDKey()
 	if !ok {
@@ -440,7 +422,7 @@ func radioIDOf(radio *Radio) string {
 }
 
 func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
-	key, ok := radioIDKey(&ranNodeID)
+	key, ok := ranNodeID.Key()
 	if !ok {
 		return nil, false
 	}
@@ -461,9 +443,8 @@ func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Ra
 // produces — would otherwise keep UEs the gNB has already forgotten.
 func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) *Radio {
 	newID := util.RANNodeIDToModels(ranNodeID)
-	present := ranPresentFor(ranNodeID.Kind)
 
-	key, ok := radioIDKey(&newID)
+	key, ok := newID.Key()
 	if !ok {
 		return nil
 	}
@@ -479,11 +460,10 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 		delete(amf.reg.ByConn, evicted.Conn)
 	}
 
-	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
+	if oldKey, ok := models.RanNodeIDKey(radio.RanID); ok && oldKey != key {
 		amf.reg.Unclaim(oldKey)
 	}
 
-	radio.RanPresent = present
 	radio.RanID = &newID
 	radio.advertisedCapacity = &advertisedCapacity
 	radio.guamiUnavailableSent = false
@@ -517,7 +497,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
 	newID := util.RANNodeIDToModels(ranNodeID)
 
-	key, ok := radioIDKey(&newID)
+	key, ok := newID.Key()
 	if !ok {
 		return false
 	}
@@ -529,33 +509,16 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
 		return false
 	}
 
-	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey == key {
+	if oldKey, ok := models.RanNodeIDKey(radio.RanID); ok && oldKey == key {
 		return true
 	} else if ok {
 		amf.reg.Unclaim(oldKey)
 	}
 
-	radio.RanPresent = ranPresentFor(ranNodeID.Kind)
 	radio.RanID = &newID
 	amf.reg.Claim(key, radio)
 
 	return true
-}
-
-// ranPresentFor maps a Global RAN Node ID alternative onto the node kind the
-// Radio records. The three ng-eNB macro variants are one kind here: they differ
-// only in identifier width, which RanID already carries.
-func ranPresentFor(kind ngap.RANNodeIDKind) int {
-	switch kind {
-	case ngap.RANNodeIDGNB:
-		return RanPresentGNbID
-	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
-		return RanPresentNgeNbID
-	case ngap.RANNodeIDN3IWF:
-		return RanPresentN3IwfID
-	}
-
-	return 0
 }
 
 func (amf *AMF) ListRadios() []RadioInfo {
@@ -694,7 +657,7 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 
 	amf.reg.Track(radio.Conn, radio)
 
-	if key, ok := radioIDKey(radio.RanID); ok {
+	if key, ok := models.RanNodeIDKey(radio.RanID); ok {
 		amf.reg.Claim(key, radio)
 	}
 }

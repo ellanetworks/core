@@ -53,7 +53,6 @@ func trackDrainTestRadio(a *AMF, conn NGAPWriter) *Radio {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	r.RanPresent = RanPresentGNbID
 	r.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "000102"}}
 	r.advertisedCapacity = &capacity
 

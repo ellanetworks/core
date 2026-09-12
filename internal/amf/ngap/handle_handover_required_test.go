@@ -159,10 +159,10 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		Conn:       targetNGAPSender,
-		RanPresent: amf.RanPresentGNbID,
+		Log:  logger.AmfLog,
+		Conn: targetNGAPSender,
 		RanID: &models.GlobalRanNodeID{
+			PlmnID: operatorPlmnID(),
 			GNbID: &models.GNbID{
 				GNBValue:  handoverTargetGnbID,
 				BitLength: 24,
@@ -358,10 +358,9 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	targetNGAPSender := &fakeNGAPSender{}
 	targetSender := &releaseSignalSender{fakeNGAPSender: targetNGAPSender, released: make(chan struct{})}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		Conn:       targetSender,
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
+		Log:   logger.AmfLog,
+		Conn:  targetSender,
+		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
@@ -441,10 +440,9 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		Conn:       targetNGAPSender,
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
+		Log:   logger.AmfLog,
+		Conn:  targetNGAPSender,
+		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
@@ -582,10 +580,9 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
 	targetRan := &amf.Radio{
-		Log:        logger.AmfLog,
-		Conn:       &fakeNGAPSender{},
-		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
+		Log:   logger.AmfLog,
+		Conn:  &fakeNGAPSender{},
+		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 

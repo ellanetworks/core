@@ -37,14 +37,16 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name           string `json:"name"`
-	ID             string `json:"id"`
-	Address        string `json:"address"`
-	RanNodeType    string `json:"type"`
-	Status         string `json:"status"`
-	ConnectedAt    string `json:"connected_at"`
-	LastSeenAt     string `json:"last_seen_at"`
-	DisconnectedAt string `json:"disconnected_at"`
+	Name           string  `json:"name"`
+	ID             string  `json:"id"`
+	PlmnID         *PlmnID `json:"plmn,omitempty"`
+	BitLength      *int32  `json:"bit_length,omitempty"`
+	Address        string  `json:"address"`
+	RanNodeType    string  `json:"type"`
+	Status         string  `json:"status"`
+	ConnectedAt    string  `json:"connected_at"`
+	LastSeenAt     string  `json:"last_seen_at"`
+	DisconnectedAt string  `json:"disconnected_at"`
 	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{ranNodeType}/{id}) for supported TAIs.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -52,6 +54,8 @@ type Radio struct {
 type RadioDetail struct {
 	Name           string         `json:"name"`
 	ID             string         `json:"id"`
+	PlmnID         *PlmnID        `json:"plmn,omitempty"`
+	BitLength      *int32         `json:"bit_length,omitempty"`
 	Address        string         `json:"address"`
 	Status         string         `json:"status"`
 	ConnectedAt    string         `json:"connected_at"`

@@ -14,23 +14,28 @@ import (
 
 func TestRadioRanNodeTypeName(t *testing.T) {
 	tests := []struct {
-		ranPresent int
-		expected   string
+		name     string
+		ranID    *models.GlobalRanNodeID
+		expected string
 	}{
-		{amf.RanPresentGNbID, "gNB"},
-		{amf.RanPresentNgeNbID, "ng-eNB"},
-		{amf.RanPresentN3IwfID, "N3IWF"},
-		{0, "Unknown"},
-		{99, "Unknown"},
+		{"gNB", &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "000102", BitLength: 24}}, "gNB"},
+		{"ng-eNB", &models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-0abcd"}, "ng-eNB"},
+		{"eNB", &models.GlobalRanNodeID{ENbID: "MacroeNB-0abcd"}, "eNB"},
+		{"N3IWF", &models.GlobalRanNodeID{N3IwfID: "deadbeef"}, "N3IWF"},
+		{"W-AGF", &models.GlobalRanNodeID{WAgfID: "deadbeef"}, "W-AGF"},
+		{"TNGF", &models.GlobalRanNodeID{TngfID: "deadbeef"}, "TNGF"},
+		{"no alternative", &models.GlobalRanNodeID{}, "Unknown"},
+		{"unclaimed", nil, "Unknown"},
 	}
 
 	for _, tt := range tests {
-		radio := &amf.Radio{RanPresent: tt.ranPresent}
+		t.Run(tt.name, func(t *testing.T) {
+			radio := &amf.Radio{RanID: tt.ranID}
 
-		got := radio.RanNodeTypeName()
-		if got != tt.expected {
-			t.Errorf("RanPresent=%d: expected %q, got %q", tt.ranPresent, tt.expected, got)
-		}
+			if got := radio.RanNodeTypeName(); got != tt.expected {
+				t.Errorf("RanNodeTypeName() = %q, want %q", got, tt.expected)
+			}
+		})
 	}
 }
 
@@ -89,7 +94,6 @@ func TestRadioNodeID(t *testing.T) {
 		{
 			name: "gNB",
 			radio: &amf.Radio{
-				RanPresent: amf.RanPresentGNbID,
 				RanID: &models.GlobalRanNodeID{
 					GNbID: &models.GNbID{GNBValue: "00102"},
 				},
@@ -99,16 +103,14 @@ func TestRadioNodeID(t *testing.T) {
 		{
 			name: "ng-eNB",
 			radio: &amf.Radio{
-				RanPresent: amf.RanPresentNgeNbID,
-				RanID:      &models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-abcdef"},
+				RanID: &models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-abcdef"},
 			},
 			expectedID: "MacroNGeNB-abcdef",
 		},
 		{
 			name: "N3IWF",
 			radio: &amf.Radio{
-				RanPresent: amf.RanPresentN3IwfID,
-				RanID:      &models.GlobalRanNodeID{N3IwfID: "deadbeef"},
+				RanID: &models.GlobalRanNodeID{N3IwfID: "deadbeef"},
 			},
 			expectedID: "deadbeef",
 		},

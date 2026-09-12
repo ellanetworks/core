@@ -76,18 +76,19 @@ func SNSSAIToNGAP(snssai models.Snssai) (ngap.SNSSAI, error) {
 // prefixes distinguish the three macro variants, which share the models field.
 func RANNodeIDToModels(id ngap.GlobalRANNodeID) models.GlobalRanNodeID {
 	h := id.Hex()
+	plmn := PLMNToModels(id.PLMNIdentity)
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
-		return models.GlobalRanNodeID{GNbID: &models.GNbID{BitLength: int32(id.Bits), GNBValue: h}}
+		return models.GlobalRanNodeID{PlmnID: &plmn, GNbID: &models.GNbID{BitLength: int32(id.Bits), GNBValue: h}}
 	case ngap.RANNodeIDMacroNgENB:
-		return models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "MacroNGeNB-" + h}
 	case ngap.RANNodeIDShortMacroNgENB:
-		return models.GlobalRanNodeID{NgeNbID: "SMacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "SMacroNGeNB-" + h}
 	case ngap.RANNodeIDLongMacroNgENB:
-		return models.GlobalRanNodeID{NgeNbID: "LMacroNGeNB-" + h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "LMacroNGeNB-" + h}
 	case ngap.RANNodeIDN3IWF:
-		return models.GlobalRanNodeID{N3IwfID: h}
+		return models.GlobalRanNodeID{PlmnID: &plmn, N3IwfID: h}
 	}
 
 	return models.GlobalRanNodeID{}

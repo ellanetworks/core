@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -55,14 +56,16 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name           string `json:"name"`
-	ID             string `json:"id"`
-	Address        string `json:"address"`
-	RanNodeType    string `json:"type"`
-	Status         string `json:"status"`
-	ConnectedAt    string `json:"connected_at"`
-	LastSeenAt     string `json:"last_seen_at"`
-	DisconnectedAt string `json:"disconnected_at"`
+	Name           string  `json:"name"`
+	ID             string  `json:"id"`
+	PlmnID         *PlmnID `json:"plmn,omitempty"`
+	BitLength      *int32  `json:"bit_length,omitempty"`
+	Address        string  `json:"address"`
+	RanNodeType    string  `json:"type"`
+	Status         string  `json:"status"`
+	ConnectedAt    string  `json:"connected_at"`
+	LastSeenAt     string  `json:"last_seen_at"`
+	DisconnectedAt string  `json:"disconnected_at"`
 	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -79,6 +82,8 @@ type ListRadiosResponse struct {
 type RadioDetail struct {
 	Name           string         `json:"name"`
 	ID             string         `json:"id"`
+	PlmnID         *PlmnID        `json:"plmn,omitempty"`
+	BitLength      *int32         `json:"bit_length,omitempty"`
 	Address        string         `json:"address"`
 	Status         string         `json:"status"`
 	ConnectedAt    string         `json:"connected_at"`
@@ -86,6 +91,14 @@ type RadioDetail struct {
 	DisconnectedAt string         `json:"disconnected_at"`
 	RanNodeType    string         `json:"type"`
 	SupportedTAIs  []SupportedTAI `json:"supported_tais"`
+}
+
+func convertPlmnID(plmn *models.PlmnID) *PlmnID {
+	if plmn == nil {
+		return nil
+	}
+
+	return &PlmnID{Mcc: plmn.Mcc, Mnc: plmn.Mnc}
 }
 
 func formatRadioTime(t time.Time) string {
@@ -184,6 +197,8 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			items = append(items, Radio{
 				Name:           radio.Name,
 				ID:             radio.ID,
+				PlmnID:         convertPlmnID(radio.PlmnID),
+				BitLength:      radio.BitLength,
 				Address:        radio.Address,
 				RanNodeType:    radio.RanNodeType,
 				Status:         radioStatus(radio.Connected),
@@ -203,8 +218,9 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 				items = append(items, Radio{
 					Name:           enb.Name,
 					ID:             enb.ID,
+					PlmnID:         convertPlmnID(enb.PlmnID),
 					Address:        enb.Address,
-					RanNodeType:    RanNodeTypeENB,
+					RanNodeType:    enb.RanNodeType,
 					Status:         radioStatus(enb.Connected),
 					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
 					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
@@ -288,12 +304,13 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 				result := RadioDetail{
 					Name:           enb.Name,
 					ID:             enb.ID,
+					PlmnID:         convertPlmnID(enb.PlmnID),
 					Address:        enb.Address,
 					Status:         radioStatus(enb.Connected),
 					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
 					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
 					DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
-					RanNodeType:    RanNodeTypeENB,
+					RanNodeType:    enb.RanNodeType,
 					SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
 				}
 
@@ -315,6 +332,8 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			result := RadioDetail{
 				Name:           radio.Name,
 				ID:             radio.ID,
+				PlmnID:         convertPlmnID(radio.PlmnID),
+				BitLength:      radio.BitLength,
 				Address:        radio.Address,
 				Status:         radioStatus(radio.Connected),
 				ConnectedAt:    formatRadioTime(radio.ConnectedAt),
@@ -353,7 +372,7 @@ func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 		case !isENBType(nodeType):
 			forgetErr = amfInstance.ForgetRadio(nodeType, id)
 		case mmeInstance != nil:
-			forgetErr = mmeInstance.ForgetRadio(id)
+			forgetErr = mmeInstance.ForgetRadio(nodeType, id)
 		}
 
 		switch {

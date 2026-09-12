@@ -45,8 +45,7 @@ func forgetRadio(url string, client *http.Client, token string, nodeType, id str
 
 func connectAPIRadio(amfInstance *amf.AMF, name string) *amf.Radio {
 	radio := &amf.Radio{
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: name}},
-		RanPresent: amf.RanPresentGNbID,
+		RanID: &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: name}},
 	}
 	amfInstance.UpdateRadioName(radio, name)
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), radio)
