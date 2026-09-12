@@ -29,6 +29,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	onEPS := smContext.Access == Access4G
 	policy, tunnel := smContext.PolicyData, smContext.Tunnel
 	pduSessionType, supi, pduSessionID, snssai := smContext.PDUSessionType, smContext.Supi, smContext.PDUSessionID, smContext.Snssai
+	ebi := smContext.EBI
 
 	smContext.Mutex.Unlock()
 
@@ -38,7 +39,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 			return fmt.Errorf("no MME registered to page EPS UE %s", supi.IMSI())
 		}
 
-		return s.mme.Page(ctx, supi.IMSI())
+		return s.mme.Page(ctx, supi.IMSI(), ebi, epsArp(policy))
 	}
 
 	if policy == nil || tunnel == nil {
@@ -61,6 +62,14 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		zap.String("cause", cause.String()))
 
 	return nil
+}
+
+func epsArp(policy *Policy) *models.Arp {
+	if policy == nil {
+		return nil
+	}
+
+	return policy.QosData.Arp
 }
 
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {

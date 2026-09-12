@@ -218,7 +218,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 			T3402ValueSeconds: int64(T3402Backoff / time.Second),
 			MobileReachable:   timerStatus(&ue.mobileReachableTimer),
 			ImplicitDetach:    timerStatus(&ue.implicitDetachTimer),
-			Paging:            timerStatus(&ue.pagingTimer),
+			Paging:            timerStatus(&ue.paging.guard),
 		},
 		LastActivity: UELastActivityExport{
 			Timestamp: ue.lastSeenTime(),

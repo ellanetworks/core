@@ -60,6 +60,8 @@ type UeConn struct {
 	FiveGSArrival             *FiveGSArrival
 	DeferredTAUPlain          []byte
 	nasGuard                  guard.Guard
+	deferredCause             atomic.Pointer[s1ap.Cause]
+	deferGuard                guard.Guard
 	nasGuardName              string
 	esmInfoGuard              guard.Guard
 	releaseGuard              guard.Guard

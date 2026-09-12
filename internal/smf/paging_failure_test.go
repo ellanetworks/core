@@ -23,7 +23,7 @@ func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	s.AssignPFCPSession(smCtx, s.AllocateSEID())
 	smCtx.PFCPContext.SEID = 7
 
-	if err := s.HandleEPSPagingFailure(context.Background(), testIMSI, ebi); err != nil {
+	if err := s.HandleEPSPagingFailure(context.Background(), testIMSI, ebi, models.EPSPagingUENotResponding); err != nil {
 		t.Fatalf("HandleEPSPagingFailure: %v", err)
 	}
 

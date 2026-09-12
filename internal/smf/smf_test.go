@@ -408,7 +408,7 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
-func (f *fakeMME) Page(_ context.Context, imsi string) error {
+func (f *fakeMME) Page(_ context.Context, imsi string, _ uint8, _ *models.Arp) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

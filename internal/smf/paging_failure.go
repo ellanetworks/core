@@ -33,7 +33,7 @@ func (s *SMF) HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pdu
 	return nil
 }
 
-func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error {
+func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
@@ -42,6 +42,15 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 	smContext := s.currentEPSSession(supi, ebi)
 	if smContext == nil {
 		return fmt.Errorf("no EPS session for %s", imsi)
+	}
+
+	logger.SmfLog.Info("EPS downlink data notification failed",
+		zap.String("imsi", imsi),
+		zap.Uint8("ebi", ebi),
+		zap.String("cause", cause.String()))
+
+	if cause != models.EPSPagingUENotResponding {
+		return nil
 	}
 
 	s.suppressDownlinkDataNotification(ctx, smContext)

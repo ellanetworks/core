@@ -65,6 +65,8 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		zap.Int("e-rabs-setup", setup),
 		zap.Int("e-rabs-released", len(result.Released)))
 
+	ue.PagingDelivered()
+
 	// Deliver any LPPa message buffered while the UE was ECM-IDLE.
 	if lppaBuf := ue.PopLPPaBuffered(); lppaBuf != nil {
 		if sendErr := ueConn.SendDownlinkLPPaTransport(ctx, 0, lppaBuf.Payload); sendErr != nil {

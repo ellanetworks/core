@@ -68,5 +68,21 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		logger.From(ctx, ueConn.Log()).Info("UE Context Release Request", fields...)
 	}
 
+	if keepsConnectionForPendingDownlink(cause, ueConn) {
+		ueConn.DeferRelease(cause)
+
+		logger.From(ctx, ueConn.Log()).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
+
+		return
+	}
+
 	m.ReleaseUEContext(ctx, ue, cause)
+}
+
+func keepsConnectionForPendingDownlink(cause s1ap.Cause, ueConn *mme.UeConn) bool {
+	if cause.Group != s1ap.CauseGroupRadioNetwork || cause.Value != s1ap.CauseRadioNetworkUserInactivity {
+		return false
+	}
+
+	return ueConn.MTSignallingPending()
 }

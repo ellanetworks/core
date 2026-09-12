@@ -193,7 +193,7 @@ type UeContext struct {
 	implicitDetachTimer  guard.Guard
 	idleGen              uint64
 
-	pagingTimer guard.Guard
+	paging pagingProc
 
 	lppaMu            sync.RWMutex
 	lppaMessages      []LPPaMessage
@@ -629,7 +629,7 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 // carries the message that establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
-	m.stopPagingLocked(ue)
+	ue.PagingAnswered()
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
@@ -760,7 +760,7 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	ue.clearKeyChainProc()
 
 	m.stopIdleTimersLocked(ue)
-	m.stopPagingLocked(ue)
+	ue.clearPaging()
 	m.releaseMTMSIsLocked(ue)
 	m.freeUeConnLocked(ue)
 	m.endRelocationLocked(ue.supi, ue)

@@ -105,7 +105,7 @@ type AMFCallback interface {
 }
 
 type MMECallback interface {
-	Page(ctx context.Context, imsi string) error
+	Page(ctx context.Context, imsi string, ebi uint8, arp *models.Arp) error
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 

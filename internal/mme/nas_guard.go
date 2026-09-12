@@ -137,6 +137,8 @@ func (c *UeConn) StopNASGuard() {
 		return
 	}
 
+	defer c.ResumeDeferredReleaseIfSettled()
+
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 

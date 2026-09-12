@@ -26,13 +26,15 @@ var errPagingSkipped = errors.New("paging skipped")
 // retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
 // covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
 // missing context or marshal failure is reported.
-func (m *MME) Page(ctx context.Context, imsi string) error {
+func (m *MME) Page(ctx context.Context, imsi string, ebi uint8, arp *models.Arp) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
-	if err := m.page(ctx, ue, nil); err != nil && !errors.Is(err, errPagingSkipped) {
+	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi, Arp: arp}) }
+
+	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
 	}
 
@@ -45,7 +47,7 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 	m.mu.RLock()
 
-	skip := ue.Connected() || ue.pagingTimer.Active()
+	skip := ue.Connected() || ue.PagingActive()
 	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
@@ -83,19 +85,26 @@ func (m *MME) armPaging(ue *UeContext, pdu []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.pagingTimer.Active() {
+	if ue.paging.guard.Active() {
 		return
 	}
 
-	ue.pagingTimer.ArmWith(m.pagingCfg,
+	ue.beginPaging(nil)
+
+	ue.paging.guard.ArmWith(m.pagingCfg,
 		func(attempt int32) { m.retransmitPaging(ue, pdu, attempt) },
 		func() { m.abandonPaging(ue) })
 }
 
-// stopPagingLocked cancels paging supervision. The guard invalidates any
-// in-flight callback. The caller holds m.mu.
-func (m *MME) stopPagingLocked(ue *UeContext) {
-	ue.pagingTimer.Stop()
+func (ue *UeContext) clearPaging() {
+	ue.paging.guard.Stop()
+
+	ue.paging.mu.Lock()
+	ue.paging.pending = nil
+	ue.paging.state = PagingIdle
+	ue.paging.mu.Unlock()
+
+	ue.ClearLPPaBuffered()
 }
 
 // retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301
@@ -109,7 +118,7 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 	m.mu.RUnlock()
 
 	if connected {
-		ue.pagingTimer.Stop()
+		ue.paging.guard.Stop()
 		return
 	}
 
@@ -130,18 +139,20 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
-	// Backstop for a payload whose requester went away without cancelling.
-	if !ue.Connected() {
-		ue.ClearLPPaBuffered()
-	}
+	dropped := m.PagingFailed(ue, models.EPSPagingUENotResponding)
 
 	if m.Session == nil {
 		return
 	}
 
 	ctx := context.Background()
+
 	for _, p := range m.SnapshotPDNs(ue) {
-		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi); err != nil {
+		if dropped != nil && dropped.Ebi == p.Ebi {
+			continue
+		}
+
+		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi, models.EPSPagingUENotResponding); err != nil {
 			logger.MmeLog.Warn("failed to suppress downlink notification after paging failure",
 				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}

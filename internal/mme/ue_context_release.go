@@ -105,6 +105,8 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 }
 
 func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
+	ue.Conn().cancelDeferredRelease()
+
 	// The idempotency claim is atomic: a NAS guard timeout and an eNB-initiated
 	// release request can race to release the same UE from different goroutines. A
 	// Release Complete in the gap may already have freed the connection, which is
