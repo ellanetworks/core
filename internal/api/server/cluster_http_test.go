@@ -21,31 +21,12 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-func clusterFreePort(t *testing.T) int {
-	t.Helper()
-
-	lc := net.ListenConfig{}
-
-	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("find free port: %v", err)
-	}
-
-	port := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
-
-	return port
-}
-
 func TestClusterHTTP_Status(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1, 2})
 
-	serverPort := clusterFreePort(t)
-	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
-
 	serverLn := listener.New(listener.Config{
-		BindAddress:      serverAddr,
-		AdvertiseAddress: serverAddr,
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           1,
 		Pin:              pki.PinFunc(),
 
@@ -72,6 +53,8 @@ func TestClusterHTTP_Status(t *testing.T) {
 	if err := serverLn.Start(ctx); err != nil {
 		t.Fatalf("start listener: %v", err)
 	}
+
+	serverAddr := serverLn.BoundAddress()
 
 	// Node 2 dials the cluster port as a peer.
 	clientLn := listener.New(listener.Config{
@@ -147,12 +130,9 @@ const clusterTestServerNodeID = 1
 func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serverAddr string, clients map[int]*http.Client, cleanup func()) {
 	t.Helper()
 
-	port := clusterFreePort(t)
-	serverAddr = fmt.Sprintf("127.0.0.1:%d", port)
-
 	serverLn := listener.New(listener.Config{
-		BindAddress:      serverAddr,
-		AdvertiseAddress: serverAddr,
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           clusterTestServerNodeID,
 		Pin:              pki.PinFunc(),
 
@@ -179,6 +159,8 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 		stopCluster()
 		t.Fatalf("start listener: %v", err)
 	}
+
+	serverAddr = serverLn.BoundAddress()
 
 	clients = make(map[int]*http.Client, len(peerNodeIDs))
 

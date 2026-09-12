@@ -300,6 +300,17 @@ func (l *Listener) AdvertiseAddress() string {
 	return l.cfg.AdvertiseAddress
 }
 
+func (l *Listener) BoundAddress() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.tlsLn == nil {
+		return ""
+	}
+
+	return l.tlsLn.Addr().String()
+}
+
 const handshakeTimeout = 30 * time.Second
 
 func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
