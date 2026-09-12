@@ -44,7 +44,7 @@ func init() {
 		Name:      "interworking/idle_5gs_to_eps",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
-			return runIdle5GSToEPS(ctx, env, true)
+			return runIdle5GSToEPS(ctx, env, eps.EPSUpdateTypeTA, true)
 		},
 		Fixture: fixture,
 	})
@@ -53,7 +53,7 @@ func init() {
 		Name:      "interworking/idle_5gs_to_eps_returning_to_idle",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
-			return runIdle5GSToEPS(ctx, env, false)
+			return runIdle5GSToEPS(ctx, env, eps.EPSUpdateTypeCombinedTALA, false)
 		},
 		Fixture: fixture,
 	})
@@ -73,7 +73,7 @@ func init() {
 	})
 }
 
-func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) error {
+func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, updateType eps.EPSUpdateType, activeFlag bool) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
 		return err
@@ -134,6 +134,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 
 	res, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
+		UpdateType:   updateType,
 		ActiveFlag:   activeFlag,
 		BearerStatus: &bearerStatus,
 		Security:     security,
@@ -142,7 +143,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 		return fmt.Errorf("tracking area update after the idle move to EPS: %w", err)
 	}
 
-	if err := assertAdoptedBearer(res); err != nil {
+	if err := assertAdoptedBearer(res, updateType); err != nil {
 		return err
 	}
 
@@ -197,7 +198,7 @@ func idleMobilityMaterial(u *ue.UE) (s1enb.IdleMobilityFrom5GS, eps.GUTI, error)
 	}, etsi.MapGUTI5GToEPS(*u.UeSecurity.Guti.GUTI), nil
 }
 
-func assertAdoptedBearer(res *s1enb.AttachResult) error {
+func assertAdoptedBearer(res *s1enb.AttachResult, updateType eps.EPSUpdateType) error {
 	if res.BearerStatus == nil {
 		return errors.New("the tracking area update accept carried no EPS bearer context status, so the UE cannot tell which session survived")
 	}
@@ -209,6 +210,22 @@ func assertAdoptedBearer(res *s1enb.AttachResult) error {
 
 	if res.GUTI == nil {
 		return errors.New("the tracking area update accept reallocated no GUTI")
+	}
+
+	return assertCSDomainResult(res, updateType)
+}
+
+func assertCSDomainResult(res *s1enb.AttachResult, updateType eps.EPSUpdateType) error {
+	combined := updateType == eps.EPSUpdateTypeCombinedTALA || updateType == eps.EPSUpdateTypeCombinedTALAIMSI
+
+	switch {
+	case combined && (res.EMMCause == nil || *res.EMMCause != eps.EMMCauseCSDomainNotAvailable):
+		return fmt.Errorf("tracking area update accept carries EMM cause %v, want #%d (CS domain not available): "+
+			"a UE that asked for combined TA/LA updating is left believing this network serves the CS domain",
+			res.EMMCause, eps.EMMCauseCSDomainNotAvailable)
+	case !combined && res.EMMCause != nil:
+		return fmt.Errorf("tracking area update accept for an EPS-only update carries EMM cause #%d, want none",
+			*res.EMMCause)
 	}
 
 	return nil
@@ -325,7 +342,11 @@ func arriveOn5GSFromEPS(gNodeB *gnb.GnodeB, epsUE *s1enb.UE, u *ue.UE, epsGUTI e
 		return err
 	}
 
-	return assertReactivation(accept, resume)
+	if err := assertReactivation(accept, resume); err != nil {
+		return err
+	}
+
+	return assertUserPlane(gNodeB, ranUENGAPID, resume)
 }
 
 func assertReactivation(plain []byte, resume resumeUserPlane) error {
@@ -339,8 +360,25 @@ func assertReactivation(plain []byte, resume resumeUserPlane) error {
 		return errors.New("the registration accept reports no PDU session reactivation result, " +
 			"so the AMF did not act on the uplink data status the UE arrived with")
 	case !bool(resume) && accept.PDUSessionReactivationResult != nil:
-		return fmt.Errorf("the registration accept reports the reactivation result %+v though the UE asked for no user plane, "+
-			"so the AMF re-established one the UE is not ready to use", accept.PDUSessionReactivationResult)
+		return fmt.Errorf("the registration accept reports the reactivation result %+v though the UE sent no uplink data status, "+
+			"so the AMF answered an element the UE did not send", accept.PDUSessionReactivationResult)
+	}
+
+	return nil
+}
+
+func assertUserPlane(gNodeB *gnb.GnodeB, ranUENGAPID int64, resume resumeUserPlane) error {
+	session, ok := gNodeB.PDUSession(ranUENGAPID, movedPDUSessionID)
+
+	switch {
+	case bool(resume) && !ok:
+		return fmt.Errorf("the gNB holds no PDU session %d after the arrival, so the AMF re-established no user plane",
+			movedPDUSessionID)
+	case bool(resume) && session.ULTEID == 0:
+		return fmt.Errorf("PDU session %d arrived with no uplink TEID, so its N3 tunnel cannot carry traffic",
+			movedPDUSessionID)
+	case !bool(resume) && ok:
+		return fmt.Errorf("the gNB holds PDU session %d though the UE asked for no user plane", movedPDUSessionID)
 	}
 
 	return nil
@@ -430,6 +468,7 @@ func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gn
 
 	tau, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
+		UpdateType:   eps.EPSUpdateTypeTA,
 		ActiveFlag:   false,
 		BearerStatus: &bearerStatus,
 		Security:     security,
@@ -438,7 +477,7 @@ func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gn
 		return nil, nil, nil, fmt.Errorf("tracking area update after the idle move to EPS: %w", err)
 	}
 
-	if err := assertAdoptedBearer(tau); err != nil {
+	if err := assertAdoptedBearer(tau, eps.EPSUpdateTypeTA); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -526,6 +565,7 @@ func roundTripLeaveAgain(ctx context.Context, env scenarios.Env, e *s1enb.ENB, g
 
 	tau, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
+		UpdateType:   eps.EPSUpdateTypeTA,
 		ActiveFlag:   false,
 		BearerStatus: &bearerStatus,
 		Security:     security,
@@ -534,7 +574,7 @@ func roundTripLeaveAgain(ctx context.Context, env scenarios.Env, e *s1enb.ENB, g
 		return fmt.Errorf("tracking area update leaving 5GS again after the resumed arrival: %w", err)
 	}
 
-	if err := assertAdoptedBearer(tau); err != nil {
+	if err := assertAdoptedBearer(tau, eps.EPSUpdateTypeTA); err != nil {
 		return err
 	}
 
@@ -619,6 +659,7 @@ func roundTripReturnToEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB, 
 
 	tau, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
+		UpdateType:   eps.EPSUpdateTypeTA,
 		ActiveFlag:   false,
 		BearerStatus: &bearerStatus,
 		Security:     security,
@@ -627,7 +668,7 @@ func roundTripReturnToEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB, 
 		return fmt.Errorf("tracking area update on the return to EPS: %w", err)
 	}
 
-	if err := assertAdoptedBearer(tau); err != nil {
+	if err := assertAdoptedBearer(tau, eps.EPSUpdateTypeTA); err != nil {
 		return err
 	}
 
@@ -661,11 +702,20 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 
 	deadline := time.Now().Add(sessionSettle)
 
-	var last string
+	var (
+		last    string
+		lastErr error
+		count   int
+	)
 
 	for {
 		sub, err := cl.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: interworkingIMSI})
+
+		lastErr = err
+
 		if err == nil {
+			count = len(sub.Sessions)
+
 			for _, s := range sub.Sessions {
 				last = s.System
 
@@ -683,7 +733,12 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 		}
 
 		if time.Now().After(deadline) {
-			return fmt.Errorf("no session on %s after the move (last seen on %q)", want, last)
+			if lastErr != nil {
+				return fmt.Errorf("no session on %s after the move: the subscriber could not be read: %w", want, lastErr)
+			}
+
+			return fmt.Errorf("no session on %s after the move (%d session(s) reported, last seen on %q)",
+				want, count, last)
 		}
 
 		time.Sleep(statusPoll)
