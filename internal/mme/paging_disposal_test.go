@@ -22,7 +22,7 @@ func TestPagingFailedReportsTheCauseForThePendingBearer(t *testing.T) {
 		t.Fatalf("paging state = %s after Page, want Attempting", state)
 	}
 
-	dropped := m.PagingFailed(ue, models.EPSPagingUENotResponding)
+	dropped := ue.PagingFailed(models.EPSPagingUENotResponding)
 	if dropped == nil || dropped.Ebi != 5 {
 		t.Fatalf("dropped = %+v, want the pending bearer", dropped)
 	}
@@ -63,7 +63,7 @@ func TestClearPagingDropsTheBufferedLPPa(t *testing.T) {
 		t.Fatalf("Page: %v", err)
 	}
 
-	m.PagingFailed(ue, models.EPSPagingUENotResponding)
+	ue.PagingFailed(models.EPSPagingUENotResponding)
 
 	if ue.PopLPPaBuffered() != nil {
 		t.Error("the buffered LPPa payload survived the failed paging procedure")

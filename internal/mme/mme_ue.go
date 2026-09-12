@@ -141,6 +141,7 @@ type UeContext struct {
 
 	lastSeen atomic.Int64
 
+	session               epsSessionManager
 	Pdns                  map[uint8]*PdnConnection
 	Ambr                  *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType      uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
@@ -260,6 +261,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	}
 
 	m.UEs[supi] = ue
+	ue.session = m.Session
 	m.recordLastSeenLocked(ue, ue.Conn())
 	m.mu.Unlock()
 

@@ -83,9 +83,10 @@ func TestSuspendRegistrationFailsThePendingTransfer(t *testing.T) {
 func TestPagingAnsweredMovesToDelivering(t *testing.T) {
 	_, ue, _ := pagedUE(t)
 
-	req := ue.PagingAnswered()
-	if req == nil || req.Req.PduSessionID != 5 {
-		t.Fatalf("PagingAnswered returned %+v, want the pending request", req)
+	ue.PagingAnswered()
+
+	if req := ue.PagingPending(); req == nil || req.Req.PduSessionID != 5 {
+		t.Fatalf("pending = %+v, want the paged request still held for delivery", req)
 	}
 
 	if state := ue.PagingState(); state != PagingDelivering {

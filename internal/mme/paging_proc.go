@@ -76,10 +76,7 @@ func (ue *UeContext) beginPaging(req *MTRequest) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
-	if req != nil {
-		ue.paging.pending = req
-	}
-
+	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
 }
 
@@ -115,7 +112,7 @@ func (ue *UeContext) PagingDelivered() {
 	ue.Conn().ResumeDeferredReleaseIfSettled()
 }
 
-func (m *MME) PagingFailed(ue *UeContext, cause models.EPSPagingFailureCause) *MTRequest {
+func (ue *UeContext) PagingFailed(cause models.EPSPagingFailureCause) *MTRequest {
 	if ue == nil {
 		return nil
 	}
@@ -133,7 +130,7 @@ func (m *MME) PagingFailed(ue *UeContext, cause models.EPSPagingFailureCause) *M
 	ue.ClearLPPaBuffered()
 
 	if dropped != nil {
-		m.notifyEPSPagingFailure(ue, dropped.Ebi, cause)
+		ue.notifyMTDeliveryFailure(dropped.Ebi, cause)
 	}
 
 	ue.Conn().ResumeDeferredReleaseIfSettled()
@@ -141,19 +138,19 @@ func (m *MME) PagingFailed(ue *UeContext, cause models.EPSPagingFailureCause) *M
 	return dropped
 }
 
-func (m *MME) notifyEPSPagingFailure(ue *UeContext, ebi uint8, cause models.EPSPagingFailureCause) {
-	if m.Session == nil {
+func (ue *UeContext) PagingActive() bool {
+	return ue.PagingState() == PagingAttempting
+}
+
+func (ue *UeContext) notifyMTDeliveryFailure(ebi uint8, cause models.EPSPagingFailureCause) {
+	if ue.session == nil {
 		return
 	}
 
 	imsi := ue.imsiOrEmpty()
 
-	if err := m.Session.HandleEPSPagingFailure(context.Background(), imsi, ebi, cause); err != nil {
+	if err := ue.session.HandleEPSPagingFailure(context.Background(), imsi, ebi, cause); err != nil {
 		logger.MmeLog.Warn("could not report an EPS downlink data notification failure",
 			zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.String("cause", cause.String()), zap.Error(err))
 	}
-}
-
-func (ue *UeContext) PagingActive() bool {
-	return ue.PagingState() == PagingAttempting
 }

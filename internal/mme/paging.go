@@ -47,7 +47,7 @@ func (m *MME) Page(ctx context.Context, imsi string, ebi uint8, arp *models.Arp)
 func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 	m.mu.RLock()
 
-	skip := ue.Connected() || ue.PagingActive()
+	skip := ue.Connected() || ue.paging.guard.Active()
 	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
@@ -88,8 +88,6 @@ func (m *MME) armPaging(ue *UeContext, pdu []byte) {
 	if ue.paging.guard.Active() {
 		return
 	}
-
-	ue.beginPaging(nil)
 
 	ue.paging.guard.ArmWith(m.pagingCfg,
 		func(attempt int32) { m.retransmitPaging(ue, pdu, attempt) },
@@ -139,7 +137,7 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
-	dropped := m.PagingFailed(ue, models.EPSPagingUENotResponding)
+	dropped := ue.PagingFailed(models.EPSPagingUENotResponding)
 
 	if m.Session == nil {
 		return
@@ -298,7 +296,12 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 		return fmt.Errorf("UE is not in registered state")
 	}
 
-	if err := m.page(ctx, ue, func() { ue.SetLPPaBuffered(measID, lppaPayload) }); err != nil {
+	arm := func() {
+		ue.beginPaging(&MTRequest{})
+		ue.SetLPPaBuffered(measID, lppaPayload)
+	}
+
+	if err := m.page(ctx, ue, arm); err != nil {
 		return fmt.Errorf("failed to page ECM-IDLE UE: %w", err)
 	}
 

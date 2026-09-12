@@ -35,7 +35,7 @@ func (c *UeConn) DeferRelease(cause s1ap.Cause) {
 	c.deferredCause.Store(&held)
 
 	c.deferGuard.ArmOnce(deferredReleaseTimeout, func() {
-		logger.MmeLog.Warn("deferred UE Context Release deadline reached; releasing the S1 connection",
+		logger.From(context.Background(), c.Log()).Warn("deferred UE Context Release deadline reached; releasing the S1 connection",
 			zap.String("cause", cause.String()))
 
 		c.resumeDeferredRelease(context.Background())

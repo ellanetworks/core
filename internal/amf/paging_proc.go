@@ -118,9 +118,9 @@ func (r *MTRequest) arp() *models.Arp {
 	return r.Arp
 }
 
-func (ue *UeContext) PagingAnswered() *MTRequest {
+func (ue *UeContext) PagingAnswered() {
 	if ue == nil {
-		return nil
+		return
 	}
 
 	ue.paging.guard.Stop()
@@ -128,15 +128,9 @@ func (ue *UeContext) PagingAnswered() *MTRequest {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
-	if ue.paging.pending == nil {
-		ue.paging.state = PagingIdle
-
-		return nil
+	if ue.paging.state == PagingAttempting {
+		ue.paging.state = PagingDelivering
 	}
-
-	ue.paging.state = PagingDelivering
-
-	return ue.paging.pending
 }
 
 func (ue *UeContext) PagingDelivered() {
@@ -172,7 +166,7 @@ func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequ
 	ue.paging.mu.Unlock()
 
 	if dropped != nil {
-		ue.notifyTransferFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(dropped, cause)
 	}
 
 	ue.Conn().ResumeDeferredReleaseIfSettled()
@@ -184,7 +178,7 @@ func (ue *UeContext) PagingActive() bool {
 	return ue.PagingState() == PagingAttempting
 }
 
-func (ue *UeContext) notifyTransferFailure(req *MTRequest, cause models.N1N2MessageTransferCause) {
+func (ue *UeContext) notifyMTDeliveryFailure(req *MTRequest, cause models.N1N2MessageTransferCause) {
 	if ue.smf == nil || req == nil || req.Req.Standalone() {
 		return
 	}
