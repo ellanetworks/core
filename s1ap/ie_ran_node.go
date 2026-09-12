@@ -165,12 +165,6 @@ func (e ENBID) Hex() string {
 	return fmt.Sprintf("%0*x", (bits+3)/4, e.Value)
 }
 
-func (k ENBIDKind) Bits() (int, bool) {
-	bits, ok := enbIDBits[k]
-
-	return bits, ok
-}
-
 func (k ENBIDKind) Prefix() string {
 	switch k {
 	case ENBIDMacro:

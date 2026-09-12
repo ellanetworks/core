@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -72,7 +73,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	// Node ID." Re-keying leaves UE contexts alone, as §8.7.2.1 requires.
 	if req.GlobalRANNodeID != nil && !amfInstance.RebindRanID(ran, *req.GlobalRANNodeID) {
 		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
-			zap.Any("global-ran-node-id", req.GlobalRANNodeID))
+			zap.Stringer("global-ran-node-id", util.RANNodeIDToModels(*req.GlobalRANNodeID)))
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
