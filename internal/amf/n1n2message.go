@@ -33,7 +33,7 @@ var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
 
-func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -45,7 +45,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
-		return fmt.Errorf("ue context not found")
+		return "", fmt.Errorf("ue context not found")
 	}
 
 	ueConn := ue.Conn()
@@ -57,7 +57,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, new(fgs.PDUSessionID(req.PduSessionID)), nil, nil)
 	if err != nil {
-		return fmt.Errorf("build DL NAS Transport error: %v", err)
+		return "", fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
@@ -66,7 +66,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		// Context already set up (or in progress): deliver the PDU session standalone.
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 
-		return ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 			if !n2Setup.ClaimSession(req.PduSessionID) {
 				logger.From(ctx, logger.AmfLog).Debug("delivering N1 without a duplicate PDU session setup",
 					zap.Uint8("pdu_session_id", req.PduSessionID))
@@ -94,14 +94,18 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
 			return nil
-		})
+		}); err != nil {
+			return "", err
+		}
+
+		return models.N1N2TransferInitiated, nil
 	}
 
 	// Claimed the Initial Context Setup: bundle the PDU session into it.
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		ueConn.ResetICS()
-		return fmt.Errorf("error getting operator info: %v", err)
+		return "", fmt.Errorf("error getting operator info: %v", err)
 	}
 
 	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
@@ -154,25 +158,23 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	if err != nil {
 		ueConn.AbortICS()
 
-		return err
+		return "", err
 	}
 
-	return nil
+	return models.N1N2TransferInitiated, nil
 }
 
 // storeN1N2AndPage buffers a downlink request and pages the idle UE
-// (TS 23.502 §4.2.3.3). An earlier request already being paged for is not displaced; the
-// caller is told to retry (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
-func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
-	if ue.PagingActive() {
-		return errPagingActive
-	}
-
+// (TS 23.502 §4.2.3.3). An earlier request already being paged for is displaced only by a
+// higher-priority one, whose consumer is then notified that its transfer failed
+// (TS 29.518 §5.2.2.3.2); otherwise the caller is told to retry
+// (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
+func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	if err := guardIdlePaging(ue); err != nil {
-		return err
+		return "", err
 	}
 
-	return amf.pageIdleUE(ctx, ue, &req)
+	return amf.pageIdleUE(ctx, ue, &MTRequest{Req: req})
 }
 
 // ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
@@ -308,7 +310,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	})
 }
 
-func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -320,7 +322,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
-		return fmt.Errorf("ue context not found")
+		return "", fmt.Errorf("ue context not found")
 	}
 
 	ueConn := ue.Conn()
@@ -330,11 +332,11 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	}
 
 	if ue.State() == RegistrationInitiated {
-		return fmt.Errorf("temporary reject registration ongoing")
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectRegistrationOngoing}
 	}
 
 	if ue.Procedures().Active(procedure.N2Handover) {
-		return fmt.Errorf("temporary reject handover ongoing")
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectHandoverOngoing}
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
@@ -346,14 +348,14 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 			logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
 				zap.Uint8("pdu_session_id", req.PduSessionID))
 
-			return nil
+			return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 		}
 
 		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 		if err != nil {
 			n2Setup.End()
 
-			return fmt.Errorf("could not build PDU session setup item: %w", err)
+			return "", fmt.Errorf("could not build PDU session setup item: %w", err)
 		}
 
 		list := ngap.PDUSessionResourceSetupListSUReq{item}
@@ -362,21 +364,21 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		if err != nil {
 			n2Setup.End()
 
-			return fmt.Errorf("send pdu session resource setup request error: %v", err)
+			return "", fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
 
 		n2Setup.Arm(amf.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
-		return nil
+		return models.N1N2TransferInitiated, nil
 	}
 
 	// Claimed the Initial Context Setup: bundle the PDU session into it.
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
 		ueConn.ResetICS()
-		return fmt.Errorf("error getting operator info: %v", err)
+		return "", fmt.Errorf("error getting operator info: %v", err)
 	}
 
 	n2Setup := ueConn.N2Setup(N2SetupInitialContext)
@@ -386,14 +388,14 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
 			zap.Uint8("pdu_session_id", req.PduSessionID))
 
-		return nil
+		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 	}
 
 	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 	if err != nil {
 		ueConn.AbortICS()
 
-		return fmt.Errorf("could not build PDU session setup item: %w", err)
+		return "", fmt.Errorf("could not build PDU session setup item: %w", err)
 	}
 
 	list := ngap.PDUSessionResourceSetupListCxtReq{item}
@@ -414,14 +416,14 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	if err != nil {
 		ueConn.AbortICS()
 
-		return fmt.Errorf("send initial context setup request error: %v", err)
+		return "", fmt.Errorf("send initial context setup request error: %v", err)
 	}
 
 	n2Setup.Arm(amf.N2SetupGuardCfg)
 
 	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
-	return nil
+	return models.N1N2TransferInitiated, nil
 }
 
 func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
@@ -523,7 +525,9 @@ func (amf *AMF) TransferN2NRPPaMsg(ctx context.Context, supi etsi.SUPI, routingI
 func (amf *AMF) transferOrPageStandalone(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
 	conn := ue.Conn()
 	if conn == nil {
-		return amf.storeN1N2AndPage(ctx, ue, req)
+		_, err := amf.storeN1N2AndPage(ctx, ue, req)
+
+		return err
 	}
 
 	return DeliverStandaloneN1N2(ctx, ue, conn, &req)

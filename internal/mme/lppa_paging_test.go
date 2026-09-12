@@ -68,7 +68,7 @@ func TestPageAndRetryLPPa_IdleUE_BuffersAndPages(t *testing.T) {
 	}
 
 	m.mu.Lock()
-	m.stopPagingLocked(ue)
+	ue.clearPaging()
 	m.mu.Unlock()
 }
 
@@ -96,7 +96,7 @@ func TestPageAndRetryLPPa_RejectsUEThatNeedsNoPage(t *testing.T) {
 
 		defer func() {
 			m.mu.Lock()
-			m.stopPagingLocked(ue)
+			ue.clearPaging()
 			m.mu.Unlock()
 		}()
 

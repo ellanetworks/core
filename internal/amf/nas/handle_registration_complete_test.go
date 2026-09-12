@@ -298,7 +298,7 @@ func checkUERegistrationDataIsCleared(ue *amf.UeContext) error {
 		return fmt.Errorf("retransmission of initial NAS msg should be false")
 	}
 
-	if ue.PagingActive() {
+	if ue.PagingActiveForTest() {
 		return fmt.Errorf("ongoing should be nothing")
 	}
 

@@ -50,6 +50,7 @@ const (
 	CauseRadioNetworkTimeCriticalHandover              = 17 // time-critical-handover
 	CauseRadioNetworkResourceOptimisationHandover      = 18 // resource-optimisation-handover
 	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
+	CauseRadioNetworkUserInactivity                    = 20 // user-inactivity
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkLoadBalancingTAURequired          = 22 // load-balancing-tau-required
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available

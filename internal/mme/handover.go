@@ -383,7 +383,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 
 	target := ho.target
 
-	target.ICS = ICSCompleted
+	target.SetICS(ICSCompleted)
 
 	ue.active.Store(target)
 	m.refreshLastSeenLocked(ue, target)

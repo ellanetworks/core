@@ -843,8 +843,8 @@ func TestRelocatedConnectionIsFullyEstablished(t *testing.T) {
 		t.Fatal("the UE holds no connection after the handover")
 	}
 
-	if conn.ICS != ICSCompleted {
-		t.Errorf("connection ICS state = %v, want the bearers the handover established to count as set up", conn.ICS)
+	if conn.ICS() != ICSCompleted {
+		t.Errorf("connection ICS state = %v, want the bearers the handover established to count as set up", conn.ICS())
 	}
 }
 

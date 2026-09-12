@@ -325,8 +325,8 @@ func (f *fakeAMFCallback) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg 
 	return nil
 }
 
-func (f *fakeAMFCallback) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
-	return nil
+func (f *fakeAMFCallback) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) (models.N1N2MessageTransferCause, error) {
+	return models.N1N2TransferInitiated, nil
 }
 
 func (f *fakeAMFCallback) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
@@ -337,8 +337,8 @@ func (f *fakeAMFCallback) ReleaseSession(ctx context.Context, supi etsi.SUPI, pd
 	return nil
 }
 
-func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
-	return nil
+func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
+	return models.N1N2TransferInitiated, nil
 }
 
 func (f *fakeAMFCallback) SessionDropped(_ context.Context, _ etsi.SUPI, _ uint8, _ string, _ []byte) {

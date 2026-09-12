@@ -107,6 +107,7 @@ func (s N2Setup) Arm(cfg guard.TimerValue) {
 
 func (ueConn *UeConn) EndN2Setup(proc N2SetupProcedure) {
 	ueConn.endN2SetupTxn(proc, nil)
+	ueConn.ResumeDeferredReleaseIfSettled()
 }
 
 func (ueConn *UeConn) expireN2Setup(proc N2SetupProcedure, txn *n2SetupTxn) {

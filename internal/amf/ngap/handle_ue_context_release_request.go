@@ -16,20 +16,12 @@ import (
 // CauseRadioNetwork "unspecified").
 var causeReleaseUnspecified = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
 
-func keepsConnectionForPendingDownlink(cause ngap.Cause, amfUe *amf.UeContext, ueConn *amf.UeConn) bool {
+func keepsConnectionForPendingDownlink(cause ngap.Cause, ueConn *amf.UeConn) bool {
 	if cause.Group != ngap.CauseGroupRadioNetwork || cause.Value != ngap.CauseRadioNetworkUserInactivity {
 		return false
 	}
 
-	if amfUe != nil && amfUe.N1N2Message() != nil {
-		return true
-	}
-
-	if ueConn.N2SetupOpen(amf.N2SetupInitialContext) || ueConn.N2SetupOpen(amf.N2SetupPDUSession) {
-		return true
-	}
-
-	return ueConn.NASGuardActive()
+	return ueConn.MTSignallingPending()
 }
 
 // HandleUEContextReleaseRequest handles an NG-RAN-initiated UE Context Release
@@ -61,68 +53,26 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 		logger.WithTrace(ctx, ueConn.Log()).Info("UE Context Release Cause", fields...)
 	}
 
-	amfUe := ueConn.UeContext()
+	if keepsConnectionForPendingDownlink(cause, ueConn) {
+		ueConn.DeferRelease(cause)
 
-	if keepsConnectionForPendingDownlink(cause, amfUe, ueConn) {
 		logger.WithTrace(ctx, ueConn.Log()).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
 
 		return
 	}
 
-	if amfUe != nil {
-		if amfUe.State() == amf.Registered {
-			logger.WithTrace(ctx, ueConn.Log()).Info("Ue Context in GMM-Registered")
+	amfInstance.ReleaseOnRANRequest(ctx, ueConn, cause, reportedSessions(msg))
+}
 
-			if msg.PDUSessionResourceList != nil {
-				for _, item := range msg.PDUSessionResourceList {
-					pduSessionID := uint8(item.PDUSessionID)
-
-					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-					if !ok {
-						logger.WithTrace(ctx, ueConn.Log()).Warn("no SM context for a PDU session the NG-RAN node reported as established",
-							zap.Uint8("PduSessionID", pduSessionID))
-
-						continue
-					}
-
-					err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
-					if err != nil {
-						logger.WithTrace(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-					}
-				}
-			} else {
-				logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
-
-				for _, sr := range amfUe.SmContextRefs() {
-					if ueConn.N2SessionInactive(sr.PduSessionID) {
-						logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
-						continue
-					}
-
-					err := amfInstance.Session.DeactivateSmContext(ctx, sr.Ref)
-					if err != nil {
-						logger.WithTrace(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
-					}
-				}
-			}
-		} else {
-			logger.WithTrace(ctx, ueConn.Log()).Info("Ue Context in Non GMM-Registered")
-			ueConn.ReleaseAction = amf.UeContextReleaseUeContext
-
-			ueConn.SendUEContextReleaseCommand(ctx, cause)
-
-			for _, sr := range amfUe.SmContextRefs() {
-				err := amfInstance.Session.ReleaseSmContext(ctx, sr.Ref)
-				if err != nil {
-					logger.WithTrace(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
-				}
-			}
-
-			return
-		}
+func reportedSessions(msg *ngap.UEContextReleaseRequest) []uint8 {
+	if msg.PDUSessionResourceList == nil {
+		return nil
 	}
 
-	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+	ids := make([]uint8, 0, len(msg.PDUSessionResourceList))
+	for _, item := range msg.PDUSessionResourceList {
+		ids = append(ids, uint8(item.PDUSessionID))
+	}
 
-	ueConn.SendUEContextReleaseCommand(ctx, cause)
+	return ids
 }

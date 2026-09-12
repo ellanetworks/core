@@ -18,19 +18,18 @@ func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext) 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	if conn := ue.Conn(); conn != nil {
+	conn := ue.Conn()
+	if conn != nil {
 		conn.StopNASGuard()
 	}
 
 	amfInstance.CommitGUTIRealloc(ue)
 
-	if req := ue.N1N2Message(); req != nil && req.Standalone() {
-		ue.ClearN1N2Message()
+	if req := ue.PagingPending().Request(); req != nil && req.Standalone() {
+		ue.PagingDelivered()
 
-		if conn := ue.Conn(); conn != nil {
-			if err := amf.DeliverStandaloneN1N2(context.Background(), ue, conn, req); err != nil {
-				logger.AmfLog.Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
-			}
+		if err := amf.DeliverStandaloneN1N2(context.Background(), ue, conn, req); err != nil {
+			logger.AmfLog.Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
 		}
 	}
 

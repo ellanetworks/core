@@ -82,7 +82,7 @@ func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 	lppMsg := []byte{0x11, 0x22, 0x33}
 	correlID := []byte{0xde, 0xad, 0xbe, 0xef}
 
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		N1Class:             models.N1ClassLPP,
 		BinaryDataN1Message: lppMsg,
 		LCSCorrelationID:    correlID,
@@ -115,7 +115,7 @@ func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 		t.Errorf("additional information = %x, want the correlation id %x", dl.AdditionalInfo, correlID)
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Error("expected the buffer to be cleared once delivered")
 	}
 }
@@ -126,7 +126,7 @@ func TestHandleServiceRequest_MT_BufferedNRPPa_Delivered(t *testing.T) {
 
 	nrppaPdu := []byte{0x0a, 0x0b, 0x0c}
 
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		N2Class:                 models.N2ClassNRPPa,
 		BinaryDataN2Information: nrppaPdu,
 		RoutingID:               5,
@@ -147,7 +147,7 @@ func TestHandleServiceRequest_MT_BufferedNRPPa_Delivered(t *testing.T) {
 		t.Error("a positioning buffer must not drive PDU session resource setup")
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Error("expected the buffer to be cleared once delivered")
 	}
 }

@@ -256,7 +256,7 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 		return err
 	}
 
-	ueConn.ICS = mme.ICSPending
+	ueConn.SetICS(mme.ICSPending)
 
 	return nil
 }

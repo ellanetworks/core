@@ -151,7 +151,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string) e
 	return nil
 }
 
-func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string, _ uint8, _ models.EPSPagingFailureCause) error {
 	return nil
 }
 

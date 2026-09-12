@@ -113,9 +113,7 @@ type UeContext struct {
 
 	nrppaRoutingIDs map[int64]struct{}
 
-	pagingTimer guard.Guard
-
-	n1n2Message atomic.Pointer[models.N1N2MessageTransferRequest]
+	paging pagingProc
 }
 
 func NewUeContext() *UeContext {
@@ -184,18 +182,6 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (ue *UeContext) N1N2Message() *models.N1N2MessageTransferRequest {
-	return ue.n1n2Message.Load()
-}
-
-func (ue *UeContext) SetN1N2Message(m *models.N1N2MessageTransferRequest) {
-	ue.n1n2Message.Store(m)
-}
-
-func (ue *UeContext) ClearN1N2Message() {
-	ue.n1n2Message.Store(nil)
-}
-
 func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
@@ -222,6 +208,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	ue.active.Store(ueConn)
 
 	a.stopIdleTimersLocked(ue)
+	ue.PagingAnswered()
 
 	return displaced
 }
@@ -686,36 +673,15 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 	return cur
 }
 
-func (ue *UeContext) stopUeMuTimersLocked() {
-	ue.pagingTimer.Stop()
-}
-
-func (ue *UeContext) StopPaging() {
-	if ue == nil {
-		return
-	}
-
-	ue.pagingTimer.Stop()
-}
-
-func (ue *UeContext) PagingActive() bool {
-	if ue == nil {
-		return false
-	}
-
-	return ue.pagingTimer.Active()
-}
-
 func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}
 
 	ue.endKeyChainProcs()
+	ue.PagingFailed(models.N1N2FailureCauseUnspecified)
 
 	ue.mu.Lock()
-
-	ue.stopUeMuTimersLocked()
 
 	ue.transitionToLocked(Registered)
 
@@ -730,10 +696,9 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	}
 
 	ue.endKeyChainProcs()
+	ue.PagingFailed(models.N1N2FailureCauseUnspecified)
 
 	ue.mu.Lock()
-
-	ue.stopUeMuTimersLocked()
 
 	ue.transitionToLocked(Deregistered)
 

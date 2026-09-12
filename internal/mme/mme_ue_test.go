@@ -72,7 +72,7 @@ func TestAttachUeConn_ClearsEPSPagingSuppression(t *testing.T) {
 
 func TestAbandonPaging_SuppressesAllPDNs(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
+	ue := idleRegisteredUE(t, m)
 
 	ue.Pdns = map[uint8]*PdnConnection{
 		5: {Ebi: 5},

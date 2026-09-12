@@ -132,7 +132,7 @@ func TestDetermineLocation_IdleUE_RefreshUnanswered_ReturnsLastKnownWithAge(t *t
 		t.Error("expected the idle UE to be paged as part of the refresh")
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 
 	// The answer must be the stale estimate, carrying its age.
 	if result.AgeOfLocationInfo != ageSeconds {

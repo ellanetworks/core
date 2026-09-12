@@ -99,7 +99,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	reestablish := ueConn.ICS != mme.ICSCompleted && req.ActiveFlag
+	reestablish := ueConn.ICS() != mme.ICSCompleted && req.ActiveFlag
 
 	var qos *mme.EpsQoS
 
@@ -128,7 +128,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	var releaseOnComplete bool
 
 	switch {
-	case ueConn.ICS == mme.ICSCompleted:
+	case ueConn.ICS() == mme.ICSCompleted:
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
 	case reestablish:
 		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)

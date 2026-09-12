@@ -58,14 +58,14 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 // the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
 // T3513 is disabled.
 func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
 
-	if ue.pagingTimer.Active() {
+	if ue.paging.guard.Active() {
 		return
 	}
 
-	ue.pagingTimer.ArmWith(amf.T3513Cfg,
+	ue.paging.guard.ArmWith(amf.T3513Cfg,
 		func(attempt int32) { amf.retransmitPaging(ue, ngapBuf, attempt) },
 		func() { amf.abandonPaging(ue) })
 }
@@ -74,7 +74,7 @@ func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
 // stops the guard once the UE has answered by re-establishing its connection.
 func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 	if ue.Conn() != nil {
-		ue.pagingTimer.Stop()
+		ue.paging.guard.Stop()
 		return
 	}
 
@@ -85,12 +85,13 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
 func (amf *AMF) abandonPaging(ue *UeContext) {
-	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
-
 	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
-	if ue.Conn() == nil {
-		ue.ClearN1N2Message()
+	dropped, abandoned := ue.PagingUnanswered(models.N1N2UENotResponding)
+	if !abandoned {
+		return
 	}
+
+	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
 	if amf.Session == nil {
 		return
@@ -99,7 +100,11 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 	supi := ue.Supi()
 
 	for id := range ue.SmContextSnapshot() {
-		if err := amf.Session.HandlePagingFailure(context.Background(), supi, id); err != nil {
+		if dropped != nil && !dropped.Req.Standalone() && dropped.Req.PduSessionID == id {
+			continue
+		}
+
+		if err := amf.Session.HandleN1N2TransferFailure(context.Background(), supi, id, models.N1N2UENotResponding); err != nil {
 			logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
 				logger.SUPI(supi.String()), zap.Error(err))
 		}
@@ -109,45 +114,41 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 // pageIdleUE pages an idle UE and starts paging supervision (TS 23.502 §4.2.3.3). A
 // non-nil req is buffered for delivery when the UE answers. Callers should guard
 // first, via guardIdlePaging.
-func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *models.N1N2MessageTransferRequest) error {
+func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (models.N1N2MessageTransferCause, error) {
 	if amf.DBInstance == nil {
-		return fmt.Errorf("AMF not configured with database, cannot page")
+		return "", fmt.Errorf("AMF not configured with database, cannot page")
 	}
 
 	operatorInfo, err := amf.OperatorInfo(ctx)
 	if err != nil {
-		return fmt.Errorf("get operator info: %w", err)
+		return "", fmt.Errorf("get operator info: %w", err)
 	}
 
 	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
 	if err != nil {
-		return fmt.Errorf("build paging: %w", err)
+		return "", fmt.Errorf("build paging: %w", err)
 	}
 
 	pkg, err := paging.Marshal()
 	if err != nil {
-		return fmt.Errorf("marshal paging: %w", err)
+		return "", fmt.Errorf("marshal paging: %w", err)
 	}
 
 	// Buffer immediately before the send: the UE may answer on another goroutine the
 	// moment the Paging leaves the AMF.
-	if req != nil {
-		ue.SetN1N2Message(req)
+	cause, err := ue.beginPaging(req)
+	if err != nil {
+		return "", err
 	}
 
 	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
-		if req != nil {
-			ue.ClearN1N2Message()
-		}
+		ue.PagingAttemptFailed(req, models.N1N2FailureCauseUnspecified)
 
-		return fmt.Errorf("send paging: %w", err)
+		return "", fmt.Errorf("send paging: %w", err)
 	}
 
-	return nil
+	return cause, nil
 }
-
-// errPagingActive is returned when paging supervision is already in flight for the UE.
-var errPagingActive = fmt.Errorf("paging already in progress")
 
 // guardIdlePaging rejects paging a UE that is already connected, mid-registration,
 // mid-handover, or not registered.
@@ -157,15 +158,15 @@ func guardIdlePaging(ue *UeContext) error {
 	}
 
 	if ue.State() == RegistrationInitiated {
-		return fmt.Errorf("temporary reject: registration ongoing")
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectRegistrationOngoing}
 	}
 
 	if ue.Procedures().Active(procedure.N2Handover) {
-		return fmt.Errorf("temporary reject: handover ongoing")
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectHandoverOngoing}
 	}
 
 	if ue.State() != Registered {
-		return fmt.Errorf("ue is not in registered state")
+		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrContextNotFound}
 	}
 
 	return nil

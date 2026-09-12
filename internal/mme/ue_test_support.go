@@ -284,3 +284,7 @@ func (ue *UeContext) ForceStateForTest(s EMMState) {
 func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
 	return ue.downlink().Next()
 }
+
+func (ue *UeContext) SetPagedBearerForTest(ebi uint8) {
+	ue.beginPaging(&MTRequest{Ebi: ebi})
+}

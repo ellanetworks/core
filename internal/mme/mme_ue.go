@@ -141,6 +141,7 @@ type UeContext struct {
 
 	lastSeen atomic.Int64
 
+	session               epsSessionManager
 	Pdns                  map[uint8]*PdnConnection
 	Ambr                  *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType      uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
@@ -193,7 +194,7 @@ type UeContext struct {
 	implicitDetachTimer  guard.Guard
 	idleGen              uint64
 
-	pagingTimer guard.Guard
+	paging pagingProc
 
 	lppaMu            sync.RWMutex
 	lppaMessages      []LPPaMessage
@@ -260,6 +261,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	}
 
 	m.UEs[supi] = ue
+	ue.session = m.Session
 	m.recordLastSeenLocked(ue, ue.Conn())
 	m.mu.Unlock()
 
@@ -629,7 +631,7 @@ func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 // carries the message that establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
-	m.stopPagingLocked(ue)
+	ue.PagingAnswered()
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
@@ -738,6 +740,8 @@ func (m *MME) freeUeConnLocked(ue *UeContext) {
 
 // FreeUeConn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
 func (m *MME) FreeUeConn(ue *UeContext) {
+	ue.settleDeliveryOnRelease()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -760,7 +764,7 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	ue.clearKeyChainProc()
 
 	m.stopIdleTimersLocked(ue)
-	m.stopPagingLocked(ue)
+	ue.clearPaging()
 	m.releaseMTMSIsLocked(ue)
 	m.freeUeConnLocked(ue)
 	m.endRelocationLocked(ue.supi, ue)

@@ -16,6 +16,14 @@ import (
 // CauseRadioNetwork "unspecified").
 var causeReleaseUnspecified = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
 
+func keepsConnectionForPendingDownlink(cause s1ap.Cause, ueConn *mme.UeConn) bool {
+	if cause.Group != s1ap.CauseGroupRadioNetwork || cause.Value != s1ap.CauseRadioNetworkUserInactivity {
+		return false
+	}
+
+	return ueConn.MTSignallingPending()
+}
+
 // handleUEContextReleaseRequest handles an eNB-initiated UE Context Release
 // Request (inactivity or radio-link failure), starting the S1 release procedure
 // (TS 36.413). Whether the context is deleted or retained in ECM-IDLE is decided
@@ -66,6 +74,14 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 			append(fields, zap.Bool("ics-response-received", icsReceived))...)
 	} else {
 		logger.From(ctx, ueConn.Log()).Info("UE Context Release Request", fields...)
+	}
+
+	if keepsConnectionForPendingDownlink(cause, ueConn) {
+		ueConn.DeferRelease(cause)
+
+		logger.From(ctx, ueConn.Log()).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
+
+		return
 	}
 
 	m.ReleaseUEContext(ctx, ue, cause)

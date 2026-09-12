@@ -56,7 +56,7 @@ func TestTransferN1LPPMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Fatalf("paging calls = %d, want 1", sender.pagingCalls)
 	}
 
-	req := ue.N1N2Message()
+	req := ue.PagingPending().Request()
 	if req == nil {
 		t.Fatal("expected the LPP message buffered as an N1N2 request")
 	}
@@ -77,7 +77,7 @@ func TestTransferN1LPPMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Errorf("buffered correlation id = %x, want %x", req.LCSCorrelationID, correlID)
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 // TS 24.501 §5.4.5.3.1
@@ -88,7 +88,7 @@ func TestTransferN1LPPMsg_IdleUE_AssignsCorrelationID(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := ue.N1N2Message()
+	req := ue.PagingPending().Request()
 	if req == nil {
 		t.Fatal("expected the LPP message to be buffered")
 	}
@@ -97,7 +97,7 @@ func TestTransferN1LPPMsg_IdleUE_AssignsCorrelationID(t *testing.T) {
 		t.Errorf("correlation id = %x, want a 4-octet AMF-assigned value", req.LCSCorrelationID)
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 // TS 23.273 §6.11.2
@@ -114,7 +114,7 @@ func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Fatalf("paging calls = %d, want 1", sender.pagingCalls)
 	}
 
-	req := ue.N1N2Message()
+	req := ue.PagingPending().Request()
 	if req == nil {
 		t.Fatal("expected the NRPPa message buffered as an N1N2 request")
 	}
@@ -135,23 +135,23 @@ func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Error("expected no PDU session scoping on a positioning request")
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 func TestCancelBufferedN1N2_LeavesOtherClass(t *testing.T) {
 	amfInstance, ue, _ := idlePageableUE(t, "001010000000053")
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("unexpected error buffering the SM request: %v", err)
 	}
 
 	amfInstance.CancelBufferedN1N2(ue.SupiForTest(), models.N1ClassLPP, models.N2ClassNRPPa)
 
-	if ue.N1N2Message() == nil {
+	if ue.PagingPending().Request() == nil {
 		t.Error("an SM buffer must survive a cancel for other classes")
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
@@ -179,7 +179,7 @@ func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
 		t.Fatalf("paging calls = %d, want 0 for a connected UE", sender.pagingCalls)
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Error("a connected transfer must not buffer anything")
 	}
 }

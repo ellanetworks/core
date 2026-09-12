@@ -77,8 +77,11 @@ type UeConn struct {
 	n2Setups   n2SetupTxns
 	n2Sessions n2Sessions
 	inboundNAS atomic.Uint32
-	log        atomic.Pointer[zap.Logger]
-	baseLog    atomic.Pointer[zap.Logger]
+
+	deferredCause atomic.Pointer[ngap.Cause]
+	deferGuard    guard.Guard
+	log           atomic.Pointer[zap.Logger]
+	baseLog       atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -218,7 +221,12 @@ func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
 // AttachUeConn. A key-changing procedure still in flight is left to its supervision
 // deadline (TS 38.413 handover guard), which runs its cleanup.
 func (ueConn *UeConn) Release() {
+	ueConn.cancelDeferredRelease()
 	ueConn.stopTimers()
+
+	if ue := ueConn.ue.Load(); ue != nil && ue.PagingState() == PagingDelivering {
+		ue.PagingFailed(models.N1N2UENotResponding)
+	}
 
 	a := ueConn.amf
 	if a == nil {
@@ -251,6 +259,7 @@ func (ueConn *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, onRetra
 func (ueConn *UeConn) StopNASGuard() {
 	ueConn.nasGuardName.Store(nil)
 	ueConn.nasGuard.Stop()
+	ueConn.ResumeDeferredReleaseIfSettled()
 }
 
 // nasGuardProcName returns the procedure the NAS guard currently supervises, or ""
@@ -513,6 +522,70 @@ func (ueConn *UeConn) sendTarget() (*AMF, NGAPWriter, error) {
 // StopReleaseGuard cancels the Release-Complete supervision timer.
 func (ueConn *UeConn) StopReleaseGuard() {
 	ueConn.releaseGuard.Stop()
+}
+
+func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8) {
+	amfUe := ueConn.UeContext()
+
+	if amfUe != nil && amfUe.State() != Registered {
+		logger.From(ctx, ueConn.Log()).Info("Ue Context in Non GMM-Registered")
+
+		ueConn.ReleaseAction = UeContextReleaseUeContext
+
+		ueConn.SendUEContextReleaseCommand(ctx, cause)
+
+		for _, sr := range amfUe.SmContextRefs() {
+			if err := a.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
+				logger.From(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+			}
+		}
+
+		return
+	}
+
+	if amfUe != nil {
+		logger.From(ctx, ueConn.Log()).Info("Ue Context in GMM-Registered")
+
+		a.deactivateReleasedSessions(ctx, ueConn, amfUe, reported)
+	}
+
+	ueConn.ReleaseAction = UeContextN2NormalRelease
+
+	ueConn.SendUEContextReleaseCommand(ctx, cause)
+}
+
+func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, amfUe *UeContext, reported []uint8) {
+	if reported == nil {
+		logger.From(ctx, ueConn.Log()).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
+
+		for _, sr := range amfUe.SmContextRefs() {
+			if ueConn.N2SessionInactive(sr.PduSessionID) {
+				logger.From(ctx, ueConn.Log()).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
+
+				continue
+			}
+
+			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
+				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+			}
+		}
+
+		return
+	}
+
+	for _, pduSessionID := range reported {
+		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			logger.From(ctx, ueConn.Log()).Warn("no SM context for a PDU session the NG-RAN node reported as established",
+				zap.Uint8("PduSessionID", pduSessionID))
+
+			continue
+		}
+
+		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
+			logger.From(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+		}
+	}
 }
 
 func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {

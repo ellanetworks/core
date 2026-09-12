@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
 
@@ -22,7 +23,7 @@ func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	s.AssignPFCPSession(smCtx, s.AllocateSEID())
 	smCtx.PFCPContext.SEID = 7
 
-	if err := s.HandleEPSPagingFailure(context.Background(), testIMSI, ebi); err != nil {
+	if err := s.HandleEPSPagingFailure(context.Background(), testIMSI, ebi, models.EPSPagingUENotResponding); err != nil {
 		t.Fatalf("HandleEPSPagingFailure: %v", err)
 	}
 
@@ -43,7 +44,7 @@ func TestHandlePagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	s.AssignPFCPSession(smCtx, s.AllocateSEID())
 	smCtx.PFCPContext.SEID = 4242
 
-	if err := s.HandlePagingFailure(context.Background(), supi, pduSessionID); err != nil {
+	if err := s.HandleN1N2TransferFailure(context.Background(), supi, pduSessionID, models.N1N2UENotResponding); err != nil {
 		t.Fatalf("HandlePagingFailure: %v", err)
 	}
 
@@ -56,7 +57,7 @@ func TestHandlePagingFailure_NoSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	if err := s.HandlePagingFailure(context.Background(), testSUPI(), 1); err == nil {
+	if err := s.HandleN1N2TransferFailure(context.Background(), testSUPI(), 1, models.N1N2UENotResponding); err == nil {
 		t.Fatal("expected error for missing session")
 	}
 

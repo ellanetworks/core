@@ -64,7 +64,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	ue.StopPaging()
 	conn.StopNASGuard()
 
 	// TS 24.501: a present NASMessageContainer holds a ciphered inner

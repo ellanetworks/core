@@ -344,13 +344,13 @@ func (f *fakeAMF) TransferN1(_ context.Context, supi etsi.SUPI, n1Msg []byte, pd
 	return f.err
 }
 
-func (f *fakeAMF) TransferN1N2(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
+func (f *fakeAMF) TransferN1N2(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) (models.N1N2MessageTransferCause, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.n1n2Calls = append(f.n1n2Calls, n1n2Call{supi, pduSessionID, snssai, n1Msg, n2Msg})
 
-	return f.err
+	return models.N1N2TransferInitiated, f.err
 }
 
 func (f *fakeAMF) ModifyN1N2(_ context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
@@ -371,13 +371,13 @@ func (f *fakeAMF) ReleaseSession(_ context.Context, supi etsi.SUPI, pduSessionID
 	return f.err
 }
 
-func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
+func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.pageCalls = append(f.pageCalls, pageCall{supi, pduSessionID, snssai, n2Msg})
 
-	return f.err
+	return models.N1N2AttemptingToReachUE, f.err
 }
 
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
@@ -408,7 +408,7 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
-func (f *fakeMME) Page(_ context.Context, imsi string) error {
+func (f *fakeMME) Page(_ context.Context, imsi string, _ uint8) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

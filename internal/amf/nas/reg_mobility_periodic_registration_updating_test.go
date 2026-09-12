@@ -515,7 +515,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySetupList(t 
 	ue.Conn().UeContextRequest = false
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
@@ -545,7 +545,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySetupList(t 
 		t.Fatalf("expected DLNASTransport, got %v", nmDL[2])
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 }
@@ -554,7 +554,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: nil,
@@ -578,7 +578,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1[2])
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
 
@@ -601,7 +601,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
 		BinaryDataN2Information: []byte{0x03, 0x04},
@@ -624,7 +624,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]byte{0x08, 0x00})
 
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -1187,7 +1187,7 @@ func TestMobilityReg_AcceptedRegistrationCanReceiveAnN1N2Transfer(t *testing.T) 
 
 	HandleMobilityAndPeriodicRegistrationUpdating(t.Context(), amfInstance, ue)
 
-	err := amfInstance.TransferN1N2Message(t.Context(), ue.Supi(), models.N1N2MessageTransferRequest{
+	_, err := amfInstance.TransferN1N2Message(t.Context(), ue.Supi(), models.N1N2MessageTransferRequest{
 		PduSessionID:        1,
 		BinaryDataN1Message: []byte{0x2e, 0x01, 0x01},
 	})
