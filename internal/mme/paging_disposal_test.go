@@ -69,3 +69,35 @@ func TestClearPagingDropsTheBufferedLPPa(t *testing.T) {
 		t.Error("the buffered LPPa payload survived the failed paging procedure")
 	}
 }
+
+func TestDetachFailsThePendingTransfer(t *testing.T) {
+	m := newTestMME(t)
+	ue := idleRegisteredUE(t, m)
+
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+		t.Fatalf("Page: %v", err)
+	}
+
+	ue.TransitionTo(EMMDeregistered)
+
+	if state := ue.PagingState(); state != PagingIdle {
+		t.Errorf("paging state = %s after the UE was deregistered, want Idle", state)
+	}
+}
+
+func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
+	m := newTestMME(t)
+	ue := idleRegisteredUE(t, m)
+
+	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5, nil); err != nil {
+		t.Fatalf("Page: %v", err)
+	}
+
+	ue.PagingAnswered()
+
+	m.ReleaseUEContextLocally(ue, "test")
+
+	if state := ue.PagingState(); state != PagingIdle {
+		t.Errorf("paging state = %s after the connection carrying the delivery was released, want Idle", state)
+	}
+}

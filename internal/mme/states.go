@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -147,6 +148,10 @@ func (ue *UeContext) EMMState() EMMState {
 // transition graph under ue.mu (TS 24.301 §5.1.3.2); an unexpected transition
 // fails safe to EMM-DEREGISTERED.
 func (ue *UeContext) TransitionTo(s EMMState) {
+	if s == EMMDeregistered {
+		ue.PagingFailed(models.EPSPagingUENotResponding)
+	}
+
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
