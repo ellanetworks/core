@@ -17,7 +17,7 @@ func (m *MME) pagingActive(ue *UeContext) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return ue.PagingActive()
+	return ue.paging.guard.Active()
 }
 
 func TestUEIdentityIndex(t *testing.T) {

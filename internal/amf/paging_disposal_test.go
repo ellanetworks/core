@@ -12,15 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func registeredUEContext(t *testing.T) *UeContext {
-	t.Helper()
-
-	_, ue, _, smf := registeredUE(t)
-	_ = smf
-
-	return ue
-}
-
 func pagedUE(t *testing.T) (*AMF, *UeContext, *deregisterTestSmf) {
 	t.Helper()
 
@@ -123,7 +114,7 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 }
 
 func TestSameOrLowerPriorityTransferIsRejectedWhileAttempting(t *testing.T) {
-	ue := registeredUEContext(t)
+	_, ue, _ := pagedUE(t)
 
 	high := &models.Arp{PriorityLevel: 5}
 
@@ -152,7 +143,7 @@ func TestSameOrLowerPriorityTransferIsRejectedWhileAttempting(t *testing.T) {
 }
 
 func TestHigherPriorityTransferReplacesThePendingOne(t *testing.T) {
-	ue := registeredUEContext(t)
+	_, ue, _ := pagedUE(t)
 
 	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5}, Arp: &models.Arp{PriorityLevel: 9}}); err != nil {
 		t.Fatalf("beginPaging: %v", err)

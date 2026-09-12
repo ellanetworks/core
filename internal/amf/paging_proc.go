@@ -174,10 +174,6 @@ func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequ
 	return dropped
 }
 
-func (ue *UeContext) PagingActive() bool {
-	return ue.PagingState() == PagingAttempting
-}
-
 func (ue *UeContext) notifyMTDeliveryFailure(req *MTRequest, cause models.N1N2MessageTransferCause) {
 	if ue.smf == nil || req == nil || req.Req.Standalone() {
 		return

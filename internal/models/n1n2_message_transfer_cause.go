@@ -22,22 +22,11 @@ const (
 
 func (c N1N2MessageTransferCause) String() string { return string(c) }
 
-func (c N1N2MessageTransferCause) Delivered() bool { return c == N1N2TransferInitiated }
-
-type N1N2MessageTransferRspData struct {
-	Cause N1N2MessageTransferCause
-}
+const N1N2ErrHigherPriorityRequestOngoing = "HIGHER_PRIORITY_REQUEST_ONGOING"
 
 type N1N2MsgTxfrErrDetail struct {
 	HighestPrioArp *Arp
 }
-
-type N1N2MsgTxfrFailureNotification struct {
-	Cause        N1N2MessageTransferCause
-	PduSessionID uint8
-}
-
-const N1N2ErrHigherPriorityRequestOngoing = "HIGHER_PRIORITY_REQUEST_ONGOING"
 
 type N1N2MessageTransferError struct {
 	Cause  string
