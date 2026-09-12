@@ -312,7 +312,7 @@ export default function EventDetails({
               <Typography
                 variant="subtitle2"
                 component={RouterLink}
-                to={`/radios/${encodeURIComponent(log.radio)}`}
+                to={`/radios/by-name/${encodeURIComponent(log.radio)}`}
                 sx={{
                   color: "link",
                   textDecoration: "underline",

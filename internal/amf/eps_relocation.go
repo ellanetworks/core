@@ -72,12 +72,22 @@ func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, err
 		return interworking.ENBIdentity{}, fmt.Errorf("amf: unknown ng-eNB identity kind %d", target.GlobalENBID.NgENBID.Kind)
 	}
 
+	plmn, err := util.PLMNToModels(target.GlobalENBID.PLMNIdentity)
+	if err != nil {
+		return interworking.ENBIdentity{}, fmt.Errorf("amf: target ng-eNB: %w", err)
+	}
+
+	taiPlmn, err := util.PLMNToModels(target.SelectedEPSTAI.PLMNIdentity)
+	if err != nil {
+		return interworking.ENBIdentity{}, fmt.Errorf("amf: selected EPS TAI: %w", err)
+	}
+
 	return interworking.ENBIdentity{
-		PlmnID: util.PLMNToModels(target.GlobalENBID.PLMNIdentity),
+		PlmnID: plmn,
 		ID:     target.GlobalENBID.NgENBID.Value,
 		Bits:   bits,
 		SelectedEPSTAI: interworking.EPSTAI{
-			PlmnID: util.PLMNToModels(target.SelectedEPSTAI.PLMNIdentity),
+			PlmnID: taiPlmn,
 			TAC:    uint16(target.SelectedEPSTAI.TAC),
 		},
 	}, nil

@@ -25,7 +25,9 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 	m := newTestMME(t)
 
 	targetConn := &captureConn{}
-	m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID(), mme.DefaultRelativeCapacity)
+	if err := m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID(), mme.DefaultRelativeCapacity); err != nil {
+		t.Fatalf("ClaimENBID: %v", err)
+	}
 
 	sourceConn := &captureConn{}
 

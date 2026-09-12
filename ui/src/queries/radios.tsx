@@ -27,7 +27,10 @@ export type RadioStatus = "online" | "offline";
 
 export type APIRadio = {
   name: string;
+  ref: string;
   id: string;
+  plmn?: PlmnID;
+  bit_length?: number;
   address: string;
   type: string;
   status: RadioStatus;
@@ -63,7 +66,10 @@ export async function listRadios(
 
 export type APIRadioDetail = {
   name: string;
+  ref: string;
   id: string;
+  plmn?: PlmnID;
+  bit_length?: number;
   address: string;
   status: RadioStatus;
   connected_at: string;
@@ -73,29 +79,24 @@ export type APIRadioDetail = {
   supported_tais: SupportedTAI[];
 };
 
-export type RadioIdentity = {
-  type: string;
-  id: string;
-};
-
-export function radioPath({ type, id }: RadioIdentity): string {
-  return `${encodeURIComponent(type)}/${encodeURIComponent(id)}`;
+export function radioPath(ref: string): string {
+  return encodeURIComponent(ref);
 }
 
 export async function getRadio(
   authToken: string,
-  identity: RadioIdentity,
+  ref: string,
 ): Promise<APIRadioDetail> {
-  return apiFetch<APIRadioDetail>(`/api/v1/ran/radios/${radioPath(identity)}`, {
+  return apiFetch<APIRadioDetail>(`/api/v1/ran/radios/${radioPath(ref)}`, {
     authToken,
   });
 }
 
 export async function forgetRadio(
   authToken: string,
-  identity: RadioIdentity,
+  ref: string,
 ): Promise<void> {
-  await apiFetchVoid(`/api/v1/ran/radios/${radioPath(identity)}`, {
+  await apiFetchVoid(`/api/v1/ran/radios/${radioPath(ref)}`, {
     method: "DELETE",
     authToken,
   });

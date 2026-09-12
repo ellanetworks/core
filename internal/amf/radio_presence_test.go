@@ -18,7 +18,7 @@ func connectRadio(t *testing.T, a *amf.AMF, name, gnbID string) *amf.Radio {
 	conn := &sctp.SCTPConn{}
 	radio := newRadioForTest(a, conn, name)
 	a.SetRadioForTest(conn, radio)
-	a.ClaimRanID(radio, gnbGlobalRANNodeID(t, gnbID), amf.DefaultRelativeCapacity)
+	claimRanID(t, a, radio, gnbGlobalRANNodeID(t, gnbID))
 
 	return radio
 }
@@ -168,7 +168,7 @@ func TestForgetRadio(t *testing.T) {
 	radio := connectRadio(t, amfInstance, "gNB-A", "ABCDE1")
 	amfInstance.DisconnectRadio(context.Background(), radio)
 
-	if err := amfInstance.ForgetRadio("gNB", radio.NodeID()); err != nil {
+	if err := amfInstance.ForgetRadio(gnbRanNodeID(t, "ABCDE1")); err != nil {
 		t.Fatalf("ForgetRadio() = %v, want nil", err)
 	}
 
@@ -180,7 +180,7 @@ func TestForgetRadio(t *testing.T) {
 func TestForgetRadioUnknown(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
-	if err := amfInstance.ForgetRadio("gNB", "FFFFFF"); err != amf.ErrRadioNotFound {
+	if err := amfInstance.ForgetRadio(gnbRanNodeID(t, "FFFFFF")); err != amf.ErrRadioNotFound {
 		t.Errorf("ForgetRadio() = %v, want ErrRadioNotFound", err)
 	}
 }
@@ -188,9 +188,9 @@ func TestForgetRadioUnknown(t *testing.T) {
 func TestForgetRadioOnline(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
-	radio := connectRadio(t, amfInstance, "gNB-A", "ABCDE1")
+	connectRadio(t, amfInstance, "gNB-A", "ABCDE1")
 
-	if err := amfInstance.ForgetRadio("gNB", radio.NodeID()); err != amf.ErrRadioOnline {
+	if err := amfInstance.ForgetRadio(gnbRanNodeID(t, "ABCDE1")); err != amf.ErrRadioOnline {
 		t.Errorf("ForgetRadio() = %v, want ErrRadioOnline", err)
 	}
 
@@ -205,7 +205,7 @@ func TestForgottenRadioReappearsOnReconnect(t *testing.T) {
 	radio := connectRadio(t, amfInstance, "gNB-A", "ABCDE1")
 	amfInstance.DisconnectRadio(context.Background(), radio)
 
-	if err := amfInstance.ForgetRadio("gNB", radio.NodeID()); err != nil {
+	if err := amfInstance.ForgetRadio(gnbRanNodeID(t, "ABCDE1")); err != nil {
 		t.Fatalf("ForgetRadio() = %v, want nil", err)
 	}
 
@@ -227,7 +227,7 @@ func TestClaimRanIDOverOfflineRadioEvictsNothing(t *testing.T) {
 	reconnected := newRadioForTest(amfInstance, conn, "gNB-A")
 	amfInstance.SetRadioForTest(conn, reconnected)
 
-	if evicted := amfInstance.ClaimRanID(reconnected, gnbGlobalRANNodeID(t, "ABCDE1"), amf.DefaultRelativeCapacity); evicted != nil {
+	if evicted := claimRanID(t, amfInstance, reconnected, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
 		t.Errorf("ClaimRanID evicted %q, want nothing: the incumbent was offline", amfInstance.RadioNameForTest(evicted))
 	}
 }
@@ -240,7 +240,12 @@ func TestRebindRanIDOverOfflineRadioSucceeds(t *testing.T) {
 
 	live := connectRadio(t, amfInstance, "gNB-B", "ABCDE2")
 
-	if !amfInstance.RebindRanID(live, gnbGlobalRANNodeID(t, "ABCDE1")) {
+	rebound, err := amfInstance.RebindRanID(live, gnbGlobalRANNodeID(t, "ABCDE1"))
+	if err != nil {
+		t.Fatalf("RebindRanID: %v", err)
+	}
+
+	if !rebound {
 		t.Fatal("RebindRanID refused an identity held only by an offline radio")
 	}
 

@@ -69,7 +69,7 @@ export default function RadiosList() {
             }}
           >
             <Link
-              to={`/radios/${radioPath({ type: params.row.type, id: params.row.id })}`}
+              to={`/radios/${radioPath(params.row.ref)}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >

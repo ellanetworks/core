@@ -187,7 +187,7 @@ const SubscriberPage: React.FC = () => {
               }}
             >
               <Link
-                to={`/radios/${encodeURIComponent(radioName)}`}
+                to={`/radios/by-name/${encodeURIComponent(radioName)}`}
                 style={{ textDecoration: "none" }}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >

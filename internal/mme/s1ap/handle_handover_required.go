@@ -60,10 +60,19 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	target, ok := m.FindConnectedRadioByGlobalENBID(req.TargetID.TargeteNBID.GlobalENBID)
+	targetID, err := mme.RanNodeID(req.TargetID.TargeteNBID.GlobalENBID)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Required for a target eNB that cannot be decoded",
+			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)), zap.Error(err))
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
+
+		return
+	}
+
+	target, ok := m.FindConnectedRadioByRanID(targetID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unknown target eNB",
-			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)), zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)))
+			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)), zap.Stringer("target-enb", targetID))
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
 
 		return
@@ -118,7 +127,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Request",
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
-		zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)),
+		zap.Stringer("target-enb", targetID),
 		zap.Int("e-rabs", len(bearers)))
 	m.SendToRadio(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
 
