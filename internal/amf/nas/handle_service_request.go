@@ -37,7 +37,7 @@ type bufferedSM struct {
 }
 
 func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
-	req := ue.N1N2Message()
+	req := ue.PagingPending().Request()
 	if req == nil || req.Standalone() {
 		return bufferedSM{}
 	}
@@ -276,7 +276,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	ue.StopPaging()
+	ue.PagingAnswered()
 	conn.StopNASGuard()
 
 	// TS 24.501: an integrity-protected SERVICE REQUEST carrying a NAS
@@ -537,7 +537,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if buffered.stale && serviceType == fgs.ServiceTypeMobileTerminatedServices {
-		ue.ClearN1N2Message()
+		ue.PagingDelivered()
 
 		if initialContextSetup {
 			ueConn.AbortICS()
@@ -551,7 +551,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if buffered.present {
-		ue.ClearN1N2Message()
+		ue.PagingDelivered()
 	}
 
 	if buffered.n1Only != nil {

@@ -130,7 +130,10 @@ func (f *fakeSmf) DeactivateSmContext(_ context.Context, ref string) error {
 
 	return nil
 }
-func (f *fakeSmf) HandlePagingFailure(context.Context, etsi.SUPI, uint8) error { return nil }
+
+func (f *fakeSmf) HandleN1N2TransferFailure(context.Context, etsi.SUPI, uint8, models.N1N2MessageTransferCause) error {
+	return nil
+}
 
 func (f *fakeSmf) ClearPagingSuppression(context.Context, etsi.SUPI, uint8) error { return nil }
 func (f *fakeSmf) ReleaseSmContext(context.Context, string) error                 { return nil }
@@ -251,7 +254,7 @@ func TestTransferN1N2Message_UENotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPIFromIMSI(t, "001010000000001")
 
-	err := amfInstance.TransferN1N2Message(context.Background(), supi, newReq())
+	_, err := amfInstance.TransferN1N2Message(context.Background(), supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for missing UE")
 	}
@@ -262,7 +265,7 @@ func TestTransferN1N2Message_UENotConnected(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000002", nil)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not connected to RAN")
 	}
@@ -282,7 +285,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +320,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	ueConn.ResetICS()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -364,7 +367,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
 	}
 
-	if ue.N1N2Message() != nil {
+	if ue.PagingPending().Request() != nil {
 		t.Fatal("expected no stored N1N2 message")
 	}
 }
@@ -424,7 +427,7 @@ func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPIFromIMSI(t, "001010000000005")
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), supi, newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for missing UE")
 	}
@@ -488,7 +491,7 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 		t.Fatal("SendPaging must arm the persistent per-UE paging timer")
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
@@ -498,7 +501,7 @@ func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
 
 	ue.ArmPagingForTest(1*time.Hour, 3)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing paging")
 	}
@@ -511,7 +514,7 @@ func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
 
 	ue.ForceStateForTest(amf.RegistrationInitiated)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing registration")
 	}
@@ -526,7 +529,7 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing N2 handover")
 	}
@@ -546,7 +549,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -580,7 +583,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 
 	req := newReq()
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req)
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req)
 	if err != nil {
 		t.Fatalf("expected idle registered UE to be paged, got error: %v", err)
 	}
@@ -593,7 +596,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 		t.Fatal("expected the persistent per-UE paging timer to be armed")
 	}
 
-	buffered := ue.N1N2Message()
+	buffered := ue.PagingPending().Request()
 	if buffered == nil {
 		t.Fatal("expected the N1N2 message to be buffered on the persistent UE context")
 	}
@@ -602,7 +605,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 		t.Fatalf("buffered PDU session id: expected %d, got %d", req.PduSessionID, buffered.PduSessionID)
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
@@ -610,7 +613,7 @@ func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000010", nil)
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not in registered state")
 	}
@@ -676,7 +679,7 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 	req := newReq()
 	req.SNssai = nil
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req); err == nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req); err == nil {
 		t.Fatal("expected an error building the PDU session setup item")
 	}
 
@@ -769,7 +772,7 @@ func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testin
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("first transfer: %v", err)
 	}
 
@@ -777,7 +780,7 @@ func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testin
 		t.Fatalf("PDUSessionResourceSetupRequest count = %d, want 1", sender.pduSessionSetupCalls)
 	}
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("second transfer: %v", err)
 	}
 
@@ -981,7 +984,7 @@ func TestTransferN1N2Message_SessionAlreadySetUp_ReleasesTheICSClaim(t *testing.
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 	ueConn.SetN2SessionActive(1)
 
-	if err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -1017,7 +1020,7 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 	}})
 
 	first := newReq()
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), first); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), first); err != nil {
 		t.Fatalf("first transfer: %v", err)
 	}
 
@@ -1025,7 +1028,7 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 		t.Fatal("expected paging supervision to be running")
 	}
 
-	buffered := ue.N1N2Message()
+	buffered := ue.PagingPending().Request()
 	if buffered == nil {
 		t.Fatal("the first transfer was not buffered")
 	}
@@ -1033,12 +1036,12 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 	second := newReq()
 	second.BinaryDataN2Information = []byte{0xAA, 0xBB}
 
-	err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), second)
+	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), second)
 	if err == nil {
 		t.Fatal("a second transfer while paging must be rejected (TS 23.502 4.2.3.3 step 3b)")
 	}
 
-	if got := ue.N1N2Message(); got == nil || !bytes.Equal(got.BinaryDataN2Information, buffered.BinaryDataN2Information) {
+	if got := ue.PagingPending().Request(); got == nil || !bytes.Equal(got.BinaryDataN2Information, buffered.BinaryDataN2Information) {
 		t.Error("the buffered request was displaced; the SMF will never resend the 5GSM message it carried")
 	}
 }
@@ -1178,7 +1181,7 @@ func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("first transfer: %v", err)
 	}
 
@@ -1191,7 +1194,7 @@ func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
 	// context once that transfer has returned.
 	ue.DeleteSmContext(1)
 
-	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
+	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("transfer for the replacement session: %v", err)
 	}
 

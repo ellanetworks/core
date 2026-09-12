@@ -44,7 +44,7 @@ func TestHandleServiceRequest_BufferedN1N2_DoesNotSuppressReactivation(t *testin
 			f := connectedModeUe(t, &fakeSmf{})
 
 			snssai := models.Snssai{Sst: 1, Sd: "102030"}
-			f.ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+			f.ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 				N1Class:                 models.N1ClassSM,
 				N2Class:                 models.N2ClassSM,
 				PduSessionID:            12,
@@ -69,7 +69,7 @@ func TestHandleServiceRequest_BufferedN1N2_IsConsumed(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	f.ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	f.ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		N1Class:                 models.N1ClassSM,
 		N2Class:                 models.N2ClassSM,
 		PduSessionID:            12,
@@ -79,7 +79,7 @@ func TestHandleServiceRequest_BufferedN1N2_IsConsumed(t *testing.T) {
 
 	idleToActive(t, f, fgs.ServiceTypeData)
 
-	if f.ue.N1N2Message() != nil {
+	if f.ue.PagingPending().Request() != nil {
 		t.Fatal("buffered N1N2 message still present after the service accept")
 	}
 }
@@ -88,7 +88,7 @@ func TestHandleServiceRequest_SecondRequestAfterBufferedN1N2_StillReactivates(t 
 	f := connectedModeUe(t, &fakeSmf{})
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	f.ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	f.ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		N1Class:                 models.N1ClassSM,
 		N2Class:                 models.N2ClassSM,
 		PduSessionID:            12,
@@ -245,7 +245,7 @@ func TestHandleServiceRequest_BufferedPayloadForASessionReportedInactive_IsNotSe
 		t.Fatalf("could not create the sm context: %v", err)
 	}
 
-	f.ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
+	f.ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{
 		N1Class:                 models.N1ClassSM,
 		N2Class:                 models.N2ClassSM,
 		PduSessionID:            9,
@@ -284,7 +284,7 @@ func TestHandleServiceRequest_BufferedPayloadForASessionReportedInactive_IsNotSe
 		t.Error("PDU session 9 is still claimed on the NG-RAN node although it was never set up")
 	}
 
-	if f.ue.N1N2Message() != nil {
+	if f.ue.PagingPending().Request() != nil {
 		t.Error("the buffered downlink payload for the released session must be discarded")
 	}
 }

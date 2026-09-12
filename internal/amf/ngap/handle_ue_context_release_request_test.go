@@ -95,10 +95,10 @@ func TestHandleUEContextReleaseRequest_UserInactivityWithPendingMTTraffic(t *tes
 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
-	amfUe.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
@@ -121,10 +121,10 @@ func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic
 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
-	amfUe.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
@@ -174,5 +174,70 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Errorf("UEContextReleaseCommand count = %d, want 1 once the setup has finished", len(sender.SentUEContextReleaseCommands))
+	}
+}
+
+func TestHandleUEContextReleaseRequest_PagedRequestDoesNotFollowTheUEOntoANewConnection(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+
+	answered := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	answered.AMFForTest().AttachUeConn(amfUe, answered)
+
+	current := amf.NewUeConnForTest(ran, 2, 11, logger.AmfLog)
+	current.AMFForTest().AttachUeConn(amfUe, current)
+
+	before := len(sender.SentUEContextReleaseCommands)
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 11,
+		RANUENGAPID: 2,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != before+1 {
+		t.Errorf("UEContextReleaseCommand count = %d, want %d: a request buffered for an earlier connection pins the current one (TS 23.502 4.2.6 step 1)",
+			len(sender.SentUEContextReleaseCommands)-before, 1)
+	}
+}
+
+func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+	amfUe.ForceStateForTest(amf.Registered)
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
+		t.Fatal("could not open a PDU session resource setup transaction")
+	}
+
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+	}
+
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 0 {
+		t.Fatalf("UEContextReleaseCommand count = %d, want 0 while the N2 setup is open", len(sender.SentUEContextReleaseCommands))
+	}
+
+	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Errorf("UEContextReleaseCommand count = %d, want 1: the deferred AN Release never resumes once the pending signalling settles (TS 23.502 4.2.6 step 1)",
+			len(sender.SentUEContextReleaseCommands))
 	}
 }

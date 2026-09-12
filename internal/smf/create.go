@@ -358,7 +358,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
 
-	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
+	_, err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to transfer N1N2 message")

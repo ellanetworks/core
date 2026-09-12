@@ -89,7 +89,7 @@ type SmfSbi interface {
 	UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
-	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
+	HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, cause models.N1N2MessageTransferCause) error
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
@@ -803,9 +803,7 @@ func (amf *AMF) StopAllTimers() {
 	amf.mu.Unlock()
 
 	for _, ue := range ues {
-		ue.mu.Lock()
-		ue.stopUeMuTimersLocked()
-		ue.mu.Unlock()
+		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
 	}
 
 	// A UE in CM-IDLE has no connection and a bare connection has no UE, so
@@ -845,8 +843,10 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		if err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
-			if errors.Is(err, errPagingActive) {
+		var rejected *models.N1N2MessageTransferError
+
+		if _, err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
+			if errors.As(err, &rejected) {
 				return nil
 			}
 
@@ -878,7 +878,7 @@ func (amf *AMF) CancelBufferedN1N2(supi etsi.SUPI, n1 models.N1MessageClass, n2 
 		return
 	}
 
-	if req := ue.N1N2Message(); req != nil && req.HasClass(n1, n2) {
-		ue.ClearN1N2Message()
+	if pending := ue.PagingPending(); pending != nil && pending.Req.HasClass(n1, n2) {
+		ue.PagingDelivered()
 	}
 }

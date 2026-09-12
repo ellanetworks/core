@@ -330,7 +330,7 @@ func (s *fakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
 	return s.Error
 }
 
-func (s *fakeSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+func (s *fakeSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, _ uint8, _ models.N1N2MessageTransferCause) error {
 	return s.Error
 }
 

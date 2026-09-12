@@ -19,6 +19,7 @@ type deregisterTestSmf struct {
 	releaseCalls          []string
 	deactivateCalls       []string
 	suppressCalls         int
+	transferFailures      []models.N1N2MessageTransferCause
 	clearSuppressionCalls int
 	onRelease             func(context.Context, string) error
 
@@ -52,8 +53,10 @@ func (s *deregisterTestSmf) DeactivateSmContext(_ context.Context, smContextRef 
 	return nil
 }
 
-func (s *deregisterTestSmf) HandlePagingFailure(_ context.Context, _ etsi.SUPI, _ uint8) error {
+func (s *deregisterTestSmf) HandleN1N2TransferFailure(_ context.Context, _ etsi.SUPI, _ uint8, cause models.N1N2MessageTransferCause) error {
 	s.suppressCalls++
+	s.transferFailures = append(s.transferFailures, cause)
+
 	return nil
 }
 

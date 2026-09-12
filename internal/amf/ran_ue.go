@@ -77,8 +77,11 @@ type UeConn struct {
 	n2Setups   n2SetupTxns
 	n2Sessions n2Sessions
 	inboundNAS atomic.Uint32
-	log        atomic.Pointer[zap.Logger]
-	baseLog    atomic.Pointer[zap.Logger]
+
+	deferredCause atomic.Pointer[ngap.Cause]
+	deferGuard    guard.Guard
+	log           atomic.Pointer[zap.Logger]
+	baseLog       atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -219,6 +222,11 @@ func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
 // deadline (TS 38.413 handover guard), which runs its cleanup.
 func (ueConn *UeConn) Release() {
 	ueConn.stopTimers()
+	ueConn.cancelDeferredRelease()
+
+	if ue := ueConn.ue.Load(); ue != nil && ue.PagingState() == PagingDelivering {
+		ue.PagingFailed(models.N1N2UENotResponding)
+	}
 
 	a := ueConn.amf
 	if a == nil {
@@ -251,6 +259,7 @@ func (ueConn *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, onRetra
 func (ueConn *UeConn) StopNASGuard() {
 	ueConn.nasGuardName.Store(nil)
 	ueConn.nasGuard.Stop()
+	ueConn.ResumeDeferredReleaseIfSettled()
 }
 
 // nasGuardProcName returns the procedure the NAS guard currently supervises, or ""

@@ -39,6 +39,9 @@ type N1N2MessageTransferRequest struct {
 
 	// RoutingID identifies the LMF handling the LPP or NRPPa data (NGAP Routing ID).
 	RoutingID int64
+
+	Arp    *Arp
+	FiveQI int32
 }
 
 // Standalone reports whether the request is delivered on its own rather than with a PDU

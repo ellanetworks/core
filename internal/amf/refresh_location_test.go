@@ -54,7 +54,7 @@ func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 		t.Error("expected paging supervision to be armed for the refresh")
 	}
 
-	ue.StopPaging()
+	ue.StopPagingForTest()
 }
 
 func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
@@ -80,7 +80,7 @@ func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	}})
 
 	ue.ArmPagingForTest(time.Hour, 1)
-	defer ue.StopPaging()
+	defer ue.StopPagingForTest()
 
 	if err := amfInstance.RefreshLocation(context.Background(), ue.SupiForTest()); err != nil {
 		t.Fatalf("expected a deliberate skip reported as success, got error: %v", err)

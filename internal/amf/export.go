@@ -376,7 +376,7 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 		Timers: UETimersExport{
 			T3512ValueSeconds: int64(amf.T3512Value / time.Second),
 			T3502ValueSeconds: int64(amf.T3502Value / time.Second),
-			Paging:            timerStatus(&ue.pagingTimer),
+			Paging:            timerStatus(&ue.paging.guard),
 			NASGuard:          timerStatus(nasGuard),
 			NASGuardProcedure: nasGuardName,
 			MobileReachable:   timerStatus(&ue.mobileReachableTimer),

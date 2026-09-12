@@ -50,9 +50,15 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	if err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu); err != nil {
+	cause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp, policy.QosData.Var5qi)
+	if err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
+
+	logger.SmfLog.Debug("N1N2 message transfer accepted",
+		zap.String("supi", supi.String()),
+		zap.Uint8("pdu_session_id", pduSessionID),
+		zap.String("cause", cause.String()))
 
 	return nil
 }

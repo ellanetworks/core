@@ -227,7 +227,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	})
 
 	t.Cleanup(func() {
-		ue.StopPaging()
+		ue.StopPagingForTest()
 	})
 
 	result := exportAndMarshal(t, amfInstance)

@@ -8,12 +8,24 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
-func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error {
+func (s *SMF) HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, cause models.N1N2MessageTransferCause) error {
 	smContext := s.currentPDUSession(supi, pduSessionID)
 	if smContext == nil {
 		return fmt.Errorf("no session for %s pdu %d", supi.String(), pduSessionID)
+	}
+
+	logger.SmfLog.Info("N1N2 message transfer failed",
+		zap.String("supi", supi.String()),
+		zap.Uint8("pdu_session_id", pduSessionID),
+		zap.String("cause", cause.String()))
+
+	if cause != models.N1N2UENotResponding {
+		return nil
 	}
 
 	s.suppressDownlinkDataNotification(ctx, smContext)

@@ -111,11 +111,34 @@ func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardT
 func (a *AMF) FireHandoverGuardForTest(ue *UeContext) bool { return a.abandonHandover(ue) }
 
 func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
-	ue.pagingTimer.Arm(d, maxRetransmit, func(int32) {}, func() {})
+	ue.paging.mu.Lock()
+	ue.paging.state = PagingAttempting
+	ue.paging.mu.Unlock()
+
+	ue.paging.guard.Arm(d, maxRetransmit, func(int32) {}, func() {})
+}
+
+func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	if req == nil {
+		ue.paging.pending = nil
+		ue.paging.state = PagingIdle
+
+		return
+	}
+
+	ue.paging.pending = req
+	ue.paging.state = PagingAttempting
+}
+
+func (ue *UeContext) StopPagingForTest() {
+	ue.PagingDelivered()
 }
 
 func (ue *UeContext) PagingActiveForTest() bool {
-	return ue.pagingTimer.Active()
+	return ue.paging.guard.Active()
 }
 
 func (ue *UeContext) MobileReachableActiveForTest() bool {
@@ -255,4 +278,14 @@ func (ue *UeContext) ForgetS1CapabilityForTest() {
 
 	ue.s1UENetworkCapability = nil
 	ue.epsSecurityCapability = nil
+}
+
+func (ue *UeContext) SetPagedRequestForTest(req *models.N1N2MessageTransferRequest) {
+	if req == nil {
+		ue.forcePagingStateForTest(nil)
+
+		return
+	}
+
+	ue.forcePagingStateForTest(&MTRequest{Req: *req, Arp: req.Arp, FiveQI: req.FiveQI})
 }

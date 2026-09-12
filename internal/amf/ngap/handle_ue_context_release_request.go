@@ -16,20 +16,12 @@ import (
 // CauseRadioNetwork "unspecified").
 var causeReleaseUnspecified = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
 
-func keepsConnectionForPendingDownlink(cause ngap.Cause, amfUe *amf.UeContext, ueConn *amf.UeConn) bool {
+func keepsConnectionForPendingDownlink(cause ngap.Cause, ueConn *amf.UeConn) bool {
 	if cause.Group != ngap.CauseGroupRadioNetwork || cause.Value != ngap.CauseRadioNetworkUserInactivity {
 		return false
 	}
 
-	if amfUe != nil && amfUe.N1N2Message() != nil {
-		return true
-	}
-
-	if ueConn.N2SetupOpen(amf.N2SetupInitialContext) || ueConn.N2SetupOpen(amf.N2SetupPDUSession) {
-		return true
-	}
-
-	return ueConn.NASGuardActive()
+	return ueConn.MTSignallingPending()
 }
 
 // HandleUEContextReleaseRequest handles an NG-RAN-initiated UE Context Release
@@ -63,7 +55,9 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	amfUe := ueConn.UeContext()
 
-	if keepsConnectionForPendingDownlink(cause, amfUe, ueConn) {
+	if keepsConnectionForPendingDownlink(cause, ueConn) {
+		ueConn.DeferRelease(cause)
+
 		logger.WithTrace(ctx, ueConn.Log()).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
 
 		return
