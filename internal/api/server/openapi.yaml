@@ -5509,6 +5509,14 @@ components:
           type: string
         id:
           type: string
+          description: Node identifier of the Global RAN Node ID, without the PLMN.
+        plmn:
+          $ref: "#/components/schemas/PlmnID"
+        bit_length:
+          type: integer
+          minimum: 22
+          maximum: 32
+          description: Bit length of the gNB ID. Present on gNBs only.
         address:
           type: string
           description: SCTP remote address (IP:port). On an offline radio, the last known address.
@@ -5548,7 +5556,14 @@ components:
           type: string
         id:
           type: string
-          description: GnB ID value.
+          description: Node identifier of the Global RAN Node ID, without the PLMN.
+        plmn:
+          $ref: "#/components/schemas/PlmnID"
+        bit_length:
+          type: integer
+          minimum: 22
+          maximum: 32
+          description: Bit length of the gNB ID. Present on gNBs only.
         address:
           type: string
           description: SCTP remote address (IP:port). On an offline radio, the last known address.
