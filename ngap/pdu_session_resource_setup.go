@@ -385,6 +385,7 @@ type PDUSessionResourceSetupRequestTransfer struct {
 	SecurityIndication                *SecurityIndication
 	NetworkInstance                   *NetworkInstance
 	QosFlowSetupRequest               QosFlowSetupRequestList
+	DirectForwardingPathAvailability  *DirectForwardingPathAvailability
 
 	messageMeta
 }
@@ -516,6 +517,27 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			}
 
 			return m.QosFlowSetupRequest, true
+		},
+	},
+	{
+		id: IDDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v DirectForwardingPathAvailability
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.DirectForwardingPathAvailability = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.DirectForwardingPathAvailability == nil {
+				return nil, false
+			}
+
+			return m.DirectForwardingPathAvailability, true
 		},
 	},
 }

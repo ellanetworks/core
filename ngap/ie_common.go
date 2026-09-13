@@ -263,6 +263,12 @@ func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
 	return ipv4, ipv6
 }
 
+func (a TransportLayerAddress) Valid() bool {
+	ipv4, ipv6 := a.IPs()
+
+	return ipv4.IsValid() || ipv6.IsValid()
+}
+
 // Most significant bit first, matching BIT STRING storage.
 func uintToBits(v uint64, nbits int) []byte {
 	out := make([]byte, (nbits+7)/8)

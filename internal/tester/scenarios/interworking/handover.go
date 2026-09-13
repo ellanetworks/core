@@ -165,7 +165,7 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 
 	mmeUEID := int64(req.MMEUES1APID)
 
-	dlTEID, err := e.SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID, movedEPSBearerIdentity)
+	dlTEID, _, err := e.SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID, movedEPSBearerIdentity, false)
 	if err != nil {
 		return handoverBearer{}, fmt.Errorf("admit the handover at the target eNB: %w", err)
 	}

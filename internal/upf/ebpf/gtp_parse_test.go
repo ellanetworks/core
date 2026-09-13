@@ -563,3 +563,52 @@ func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
 		})
 	}
 }
+
+func putForwardingUplinkPDRAnyOuter(t *testing.T, obj *BpfObjects, teid uint32) {
+	t.Helper()
+
+	pdr := PdrInfo{
+		OuterHeaderRemoval: 6,
+		IMSI:               "001010000000001",
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+		UEIPv4:             canonicalUEv4,
+		UEIPv6Prefix:       canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+}
+
+// TS 29.244 Table 8.2.64-1 value 6 ("GTP-U/UDP/IP"), NOTE 4: one F-TEID the
+// gNB may reach over either transport family.
+func TestGTPDecapsulationFamilyAgnosticOuterHeaderRemoval(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x51525354
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	for _, tc := range []struct {
+		name  string
+		frame []byte
+	}{
+		{"IPv4 transport", uplinkGPDU(teid, inner)},
+		{"IPv6 transport", uplinkGPDUv6(teid, inner)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadN3N6Program(t)
+			putForwardingUplinkPDRAnyOuter(t, obj, teid)
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, tc.frame)
+
+			if action == ActionDrop || action == ActionAborted {
+				t.Fatalf("got XDP action %d, want a forwarding action: a PDR pinned to neither family must decapsulate both", action)
+			}
+
+			if !bytes.Equal(out[ethHdrLen:], inner) {
+				t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
+			}
+		})
+	}
+}

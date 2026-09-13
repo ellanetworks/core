@@ -45,6 +45,11 @@ func libPDUSessionResourceSetupRequestTransfer(raw ngap.TransferContainer) (*PDU
 		out.DataForwardingNotPossible = &notPossible
 	}
 
+	if t.DirectForwardingPathAvailability != nil {
+		available := *t.DirectForwardingPathAvailability == ngap.DirectForwardingPathAvailable
+		out.DirectForwardingPathAvailability = &available
+	}
+
 	if t.NetworkInstance != nil {
 		v := uint16(*t.NetworkInstance)
 		out.NetworkInstance = &v

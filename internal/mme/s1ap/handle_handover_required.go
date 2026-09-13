@@ -86,13 +86,15 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	bearers, candidates, ok := mme.HandoverBearers(ue)
+	forwarding := req.DirectForwardingPathAvailability != nil
+
+	bearers, candidates, ok := mme.HandoverBearers(ue, forwarding)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
 	}
 
-	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates)
+	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates, forwarding)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
@@ -128,7 +130,8 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	logger.From(ctx, logger.MmeLog).Info("Handover Request",
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
 		zap.Stringer("target-enb", targetID),
-		zap.Int("e-rabs", len(bearers)))
+		zap.Int("e-rabs", len(bearers)),
+		zap.Bool("data-forwarding", forwarding))
 	m.SendToRadio(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
 
 	// Arm the guard after the HANDOVER REQUEST is sent, so the timer cannot race the

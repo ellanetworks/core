@@ -191,7 +191,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 		HandoverType: ngaplib.HandoverTypeIntra5GS,
 		TargetGnbID:  "000002",
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
-			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
+			{PDUSessionID: int64(scenarios.DefaultPDUSessionID), HandoverRequiredTransfer: directForwardingRequiredTransfer},
 		},
 	})
 	if err != nil {
@@ -215,15 +215,17 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	targetRanUENGAPID := int64(100)
 	targetN3IP := netip.MustParseAddr(targetGNBSpec.N3Address)
 	targetDLTEID := uint32(9000)
+	targetForwardingTEID := uint32(9001)
 
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,
 		RANUENGAPID: targetRanUENGAPID,
 		PDUSessions: []gnb.HandoverAdmittedPDUSession{
 			{
-				PDUSessionID: int64(scenarios.DefaultPDUSessionID),
-				DLTEID:       targetDLTEID,
-				DLIP:         targetN3IP,
+				PDUSessionID:   int64(scenarios.DefaultPDUSessionID),
+				DLTEID:         targetDLTEID,
+				DLIP:           targetN3IP,
+				ForwardingTEID: targetForwardingTEID,
 			},
 		},
 		TargetToSourceTransparentContainer: n2HandoverRRCContainer,
@@ -242,6 +244,10 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	if err := assertN2HandoverCommand(hoCmdFrame, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	if err := assertN2ForwardingRelayed(hoCmdFrame, targetForwardingTEID); err != nil {
 		return err
 	}
 
@@ -302,4 +308,47 @@ func newDefaultUEForHandover(gNodeB *gnb.GnodeB, imsi string) (*ue.UE, error) {
 			},
 		}),
 	})
+}
+
+var directForwardingRequiredTransfer = mustDirectForwardingRequiredTransfer()
+
+func mustDirectForwardingRequiredTransfer() []byte {
+	b, err := (&ngaplib.HandoverRequiredTransfer{
+		DirectForwardingPathAvailability: ngaplib.Ptr(ngaplib.DirectForwardingPathAvailable),
+	}).Marshal()
+	if err != nil {
+		panic(err)
+	}
+
+	return b
+}
+
+func assertN2ForwardingRelayed(frame gnb.SCTPFrame, forwardingTEID uint32) error {
+	cmd, err := ngaplib.ParseHandoverCommand(frame.Value)
+	if err != nil {
+		return fmt.Errorf("parse HandoverCommand: %w", err)
+	}
+
+	if len(cmd.PDUSessionResourceHandoverList) != 1 {
+		return fmt.Errorf("HandoverCommand handed over %d PDU sessions, want 1", len(cmd.PDUSessionResourceHandoverList))
+	}
+
+	transfer, err := ngaplib.ParseHandoverCommandTransfer(cmd.PDUSessionResourceHandoverList[0].Transfer)
+	if err != nil {
+		return fmt.Errorf("parse HandoverCommandTransfer: %w", err)
+	}
+
+	if transfer.DLForwardingUPTNLInformation == nil {
+		return fmt.Errorf("HandoverCommandTransfer carried no forwarding endpoint, so the source forwards nothing")
+	}
+
+	if got := uint32(transfer.DLForwardingUPTNLInformation.GTPTunnel.GTPTEID); got != forwardingTEID {
+		return fmt.Errorf("relayed forwarding TEID = %#x, want the target's %#x", got, forwardingTEID)
+	}
+
+	if len(transfer.QosFlowToBeForwarded) != 1 {
+		return fmt.Errorf("QoS flows to be forwarded = %d, want 1", len(transfer.QosFlowToBeForwarded))
+	}
+
+	return nil
 }

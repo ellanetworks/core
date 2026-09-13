@@ -1087,3 +1087,222 @@ func TestHandoverCancelFromTheTargetLeavesTheHandoverStanding(t *testing.T) {
 		t.Error("the source was told its handover had been cancelled")
 	}
 }
+
+func handoverForwardingExchange(t *testing.T, directPath bool) (*s1ap.HandoverRequest, *s1ap.HandoverCommand) {
+	t.Helper()
+
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	required := sampleHandoverRequired(ue)
+	if directPath {
+		required.DirectForwardingPathAvailability = s1ap.Ptr(s1ap.DirectForwardingPathAvailable)
+	}
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, required.Marshal)))
+
+	req, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
+	if !ok || req.ProcedureCode != s1ap.ProcHandoverResourceAllocation {
+		t.Fatalf("expected HANDOVER REQUEST to target, got %T", lastPDU(t, target))
+	}
+
+	hoReq, err := s1ap.ParseHandoverRequest(req.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER REQUEST: %v", err)
+	}
+
+	ack := &s1ap.HandoverRequestAcknowledge{
+		MMEUES1APID: s1ap.Ptr(hoReq.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
+		ERABAdmitted: []s1ap.ERABAdmittedItem{{
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
+			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			GTPTEID:               0x99,
+			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3},
+			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
+		}},
+		TargetToSource: s1ap.TransparentContainer{0xaa},
+	}
+
+	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+	out, ok := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
+	if !ok || out.ProcedureCode != s1ap.ProcHandoverPreparation {
+		t.Fatalf("expected HANDOVER COMMAND to source, got %T", lastPDU(t, source))
+	}
+
+	cmd, err := s1ap.ParseHandoverCommand(out.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER COMMAND: %v", err)
+	}
+
+	return hoReq, cmd
+}
+
+func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
+	hoReq, cmd := handoverForwardingExchange(t, true)
+
+	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+		t.Error("HANDOVER REQUEST still declared data forwarding not possible")
+	}
+
+	if len(cmd.ERABSubjecttoDataForwarding) != 1 {
+		t.Fatalf("E-RABSubjecttoDataForwardingList has %d items, want 1", len(cmd.ERABSubjecttoDataForwarding))
+	}
+
+	item := cmd.ERABSubjecttoDataForwarding[0]
+	if item.ERABID != s1ap.ERABID(mme.DefaultERABID) {
+		t.Errorf("forwarded E-RAB ID = %d, want %d", item.ERABID, mme.DefaultERABID)
+	}
+
+	if item.DLGTPTEID == nil || *item.DLGTPTEID != 0xfeed {
+		t.Errorf("forwarded DL GTP-TEID = %v, want 0xfeed", item.DLGTPTEID)
+	}
+
+	if got := []byte(item.DLTransportLayerAddr); string(got) != string([]byte{10, 4, 0, 3}) {
+		t.Errorf("forwarded DL transport layer address = %v, want 10.4.0.3", got)
+	}
+}
+
+func TestHandoverWithoutDirectPathOffersNoForwarding(t *testing.T) {
+	hoReq, cmd := handoverForwardingExchange(t, false)
+
+	ext := hoReq.ERABToBeSetup[0].Extensions
+	if ext == nil || ext.DataForwardingNotPossible == nil {
+		t.Error("HANDOVER REQUEST did not declare data forwarding not possible")
+	}
+
+	if len(cmd.ERABSubjecttoDataForwarding) != 0 {
+		t.Errorf("E-RABSubjecttoDataForwardingList has %d items, want none", len(cmd.ERABSubjecttoDataForwarding))
+	}
+}
+
+func TestHandoverDropsHalfPopulatedForwardingTunnel(t *testing.T) {
+	tests := []struct {
+		name string
+		item s1ap.ERABAdmittedItem
+	}{
+		{"dl teid without an address", s1ap.ERABAdmittedItem{
+			DLGTPTEID: s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
+		}},
+		{"dl address without a teid", s1ap.ERABAdmittedItem{
+			DLTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3},
+		}},
+		{"ul teid without an address", s1ap.ERABAdmittedItem{
+			ULGTPTEID: s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
+		}},
+		{"dl address that is neither ipv4 nor ipv6", s1ap.ERABAdmittedItem{
+			DLTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			DLGTPTEID:            s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
+		}},
+		{"ul address that is neither ipv4 nor ipv6", s1ap.ERABAdmittedItem{
+			ULTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			ULGTPTEID:            s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, source, target := handoverUE(t, m)
+
+			required := sampleHandoverRequired(ue)
+			required.DirectForwardingPathAvailability = s1ap.Ptr(s1ap.DirectForwardingPathAvailable)
+
+			handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, required.Marshal)))
+
+			req, _ := lastPDU(t, target).(*s1ap.InitiatingMessage)
+
+			hoReq, err := s1ap.ParseHandoverRequest(req.Value)
+			if err != nil {
+				t.Fatalf("parse HANDOVER REQUEST: %v", err)
+			}
+
+			item := tc.item
+			item.ERABID = s1ap.ERABID(mme.DefaultERABID)
+			item.TransportLayerAddress = s1ap.TransportLayerAddress{10, 4, 0, 2}
+			item.GTPTEID = 0x99
+
+			ack := &s1ap.HandoverRequestAcknowledge{
+				MMEUES1APID:    s1ap.Ptr(hoReq.MMEUES1APID),
+				ENBUES1APID:    s1ap.Ptr(s1ap.ENBUES1APID(55)),
+				ERABAdmitted:   []s1ap.ERABAdmittedItem{item},
+				TargetToSource: s1ap.TransparentContainer{0xaa},
+			}
+
+			handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+			out, _ := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
+
+			cmd, err := s1ap.ParseHandoverCommand(out.Value)
+			if err != nil {
+				t.Fatalf("parse HANDOVER COMMAND: %v", err)
+			}
+
+			if len(cmd.ERABSubjecttoDataForwarding) != 0 {
+				t.Errorf("relayed %d forwarding items built from an incomplete tunnel address pair, want none: %+v",
+					len(cmd.ERABSubjecttoDataForwarding), cmd.ERABSubjecttoDataForwarding)
+			}
+		})
+	}
+}
+
+func TestHandoverDropsOnlyTheUnusableForwardingDirection(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	required := sampleHandoverRequired(ue)
+	required.DirectForwardingPathAvailability = s1ap.Ptr(s1ap.DirectForwardingPathAvailable)
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, required.Marshal)))
+
+	req, _ := lastPDU(t, target).(*s1ap.InitiatingMessage)
+
+	hoReq, err := s1ap.ParseHandoverRequest(req.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER REQUEST: %v", err)
+	}
+
+	ack := &s1ap.HandoverRequestAcknowledge{
+		MMEUES1APID: s1ap.Ptr(hoReq.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
+		ERABAdmitted: []s1ap.ERABAdmittedItem{{
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
+			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			GTPTEID:               0x99,
+			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
+			ULTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 4},
+			ULGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
+		}},
+		TargetToSource: s1ap.TransparentContainer{0xaa},
+	}
+
+	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+	out, _ := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
+
+	cmd, err := s1ap.ParseHandoverCommand(out.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER COMMAND: %v", err)
+	}
+
+	if len(cmd.ERABSubjecttoDataForwarding) != 1 {
+		t.Fatalf("E-RABSubjecttoDataForwardingList has %d items, want 1", len(cmd.ERABSubjecttoDataForwarding))
+	}
+
+	item := cmd.ERABSubjecttoDataForwarding[0]
+
+	if item.DLTransportLayerAddr != nil || item.DLGTPTEID != nil {
+		t.Errorf("relayed a DL forwarding endpoint the source eNB cannot reach: addr %v teid %v: TS 36.413 §8.4.1.2 has the source eNB read the pair's presence as downlink forwarding being possible",
+			item.DLTransportLayerAddr, item.DLGTPTEID)
+	}
+
+	if got := []byte(item.ULTransportLayerAddr); string(got) != string([]byte{10, 4, 0, 4}) {
+		t.Errorf("forwarded UL transport layer address = %v, want 10.4.0.4", got)
+	}
+
+	if item.ULGTPTEID == nil || *item.ULGTPTEID != 0xbeef {
+		t.Errorf("forwarded UL GTP-TEID = %v, want 0xbeef", item.ULGTPTEID)
+	}
+}

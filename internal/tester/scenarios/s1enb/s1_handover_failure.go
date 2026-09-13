@@ -108,7 +108,7 @@ func startS1HandoverPair(env scenarios.Env, imsi string) (*s1HandoverPair, func(
 }
 
 func (p *s1HandoverPair) requireHandover() (*s1ap.HandoverRequest, error) {
-	if err := p.Source.SendHandoverRequired(p.Attached.ENBUES1APID, p.Attached.MMEUES1APID, p.Target.GlobalENBID()); err != nil {
+	if err := p.Source.SendHandoverRequired(p.Attached.ENBUES1APID, p.Attached.MMEUES1APID, p.Target.GlobalENBID(), false); err != nil {
 		return nil, fmt.Errorf("send Handover Required: %w", err)
 	}
 
@@ -173,7 +173,7 @@ func runS1HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 
 	targetENBUEID := pair.Target.AllocateENBUEID()
 
-	if _, err := pair.Target.SendHandoverRequestAcknowledge(targetENBUEID, int64(req.MMEUES1APID), pair.Attached.ERABID); err != nil {
+	if _, _, err := pair.Target.SendHandoverRequestAcknowledge(targetENBUEID, int64(req.MMEUES1APID), pair.Attached.ERABID, false); err != nil {
 		return fmt.Errorf("admit the handover at the target eNB: %w", err)
 	}
 

@@ -197,6 +197,14 @@ func (a AnchorBinding) bound() bool {
 	return a.IPv4 != nil || a.IPv6 != nil
 }
 
+func (a AnchorBinding) equal(b AnchorBinding) bool {
+	return a.TEID == b.TEID && a.IPv4.Equal(b.IPv4) && a.IPv6.Equal(b.IPv6)
+}
+
+func (a AnchorBinding) switchedFrom(prev AnchorBinding) bool {
+	return prev.bound() && a.bound() && !prev.equal(a)
+}
+
 func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -258,7 +266,10 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
 
-	if err := s.upf.ModifySession(ctx, next.modifyRequest(sc.PFCPContext.SEID, policyID)); err != nil {
+	req := next.modifyRequest(sc.PFCPContext.SEID, policyID)
+	req.SendEndMarkers = next.AN.switchedFrom(sc.Tunnel.AN)
+
+	if err := s.upf.ModifySession(ctx, req); err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %w", err)
 	}
 

@@ -41,6 +41,12 @@ type SessionEngine struct {
 	// holding either.
 	filterMu     sync.RWMutex
 	filtersByKey map[string]uint32
+
+	endMarkers endMarkerSockets
+}
+
+func (conn *SessionEngine) Close() error {
+	return conn.endMarkers.Close()
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {

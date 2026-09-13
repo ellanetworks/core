@@ -123,8 +123,8 @@ func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 		if p.PDI.LocalFTEID != nil {
 			sawUplink = true
 
-			if p.OuterHeaderRemoval == nil || *p.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIpv6 {
-				t.Errorf("uplink PDR sent with OuterHeaderRemoval %v, want the IPv6 descriptor", p.OuterHeaderRemoval)
+			if p.OuterHeaderRemoval == nil || *p.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIP {
+				t.Errorf("uplink PDR sent with OuterHeaderRemoval %v, want the family-agnostic descriptor", p.OuterHeaderRemoval)
 			}
 		}
 	}

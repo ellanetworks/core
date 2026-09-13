@@ -50,14 +50,18 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("sm context has no policy: %s", smContextRef)
 	}
 
-	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
+	forwarding, err := handleHandoverRequiredTransfer(n2Data)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle handover required transfer")
 
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType), nil)
+	smContext.handoverForwarding = forwarding
+	smContext.handoverForwardingPlan = nil
+
+	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType), nil, forwarding)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover request transfer")
@@ -65,15 +69,20 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("build Handover Request Transfer Error: %v", err)
 	}
 
+	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Request transfer",
+		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+		zap.Bool("data-forwarding", forwarding))
+
 	return n2Rsp, nil
 }
 
-func handleHandoverRequiredTransfer(b []byte) error {
-	if _, err := libngap.ParseHandoverRequiredTransfer(b); err != nil {
-		return fmt.Errorf("failed to unmarshall handover required transfer: %w", err)
+func handleHandoverRequiredTransfer(b []byte) (forwarding bool, err error) {
+	transfer, err := libngap.ParseHandoverRequiredTransfer(b)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshall handover required transfer: %w", err)
 	}
 
-	return nil
+	return transfer.DirectForwardingPathAvailability != nil, nil
 }
 
 func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
@@ -111,13 +120,17 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverCommandTransfer()
+	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.handoverForwardingPlan)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover command transfer")
 
 		return nil, fmt.Errorf("build Handover Command Transfer Error: %v", err)
 	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Command transfer",
+		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+		zap.Bool("data-forwarding", smContext.handoverForwardingPlan.Forwards()))
 
 	return n2Rsp, nil
 }
@@ -174,6 +187,7 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 	}
 
 	smContext.handoverTargetAN = nil
+	smContext.handoverForwardingPlan = nil
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
@@ -202,6 +216,10 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	target := anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel)
 	smContext.handoverTargetAN = &target
 
+	if smContext.handoverForwarding {
+		smContext.handoverForwardingPlan = ngap.ForwardingPlanFrom(transfer)
+	}
+
 	return nil
 }
 
@@ -221,6 +239,11 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 	}
 
 	smContext.abandonTransferTo(Access5G)
+
+	smContext.Mutex.Lock()
+	smContext.handoverForwarding = false
+	smContext.handoverForwardingPlan = nil
+	smContext.Mutex.Unlock()
 
 	transfer, err := libngap.ParseHandoverResourceAllocationUnsuccessfulTransfer(n2Data)
 	if err != nil {
@@ -264,6 +287,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 	}
 
 	smContext.handoverTargetAN = nil
+	smContext.handoverForwardingPlan = nil
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("dropped the target endpoint of an abandoned N2 handover",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))

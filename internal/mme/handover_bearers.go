@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, candidates []HandoverCandidate, ok bool) {
+func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSetupItemHOReq, candidates []HandoverCandidate, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -30,7 +30,7 @@ func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, cand
 
 		candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi})
 
-		bearers = append(bearers, s1ap.ERABToBeSetupItemHOReq{
+		bearer := s1ap.ERABToBeSetupItemHOReq{
 			ERABID:                s1ap.ERABID(p.Ebi),
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
@@ -38,13 +38,15 @@ func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, cand
 				QCI: s1ap.QCI(p.Qci),
 				ARP: BearerARP(p.Arp),
 			},
-			// Keeps the target eNB from allocating forwarding tunnels
-			// (TS 36.413 §8.4.2.2): the HANDOVER COMMAND names no forwarding
-			// endpoint.
-			Extensions: &s1ap.ERABToBeSetupItemHOReqExtIEs{
+		}
+
+		if !forwarding {
+			bearer.Extensions = &s1ap.ERABToBeSetupItemHOReqExtIEs{
 				DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
-			},
-		})
+			}
+		}
+
+		bearers = append(bearers, bearer)
 	}
 
 	return bearers, candidates, len(bearers) > 0

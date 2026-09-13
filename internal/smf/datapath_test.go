@@ -93,15 +93,15 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 	}
 }
 
-func TestRules_UplinkOuterHeaderRemovalFollowsTheEndpoint(t *testing.T) {
+func TestRules_UplinkOuterHeaderRemovalIsFamilyAgnostic(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		an   AnchorBinding
-		want uint8
 	}{
-		{"unbound", AnchorBinding{}, models.OuterHeaderRemovalGtpUUdpIpv4},
-		{"IPv4 endpoint", AnchorBinding{IPv4: net.ParseIP("10.0.0.1")}, models.OuterHeaderRemovalGtpUUdpIpv4},
-		{"IPv6 endpoint", AnchorBinding{IPv6: net.ParseIP("2001:db8::1")}, models.OuterHeaderRemovalGtpUUdpIpv6},
+		{"unbound", AnchorBinding{}},
+		{"IPv4 endpoint", AnchorBinding{IPv4: net.ParseIP("10.0.0.1")}},
+		{"IPv6 endpoint", AnchorBinding{IPv6: net.ParseIP("2001:db8::1")}},
+		{"dual-stack endpoint", AnchorBinding{IPv4: net.ParseIP("10.0.0.1"), IPv6: net.ParseIP("2001:db8::1")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pdrs, _, _, _ := dataPlane{AN: tc.an}.rules()
@@ -110,8 +110,9 @@ func TestRules_UplinkOuterHeaderRemovalFollowsTheEndpoint(t *testing.T) {
 				t.Fatal("the uplink PDR carries no outer header removal")
 			}
 
-			if got := *pdrs[0].OuterHeaderRemoval; got != tc.want {
-				t.Errorf("outer header removal = %d, want %d", got, tc.want)
+			if got := *pdrs[0].OuterHeaderRemoval; got != models.OuterHeaderRemovalGtpUUdpIP {
+				t.Errorf("outer header removal = %d, want %d: the UPF advertises one F-TEID over both N3 families, so the uplink family is the gNB's choice, not the SMF's to guess (TS 29.244 Table 8.2.64-1 NOTE 4)",
+					got, models.OuterHeaderRemovalGtpUUdpIP)
 			}
 		})
 	}

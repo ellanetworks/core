@@ -59,7 +59,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 }
 
 func TestBuildHandoverRequestTransfer_NilAmbr(t *testing.T) {
-	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
+	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
 	if err == nil {
 		t.Fatal("expected error for nil ambr")
 	}
@@ -178,7 +178,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
 }
 
 func TestBuildHandoverCommandTransfer(t *testing.T) {
-	buf, err := ngap.BuildHandoverCommandTransfer()
+	buf, err := ngap.BuildHandoverCommandTransfer(nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestBuildHandoverRequestTransferCarriesTheERABID(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
 	ebi := uint8(5)
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, &ebi)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, &ebi, false)
 	if err != nil {
 		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestBuildHandoverRequestTransferOmitsTheERABIDWithoutABearer(t *testing.T) 
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
 	if err != nil {
 		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
 	}
@@ -388,5 +388,146 @@ func TestBuildHandoverRequestTransferOmitsTheERABIDWithoutABearer(t *testing.T) 
 
 	if transfer.QosFlowSetupRequest[0].ERABID != nil {
 		t.Error("an intra-5GS handover carried an E-RAB ID")
+	}
+}
+
+func TestBuildHandoverRequestTransferWithDirectForwarding(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
+	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
+
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, true)
+	if err != nil {
+		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
+	}
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if transfer.DataForwardingNotPossible != nil {
+		t.Error("Data Forwarding Not Possible was set despite a direct forwarding path")
+	}
+
+	if transfer.DirectForwardingPathAvailability == nil {
+		t.Fatal("Direct Forwarding Path Availability: got absent, want present")
+	}
+
+	if *transfer.DirectForwardingPathAvailability != libngap.DirectForwardingPathAvailable {
+		t.Errorf("Direct Forwarding Path Availability = %d, want %d",
+			*transfer.DirectForwardingPathAvailability, libngap.DirectForwardingPathAvailable)
+	}
+}
+
+func TestForwardingPlanFromRelaysTheTargetsEndpoints(t *testing.T) {
+	fwd := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 9}, GTPTEID: 0xfeed,
+	}}
+
+	ack := &libngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		DLForwardingUPTNLInformation: &fwd,
+		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{
+			{QosFlowIdentifier: 1, DataForwardingAccepted: libngap.Ptr(libngap.DataForwardingAcceptedTrue)},
+			{QosFlowIdentifier: 2},
+		},
+		DataForwardingResponseDRB: libngap.DataForwardingResponseDRBList{
+			{DRBID: 1, DLForwardingUPTNLInformation: &fwd},
+		},
+	}
+
+	plan := ngap.ForwardingPlanFrom(ack)
+
+	if !plan.Forwards() {
+		t.Fatal("plan reports nothing offered")
+	}
+
+	if plan.DLForwardingUPTNLInformation != &fwd {
+		t.Error("the session's DL forwarding endpoint was not relayed")
+	}
+
+	if len(plan.QosFlowToBeForwarded) != 1 || plan.QosFlowToBeForwarded[0].QosFlowIdentifier != 1 {
+		t.Errorf("QoS flows to be forwarded = %+v, want only the accepted flow 1", plan.QosFlowToBeForwarded)
+	}
+
+	if len(plan.DataForwardingResponseDRB) != 1 {
+		t.Errorf("DRB forwarding list has %d items, want 1", len(plan.DataForwardingResponseDRB))
+	}
+
+	buf, err := ngap.BuildHandoverCommandTransfer(plan)
+	if err != nil {
+		t.Fatalf("BuildHandoverCommandTransfer: %v", err)
+	}
+
+	cmd, err := libngap.ParseHandoverCommandTransfer(buf)
+	if err != nil {
+		t.Fatalf("parse handover command transfer: %v", err)
+	}
+
+	if cmd.DLForwardingUPTNLInformation == nil || cmd.DLForwardingUPTNLInformation.GTPTunnel.GTPTEID != 0xfeed {
+		t.Errorf("HandoverCommandTransfer DL forwarding endpoint = %+v, want TEID 0xfeed", cmd.DLForwardingUPTNLInformation)
+	}
+
+	if len(cmd.QosFlowToBeForwarded) != 1 || len(cmd.DataForwardingResponseDRB) != 1 {
+		t.Errorf("HandoverCommandTransfer lists = %+v / %+v, want one each", cmd.QosFlowToBeForwarded, cmd.DataForwardingResponseDRB)
+	}
+}
+
+func TestForwardingPlanFromWithoutAcceptedForwarding(t *testing.T) {
+	ack := &libngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+	}
+
+	if ngap.ForwardingPlanFrom(ack).Forwards() {
+		t.Error("a target that accepted no forwarding should offer nothing")
+	}
+
+	if ngap.ForwardingPlanFrom(nil).Forwards() {
+		t.Error("a nil acknowledge should offer nothing")
+	}
+}
+
+func TestForwardingPlanFromDropsUnusableForwardingEndpoints(t *testing.T) {
+	bad := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 9, 7}, GTPTEID: 0xfeed,
+	}}
+	good := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 4}, GTPTEID: 0xbeef,
+	}}
+
+	ack := &libngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		DLForwardingUPTNLInformation: &bad,
+		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{
+			{QosFlowIdentifier: 1, DataForwardingAccepted: libngap.Ptr(libngap.DataForwardingAcceptedTrue)},
+		},
+		DataForwardingResponseDRB: libngap.DataForwardingResponseDRBList{
+			{DRBID: 1, DLForwardingUPTNLInformation: &bad, ULForwardingUPTNLInformation: &good},
+			{DRBID: 2, DLForwardingUPTNLInformation: &bad},
+		},
+	}
+
+	plan := ngap.ForwardingPlanFrom(ack)
+
+	if plan.DLForwardingUPTNLInformation != nil {
+		t.Error("relayed a session DL forwarding endpoint the source gNB cannot reach: TS 38.413 §8.4.1.2 has the source NG-RAN node read its presence as the target accepting downlink forwarding")
+	}
+
+	if len(plan.DataForwardingResponseDRB) != 1 {
+		t.Fatalf("DRB forwarding list has %d items, want 1: the DRB with no usable direction left should be dropped", len(plan.DataForwardingResponseDRB))
+	}
+
+	drb := plan.DataForwardingResponseDRB[0]
+	if drb.DRBID != 1 {
+		t.Errorf("surviving DRB = %d, want 1", drb.DRBID)
+	}
+
+	if drb.DLForwardingUPTNLInformation != nil {
+		t.Error("relayed a DRB DL forwarding endpoint the source gNB cannot reach")
+	}
+
+	if drb.ULForwardingUPTNLInformation == nil || drb.ULForwardingUPTNLInformation.GTPTunnel.GTPTEID != 0xbeef {
+		t.Errorf("DRB UL forwarding endpoint = %+v, want the usable one kept", drb.ULForwardingUPTNLInformation)
 	}
 }

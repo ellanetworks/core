@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
+	smfNgap "github.com/ellanetworks/core/internal/smf/ngap"
 )
 
 // One SEID, not the local/remote pair PFCP defines for two nodes (TS 29.244
@@ -83,7 +84,9 @@ type SMContext struct {
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
-	handoverTargetAN *AnchorBinding
+	handoverTargetAN       *AnchorBinding
+	handoverForwarding     bool
+	handoverForwardingPlan *smfNgap.ForwardingPlan
 
 	pending *pendingTransfer
 

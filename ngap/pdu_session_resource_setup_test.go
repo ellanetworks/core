@@ -382,3 +382,63 @@ func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 		t.Errorf("diagnostics = %+v, want one missing entry for UL-NGU-UP-TNLInformation", ase.IEs)
 	}
 }
+
+func TestPDUSessionResourceSetupRequestTransferDirectForwardingPathAvailability(t *testing.T) {
+	in := PDUSessionResourceSetupRequestTransfer{
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		}},
+		PDUSessionType: PDUSessionTypeIPv4,
+		QosFlowSetupRequest: QosFlowSetupRequestList{{
+			QosFlowIdentifier: 1,
+			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
+				QosCharacteristics:             QosCharacteristics{Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9}},
+				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
+			},
+		}},
+		DirectForwardingPathAvailability: Ptr(DirectForwardingPathAvailable),
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePDUSessionResourceSetupRequestTransfer(b)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if out.DirectForwardingPathAvailability == nil {
+		t.Fatal("Direct Forwarding Path Availability did not survive the round trip")
+	}
+
+	if *out.DirectForwardingPathAvailability != DirectForwardingPathAvailable {
+		t.Errorf("Direct Forwarding Path Availability = %d, want %d",
+			*out.DirectForwardingPathAvailability, DirectForwardingPathAvailable)
+	}
+
+	if len(out.UnknownIEs()) != 0 {
+		t.Errorf("round trip left %d unmodelled IEs", len(out.UnknownIEs()))
+	}
+
+	in.DirectForwardingPathAvailability = nil
+
+	absent, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(absent) >= len(b) {
+		t.Errorf("omitting the IE did not shorten the transfer: %d vs %d bytes", len(absent), len(b))
+	}
+
+	reparsed, err := ParsePDUSessionResourceSetupRequestTransfer(absent)
+	if err != nil {
+		t.Fatalf("parse without the IE: %v", err)
+	}
+
+	if reparsed.DirectForwardingPathAvailability != nil {
+		t.Error("Direct Forwarding Path Availability appeared when it was not encoded")
+	}
+}

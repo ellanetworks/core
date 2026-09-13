@@ -76,6 +76,7 @@ func (bpfObjects *BpfObjects) addOccupancy(name string, delta int) {
 type MapUsage struct {
 	Entries    int
 	MaxEntries uint32
+	Bytes      uint64
 }
 
 func (bpfObjects *BpfObjects) MapUsage() map[string]MapUsage {
@@ -104,7 +105,13 @@ func (bpfObjects *BpfObjects) MapUsage() map[string]MapUsage {
 			continue
 		}
 
-		out[name] = MapUsage{Entries: occupancy[name], MaxEntries: maxEntries}
+		var memlock uint64
+
+		if info, err := m.Info(); err == nil {
+			memlock, _ = info.Memlock()
+		}
+
+		out[name] = MapUsage{Entries: occupancy[name], MaxEntries: maxEntries, Bytes: memlock}
 	}
 
 	return out

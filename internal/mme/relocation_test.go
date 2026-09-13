@@ -172,16 +172,16 @@ func (r *relocationTarget) admit(t *testing.T, req *s1ap.HandoverRequest, refuse
 		t.Fatal("the acknowledge did not match the preparation")
 	}
 
-	unadmitted, sourceConn, _, _, ok := r.m.MarkHandoverPrepared(ue, req.MMEUES1APID, r.conn, admitted)
+	prep, ok := r.m.MarkHandoverPrepared(ue, req.MMEUES1APID, r.conn, admitted)
 	if !ok {
 		t.Fatal("MarkHandoverPrepared refused the acknowledge")
 	}
 
-	if sourceConn != nil {
+	if prep.SourceConn != nil {
 		t.Fatal("a handover out of 5GS must report no source eNB")
 	}
 
-	r.m.FinishRelocationPreparation(ue, []byte{0x01, 0x02}, unadmitted)
+	r.m.FinishRelocationPreparation(ue, []byte{0x01, 0x02}, prep.Unadmitted)
 }
 
 func TestForwardRelocationHandsTheTargetENBTheMappedKeyChain(t *testing.T) {

@@ -19,6 +19,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// gtpEndMarker is the GTP-U End Marker message type (TS 29.281 §7.3.2).
+const gtpEndMarker = 0xfe
+
 const (
 	gtpHeaderLen int    = 16
 	gtpExtLen    uint16 = 8
@@ -252,11 +255,23 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 			continue
 		}
 
-		if buf[0]&0x30 != 0x30 || buf[1] != 0xFF {
-			continue // not a T-PDU
+		if buf[0]&0x30 != 0x30 {
+			continue
 		}
 
 		teid := binary.BigEndian.Uint32(buf[4:8])
+
+		if buf[1] == gtpEndMarker {
+			g.mu.Lock()
+			g.endMarkers[teid]++
+			g.mu.Unlock()
+
+			continue
+		}
+
+		if buf[1] != 0xFF {
+			continue // not a T-PDU
+		}
 
 		g.mu.Lock()
 
@@ -481,4 +496,11 @@ func WaitForULAAddr(ifName string, prefix string, timeout time.Duration) error {
 	}
 
 	return fmt.Errorf("timeout waiting for ULA address on %s (prefix %s)", ifName, prefix)
+}
+
+func (g *GnodeB) EndMarkerCount(teid uint32) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.endMarkers[teid]
 }

@@ -17,7 +17,7 @@ func (e *ENB) GlobalENBID() s1ap.GlobalENBID {
 	}
 }
 
-func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENBID) error {
+func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENBID, directForwarding bool) error {
 	req := &s1ap.HandoverRequired{
 		MMEUES1APID:    s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID:    s1ap.ENBUES1APID(enbUEID),
@@ -25,6 +25,10 @@ func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENB
 		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reason
 		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: target, SelectedTAI: e.tai()}},
 		SourceToTarget: s1ap.TransparentContainer{0x00},
+	}
+
+	if directForwarding {
+		req.DirectForwardingPathAvailability = s1ap.Ptr(s1ap.DirectForwardingPathAvailable)
 	}
 
 	b, err := req.Marshal()
@@ -97,7 +101,7 @@ func (e *ENB) SendHandoverRequestAcknowledgePartial(targetENBUEID, mmeUEID int64
 	return teids, nil
 }
 
-func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabID s1ap.ERABID) (dlTEID uint32, err error) {
+func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabID s1ap.ERABID, forwarding bool) (dlTEID, dlForwardingTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {
 		addr = e.n3Addr.To16()
@@ -105,27 +109,35 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 
 	dlTEID = e.allocTEID()
 
+	item := s1ap.ERABAdmittedItem{
+		ERABID:                erabID,
+		TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+		GTPTEID:               s1ap.GTPTEID(dlTEID),
+	}
+
+	if forwarding {
+		dlForwardingTEID = e.allocTEID()
+		item.DLTransportLayerAddr = s1ap.TransportLayerAddress(addr)
+		item.DLGTPTEID = s1ap.Ptr(s1ap.GTPTEID(dlForwardingTEID))
+	}
+
 	ack := &s1ap.HandoverRequestAcknowledge{
-		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
-		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(targetENBUEID)),
-		ERABAdmitted: []s1ap.ERABAdmittedItem{{
-			ERABID:                erabID,
-			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
-			GTPTEID:               s1ap.GTPTEID(dlTEID),
-		}},
+		MMEUES1APID:    s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
+		ENBUES1APID:    s1ap.Ptr(s1ap.ENBUES1APID(targetENBUEID)),
+		ERABAdmitted:   []s1ap.ERABAdmittedItem{item},
 		TargetToSource: s1ap.TransparentContainer{0x00},
 	}
 
 	b, err := ack.Marshal()
 	if err != nil {
-		return 0, fmt.Errorf("s1enb: build Handover Request Acknowledge: %w", err)
+		return 0, 0, fmt.Errorf("s1enb: build Handover Request Acknowledge: %w", err)
 	}
 
 	if err := e.SendMessage(b, true); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	return dlTEID, nil
+	return dlTEID, dlForwardingTEID, nil
 }
 
 func (e *ENB) WaitForHandoverCommand(enbUEID int64, timeout time.Duration) (*s1ap.HandoverCommand, error) {

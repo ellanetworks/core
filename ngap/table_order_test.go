@@ -75,7 +75,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 
 		// The §9.3.4 transfer containers reuse the ProtocolIE-Container shape, so
 		// their rows are ordered by the same rule.
-		{"PDUSessionResourceSetupRequestTransfer", tableIDs(pDUSessionResourceSetupRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLInformation, IDAdditionalULNGUUPTNLInformation, IDDataForwardingNotPossible, IDPDUSessionType, IDSecurityIndication, IDNetworkInstance, IDQosFlowSetupRequestList}},
+		{"PDUSessionResourceSetupRequestTransfer", tableIDs(pDUSessionResourceSetupRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLInformation, IDAdditionalULNGUUPTNLInformation, IDDataForwardingNotPossible, IDPDUSessionType, IDSecurityIndication, IDNetworkInstance, IDQosFlowSetupRequestList, IDDirectForwardingPathAvailability}},
 		{"PDUSessionResourceModifyRequestTransfer", tableIDs(pDUSessionResourceModifyRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLModifyList, IDNetworkInstance, IDQosFlowAddOrModifyRequestList, IDQosFlowToReleaseList, IDAdditionalULNGUUPTNLInformation}},
 	}
 
