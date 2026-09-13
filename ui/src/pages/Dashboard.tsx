@@ -62,8 +62,8 @@ const formatNumber = (n: number | null | undefined) =>
 
 type ParsedMetrics = {
   pduSessions: number | null;
-  heapMemoryBytes: number | null;
-  totalMemoryBytes: number | null;
+  datapathMemoryBytes: number | null;
+  processMemoryBytes: number | null;
   databaseSizeBytes: number | null;
   routines: number | null;
   allocatedIPs: number | null;
@@ -94,8 +94,8 @@ const parseMetrics = (raw: string): ParsedMetrics => {
 
   return {
     pduSessions: sumByPrefix("app_sessions_total{"),
-    heapMemoryBytes: g("go_memstats_heap_inuse_bytes "),
-    totalMemoryBytes: g("process_resident_memory_bytes "),
+    datapathMemoryBytes: sumByPrefix("app_upf_bpf_map_memory_bytes{"),
+    processMemoryBytes: g("process_resident_memory_bytes "),
     databaseSizeBytes: g("app_database_storage_bytes "),
     routines: g("go_goroutines "),
     allocatedIPs:
@@ -281,8 +281,8 @@ const Dashboard = () => {
   const statusLoading = statusQuery.isLoading;
 
   const activeSessions = m?.pduSessions ?? null;
-  const heapMemory = m?.heapMemoryBytes ?? null;
-  const totalMemory = m?.totalMemoryBytes ?? null;
+  const datapathMemory = m?.datapathMemoryBytes ?? null;
+  const processMemory = m?.processMemoryBytes ?? null;
   const databaseSize = m?.databaseSizeBytes ?? null;
   const routines = m?.routines ?? null;
   const allocatedIPs = m?.allocatedIPs ?? null;
@@ -800,27 +800,30 @@ const Dashboard = () => {
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Tooltip
-            title="Memory allocated on the heap for the application"
+            title="Kernel memory held by the eBPF data plane packet-processing tables."
             arrow
           >
             <Box>
               <KpiCard
-                title="Heap Memory"
+                title="Datapath Memory"
                 loading={metricsLoading}
                 error={!!metricsQuery.error}
-                value={formatMemory(heapMemory)}
+                value={formatMemory(datapathMemory)}
               />
             </Box>
           </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip title="Total physical RAM used by the core process" arrow>
+          <Tooltip
+            title="Total RAM used by the core process, including program code and runtime overhead."
+            arrow
+          >
             <Box>
               <KpiCard
-                title="Total Memory"
+                title="Process Memory"
                 loading={metricsLoading}
                 error={!!metricsQuery.error}
-                value={formatMemory(totalMemory)}
+                value={formatMemory(processMemory)}
               />
             </Box>
           </Tooltip>

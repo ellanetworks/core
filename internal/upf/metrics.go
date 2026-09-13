@@ -88,6 +88,13 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	mapMemoryDesc := prometheus.NewDesc(
+		"app_upf_bpf_map_memory_bytes",
+		"Kernel memory locked by a data plane BPF map, as reported by its memlock accounting. This memory is held by the kernel and is not part of the core process resident set.",
+		[]string{"map"},
+		nil,
+	)
+
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
 		for name, usage := range bpfObjects.MapUsage() {
 			ch <- prometheus.MustNewConstMetric(mapEntriesDesc, prometheus.GaugeValue,
@@ -95,6 +102,9 @@ func RegisterMetrics() {
 
 			ch <- prometheus.MustNewConstMetric(mapMaxEntriesDesc, prometheus.GaugeValue,
 				float64(usage.MaxEntries), name)
+
+			ch <- prometheus.MustNewConstMetric(mapMemoryDesc, prometheus.GaugeValue,
+				float64(usage.Bytes), name)
 		}
 	}))
 
