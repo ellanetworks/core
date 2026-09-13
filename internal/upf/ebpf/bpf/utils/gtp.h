@@ -198,16 +198,18 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	/* A frame whose outer family disagrees with the session's would be
-	 * stripped by the wrong amount, landing the parse inside the inner
-	 * packet. */
-	const __u8 pdr_expects_ipv6 = outer_header_removal ==
-				      OHR_GTP_U_UDP_IPv6;
-	if (pdr_expects_ipv6 != (ctx->ip6 != NULL)) {
-		upf_printk(
-			"upf: remove_gtp_header: outer family disagrees with pdr");
-		set_drop_reason(ctx, UPF_DROP_DECAP_FAMILY_MISMATCH);
-		return -1;
+	/* A frame whose outer family disagrees with the one the CP pinned is
+	 * not this session's. OHR_GTP_U_UDP_IP pins neither (TS 29.244
+	 * Table 8.2.64-1 NOTE 4), so it accepts both. */
+	if (outer_header_removal != OHR_GTP_U_UDP_IP) {
+		const __u8 pdr_expects_ipv6 = outer_header_removal ==
+					      OHR_GTP_U_UDP_IPv6;
+		if (pdr_expects_ipv6 != (ctx->ip6 != NULL)) {
+			upf_printk(
+				"upf: remove_gtp_header: outer family disagrees with pdr");
+			set_drop_reason(ctx, UPF_DROP_DECAP_FAMILY_MISMATCH);
+			return -1;
+		}
 	}
 
 	const __u32 gtp_encap_size_no_vlan = gtp_decap_size_no_vlan(ctx);

@@ -60,7 +60,17 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 			continue
 		}
 
-		admitted = append(admitted, mme.AdmittedERAB{Ebi: uint8(it.ERABID), EnbFTEID: models.FTEID{TEID: uint32(it.GTPTEID), Addr: addr}})
+		dlAddr, dlTEID := forwardingPair(it.DLTransportLayerAddr, it.DLGTPTEID)
+		ulAddr, ulTEID := forwardingPair(it.ULTransportLayerAddr, it.ULGTPTEID)
+
+		admitted = append(admitted, mme.AdmittedERAB{
+			Ebi:              uint8(it.ERABID),
+			EnbFTEID:         models.FTEID{TEID: uint32(it.GTPTEID), Addr: addr},
+			DLForwardingAddr: dlAddr,
+			DLForwardingTEID: dlTEID,
+			ULForwardingAddr: ulAddr,
+			ULForwardingTEID: ulTEID,
+		})
 	}
 
 	targetCauses := failedERABCauses(ack.ERABFailedToSetup)
@@ -74,27 +84,33 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	unadmitted, sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
+	prep, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
 	if !ok {
 		return
 	}
 
-	if sourceConn == nil {
+	if prep.SourceConn == nil {
 		logger.From(ctx, logger.MmeLog).Info("Forward Relocation Response",
 			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)),
 			zap.Int("admitted", len(admitted)),
-			zap.Int("not-admitted", len(unadmitted)))
-		m.FinishRelocationPreparation(ue, ack.TargetToSource, unadmitted)
+			zap.Int("not-admitted", len(prep.Unadmitted)))
+		m.FinishRelocationPreparation(ue, ack.TargetToSource, prep.Unadmitted)
 
 		return
 	}
 
+	var forwarding []s1ap.ERABDataForwardingItem
+	if prep.Forwarding {
+		forwarding = forwardingItems(admitted)
+	}
+
 	cmd := &s1ap.HandoverCommand{
-		MMEUES1APID:    sourceMMEID,
-		ENBUES1APID:    sourceENBID,
-		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		ERABToRelease:  releaseItems(unadmitted, targetCauses),
-		TargetToSource: ack.TargetToSource,
+		MMEUES1APID:                 prep.SourceMMEID,
+		ENBUES1APID:                 prep.SourceENBID,
+		HandoverType:                s1ap.HandoverTypeIntraLTE,
+		ERABSubjecttoDataForwarding: forwarding,
+		ERABToRelease:               releaseItems(prep.Unadmitted, targetCauses),
+		TargetToSource:              ack.TargetToSource,
 	}
 
 	b, err := cmd.Marshal()
@@ -104,10 +120,11 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Command",
-		zap.Uint32("mme_ue_s1ap_id", uint32(sourceMMEID)),
+		zap.Uint32("mme_ue_s1ap_id", uint32(prep.SourceMMEID)),
 		zap.Int("admitted", len(admitted)),
-		zap.Int("released", len(unadmitted)))
-	m.SendToRadio(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
+		zap.Int("released", len(prep.Unadmitted)),
+		zap.Bool("data-forwarding", len(forwarding) > 0))
+	m.SendToRadio(ctx, prep.SourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
 func failedERABCauses(failed []s1ap.ERABItem) map[uint8]s1ap.Cause {
@@ -143,4 +160,36 @@ func releaseItems(unadmitted []mme.HandoverCandidate, targetCauses map[uint8]s1a
 	}
 
 	return out
+}
+
+func forwardingItems(admitted []mme.AdmittedERAB) []s1ap.ERABDataForwardingItem {
+	out := make([]s1ap.ERABDataForwardingItem, 0, len(admitted))
+
+	for _, a := range admitted {
+		if !a.Forwards() {
+			continue
+		}
+
+		out = append(out, s1ap.ERABDataForwardingItem{
+			ERABID:               s1ap.ERABID(a.Ebi),
+			DLTransportLayerAddr: a.DLForwardingAddr,
+			DLGTPTEID:            a.DLForwardingTEID,
+			ULTransportLayerAddr: a.ULForwardingAddr,
+			ULGTPTEID:            a.ULForwardingTEID,
+		})
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
+func forwardingPair(addr s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) (s1ap.TransportLayerAddress, *s1ap.GTPTEID) {
+	if !addr.Valid() || teid == nil {
+		return nil, nil
+	}
+
+	return addr, teid
 }

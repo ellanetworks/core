@@ -256,6 +256,10 @@ func (u *UPF) Close(ctx context.Context) {
 			}
 		}
 
+		if err := u.se.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to close session engine sockets", zap.Error(err))
+		}
+
 		if u.n6Link != nil {
 			if err := (*u.n6Link).Close(); err != nil {
 				logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))

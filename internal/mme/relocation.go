@@ -119,7 +119,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 		return none, err
 	}
 
-	bearers, candidates, ok := HandoverBearers(ue)
+	bearers, candidates, ok := HandoverBearers(ue, false)
 	if !ok {
 		return none, ErrNoRelocatablePDN
 	}

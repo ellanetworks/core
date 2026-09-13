@@ -377,7 +377,8 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 
 	if (outer_header_removal == OHR_GTP_U_UDP_IPv4 ||
-	    outer_header_removal == OHR_GTP_U_UDP_IPv6) {
+	    outer_header_removal == OHR_GTP_U_UDP_IPv6 ||
+	    outer_header_removal == OHR_GTP_U_UDP_IP) {
 		long result = remove_gtp_header(ctx, outer_header_removal);
 		if (result) {
 			PROFILE_END(PROF_N3_GTP_MANIP);

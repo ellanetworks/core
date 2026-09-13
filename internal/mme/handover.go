@@ -29,6 +29,20 @@ const (
 type AdmittedERAB struct {
 	Ebi      uint8
 	EnbFTEID models.FTEID
+
+	DLForwardingAddr s1ap.TransportLayerAddress
+	DLForwardingTEID *s1ap.GTPTEID
+	ULForwardingAddr s1ap.TransportLayerAddress
+	ULForwardingTEID *s1ap.GTPTEID
+}
+
+func (a AdmittedERAB) Forwards() bool {
+	return validForwardingPair(a.DLForwardingAddr, a.DLForwardingTEID) ||
+		validForwardingPair(a.ULForwardingAddr, a.ULForwardingTEID)
+}
+
+func validForwardingPair(addr s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) bool {
+	return addr.Valid() && teid != nil
 }
 
 type HandoverCandidate struct {
@@ -43,6 +57,7 @@ type handoverContext struct {
 	candidates   []HandoverCandidate
 	admitted     []AdmittedERAB
 	relocation   chan relocationOutcome
+	forwarding   bool
 	toFiveGS     bool
 	relocationID interworking.RelocationID
 }
@@ -55,7 +70,7 @@ type relocationOutcome struct {
 
 var ErrRelocationAbandoned = errors.New("mme: handover preparation abandoned")
 
-func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
+func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate, forwarding bool) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
@@ -100,6 +115,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		source:     ue.Conn(),
 		target:     targetConn,
 		candidates: candidates,
+		forwarding: forwarding,
 	}
 	ue.handover = ho
 
@@ -289,14 +305,24 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 	return true
 }
 
-func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (unadmitted []HandoverCandidate, sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
+type HandoverPreparation struct {
+	Unadmitted  []HandoverCandidate
+	Forwarding  bool
+	SourceConn  S1APWriter
+	SourceMMEID s1ap.MMEUES1APID
+	SourceENBID s1ap.ENBUES1APID
+}
+
+func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (prep HandoverPreparation, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoPreparing || !ho.targetIs(ackMMEID, conn) {
-		return nil, nil, 0, 0, false
+		return HandoverPreparation{}, false
 	}
+
+	var unadmitted []HandoverCandidate
 
 	admittedSet := make(map[uint8]struct{}, len(admitted))
 	for _, a := range admitted {
@@ -321,11 +347,15 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 	ho.admitted = admitted
 	ho.state = hoPrepared
 
+	prep = HandoverPreparation{Unadmitted: unadmitted, Forwarding: ho.forwarding}
+
 	if ho.source == nil {
-		return unadmitted, nil, 0, 0, true
+		return prep, true
 	}
 
-	return unadmitted, ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID, true
+	prep.SourceConn, prep.SourceMMEID, prep.SourceENBID = ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID
+
+	return prep, true
 }
 
 // HandoverTargetMatches reports whether an in-flight handover's target association

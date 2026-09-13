@@ -96,8 +96,9 @@ type ENB struct {
 	tac       uint16
 	n3Addr    net.IP // eNB S1-U endpoint reported in bearer setup
 
-	n3Conn  *net.UDPConn       // S1-U (GTP-U) socket, nil when no N3 address is configured
-	tunnels map[uint32]*tunnel // keyed by eNB downlink TEID
+	n3Conn     *net.UDPConn       // S1-U (GTP-U) socket, nil when no N3 address is configured
+	tunnels    map[uint32]*tunnel // keyed by eNB downlink TEID
+	endMarkers map[uint32]int     // End Markers seen per downlink TEID
 
 	mu             sync.Mutex
 	cond           *sync.Cond
@@ -195,6 +196,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 		tac:               tac,
 		n3Addr:            n3IP,
 		tunnels:           make(map[uint32]*tunnel),
+		endMarkers:        make(map[uint32]int),
 		receivedFrames:    make(map[Category]map[s1ap.ProcedureCode][]Frame),
 		nextENBUEID:       1,
 		nextTEID:          1,

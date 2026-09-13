@@ -22,13 +22,17 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	return marshalPDUSessionResourceSetupRequestTransfer(transfer)
 }
 
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8) ([]byte, error) {
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding bool) ([]byte, error) {
 	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType)
 	if err != nil {
 		return nil, err
 	}
 
-	transfer.DataForwardingNotPossible = libngap.Ptr(libngap.DataForwardingNotPossibleTrue)
+	if forwarding {
+		transfer.DirectForwardingPathAvailability = libngap.Ptr(libngap.DirectForwardingPathAvailable)
+	} else {
+		transfer.DataForwardingNotPossible = libngap.Ptr(libngap.DataForwardingNotPossibleTrue)
+	}
 
 	if erabID != nil {
 		if *erabID > 15 {

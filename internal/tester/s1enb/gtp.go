@@ -23,6 +23,9 @@ const (
 	// gtpHeaderLen is the GTPv1-U header length for a plain G-PDU with no optional
 	// sequence/N-PDU/extension fields.
 	gtpHeaderLen = 8
+
+	// gtpEndMarker is the GTP-U End Marker message type (TS 29.281 §7.3.2).
+	gtpEndMarker = 0xfe
 )
 
 // tunnel is a UE bearer's GTP-U datapath: a TUN interface bridged to the S1-U
@@ -305,6 +308,13 @@ func (e *ENB) tunToGTP(t *tunnel) {
 	}
 }
 
+func (e *ENB) EndMarkerCount(teid uint32) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.endMarkers[teid]
+}
+
 func (e *ENB) gtpReader() {
 	buf := make([]byte, 2000)
 
@@ -314,11 +324,23 @@ func (e *ENB) gtpReader() {
 			return
 		}
 
-		if n < gtpHeaderLen || buf[0]&0x30 != 0x30 || buf[1] != 0xff {
+		if n < gtpHeaderLen || buf[0]&0x30 != 0x30 {
 			continue
 		}
 
 		teid := binary.BigEndian.Uint32(buf[4:8])
+
+		if buf[1] == gtpEndMarker {
+			e.mu.Lock()
+			e.endMarkers[teid]++
+			e.mu.Unlock()
+
+			continue
+		}
+
+		if buf[1] != 0xff {
+			continue
+		}
 
 		e.mu.Lock()
 		t := e.tunnels[teid]

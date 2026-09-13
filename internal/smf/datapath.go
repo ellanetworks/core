@@ -51,10 +51,7 @@ func (d dataPlane) valid() error {
 }
 
 func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.QER, urrs []models.URR) {
-	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-	if d.AN.IPv6 != nil {
-		ohr = models.OuterHeaderRemovalGtpUUdpIpv6
-	}
+	ohr := models.OuterHeaderRemovalGtpUUdpIP
 
 	pdrs = []models.PDR{{
 		PDRID:              pdrIDUplink,

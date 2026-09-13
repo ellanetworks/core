@@ -229,6 +229,10 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		return fmt.Errorf("source gNB: wait UEContextReleaseCommand: %w", err)
 	}
 
+	if err := awaitEndMarker(func() int { return sourceGNB.EndMarkerCount(session.DLTEID) }, "source gNB's old N3 tunnel"); err != nil {
+		return err
+	}
+
 	sourceGNB.CloseTunnel(session.DLTEID)
 
 	err = targetGNB.AddTunnel(&gnb.TunnelOpts{
@@ -257,4 +261,18 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	logger.Logger.Info("Ping successful after N2 handover", zap.String("dest", pingDest))
 
 	return nil
+}
+
+func awaitEndMarker(count func() int, tunnel string) error {
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		if count() > 0 {
+			return nil
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return fmt.Errorf("no GTP-U End Marker arrived on the %s after the path switch, so a forwarding tunnel behind it is never released", tunnel)
 }

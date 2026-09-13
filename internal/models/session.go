@@ -150,6 +150,7 @@ const (
 	OuterHeaderCreationGtpUUdpIpv6 uint16 = 512
 	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
 	OuterHeaderRemovalGtpUUdpIpv6  uint8  = 1
+	OuterHeaderRemovalGtpUUdpIP    uint8  = 6
 )
 
 // QER describes a QoS Enforcement Rule for the UPF session API.
@@ -189,6 +190,8 @@ type ModifyRequest struct {
 	UpdatePDRs []PDR
 	UpdateFARs []FAR
 	UpdateQERs []QER
+
+	SendEndMarkers bool
 }
 
 // DeleteRequest asks the UPF to delete a session by its SEID.

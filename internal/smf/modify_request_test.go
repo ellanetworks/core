@@ -114,7 +114,7 @@ func TestIdleTransferModificationBuffersTheDownlink(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 buff+nocp ohc=none] qers=[id=1 qfi=1]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 buff+nocp ohc=none] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("idle transfer modification:\n got %s\nwant %s", got, want)
 	}
@@ -154,7 +154,7 @@ func TestEPSBindModificationAimsTheDownlinkAtTheENB(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="eps-policy" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[id=1 qfi=0]`
+	const want = `policy="eps-policy" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[id=1 qfi=0]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("EPS downlink bind modification:\n got %s\nwant %s", got, want)
 	}
@@ -184,7 +184,7 @@ func TestNGRANBindModificationAimsTheDownlinkAtTheGNB(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x7001 desc=256 s1u=false] qers=[id=1 qfi=1]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x7001 desc=256 s1u=false] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("NG-RAN downlink bind modification:\n got %s\nwant %s", got, want)
 	}
@@ -223,7 +223,7 @@ func TestHandoverFromEPSModificationSwitchesTheDownlink(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x8001 desc=256 s1u=false] qers=[id=1 qfi=1]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x8001 desc=256 s1u=false] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("handover-from-EPS modification:\n got %s\nwant %s", got, want)
 	}

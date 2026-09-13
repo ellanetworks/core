@@ -66,6 +66,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 
 	next := smContext.Tunnel.dataPlane
 	next.Downlink = DownlinkBuffering
+	next.AN = AnchorBinding{}
 
 	if err := s.applyDataPlane(ctx, smContext, next, ""); err != nil {
 		// Any other failure leaves the UPF holding the session, its PDRs, its TEID

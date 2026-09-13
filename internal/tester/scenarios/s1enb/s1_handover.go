@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/s1ap"
 	"github.com/spf13/pflag"
 )
 
@@ -106,7 +107,7 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("ping before handover via source eNB: %w", err)
 	}
 
-	if err := source.SendHandoverRequired(res.ENBUES1APID, res.MMEUES1APID, target.GlobalENBID()); err != nil {
+	if err := source.SendHandoverRequired(res.ENBUES1APID, res.MMEUES1APID, target.GlobalENBID(), true); err != nil {
 		return fmt.Errorf("send Handover Required: %w", err)
 	}
 
@@ -126,13 +127,22 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 
 	targetENBUEID := target.AllocateENBUEID()
 
-	dlTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, targetMMEUEID, res.ERABID)
+	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+		return fmt.Errorf("handover request declared data forwarding not possible despite a direct forwarding path")
+	}
+
+	dlTEID, fwdTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, targetMMEUEID, res.ERABID, true)
 	if err != nil {
 		return fmt.Errorf("send Handover Request Acknowledge: %w", err)
 	}
 
-	if _, err := source.WaitForHandoverCommand(res.ENBUES1APID, 10*time.Second); err != nil {
+	cmd, err := source.WaitForHandoverCommand(res.ENBUES1APID, 10*time.Second)
+	if err != nil {
 		return fmt.Errorf("await Handover Command: %w", err)
+	}
+
+	if err := assertForwardingRelayed(cmd, res.ERABID, fwdTEID); err != nil {
+		return err
 	}
 
 	if err := source.SendENBStatusTransfer(res.MMEUES1APID, res.ENBUES1APID); err != nil {
@@ -160,6 +170,10 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("send source UE Context Release Complete: %w", err)
 	}
 
+	if err := awaitEndMarker(func() int { return source.EndMarkerCount(res.DLTEID) }, "source eNB's old S1-U tunnel"); err != nil {
+		return err
+	}
+
 	source.CloseTunnel(res.DLTEID)
 
 	targetTunnel, err := handoverTunnelOpts(env, res, dlTEID, s1hoTargetTun)
@@ -182,4 +196,39 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	return nil
+}
+
+func assertForwardingRelayed(cmd *s1ap.HandoverCommand, erabID s1ap.ERABID, fwdTEID uint32) error {
+	if len(cmd.ERABSubjecttoDataForwarding) != 1 {
+		return fmt.Errorf("handover command carried %d forwarding items, want 1", len(cmd.ERABSubjecttoDataForwarding))
+	}
+
+	item := cmd.ERABSubjecttoDataForwarding[0]
+	if item.ERABID != erabID {
+		return fmt.Errorf("forwarding item names E-RAB %d, want %d", item.ERABID, erabID)
+	}
+
+	if item.DLGTPTEID == nil || uint32(*item.DLGTPTEID) != fwdTEID {
+		return fmt.Errorf("forwarding item DL GTP-TEID = %v, want %#x", item.DLGTPTEID, fwdTEID)
+	}
+
+	if len(item.DLTransportLayerAddr) == 0 {
+		return fmt.Errorf("forwarding item carried no DL transport layer address")
+	}
+
+	return nil
+}
+
+func awaitEndMarker(count func() int, tunnel string) error {
+	deadline := time.Now().Add(10 * time.Second)
+
+	for time.Now().Before(deadline) {
+		if count() > 0 {
+			return nil
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return fmt.Errorf("no GTP-U End Marker arrived on the %s after the path switch, so a forwarding tunnel behind it is never released", tunnel)
 }

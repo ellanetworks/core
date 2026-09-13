@@ -92,10 +92,11 @@ type PDUSessionResourceSetupRequestTransfer struct {
 	SecurityIndication      *SecurityIndication    `json:"security_indication,omitempty"`
 	// AdditionalULNGUUPTNLInformation carries the further uplink endpoints a
 	// multi-homed or redundant session uses (TS 38.413 §9.3.1.1).
-	AdditionalULNGUUPTNLInformation []GTPTunnel `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
-	DataForwardingNotPossible       *bool       `json:"data_forwarding_not_possible,omitempty"`
-	NetworkInstance                 *uint16     `json:"network_instance,omitempty"`
-	UnrecognizedIEs                 []IE        `json:"unrecognized_ies,omitempty"`
+	AdditionalULNGUUPTNLInformation  []GTPTunnel `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
+	DataForwardingNotPossible        *bool       `json:"data_forwarding_not_possible,omitempty"`
+	DirectForwardingPathAvailability *bool       `json:"direct_forwarding_path_availability,omitempty"`
+	NetworkInstance                  *uint16     `json:"network_instance,omitempty"`
+	UnrecognizedIEs                  []IE        `json:"unrecognized_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {

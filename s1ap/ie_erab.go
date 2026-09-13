@@ -129,6 +129,12 @@ func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
 	return ipv4, ipv6
 }
 
+func (a TransportLayerAddress) Valid() bool {
+	ipv4, ipv6 := a.IPs()
+
+	return ipv4.IsValid() || ipv6.IsValid()
+}
+
 // GTPTEID ::= OCTET STRING (SIZE(4)).
 type GTPTEID uint32
 

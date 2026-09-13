@@ -45,7 +45,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	session.opMu.Lock()
 
-	drain, err := conn.modifySessionLocked(ctx, span, req, session)
+	drain, endMarkers, err := conn.modifySessionLocked(ctx, span, req, session)
 
 	session.opMu.Unlock()
 	conn.filterMu.RUnlock()
@@ -53,6 +53,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	if err != nil {
 		return err
 	}
+
+	conn.sendEndMarkers(endMarkers)
 
 	if drain {
 		if b := conn.downlinkBuffer(); b != nil {
@@ -66,12 +68,12 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 // modifySessionLocked applies the modification and reports whether any PDR's
 // FAR transitioned into forwarding. The caller holds filterMu (read) and
 // session.opMu.
-func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, error) {
+func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, []endMarkerTarget, error) {
 	if session.deleted {
 		err := fmt.Errorf("session %d is being deleted", req.SEID)
 		span.RecordError(err)
 
-		return false, err
+		return false, nil, err
 	}
 
 	bpfObjects := conn.BpfObjects
@@ -82,21 +84,30 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	var txn sessionTxn
 
-	fail := func(err error) (bool, error) {
+	fail := func(err error) (bool, []endMarkerTarget, error) {
 		txn.rollback(ctx)
 		session.restore(snapPDRs, snapFARs, snapQERs)
 		span.RecordError(err)
 
-		return false, err
+		return false, nil, err
 	}
 
 	touched := make(map[uint32]struct{}, len(req.UpdatePDRs))
 
 	drain := false
 
+	var endMarkers []endMarkerTarget
+
 	for _, far := range req.UpdateFARs {
-		sFarInfo := session.GetFar(far.FARID)
-		sFarInfo = farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, sFarInfo)
+		oldFarInfo := session.GetFar(far.FARID)
+
+		sFarInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, oldFarInfo)
+
+		if req.SendEndMarkers {
+			if target, ok := endMarkerTargetFor(oldFarInfo, sFarInfo); ok {
+				endMarkers = append(endMarkers, target)
+			}
+		}
 
 		go addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
 
@@ -206,7 +217,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
-	return drain, nil
+	return drain, endMarkers, nil
 }
 
 func modifyPolicyID(req *models.ModifyRequest, session *Session) string {

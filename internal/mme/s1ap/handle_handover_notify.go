@@ -41,7 +41,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	present := make([]mme.RANBearer, 0, len(admitted))
 	for _, a := range admitted {
-		present = append(present, mme.RANBearer(a))
+		present = append(present, mme.RANBearer{Ebi: a.Ebi, EnbFTEID: a.EnbFTEID})
 	}
 
 	m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{

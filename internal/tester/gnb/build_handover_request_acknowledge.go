@@ -33,6 +33,10 @@ type HandoverAdmittedPDUSession struct {
 	PDUSessionID int64
 	DLTEID       uint32
 	DLIP         netip.Addr
+
+	// Non-zero when the target accepts downlink data forwarding and offers this
+	// tunnel for it (TS 38.413 §9.3.4.11).
+	ForwardingTEID uint32
 }
 
 func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]byte, error) {
@@ -43,7 +47,7 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 	admitted := make(ngap.PDUSessionResourceAdmittedList, 0, len(opts.PDUSessions))
 
 	for _, ps := range opts.PDUSessions {
-		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTEID, ps.DLIP)
+		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTEID, ps.DLIP, ps.ForwardingTEID)
 		if err != nil {
 			return nil, fmt.Errorf("build transfer for session %d: %w", ps.PDUSessionID, err)
 		}
@@ -84,18 +88,28 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 	return msg.Marshal()
 }
 
-func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr) (ngap.TransferContainer, error) {
+func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forwardingTEID uint32) (ngap.TransferContainer, error) {
 	addr, err := transportLayerAddress(ip)
 	if err != nil {
 		return nil, err
 	}
 
-	return (&ngap.HandoverRequestAcknowledgeTransfer{
+	transfer := &ngap.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
 			TransportLayerAddress: addr,
 			GTPTEID:               ngap.GTPTEID(teid),
 		}},
 		// QosFlowSetupResponseList is mandatory.
 		QosFlowSetupResponse: ngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
-	}).Marshal()
+	}
+
+	if forwardingTEID != 0 {
+		transfer.DLForwardingUPTNLInformation = &ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
+			TransportLayerAddress: addr,
+			GTPTEID:               ngap.GTPTEID(forwardingTEID),
+		}}
+		transfer.QosFlowSetupResponse[0].DataForwardingAccepted = ngap.Ptr(ngap.DataForwardingAcceptedTrue)
+	}
+
+	return transfer.Marshal()
 }
