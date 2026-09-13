@@ -1,0 +1,81 @@
+name: SBOM Attestation Test
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  sbom-test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag an existing image to a scratch tag
+        id: push
+        run: |
+          tag="sbom-test-${{ github.run_id }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+          docker pull ghcr.io/ellanetworks/ella-core:latest
+          docker tag ghcr.io/ellanetworks/ella-core:latest ella-core:latest
+          docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${tag}
+
+          docker push ghcr.io/ellanetworks/ella-core:${tag} | tee push.log
+
+          digest="$(awk '/digest: sha256:/ {for (i=1; i<=NF; i++) if ($i ~ /^sha256:/) print $i}' push.log)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "captured digest: ${digest}"
+          test -n "${digest}"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ella-core:latest
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Show SBOM coverage
+        run: |
+          python3 - <<'EOF'
+          import json, collections
+          d = json.load(open('sbom.spdx.json'))
+          c = collections.Counter()
+          for p in d['packages']:
+              refs = [r['referenceLocator'] for r in p.get('externalRefs', [])
+                      if r.get('referenceType') == 'purl']
+              c[refs[0].split(':')[1].split('/')[0] if refs else 'no-purl'] += 1
+          print('total packages:', len(d['packages']))
+          for k, v in c.most_common():
+              print(f'  {v:5d}  {k}')
+          assert c['deb'] > 0, 'no OS packages found'
+          EOF
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ghcr.io/ellanetworks/ella-core
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Verify the attestation is readable from the registry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh attestation verify \
+            oci://ghcr.io/ellanetworks/ella-core:${{ steps.push.outputs.tag }} \
+            --repo ${{ github.repository }} \
+            --predicate-type https://spdx.dev/Document

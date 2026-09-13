@@ -3,6 +3,8 @@ name: Image Publish
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 on:
   workflow_call:
@@ -31,6 +33,7 @@ jobs:
           name: ellacore-image-${{ matrix.arch }}
 
       - name: Import and push to github package (${{ matrix.arch }})
+        id: push
         run: |
           version="$(cat version/VERSION)"
 
@@ -38,7 +41,27 @@ jobs:
 
           docker tag ella-core:latest ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
 
-          docker push ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }}
+          docker push ghcr.io/ellanetworks/ella-core:${version}-${{ matrix.arch }} | tee push.log
+
+          digest="$(awk '/digest: sha256:/ {for (i=1; i<=NF; i++) if ($i ~ /^sha256:/) print $i}' push.log)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SBOM (${{ matrix.arch }})
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ella-core:latest
+          format: spdx-json
+          output-file: sbom-${{ matrix.arch }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SBOM (${{ matrix.arch }})
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ghcr.io/ellanetworks/ella-core
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: sbom-${{ matrix.arch }}.spdx.json
+          push-to-registry: true
 
   make-manifest:
     needs: publish-image
