@@ -90,7 +90,7 @@ func RegisterMetrics() {
 
 	mapMemoryDesc := prometheus.NewDesc(
 		"app_upf_bpf_map_memory_bytes",
-		"Kernel memory locked by a data plane BPF map, as reported by its memlock accounting. This memory is held by the kernel and is not part of the core process resident set.",
+		"Kernel memory locked by a data plane BPF map, as reported by its memlock accounting.",
 		[]string{"map"},
 		nil,
 	)
