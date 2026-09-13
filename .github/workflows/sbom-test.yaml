@@ -8,6 +8,9 @@ permissions:
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - dev-sbom
 
 jobs:
   sbom-test:
