@@ -129,8 +129,9 @@ func TestCleanStaleRoutes(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -167,8 +168,9 @@ func TestStopRemovesLearnedRoutes(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -199,8 +201,9 @@ func TestRouteLearningDisabledWithoutDeps(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -250,7 +253,7 @@ func TestReconfigurePeerRemovalCleansLearnedRoutes(t *testing.T) {
 	svc := newTestServiceWithLearning(t, fk, store)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 	peers := []bgp.BGPPeer{
 		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 		{ID: 2, Address: "192.168.1.2", RemoteAS: 65002, HoldTime: 90},
@@ -317,7 +320,7 @@ func TestReconfigureImportPolicyChangeRemovesRoutes(t *testing.T) {
 	svc := newTestServiceWithLearning(t, fk, store)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 	peers := []bgp.BGPPeer{
 		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
@@ -356,7 +359,7 @@ func TestSetAdvertisingToggle(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
@@ -439,7 +442,7 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 	svc := newTestServiceWithLearning(t, fk, store)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 	peers := []bgp.BGPPeer{
 		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
@@ -487,7 +490,7 @@ func TestStopWithPollerDoesNotDeadlock(t *testing.T) {
 	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
@@ -518,7 +521,7 @@ func TestStartStopCyclesWithPoller(t *testing.T) {
 	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	for i := range 10 {
 		err := svc.Start(ctx, settings, nil, true)
@@ -541,7 +544,7 @@ func TestReconfigureRestartWithPollerDoesNotDeadlock(t *testing.T) {
 	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
@@ -551,7 +554,7 @@ func TestReconfigureRestartWithPollerDoesNotDeadlock(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Change AS number → triggers full restart (stopLocked + startLocked).
-	newSettings := bgp.BGPSettings{Enabled: true, LocalAS: 65001}
+	newSettings := bgp.BGPSettings{Enabled: true, LocalAS: 65001, RouterID: "10.0.0.1"}
 
 	done := make(chan error, 1)
 

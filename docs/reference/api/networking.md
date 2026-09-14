@@ -836,8 +836,8 @@ This path updates the BGP configuration. Enabling BGP starts the embedded BGP sp
 
 - `enabled` (boolean): Enable or disable BGP.
 - `localAS` (integer): The local autonomous system number.
-- `routerID` (string): The BGP router ID (an IPv4 or IPv6 address).
-- `listenAddress` (string): The address and port to listen on (e.g. `:179`).
+- `routerID` (string): The BGP router ID, an IPv4 address. Leave it empty to adopt the N6 interface IPv4 address, which is then stored as the router ID. Enabling BGP with an empty router ID fails when the N6 interface has no IPv4 address.
+- `listenAddress` (string): The port to listen on (e.g. `:179`). The speaker only accepts sessions on the N6 interface; the host part is ignored.
 
 ### Sample Response
 

@@ -12,8 +12,9 @@ import (
 
 // runBGPSettingsMatrix round-trips the BGP speaker configuration.
 // Validation constraints enforced by the server: LocalAS in [1, 4294967295];
-// RouterID is a valid IPv4 address or empty (server picks the effective
-// one); ListenAddress is "host:port" or ":port", defaulting to ":179".
+// RouterID is a valid IPv4 address, or empty when BGP is disabled (enabling BGP
+// with an empty router ID adopts the N6 address and stores it); ListenAddress is
+// "host:port" or ":port", defaulting to ":179".
 func runBGPSettingsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	orig, err := c.GetBGPSettings(ctx)
 	if err != nil {

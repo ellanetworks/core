@@ -66,6 +66,7 @@ type BGPService struct {
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
 	n6AddrV4    netip.Addr           // IPv4 address of N6 interface
 	n6AddrV6    netip.Addr           // IPv6 address of N6 interface
+	n6IfName    string               // N6 interface the listener is bound to; empty means every interface
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -97,6 +98,11 @@ func WithImportPrefixStore(s ImportPrefixStore) Option {
 // WithRouteFilter sets the safety rejection filter for learned routes.
 func WithRouteFilter(f *RouteFilter) Option {
 	return func(b *BGPService) { b.filter = f }
+}
+
+// WithN6Interface confines the BGP listener to the named interface.
+func WithN6Interface(name string) Option {
+	return func(b *BGPService) { b.n6IfName = name }
 }
 
 // UpdateFilter replaces the safety rejection filter and re-evaluates all
@@ -228,7 +234,7 @@ func (b *BGPService) routeLearningEnabled() bool {
 func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer) error {
 	routerID := settings.RouterID
 	if routerID == "" {
-		routerID = b.n6AddrV4.String()
+		return fmt.Errorf("no router ID configured")
 	}
 
 	listenPort := b.resolveListenPort(settings)
@@ -250,10 +256,11 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
-			Asn:        uint32(settings.LocalAS),
-			RouterId:   routerID,
-			ListenPort: listenPort,
-			Families:   families,
+			Asn:          uint32(settings.LocalAS),
+			RouterId:     routerID,
+			ListenPort:   listenPort,
+			Families:     families,
+			BindToDevice: b.n6IfName,
 		},
 	})
 	if err != nil {
@@ -279,6 +286,10 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	} else if b.advertising {
 		// Replay from in-memory paths map (after reconfiguration restart).
 		for _, op := range b.paths {
+			if !b.nextHopValidFor(op.prefix) {
+				continue
+			}
+
 			if err := b.announcePathPrefix(s, op.prefix); err != nil {
 				b.logger.Warn("failed to re-announce route after restart",
 					zap.String("prefix", op.prefix.String()), zap.Error(err))
@@ -310,6 +321,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	b.logger.Info("BGP service started",
 		zap.Int("localAS", settings.LocalAS),
 		zap.String("routerID", routerID),
+		zap.String("interface", b.n6IfName),
 		zap.Int("peers", len(peers)),
 		zap.Int("routes", len(b.paths)),
 	)
@@ -366,8 +378,8 @@ func (b *BGPService) Stop() error {
 // leases may have shifted to other nodes while this node was stopped, and
 // replaying stale paths would briefly mis-advertise.
 //
-// Idempotent: a no-op if the speaker is already running. Returns an error if
-// Start was never called successfully before (no captured settings).
+// Idempotent: a no-op if the speaker is already running, and also a no-op if
+// Start was never called successfully.
 func (b *BGPService) Restart(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -377,7 +389,7 @@ func (b *BGPService) Restart(ctx context.Context) error {
 	}
 
 	if b.settings.LocalAS == 0 {
-		return fmt.Errorf("BGP service has no prior configuration; start it via settings first")
+		return nil
 	}
 
 	b.paths = make(map[string]ownedPath)
@@ -573,13 +585,97 @@ func (b *BGPService) LearnedRouteCountsByPeer() map[string]int {
 	return counts
 }
 
-// GetEffectiveRouterID resolves an empty router ID to the N6 address default.
-func (b *BGPService) GetEffectiveRouterID(configuredRouterID string) string {
-	if configuredRouterID != "" {
-		return configuredRouterID
+// N6Addresses returns the cached N6 next-hop addresses.
+func (b *BGPService) N6Addresses() (netip.Addr, netip.Addr) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.n6AddrV4, b.n6AddrV6
+}
+
+// UpdateN6Addresses refreshes the cached N6 next-hops and re-announces live
+// routes with them. Paths whose family no longer has a next-hop are withdrawn
+// from the RIB but kept in the paths map, so they are announced again once
+// an address returns.
+func (b *BGPService) UpdateN6Addresses(v4, v6 netip.Addr) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.n6AddrV4 == v4 && b.n6AddrV6 == v6 {
+		return nil
 	}
 
-	return b.n6AddrV4.String()
+	v4Lost := b.n6AddrV4.IsValid() && !v4.IsValid()
+	v6Lost := b.n6AddrV6.IsValid() && !v6.IsValid()
+
+	if !b.running {
+		b.n6AddrV4 = v4
+		b.n6AddrV6 = v6
+
+		return nil
+	}
+
+	if v4Lost || v6Lost {
+		b.withdrawPathsLosingNextHop(v4Lost, v6Lost)
+	}
+
+	b.n6AddrV4 = v4
+	b.n6AddrV6 = v6
+
+	for _, op := range b.paths {
+		if !b.nextHopValidFor(op.prefix) {
+			continue
+		}
+
+		if err := b.announcePathPrefix(b.server, op.prefix); err != nil {
+			b.logger.Warn("failed to re-announce route with new N6 address",
+				zap.String("prefix", op.prefix.String()), zap.Error(err))
+		}
+	}
+
+	return nil
+}
+
+// nextHopValidFor reports whether a next-hop address is currently cached for
+// the address family of prefix.
+func (b *BGPService) nextHopValidFor(prefix netip.Prefix) bool {
+	if prefix.Addr().Is6() {
+		return b.n6AddrV6.IsValid()
+	}
+
+	return b.n6AddrV4.IsValid()
+}
+
+// withdrawPathsLosingNextHop withdraws every advertised path whose family is
+// about to lose its next-hop. Must be called with mu held, before the cached
+// addresses are replaced, and only while the speaker is running.
+func (b *BGPService) withdrawPathsLosingNextHop(v4Lost, v6Lost bool) {
+	withdrawn := 0
+
+	for _, op := range b.paths {
+		lost := v4Lost
+		if op.prefix.Addr().Is6() {
+			lost = v6Lost
+		}
+
+		if !lost {
+			continue
+		}
+
+		if err := b.withdrawPathPrefix(b.server, op.prefix); err != nil {
+			b.logger.Warn("failed to withdraw route whose N6 next-hop disappeared",
+				zap.String("prefix", op.prefix.String()), zap.Error(err))
+
+			continue
+		}
+
+		withdrawn++
+	}
+
+	if withdrawn > 0 {
+		b.logger.Warn("withdrew routes that lost their N6 next-hop; they are re-announced when an address returns",
+			zap.Int("routes", withdrawn))
+	}
 }
 
 // IsRunning returns true if the BGP speaker is currently active.

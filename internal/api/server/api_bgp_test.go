@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/config"
 )
 
 // BGP Settings response types
@@ -378,6 +380,94 @@ func TestApiBGPSettingsToggleCycling(t *testing.T) {
 	}
 }
 
+// Enabling BGP without a router ID adopts the N6 IPv4 address and stores it, so
+// the speaker's identity stays put afterwards even if the interface address
+// changes.
+func TestApiBGPSettingsAdoptsN6AddressAsRouterID(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+
+	stubN6InterfaceIP(t, "192.168.5.10")
+
+	params := &UpdateBGPSettingsParams{
+		Enabled:  true,
+		LocalAS:  64513,
+		RouterID: "",
+	}
+
+	statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+	if err != nil {
+		t.Fatalf("couldn't update BGP settings: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	_, getResp, err := getBGPSettings(env.Server.URL, client, token)
+	if err != nil {
+		t.Fatalf("couldn't get BGP settings: %s", err)
+	}
+
+	if getResp.Result.RouterID != "192.168.5.10" {
+		t.Fatalf("routerID = %q, want 192.168.5.10", getResp.Result.RouterID)
+	}
+}
+
+// Without an address to adopt there is no identity to give the speaker, so the
+// request has to fail here rather than leaving BGP enabled but unstartable.
+func TestApiBGPSettingsRejectsEnableWithoutResolvableRouterID(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+
+	stubN6InterfaceIP(t, "")
+
+	params := &UpdateBGPSettingsParams{
+		Enabled:  true,
+		LocalAS:  64513,
+		RouterID: "",
+	}
+
+	statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+	if err != nil {
+		t.Fatalf("couldn't update BGP settings: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+}
+
+// Disabling BGP must stay possible while N6 has no address: a disabled speaker
+// needs no identity.
+func TestApiBGPSettingsAllowsDisableWithoutRouterID(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+
+	stubN6InterfaceIP(t, "")
+
+	params := &UpdateBGPSettingsParams{
+		Enabled:  false,
+		LocalAS:  64513,
+		RouterID: "",
+	}
+
+	statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+	if err != nil {
+		t.Fatalf("couldn't update BGP settings: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	_, getResp, err := getBGPSettings(env.Server.URL, client, token)
+	if err != nil {
+		t.Fatalf("couldn't get BGP settings: %s", err)
+	}
+
+	if getResp.Result.RouterID != "" {
+		t.Fatalf("routerID = %q, want empty", getResp.Result.RouterID)
+	}
+}
+
 func TestApiBGPSettingsValidation(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
@@ -398,19 +488,23 @@ func TestApiBGPSettingsValidation(t *testing.T) {
 	})
 
 	t.Run("Invalid routerID", func(t *testing.T) {
-		params := &UpdateBGPSettingsParams{
-			Enabled:  false,
-			LocalAS:  64512,
-			RouterID: "not-an-ip",
-		}
+		// GoBGP requires an IPv4 BGP identifier, so an IPv6 address has to
+		// be rejected at the API rather than failing the speaker's start.
+		for _, routerID := range []string{"not-an-ip", "2001:db8::1"} {
+			params := &UpdateBGPSettingsParams{
+				Enabled:  false,
+				LocalAS:  64512,
+				RouterID: routerID,
+			}
 
-		statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't update BGP settings: %s", err)
-		}
+			statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+			if err != nil {
+				t.Fatalf("couldn't update BGP settings: %s", err)
+			}
 
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("routerID %q: expected status %d, got %d", routerID, http.StatusBadRequest, statusCode)
+			}
 		}
 	})
 }
@@ -1091,4 +1185,24 @@ func TestApiBGPPeersIPv6(t *testing.T) {
 			t.Fatalf("expected 1 peer remaining, got %d", resp.Result.TotalCount)
 		}
 	})
+}
+
+// stubN6InterfaceIP fixes the address the API resolves the router ID from. An
+// empty address stands for an interface that currently has none.
+func stubN6InterfaceIP(t *testing.T, addr string) {
+	t.Helper()
+
+	original := config.GetInterfaceIPFunc
+
+	t.Cleanup(func() {
+		config.GetInterfaceIPFunc = original
+	})
+
+	config.GetInterfaceIPFunc = func(_ string, family config.AddressFamily) (string, error) {
+		if addr == "" || family != config.IPv4 {
+			return "", config.ErrNoInterfaceIP
+		}
+
+		return addr, nil
+	}
 }

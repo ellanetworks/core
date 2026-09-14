@@ -181,8 +181,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance))).ServeHTTP)
 
 	// BGP (Authenticated)
-	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, bgpService, appCfg))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, UpdateBGPSettings(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, appCfg))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, UpdateBGPSettings(dbInstance, bgpService, appCfg))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/bgp/peers", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, ListBGPPeers(dbInstance, bgpService))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/networking/bgp/peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, CreateBGPPeer(dbInstance, bgpService))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/bgp/peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPPeer(dbInstance, bgpService))).ServeHTTP)

@@ -112,9 +112,27 @@ const (
 	MaxImportPrefixesPerPeer = 50
 )
 
+func resolveRouterIDFromN6(cfg config.Config) (string, error) {
+	addr, err := config.GetInterfaceIP(cfg.Interfaces.N6.Name, config.IPv4)
+	if err != nil {
+		return "", err
+	}
+
+	parsed, err := netip.ParseAddr(addr)
+	if err != nil {
+		return "", fmt.Errorf("N6 address %q is not a valid IP address: %w", addr, err)
+	}
+
+	if !parsed.Is4() {
+		return "", fmt.Errorf("N6 address %q is not an IPv4 address", addr)
+	}
+
+	return parsed.String(), nil
+}
+
 // BGP Settings handlers
 
-func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg config.Config) http.Handler {
+func GetBGPSettings(dbInstance *db.Database, cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		settings, err := dbInstance.GetBGPSettings(r.Context())
 		if err != nil {
@@ -122,15 +140,10 @@ func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg con
 			return
 		}
 
-		routerID := settings.RouterID
-		if routerID == "" && bgpService != nil {
-			routerID = bgpService.GetEffectiveRouterID("")
-		}
-
 		resp := GetBGPSettingsResponse{
 			Enabled:          settings.Enabled,
 			LocalAS:          settings.LocalAS,
-			RouterID:         routerID,
+			RouterID:         settings.RouterID,
 			ListenAddress:    settings.ListenAddress,
 			RejectedPrefixes: buildRejectedPrefixes(r.Context(), dbInstance, cfg),
 		}
@@ -139,7 +152,7 @@ func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg con
 	})
 }
 
-func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
+func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -159,12 +172,19 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 		}
 
 		if params.RouterID != "" {
-			if _, err := netip.ParseAddr(params.RouterID); err != nil {
+			addr, err := netip.ParseAddr(params.RouterID)
+			if err != nil || !addr.Is4() {
 				writeError(r.Context(), w, http.StatusBadRequest, "routerID must be a valid IPv4 address or empty", nil, logger.APILog)
 				return
 			}
-		} else if bgpService != nil {
-			params.RouterID = bgpService.GetEffectiveRouterID("")
+		} else if params.Enabled {
+			routerID, err := resolveRouterIDFromN6(cfg)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, "routerID is empty and cannot be taken from the N6 interface, which has no IPv4 address: set routerID explicitly", err, logger.APILog)
+				return
+			}
+
+			params.RouterID = routerID
 		}
 
 		if params.ListenAddress == "" {
