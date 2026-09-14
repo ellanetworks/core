@@ -334,3 +334,13 @@ func (e *ENB) allocTEID() uint32 {
 
 	return t
 }
+
+func (e *ENB) allocForwardingTEID() uint32 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	t := e.nextFwdTEID
+	e.nextFwdTEID++
+
+	return t
+}

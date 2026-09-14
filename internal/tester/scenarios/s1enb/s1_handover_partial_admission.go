@@ -73,6 +73,10 @@ func runS1HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 		return err
 	}
 
+	if err := assertSourceToTargetRelayed(req); err != nil {
+		return err
+	}
+
 	if len(req.ERABToBeSetup) != 2 {
 		return fmt.Errorf("the Handover Request carried %d E-RABs, want both bearers", len(req.ERABToBeSetup))
 	}
@@ -102,8 +106,13 @@ func runS1HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 		return fmt.Errorf("send eNB Status Transfer: %w", err)
 	}
 
-	if _, err := pair.Target.WaitForMMEStatusTransfer(targetENBUEID, s1FailureTimeout); err != nil {
+	mst, err := pair.Target.WaitForMMEStatusTransfer(targetENBUEID, s1FailureTimeout)
+	if err != nil {
 		return fmt.Errorf("await MME Status Transfer: %w", err)
+	}
+
+	if err := assertStatusTransferRelayed(mst); err != nil {
+		return err
 	}
 
 	if err := pair.Target.SendHandoverNotify(targetENBUEID, int64(req.MMEUES1APID)); err != nil {

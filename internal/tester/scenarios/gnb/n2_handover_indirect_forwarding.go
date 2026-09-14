@@ -22,7 +22,7 @@ const n2IndirectForwardingIMSI = "001017271246592"
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/ngap/n2_handover_indirect_forwarding",
+		Name:      "gnb/n2_handover_indirect_forwarding",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2HandoverIndirectForwarding,
 		Fixture:   fixtureN2HandoverIndirectForwarding,
@@ -83,6 +83,7 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequired: %w", err)
@@ -101,12 +102,16 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 		return err
 	}
 
+	if err := assertSourceToTargetRelayed(hoReqFrame); err != nil {
+		return err
+	}
+
 	targetAmfUENGAPID, err := common.ExtractAmfUeNgapIDFromHandoverRequest(hoReqFrame.Data)
 	if err != nil {
 		return fmt.Errorf("extract AMF UE NGAP ID from HandoverRequest: %w", err)
 	}
 
-	targetForwardingTEID := uint32(9101)
+	targetForwardingTEID := targetGNB.AllocateForwardingTEID()
 
 	targetGNB.WatchTEID(targetForwardingTEID)
 
@@ -134,6 +139,10 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 	)
 	if err != nil {
 		return fmt.Errorf("source gNB: wait HandoverCommand: %w", err)
+	}
+
+	if err := assertTargetToSourceRelayed(hoCmdFrame); err != nil {
+		return err
 	}
 
 	relay, err := forwardingEndpoint(hoCmdFrame, registration.Session.UpfAddress, targetForwardingTEID)

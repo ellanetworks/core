@@ -120,6 +120,10 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
+	if err := assertSourceToTargetRelayed(hoReq); err != nil {
+		return err
+	}
+
 	// The MME assigns the target its own MME-UE-S1AP-ID (TS 36.413 §9.1.5.6),
 	// distinct from the source's; the target eNB echoes that one — not the source's
 	// — on the acknowledge and notify.
@@ -141,6 +145,10 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("await Handover Command: %w", err)
 	}
 
+	if err := assertTargetToSourceRelayed(cmd); err != nil {
+		return err
+	}
+
 	if err := assertForwardingRelayed(cmd, res.ERABID, fwdTEID); err != nil {
 		return err
 	}
@@ -149,8 +157,13 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("send eNB Status Transfer: %w", err)
 	}
 
-	if _, err := target.WaitForMMEStatusTransfer(targetENBUEID, 10*time.Second); err != nil {
+	mst, err := target.WaitForMMEStatusTransfer(targetENBUEID, 10*time.Second)
+	if err != nil {
 		return fmt.Errorf("await MME Status Transfer: %w", err)
+	}
+
+	if err := assertStatusTransferRelayed(mst); err != nil {
+		return err
 	}
 
 	// The downlink must still run via the source before notify.

@@ -24,7 +24,7 @@ func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENB
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
 		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reason
 		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: target, SelectedTAI: e.tai()}},
-		SourceToTarget: s1ap.TransparentContainer{0x00},
+		SourceToTarget: SourceToTargetContainer(),
 	}
 
 	if directForwarding {
@@ -86,7 +86,7 @@ func (e *ENB) SendHandoverRequestAcknowledgePartial(targetENBUEID, mmeUEID int64
 		ENBUES1APID:       s1ap.Ptr(s1ap.ENBUES1APID(targetENBUEID)),
 		ERABAdmitted:      admitted,
 		ERABFailedToSetup: failed,
-		TargetToSource:    s1ap.TransparentContainer{0x00},
+		TargetToSource:    TargetToSourceContainer(),
 	}
 
 	b, err := ack.Marshal()
@@ -116,7 +116,7 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 	}
 
 	if forwarding {
-		dlForwardingTEID = e.allocTEID()
+		dlForwardingTEID = e.allocForwardingTEID()
 		item.DLTransportLayerAddr = s1ap.TransportLayerAddress(addr)
 		item.DLGTPTEID = s1ap.Ptr(s1ap.GTPTEID(dlForwardingTEID))
 	}
@@ -125,7 +125,7 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 		MMEUES1APID:    s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
 		ENBUES1APID:    s1ap.Ptr(s1ap.ENBUES1APID(targetENBUEID)),
 		ERABAdmitted:   []s1ap.ERABAdmittedItem{item},
-		TargetToSource: s1ap.TransparentContainer{0x00},
+		TargetToSource: TargetToSourceContainer(),
 	}
 
 	b, err := ack.Marshal()
@@ -158,7 +158,7 @@ func (e *ENB) SendENBStatusTransfer(mmeUEID, enbUEID int64) error {
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
-		Container:   s1ap.StatusTransferContainer{0x00},
+		Container:   ENBStatusTransferContainer(),
 	}
 
 	b, err := st.Marshal()

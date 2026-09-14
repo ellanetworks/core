@@ -156,6 +156,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequired: %w", err)
@@ -168,6 +169,10 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	)
 	if err != nil {
 		return fmt.Errorf("target gNB: wait HandoverRequest: %w", err)
+	}
+
+	if err := assertSourceToTargetRelayed(hoReqFrame); err != nil {
+		return err
 	}
 
 	targetAmfUENGAPID, err := common.ExtractAmfUeNgapIDFromHandoverRequest(hoReqFrame.Data)

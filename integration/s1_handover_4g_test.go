@@ -36,7 +36,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 
 	const composeDir = "compose/x2-handover/"
 
-	scenariosToRun := []string{"s1enb/s1_handover", "s1enb/s1_handover_indirect_forwarding"}
+	scenariosToRun := []string{"s1enb/s1_handover", "s1enb/s1_handover_indirect_forwarding", "s1enb/s1_handover_ping_pong"}
 
 	composeFile := HandoverComposeFile()
 	coreAPI := APIAddress()
