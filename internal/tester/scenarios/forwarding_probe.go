@@ -84,3 +84,26 @@ func awaitCount(count func() int, want int, what string) error {
 
 	return fmt.Errorf("%s = %d, want %d", what, count(), want)
 }
+
+const (
+	downlinkPreconditionAttempts = 40
+	downlinkPreconditionInterval = 250 * time.Millisecond
+)
+
+func AwaitDownlinkDelivery(send func() error, received func() uint64, what string) error {
+	before := received()
+
+	for range downlinkPreconditionAttempts {
+		if err := send(); err != nil {
+			return fmt.Errorf("send %s: %w", what, err)
+		}
+
+		time.Sleep(downlinkPreconditionInterval)
+
+		if received() > before {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s never reached the radio: the downlink path never came up", what)
+}

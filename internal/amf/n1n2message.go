@@ -310,6 +310,48 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	})
 }
 
+func (amf *AMF) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF PDUSessionResourceReleaseCommand (access resources)",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return fmt.Errorf("ue context not found")
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return ErrUENotReachable
+	}
+
+	if !ueConn.RANHoldsUEContext() {
+		return ErrUENotReachable
+	}
+
+	list := ngap.PDUSessionResourceToReleaseListRelCmd{
+		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
+	}
+
+	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nil, list); err != nil {
+		return fmt.Errorf("send pdu session resource release command: %w", err)
+	}
+
+	ueConn.armN2Release(pduSessionID)
+
+	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB (access resources only)",
+		logger.PDUSessionID(pduSessionID),
+	)
+
+	return nil
+}
+
 func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,

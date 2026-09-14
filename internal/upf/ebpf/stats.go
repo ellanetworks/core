@@ -381,16 +381,18 @@ func TotalDrops(bpfObjects *BpfObjects, dir Direction) uint64 {
 }
 
 const (
-	RingbufNocp    = 0
-	RingbufRSEvent = 1
-	RingbufNoNeigh = 2
-	RingbufIDMax   = 3
+	RingbufNocp     = 0
+	RingbufRSEvent  = 1
+	RingbufNoNeigh  = 2
+	RingbufErrorInd = 3
+	RingbufIDMax    = 4
 )
 
 var ringbufNames = [RingbufIDMax]string{
-	RingbufNocp:    "nocp_map",
-	RingbufRSEvent: "rs_event_map",
-	RingbufNoNeigh: "no_neigh_map",
+	RingbufNocp:     "nocp_map",
+	RingbufRSEvent:  "rs_event_map",
+	RingbufNoNeigh:  "no_neigh_map",
+	RingbufErrorInd: "error_ind_map",
 }
 
 func RingbufLost(bpfObjects *BpfObjects) (map[string]uint64, error) {

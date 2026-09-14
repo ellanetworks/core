@@ -1372,8 +1372,8 @@ func TestHandoverNotifySchedulesForwardingRelease(t *testing.T) {
 
 	handleHandoverNotify(x.m, context.Background(), mme.NewRadioForTest(x.target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
 
-	if len(x.sessions.forwardingScheduled) == 0 {
-		t.Error("a completed handover did not schedule its forwarding tunnel for release")
+	if !x.ue.ForwardingReleaseArmedForTest() {
+		t.Error("a completed handover did not start the MME's indirect forwarding release timer (TS 23.401 §5.5.1.2 step 14)")
 	}
 
 	if len(x.sessions.forwardingClosed) != 0 {

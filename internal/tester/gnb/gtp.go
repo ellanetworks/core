@@ -20,8 +20,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// gtpEndMarker is the GTP-U End Marker message type (TS 29.281 §7.3.2).
-const gtpEndMarker = 0xfe
+const (
+	gtpEndMarker       = 0xfe
+	gtpErrorIndication = 26
+	gtpIETEIDDataI     = 16
+	gtpIEPeerAddress   = 133
+)
 
 const gtpUDPPort = 2152
 
@@ -265,6 +269,35 @@ func (g *GnodeB) SendEndMarker(teid uint32, peer netip.Addr) error {
 // CloseTunnel tears down the tunnel for the given downlink TEID. Closing a TEID
 // with no tunnel is a no-op, as on s1enb: a scenario tearing down a session the
 // network already released must not fail for it.
+func (g *GnodeB) SendGTPUErrorIndication(teid uint32, peer netip.Addr, localAddr netip.Addr) error {
+	if g.N3Conn == nil {
+		return fmt.Errorf("the gNB has no N3 socket")
+	}
+
+	addr := localAddr.AsSlice()
+
+	pdu := make([]byte, 12, 12+5+3+len(addr))
+	pdu[0] = 0x32
+	pdu[1] = gtpErrorIndication
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(4+5+3+len(addr)))
+
+	ie := make([]byte, 5)
+	ie[0] = gtpIETEIDDataI
+	binary.BigEndian.PutUint32(ie[1:5], teid)
+	pdu = append(pdu, ie...)
+
+	pdu = append(pdu, gtpIEPeerAddress, 0, byte(len(addr)))
+	pdu = append(pdu, addr...)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := g.N3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send Error Indication for TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
 func (g *GnodeB) CloseTunnel(dlteid uint32) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

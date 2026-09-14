@@ -20,25 +20,72 @@ import (
 // being paged. Entry points decide whether that is a success or a failure.
 var errPagingSkipped = errors.New("paging skipped")
 
+var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
 // the S1 connection and buffered downlink data is delivered, within the UE's
 // registered tracking area (TS 23.401 §5.3.4). The procedure is supervised and
 // retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
 // covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
 // missing context or marshal failure is reported.
-func (m *MME) Page(ctx context.Context, imsi string, ebi uint8) error {
+func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
-	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi}) }
+	req := &MTRequest{Ebi: ebi}
+
+	if cause == models.DownlinkDataErrorIndication && ue.Connected() {
+		m.releaseForErrorIndication(ctx, ue, req)
+
+		return nil
+	}
+
+	arm := func() { ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
 	}
 
 	return nil
+}
+
+func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext, req *MTRequest) {
+	logger.From(ctx, logger.MmeLog).Info("Releasing S1 after a GTP-U Error Indication",
+		zap.String("imsi", ue.imsiOrEmpty()))
+
+	ue.deferServiceRequest(req)
+
+	m.ReleaseUEContext(ctx, ue, causeErrorIndicationReceived)
+}
+
+func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {
+	req := ue.takeDeferredServiceRequest()
+	if req == nil {
+		return
+	}
+
+	arm := func() { ue.beginPaging(req) }
+
+	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
+		logger.From(ctx, logger.MmeLog).Warn("could not page the UE after releasing S1 for a GTP-U Error Indication",
+			zap.String("imsi", ue.imsiOrEmpty()), zap.Error(err))
+	}
+}
+
+func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
+	req := ue.takeDeferredServiceRequest()
+	if req == nil || req.Ebi == 0 || m.Session == nil {
+		return
+	}
+
+	imsi := ue.imsiOrEmpty()
+
+	if err := m.Session.HandleEPSPagingFailure(ctx, imsi, req.Ebi, models.EPSPagingUENotResponding); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not report a downlink delivery failure for a UE released before it could be paged",
+			zap.String("imsi", imsi), zap.Uint8("ebi", req.Ebi), zap.Error(err))
+	}
 }
 
 // page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately

@@ -80,6 +80,11 @@ type RSEvent struct {
 	UEIPv6 [16]byte // struct in6_addr — UE source IPv6 address
 }
 
+type ErrorIndication struct {
+	TEID     uint32
+	PeerAddr [16]byte
+}
+
 type BpfObjects struct {
 	N3N6EntrypointObjects
 

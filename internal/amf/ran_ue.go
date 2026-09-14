@@ -76,6 +76,7 @@ type UeConn struct {
 	ics        atomic.Int32
 	n2Setups   n2SetupTxns
 	n2Sessions n2Sessions
+	n2Releases n2Releases
 	inboundNAS atomic.Uint32
 
 	deferredCause atomic.Pointer[ngap.Cause]
