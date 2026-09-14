@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
@@ -116,6 +117,7 @@ type GnodeB struct {
 	endMarkers        map[uint32]int     // End Markers seen per local TEID
 	watchedTEIDs      map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
 	lastGeneratedTEID uint32
+	nextFwdTEID       uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
 	// keys its equivalent by the UE id (see ENB.WaitForMessage).
@@ -499,6 +501,7 @@ func NewGnodeB(
 ) *GnodeB {
 	g := &GnodeB{
 		UERadioCapability: DefaultUERadioCapability,
+		nextFwdTEID:       teid.ForwardingBase,
 		GnbID:             gnbID,
 		MCC:               mcc,
 		MNC:               mnc,
@@ -591,6 +594,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 
 	g := &GnodeB{
 		UERadioCapability: DefaultUERadioCapability,
+		nextFwdTEID:       teid.ForwardingBase,
 		GnbID:             opts.GnbID,
 		MCC:               opts.MCC,
 		MNC:               opts.MNC,
@@ -965,6 +969,16 @@ func (g *GnodeB) allocTEID() uint32 {
 	g.lastGeneratedTEID++
 
 	return g.lastGeneratedTEID
+}
+
+func (g *GnodeB) AllocateForwardingTEID() uint32 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	t := g.nextFwdTEID
+	g.nextFwdTEID++
+
+	return t
 }
 
 // PinDLTEID pins the downlink TEID reported at the next re-establishment of

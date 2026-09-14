@@ -102,6 +102,10 @@ func runS1HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("the target was told data forwarding is not possible, so it allocates no forwarding endpoint")
 	}
 
+	if err := assertSourceToTargetRelayed(hoReq); err != nil {
+		return err
+	}
+
 	targetMMEUEID := int64(hoReq.MMEUES1APID)
 	targetENBUEID := target.AllocateENBUEID()
 
@@ -115,6 +119,10 @@ func runS1HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 	cmd, err := source.WaitForHandoverCommand(res.ENBUES1APID, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("await Handover Command: %w", err)
+	}
+
+	if err := assertTargetToSourceRelayed(cmd); err != nil {
+		return err
 	}
 
 	relayTEID, relayAddr, err := s1ForwardingEndpoint(cmd, res.ERABID, res.UpfAddress, targetForwardingTEID)

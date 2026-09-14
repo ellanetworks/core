@@ -24,9 +24,11 @@ const (
 	n2HandoverIMSI = "001017271246590"
 )
 
-var n2HandoverRRCContainer = []byte{0xC0, 0xDE, 0x5A, 0xFE}
+var n2HandoverRRCContainer = gnb.TargetToSourceContainer()
 
-var n2HandoverStatusContainer = []byte{0x5A, 0x71, 0x03, 0x11}
+var n2HandoverStatusContainer = gnb.RANStatusTransferContainer()
+
+var n2SourceToTargetContainer = gnb.SourceToTargetContainer()
 
 func relayRANStatusTransfer(sourceGNB, targetGNB *gnb.GnodeB, sourceAMFUENGAPID, sourceRANUENGAPID, targetRANUENGAPID int64) error {
 	if err := sourceGNB.SendUplinkRANStatusTransfer(&gnb.UplinkRANStatusTransferOpts{
@@ -48,6 +50,38 @@ func relayRANStatusTransfer(sourceGNB, targetGNB *gnb.GnodeB, sourceAMFUENGAPID,
 
 	if !bytes.Equal(transfer.Container, n2HandoverStatusContainer) {
 		return fmt.Errorf("the relayed RAN status container = %x, want the source's %x", transfer.Container, n2HandoverStatusContainer)
+	}
+
+	return nil
+}
+
+func assertSourceToTargetRelayed(frame gnb.SCTPFrame) error {
+	req, err := ngaplib.ParseHandoverRequest(frame.Value)
+	if err != nil {
+		return fmt.Errorf("parse HandoverRequest: %w", err)
+	}
+
+	return assertSourceToTargetOn(req)
+}
+
+func assertSourceToTargetOn(req *ngaplib.HandoverRequest) error {
+	if !bytes.Equal(req.SourceToTargetTransparentContainer, n2SourceToTargetContainer) {
+		return fmt.Errorf("the Handover Request carried a %d-byte Source-to-Target container, want the source's %d bytes",
+			len(req.SourceToTargetTransparentContainer), len(n2SourceToTargetContainer))
+	}
+
+	return nil
+}
+
+func assertTargetToSourceRelayed(frame gnb.SCTPFrame) error {
+	cmd, err := ngaplib.ParseHandoverCommand(frame.Value)
+	if err != nil {
+		return fmt.Errorf("parse HandoverCommand: %w", err)
+	}
+
+	if !bytes.Equal(cmd.TargetToSourceTransparentContainer, n2HandoverRRCContainer) {
+		return fmt.Errorf("the Handover Command carried a %d-byte Target-to-Source container, want the target's %d bytes",
+			len(cmd.TargetToSourceTransparentContainer), len(n2HandoverRRCContainer))
 	}
 
 	return nil
@@ -92,7 +126,7 @@ func assertN2HandoverCommand(frame gnb.SCTPFrame, amfUENGAPID, ranUENGAPID int64
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/ngap/n2_handover",
+		Name:      "gnb/n2_handover",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2Handover,
 		Fixture:   fixtureN2Handover,
@@ -193,6 +227,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID), HandoverRequiredTransfer: directForwardingRequiredTransfer},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequired: %w", err)
@@ -207,6 +242,10 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("target gNB: wait HandoverRequest: %w", err)
 	}
 
+	if err := assertSourceToTargetRelayed(hoReqFrame); err != nil {
+		return err
+	}
+
 	targetAmfUENGAPID, err := common.ExtractAmfUeNgapIDFromHandoverRequest(hoReqFrame.Data)
 	if err != nil {
 		return fmt.Errorf("extract AMF UE NGAP ID from HandoverRequest: %w", err)
@@ -215,7 +254,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	targetRanUENGAPID := int64(100)
 	targetN3IP := netip.MustParseAddr(targetGNBSpec.N3Address)
 	targetDLTEID := uint32(9000)
-	targetForwardingTEID := uint32(9001)
+	targetForwardingTEID := targetGNB.AllocateForwardingTEID()
 
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,

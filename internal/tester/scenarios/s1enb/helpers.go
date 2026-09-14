@@ -4,6 +4,7 @@
 package s1enb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 const s1enbName = "Ella-Core-Tester-S1eNB"
@@ -100,4 +102,31 @@ func awaitHandoverTunnelReady(env scenarios.Env, iface string) error {
 
 func handoverProbe(ctx context.Context, env scenarios.Env, iface string) error {
 	return probe.Run(ctx, probe.ICMP, iface, env.PingDestination(), scenarios.DefaultProbePort, wantsIPv6Probe(env))
+}
+
+func assertSourceToTargetRelayed(req *s1ap.HandoverRequest) error {
+	want := s1enb.SourceToTargetContainer()
+	if !bytes.Equal(req.SourceToTarget, want) {
+		return fmt.Errorf("the Handover Request carried a %d-byte Source-to-Target container, want the source's %d bytes", len(req.SourceToTarget), len(want))
+	}
+
+	return nil
+}
+
+func assertTargetToSourceRelayed(cmd *s1ap.HandoverCommand) error {
+	want := s1enb.TargetToSourceContainer()
+	if !bytes.Equal(cmd.TargetToSource, want) {
+		return fmt.Errorf("the Handover Command carried a %d-byte Target-to-Source container, want the target's %d bytes", len(cmd.TargetToSource), len(want))
+	}
+
+	return nil
+}
+
+func assertStatusTransferRelayed(mst *s1ap.MMEStatusTransfer) error {
+	want := s1enb.ENBStatusTransferContainer()
+	if !bytes.Equal(mst.Container, want) {
+		return fmt.Errorf("the MME Status Transfer carried a %d-byte container, want the source's %d bytes", len(mst.Container), len(want))
+	}
+
+	return nil
 }

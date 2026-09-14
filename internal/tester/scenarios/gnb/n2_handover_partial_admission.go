@@ -115,6 +115,7 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 			{PDUSessionID: int64(partialKeptSession)},
 			{PDUSessionID: int64(partialDroppedSession)},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	}); err != nil {
 		return fmt.Errorf("send HandoverRequired: %w", err)
 	}
@@ -122,6 +123,10 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 	req, err := targetGNB.WaitForHandoverRequest(5 * time.Second)
 	if err != nil {
 		return fmt.Errorf("the target gNB got no HandoverRequest: %w", err)
+	}
+
+	if err := assertSourceToTargetOn(req); err != nil {
+		return err
 	}
 
 	if len(req.PDUSessionResourceSetupListHOReq) != 2 {
