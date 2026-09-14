@@ -1091,7 +1091,35 @@ func TestHandoverCancelFromTheTargetLeavesTheHandoverStanding(t *testing.T) {
 func handoverForwardingExchange(t *testing.T, directPath bool) (*s1ap.HandoverRequest, *s1ap.HandoverCommand) {
 	t.Helper()
 
-	m := newTestMME(t)
+	hoReq, cmd, _ := handoverForwardingExchangeSessions(t, directPath)
+
+	return hoReq, cmd
+}
+
+type forwardingExchange struct {
+	m        *mme.MME
+	ue       *mme.UeContext
+	source   *captureConn
+	target   *captureConn
+	hoReq    *s1ap.HandoverRequest
+	cmd      *s1ap.HandoverCommand
+	sessions *fakeSessionManager
+}
+
+func handoverForwardingExchangeSessions(t *testing.T, directPath bool) (*s1ap.HandoverRequest, *s1ap.HandoverCommand, *fakeSessionManager) {
+	t.Helper()
+
+	x := handoverForwardingExchangeFull(t, directPath)
+
+	return x.hoReq, x.cmd, x.sessions
+}
+
+func handoverForwardingExchangeFull(t *testing.T, directPath bool) forwardingExchange {
+	t.Helper()
+
+	sessions := &fakeSessionManager{forwardingTEID: 0xABCD}
+	m := newTestMMEWithSessions(t, sessions)
+
 	ue, source, target := handoverUE(t, m)
 
 	required := sampleHandoverRequired(ue)
@@ -1136,7 +1164,7 @@ func handoverForwardingExchange(t *testing.T, directPath bool) (*s1ap.HandoverRe
 		t.Fatalf("parse HANDOVER COMMAND: %v", err)
 	}
 
-	return hoReq, cmd
+	return forwardingExchange{m: m, ue: ue, source: source, target: target, hoReq: hoReq, cmd: cmd, sessions: sessions}
 }
 
 func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
@@ -1164,16 +1192,41 @@ func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
 	}
 }
 
-func TestHandoverWithoutDirectPathOffersNoForwarding(t *testing.T) {
-	hoReq, cmd := handoverForwardingExchange(t, false)
+func TestHandoverWithoutDirectPathForwardsIndirectly(t *testing.T) {
+	hoReq, cmd, sessions := handoverForwardingExchangeSessions(t, false)
 
-	ext := hoReq.ERABToBeSetup[0].Extensions
-	if ext == nil || ext.DataForwardingNotPossible == nil {
-		t.Error("HANDOVER REQUEST did not declare data forwarding not possible")
+	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+		t.Error("HANDOVER REQUEST declared data forwarding not possible, so the target allocates no endpoint")
 	}
 
-	if len(cmd.ERABSubjecttoDataForwarding) != 0 {
-		t.Errorf("E-RABSubjecttoDataForwardingList has %d items, want none", len(cmd.ERABSubjecttoDataForwarding))
+	if len(cmd.ERABSubjecttoDataForwarding) != 1 {
+		t.Fatalf("E-RABSubjecttoDataForwardingList has %d items, want 1", len(cmd.ERABSubjecttoDataForwarding))
+	}
+
+	item := cmd.ERABSubjecttoDataForwarding[0]
+
+	if item.DLGTPTEID == nil || *item.DLGTPTEID != 0xABCD {
+		t.Errorf("forwarded DL GTP-TEID = %v, want the UPF's 0xABCD", item.DLGTPTEID)
+	}
+
+	if got := []byte(item.DLTransportLayerAddr); string(got) != string([]byte{192, 168, 1, 1}) {
+		t.Errorf("forwarded DL transport layer address = %v, want the UPF's 192.168.1.1", got)
+	}
+
+	if len(sessions.forwardingTargets) != 1 {
+		t.Fatalf("the UPF was asked for %d forwarding tunnels, want 1", len(sessions.forwardingTargets))
+	}
+
+	if teid := sessions.forwardingTargets[0].TEID; teid != 0xfeed {
+		t.Errorf("the forwarding tunnel points at TEID %#x, want the target's 0xfeed", teid)
+	}
+}
+
+func TestHandoverWithDirectPathOpensNoForwardingTunnel(t *testing.T) {
+	_, _, sessions := handoverForwardingExchangeSessions(t, true)
+
+	if len(sessions.forwardingTargets) != 0 {
+		t.Errorf("a direct forwarding path still opened %d indirect tunnels", len(sessions.forwardingTargets))
 	}
 }
 
@@ -1304,5 +1357,131 @@ func TestHandoverDropsOnlyTheUnusableForwardingDirection(t *testing.T) {
 
 	if item.ULGTPTEID == nil || *item.ULGTPTEID != 0xbeef {
 		t.Errorf("forwarded UL GTP-TEID = %v, want 0xbeef", item.ULGTPTEID)
+	}
+}
+
+func TestHandoverNotifySchedulesForwardingRelease(t *testing.T) {
+	x := handoverForwardingExchangeFull(t, false)
+
+	notify := &s1ap.HandoverNotify{
+		MMEUES1APID: x.hoReq.MMEUES1APID,
+		ENBUES1APID: s1ap.ENBUES1APID(55),
+		EUTRANCGI:   s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
+		TAI:         s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
+	}
+
+	handleHandoverNotify(x.m, context.Background(), mme.NewRadioForTest(x.target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
+
+	if len(x.sessions.forwardingScheduled) == 0 {
+		t.Error("a completed handover did not schedule its forwarding tunnel for release")
+	}
+
+	if len(x.sessions.forwardingClosed) != 0 {
+		t.Error("a completed handover released its forwarding tunnel immediately")
+	}
+}
+
+func TestHandoverFailureReleasesForwardingTunnel(t *testing.T) {
+	x := handoverForwardingExchangeFull(t, false)
+
+	fail := &s1ap.HandoverFailure{
+		MMEUES1APID: s1ap.Ptr(x.hoReq.MMEUES1APID),
+		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}),
+	}
+
+	handleHandoverFailure(x.m, context.Background(), mme.NewRadioForTest(x.target), unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
+
+	if len(x.sessions.forwardingClosed) == 0 {
+		t.Error("a refused handover left its forwarding tunnel behind")
+	}
+}
+
+func TestHandoverAbandonedReleasesForwardingTunnel(t *testing.T) {
+	x := handoverForwardingExchangeFull(t, false)
+
+	x.m.FireHandoverGuardForTest(x.ue)
+
+	if len(x.sessions.forwardingClosed) == 0 {
+		t.Error("an abandoned handover left its forwarding tunnel behind")
+	}
+}
+
+func TestHandoverCancelAfterCompletionKeepsForwardingTunnel(t *testing.T) {
+	x := handoverForwardingExchangeFull(t, false)
+
+	notify := &s1ap.HandoverNotify{
+		MMEUES1APID: x.hoReq.MMEUES1APID,
+		ENBUES1APID: s1ap.ENBUES1APID(55),
+		EUTRANCGI:   s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
+		TAI:         s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
+	}
+
+	handleHandoverNotify(x.m, context.Background(), mme.NewRadioForTest(x.target), initiatingValue(t, mustMarshal(t, notify.Marshal)))
+
+	cancel := &s1ap.HandoverCancel{
+		MMEUES1APID: x.hoReq.MMEUES1APID,
+		ENBUES1APID: s1ap.ENBUES1APID(55),
+		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}),
+	}
+
+	handleHandoverCancel(x.m, context.Background(), mme.NewRadioForTest(x.source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+
+	if len(x.sessions.forwardingClosed) != 0 {
+		t.Error("a cancel arriving after the handover completed tore down the forwarding tunnel the timer still owns")
+	}
+}
+
+func TestHandoverForwardingEndpointIsDualStack(t *testing.T) {
+	sessions := &fakeSessionManager{
+		forwardingTEID: 0xABCD,
+		forwardingIPv6: netip.MustParseAddr("2001:db8::1"),
+	}
+
+	m := newTestMMEWithSessions(t, sessions)
+	ue, source, target := handoverUE(t, m)
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	req, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
+	if !ok {
+		t.Fatalf("expected HANDOVER REQUEST to target, got %T", lastPDU(t, target))
+	}
+
+	hoReq, err := s1ap.ParseHandoverRequest(req.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER REQUEST: %v", err)
+	}
+
+	ack := &s1ap.HandoverRequestAcknowledge{
+		MMEUES1APID: s1ap.Ptr(hoReq.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
+		ERABAdmitted: []s1ap.ERABAdmittedItem{{
+			ERABID:                s1ap.ERABID(mme.DefaultERABID),
+			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			GTPTEID:               0x99,
+			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3},
+			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
+		}},
+		TargetToSource: s1ap.TransparentContainer{0xaa},
+	}
+
+	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+	out, ok := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
+	if !ok {
+		t.Fatalf("expected HANDOVER COMMAND to source, got %T", lastPDU(t, source))
+	}
+
+	cmd, err := s1ap.ParseHandoverCommand(out.Value)
+	if err != nil {
+		t.Fatalf("parse HANDOVER COMMAND: %v", err)
+	}
+
+	if len(cmd.ERABSubjecttoDataForwarding) != 1 {
+		t.Fatalf("E-RABSubjecttoDataForwardingList has %d items, want 1", len(cmd.ERABSubjecttoDataForwarding))
+	}
+
+	if got := len(cmd.ERABSubjecttoDataForwarding[0].DLTransportLayerAddr); got != 20 {
+		t.Fatalf("forwarding transport layer address is %d octets, want the 20-octet dual-stack form", got)
 	}
 }

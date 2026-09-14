@@ -80,7 +80,7 @@ func TestModifySessionUpdateWithoutPredecessorCarriesSessionIMSI(t *testing.T) {
 		UpdatePDRs: []models.PDR{{PDRID: 9, FARID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 	}
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err != nil {
 		t.Fatalf("modify with an update for an absent PDR: %v", err)
 	}
 

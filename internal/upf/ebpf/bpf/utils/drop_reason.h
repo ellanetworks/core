@@ -20,8 +20,9 @@ enum upf_drop_reason {
 	UPF_DROP_NO_DOWNLINK_SESSION,
 	UPF_DROP_FAR_NO_FORWARD,
 	UPF_DROP_FAR_NO_ENCAP,
-	/* An uplink FAR requesting GTP-to-GTP forwarding, which n3_bpf.h
-	 * refuses. */
+	/* An uplink FAR asking for GTP-to-GTP forwarding outside an indirect
+	 * forwarding tunnel (N9, S5/S8), or one whose relay cannot be served
+	 * because the inbound and outbound transports are of different families. */
 	UPF_DROP_FAR_UNSUPPORTED,
 	UPF_DROP_QER_GATE_CLOSED,
 	UPF_DROP_QER_RATE_LIMIT,
@@ -88,6 +89,7 @@ enum upf_drop_reason {
 	UPF_DROP_MTU_EXCEEDED,
 	/* A frame on the buffer injection veth that the datapath did not forward. */
 	UPF_DROP_REINJECT_UNOWNED,
+	UPF_DROP_FRAGMENTED_TRANSPORT,
 
 	UPF_DROP_REASON_COUNT,
 };

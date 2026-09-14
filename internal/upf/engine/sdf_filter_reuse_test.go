@@ -96,7 +96,7 @@ func TestFilterReleaseVsSessionApplyNoSlotReuse(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			if err := conn.ModifySession(ctx, &models.ModifyRequest{
+			if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
 				SEID:       seid,
 				PolicyID:   policyReleased,
 				UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},

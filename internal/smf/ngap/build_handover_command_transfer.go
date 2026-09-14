@@ -7,6 +7,7 @@ package ngap
 
 import (
 	"fmt"
+	"net/netip"
 
 	libngap "github.com/ellanetworks/core/ngap"
 )
@@ -41,6 +42,20 @@ func BuildHandoverCommandTransfer(plan *ForwardingPlan) ([]byte, error) {
 	}
 
 	return buf, nil
+}
+
+func (p *ForwardingPlan) RelayThrough(teid uint32, addr libngap.TransportLayerAddress) {
+	p.DLForwardingUPTNLInformation = &libngap.UPTransportLayerInformation{
+		GTPTunnel: libngap.GTPTunnel{
+			TransportLayerAddress: addr,
+			GTPTEID:               libngap.GTPTEID(teid),
+		},
+	}
+	p.DataForwardingResponseDRB = nil
+}
+
+func EncodeTransportLayerAddress(ipv4, ipv6 netip.Addr) (libngap.TransportLayerAddress, error) {
+	return encodeTransportLayerAddress(ipv4, ipv6)
 }
 
 func ForwardingPlanFrom(ack *libngap.HandoverRequestAcknowledgeTransfer) *ForwardingPlan {

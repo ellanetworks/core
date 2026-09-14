@@ -52,6 +52,7 @@ const (
 type PdrInfo struct {
 	SEID               uint64
 	OuterHeaderRemoval uint8
+	Forwarding         bool
 	PdrID              uint32
 	FarID              uint32
 	QerID              uint32
@@ -337,6 +338,11 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 
 	pdrToStore.LocalSeid = defaultPdr.SEID
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
+
+	if defaultPdr.Forwarding {
+		pdrToStore.Forwarding = 1
+	}
+
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.UrrId = defaultPdr.UrrID
 	pdrToStore.QerId = defaultPdr.QerID

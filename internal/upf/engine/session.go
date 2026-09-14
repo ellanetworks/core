@@ -108,6 +108,23 @@ func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	return info, ok
 }
 
+func (s *Session) RemovePDR(id uint32) (SPDRInfo, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	info, ok := s.pdrs[id]
+	delete(s.pdrs, id)
+
+	return info, ok
+}
+
+func (s *Session) RemoveFar(id uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.fars, id)
+}
+
 func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

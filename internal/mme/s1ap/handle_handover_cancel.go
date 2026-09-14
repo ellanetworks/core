@@ -56,7 +56,12 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		}
 	}
 
-	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
+	releaseConn, releaseMMEID, releaseENBID, pair, has, aborted := m.CancelHandover(ue)
+	if aborted {
+		m.CloseForwardingTunnels(ctx, ue)
+	}
+
+	if has {
 		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, releaseCause)
 	}
 

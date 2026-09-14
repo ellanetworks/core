@@ -232,6 +232,11 @@ static __always_inline long ctx_l4_csum_replace(struct __ctx_buff *ctx,
 	return bpf_l4_csum_replace(ctx, off, from, to, flags);
 }
 
+static __always_inline void ctx_csum_update(struct __ctx_buff *ctx, __wsum csum)
+{
+	(void)bpf_csum_update(ctx, csum);
+}
+
 /* skb_vlan_untag moves the tag out of the frame bytes before the hook, so the
  * in-band branches compile out. */
 #define CTX_INBAND_VLAN 0

@@ -59,7 +59,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, ngap.DataForwardingNone)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 }
 
 func TestBuildHandoverRequestTransfer_NilAmbr(t *testing.T) {
-	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
+	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, ngap.DataForwardingNone)
 	if err == nil {
 		t.Fatal("expected error for nil ambr")
 	}
@@ -347,7 +347,7 @@ func TestBuildHandoverRequestTransferCarriesTheERABID(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
 	ebi := uint8(5)
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, &ebi, false)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, &ebi, ngap.DataForwardingNone)
 	if err != nil {
 		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestBuildHandoverRequestTransferOmitsTheERABIDWithoutABearer(t *testing.T) 
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, false)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, ngap.DataForwardingNone)
 	if err != nil {
 		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestBuildHandoverRequestTransferWithDirectForwarding(t *testing.T) {
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, true)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil, ngap.DataForwardingDirect)
 	if err != nil {
 		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
 	}

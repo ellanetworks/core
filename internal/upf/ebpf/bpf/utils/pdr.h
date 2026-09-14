@@ -132,7 +132,8 @@ struct pdr_info {
 	/* With local_seid, the key into qer_windows. */
 	__u32 qer_id;
 	__u8 outer_header_removal;
-	__u8 pad[3]; /* explicit padding */
+	__u8 forwarding;
+	__u8 pad[2]; /* explicit padding */
 	struct far_info far;
 	struct qer_info qer;
 	__u32 filter_map_index; /* 0 = no SDF filtering for this PDR */

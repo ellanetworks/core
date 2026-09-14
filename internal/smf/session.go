@@ -269,11 +269,21 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	req := next.modifyRequest(sc.PFCPContext.SEID, policyID)
 	req.SendEndMarkers = next.AN.switchedFrom(sc.Tunnel.AN)
 
-	if err := s.upf.ModifySession(ctx, req); err != nil {
+	if next.Forwarding == nil && sc.Tunnel.Forwarding != nil {
+		req.RemovePDRs = []uint16{pdrIDForwarding}
+		req.RemoveFARs = []uint32{farIDForwarding}
+	}
+
+	resp, err := s.upf.ModifySession(ctx, req)
+	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %w", err)
 	}
 
 	sc.Tunnel.dataPlane = next
+
+	if resp != nil {
+		sc.Tunnel.ForwardingTEID = resp.ForwardingTEID
+	}
 
 	return nil
 }

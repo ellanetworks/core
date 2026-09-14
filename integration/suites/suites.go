@@ -89,6 +89,7 @@ const (
 	UE2UE          Name = "ue2ue"
 	Framed         Name = "framed"
 	Handover4G     Name = "handover-4g"
+	Handover5G     Name = "handover-5g"
 	BGP4G          Name = "bgp-4g"
 	BGP5G          Name = "bgp-5g"
 	HA             Name = "ha"
@@ -116,6 +117,7 @@ var Definitions = map[Name]Definition{
 	UE2UE:          {Profile: ProfileAttach, Timeout: "20m", NeedsTester: true},
 	Framed:         {Profile: ProfileFamiliesAttach, Timeout: "20m", NeedsTester: true},
 	Handover4G:     {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true},
+	Handover5G:     {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true},
 	BGP4G:          {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
 	BGP5G:          {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
 	HA:             {Profile: ProfileClusterFamilies, Timeout: "15m"},

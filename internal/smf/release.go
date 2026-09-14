@@ -48,6 +48,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	// Stop any outstanding network-requested procedure retransmission so it does
 	// not keep firing against a released session.
 	smContext.stopProcedureTimer()
+	smContext.forwardingRelease.Stop()
 
 	err := s.releaseUserPlaneThenAddresses(ctx, smContext)
 	if err != nil {

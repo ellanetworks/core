@@ -22,6 +22,7 @@
 #pragma once
 
 #include <linux/bpf.h>
+#include <linux/errno.h>
 #include <bpf/bpf_helpers.h>
 
 #include "bpf/utils/common.h"
@@ -268,6 +269,262 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 	return tunnel_ret;
 }
 
+static __always_inline long relay_csum_teid(struct packet_context *ctx,
+					    __u32 csum_off, __u16 old_check,
+					    __u32 old_teid, __u32 new_teid)
+{
+	if (old_teid == new_teid)
+		return 0;
+
+	if (old_check != 0)
+		return ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_teid,
+					   new_teid, 4 | BPF_F_MARK_MANGLED_0);
+
+	__s64 diff = bpf_csum_diff((__be32 *)&old_teid, sizeof(old_teid),
+				   (__be32 *)&new_teid, sizeof(new_teid), 0);
+	if (diff < 0)
+		return -1;
+
+	ctx_csum_update(ctx->ctx_buff, (__wsum)diff);
+
+	return 0;
+}
+
+static __always_inline long relay_csum_ip4(struct packet_context *ctx,
+					   __u32 csum_off, __u16 old_check,
+					   __u32 old_saddr, __u32 new_saddr,
+					   __u32 old_daddr, __u32 new_daddr,
+					   __u32 old_teid, __u32 new_teid)
+{
+	long err = 0;
+
+	if (old_saddr != new_saddr)
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_saddr,
+					   new_saddr,
+					   4 | BPF_F_PSEUDO_HDR |
+						   BPF_F_MARK_MANGLED_0);
+
+	if (old_daddr != new_daddr)
+		err |= ctx_l4_csum_replace(ctx->ctx_buff, csum_off, old_daddr,
+					   new_daddr,
+					   4 | BPF_F_PSEUDO_HDR |
+						   BPF_F_MARK_MANGLED_0);
+
+	err |= relay_csum_teid(ctx, csum_off, old_check, old_teid, new_teid);
+
+	return err;
+}
+
+struct relay_addr_pair {
+	struct in6_addr saddr;
+	struct in6_addr daddr;
+};
+
+#define RELAY_IP6_HEAD_LEN 8
+
+static __always_inline long relay_csum_ip6(struct packet_context *ctx,
+					   __u32 csum_off, __u16 old_check,
+					   const struct in6_addr *old_saddr,
+					   const struct in6_addr *old_daddr,
+					   const struct far_info *far,
+					   __u32 old_teid, __u32 new_teid,
+					   const __u8 *old_head,
+					   const __u8 *new_head)
+{
+	__s64 head_diff = bpf_csum_diff((__be32 *)old_head, RELAY_IP6_HEAD_LEN,
+					(__be32 *)new_head, RELAY_IP6_HEAD_LEN,
+					0);
+	if (head_diff < 0)
+		return -1;
+
+	ctx_csum_update(ctx->ctx_buff, (__wsum)head_diff);
+
+	struct relay_addr_pair old_addrs;
+	struct relay_addr_pair new_addrs;
+
+	old_addrs.saddr = *old_saddr;
+	old_addrs.daddr = *old_daddr;
+	new_addrs.saddr = far->localip;
+	new_addrs.daddr = far->remoteip;
+
+	__s64 diff = bpf_csum_diff((__be32 *)&old_addrs, sizeof(old_addrs),
+				   (__be32 *)&new_addrs, sizeof(new_addrs), 0);
+	if (diff < 0)
+		return -1;
+
+	const __u64 to = (__u64)(__u32)diff;
+
+	long err = ctx_l4_csum_replace(ctx->ctx_buff, csum_off, 0, to,
+				       BPF_F_PSEUDO_HDR | BPF_F_IPV6 |
+					       BPF_F_MARK_MANGLED_0);
+	if (err == -EINVAL)
+		err = ctx_l4_csum_replace(ctx->ctx_buff, csum_off, 0, to,
+					  BPF_F_PSEUDO_HDR |
+						  BPF_F_MARK_MANGLED_0);
+
+	err |= relay_csum_teid(ctx, csum_off, old_check, old_teid, new_teid);
+
+	return err;
+}
+
+static __always_inline enum ctx_action
+relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
+{
+	const struct far_info *far = &pdr->far;
+
+	if (!(far->action & FAR_FORW))
+		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
+
+	if (!ctx->gtp || !ctx->udp)
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
+
+	if (frame_is_merged(ctx))
+		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
+
+	const __u32 key = 0;
+	struct route_stat *route_statistic =
+		bpf_map_lookup_elem(&uplink_route_stats, &key);
+	if (!route_statistic)
+		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
+
+	const __u32 old_teid = ctx->gtp->teid;
+	const __u32 new_teid = bpf_htonl(far->teid);
+	const __u32 csum_off =
+		ctx_frame_offset(ctx->ctx_buff, &ctx->udp->check);
+	const __u16 old_check = ctx->udp->check;
+
+	ctx->interface = INTERFACE_N6;
+
+	if (ctx->ip4 && (far->outer_header_creation & OHC_GTP_U_UDP_IPv4)) {
+		struct iphdr *ip4 = ctx->ip4;
+		__u8 *ip4_bytes = (__u8 *)ip4;
+
+		const __u32 old_saddr = ip4->saddr;
+		const __u32 old_daddr = ip4->daddr;
+		const __u16 old_tos_word = *(__u16 *)ip4_bytes;
+		const __u16 old_ttl_word = *(__u16 *)(ip4_bytes + 8);
+		const __u32 new_saddr = ipv4_from_mapped(&far->localip);
+		const __u32 new_daddr = ipv4_from_mapped(&far->remoteip);
+
+		ctx->gtp->teid = new_teid;
+		ip4->saddr = new_saddr;
+		ip4->daddr = new_daddr;
+		ip4->ttl = GTP_OUTER_TTL;
+
+		if (far->transport_level_marking != 0)
+			ip4->tos = far->transport_level_marking >> 8;
+
+		ip4->check = ipv4_csum_update_u16(ip4->check, old_tos_word,
+						  *(__u16 *)ip4_bytes);
+		ip4->check = ipv4_csum_update_u16(ip4->check, old_ttl_word,
+						  *(__u16 *)(ip4_bytes + 8));
+		ip4->check = ipv4_csum_update_u32(ip4->check, old_saddr,
+						  new_saddr);
+		ip4->check = ipv4_csum_update_u32(ip4->check, old_daddr,
+						  new_daddr);
+
+		if (CTX_L4_CSUM_VIA_HELPERS) {
+			if (relay_csum_ip4(ctx, csum_off, old_check, old_saddr,
+					   new_saddr, old_daddr, new_daddr,
+					   old_teid, new_teid) != 0)
+				return abort_with(ctx,
+						  UPF_DROP_INTERNAL_CSUM_FAILED);
+
+			if (context_reinit(ctx, ctx_data(ctx->ctx_buff),
+					   ctx_data_end(ctx->ctx_buff)) != 0 ||
+			    !ctx->ip4)
+				return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
+		} else if (old_check != 0) {
+			struct udphdr *udp = ctx->udp;
+
+			udp->check = ipv4_csum_update_u32(udp->check, old_saddr,
+							  new_saddr);
+			udp->check = ipv4_csum_update_u32(udp->check, old_daddr,
+							  new_daddr);
+			udp->check = ipv4_csum_update_u32(udp->check, old_teid,
+							  new_teid);
+
+			if (udp->check == 0)
+				udp->check = 0xFFFF;
+		}
+
+		ctx->statistics->packet_counters.tx++;
+
+		upf_printk("upf: relay forwarded gtp [ %pI4 -> %pI4 ]",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr);
+
+		return route_ipv4(ctx, route_statistic, false);
+	}
+
+	if (ctx->ip6 && (far->outer_header_creation & OHC_GTP_U_UDP_IPv6)) {
+		struct ipv6hdr *ip6 = ctx->ip6;
+
+		const struct in6_addr old_saddr = ip6->saddr;
+		const struct in6_addr old_daddr = ip6->daddr;
+		__u8 old_head[RELAY_IP6_HEAD_LEN];
+		__u8 new_head[RELAY_IP6_HEAD_LEN];
+
+		__builtin_memcpy(old_head, ip6, sizeof(old_head));
+
+		ctx->gtp->teid = new_teid;
+		ip6->saddr = far->localip;
+		ip6->daddr = far->remoteip;
+		ip6->hop_limit = GTP_OUTER_TTL;
+
+		if (far->transport_level_marking != 0) {
+			const __u8 tc = far->transport_level_marking >> 8;
+
+			ip6->priority = tc >> 4;
+			ip6->flow_lbl[0] = ((tc & 0x0f) << 4) |
+					   (ip6->flow_lbl[0] & 0x0f);
+		}
+
+		__builtin_memcpy(new_head, ip6, sizeof(new_head));
+
+		if (CTX_L4_CSUM_VIA_HELPERS) {
+			if (relay_csum_ip6(ctx, csum_off, old_check, &old_saddr,
+					   &old_daddr, far, old_teid, new_teid,
+					   old_head, new_head) != 0)
+				return abort_with(ctx,
+						  UPF_DROP_INTERNAL_CSUM_FAILED);
+
+			if (context_reinit(ctx, ctx_data(ctx->ctx_buff),
+					   ctx_data_end(ctx->ctx_buff)) != 0 ||
+			    !ctx->ip6)
+				return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
+		} else if (old_check != 0) {
+			struct udphdr *udp = ctx->udp;
+
+			udp->check = ipv4_csum_update_u32(udp->check, old_teid,
+							  new_teid);
+
+#pragma unroll
+			for (int i = 0; i < 4; i++) {
+				udp->check = ipv4_csum_update_u32(
+					udp->check,
+					old_saddr.in6_u.u6_addr32[i],
+					far->localip.in6_u.u6_addr32[i]);
+				udp->check = ipv4_csum_update_u32(
+					udp->check,
+					old_daddr.in6_u.u6_addr32[i],
+					far->remoteip.in6_u.u6_addr32[i]);
+			}
+
+			if (udp->check == 0)
+				udp->check = 0xFFFF;
+		}
+
+		ctx->statistics->packet_counters.tx++;
+
+		upf_printk("upf: relay forwarded gtp [ %pI6c -> %pI6c ]",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr);
+
+		return route_ipv6(ctx, route_statistic, false);
+	}
+
+	return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
+}
+
 static __always_inline enum ctx_action
 handle_gtp_packet(struct packet_context *ctx)
 {
@@ -299,6 +556,17 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	struct far_info *far = &pdr->far;
 	struct qer_info *qer = &pdr->qer;
+
+	if (pdr->forwarding)
+		return relay_forwarded_gtp(ctx, pdr);
+
+	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would
+	 * leave with a stale outer UDP checksum over rewritten addresses, and
+	 * would bypass the SDF and anti-spoof checks the decap path runs. Only
+	 * an indirect forwarding tunnel, marked above, relays. */
+	if (far->outer_header_creation &
+	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))
+		return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
 
 	PROFILE_START(PROF_N3_MTU_CHECK);
 	__u32 mtu_len = 0;
@@ -367,15 +635,6 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
-	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would
-	 * leave with a stale outer UDP checksum over rewritten addresses, and
-	 * would bypass the SDF and anti-spoof checks the decap path runs. */
-	if (far->outer_header_creation &
-	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)) {
-		PROFILE_END(PROF_N3_GTP_MANIP);
-		return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
-	}
-
 	if (outer_header_removal == OHR_GTP_U_UDP_IPv4 ||
 	    outer_header_removal == OHR_GTP_U_UDP_IPv6 ||
 	    outer_header_removal == OHR_GTP_U_UDP_IP) {
@@ -566,9 +825,17 @@ static __always_inline enum ctx_action handle_gtpu(struct packet_context *ctx)
 		return gtpu_control_tail_call(ctx);
 	case GTPU_ECHO_RESPONSE:
 		return CTX_ACT_OK;
+	case GTPU_END_MARKER: {
+		__u32 em_teid = bpf_htonl(ctx->gtp->teid);
+		struct pdr_info *em_pdr =
+			bpf_map_lookup_elem(&pdrs_uplink, &em_teid);
+		if (!em_pdr || !em_pdr->forwarding)
+			return DEFAULT_CTX_ACTION;
+
+		return relay_forwarded_gtp(ctx, em_pdr);
+	}
 	case GTPU_ERROR_INDICATION:
 	case GTPU_SUPPORTED_EXTENSION_HEADERS_NOTIFICATION:
-	case GTPU_END_MARKER:
 		return DEFAULT_CTX_ACTION;
 	default:
 		upf_printk("upf: unexpected gtp message: type=%d", pdu_type);

@@ -11,6 +11,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
@@ -269,4 +270,75 @@ func (s *SMF) EPSSubscriptionChanged(ctx context.Context, ref string) (models.Su
 
 func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
 	return s.deactivateSession(ctx, ref, Access4G)
+}
+
+func (s *SMF) OpenEPSForwardingTunnel(ctx context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error) {
+	ctx, span := tracer.Start(ctx, "smf/open_eps_forwarding_tunnel",
+		trace.WithAttributes(attribute.String("smf.session_ref", ref)),
+	)
+	defer span.End()
+
+	smContext := s.GetSession(ref)
+	if smContext == nil {
+		return models.ForwardingTunnel{}, fmt.Errorf("no EPS session %q", ref)
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	if smContext.Tunnel == nil {
+		return models.ForwardingTunnel{}, fmt.Errorf("EPS session %q has no user plane", ref)
+	}
+
+	targetIP := net.IP(target.Addr.AsSlice())
+
+	an := AnchorBinding{TEID: target.TEID}
+	if targetIP.To4() == nil {
+		an.IPv6 = targetIP
+	} else {
+		an.IPv4 = targetIP
+	}
+
+	if err := s.openForwardingTunnel(ctx, smContext, an); err != nil {
+		span.RecordError(err)
+
+		return models.ForwardingTunnel{}, err
+	}
+
+	local := models.ForwardingTunnel{
+		TEID: smContext.Tunnel.ForwardingTEID,
+		IPv4: smContext.Tunnel.N3IPv4,
+		IPv6: smContext.Tunnel.N3IPv6,
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
+		logger.SUPI(smContext.Supi.String()), logger.TEID(local.TEID))
+
+	return local, nil
+}
+
+func (s *SMF) CloseEPSForwardingTunnel(ctx context.Context, ref string) error {
+	smContext := s.GetSession(ref)
+	if smContext == nil {
+		return nil
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	smContext.forwardingRelease.Stop()
+
+	return s.closeForwardingTunnel(ctx, smContext)
+}
+
+func (s *SMF) ScheduleEPSForwardingRelease(ref string) {
+	smContext := s.GetSession(ref)
+	if smContext == nil {
+		return
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	s.scheduleForwardingRelease(smContext)
 }

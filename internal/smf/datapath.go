@@ -26,15 +26,19 @@ type dataPlane struct {
 	Downlink DownlinkState
 	QFI      uint8
 	AMBR     models.Ambr
+
+	Forwarding *AnchorBinding
 }
 
 const (
-	pdrIDUplink   uint16 = 1
-	pdrIDDownlink uint16 = 2
-	pdrIDSecond   uint16 = 3
+	pdrIDUplink     uint16 = 1
+	pdrIDDownlink   uint16 = 2
+	pdrIDSecond     uint16 = 3
+	pdrIDForwarding uint16 = 4
 
-	farIDUplink   uint32 = 1
-	farIDDownlink uint32 = 2
+	farIDUplink     uint32 = 1
+	farIDDownlink   uint32 = 2
+	farIDForwarding uint32 = 3
 
 	qerIDDefault uint32 = 1
 
@@ -59,7 +63,10 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 		FARID:              farIDUplink,
 		QERID:              qerIDDefault,
 		URRID:              urrIDUplink,
-		PDI:                models.PDI{LocalFTEID: &models.FTEID{}},
+		PDI: models.PDI{
+			SourceInterface: models.InterfaceAccess,
+			LocalFTEID:      &models.FTEID{},
+		},
 	}}
 
 	if d.UEIPv4.IsValid() {
@@ -77,9 +84,11 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 
 	fars = []models.FAR{
 		{
-			FARID:                farIDUplink,
-			ApplyAction:          models.ApplyAction{Forw: true},
-			ForwardingParameters: &models.ForwardingParameters{},
+			FARID:       farIDUplink,
+			ApplyAction: models.ApplyAction{Forw: true},
+			ForwardingParameters: &models.ForwardingParameters{
+				DestinationInterface: models.InterfaceCore,
+			},
 		},
 		{
 			FARID:                farIDDownlink,
@@ -103,7 +112,53 @@ func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.
 
 	urrs = []models.URR{{URRID: urrIDUplink}, {URRID: urrIDDownlink}}
 
+	if d.Forwarding != nil {
+		pdrs = append(pdrs, models.PDR{
+			PDRID:              pdrIDForwarding,
+			OuterHeaderRemoval: &ohr,
+			FARID:              farIDForwarding,
+			PDI: models.PDI{
+				SourceInterface: models.InterfaceAccess,
+				LocalFTEID:      &models.FTEID{},
+			},
+		})
+
+		fars = append(fars, models.FAR{
+			FARID:                farIDForwarding,
+			ApplyAction:          models.ApplyAction{Forw: true},
+			ForwardingParameters: forwardingTunnelParameters(*d.Forwarding, d.Access),
+		})
+	}
+
 	return pdrs, fars, qers, urrs
+}
+
+func forwardingTunnelParameters(an AnchorBinding, access AccessType) *models.ForwardingParameters {
+	s1u := access == Access4G
+
+	switch {
+	case an.IPv6 != nil:
+		return &models.ForwardingParameters{
+			DestinationInterface: models.InterfaceAccess,
+			OuterHeaderCreation: &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv6,
+				TEID:        an.TEID,
+				IPv6Address: an.IPv6,
+				S1U:         s1u,
+			},
+		}
+	case an.IPv4 != nil:
+		return &models.ForwardingParameters{
+			OuterHeaderCreation: &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv4,
+				TEID:        an.TEID,
+				IPv4Address: an.IPv4.To4(),
+				S1U:         s1u,
+			},
+		}
+	default:
+		return &models.ForwardingParameters{}
+	}
 }
 
 func downlinkPDR(pdrID uint16, ueIP netip.Addr) models.PDR {
@@ -112,7 +167,10 @@ func downlinkPDR(pdrID uint16, ueIP netip.Addr) models.PDR {
 		FARID: farIDDownlink,
 		QERID: qerIDDefault,
 		URRID: urrIDDownlink,
-		PDI:   models.PDI{UEIPAddress: ueIP},
+		PDI: models.PDI{
+			SourceInterface: models.InterfaceCore,
+			UEIPAddress:     ueIP,
+		},
 	}
 }
 
@@ -128,30 +186,32 @@ func (s DownlinkState) applyAction() models.ApplyAction {
 }
 
 func (d dataPlane) forwardingParameters() *models.ForwardingParameters {
-	s1u := d.Access == Access4G
+	return accessForwardingParameters(d.AN, d.Access)
+}
+
+func accessForwardingParameters(an AnchorBinding, access AccessType) *models.ForwardingParameters {
+	params := &models.ForwardingParameters{DestinationInterface: models.InterfaceAccess}
+
+	s1u := access == Access4G
 
 	switch {
-	case d.AN.IPv6 != nil:
-		return &models.ForwardingParameters{
-			OuterHeaderCreation: &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv6,
-				TEID:        d.AN.TEID,
-				IPv6Address: d.AN.IPv6,
-				S1U:         s1u,
-			},
+	case an.IPv6 != nil:
+		params.OuterHeaderCreation = &models.OuterHeaderCreation{
+			Description: models.OuterHeaderCreationGtpUUdpIpv6,
+			TEID:        an.TEID,
+			IPv6Address: an.IPv6,
+			S1U:         s1u,
 		}
-	case d.AN.IPv4 != nil:
-		return &models.ForwardingParameters{
-			OuterHeaderCreation: &models.OuterHeaderCreation{
-				Description: models.OuterHeaderCreationGtpUUdpIpv4,
-				TEID:        d.AN.TEID,
-				IPv4Address: d.AN.IPv4.To4(),
-				S1U:         s1u,
-			},
+	case an.IPv4 != nil:
+		params.OuterHeaderCreation = &models.OuterHeaderCreation{
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
+			TEID:        an.TEID,
+			IPv4Address: an.IPv4.To4(),
+			S1U:         s1u,
 		}
-	default:
-		return &models.ForwardingParameters{}
 	}
+
+	return params
 }
 
 func (d dataPlane) establishRequest(seid uint64, imsi, policyID string, framedRoutes []netip.Prefix) *models.EstablishRequest {

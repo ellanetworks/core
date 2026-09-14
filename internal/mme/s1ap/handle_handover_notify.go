@@ -49,6 +49,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		Authoritative: true,
 	})
 
+	m.ScheduleForwardingRelease(ue)
+
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released during the user-plane switch",

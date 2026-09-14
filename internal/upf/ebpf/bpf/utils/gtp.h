@@ -65,6 +65,8 @@
  * caps pathological chains; far above any N3 header (typically 16 octets). */
 #define GTP_MAX_HDR_LEN 64
 
+#define GTP_OUTER_TTL 64
+
 /* Deepest span the datapath parses or writes behind a single pull. A pull
  * shorter than either path below turns a bounds check into a pass-to-stack
  * with no counter, so CTX_PULL_LEN is asserted against both. */
@@ -305,7 +307,7 @@ static __always_inline void fill_ip_header(struct iphdr *ip, int saddr,
 	ip->tot_len = bpf_htons(tot_len);
 	ip->id = 0; /* No fragmentation */
 	ip->frag_off = 0x0040; /* Don't fragment; Fragment offset = 0 */
-	ip->ttl = 64;
+	ip->ttl = GTP_OUTER_TTL;
 	ip->protocol = IPPROTO_UDP;
 	ip->check = 0;
 	ip->saddr = saddr;
@@ -324,7 +326,7 @@ static __always_inline void fill_ip6_header(struct ipv6hdr *ip6,
 	ip6->flow_lbl[2] = 0;
 	ip6->payload_len = bpf_htons(payload_len);
 	ip6->nexthdr = IPPROTO_UDP;
-	ip6->hop_limit = 64;
+	ip6->hop_limit = GTP_OUTER_TTL;
 	__builtin_memcpy(&ip6->saddr, saddr, sizeof(struct in6_addr));
 	__builtin_memcpy(&ip6->daddr, daddr, sizeof(struct in6_addr));
 }

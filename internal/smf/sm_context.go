@@ -30,6 +30,8 @@ type UPTunnel struct {
 	N3IPv4 netip.Addr
 	N3IPv6 netip.Addr
 
+	ForwardingTEID uint32
+
 	dataPlane
 }
 
@@ -85,8 +87,10 @@ type SMContext struct {
 	establishmentOutstanding bool
 
 	handoverTargetAN       *AnchorBinding
-	handoverForwarding     bool
+	handoverForwarding     smfNgap.DataForwarding
 	handoverForwardingPlan *smfNgap.ForwardingPlan
+
+	forwardingRelease guard.Guard
 
 	pending *pendingTransfer
 

@@ -34,10 +34,9 @@ func TestIntegration4GS1Handover(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	const (
-		composeDir = "compose/x2-handover/"
-		scenario   = "s1enb/s1_handover"
-	)
+	const composeDir = "compose/x2-handover/"
+
+	scenariosToRun := []string{"s1enb/s1_handover", "s1enb/s1_handover_indirect_forwarding"}
 
 	composeFile := HandoverComposeFile()
 	coreAPI := APIAddress()
@@ -88,10 +87,17 @@ func TestIntegration4GS1Handover(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	spec := scenarios.FixtureSpec{}
+	specsByName := map[string]scenarios.FixtureSpec{}
 
-	if s, ok := scenarios.Get(scenario); ok && s.Fixture != nil {
-		spec = s.Fixture(scenarios.Env{})
+	for _, name := range scenariosToRun {
+		s, ok := scenarios.Get(name)
+		if !ok || s.Fixture == nil {
+			continue
+		}
+
+		spec := s.Fixture(scenarios.Env{})
+		specsByName[name] = spec
+
 		fx.Apply(spec)
 	}
 
@@ -100,25 +106,29 @@ func TestIntegration4GS1Handover(t *testing.T) {
 		t.Fatalf("resolve tester container: %v", err)
 	}
 
-	argv := []string{
-		"core-tester", "run", scenario,
-		"--ella-core-n2-address", coreN2,
-		"--ip-version", string(DetectIPFamily()),
-		"--verbose",
-	}
+	for _, scenario := range scenariosToRun {
+		t.Run(scenario, func(t *testing.T) {
+			argv := []string{
+				"core-tester", "run", scenario,
+				"--ella-core-n2-address", coreN2,
+				"--ip-version", string(DetectIPFamily()),
+				"--verbose",
+			}
 
-	for _, spec := range HandoverRadioSpecs() {
-		argv = append(argv, "--gnb", spec)
-	}
+			for _, radio := range HandoverRadioSpecs() {
+				argv = append(argv, "--gnb", radio)
+			}
 
-	out, execErr := dc.Exec(ctx, testerContainer, argv, false, 3*time.Minute, nil)
-	if execErr != nil {
-		t.Fatalf("scenario %s failed: %v\n--- output ---\n%s", scenario, execErr, out)
-	}
+			out, execErr := dc.Exec(ctx, testerContainer, argv, false, 3*time.Minute, nil)
+			if execErr != nil {
+				t.Fatalf("scenario %s failed: %v\n--- output ---\n%s", scenario, execErr, out)
+			}
 
-	t.Logf("scenario %s passed\n%s", scenario, out)
+			t.Logf("scenario %s passed\n%s", scenario, out)
 
-	if len(spec.AssertUsageForIMSIs) > 0 {
-		fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+			if spec, ok := specsByName[scenario]; ok && len(spec.AssertUsageForIMSIs) > 0 {
+				fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+			}
+		})
 	}
 }

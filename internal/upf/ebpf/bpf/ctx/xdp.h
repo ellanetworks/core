@@ -78,6 +78,12 @@
 		(long)0;                                              \
 	})
 
+#define ctx_csum_update(ctx, csum)     \
+	({                             \
+		(void)(csum);          \
+		__builtin_trap();      \
+	})
+
 /* XDP sees VLAN tags as frame bytes. */
 #define CTX_INBAND_VLAN 1
 

@@ -83,7 +83,7 @@ type SessionStore interface {
 // UPFClient abstracts the session management interface toward the UPF.
 type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
-	ModifySession(ctx context.Context, req *models.ModifyRequest) error
+	ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error)
 	FlushUsage(ctx context.Context, seid uint64)
 	DeleteSession(ctx context.Context, seid uint64) error
 	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)

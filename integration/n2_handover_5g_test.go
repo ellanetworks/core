@@ -18,7 +18,7 @@ import (
 
 // TS 23.502 §4.9.1.3.3
 func TestIntegration5GN2Handover(t *testing.T) {
-	suites.Require(t, suites.Datapath5G)
+	suites.Require(t, suites.Handover5G)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GN2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -112,7 +112,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	// Provision subscribers for both scenarios.
 	scenarioSpecsByName := map[string]scenarios.FixtureSpec{}
 
-	for _, name := range []string{"gnb/ngap/n2_handover", "gnb/n2_handover_connectivity"} {
+	for _, name := range []string{"gnb/ngap/n2_handover", "gnb/ngap/n2_handover_indirect_forwarding", "gnb/n2_handover_connectivity"} {
 		s, ok := scenarios.Get(name)
 		if !ok || s.Fixture == nil {
 			continue
@@ -138,6 +138,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 
 	scenariosToRun := []scenarioRun{
 		{name: "gnb/ngap/n2_handover"},
+		{name: "gnb/ngap/n2_handover_indirect_forwarding"},
 		{name: "gnb/n2_handover_connectivity"},
 	}
 

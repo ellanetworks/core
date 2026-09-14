@@ -49,10 +49,18 @@ type PDR struct {
 	PDI                PDI
 }
 
+type Interface uint8
+
+const (
+	InterfaceAccess Interface = iota
+	InterfaceCore
+)
+
 // PDI describes the Packet Detection Information for a PDR.
 type PDI struct {
-	LocalFTEID  *FTEID
-	UEIPAddress netip.Addr
+	SourceInterface Interface
+	LocalFTEID      *FTEID
+	UEIPAddress     netip.Addr
 }
 
 // FTEID is a fully qualified Tunnel Endpoint Identifier (TS 29.244 §8.2.3): a
@@ -127,7 +135,8 @@ type ApplyAction struct {
 
 // ForwardingParameters describes how to forward matched packets.
 type ForwardingParameters struct {
-	OuterHeaderCreation *OuterHeaderCreation
+	DestinationInterface Interface
+	OuterHeaderCreation  *OuterHeaderCreation
 }
 
 // OuterHeaderCreation describes GTP-U encapsulation parameters.
@@ -190,8 +199,20 @@ type ModifyRequest struct {
 	UpdatePDRs []PDR
 	UpdateFARs []FAR
 	UpdateQERs []QER
+	RemovePDRs []uint16
+	RemoveFARs []uint32
 
 	SendEndMarkers bool
+}
+
+type ModifyResponse struct {
+	ForwardingTEID uint32
+}
+
+type ForwardingTunnel struct {
+	TEID uint32
+	IPv4 netip.Addr
+	IPv6 netip.Addr
 }
 
 // DeleteRequest asks the UPF to delete a session by its SEID.

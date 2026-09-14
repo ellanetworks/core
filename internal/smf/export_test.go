@@ -19,3 +19,18 @@ func SetTransferSupervisionForTest(d time.Duration) func() {
 
 	return func() { transferSupervision = prev }
 }
+
+func SetIndirectForwardingDurationForTest(d time.Duration) func() {
+	prev := indirectForwardingDuration
+	indirectForwardingDuration = d
+
+	return func() { indirectForwardingDuration = prev }
+}
+
+func (smContext *SMContext) ForwardingTEIDForTest() uint32 {
+	if smContext.Tunnel == nil {
+		return 0
+	}
+
+	return smContext.Tunnel.ForwardingTEID
+}

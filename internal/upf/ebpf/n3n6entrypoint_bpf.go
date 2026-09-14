@@ -132,7 +132,8 @@ type N3N6EntrypointPdrInfo struct {
 	UrrId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
-	Pad                [3]uint8
+	Forwarding         uint8
+	Pad                [2]uint8
 	Far                struct {
 		_                     structs.HostLayout
 		Action                uint8
