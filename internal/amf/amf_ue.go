@@ -646,6 +646,7 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	}
 
 	detached.AbortN2Setups()
+	detached.AbortN2Releases()
 	detached.releaseAllN2Sessions()
 
 	ue.endKeyChainProcs()
@@ -710,6 +711,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
 
+	ue.active.Load().AbortN2Releases()
 	ue.active.Load().releaseAllN2Sessions()
 
 	if ue.smf != nil {
@@ -747,6 +749,7 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
 
+	ue.active.Load().AbortN2Releases()
 	ue.active.Load().releaseAllN2Sessions()
 
 	if ue.smf == nil {

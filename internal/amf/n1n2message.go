@@ -343,6 +343,8 @@ func (amf *AMF) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduS
 		return fmt.Errorf("send pdu session resource release command: %w", err)
 	}
 
+	ueConn.armN2Release(pduSessionID)
+
 	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB (access resources only)",
 		logger.PDUSessionID(pduSessionID),
 	)

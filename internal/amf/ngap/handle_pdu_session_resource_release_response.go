@@ -43,6 +43,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 		for _, item := range msg.PDUSessionResourceReleased {
 			pduSessionID := uint8(item.PDUSessionID)
 
+			ueConn.EndN2Release(pduSessionID)
 			ueConn.SetN2SessionInactive(pduSessionID)
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
