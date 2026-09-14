@@ -91,16 +91,9 @@ SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
 
 # Test fixtures and Go fuzz corpora (Ella-authored): captured byte vectors and
-# seed inputs that can't carry a comment header. The tester's handover
-# transparent-container fixtures live beside the code that embeds them:
-# s1enb/capture holds S1AP containers recorded off a live radio, gnb/synthetic
-# holds NGAP stand-ins generated at the same magnitudes.
+# seed inputs that can't carry a comment header.
 [[annotations]]
-path = [
-  "**/testdata/**",
-  "internal/tester/s1enb/capture/*.bin",
-  "internal/tester/gnb/synthetic/*.bin",
-]
+path = ["**/testdata/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"

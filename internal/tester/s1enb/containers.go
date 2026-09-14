@@ -4,28 +4,42 @@
 package s1enb
 
 import (
-	_ "embed"
+	"encoding/base64"
 
 	"github.com/ellanetworks/core/s1ap"
 )
 
-//go:embed capture/source_to_target.bin
-var sourceToTargetCapture []byte
+const (
+	sourceToTargetCapture = "QInoChCJe+AboFFQAIIGEDBxYwaQJmDJs4dSqF79+Vq///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/6v///kf+r///5H/q///+R/3/P/r6IIEZAHDUk5UqB4DNnAAAAAXqgAAEBgxzf+AGAGAGAFACBACIAYAYAYAYAQAEEIYIQwQgghBBCCCEEEIIIQQQgghBBCGCEMEIIIQwQgghBBCCCEEEIIIQQQgghBBCCCEMEIYIQQAgAQQhghBBCCCEEEIIIQQQgghDBCCCEEEIIIQQQgghBBCCCEEEIYIQIIAwQBggDBAGCAMEAYIAwQBggDBAFBAGCAMEAYIAwQhghBBCCCEEEIIIQQQgghBBCCCEEEIIIQQQgghBBCCCEEAMEAYIAwQBggCWgPig1VEAC/gYAACCBggAIIGEAAggYYACCBiAAIAGMAAggY4ACABlgAIAGYAAgAZoACABoAAIAGmAAgAbAACCBsgAIAG2AAgALgQAN0ABBA5QAEEDoAAQQO8ABBA/wAEED/AAQAUAIGAAAgAoAQMQABABQAgY4ACACgBA0wAEAFACBsgAIAKAEDbAAQAcAABARAgA4AACAjhABwAAEBTCADgAAICyEAHAAAQFsIAGAAAkAoIQcEABBBQQg4YACCCghBxAAEAFBCDjAAIAKCEHLAAQAUEIOYAAgAoIQc0ABABQQg6AACACghB2QAEAFBCDugAIAKCEHvAAQQUEIP+AAggoIQf8ABABwQAEFDCCDggAIKIEAHBAAQUYIAOCAAgpYQAcEABBTAgA4IACCmhABwQAEFQCADggAIKyEAHBAAQVwIAOCAAgroQAcEABBbwgg4IACC/hBBwQAEF/CABggAJIKEEDCAAQAUIIGIAAgAoQQMcABABQggaYACAChBA2QAEAFCCBtgAIAOEAAgIgQAcIABARwgA4QACAphABwgAEBZCADhAAIC2EADCAASAUMIOGAAggoYQcQABABQwg4wACAChhBywAEAFDCDmAAIAKGEHQAAQAUMIO6AAgAoYQe8ABBBQwg/4ACADhgAIKIEAHDAAQUYIAOGAAgpYQAcMABBTAgA4YACCoBABwwAEFcCADhgAIK6EAHDAAQW8IIOGAAgv4QAUQIGIAAgAogQMYABBBRAgbAACCCiBA3QAEEFECB3gAIIKIED/AAQQcQABARggg4gACAsBBBxAAEBdCCDiAAIDeEEHEAAQH8IIGIAAiAowQNgABBBRggf4ACCDjAAICwEEHGAAQH8IIKMEHGAAQQUYIOOAAgAowQcsABABRgg5gACACjBB0wAEAFGCDsgAIAKMEHbAAQAUYIP+AAgA4wACCjhABxgAEFLCADjAAIKYEAHGAAQVMIAOMAAgrIQAcYABBWwgA4wACCuBABxgAEF/CABjAAJIKOEDlAAQQUcIHQAAgg44ACAyhBBxwAEBoCD/K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///8r///5X///yv///lf///K///+V///9AJAAAP+AAAD/AAAAA/4AAAAH+AAAAB/gAAAAf4AAAAH/AAAAA/wAAAAP8AAAAD/AAAAAf8AAAAH+AAAAA/4AAAAP+AAAAAH/AAAAB/gAAAAf8AAAAH+AAAAA/4AAAAP+AAAAAf8AAAAB/wAAAAf4AAAAD/gAAAA/+AAAAP/AAAAD/AAAAA/wAAAAP8AAAAD/4AAAA/8AAAAP8AAAAD/AAAAA/wAAAAH+AAAAB/gAAAAf4AAAAH/4AAAB/gAAAAB/gAAAAf4AAAAH/4AAAB/gAAAAP+AAAAAf4AAAAH+AAAAAH+AAAAAAP/AAAAD/gAAAAP+AAAAB/gAAAAP+AAAAA/4AAAAH+AAAAAf8AAAAD/AAAAAf4AAAAH/gAAAAAAAAAAAAAAAAAAAAAAAAAAAgICDAgCAIAgCAIAgCAIAgCAACAIAgCAIAgCAIAgCAIAiAgiDAgCAIAgCAIAgCAIAgCAIgIIgwACAIAgCAIAgCAIAgCAIAAIAgCAIAgCAIAgCIMCAIAgCAIAgCAIAiDAgCAIAgCAIgIIAgCAIAiAgAIAiAggCICCAIAgCAIAgCAIgwIAgCAIAgCAIAiDAAIAgCAIDAeYy00DKv////9//mhDqEARgEwqAAAAACqBNJQgAgAAkf8ASAJAEgCQBIAkASAJAEgCQBIAkASAJAEgAQBIAkASAJAEgCQEEgIJAQSAgkBBICCQFAgKBAUCAoEBQIAkBBICCQEEgIJAQSAgkBBICCQEEgIJAQSAgkBBICgQFAgKBAUCAoEBQICgQFAgKBAUCAoEBQICgQBICCQEEgIJAQSAgkBBICgQFAgKBAUCAoEASAgkBBICCQEEgIJAQSAgkBBICCQFAgKBAUCAoEBQICgQFAgKBAUCAgkBBICCQEEgIJAQSAoEBQICgQFAgKBAEgIJAQSAoEBQICCQEEgIJAQSAgkBBICCQEEgKBAUCAoEBQICgQFAgKBAUCAJAQSAgkBQICgCCX+eEgAAAggAAggAgAggghAAABAgghgAAABggggh6MAMAAAQgAhBBDnwAIgABAACAABDBhgAJqCBEAACBAMgBWAAAQGiwIAAF4AApAJQAAAAEZCNbb4PqBlBeRlFB05y5mHoPy4MzIYNMAAJkCAAPgQIEECAEAdbAAAACACAYAAgAzgFAowCEFABnDfvEZgZQjwAIAABADBTKLVzhhjU2Zg4Gi0AVzTgAAATkACRQAAAPEQABmwEAAA8RAAGcAhAABE"
 
-//go:embed capture/target_to_source.bin
-var targetToSourceCapture []byte
+	targetToSourceCapture = "ADcBqQDYgAAAIDRYEAAE8ABwD/t0Zw37EA8ACAAAQAwUyi1cAB+XBmZDBpgABQgQACMCBAggQIEQ"
 
-//go:embed capture/enb_status_transfer.bin
-var enbStatusTransferCapture []byte
+	enbStatusTransferCapture = "AAAAWUALBQAAAgAAAAAEAAA="
+)
+
+func mustDecode(s string) []byte {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		panic("s1enb: decode handover container capture: " + err.Error())
+	}
+
+	return b
+}
+
+var (
+	sourceToTargetContainer    = mustDecode(sourceToTargetCapture)
+	targetToSourceContainer    = mustDecode(targetToSourceCapture)
+	enbStatusTransferContainer = mustDecode(enbStatusTransferCapture)
+)
 
 func SourceToTargetContainer() s1ap.TransparentContainer {
-	return s1ap.TransparentContainer(sourceToTargetCapture)
+	return s1ap.TransparentContainer(sourceToTargetContainer)
 }
 
 func TargetToSourceContainer() s1ap.TransparentContainer {
-	return s1ap.TransparentContainer(targetToSourceCapture)
+	return s1ap.TransparentContainer(targetToSourceContainer)
 }
 
 func ENBStatusTransferContainer() s1ap.StatusTransferContainer {
-	return s1ap.StatusTransferContainer(enbStatusTransferCapture)
+	return s1ap.StatusTransferContainer(enbStatusTransferContainer)
 }
