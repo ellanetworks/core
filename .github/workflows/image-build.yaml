@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - uses: canonical/craft-actions/rockcraft/pack@b66c5f4b3c4454735c1814a1627fd0da24384b23 # main
+      - uses: canonical/craft-actions/rockcraft/pack@18dd03ef9a20ef330dd3ca7b264bd45c6b892e9e # main
         id: rockcraft
         with:
           channel: stable
