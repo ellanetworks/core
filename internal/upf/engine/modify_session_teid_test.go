@@ -82,7 +82,7 @@ func TestModifySessionFailureKeepsTheLiveUplinkTEID(t *testing.T) {
 		},
 	}
 
-	if err := conn.ModifySession(ctx, modify); err == nil {
+	if _, err := conn.ModifySession(ctx, modify); err == nil {
 		t.Fatal("expected the modification to fail on the malformed PDR")
 	}
 

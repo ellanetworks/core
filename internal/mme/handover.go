@@ -51,15 +51,15 @@ type HandoverCandidate struct {
 }
 
 type handoverContext struct {
-	state        hoState
-	source       *UeConn
-	target       *UeConn
-	candidates   []HandoverCandidate
-	admitted     []AdmittedERAB
-	relocation   chan relocationOutcome
-	forwarding   bool
-	toFiveGS     bool
-	relocationID interworking.RelocationID
+	state            hoState
+	source           *UeConn
+	target           *UeConn
+	candidates       []HandoverCandidate
+	admitted         []AdmittedERAB
+	relocation       chan relocationOutcome
+	directForwarding bool
+	toFiveGS         bool
+	relocationID     interworking.RelocationID
 }
 
 type relocationOutcome struct {
@@ -70,7 +70,7 @@ type relocationOutcome struct {
 
 var ErrRelocationAbandoned = errors.New("mme: handover preparation abandoned")
 
-func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate, forwarding bool) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
+func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate, direct bool) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
@@ -111,11 +111,11 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	m.conns[tid] = targetConn
 
 	ho := &handoverContext{
-		state:      hoPreparing,
-		source:     ue.Conn(),
-		target:     targetConn,
-		candidates: candidates,
-		forwarding: forwarding,
+		state:            hoPreparing,
+		source:           ue.Conn(),
+		target:           targetConn,
+		candidates:       candidates,
+		directForwarding: direct,
 	}
 	ue.handover = ho
 
@@ -306,11 +306,11 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 }
 
 type HandoverPreparation struct {
-	Unadmitted  []HandoverCandidate
-	Forwarding  bool
-	SourceConn  S1APWriter
-	SourceMMEID s1ap.MMEUES1APID
-	SourceENBID s1ap.ENBUES1APID
+	Unadmitted       []HandoverCandidate
+	DirectForwarding bool
+	SourceConn       S1APWriter
+	SourceMMEID      s1ap.MMEUES1APID
+	SourceENBID      s1ap.ENBUES1APID
 }
 
 func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (prep HandoverPreparation, ok bool) {
@@ -347,7 +347,7 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 	ho.admitted = admitted
 	ho.state = hoPrepared
 
-	prep = HandoverPreparation{Unadmitted: unadmitted, Forwarding: ho.forwarding}
+	prep = HandoverPreparation{Unadmitted: unadmitted, DirectForwarding: ho.directForwarding}
 
 	if ho.source == nil {
 		return prep, true
@@ -430,7 +430,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID, target.MMEUES1APID, true
 }
 
-func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget bool) {
+func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget, aborted bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -447,10 +447,12 @@ func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEI
 			hasTarget = true
 		}
 
+		aborted = true
+
 		m.clearHandoverLocked(ue)
 	}
 
-	return releaseConn, releaseMMEID, releaseENBID, pair, hasTarget
+	return releaseConn, releaseMMEID, releaseENBID, pair, hasTarget, aborted
 }
 
 func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeID s1ap.MMEUES1APID, ok bool) {
@@ -599,6 +601,8 @@ func (m *MME) unwindHandover(ctx context.Context, ue *UeContext, cause s1ap.Caus
 
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
+
+	m.CloseForwardingTunnels(ctx, ue)
 
 	if relocated {
 		m.dropRelocation(ctx, ue)

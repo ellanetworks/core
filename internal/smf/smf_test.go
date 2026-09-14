@@ -206,6 +206,7 @@ type fakeUPF struct {
 	suppressDDNCalls []uint64
 	clearDDNCalls    []uint64
 	lastIPv6Reg      *models.IPv6SessionRegistration
+	forwardingTEID   uint32
 	err              error
 }
 
@@ -222,13 +223,17 @@ func (f *fakeUPF) EstablishSession(_ context.Context, req *models.EstablishReque
 	return f.establishResult, f.err
 }
 
-func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) error {
+func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.modifyCalls = append(f.modifyCalls, req)
 
-	return f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	return &models.ModifyResponse{ForwardingTEID: f.forwardingTEID}, nil
 }
 
 func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {

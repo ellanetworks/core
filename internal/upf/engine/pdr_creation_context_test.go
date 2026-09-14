@@ -50,7 +50,7 @@ func TestPDRCreationContext_ExtractPDR(t *testing.T) {
 			pdrContext := &engine.PDRCreationContext{}
 			spdrInfo := &engine.SPDRInfo{TeID: tt.teid}
 
-			allocated, err := pdrContext.ExtractPDR(tt.pdr, spdrInfo, map[uint32]ebpf.FarInfo{}, map[uint32]ebpf.QerInfo{})
+			allocated, err := pdrContext.ExtractPDR(tt.pdr, spdrInfo, map[uint32]ebpf.FarInfo{}, map[uint32]models.Interface{}, map[uint32]ebpf.QerInfo{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ExtractPDR() error: %v, expected error: %v", err, tt.wantErr)
 			}

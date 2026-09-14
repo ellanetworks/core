@@ -76,7 +76,7 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 		},
 	}
 
-	if err := conn.ModifySession(context.Background(), modify); err == nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err == nil {
 		t.Fatal("expected modify to fail on the malformed PDR")
 	}
 
@@ -151,7 +151,7 @@ func TestModifySessionUpdatePDRKeyChangeRollback(t *testing.T) {
 		},
 	}
 
-	if err := conn.ModifySession(context.Background(), modify); err == nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err == nil {
 		t.Fatal("expected modify to fail on the malformed PDR")
 	}
 
@@ -219,7 +219,7 @@ func TestModifySessionUpdatePDRKeyChangeCommit(t *testing.T) {
 		UpdatePDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: newIP}}},
 	}
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 

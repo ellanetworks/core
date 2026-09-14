@@ -957,45 +957,6 @@ func TestLocalSwitchFARDrop(t *testing.T) {
 	}
 }
 
-func TestLocalSwitchUplinkFARUnsupportedN9(t *testing.T) {
-	requireProgTestRun(t)
-
-	obj := loadProgramLocalSwitch(t)
-
-	var (
-		ueAIP = [4]byte{10, 0, 0, 9}
-		teidA = uint32(0x4C4E39)
-	)
-
-	ulPdr := PdrInfo{
-		OuterHeaderRemoval: 0,
-		IMSI:               "001010000000001",
-		Far: FarInfo{
-			Action:              0x02,
-			OuterHeaderCreation: 0x01,
-			TeID:                0x99999999,
-		},
-		Qer:          QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
-		UEIPv4:       netip.AddrFrom4(ueAIP),
-		UEIPv6Prefix: canonicalUEv6Prefix,
-	}
-	if err := obj.PutPdrUplink(teidA, ulPdr); err != nil {
-		t.Fatalf("install uplink PDR: %v", err)
-	}
-
-	inner := ipv4Packet(ueAIP, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
-
-	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teidA, inner))
-
-	if action != ActionDrop {
-		t.Fatalf("uplink FAR with OHC (N9): got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
-	}
-
-	if got := DropCount(obj, Uplink, "far_unsupported"); got != 1 {
-		t.Errorf("far_unsupported = %d, want 1", got)
-	}
-}
-
 func TestLocalSwitchURRNotChargedOnDrop(t *testing.T) {
 	requireProgTestRun(t)
 

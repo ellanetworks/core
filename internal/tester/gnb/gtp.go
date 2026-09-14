@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -21,6 +22,8 @@ import (
 
 // gtpEndMarker is the GTP-U End Marker message type (TS 29.281 §7.3.2).
 const gtpEndMarker = 0xfe
+
+const gtpUDPPort = 2152
 
 const (
 	gtpHeaderLen int    = 16
@@ -203,6 +206,62 @@ func (g *GnodeB) TunnelRXCount(dlteid uint32) uint64 {
 	return t.rxCount.Load()
 }
 
+func (g *GnodeB) WatchTEID(teid uint32) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if _, ok := g.watchedTEIDs[teid]; !ok {
+		g.watchedTEIDs[teid] = 0
+	}
+}
+
+func (g *GnodeB) WatchedTEIDCount(teid uint32) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.watchedTEIDs[teid]
+}
+
+func (g *GnodeB) SendGPDU(teid uint32, peer netip.Addr, payload []byte) error {
+	if g.N3Conn == nil {
+		return fmt.Errorf("the gNB has no N3 socket")
+	}
+
+	pdu := make([]byte, 8, 8+len(payload))
+	pdu[0] = 0x30
+	pdu[1] = 0xFF
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(len(payload)))
+	binary.BigEndian.PutUint32(pdu[4:8], teid)
+	pdu = append(pdu, payload...)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := g.N3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send G-PDU on TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
+func (g *GnodeB) SendEndMarker(teid uint32, peer netip.Addr) error {
+	if g.N3Conn == nil {
+		return fmt.Errorf("the gNB has no N3 socket")
+	}
+
+	pdu := make([]byte, 8)
+	pdu[0] = 0x30
+	pdu[1] = gtpEndMarker
+	binary.BigEndian.PutUint32(pdu[4:8], teid)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := g.N3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send End Marker on TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
 // CloseTunnel tears down the tunnel for the given downlink TEID. Closing a TEID
 // with no tunnel is a no-op, as on s1enb: a scenario tearing down a session the
 // network already released must not fail for it.
@@ -276,6 +335,14 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 		g.mu.Lock()
 
 		t, ok := g.tunnels[teid]
+		if !ok {
+			if _, watched := g.watchedTEIDs[teid]; watched {
+				g.watchedTEIDs[teid]++
+				g.mu.Unlock()
+
+				continue
+			}
+		}
 		g.mu.Unlock()
 
 		if !ok {

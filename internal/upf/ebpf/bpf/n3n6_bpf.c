@@ -43,6 +43,10 @@ handle_uplink_ip4(struct packet_context *ctx)
 	if (parse_ip4(ctx) == IPPROTO_UDP && !ctx->l4_unavailable) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
+			if (ctx->is_fragment)
+				return drop_with(ctx,
+						 UPF_DROP_FRAGMENTED_TRANSPORT);
+
 			parse_udp(ctx);
 			upf_printk(
 				"upf: gtp-u received on N3, src=%pI4 dst=%pI4",

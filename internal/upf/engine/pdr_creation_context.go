@@ -57,13 +57,34 @@ func (pdrContext *PDRCreationContext) allocateTEID() (uint32, error) {
 	return allocatedTeID, nil
 }
 
-func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRInfo, farMap map[uint32]ebpf.FarInfo, qerMap map[uint32]ebpf.QerInfo) (allocated bool, err error) {
+func forwardsBetweenAccess(pdr models.PDR, destinations map[uint32]models.Interface) bool {
+	destination, ok := destinations[pdr.FARID]
+
+	return ok && pdr.PDI.SourceInterface == models.InterfaceAccess && destination == models.InterfaceAccess
+}
+
+func farDestinations(fars []models.FAR) map[uint32]models.Interface {
+	out := make(map[uint32]models.Interface, len(fars))
+
+	for _, far := range fars {
+		if far.ForwardingParameters == nil {
+			continue
+		}
+
+		out[far.FARID] = far.ForwardingParameters.DestinationInterface
+	}
+
+	return out
+}
+
+func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRInfo, farMap map[uint32]ebpf.FarInfo, destinations map[uint32]models.Interface, qerMap map[uint32]ebpf.QerInfo) (allocated bool, err error) {
 	if pdr.OuterHeaderRemoval != nil {
 		spdrInfo.PdrInfo.OuterHeaderRemoval = *pdr.OuterHeaderRemoval
 	}
 
 	spdrInfo.PdrInfo.FarID = pdr.FARID
 	spdrInfo.PdrInfo.Far = farMap[pdr.FARID]
+	spdrInfo.PdrInfo.Forwarding = forwardsBetweenAccess(pdr, destinations)
 
 	spdrInfo.PdrInfo.QerID = pdr.QERID
 	spdrInfo.PdrInfo.Qer = qerMap[pdr.QERID]

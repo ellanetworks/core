@@ -293,8 +293,8 @@ func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *models.Establ
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeUPFClient) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
-	return nil
+func (f *fakeUPFClient) ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error) {
+	return &models.ModifyResponse{}, nil
 }
 
 func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) error {

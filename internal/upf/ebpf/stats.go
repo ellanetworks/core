@@ -312,6 +312,7 @@ var dropReasonNames = [...]string{
 	"fragment_malformed",
 	"mtu_exceeded",
 	"reinject_unowned",
+	"fragmented_transport",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.

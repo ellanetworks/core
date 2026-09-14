@@ -117,6 +117,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	// that may be ordered after the uplink PDR, so per-PDR capture would miss it.
 	var ueV4, ueV6 netip.Addr
 
+	destinations := farDestinations(req.FARs)
+
 	for _, pdr := range req.PDRs {
 		if pdr.PDI.LocalFTEID != nil || !pdr.PDI.UEIPAddress.IsValid() {
 			continue
@@ -141,7 +143,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			},
 		}
 
-		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
+		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, destinations, qerMap)
 		if err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)

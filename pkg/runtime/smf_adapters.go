@@ -397,7 +397,7 @@ func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *models.Establ
 	return a.engine.EstablishSession(ctx, req)
 }
 
-func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error) {
 	return a.engine.ModifySession(ctx, req)
 }
 

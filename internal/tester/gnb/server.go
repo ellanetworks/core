@@ -114,6 +114,7 @@ type GnodeB struct {
 	N3Conn            *net.UDPConn
 	tunnels           map[uint32]*Tunnel // local TEID -> Tunnel
 	endMarkers        map[uint32]int     // End Markers seen per local TEID
+	watchedTEIDs      map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
 	lastGeneratedTEID uint32
 	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
 	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
@@ -509,6 +510,7 @@ func NewGnodeB(
 		N3Conn:            n3Conn,
 		tunnels:           make(map[uint32]*Tunnel),
 		endMarkers:        make(map[uint32]int),
+		watchedTEIDs:      make(map[uint32]int),
 		N3Address:         n3Address,
 		n2Peers: []*n2Peer{{
 			address: "pre-dialed",
@@ -601,6 +603,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		N3Conn:            n3Conn,
 		tunnels:           make(map[uint32]*Tunnel),
 		endMarkers:        make(map[uint32]int),
+		watchedTEIDs:      make(map[uint32]int),
 		N3Address:         gnbN3IPAddress,
 		n2Local:           local,
 		n2Peers:           peers,

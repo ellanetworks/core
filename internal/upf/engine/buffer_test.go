@@ -185,7 +185,7 @@ func TestModifySessionDrainsOnFarForward(t *testing.T) {
 
 	modify := smfModify(models.ApplyAction{Forw: true})
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestModifySessionNoDrainWhileDownlinkBuffers(t *testing.T) {
 
 	modify := smfModify(models.ApplyAction{Buff: true, Nocp: true})
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 
@@ -217,7 +217,7 @@ func TestModifySessionNoRedrainWhileForwarding(t *testing.T) {
 	buf := &recordingBuffer{}
 	conn := newBufferTestEngine(t, buf)
 
-	if err := conn.ModifySession(context.Background(), smfModify(models.ApplyAction{Forw: true})); err != nil {
+	if _, err := conn.ModifySession(context.Background(), smfModify(models.ApplyAction{Forw: true})); err != nil {
 		t.Fatalf("first modify: %v", err)
 	}
 
@@ -225,7 +225,7 @@ func TestModifySessionNoRedrainWhileForwarding(t *testing.T) {
 		t.Fatalf("drains after the transition = %v, want exactly one", got)
 	}
 
-	if err := conn.ModifySession(context.Background(), smfModify(models.ApplyAction{Forw: true})); err != nil {
+	if _, err := conn.ModifySession(context.Background(), smfModify(models.ApplyAction{Forw: true})); err != nil {
 		t.Fatalf("second modify: %v", err)
 	}
 
@@ -242,7 +242,7 @@ func TestModifySessionNoDrainOnDownlinkDrop(t *testing.T) {
 
 	modify := smfModify(models.ApplyAction{Drop: true})
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
+	if _, err := conn.ModifySession(context.Background(), modify); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 

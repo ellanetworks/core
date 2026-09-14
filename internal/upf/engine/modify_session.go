@@ -20,7 +20,7 @@ import (
 )
 
 // ModifySession modifies an existing UPF session from typed Go structs.
-func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -36,7 +36,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session not found")
 
-		return err
+		return nil, err
 	}
 
 	// Held across resolve → apply, and before opMu (filterMu is the outermost
@@ -45,13 +45,13 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	session.opMu.Lock()
 
-	drain, endMarkers, err := conn.modifySessionLocked(ctx, span, req, session)
+	drain, endMarkers, resp, err := conn.modifySessionLocked(ctx, span, req, session)
 
 	session.opMu.Unlock()
 	conn.filterMu.RUnlock()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	conn.sendEndMarkers(endMarkers)
@@ -62,18 +62,18 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		}
 	}
 
-	return nil
+	return resp, nil
 }
 
 // modifySessionLocked applies the modification and reports whether any PDR's
 // FAR transitioned into forwarding. The caller holds filterMu (read) and
 // session.opMu.
-func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, []endMarkerTarget, error) {
+func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, []endMarkerTarget, *models.ModifyResponse, error) {
 	if session.deleted {
 		err := fmt.Errorf("session %d is being deleted", req.SEID)
 		span.RecordError(err)
 
-		return false, nil, err
+		return false, nil, nil, err
 	}
 
 	bpfObjects := conn.BpfObjects
@@ -84,12 +84,12 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	var txn sessionTxn
 
-	fail := func(err error) (bool, []endMarkerTarget, error) {
+	fail := func(err error) (bool, []endMarkerTarget, *models.ModifyResponse, error) {
 		txn.rollback(ctx)
 		session.restore(snapPDRs, snapFARs, snapQERs)
 		span.RecordError(err)
 
-		return false, nil, err
+		return false, nil, nil, err
 	}
 
 	touched := make(map[uint32]struct{}, len(req.UpdatePDRs))
@@ -135,6 +135,8 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 	farMap := make(map[uint32]ebpf.FarInfo)
 	maps.Copy(farMap, session.ListFARs())
 
+	destinations := farDestinations(req.UpdateFARs)
+
 	qerMap := make(map[uint32]ebpf.QerInfo)
 	maps.Copy(qerMap, session.ListQERs())
 
@@ -149,7 +151,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 			spdrInfo.PdrInfo.IMSI = session.IMSI()
 		}
 
-		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
+		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, destinations, qerMap)
 		if err != nil {
 			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
 		}
@@ -205,6 +207,27 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		}
 	}
 
+	for _, pdrID := range req.RemovePDRs {
+		removed, ok := session.RemovePDR(uint32(pdrID))
+		if !ok {
+			continue
+		}
+
+		if err := pdrContext.deletePDR(removed, bpfObjects); err != nil {
+			return fail(fmt.Errorf("couldn't remove PDR %d: %w", pdrID, err))
+		}
+
+		txn.onRollback(func() error {
+			session.PutPDR(uint32(pdrID), removed)
+
+			return applyPDR(removed, session, bpfObjects)
+		})
+	}
+
+	for _, farID := range req.RemoveFARs {
+		session.RemoveFar(farID)
+	}
+
 	if req.PolicyID != "" && req.PolicyID != session.PolicyID() {
 		oldPolicyID := session.PolicyID()
 		session.SetPolicyID(req.PolicyID)
@@ -217,7 +240,21 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
-	return drain, endMarkers, nil
+	return drain, endMarkers, &models.ModifyResponse{ForwardingTEID: forwardingTEID(session)}, nil
+}
+
+func forwardingTEID(session *Session) uint32 {
+	for _, pdr := range session.ListPDRs() {
+		if pdr.TeID == 0 || pdr.UEIP.IsValid() {
+			continue
+		}
+
+		if pdr.PdrInfo.Far.OuterHeaderCreation != 0 {
+			return pdr.TeID
+		}
+	}
+
+	return 0
 }
 
 func modifyPolicyID(req *models.ModifyRequest, session *Session) string {

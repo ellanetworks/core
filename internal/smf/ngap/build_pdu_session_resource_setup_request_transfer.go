@@ -22,15 +22,25 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	return marshalPDUSessionResourceSetupRequestTransfer(transfer)
 }
 
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding bool) ([]byte, error) {
+type DataForwarding uint8
+
+const (
+	DataForwardingNone DataForwarding = iota
+	DataForwardingDirect
+	DataForwardingIndirect
+)
+
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8, forwarding DataForwarding) ([]byte, error) {
 	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType)
 	if err != nil {
 		return nil, err
 	}
 
-	if forwarding {
+	switch forwarding {
+	case DataForwardingDirect:
 		transfer.DirectForwardingPathAvailability = libngap.Ptr(libngap.DirectForwardingPathAvailable)
-	} else {
+	case DataForwardingIndirect:
+	case DataForwardingNone:
 		transfer.DataForwardingNotPossible = libngap.Ptr(libngap.DataForwardingNotPossibleTrue)
 	}
 

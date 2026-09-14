@@ -85,7 +85,7 @@ func TestModifySessionPolicyChangeRepointsFilterIndex(t *testing.T) {
 		t.Fatalf("establish: %v", err)
 	}
 
-	if err := conn.ModifySession(ctx, &models.ModifyRequest{
+	if _, err := conn.ModifySession(ctx, &models.ModifyRequest{
 		SEID:       seid,
 		PolicyID:   policyB,
 		UpdatePDRs: pdrs,

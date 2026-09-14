@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -315,6 +316,62 @@ func (e *ENB) EndMarkerCount(teid uint32) int {
 	return e.endMarkers[teid]
 }
 
+func (e *ENB) WatchTEID(teid uint32) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if _, ok := e.watchedTEIDs[teid]; !ok {
+		e.watchedTEIDs[teid] = 0
+	}
+}
+
+func (e *ENB) WatchedTEIDCount(teid uint32) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.watchedTEIDs[teid]
+}
+
+func (e *ENB) SendGPDU(teid uint32, peer netip.Addr, payload []byte) error {
+	if e.n3Conn == nil {
+		return fmt.Errorf("the eNB has no S1-U socket")
+	}
+
+	pdu := make([]byte, 8, 8+len(payload))
+	pdu[0] = 0x30
+	pdu[1] = 0xff
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(len(payload)))
+	binary.BigEndian.PutUint32(pdu[4:8], teid)
+	pdu = append(pdu, payload...)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := e.n3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send G-PDU on TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
+func (e *ENB) SendEndMarker(teid uint32, peer netip.Addr) error {
+	if e.n3Conn == nil {
+		return fmt.Errorf("the eNB has no S1-U socket")
+	}
+
+	pdu := make([]byte, 8)
+	pdu[0] = 0x30
+	pdu[1] = gtpEndMarker
+	binary.BigEndian.PutUint32(pdu[4:8], teid)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := e.n3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send End Marker on TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
 func (e *ENB) gtpReader() {
 	buf := make([]byte, 2000)
 
@@ -344,6 +401,12 @@ func (e *ENB) gtpReader() {
 
 		e.mu.Lock()
 		t := e.tunnels[teid]
+
+		if t == nil {
+			if _, watched := e.watchedTEIDs[teid]; watched {
+				e.watchedTEIDs[teid]++
+			}
+		}
 		e.mu.Unlock()
 
 		if t == nil {

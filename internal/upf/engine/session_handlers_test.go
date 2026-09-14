@@ -27,7 +27,7 @@ func TestModifySessionSessionNotFound(t *testing.T) {
 		t.Fatalf("Error creating PFCP connection: %v", err)
 	}
 
-	err = conn.ModifySession(context.Background(), &models.ModifyRequest{
+	_, err = conn.ModifySession(context.Background(), &models.ModifyRequest{
 		SEID: 999,
 	})
 	if err == nil {
@@ -106,7 +106,7 @@ func TestModifySessionAccepted(t *testing.T) {
 	seid := uint64(1)
 	conn.AddSession(seid, engine.NewSession(seid))
 
-	err = conn.ModifySession(context.Background(), &models.ModifyRequest{
+	_, err = conn.ModifySession(context.Background(), &models.ModifyRequest{
 		SEID: seid,
 	})
 	if err != nil {

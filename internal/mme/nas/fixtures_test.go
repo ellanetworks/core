@@ -80,12 +80,18 @@ func initiatingValue(t *testing.T, b []byte) []byte {
 }
 
 type fakeSessionManager struct {
-	lastRequest     models.EPSBearerRequest
-	modifiedENB     models.FTEID
-	released        bool
-	deactivated     bool
-	idleTransfers   []idleEPSTransfer
-	idleTransferErr error
+	forwardingTEID      uint32
+	forwardingIPv6      netip.Addr
+	forwardingErr       error
+	forwardingTargets   []models.FTEID
+	forwardingClosed    []string
+	forwardingScheduled []string
+	lastRequest         models.EPSBearerRequest
+	modifiedENB         models.FTEID
+	released            bool
+	deactivated         bool
+	idleTransfers       []idleEPSTransfer
+	idleTransferErr     error
 }
 
 type idleEPSTransfer struct {
@@ -401,4 +407,24 @@ func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAut
 		Opc:            sub.Opc,
 		SequenceNumber: next,
 	}, nil
+}
+
+func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error) {
+	if f.forwardingErr != nil {
+		return models.ForwardingTunnel{}, f.forwardingErr
+	}
+
+	f.forwardingTargets = append(f.forwardingTargets, target)
+
+	return models.ForwardingTunnel{TEID: f.forwardingTEID, IPv4: netip.MustParseAddr("192.168.1.1"), IPv6: f.forwardingIPv6}, nil
+}
+
+func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref string) error {
+	f.forwardingClosed = append(f.forwardingClosed, ref)
+
+	return nil
+}
+
+func (f *fakeSessionManager) ScheduleEPSForwardingRelease(ref string) {
+	f.forwardingScheduled = append(f.forwardingScheduled, ref)
 }

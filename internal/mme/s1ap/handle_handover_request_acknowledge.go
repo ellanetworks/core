@@ -100,8 +100,10 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	}
 
 	var forwarding []s1ap.ERABDataForwardingItem
-	if prep.Forwarding {
+	if prep.DirectForwarding {
 		forwarding = forwardingItems(admitted)
+	} else {
+		forwarding = forwardingItems(relayForwardingThroughUPF(ctx, m, ue, admitted))
 	}
 
 	cmd := &s1ap.HandoverCommand{
@@ -157,6 +159,55 @@ func releaseItems(unadmitted []mme.HandoverCandidate, targetCauses map[uint8]s1a
 		}
 
 		out = append(out, s1ap.ERABItem{ERABID: s1ap.ERABID(c.Ebi), Cause: cause})
+	}
+
+	return out
+}
+
+func relayForwardingThroughUPF(ctx context.Context, m *mme.MME, ue *mme.UeContext, admitted []mme.AdmittedERAB) []mme.AdmittedERAB {
+	out := make([]mme.AdmittedERAB, 0, len(admitted))
+
+	for _, a := range admitted {
+		a.ULForwardingAddr, a.ULForwardingTEID = nil, nil
+
+		if dlAddr, dlTEID := forwardingPair(a.DLForwardingAddr, a.DLForwardingTEID); dlAddr == nil || dlTEID == nil {
+			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
+			out = append(out, a)
+
+			continue
+		}
+
+		addr, ok := enbTransportAddress(a.DLForwardingAddr)
+		if !ok {
+			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
+			out = append(out, a)
+
+			continue
+		}
+
+		local, ok := m.OpenForwardingTunnel(ctx, ue, a.Ebi, models.FTEID{TEID: uint32(*a.DLForwardingTEID), Addr: addr})
+		if !ok {
+			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
+			out = append(out, a)
+
+			continue
+		}
+
+		tla, err := models.EncodeTransportLayerAddress(local.IPv4, local.IPv6)
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Warn("could not encode the forwarding tunnel's transport address",
+				zap.Uint8("e-rab-id", a.Ebi), zap.Error(err))
+
+			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
+			out = append(out, a)
+
+			continue
+		}
+
+		a.DLForwardingAddr = s1ap.TransportLayerAddress(tla)
+		a.DLForwardingTEID = s1ap.Ptr(s1ap.GTPTEID(local.TEID))
+
+		out = append(out, a)
 	}
 
 	return out
