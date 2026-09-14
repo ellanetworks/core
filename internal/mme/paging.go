@@ -20,9 +20,6 @@ import (
 // being paged. Entry points decide whether that is a success or a failure.
 var errPagingSkipped = errors.New("paging skipped")
 
-// causeErrorIndicationReceived releases the S1 connection of a UE whose eNB
-// answered a G-PDU with a GTP-U Error Indication: the S1-U transport resource it
-// named is gone (TS 36.413 §9.2.1.3).
 var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
 
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes

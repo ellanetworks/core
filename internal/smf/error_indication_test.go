@@ -55,8 +55,6 @@ func reportFor(seid uint64, an smf.AnchorBinding) *models.ErrorIndicationReport 
 	}
 }
 
-// TS 23.527 §5.3.2 step 4: the SMF modifies the session to buffer the downlink,
-// then re-establishes the user plane.
 func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -81,8 +79,6 @@ func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 			got, smCtx.PDUSessionID)
 	}
 
-	// TS 38.413 §8.2.2.2: the 5G-AN only has to accept a Setup for this PDU
-	// session ID once it has answered the Release Command.
 	if len(amfCb.pageCalls) != 0 {
 		t.Errorf("the user plane was re-activated before the release was acknowledged: %d transfers", len(amfCb.pageCalls))
 	}
@@ -97,8 +93,6 @@ func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.3.7 deactivates the UP connection of an *existing* PDU session, so
-// the release response must not tear the session down.
 func TestAccessReleaseKeepsThePDUSessionEstablished(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -127,8 +121,6 @@ func TestAccessReleaseKeepsThePDUSessionEstablished(t *testing.T) {
 	}
 }
 
-// TS 23.527 §5.3.2 step 5 releases the AN resources before step 8 re-activates
-// them; a CM-IDLE UE holds none, which is not a failure (step 6).
 func TestErrorIndicationStillRepagesWhenTheUEIsUnreachable(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -146,7 +138,6 @@ func TestErrorIndicationStillRepagesWhenTheUEIsUnreachable(t *testing.T) {
 	}
 }
 
-// TS 23.007 §21.7: the SGW drops the eNodeB TEIDs, notifies the MME and buffers.
 func TestErrorIndicationBuffersAndRepagesAnEPSSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -180,8 +171,6 @@ func TestErrorIndicationBuffersAndRepagesAnEPSSession(t *testing.T) {
 	}
 }
 
-// TS 23.007 §21.7 clears every eNodeB GTP-U tunnel of the UE, not just the one
-// the Error Indication named.
 func TestErrorIndicationClearsEveryEPSTunnelOfTheUE(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -208,9 +197,6 @@ func TestErrorIndicationClearsEveryEPSTunnelOfTheUE(t *testing.T) {
 	}
 }
 
-// TS 23.007 §21.7 drops every eNodeB tunnel of the UE and then notifies the MME,
-// so one PDN connection failing must not strand the others or skip the
-// notification.
 func TestErrorIndicationClearsTheOtherEPSTunnelsWhenOneFails(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -241,8 +227,6 @@ func TestErrorIndicationClearsTheOtherEPSTunnelsWhenOneFails(t *testing.T) {
 	}
 }
 
-// A failure on the reported session withholds the notification: its downlink is
-// the one known to be flowing into a dead tunnel.
 func TestErrorIndicationReportsAFailureOnTheBrokenSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -265,9 +249,6 @@ func TestErrorIndicationReportsAFailureOnTheBrokenSession(t *testing.T) {
 	}
 }
 
-// An access-only release that the 5G-AN never answers must not make a later
-// session release skip its teardown: the UE address, the N4 session and the SEID
-// would all leak.
 func TestUnansweredAccessReleaseDoesNotSwallowASessionRelease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -278,8 +259,6 @@ func TestUnansweredAccessReleaseDoesNotSwallowASessionRelease(t *testing.T) {
 		t.Fatalf("HandleErrorIndicationReport: %v", err)
 	}
 
-	// The 5G-AN never answers; a UE-requested release follows, which runs the
-	// network-requested release procedure and waits for its own response.
 	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, 5)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg (release request): %v", err)
 	}
@@ -299,8 +278,6 @@ func TestUnansweredAccessReleaseDoesNotSwallowASessionRelease(t *testing.T) {
 	}
 }
 
-// An Error Indication for an endpoint the session has already moved off must not
-// tear down the endpoint that replaced it.
 func TestErrorIndicationForASupersededEndpointIsIgnored(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -358,8 +335,6 @@ func epsSessionForwardingTo(t *testing.T, s *smf.SMF, target models.FTEID) *smf.
 	return sc
 }
 
-// The handover target has discarded the tunnel, so relaying into it for the rest
-// of the indirect data forwarding timer (TS 23.502 §4.9.1.3.3) achieves nothing.
 func TestErrorIndicationReleasesAForwardingTunnelEarly(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	upf.forwardingTEID = 4242
@@ -387,8 +362,6 @@ func TestErrorIndicationReleasesAForwardingTunnelEarly(t *testing.T) {
 	}
 }
 
-// A report naming a forwarding endpoint the session has moved off must not tear
-// down the tunnel that replaced it.
 func TestErrorIndicationForASupersededForwardingTunnelIsIgnored(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	upf.forwardingTEID = 4242

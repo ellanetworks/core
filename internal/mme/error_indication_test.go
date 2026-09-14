@@ -11,9 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// TS 23.007 §22: a Downlink Data Notification caused by an Error Indication
-// releases S1 first when the UE is ECM-CONNECTED, because the eNB no longer holds
-// the S1-U tunnel that a Service Request would otherwise reuse.
 func TestErrorIndicationReleasesS1OnAConnectedUE(t *testing.T) {
 	m := newTestMME(t)
 
@@ -38,8 +35,6 @@ func TestErrorIndicationReleasesS1OnAConnectedUE(t *testing.T) {
 	}
 }
 
-// Plain downlink data leaves an ECM-CONNECTED UE alone: the S1-U tunnel is fine,
-// the packet just needs delivering.
 func TestDownlinkDataArrivalDoesNotReleaseS1(t *testing.T) {
 	m := newTestMME(t)
 

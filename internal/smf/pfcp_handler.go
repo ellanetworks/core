@@ -257,12 +257,6 @@ func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMCont
 	return nil
 }
 
-// releaseAccessResources asks the 5G-AN to release the PDU session's data radio
-// bearer and N3 tunnel (TS 23.527 §5.3.2 step 5, TS 23.502 §4.3.7). It reports
-// whether a release is now outstanding: the 5G-AN only has to accept a Setup for
-// that PDU session ID once it has answered the Release Command
-// (TS 38.413 §8.2.2.2), so re-activation waits for the response. A UE holding no
-// access resources leaves nothing to wait for.
 func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) bool {
 	smContext.Mutex.Lock()
 	supi, pduSessionID := smContext.Supi, smContext.PDUSessionID
