@@ -5,52 +5,223 @@ package smf_test
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
-func errorIndicationReport(seid uint64) *models.ErrorIndicationReport {
+const farIDDownlink = 2
+
+func establishSecondEPSSession(t *testing.T, s *smf.SMF) *smf.SMContext {
+	t.Helper()
+
+	req := epsRequest(3)
+	req.APN = testDNN
+	req.PDUSessionID = arrivingPDUSessionID + 1
+	req.EPSBearerIdentity = epsTestEBI + 1
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession (second PDN connection): %v", err)
+	}
+
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI+1, sourceENB); err != nil {
+		t.Fatalf("ModifyEPSSession (second PDN connection): %v", err)
+	}
+
+	sc := s.GetSession(bearer.Ref)
+	if sc == nil {
+		t.Fatal("the second EPS session is not in the pool")
+	}
+
+	return sc
+}
+
+func reportFor(seid uint64, an smf.AnchorBinding) *models.ErrorIndicationReport {
+	addr, _ := netip.AddrFromSlice(an.IPv4.To4())
+
 	return &models.ErrorIndicationReport{
-		SEID:  seid,
-		FARID: 2,
-		RemoteFTEID: models.FTEID{
-			TEID: 0x1234,
-			Addr: netip.MustParseAddr("10.0.0.1"),
-		},
+		SEID:        seid,
+		FARID:       farIDDownlink,
+		RemoteFTEID: models.FTEID{TEID: an.TEID, Addr: addr},
 	}
 }
 
-// TS 29.244 §5.10: the UP function is access agnostic, so a 5GS session and an
-// EPS session are reported the same way.
-func TestHandleErrorIndicationReport_ResolvesA5GSSession(t *testing.T) {
+// TS 23.527 §5.3.2 step 4: the SMF modifies the session to buffer the downlink,
+// then re-establishes the user plane.
+func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+	an := smCtx.Tunnel.AN
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, an)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if smCtx.Tunnel.Downlink != smf.DownlinkBuffering {
+		t.Errorf("downlink state = %v, want buffering", smCtx.Tunnel.Downlink)
+	}
+
+	if smCtx.Tunnel.AN.IPv4 != nil || smCtx.Tunnel.AN.TEID != 0 {
+		t.Errorf("the dead access endpoint is still bound: %+v", smCtx.Tunnel.AN)
+	}
+
+	if len(amfCb.pageCalls) != 1 {
+		t.Errorf("AMF got %d N2-transfer-or-page calls, want 1", len(amfCb.pageCalls))
+	}
+
+	if got := amfCb.releasedAccess(); len(got) != 1 || got[0] != smCtx.PDUSessionID {
+		t.Errorf("access resources released for %v, want one release of PDU session %d (TS 23.527 §5.3.2 step 5)",
+			got, smCtx.PDUSessionID)
+	}
+}
+
+// TS 23.527 §5.3.2 step 5 releases the AN resources before step 8 re-activates
+// them; a CM-IDLE UE holds none, which is not a failure (step 6).
+func TestErrorIndicationStillRepagesWhenTheUEIsUnreachable(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	amfCb.accessReleaseErr = smf.ErrUENotReachable
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)); err != nil {
+		t.Fatalf("a CM-IDLE UE made the Error Indication fail: %v", err)
+	}
+
+	if len(amfCb.pageCalls) != 1 {
+		t.Errorf("AMF got %d pages, want 1", len(amfCb.pageCalls))
+	}
+}
+
+// TS 23.007 §21.7: the SGW drops the eNodeB TEIDs, notifies the MME and buffers.
+func TestErrorIndicationBuffersAndRepagesAnEPSSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	mme := &fakeMME{}
+	s.SetMME(mme)
+
+	smCtx := establishEPSForArrival(t, s)
+	smCtx.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	smCtx.Tunnel.Downlink = smf.DownlinkForwarding
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if smCtx.Tunnel.Downlink != smf.DownlinkBuffering {
+		t.Errorf("downlink state = %v, want buffering", smCtx.Tunnel.Downlink)
+	}
+
+	if len(mme.pagedIMSI) != 1 {
+		t.Errorf("MME got %d pages, want 1 (TS 29.274 §7.2.11 Downlink Data Notification)", len(mme.pagedIMSI))
+	}
+
+	if len(mme.notifyCauses) != 1 || mme.notifyCauses[0] != models.DownlinkDataErrorIndication {
+		t.Errorf("Downlink Data Notification causes = %v, want one %d (TS 29.274 §8.4 cause 6)",
+			mme.notifyCauses, models.DownlinkDataErrorIndication)
+	}
+
+	if len(amfCb.releasedAccess()) != 0 {
+		t.Error("an EPS session released 5G access resources")
+	}
+}
+
+// TS 23.007 §21.7 clears every eNodeB GTP-U tunnel of the UE, not just the one
+// the Error Indication named.
+func TestErrorIndicationClearsEveryEPSTunnelOfTheUE(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(&fakeMME{})
+
+	reported := establishEPSForArrival(t, s)
+	reported.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	reported.Tunnel.Downlink = smf.DownlinkForwarding
+
+	other := establishSecondEPSSession(t, s)
+	other.Tunnel.AN = smf.AnchorBinding{TEID: 7001, IPv4: net.ParseIP("10.0.0.200").To4()}
+	other.Tunnel.Downlink = smf.DownlinkForwarding
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(reported.PFCPContext.SEID, reported.Tunnel.AN)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if other.Tunnel.Downlink != smf.DownlinkBuffering {
+		t.Errorf("the UE's other PDN connection still forwards into the dead eNB: state = %v", other.Tunnel.Downlink)
+	}
+
+	if other.Tunnel.AN.IPv4 != nil {
+		t.Errorf("the UE's other eNB tunnel is still bound: %+v", other.Tunnel.AN)
+	}
+}
+
+// An Error Indication for an endpoint the session has already moved off must not
+// tear down the endpoint that replaced it.
+func TestErrorIndicationForASupersededEndpointIsIgnored(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
-	if err := s.HandleErrorIndicationReport(context.Background(), errorIndicationReport(smCtx.PFCPContext.SEID)); err != nil {
+	stale := smf.AnchorBinding{TEID: smCtx.Tunnel.AN.TEID + 1, IPv4: smCtx.Tunnel.AN.IPv4}
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, stale)); err != nil {
 		t.Fatalf("HandleErrorIndicationReport: %v", err)
 	}
-}
 
-func TestHandleErrorIndicationReport_ResolvesAnEPSSession(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
+	if smCtx.Tunnel.Downlink != smf.DownlinkForwarding {
+		t.Errorf("a superseded Error Indication stopped the downlink: state = %v", smCtx.Tunnel.Downlink)
+	}
 
-	smCtx := establishEPSForArrival(t, s)
-
-	if err := s.HandleErrorIndicationReport(context.Background(), errorIndicationReport(smCtx.PFCPContext.SEID)); err != nil {
-		t.Fatalf("an EPS session was not resolved from an Error Indication Report: %v", err)
+	if len(amfCb.pageCalls) != 0 {
+		t.Errorf("a superseded Error Indication paged the UE %d times", len(amfCb.pageCalls))
 	}
 }
 
-func TestHandleErrorIndicationReport_RejectsAnUnknownSEID(t *testing.T) {
+func TestRepeatedErrorIndicationsActOnce(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	if err := s.HandleErrorIndicationReport(context.Background(), errorIndicationReport(0xdeadbeef)); err == nil {
-		t.Fatal("an Error Indication for an unknown SEID was accepted")
+	smCtx, _ := setupSessionWithTunnel(t, s)
+	report := reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)
+
+	for range 5 {
+		if err := s.HandleErrorIndicationReport(context.Background(), report); err != nil {
+			t.Fatalf("HandleErrorIndicationReport: %v", err)
+		}
+	}
+
+	if len(amfCb.pageCalls) != 1 {
+		t.Errorf("a peer answering every downlink packet paged the UE %d times, want 1", len(amfCb.pageCalls))
+	}
+}
+
+func TestErrorIndicationOnAForwardingTunnelLeavesTheSessionAlone(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, _ := setupSessionWithTunnel(t, s)
+
+	report := reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)
+	report.FARID = 3
+
+	if err := s.HandleErrorIndicationReport(context.Background(), report); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if smCtx.Tunnel.Downlink != smf.DownlinkForwarding {
+		t.Errorf("a forwarding-tunnel Error Indication stopped the downlink: state = %v", smCtx.Tunnel.Downlink)
+	}
+
+	if len(amfCb.pageCalls) != 0 {
+		t.Errorf("a forwarding-tunnel Error Indication paged the UE %d times", len(amfCb.pageCalls))
 	}
 }

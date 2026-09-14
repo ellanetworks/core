@@ -287,8 +287,11 @@ type fakeAMF struct {
 	modifyCalls  []n1n2Call
 	releaseCalls []releaseCall
 	pageCalls    []pageCall
-	droppedCalls []droppedCall
-	err          error
+
+	accessReleases   []uint8
+	accessReleaseErr error
+	droppedCalls     []droppedCall
+	err              error
 }
 
 type droppedCall struct {
@@ -376,6 +379,22 @@ func (f *fakeAMF) ReleaseSession(_ context.Context, supi etsi.SUPI, pduSessionID
 	return f.err
 }
 
+func (f *fakeAMF) ReleaseAccessResources(_ context.Context, _ etsi.SUPI, pduSessionID uint8, _ []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.accessReleases = append(f.accessReleases, pduSessionID)
+
+	return f.accessReleaseErr
+}
+
+func (f *fakeAMF) releasedAccess() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]uint8(nil), f.accessReleases...)
+}
+
 func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -389,6 +408,7 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 type fakeMME struct {
 	mu           sync.Mutex
 	pagedIMSI    []string
+	notifyCauses []models.DownlinkDataNotificationCause
 	droppedCalls []mmeTransferredCall
 	err          error
 }
@@ -413,11 +433,16 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
-func (f *fakeMME) Page(_ context.Context, imsi string, _ uint8) error {
+func (f *fakeMME) Page(ctx context.Context, imsi string, ebi uint8) error {
+	return f.NotifyDownlinkData(ctx, imsi, ebi, models.DownlinkDataArrived)
+}
+
+func (f *fakeMME) NotifyDownlinkData(_ context.Context, imsi string, _ uint8, cause models.DownlinkDataNotificationCause) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.pagedIMSI = append(f.pagedIMSI, imsi)
+	f.notifyCauses = append(f.notifyCauses, cause)
 
 	return f.err
 }

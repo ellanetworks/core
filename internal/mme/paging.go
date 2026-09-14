@@ -20,6 +20,11 @@ import (
 // being paged. Entry points decide whether that is a success or a failure.
 var errPagingSkipped = errors.New("paging skipped")
 
+// causeErrorIndicationReceived releases the S1 connection of a UE whose eNB
+// answered a G-PDU with a GTP-U Error Indication: the S1-U transport resource it
+// named is gone (TS 36.413 §9.2.1.3).
+var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
 // the S1 connection and buffered downlink data is delivered, within the UE's
 // registered tracking area (TS 23.401 §5.3.4). The procedure is supervised and
@@ -27,9 +32,17 @@ var errPagingSkipped = errors.New("paging skipped")
 // covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
 // missing context or marshal failure is reported.
 func (m *MME) Page(ctx context.Context, imsi string, ebi uint8) error {
+	return m.NotifyDownlinkData(ctx, imsi, ebi, models.DownlinkDataArrived)
+}
+
+func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
+	}
+
+	if cause == models.DownlinkDataErrorIndication {
+		m.releaseForErrorIndication(ctx, ue)
 	}
 
 	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi}) }
@@ -39,6 +52,19 @@ func (m *MME) Page(ctx context.Context, imsi string, ebi uint8) error {
 	}
 
 	return nil
+}
+
+func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext) {
+	c := ue.Conn()
+	if c == nil {
+		return
+	}
+
+	logger.From(ctx, logger.MmeLog).Info("Releasing S1 after a GTP-U Error Indication",
+		zap.String("imsi", ue.imsiOrEmpty()))
+
+	c.SendUEContextReleaseCommand(ctx, causeErrorIndicationReceived)
+	m.guardDetachedRelease(c)
 }
 
 // page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately

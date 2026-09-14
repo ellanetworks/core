@@ -491,6 +491,15 @@ func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduS
 	return err
 }
 
+func (a *smfAMFAdapter) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error {
+	err := a.amf.ReleaseAccessResources(ctx, supi, pduSessionID, n2Transfer)
+	if errors.Is(err, amfContext.ErrUENotReachable) {
+		return smf.ErrUENotReachable
+	}
+
+	return err
+}
+
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error) {
 	return a.amf.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
 		N2Class:                 models.N2ClassSM,

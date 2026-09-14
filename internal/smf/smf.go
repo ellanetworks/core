@@ -100,12 +100,14 @@ type AMFCallback interface {
 	TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) (models.N1N2MessageTransferCause, error)
 	ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error
 	ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error
+	ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error)
 	SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
 }
 
 type MMECallback interface {
 	Page(ctx context.Context, imsi string, ebi uint8) error
+	NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 

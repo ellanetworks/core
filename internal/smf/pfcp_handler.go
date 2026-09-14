@@ -5,8 +5,11 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
@@ -24,12 +27,25 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
+	return s.reactivateUserPlane(ctx, smContext)
+}
+
+func (s *SMF) reactivateUserPlane(ctx context.Context, smContext *SMContext) error {
+	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataArrived)
+}
+
+func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, cause models.DownlinkDataNotificationCause) error {
 	smContext.Mutex.Lock()
 
 	onEPS := smContext.Access == Access4G
 	policy, tunnel := smContext.PolicyData, smContext.Tunnel
 	pduSessionType, supi, pduSessionID, snssai := smContext.PDUSessionType, smContext.Supi, smContext.PDUSessionID, smContext.Snssai
 	ebi := smContext.EBI
+
+	var seid uint64
+	if smContext.PFCPContext != nil {
+		seid = smContext.PFCPContext.SEID
+	}
 
 	smContext.Mutex.Unlock()
 
@@ -39,11 +55,11 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 			return fmt.Errorf("no MME registered to page EPS UE %s", supi.IMSI())
 		}
 
-		return s.mme.Page(ctx, supi.IMSI(), ebi)
+		return s.mme.NotifyDownlinkData(ctx, supi.IMSI(), ebi, cause)
 	}
 
 	if policy == nil || tunnel == nil {
-		return fmt.Errorf("session for seid %d has no user plane to page for", report.SEID)
+		return fmt.Errorf("session for seid %d has no user plane to page for", seid)
 	}
 
 	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType))
@@ -51,7 +67,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	cause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp)
+	transferCause, err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu, policy.QosData.Arp)
 	if err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
@@ -59,7 +75,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	logger.SmfLog.Debug("N1N2 message transfer accepted",
 		zap.String("supi", supi.String()),
 		zap.Uint8("pdu_session_id", pduSessionID),
-		zap.String("cause", cause.String()))
+		zap.String("cause", transferCause.String()))
 
 	return nil
 }
@@ -114,16 +130,138 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
+	if report.FARID != farIDDownlink {
+		logger.WithTrace(ctx, logger.SmfLog).Info(
+			"Ignoring a GTP-U Error Indication for a tunnel that does not carry the downlink",
+			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID), logger.FARID(report.FARID),
+			logger.TEID(report.RemoteFTEID.TEID))
+
+		return nil
+	}
+
+	return s.releaseBrokenAccessTunnel(ctx, smContext, report)
+}
+
+func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContext, report *models.ErrorIndicationReport) error {
+	smContext.Mutex.Lock()
+
+	if smContext.Tunnel == nil || smContext.PFCPContext == nil {
+		smContext.Mutex.Unlock()
+
+		return fmt.Errorf("session for seid %d has no user plane to release", report.SEID)
+	}
+
+	if !smContext.upConnectionActive() || !reportNamesAnchor(report, smContext.Tunnel.AN) {
+		logger.WithTrace(ctx, logger.SmfLog).Debug(
+			"Ignoring a GTP-U Error Indication for a tunnel the session no longer forwards into",
+			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
+			logger.TEID(report.RemoteFTEID.TEID))
+		smContext.Mutex.Unlock()
+
+		return nil
+	}
+
+	onEPS := smContext.Access == Access4G
+	supi := smContext.Supi
+
+	smContext.Mutex.Unlock()
+
 	logger.WithTrace(ctx, logger.SmfLog).Warn(
-		"Peer reported a GTP-U Error Indication for a tunnel the core forwards into",
-		zap.String("supi", smContext.Supi.String()),
-		logger.SEID(report.SEID),
-		logger.FARID(report.FARID),
+		"Access network reported a GTP-U Error Indication; buffering the downlink and re-establishing the tunnel",
+		zap.String("supi", supi.String()),
+		logger.SEID(report.SEID), logger.FARID(report.FARID),
 		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
-		logger.TEID(report.RemoteFTEID.TEID),
-	)
+		logger.TEID(report.RemoteFTEID.TEID))
+
+	affected := []*SMContext{smContext}
+	if onEPS {
+		affected = s.epsSessionsOf(supi)
+	}
+
+	for _, sc := range affected {
+		if err := s.bufferDownlinkAfterErrorIndication(ctx, sc); err != nil {
+			return err
+		}
+	}
+
+	if !onEPS {
+		s.releaseAccessResources(ctx, smContext)
+	}
+
+	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication)
+}
+
+func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMContext) error {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.Tunnel == nil || sc.PFCPContext == nil || !sc.upConnectionActive() {
+		return nil
+	}
+
+	seid := sc.PFCPContext.SEID
+
+	next := sc.Tunnel.dataPlane
+	next.Downlink = DownlinkBuffering
+	next.AN = AnchorBinding{}
+
+	if err := s.applyDataPlane(ctx, sc, next, ""); err != nil {
+		return fmt.Errorf("buffer the downlink of session %d after an Error Indication: %w", seid, err)
+	}
 
 	return nil
+}
+
+func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) {
+	smContext.Mutex.Lock()
+	supi, pduSessionID := smContext.Supi, smContext.PDUSessionID
+	smContext.Mutex.Unlock()
+
+	n2Transfer, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
+	if err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("could not build the PDU Session Resource Release Command transfer",
+			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+		return
+	}
+
+	if err := s.amf.ReleaseAccessResources(ctx, supi, pduSessionID, n2Transfer); err != nil {
+		if errors.Is(err, ErrUENotReachable) {
+			return
+		}
+
+		logger.WithTrace(ctx, logger.SmfLog).Warn("could not release the access resources of a broken tunnel",
+			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+	}
+}
+
+func (s *SMF) epsSessionsOf(supi etsi.SUPI) []*SMContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var out []*SMContext
+
+	for _, sc := range s.pool {
+		if sc.Supi == supi && sc.Access == Access4G {
+			out = append(out, sc)
+		}
+	}
+
+	return out
+}
+
+func reportNamesAnchor(report *models.ErrorIndicationReport, an AnchorBinding) bool {
+	if report.RemoteFTEID.TEID != an.TEID || !report.RemoteFTEID.Addr.IsValid() {
+		return false
+	}
+
+	peer := report.RemoteFTEID.Addr
+
+	if peer.Is4() {
+		return an.IPv4 != nil && an.IPv4.Equal(net.IP(peer.AsSlice()))
+	}
+
+	return an.IPv6 != nil && an.IPv6.Equal(net.IP(peer.AsSlice()))
 }
 
 func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageReport) error {
