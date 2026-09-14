@@ -91,38 +91,107 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 
 ### Network Health
 
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| No Radios Connected | Critical | No radios connected for 2 minutes |
-| High Registration Failure Rate | Critical | More than 10% of registration/attach attempts rejected over 5 minutes |
-| High PDU Session Failure Rate | Critical | More than 10% of session establishments rejected over 5 minutes |
-| IP Address Pool Near Exhaustion | Warning | More than 90% of the data network IP pool is allocated |
+#### No Radios Connected
+
+Critical. No radios connected for 2 minutes.
+
+Check that the radio is powered on, reachable from the core, and configured with this core's address and PLMN.
+
+#### High Registration Failure Rate
+
+Critical. More than 10% of registration attempts rejected over 5 minutes.
+
+Break down `app_registration_attempts_total` by `result`, then check the subscriber's credentials, profile, and policy.
+
+#### High PDU Session Failure Rate
+
+Critical. More than 10% of session establishments rejected over 5 minutes.
+
+Break down `app_session_establishment_attempts_total` by `result`, then check the subscriber's policy, its data network, and the IP pool.
+
+#### IP Address Pool Near Exhaustion
+
+Warning. More than 90% of the data network IP pool is allocated.
+
+Enlarge the data network's IP pool, or remove subscribers that no longer need addresses. New PDU sessions fail once the pool is full.
 
 ### Data Plane Health
 
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| High Data Plane Packet Drop Rate | Warning | More than 10 packets/s dropped by the data plane for 5 minutes |
-| No Data Plane Traffic | Critical | Radios connected but zero throughput for 10 minutes |
-| Data Plane Aborted Actions | Critical | Any aborted actions for 2 minutes (indicates eBPF program errors) |
+#### High Data Plane Packet Drop Rate
+
+Warning. More than 10 packets/s dropped by the data plane for 5 minutes.
+
+Break down `app_upf_datapath_drop_total` by `reason` and `direction` to localise the drop.
+
+#### No Data Plane Traffic
+
+Critical. Radios connected but zero uplink and downlink throughput for 10 minutes.
+
+Confirm a subscriber is actually sending traffic, then check the data network and route configuration.
+
+#### Data Plane Aborted Actions Detected
+
+Critical. Any drop with an `internal_` reason for 2 minutes.
+
+An `internal_` reason means Ella Core's data plane failed rather than dropping traffic by policy. Break down `app_upf_datapath_drop_total` by `reason` and report it.
+
+#### Flow Reports Being Dropped
+
+Warning. Any flow report dropped in the last 5 minutes.
+
+Data usage reporting is incomplete while this persists. Shorten the flow report retention policy, or report this if it continues at normal traffic levels.
 
 ### API Health
 
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| High API Error Rate | Warning | More than 5% of API responses are 5xx errors over 5 minutes |
-| High API Latency | Warning | P99 API response time exceeds 2 seconds over 5 minutes |
-| Authentication Failure Spike | Warning | More than 25% of API authentication attempts fail over 5 minutes |
+#### High API Error Rate
+
+Warning. More than 5% of API responses are 5xx over 5 minutes.
+
+Break down `app_api_requests_total` by `endpoint` and `status` to identify the failing endpoint.
+
+#### High API Latency (P99)
+
+Warning. P99 API response time exceeds 2 seconds over 5 minutes.
+
+Check database query latency and CPU usage on the Deep Dive dashboard.
+
+#### Authentication Failure Spike
+
+Warning. More than 25% of API authentication attempts fail over 5 minutes.
+
+Review the audit log to identify the source and whether the credentials are still valid.
 
 ### Infrastructure Health
 
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| Instance Down | Critical | Ella Core instance is unreachable |
-| High Memory Usage | Warning | Process memory exceeds 1 GiB for 5 minutes |
-| High Goroutine Count | Warning | More than 10,000 goroutines for 5 minutes |
-| High Database Query Latency | Warning | P99 database query latency exceeds 500ms over 5 minutes |
-| Large Database Size | Warning | Database file exceeds 1 GiB for 10 minutes |
+#### Instance Down
+
+Critical. The scrape target is unreachable for more than 20% of the last 10 minutes.
+
+Check that the Ella Core process is running and reachable from the metrics collector. Note that this only proves the collector can reach the core, not that radios can.
+
+#### High Memory Usage
+
+Warning. Resident memory is forecast to exceed 1 GiB within 48 hours, based on the last 6 hours of growth, sustained for 30 minutes.
+
+Compare heap profiles in Pyroscope to find what is retaining memory. Tune the 1 GiB ceiling to your deployment size, and the 48 hour horizon to how much warning you want.
+
+#### High Goroutine Count
+
+Warning. Goroutine count is forecast to exceed 10,000 within 48 hours, based on the last hour of growth, sustained for 30 minutes.
+
+This indicates a resource leak in Ella Core. Capture a goroutine profile from Pyroscope and report it.
+
+#### High Database Query Latency (P99)
+
+Warning. P99 database query latency exceeds 500ms over 5 minutes.
+
+Check the database size and the query rate on the Deep Dive dashboard.
+
+#### Large Database Size
+
+Warning. Database file exceeds 1 GiB for 10 minutes.
+
+Shorten the retention policy for network logs, audit logs, or flow reports.
 
 ## Dashboards
 
