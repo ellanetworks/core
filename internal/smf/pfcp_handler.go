@@ -160,7 +160,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		return nil
 	}
 
-	onEPS := smContext.Access == Access4G
+	access := smContext.Access
 	supi := smContext.Supi
 
 	smContext.Mutex.Unlock()
@@ -173,14 +173,14 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		logger.TEID(report.RemoteFTEID.TEID))
 
 	affected := []*SMContext{smContext}
-	if onEPS {
+	if access == Access4G {
 		affected = s.epsSessionsOf(supi)
 	}
 
 	var reportedErr error
 
 	for _, sc := range affected {
-		err := s.bufferDownlinkAfterErrorIndication(ctx, sc)
+		err := s.bufferDownlinkAfterErrorIndication(ctx, sc, access)
 		if err == nil {
 			continue
 		}
@@ -200,7 +200,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		return reportedErr
 	}
 
-	if !onEPS && s.releaseAccessResources(ctx, smContext) {
+	if access != Access4G && s.releaseAccessResources(ctx, smContext) {
 		return nil
 	}
 
@@ -236,11 +236,11 @@ func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMCo
 	return s.closeForwardingTunnel(ctx, smContext)
 }
 
-func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMContext) error {
+func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMContext, access AccessType) error {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	if sc.Tunnel == nil || sc.PFCPContext == nil || !sc.upConnectionActive() {
+	if sc.Access != access || sc.Tunnel == nil || sc.PFCPContext == nil || !sc.upConnectionActive() {
 		return nil
 	}
 
@@ -292,12 +292,21 @@ func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) 
 
 func (s *SMF) epsSessionsOf(supi etsi.SUPI) []*SMContext {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+
+	var sessions []*SMContext
+
+	for _, sc := range s.pool {
+		if sc.Supi == supi {
+			sessions = append(sessions, sc)
+		}
+	}
+
+	s.mu.RUnlock()
 
 	var out []*SMContext
 
-	for _, sc := range s.pool {
-		if sc.Supi == supi && sc.Access == Access4G {
+	for _, sc := range sessions {
+		if sc.onEPS() {
 			out = append(out, sc)
 		}
 	}

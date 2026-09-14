@@ -33,6 +33,72 @@ func TestErrorIndicationReleasesS1OnAConnectedUE(t *testing.T) {
 	if sent == 0 {
 		t.Fatal("no UE Context Release Command was sent to the eNB")
 	}
+
+	if !m.Session.(*fakeSessionManager).deactivated {
+		t.Error("the access bearers were not released before the UE Context Release Command (TS 23.401 §5.3.5)")
+	}
+
+	if m.pagingActive(ue) {
+		t.Error("the UE was paged while it was still ECM-CONNECTED")
+	}
+
+	if ue.PagingPending() != nil {
+		t.Error("a paging procedure was started before S1 was released")
+	}
+}
+
+func TestErrorIndicationPagesAConnectedUEOnceS1IsReleased(t *testing.T) {
+	m := newTestMME(t)
+	m.pagingCfg.ExpireTime = time.Hour
+
+	ue := idleRegisteredUE(t, m)
+	establishResumeForTest(m, ue, &captureConn{}, 9)
+
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataErrorIndication); err != nil {
+		t.Fatalf("NotifyDownlinkData: %v", err)
+	}
+
+	m.ReleaseUEContextLocally(ue, "test-release-complete")
+
+	if ue.Connected() {
+		t.Fatal("the UE should be ECM-IDLE once the release completed")
+	}
+
+	if !m.pagingActive(ue) {
+		t.Fatal("the UE was never paged after S1 was released for a GTP-U Error Indication (TS 23.007 clause 22)")
+	}
+
+	pending := ue.PagingPending()
+	if pending == nil || pending.Ebi != 5 {
+		t.Errorf("paging pending = %+v, want the EBI the anchor reported", pending)
+	}
+}
+
+func TestErrorIndicationDropsTheServiceRequestWhenTheUEIsNotRegistered(t *testing.T) {
+	m := newTestMME(t)
+	m.pagingCfg.ExpireTime = time.Hour
+
+	ue := idleRegisteredUE(t, m)
+	establishResumeForTest(m, ue, &captureConn{}, 9)
+
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataErrorIndication); err != nil {
+		t.Fatalf("NotifyDownlinkData: %v", err)
+	}
+
+	ue.ForceStateForTest(EMMDeregistered)
+	m.ReleaseUEContextLocally(ue, "test-release-complete")
+
+	if m.pagingActive(ue) {
+		t.Error("a deregistered UE was paged")
+	}
+
+	if ue.takeDeferredServiceRequest() != nil {
+		t.Error("the deferred service request was not abandoned with the UE context")
+	}
+
+	if got := m.Session.(*fakeSessionManager).suppressCalls; got == 0 {
+		t.Error("the anchor was never told to stop buffering for a UE that will not be paged")
+	}
 }
 
 func TestDownlinkDataArrivalDoesNotReleaseS1(t *testing.T) {

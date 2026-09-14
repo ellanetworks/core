@@ -34,11 +34,15 @@ func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, ca
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
-	if cause == models.DownlinkDataErrorIndication {
-		m.releaseForErrorIndication(ctx, ue)
+	req := &MTRequest{Ebi: ebi}
+
+	if cause == models.DownlinkDataErrorIndication && ue.Connected() {
+		m.releaseForErrorIndication(ctx, ue, req)
+
+		return nil
 	}
 
-	arm := func() { ue.beginPaging(&MTRequest{Ebi: ebi}) }
+	arm := func() { ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
@@ -47,17 +51,41 @@ func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, ca
 	return nil
 }
 
-func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext) {
-	c := ue.Conn()
-	if c == nil {
-		return
-	}
-
+func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext, req *MTRequest) {
 	logger.From(ctx, logger.MmeLog).Info("Releasing S1 after a GTP-U Error Indication",
 		zap.String("imsi", ue.imsiOrEmpty()))
 
-	c.SendUEContextReleaseCommand(ctx, causeErrorIndicationReceived)
-	m.guardDetachedRelease(c)
+	ue.deferServiceRequest(req)
+
+	m.ReleaseUEContext(ctx, ue, causeErrorIndicationReceived)
+}
+
+func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {
+	req := ue.takeDeferredServiceRequest()
+	if req == nil {
+		return
+	}
+
+	arm := func() { ue.beginPaging(req) }
+
+	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
+		logger.From(ctx, logger.MmeLog).Warn("could not page the UE after releasing S1 for a GTP-U Error Indication",
+			zap.String("imsi", ue.imsiOrEmpty()), zap.Error(err))
+	}
+}
+
+func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
+	req := ue.takeDeferredServiceRequest()
+	if req == nil || req.Ebi == 0 || m.Session == nil {
+		return
+	}
+
+	imsi := ue.imsiOrEmpty()
+
+	if err := m.Session.HandleEPSPagingFailure(ctx, imsi, req.Ebi, models.EPSPagingUENotResponding); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("could not report a downlink delivery failure for a UE released before it could be paged",
+			zap.String("imsi", imsi), zap.Uint8("ebi", req.Ebi), zap.Error(err))
+	}
 }
 
 // page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately

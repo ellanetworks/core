@@ -197,6 +197,33 @@ func TestErrorIndicationClearsEveryEPSTunnelOfTheUE(t *testing.T) {
 	}
 }
 
+func TestErrorIndicationLeavesAPDNConnectionThatMovedTo5GSAlone(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(&fakeMME{})
+
+	reported := establishEPSForArrival(t, s)
+	reported.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	reported.Tunnel.Downlink = smf.DownlinkForwarding
+
+	moved := establishSecondEPSSession(t, s)
+	moved.Tunnel.AN = smf.AnchorBinding{TEID: 7001, IPv4: net.ParseIP("10.0.0.201").To4()}
+	moved.Tunnel.Downlink = smf.DownlinkForwarding
+	moved.Access = smf.Access5G
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(reported.PFCPContext.SEID, reported.Tunnel.AN)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if moved.Tunnel.Downlink != smf.DownlinkForwarding {
+		t.Errorf("a PDN connection that had moved to 5GS was buffered by an eNB Error Indication: state = %v", moved.Tunnel.Downlink)
+	}
+
+	if moved.Tunnel.AN.TEID != 7001 {
+		t.Errorf("a healthy 5GS user plane was torn down by an eNB Error Indication: %+v", moved.Tunnel.AN)
+	}
+}
+
 func TestErrorIndicationClearsTheOtherEPSTunnelsWhenOneFails(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

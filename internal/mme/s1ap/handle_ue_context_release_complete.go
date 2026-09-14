@@ -55,6 +55,7 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	// A UE that is not EMM-REGISTERED (detached, or an aborted in-progress attach) is
 	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).
 	if ue.EMMState() != mme.EMMRegistered {
+		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
 		logger.MmeLog.Info("UE context released", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
@@ -70,4 +71,6 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 
 	logger.MmeLog.Info("UE moved to ECM-IDLE",
 		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
+
+	m.ResumeDeferredServiceRequest(ctx, ue)
 }

@@ -38,6 +38,7 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
 
 	msg := &ngap.PDUSessionResourceReleaseResponse{
 		AMFUENGAPID:                ngap.Ptr(ngap.AMFUENGAPID(10)),
@@ -61,5 +62,74 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 
 	if !ueConn.N2SessionInactive(1) {
 		t.Error("expected the session to hold no AN resources on the connection")
+	}
+}
+
+func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedBeforeSMFNotified(t *testing.T) {
+	fakeSmf := &fakeSmfSbi{}
+	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
+
+	amfUe := amf.NewUeContext()
+	amfUe.SmContextList[1] = &amf.SmContext{
+		Ref:    "ref-session-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
+
+	reactivated := false
+	fakeSmf.PduResRelRspHook = func(string) {
+		reactivated = ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1)
+	}
+
+	msg := &ngap.PDUSessionResourceReleaseResponse{
+		AMFUENGAPID:                ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:                ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceReleased: ngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
+	}
+
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+
+	if len(fakeSmf.PduResRelRspCalls) != 1 {
+		t.Fatalf("expected 1 PduResRelRsp call, got %d", len(fakeSmf.PduResRelRspCalls))
+	}
+
+	if !reactivated {
+		t.Error("the SMF could not set the PDU session up again from within the release response: the connection still held its AN resources")
+	}
+}
+
+func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedWhenSMFRemovesSession(t *testing.T) {
+	fakeSmf := &fakeSmfSbi{PduResRelRspRemoved: true}
+	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
+	ran := newTestRadio(amfInstance)
+
+	amfUe := amf.NewUeContext()
+	amfUe.SmContextList[1] = &amf.SmContext{
+		Ref:    "ref-session-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.SetN2SessionActive(1)
+
+	msg := &ngap.PDUSessionResourceReleaseResponse{
+		AMFUENGAPID:                ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:                ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceReleased: ngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
+	}
+
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+
+	if _, ok := amfUe.SmContextFindByPDUSessionID(1); ok {
+		t.Error("expected the SmContext to be removed")
+	}
+
+	if !ueConn.N2SessionInactive(1) {
+		t.Error("expected the released PDU session to leave no AN resources recorded on the connection")
 	}
 }
