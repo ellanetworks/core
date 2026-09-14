@@ -14,7 +14,7 @@ services:
       - ella-shared
 
   ella-loki:
-    image: grafana/loki:3.6.16
+    image: grafana/loki:3.7.7
     container_name: ella-loki
     restart: unless-stopped
     ports:
