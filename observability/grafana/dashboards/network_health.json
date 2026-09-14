@@ -153,8 +153,16 @@
             "mode": "absolute",
             "steps": [
               {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
                 "color": "green",
-                "value": 0
+                "value": 95
               }
             ]
           },
@@ -221,15 +229,15 @@
             "steps": [
               {
                 "color": "red",
-                "value": 0
+                "value": null
               },
               {
                 "color": "yellow",
-                "value": 95
+                "value": 90
               },
               {
                 "color": "green",
-                "value": 99
+                "value": 95
               }
             ]
           },
@@ -431,15 +439,15 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "yellow",
-                "value": 0.1
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 1
+                "value": 5
               }
             ]
           },
@@ -574,7 +582,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "CPU Cores used by Ella Core's user space program (this does not include XDP packet processing).",
+      "description": "Percentage of Ella Core's available CPU used by the user space program. Does not include XDP packet processing.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -591,7 +599,9 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
@@ -627,14 +637,14 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "100 * rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) / go_sched_gomaxprocs_threads{job=~\"$job\",instance=~\"$instance\"}",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "CPU Cores",
+      "title": "CPU Utilization",
       "type": "stat"
     },
     {
@@ -1378,7 +1388,8 @@
                 "value": 0
               }
             ]
-          }
+          },
+          "unit": "ops"
         },
         "overrides": [
           {
@@ -1549,7 +1560,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#5794f2",
+                  "fixedColor": "orange",
                   "mode": "fixed"
                 }
               }
@@ -1564,7 +1575,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#b877d9",
+                  "fixedColor": "blue",
                   "mode": "fixed"
                 }
               }
@@ -2360,8 +2371,16 @@
                 "mode": "absolute",
                 "steps": [
                   {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 75
+                  },
+                  {
                     "color": "green",
-                    "value": 0
+                    "value": 90
                   }
                 ]
               },
@@ -2677,7 +2696,7 @@
             "type": "prometheus",
             "uid": "${DS_MIMIR}"
           },
-          "description": "Number of CPU cores used by the Ella Core process",
+          "description": "Percentage of Ella Core's available CPU used by the process.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2728,7 +2747,9 @@
                   }
                 ]
               },
-              "unit": "none"
+              "unit": "percent",
+              "min": 0,
+              "max": 100
             },
             "overrides": []
           },
@@ -2764,14 +2785,14 @@
                 "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
-              "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
+              "expr": "100 * rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval]) / go_sched_gomaxprocs_threads{job=~\"$job\",instance=~\"$instance\"}",
               "interval": "1m",
               "legendFormat": "CPU Usage",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "CPU Cores",
+          "title": "CPU Utilization Over Time",
           "type": "timeseries"
         },
         {
@@ -3257,7 +3278,7 @@
     }
   ],
   "preload": false,
-  "refresh": "5s",
+  "refresh": "30s",
   "schemaVersion": 42,
   "tags": [
     "5g",
@@ -3282,16 +3303,15 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up, job)",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Job",
-        "multi": true,
+        "multi": false,
         "name": "job",
         "options": [],
         "query": {
@@ -3303,16 +3323,15 @@
         "type": "query"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Instance",
-        "multi": true,
+        "multi": false,
         "name": "instance",
         "options": [],
         "query": {

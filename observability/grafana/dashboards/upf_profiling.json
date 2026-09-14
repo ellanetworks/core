@@ -23,7 +23,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -36,15 +36,29 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 3000 },
-              { "color": "red", "value": 10000 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3000
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
             ]
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "id": 5,
       "options": {
         "colorMode": "value",
@@ -52,7 +66,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -62,10 +78,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N3 Average",
           "range": false,
@@ -73,12 +89,13 @@
         }
       ],
       "title": "N3 Uplink Total Average Latency",
-      "type": "stat"
+      "type": "stat",
+      "description": "Mean time in the uplink XDP pipeline (N3 to N6), all stages."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -91,15 +108,29 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 3000 },
-              { "color": "red", "value": 10000 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3000
+              },
+              {
+                "color": "red",
+                "value": 10000
+              }
             ]
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "id": 6,
       "options": {
         "colorMode": "value",
@@ -107,7 +138,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -117,10 +150,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N6 Average",
           "range": false,
@@ -128,12 +161,13 @@
         }
       ],
       "title": "N6 Downlink Total Average Latency",
-      "type": "stat"
+      "type": "stat",
+      "description": "Mean time in the downlink XDP pipeline (N6 to N3), all stages."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -152,7 +186,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
       "id": 3,
       "options": {
         "legend": {
@@ -162,7 +201,9 @@
         },
         "pieType": "pie",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -178,10 +219,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -189,12 +230,13 @@
         }
       ],
       "title": "N3 Uplink Processing Time Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "Share of uplink pipeline time spent in each stage."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -213,7 +255,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
       "id": 4,
       "options": {
         "legend": {
@@ -223,7 +270,9 @@
         },
         "pieType": "pie",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -239,10 +288,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -250,12 +299,13 @@
         }
       ],
       "title": "N6 Downlink Processing Time Distribution",
-      "type": "piechart"
+      "type": "piechart",
+      "description": "Share of downlink pipeline time spent in each stage."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -287,15 +337,26 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": 0 },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "ns"
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 12 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
       "id": 2,
       "options": {
         "barRadius": 0,
@@ -324,10 +385,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -335,12 +396,13 @@
         }
       ],
       "title": "N3 Uplink Average Time per Stage",
-      "type": "barchart"
+      "type": "barchart",
+      "description": "Mean uplink time per stage, highest first."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -372,15 +434,26 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": 0 },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "ns"
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
       "id": 8,
       "options": {
         "barRadius": 0,
@@ -409,10 +482,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -420,12 +493,13 @@
         }
       ],
       "title": "N6 Downlink Average Time per Stage",
-      "type": "barchart"
+      "type": "barchart",
+      "description": "Mean downlink time per stage, highest first."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -469,7 +543,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 22 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
       "id": 7,
       "options": {
         "legend": {
@@ -488,10 +567,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}[5m])",
+          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,
@@ -499,12 +578,13 @@
         }
       ],
       "title": "N3 Uplink Per-Stage Latency Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Uplink time per stage."
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "mimir"
+        "uid": "${DS_MIMIR}"
       },
       "fieldConfig": {
         "defaults": {
@@ -548,7 +628,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
       "id": 9,
       "options": {
         "legend": {
@@ -567,10 +652,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "mimir"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}[5m])",
+          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,
@@ -578,14 +663,74 @@
         }
       ],
       "title": "N6 Downlink Per-Stage Latency Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Downlink time per stage."
     }
   ],
   "preload": false,
   "schemaVersion": 42,
-  "tags": ["upf", "profiling", "xdp"],
+  "tags": [
+    "dev",
+    "upf",
+    "profiling",
+    "xdp"
+  ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Mimir",
+          "value": "mimir"
+        },
+        "includeAll": false,
+        "label": "Mimir",
+        "name": "DS_MIMIR",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_MIMIR}"
+        },
+        "definition": "label_values(up, job)",
+        "description": "Select the Ella Core job.",
+        "includeAll": false,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "query": {
+          "query": "label_values(up, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_MIMIR}"
+        },
+        "definition": "label_values(up{job=~\"$job\"}, instance)",
+        "description": "Select the Ella Core instance (host:port).",
+        "includeAll": false,
+        "label": "Instance",
+        "multi": false,
+        "name": "instance",
+        "query": {
+          "query": "label_values(up{job=~\"$job\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-5m",
@@ -593,7 +738,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "UPF Profiling",
+  "title": "[DEV] UPF Profiling",
+  "description": "Development only. Requires a build with datapath profiling enabled.",
   "uid": "ella-upf-profiling",
   "version": 6,
   "weekStart": ""

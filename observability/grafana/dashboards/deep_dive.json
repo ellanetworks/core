@@ -136,7 +136,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "Average CPU cores used by the Ella Core process. This measures Go runtime CPU usage and does not include XDP/eBPF packet processing which runs in kernel space.",
+      "description": "Percentage of Ella Core's available CPU used by the process.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -160,7 +160,9 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
@@ -196,13 +198,13 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "100 * rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) / go_sched_gomaxprocs_threads{job=~\"$job\",instance=~\"$instance\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "CPU Cores",
+      "title": "CPU Utilization",
       "type": "stat"
     },
     {
@@ -877,7 +879,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "CPU cores used by the Ella Core Go process over time. Click \"View flame graph\" to identify CPU-intensive functions.",
+      "description": "Percentage of Ella Core's available CPU used by the process.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -927,7 +929,9 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
@@ -962,13 +966,13 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "100 * rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) / go_sched_gomaxprocs_threads{job=~\"$job\",instance=~\"$instance\"}",
           "legendFormat": "CPU Usage",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "CPU Usage Over Time",
+      "title": "CPU Utilization Over Time",
       "type": "timeseries"
     },
     {
@@ -1999,7 +2003,6 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2007,7 +2010,7 @@
         },
         "definition": "label_values(up, job)",
         "description": "Select the Ella Core job. This filters metrics and logs (requires matching job labels in your Alloy/collector config).",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Job",
         "name": "job",
         "options": [],
@@ -2017,10 +2020,10 @@
         },
         "refresh": 2,
         "regex": "",
-        "type": "query"
+        "type": "query",
+        "multi": false
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2028,7 +2031,7 @@
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
         "description": "Select the Ella Core instance (host:port). This filters metrics and logs.",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Instance",
         "name": "instance",
         "options": [],
@@ -2038,7 +2041,8 @@
         },
         "refresh": 2,
         "regex": "",
-        "type": "query"
+        "type": "query",
+        "multi": false
       },
       {
         "current": {

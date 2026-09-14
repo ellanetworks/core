@@ -16,7 +16,7 @@ groups:
               to: 0
             datasourceUid: mimir
             model:
-              expr: sum(app_connected_radios)
+              expr: sum by (instance) (app_connected_radios)
               instant: true
               refId: A
           - refId: C
@@ -40,13 +40,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 2m
         labels:
           severity: critical
-          component: amf
+          component: network
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#no-radios-connected
           summary: No radios are connected to the 5G core.
-          description: "The metric `app_connected_radios` has been {{ $values.A }} for more than 2 minutes. No UEs can attach to the network without a connected radio."
+          description: "The metric `app_connected_radios` has been {{ $values.A.Value }} for more than 2 minutes. Check that the radio is powered on, reachable from the core, and configured with this core's address and PLMN."
 
       - uid: ella-registration-failure-rate
         title: High Registration Failure Rate
@@ -60,9 +63,9 @@ groups:
             model:
               expr: |
                 (
-                  (sum(rate(app_registration_attempts_total{result="reject"}[5m])) or vector(0))
+                  (sum by (instance) (rate(app_registration_attempts_total{result="reject"}[5m])) or sum by (instance) (rate(app_registration_attempts_total[5m])) * 0)
                   /
-                  clamp_min(sum(rate(app_registration_attempts_total[5m])), 1e-10)
+                  clamp_min(sum by (instance) (rate(app_registration_attempts_total[5m])), 1e-10)
                 ) * 100
               instant: true
               refId: A
@@ -87,13 +90,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: critical
-          component: amf
+          component: network
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-registration-failure-rate
           summary: More than 10% of subscriber registrations are failing.
-          description: "Registration failure rate is {{ $values.A | printf \"%.1f\" }}%. This indicates authentication issues (check AUSF/subscriber credentials), missing subscriber profiles, or policy misconfigurations."
+          description: "Registration failure rate is {{ $values.A.Value | printf \"%.1f\" }}%. Break down `app_registration_attempts_total` by `result`, then check the subscriber's credentials, profile, and policy."
 
       - uid: ella-pdu-session-failure-rate
         title: High PDU Session Failure Rate
@@ -107,9 +113,9 @@ groups:
             model:
               expr: |
                 (
-                  (sum(rate(app_session_establishment_attempts_total{result="reject"}[5m])) or vector(0))
+                  (sum by (instance) (rate(app_session_establishment_attempts_total{result="reject"}[5m])) or sum by (instance) (rate(app_session_establishment_attempts_total[5m])) * 0)
                   /
-                  clamp_min(sum(rate(app_session_establishment_attempts_total[5m])), 1e-10)
+                  clamp_min(sum by (instance) (rate(app_session_establishment_attempts_total[5m])), 1e-10)
                 ) * 100
               instant: true
               refId: A
@@ -134,13 +140,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: critical
-          component: smf
+          component: network
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-pdu-session-failure-rate
           summary: More than 10% of PDU session establishments are failing.
-          description: "PDU session failure rate is {{ $values.A | printf \"%.1f\" }}%. Subscribers may be unable to get data connectivity."
+          description: "PDU session failure rate is {{ $values.A.Value | printf \"%.1f\" }}%. Break down `app_session_establishment_attempts_total` by `result`, then check the subscriber's policy, its data network, and the IP pool."
 
       - uid: ella-ip-pool-exhaustion
         title: IP Address Pool Near Exhaustion
@@ -177,13 +186,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
-          component: smf
+          component: network
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#ip-address-pool-near-exhaustion
           summary: IP address pool is more than 90% allocated.
-          description: "IP pool utilization is {{ $values.A | printf \"%.1f\" }}% ({{ $values.A }} allocated). New PDU sessions will fail once the pool is exhausted."
+          description: "IP pool utilization is {{ $values.A.Value | printf \"%.1f\" }}% ({{ $values.A.Value }} allocated). Enlarge the data network's IP pool, or remove subscribers that no longer need addresses."
 
   - orgId: 1
     name: api-health
@@ -202,9 +214,9 @@ groups:
             model:
               expr: |
                 (
-                  (sum(rate(app_api_requests_total{status=~"5.."}[5m])) or vector(0))
+                  (sum by (instance) (rate(app_api_requests_total{status=~"5.."}[5m])) or sum by (instance) (rate(app_api_requests_total[5m])) * 0)
                   /
-                  clamp_min(sum(rate(app_api_requests_total[5m])), 1e-10)
+                  clamp_min(sum by (instance) (rate(app_api_requests_total[5m])), 1e-10)
                 ) * 100
               instant: true
               refId: A
@@ -229,13 +241,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
           component: api
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-api-error-rate
           summary: API server error rate exceeds 5%.
-          description: "API 5xx error rate is {{ $values.A | printf \"%.1f\" }}%. Check `app_api_requests_total` by endpoint to identify which endpoints are failing."
+          description: "API 5xx error rate is {{ $values.A.Value | printf \"%.1f\" }}%. Check `app_api_requests_total` by endpoint to identify which endpoints are failing."
 
       - uid: ella-api-latency
         title: High API Latency (P99)
@@ -248,7 +263,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                histogram_quantile(0.99, sum(rate(app_api_request_duration_seconds_bucket{endpoint!="/api/v1/pprof"}[5m])) by (le))
+                histogram_quantile(0.99, sum by (le, instance) (rate(app_api_request_duration_seconds_bucket{endpoint!="/api/v1/pprof"}[5m])))
               instant: true
               refId: A
           - refId: C
@@ -272,13 +287,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
           component: api
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-api-latency-p99
           summary: API P99 latency exceeds 2 seconds.
-          description: "API P99 latency is {{ $values.A | printf \"%.3f\" }}s. This may indicate database contention, resource exhaustion, or slow downstream operations."
+          description: "API P99 latency is {{ $values.A.Value | printf \"%.3f\" }}s. Check database query latency and CPU usage on the Deep Dive dashboard."
 
       - uid: ella-auth-failure-spike
         title: Authentication Failure Spike
@@ -292,9 +310,9 @@ groups:
             model:
               expr: |
                 (
-                  (sum(rate(app_api_authentication_attempts_total{result="failure"}[5m])) or vector(0))
+                  (sum by (instance) (rate(app_api_authentication_attempts_total{result="failure"}[5m])) or sum by (instance) (rate(app_api_authentication_attempts_total[5m])) * 0)
                   /
-                  clamp_min(sum(rate(app_api_authentication_attempts_total[5m])), 1e-10)
+                  clamp_min(sum by (instance) (rate(app_api_authentication_attempts_total[5m])), 1e-10)
                 ) * 100
               instant: true
               refId: B
@@ -319,13 +337,16 @@ groups:
                   reducer:
                     type: last
               expression: B
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
           component: api
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#authentication-failure-spike
           summary: More than 25% of API authentication attempts are failing.
-          description: "API authentication failure rate is {{ $values.B | printf \"%.1f\" }}%. This could indicate credential issues, token expiry problems, or unauthorized access attempts."
+          description: "API authentication failure rate is {{ $values.B.Value | printf \"%.1f\" }}%. Review the audit log to identify the source and whether the credentials are still valid."
 
   - orgId: 1
     name: infrastructure-health
@@ -338,11 +359,11 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 300
+              from: 600
               to: 0
             datasourceUid: mimir
             model:
-              expr: up{job="ella-core"}
+              expr: avg_over_time(up{job="ella-core"}[10m])
               instant: true
               refId: A
           - refId: C
@@ -357,7 +378,7 @@ groups:
                 - evaluator:
                     type: lt
                     params:
-                      - 1
+                      - 0.8
                   operator:
                     type: and
                   query:
@@ -366,13 +387,17 @@ groups:
                   reducer:
                     type: last
               expression: A
-        for: 0s
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        keepFiringFor: 5m
         labels:
           severity: critical
           component: runtime
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#instance-down
           summary: Ella Core instance is unreachable.
-          description: "The Prometheus scrape target `up{job=\"ella-core\"}` is 0, meaning the instance is down or unresponsive. This fires immediately — check for a crash or network issue."
+          description: "The scrape target `up{job=\"ella-core\"}` has been unreachable for more than 20% of the last 10 minutes. Check for a crash or a network issue."
 
       - uid: ella-high-memory
         title: High Memory Usage
@@ -380,11 +405,11 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 300
+              from: 21600
               to: 0
             datasourceUid: mimir
             model:
-              expr: process_resident_memory_bytes
+              expr: predict_linear(process_resident_memory_bytes[6h], 48*3600)
               instant: true
               refId: A
           - refId: C
@@ -408,13 +433,16 @@ groups:
                   reducer:
                     type: last
               expression: A
-        for: 5m
+        noDataState: OK
+        execErrState: OK
+        for: 30m
         labels:
           severity: warning
           component: runtime
         annotations:
-          summary: Process memory usage exceeds 1 GiB.
-          description: "Resident memory is {{ $values.A.Value | humanize1024 }}B. Check for memory leaks using the Pyroscope heap profile."
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-memory-usage
+          summary: Process memory is forecast to exceed 1 GiB.
+          description: "Resident memory is forecast to reach {{ $values.A.Value | humanize1024 }}B within 48 hours, based on the last 6 hours of growth. Check for a memory leak using the Pyroscope heap profile."
 
       - uid: ella-high-goroutines
         title: High Goroutine Count
@@ -422,11 +450,11 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 300
+              from: 3600
               to: 0
             datasourceUid: mimir
             model:
-              expr: go_goroutines
+              expr: predict_linear(go_goroutines[1h], 48*3600)
               instant: true
               refId: A
           - refId: C
@@ -450,13 +478,16 @@ groups:
                   reducer:
                     type: last
               expression: A
-        for: 5m
+        noDataState: OK
+        execErrState: OK
+        for: 30m
         labels:
           severity: warning
           component: runtime
         annotations:
-          summary: Goroutine count exceeds 10,000.
-          description: "Current goroutine count is {{ $values.A }}. This may indicate a goroutine leak, likely from unclean session teardowns."
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-goroutine-count
+          summary: Goroutine count is forecast to exceed 10,000.
+          description: "Goroutines are forecast to reach {{ $values.A.Value | printf \"%.0f\" }} within 48 hours, based on the last hour of growth. This indicates a resource leak in Ella Core. Capture a goroutine profile from Pyroscope and report it."
 
       - uid: ella-db-query-latency
         title: High Database Query Latency (P99)
@@ -469,7 +500,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                histogram_quantile(0.99, sum(rate(app_database_query_duration_seconds_bucket[5m])) by (le))
+                histogram_quantile(0.99, sum by (le, instance) (rate(app_database_query_duration_seconds_bucket[5m])))
               instant: true
               refId: A
           - refId: C
@@ -493,13 +524,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
           component: db
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-database-query-latency-p99
           summary: Database P99 query latency exceeds 500ms.
-          description: "DB P99 latency is {{ $values.A | printf \"%.3f\" }}s. This impacts API response times and session establishment."
+          description: "DB P99 latency is {{ $values.A.Value | printf \"%.3f\" }}s. Check the database size and the query rate on the Deep Dive dashboard."
 
       - uid: ella-db-storage-large
         title: Large Database Size
@@ -535,13 +569,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 10m
         labels:
           severity: warning
           component: db
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#large-database-size
           summary: Database size exceeds 1 GiB.
-          description: "Database file is {{ $values.A.Value | humanize1024 }}B. Large databases slow down queries and backups."
+          description: "Database file is {{ $values.A.Value | humanize1024 }}B. Shorten the retention policy for network logs, audit logs, or flow reports."
 
   - orgId: 1
     name: data-plane-health
@@ -559,7 +596,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(rate(app_upf_datapath_drop_total[5m]))
+                sum by (instance) (rate(app_upf_datapath_drop_total[5m]))
               instant: true
               refId: A
           - refId: C
@@ -583,13 +620,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
-          component: upf
+          component: data-plane
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#high-data-plane-packet-drop-rate
           summary: The data plane is dropping more than 10 packets/sec.
-          description: "Drop rate is {{ $values.A | printf \"%.1f\" }} pkt/s. Check `app_upf_datapath_drop_total` by reason and direction to localize the issue."
+          description: "Drop rate is {{ $values.A.Value | printf \"%.1f\" }} pkt/s. Check `app_upf_datapath_drop_total` by reason and direction to localize the issue."
 
       - uid: ella-no-traffic-flow
         title: No Data Plane Traffic
@@ -602,7 +642,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(rate(app_upf_bytes_total[10m]))
+                sum by (instance) (rate(app_upf_bytes_total[10m]))
               instant: true
               refId: A
           - refId: B
@@ -611,7 +651,7 @@ groups:
               to: 0
             datasourceUid: mimir
             model:
-              expr: sum(app_connected_radios)
+              expr: sum by (instance) (app_connected_radios)
               instant: true
               refId: B
           - refId: C
@@ -623,13 +663,16 @@ groups:
               type: math
               refId: C
               expression: ($B > 0) && ($A == 0)
+        noDataState: OK
+        execErrState: OK
         for: 10m
         labels:
           severity: critical
-          component: upf
+          component: data-plane
         annotations:
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#no-data-plane-traffic
           summary: Radios are connected but no data is flowing through the user plane.
-          description: "Radios are connected (app_connected_radios > 0) but uplink + downlink throughput has been zero for 10 minutes. The data plane may be broken."
+          description: "Radios are connected (app_connected_radios > 0) but uplink + downlink throughput has been zero for 10 minutes. Confirm a subscriber is actually sending traffic, then check the data network and route configuration."
 
       - uid: ella-datapath-aborted
         title: Data Plane Aborted Actions Detected
@@ -642,7 +685,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(rate(app_upf_datapath_drop_total{reason=~"internal_.*"}[5m]))
+                sum by (instance) (rate(app_upf_datapath_drop_total{reason=~"internal_.*"}[5m]))
               instant: true
               refId: A
           - refId: C
@@ -666,13 +709,16 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 2m
         labels:
           severity: critical
-          component: upf
+          component: data-plane
         annotations:
-          summary: Aborted actions detected — the eBPF program is hitting errors.
-          description: "Abort rate is {{ $values.A | printf \"%.1f\" }} pkt/s. A reason prefixed internal_ means the data plane itself failed; break it down by reason to find which step."
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#data-plane-aborted-actions-detected
+          summary: The data plane is failing to process traffic.
+          description: "Abort rate is {{ $values.A.Value | printf \"%.1f\" }} pkt/s. An `internal_` reason means Ella Core's data plane failed rather than dropping traffic by policy. Break down `app_upf_datapath_drop_total` by `reason` and report it."
 
       - uid: ella-flow-reports-dropped
         title: Flow Reports Being Dropped
@@ -685,7 +731,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(increase(app_upf_flow_reports_dropped_total[5m]))
+                sum by (instance) (increase(app_upf_flow_reports_dropped_total[5m]))
               instant: true
               refId: A
           - refId: C
@@ -709,10 +755,13 @@ groups:
                   reducer:
                     type: last
               expression: A
+        noDataState: OK
+        execErrState: OK
         for: 0s
         labels:
           severity: warning
-          component: upf
+          component: data-plane
         annotations:
-          summary: Flow reports are being dropped due to a full buffer.
-          description: "{{ $values.A | printf \"%.0f\" }} flow reports were dropped in the last 5 minutes. The flow report channel is saturated — batch inserts may be too slow or the number of active flows exceeds the buffer capacity (16384)."
+          runbook_url: https://docs.ellanetworks.com/reference/observability/#flow-reports-being-dropped
+          summary: Flow reports are being dropped.
+          description: "{{ $values.A.Value | printf \"%.0f\" }} flow reports were dropped in the last 5 minutes. Data usage reporting is incomplete while this persists. Shorten the flow report retention policy, or report this if it continues at normal traffic levels."
