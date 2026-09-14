@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"testing"
@@ -201,6 +202,97 @@ func TestErrorIndicationClearsEveryEPSTunnelOfTheUE(t *testing.T) {
 
 	if other.Tunnel.AN.IPv4 != nil {
 		t.Errorf("the UE's other eNB tunnel is still bound: %+v", other.Tunnel.AN)
+	}
+}
+
+// TS 23.007 §21.7 drops every eNodeB tunnel of the UE and then notifies the MME,
+// so one PDN connection failing must not strand the others or skip the
+// notification.
+func TestErrorIndicationClearsTheOtherEPSTunnelsWhenOneFails(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	mme := &fakeMME{}
+	s.SetMME(mme)
+
+	reported := establishEPSForArrival(t, s)
+	reported.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	reported.Tunnel.Downlink = smf.DownlinkForwarding
+
+	failing := establishSecondEPSSession(t, s)
+	failing.Tunnel.AN = smf.AnchorBinding{TEID: 7001, IPv4: net.ParseIP("10.0.0.200").To4()}
+	failing.Tunnel.Downlink = smf.DownlinkForwarding
+
+	upf.modifyErrBySEID = map[uint64]error{failing.PFCPContext.SEID: errors.New("pfcp modification failed")}
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(reported.PFCPContext.SEID, reported.Tunnel.AN)); err != nil {
+		t.Fatalf("one failing PDN connection failed the whole Error Indication: %v", err)
+	}
+
+	if reported.Tunnel.Downlink != smf.DownlinkBuffering {
+		t.Errorf("the reported tunnel still forwards into the dead eNB: state = %v", reported.Tunnel.Downlink)
+	}
+
+	if len(mme.pagedIMSI) != 1 {
+		t.Errorf("MME got %d Downlink Data Notifications, want 1", len(mme.pagedIMSI))
+	}
+}
+
+// A failure on the reported session withholds the notification: its downlink is
+// the one known to be flowing into a dead tunnel.
+func TestErrorIndicationReportsAFailureOnTheBrokenSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	mme := &fakeMME{}
+	s.SetMME(mme)
+
+	reported := establishEPSForArrival(t, s)
+	reported.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	reported.Tunnel.Downlink = smf.DownlinkForwarding
+
+	upf.modifyErrBySEID = map[uint64]error{reported.PFCPContext.SEID: errors.New("pfcp modification failed")}
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(reported.PFCPContext.SEID, reported.Tunnel.AN)); err == nil {
+		t.Fatal("a failed deactivation of the broken tunnel was reported as success")
+	}
+
+	if len(mme.pagedIMSI) != 0 {
+		t.Errorf("the MME was notified though the broken tunnel is still forwarding: %d notifications", len(mme.pagedIMSI))
+	}
+}
+
+// An access-only release that the 5G-AN never answers must not make a later
+// session release skip its teardown: the UE address, the N4 session and the SEID
+// would all leak.
+func TestUnansweredAccessReleaseDoesNotSwallowASessionRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	// The 5G-AN never answers; a UE-requested release follows, which runs the
+	// network-requested release procedure and waits for its own response.
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, 5)); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (release request): %v", err)
+	}
+
+	before := len(amfCb.pageCalls)
+
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
+	}
+
+	if len(amfCb.pageCalls) != before {
+		t.Error("a stale access-release purpose swallowed the session release's response and re-activated the session instead")
+	}
+
+	if !smCtx.N2ReleasedForTest() {
+		t.Error("the session release's N2 leg was never recorded, so the session can never complete its release")
 	}
 }
 

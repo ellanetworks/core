@@ -15,7 +15,7 @@ func TestPagingFailedReportsTheCauseForThePendingBearer(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -37,7 +37,7 @@ func TestPagingAnsweredThenDelivered(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestClearPagingDropsTheBufferedLPPa(t *testing.T) {
 
 	ue.SetLPPaBuffered(7, []byte{0x01})
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestDetachFailsThePendingTransfer(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -111,7 +111,7 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 
@@ -151,7 +151,7 @@ func TestReleaseCompleteFailsADeliveringTransfer(t *testing.T) {
 
 	ue := idleRegisteredUE(t, m)
 
-	if err := m.Page(context.Background(), ue.imsiOrEmpty(), 5); err != nil {
+	if err := m.NotifyDownlinkData(context.Background(), ue.imsiOrEmpty(), 5, models.DownlinkDataArrived); err != nil {
 		t.Fatalf("Page: %v", err)
 	}
 

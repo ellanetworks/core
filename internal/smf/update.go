@@ -410,8 +410,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 
 func (s *SMF) completeUPConnectionDeactivation(ctx context.Context, smContext *SMContext) bool {
 	smContext.Mutex.Lock()
-	armed := smContext.upConnectionDeactivating
-	smContext.upConnectionDeactivating = false
+	armed := smContext.n2Release == n2ReleaseUPConnection
+	smContext.n2Release = n2ReleaseSession
 	smContext.Mutex.Unlock()
 
 	if !armed {
@@ -453,6 +453,8 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	defer smContext.Mutex.Unlock()
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
+
+	smContext.recordN2Release(n2ReleaseSession)
 
 	n2Rsp, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {

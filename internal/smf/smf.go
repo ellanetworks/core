@@ -106,7 +106,6 @@ type AMFCallback interface {
 }
 
 type MMECallback interface {
-	Page(ctx context.Context, imsi string, ebi uint8) error
 	NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 }

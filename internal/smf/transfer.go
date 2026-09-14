@@ -260,6 +260,12 @@ func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppe
 		// TS 23.502 §4.11.2.2 step 14
 		var n2Release []byte
 
+		if sc := s.GetSession(ref); sc != nil {
+			sc.Mutex.Lock()
+			sc.recordN2Release(n2ReleaseSession)
+			sc.Mutex.Unlock()
+		}
+
 		if dropped.upActive {
 			built, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 			if err != nil {

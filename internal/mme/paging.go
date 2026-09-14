@@ -31,10 +31,6 @@ var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, V
 // retransmitted up to a bound, then abandoned (T3413, TS 24.301 §5.6.2). A nil error
 // covers a deliberate skip (already ECM-CONNECTED, or paging in progress); only a
 // missing context or marshal failure is reported.
-func (m *MME) Page(ctx context.Context, imsi string, ebi uint8) error {
-	return m.NotifyDownlinkData(ctx, imsi, ebi, models.DownlinkDataArrived)
-}
-
 func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {

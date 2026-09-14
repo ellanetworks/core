@@ -201,6 +201,7 @@ type fakeUPF struct {
 	teardownSeq      *teardownRecorder
 	establishResult  *models.EstablishResponse
 	lastEstablish    *models.EstablishRequest
+	modifyErrBySEID  map[uint64]error
 	modifyCalls      []*models.ModifyRequest
 	deleteCalls      []deletionCall
 	suppressDDNCalls []uint64
@@ -228,6 +229,10 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) (*
 	defer f.mu.Unlock()
 
 	f.modifyCalls = append(f.modifyCalls, req)
+
+	if err, ok := f.modifyErrBySEID[req.SEID]; ok {
+		return nil, err
+	}
 
 	if f.err != nil {
 		return nil, f.err
@@ -431,10 +436,6 @@ func (f *fakeMME) dropped() []mmeTransferredCall {
 	defer f.mu.Unlock()
 
 	return append([]mmeTransferredCall(nil), f.droppedCalls...)
-}
-
-func (f *fakeMME) Page(ctx context.Context, imsi string, ebi uint8) error {
-	return f.NotifyDownlinkData(ctx, imsi, ebi, models.DownlinkDataArrived)
 }
 
 func (f *fakeMME) NotifyDownlinkData(_ context.Context, imsi string, _ uint8, cause models.DownlinkDataNotificationCause) error {

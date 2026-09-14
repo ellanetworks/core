@@ -27,10 +27,6 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	return s.reactivateUserPlane(ctx, smContext)
-}
-
-func (s *SMF) reactivateUserPlane(ctx context.Context, smContext *SMContext) error {
 	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataArrived)
 }
 
@@ -178,10 +174,27 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		affected = s.epsSessionsOf(supi)
 	}
 
+	var reportedErr error
+
 	for _, sc := range affected {
-		if err := s.bufferDownlinkAfterErrorIndication(ctx, sc); err != nil {
-			return err
+		err := s.bufferDownlinkAfterErrorIndication(ctx, sc)
+		if err == nil {
+			continue
 		}
+
+		if sc == smContext {
+			reportedErr = err
+
+			continue
+		}
+
+		logger.WithTrace(ctx, logger.SmfLog).Warn(
+			"could not stop the downlink of another PDN connection of the UE after an Error Indication",
+			zap.Error(err), zap.String("supi", supi.String()), logger.SEID(report.SEID))
+	}
+
+	if reportedErr != nil {
+		return reportedErr
 	}
 
 	if !onEPS && s.releaseAccessResources(ctx, smContext) {
@@ -232,12 +245,12 @@ func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) 
 	}
 
 	smContext.Mutex.Lock()
-	smContext.upConnectionDeactivating = true
+	smContext.recordN2Release(n2ReleaseUPConnection)
 	smContext.Mutex.Unlock()
 
 	if err := s.amf.ReleaseAccessResources(ctx, supi, pduSessionID, n2Transfer); err != nil {
 		smContext.Mutex.Lock()
-		smContext.upConnectionDeactivating = false
+		smContext.recordN2Release(n2ReleaseSession)
 		smContext.Mutex.Unlock()
 
 		if !errors.Is(err, ErrUENotReachable) {
