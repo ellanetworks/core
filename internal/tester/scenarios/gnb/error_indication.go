@@ -79,11 +79,15 @@ func runErrorIndication(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("parse the UPF N3 address %q: %w", regB.UpfAddress, err)
 	}
 
-	if err := probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, errorIndicationDstPort, []byte("datagram before the error indication")); err != nil {
-		return fmt.Errorf("send the first datagram from UE-A: %w", err)
+	if err := scenarios.AwaitDownlinkDelivery(
+		func() error {
+			return probe.SendUDPOneWay(ctx, tunA, regB.UEIPv4, errorIndicationDstPort, []byte("datagram before the error indication"))
+		},
+		func() uint64 { return gNodeB.TunnelRXCount(regB.DLTEID) },
+		"UE-to-UE downlink before the Error Indication",
+	); err != nil {
+		return err
 	}
-
-	time.Sleep(errorIndicationSettle)
 
 	if err := gNodeB.SendGTPUErrorIndication(regB.DLTEID, upf, gNodeB.N3Address); err != nil {
 		return fmt.Errorf("send a GTP-U Error Indication for TEID %#x: %w", regB.DLTEID, err)

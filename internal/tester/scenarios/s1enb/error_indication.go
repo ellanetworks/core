@@ -88,11 +88,15 @@ func runS1ENBErrorIndication(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("parse the S-GW S1-U address %q: %w", resB.UpfAddress, err)
 	}
 
-	if err := probe.SendUDPOneWay(ctx, tunA, resB.UEIPv4, errorIndS1DstPort, []byte("datagram before the error indication")); err != nil {
-		return fmt.Errorf("send the first datagram from UE-A: %w", err)
+	if err := scenarios.AwaitDownlinkDelivery(
+		func() error {
+			return probe.SendUDPOneWay(ctx, tunA, resB.UEIPv4, errorIndS1DstPort, []byte("datagram before the error indication"))
+		},
+		func() uint64 { return e.TunnelRXCount(resB.DLTEID) },
+		"UE-to-UE downlink before the Error Indication",
+	); err != nil {
+		return err
 	}
-
-	time.Sleep(errorIndS1Settle)
 
 	if err := e.SendGTPUErrorIndication(resB.DLTEID, sgw, e.N3Address()); err != nil {
 		return fmt.Errorf("send a GTP-U Error Indication for TEID %#x: %w", resB.DLTEID, err)
