@@ -1,6 +1,6 @@
 services:
   ella-mimir:
-    image: grafana/mimir:latest
+    image: grafana/mimir:3.2.1
     container_name: ella-mimir
     restart: unless-stopped
     ports:
@@ -14,7 +14,7 @@ services:
       - ella-shared
 
   ella-loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.7.7
     container_name: ella-loki
     restart: unless-stopped
     ports:
@@ -29,7 +29,7 @@ services:
       - ella-shared
 
   ella-tempo:
-    image: grafana/tempo:2.9.1
+    image: grafana/tempo:3.0.3
     container_name: ella-tempo
     restart: unless-stopped
     ports:
@@ -40,24 +40,26 @@ services:
       - ./tempo-config.yml:/etc/tempo/config.yml:ro
       - tempo-data:/var/tempo
     command:
+      - "-target=all"
       - "-config.file=/etc/tempo/config.yml"
     networks:
       - ella-tempo
       - ella-shared
 
   ella-pyroscope:
-    image: grafana/pyroscope:latest
+    image: grafana/pyroscope:2.3.1
     container_name: ella-pyroscope
     restart: unless-stopped
     ports:
       - "4040:4040"
     volumes:
+      - ./pyroscope-config.yml:/etc/pyroscope/config.yaml:ro
       - pyroscope-data:/data
     networks:
       - ella-shared
 
   ella-grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.1
     container_name: ella-grafana
     restart: unless-stopped
     ports:
@@ -83,7 +85,7 @@ services:
       - ella-tempo
 
   ella-mcp-grafana:
-    image: grafana/mcp-grafana:latest
+    image: grafana/mcp-grafana:1.4.2
     container_name: ella-mcp-grafana
     restart: unless-stopped
     command: ["-t", "streamable-http"]
