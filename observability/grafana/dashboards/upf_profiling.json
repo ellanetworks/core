@@ -670,6 +670,7 @@
   "preload": false,
   "schemaVersion": 42,
   "tags": [
+    "dev",
     "upf",
     "profiling",
     "xdp"
@@ -737,7 +738,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "UPF Profiling",
+  "title": "[DEV] UPF Profiling",
+  "description": "Development only. Requires a build with datapath profiling enabled.",
   "uid": "ella-upf-profiling",
   "version": 6,
   "weekStart": ""
