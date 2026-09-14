@@ -1,0 +1,7 @@
+server:
+  http_listen_port: 4040
+
+limits:
+  max_query_lookback: 0s
+  max_query_length: 0s
+  compactor_blocks_retention_period: 90d

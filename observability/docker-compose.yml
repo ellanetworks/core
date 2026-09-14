@@ -52,6 +52,7 @@ services:
     ports:
       - "4040:4040"
     volumes:
+      - ./pyroscope-config.yml:/etc/pyroscope/config.yaml:ro
       - pyroscope-data:/data
     networks:
       - ella-shared
