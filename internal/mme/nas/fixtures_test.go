@@ -80,18 +80,17 @@ func initiatingValue(t *testing.T, b []byte) []byte {
 }
 
 type fakeSessionManager struct {
-	forwardingTEID      uint32
-	forwardingIPv6      netip.Addr
-	forwardingErr       error
-	forwardingTargets   []models.FTEID
-	forwardingClosed    []string
-	forwardingScheduled []string
-	lastRequest         models.EPSBearerRequest
-	modifiedENB         models.FTEID
-	released            bool
-	deactivated         bool
-	idleTransfers       []idleEPSTransfer
-	idleTransferErr     error
+	forwardingTEID    uint32
+	forwardingIPv6    netip.Addr
+	forwardingErr     error
+	forwardingTargets []models.FTEID
+	forwardingClosed  []string
+	lastRequest       models.EPSBearerRequest
+	modifiedENB       models.FTEID
+	released          bool
+	deactivated       bool
+	idleTransfers     []idleEPSTransfer
+	idleTransferErr   error
 }
 
 type idleEPSTransfer struct {
@@ -423,8 +422,4 @@ func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref str
 	f.forwardingClosed = append(f.forwardingClosed, ref)
 
 	return nil
-}
-
-func (f *fakeSessionManager) ScheduleEPSForwardingRelease(ref string) {
-	f.forwardingScheduled = append(f.forwardingScheduled, ref)
 }

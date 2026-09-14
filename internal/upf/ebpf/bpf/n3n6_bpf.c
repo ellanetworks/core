@@ -24,6 +24,7 @@
 #include "bpf/utils/trace.h"
 #include "bpf/utils/profiling.h"
 #include "bpf/utils/gtp_control.h"
+#include "bpf/utils/error_ind.h"
 #include "bpf/utils/packet_context.h"
 #include "bpf/utils/parsers.h"
 #include "bpf/utils/nat.h"
@@ -206,6 +207,9 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 		if (pdu_type == GTPU_ECHO_REQUEST)
 			return record_action(&context, handle_echo_request(&context));
 
+		if (pdu_type == GTPU_ERROR_INDICATION)
+			return record_action(&context, handle_error_indication(&context));
+
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
 			return record_action(&context, DEFAULT_CTX_ACTION);
 
@@ -228,6 +232,9 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 
 		if (pdu_type == GTPU_ECHO_REQUEST)
 			return record_action(&context, handle_echo_request(&context));
+
+		if (pdu_type == GTPU_ERROR_INDICATION)
+			return record_action(&context, handle_error_indication(&context));
 
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
 			return record_action(&context, DEFAULT_CTX_ACTION);

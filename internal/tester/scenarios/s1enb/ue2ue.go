@@ -157,6 +157,7 @@ func runS1ENBUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 type s1AttachResult struct {
 	ue          *s1enb.UE
 	UEIPv4      string
+	UpfAddress  string
 	DLTEID      uint32
 	mmeUES1APID int64
 	enbUES1APID int64
@@ -190,6 +191,7 @@ func attachAndTunnelS1(e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface stri
 	return &s1AttachResult{
 		ue:          ue,
 		UEIPv4:      res.UEIPv4,
+		UpfAddress:  res.UpfAddress,
 		DLTEID:      res.DLTEID,
 		mmeUES1APID: res.MMEUES1APID,
 		enbUES1APID: res.ENBUES1APID,

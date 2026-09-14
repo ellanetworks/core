@@ -337,6 +337,10 @@ func (f *fakeAMFCallback) ReleaseSession(ctx context.Context, supi etsi.SUPI, pd
 	return nil
 }
 
+func (f *fakeAMFCallback) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error {
+	return nil
+}
+
 func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, _ *models.Arp) (models.N1N2MessageTransferCause, error) {
 	return models.N1N2TransferInitiated, nil
 }

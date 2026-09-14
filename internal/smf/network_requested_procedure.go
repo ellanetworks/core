@@ -38,6 +38,8 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 		return fmt.Errorf("build PDU Session Release Command (N1): %w", err)
 	}
 
+	smContext.recordN2Release(n2ReleaseSession)
+
 	n2Transfer, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
 		return fmt.Errorf("build PDU Session Resource Release Command Transfer (N2): %w", err)

@@ -10,7 +10,8 @@ enum ringbuf_id {
 	RINGBUF_NOCP = 0,
 	RINGBUF_RS_EVENT = 1,
 	RINGBUF_NO_NEIGH = 2,
-	RINGBUF_ID_MAX = 3,
+	RINGBUF_ERROR_IND = 3,
+	RINGBUF_ID_MAX = 4,
 };
 
 struct {

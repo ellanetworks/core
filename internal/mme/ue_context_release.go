@@ -148,6 +148,7 @@ func (m *MME) ReleaseUEContextLocally(ue *UeContext, trigger string) {
 	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
 
 	if !registered {
+		m.DropDeferredServiceRequest(context.Background(), ue)
 		m.ReleaseAllSessions(context.Background(), ue)
 		logger.MmeLog.Info("aborted incomplete UE registration",
 			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
@@ -159,4 +160,6 @@ func (m *MME) ReleaseUEContextLocally(ue *UeContext, trigger string) {
 	m.StartMobileReachable(ue)
 	logger.MmeLog.Info("UE moved to ECM-IDLE",
 		zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
+
+	m.ResumeDeferredServiceRequest(context.Background(), ue)
 }

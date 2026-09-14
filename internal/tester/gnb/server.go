@@ -339,6 +339,10 @@ func (g *GnodeB) removePDUSession(ranUeID int64, pduSessionID int64) {
 	g.cond.Broadcast()
 }
 
+func (g *GnodeB) AwaitPDUSessionRelease(ranUeID int64, pduSessionID uint8, timeout time.Duration) error {
+	return g.awaitPDUSessionRelease(ranUeID, int64(pduSessionID), timeout)
+}
+
 // awaitPDUSessionRelease blocks until the gNB no longer holds resources for
 // pduSessionID, which it drops when the AMF asks for them back in a PDU SESSION
 // RESOURCE RELEASE COMMAND.
