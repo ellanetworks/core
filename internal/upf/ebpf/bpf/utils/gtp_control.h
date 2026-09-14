@@ -34,9 +34,6 @@ static __always_inline void swap_ip6(struct ipv6hdr *ip6)
 	__builtin_memcpy(&ip6->daddr, &tmp, sizeof(struct in6_addr));
 }
 
-/* GTP-U Recovery information element type (TS 29.281 §8.2). */
-#define GTPU_IE_RECOVERY (14)
-
 /* An Echo Response is a 12-octet GTP-U header (mandatory header plus the
  * optional word; the S flag is set as required for Echo messages, TS 29.281
  * §5.1) followed by the mandatory Recovery IE (TV format, 2 octets). */
@@ -188,10 +185,6 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 
 	return tx_back(ctx, egress_vlan_reflected(ctx));
 }
-
-/* GTP-U Error Indication information element types (TS 29.281 §8.1). */
-#define GTPU_IE_TEID_DATA_I (16)
-#define GTPU_IE_PEER_ADDRESS (133)
 
 /* Reflected to the sender of a G-PDU for a TEID with no PDU session, over IPv4
  * N3 transport (TS 29.281 §7.3.1): the triggering TEID (§8.3) and this UPF's

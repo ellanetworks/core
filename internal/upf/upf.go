@@ -60,6 +60,7 @@ type UPF struct {
 	smf                engine.SMFReportHandler
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
+	errorIndReader     *ringbuf.Reader
 	raResponder        *RAResponder
 	bufferResponder    *BufferResponder
 
@@ -170,6 +171,11 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, fmt.Errorf("coud not start missing neighbour reader: %s", err.Error())
 	}
 
+	errorIndReader, err := ringbuf.NewReader(bpfObjects.ErrorIndMap)
+	if err != nil {
+		return nil, fmt.Errorf("coud not start error indication reader: %s", err.Error())
+	}
+
 	upf := &UPF{
 		attachedMode:       attachedMode,
 		n3Link:             n3Link,
@@ -178,6 +184,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		smf:                smfHandler,
 		notificationReader: notificationReader,
 		noNeighReader:      noNeighReader,
+		errorIndReader:     errorIndReader,
 		ctx:                ctx,
 	}
 
@@ -219,6 +226,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	upf.startUsageMonitor(ctx, 30*time.Second)
 
 	go upf.listenForMissingNeighbours() // #nosec: G118 -- lifecycle goroutine, not request-scoped
+
+	go upf.listenForErrorIndications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	if masquerade {
 		upf.startGC(ctx)
@@ -280,6 +289,10 @@ func (u *UPF) Close(ctx context.Context) {
 
 		if err := u.noNeighReader.Close(); err != nil {
 			logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
+		}
+
+		if err := u.errorIndReader.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to close error indication reader", zap.Error(err))
 		}
 	}()
 
@@ -862,6 +875,41 @@ func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, sessio
 	}
 
 	u.reportUsage(ctx, []sessionUsage{usage})
+}
+
+func (u *UPF) listenForErrorIndications() {
+	var (
+		record ringbuf.Record
+		event  ebpf.ErrorIndication
+	)
+
+	for {
+		err := u.errorIndReader.ReadInto(&record)
+		if errors.Is(err, os.ErrClosed) {
+			return
+		}
+
+		// record still holds the previous sample; see listenForTrafficNotifications.
+		if err != nil {
+			logger.UpfLog.Warn("error indication ring buffer read error", zap.Error(err))
+			continue
+		}
+
+		if err = binary.Read(bytes.NewBuffer(record.RawSample), binary.NativeEndian, &event); err != nil {
+			logger.UpfLog.Error("Failed to decode error indication", zap.Error(err))
+			continue
+		}
+
+		remote := models.FTEID{TEID: event.TEID, Addr: ebpf.In6AddrToIP(event.PeerAddr)}
+
+		if err := u.se.SendErrorIndicationReport(u.ctx, u.smf, remote); err != nil {
+			logger.UpfLog.Warn("Failed to report a received GTP-U Error Indication",
+				zap.String("gtpu_peer", remote.Addr.String()),
+				logger.TEID(remote.TEID), zap.Error(err))
+
+			continue
+		}
+	}
 }
 
 func (u *UPF) listenForMissingNeighbours() {

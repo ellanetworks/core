@@ -228,6 +228,12 @@ type DownlinkDataReport struct {
 	QFI   uint8
 }
 
+type ErrorIndicationReport struct {
+	SEID        uint64
+	FARID       uint32
+	RemoteFTEID FTEID
+}
+
 // UsageReport delivers periodic volume measurements from UPF to SMF.
 type UsageReport struct {
 	SEID           uint64

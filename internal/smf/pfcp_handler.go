@@ -100,6 +100,32 @@ func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequ
 	return nil
 }
 
+func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.ErrorIndicationReport) error {
+	ctx, span := tracer.Start(ctx, "smf/handle_error_indication_report")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int64("seid", int64(report.SEID)),
+		attribute.Int64("far_id", int64(report.FARID)),
+	)
+
+	smContext := s.GetSessionBySEID(report.SEID)
+	if smContext == nil || !smContext.Supi.IsIMSI() {
+		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Warn(
+		"Peer reported a GTP-U Error Indication for a tunnel the core forwards into",
+		zap.String("supi", smContext.Supi.String()),
+		logger.SEID(report.SEID),
+		logger.FARID(report.FARID),
+		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
+		logger.TEID(report.RemoteFTEID.TEID),
+	)
+
+	return nil
+}
+
 func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageReport) error {
 	ctx, span := tracer.Start(ctx, "smf/handle_usage_reports")
 	defer span.End()

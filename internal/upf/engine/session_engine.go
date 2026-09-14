@@ -59,6 +59,17 @@ func (pc *SessionEngine) ListSessions() map[uint64]*Session {
 	return sessCopy
 }
 
+func (pc *SessionEngine) eachSession(visit func(*Session) bool) {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+
+	for _, session := range pc.sessions {
+		if !visit(session) {
+			return
+		}
+	}
+}
+
 func (pc *SessionEngine) GetSession(seid uint64) *Session {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()

@@ -79,3 +79,12 @@ struct gtp_hdr_ext_pdu_session_container {
 	__u8 spare2 : 1;
 	__u8 next_ext;
 } __attribute__((packed));
+
+/* GTP-U Recovery information element type (TS 29.281 §8.2). */
+#define GTPU_IE_RECOVERY (14)
+
+/* GTP-U Error Indication information element types (TS 29.281 §8.1). */
+#define GTPU_IE_TEID_DATA_I (16)
+#define GTPU_IE_PEER_ADDRESS (133)
+
+#define GTPU_IE_TLV_FLAG (0x80)
