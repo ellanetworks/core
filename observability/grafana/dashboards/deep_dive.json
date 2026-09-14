@@ -1999,7 +1999,6 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2007,7 +2006,7 @@
         },
         "definition": "label_values(up, job)",
         "description": "Select the Ella Core job. This filters metrics and logs (requires matching job labels in your Alloy/collector config).",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Job",
         "name": "job",
         "options": [],
@@ -2017,10 +2016,10 @@
         },
         "refresh": 2,
         "regex": "",
-        "type": "query"
+        "type": "query",
+        "multi": false
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2028,7 +2027,7 @@
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
         "description": "Select the Ella Core instance (host:port). This filters metrics and logs.",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Instance",
         "name": "instance",
         "options": [],
@@ -2038,7 +2037,8 @@
         },
         "refresh": 2,
         "regex": "",
-        "type": "query"
+        "type": "query",
+        "multi": false
       },
       {
         "current": {

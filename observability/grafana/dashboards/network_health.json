@@ -3282,16 +3282,15 @@
         "type": "datasource"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up, job)",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Job",
-        "multi": true,
+        "multi": false,
         "name": "job",
         "options": [],
         "query": {
@@ -3303,16 +3302,15 @@
         "type": "query"
       },
       {
-        "allValue": ".+",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
-        "includeAll": true,
+        "includeAll": false,
         "label": "Instance",
-        "multi": true,
+        "multi": false,
         "name": "instance",
         "options": [],
         "query": {
