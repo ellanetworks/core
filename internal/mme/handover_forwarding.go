@@ -18,6 +18,8 @@ func (m *MME) OpenForwardingTunnel(ctx context.Context, ue *UeContext, ebi uint8
 		return models.ForwardingTunnel{}, false
 	}
 
+	ue.forwardingRelease.Stop()
+
 	local, err := m.Session.OpenEPSForwardingTunnel(ctx, p.SessionRef, target)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("could not open an indirect data forwarding tunnel; this E-RAB forwards nothing",
