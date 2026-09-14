@@ -54,8 +54,6 @@ func gtpUFAR(teid uint32, peer netip.Addr) ebpf.FarInfo {
 	}
 }
 
-// TS 29.281 §7.3.1: the reported TEID and peer address name the FAR that was
-// transmitting into the tunnel, not a PDR's local F-TEID.
 func TestFindFARByRemoteFTEIDMatchesTheTransmittingFAR(t *testing.T) {
 	eng := newTestEngine()
 
@@ -120,9 +118,6 @@ func TestFindFARByRemoteFTEIDIgnoresAFARThatDoesNotEncapsulate(t *testing.T) {
 	}
 }
 
-// The FAR map is keyed by the SMF's own FAR ID, so the report lets the SMF tell
-// a dead access tunnel from a dead handover forwarding tunnel: the reactions
-// differ (TS 23.527 §5.3.2 and TS 23.007 §21.7 against TS 23.502 §4.9.1.3.3).
 func TestFindFARByRemoteFTEIDTellsAccessFromForwarding(t *testing.T) {
 	const (
 		farIDDownlink   = 2
@@ -158,7 +153,6 @@ func TestFindFARByRemoteFTEIDTellsAccessFromForwarding(t *testing.T) {
 	}
 }
 
-// TS 29.244 §7.5.8.4: the report names the remote F-TEID.
 func TestSendErrorIndicationReportNamesTheRemoteFTEID(t *testing.T) {
 	eng := newTestEngine()
 

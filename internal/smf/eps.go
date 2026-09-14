@@ -330,15 +330,3 @@ func (s *SMF) CloseEPSForwardingTunnel(ctx context.Context, ref string) error {
 
 	return s.closeForwardingTunnel(ctx, smContext)
 }
-
-func (s *SMF) ScheduleEPSForwardingRelease(ref string) {
-	smContext := s.GetSession(ref)
-	if smContext == nil {
-		return
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	s.scheduleForwardingRelease(smContext)
-}

@@ -59,7 +59,6 @@ func readErrorIndication(t *testing.T, rd *ringbuf.Reader) (ErrorIndication, boo
 	return ev, true
 }
 
-// TS 29.281 §7.3.1, TS 29.244 §5.10
 func TestErrorIndicationReportsTheRemoteFTEID(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -96,7 +95,6 @@ func TestErrorIndicationReportsTheRemoteFTEID(t *testing.T) {
 	}
 }
 
-// TS 29.281 §8.4
 func TestErrorIndicationReportsAnIPv6Peer(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -132,7 +130,6 @@ func TestErrorIndicationReportsAnIPv6Peer(t *testing.T) {
 	}
 }
 
-// TS 29.281 §8.1
 func TestErrorIndicationSkipsAPrecedingRecoveryIE(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -166,8 +163,6 @@ func TestErrorIndicationSkipsAPrecedingRecoveryIE(t *testing.T) {
 	}
 }
 
-// TS 29.281 §5.1: the message length bounds the IEs, so bytes past it — frame
-// padding, or a peer's trailing garbage — are not parsed as one.
 func TestErrorIndicationIgnoresBytesPastTheMessageLength(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -202,7 +197,6 @@ func TestErrorIndicationIgnoresBytesPastTheMessageLength(t *testing.T) {
 	}
 }
 
-// TS 29.281 Table 7.3.1-1
 func TestErrorIndicationWithoutTheMandatoryIEsReportsNothing(t *testing.T) {
 	requireProgTestRun(t)
 

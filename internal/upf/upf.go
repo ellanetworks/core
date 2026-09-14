@@ -889,7 +889,6 @@ func (u *UPF) listenForErrorIndications() {
 			return
 		}
 
-		// record still holds the previous sample; see listenForTrafficNotifications.
 		if err != nil {
 			logger.UpfLog.Warn("error indication ring buffer read error", zap.Error(err))
 			continue

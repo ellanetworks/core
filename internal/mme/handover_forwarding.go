@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -29,6 +30,12 @@ func (m *MME) OpenForwardingTunnel(ctx context.Context, ue *UeContext, ebi uint8
 }
 
 func (m *MME) CloseForwardingTunnels(ctx context.Context, ue *UeContext) {
+	if ue == nil {
+		return
+	}
+
+	ue.forwardingRelease.Stop()
+
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.CloseEPSForwardingTunnel(ctx, p.SessionRef); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to release an indirect data forwarding tunnel",
@@ -37,8 +44,14 @@ func (m *MME) CloseForwardingTunnels(ctx context.Context, ue *UeContext) {
 	}
 }
 
+var indirectForwardingDuration = 2 * time.Second
+
 func (m *MME) ScheduleForwardingRelease(ue *UeContext) {
-	for _, p := range m.SnapshotPDNs(ue) {
-		m.Session.ScheduleEPSForwardingRelease(p.SessionRef)
+	if ue == nil {
+		return
 	}
+
+	ue.forwardingRelease.ArmOnce(indirectForwardingDuration, func() {
+		m.CloseForwardingTunnels(context.Background(), ue)
+	})
 }

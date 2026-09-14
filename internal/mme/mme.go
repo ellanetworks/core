@@ -36,7 +36,6 @@ type epsSessionManager interface {
 	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
 	OpenEPSForwardingTunnel(ctx context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error)
 	CloseEPSForwardingTunnel(ctx context.Context, ref string) error
-	ScheduleEPSForwardingRelease(ref string)
 	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
 	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error

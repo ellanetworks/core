@@ -54,25 +54,24 @@ var (
 )
 
 type fakeSessionManager struct {
-	forwardingTEID      uint32
-	forwardingIPv6      netip.Addr
-	forwardingErr       error
-	forwardingTargets   []models.FTEID
-	forwardingClosed    []string
-	forwardingScheduled []string
-	idleTransfers       []idleEPSTransfer
-	idleTransferErr     error
-	lastRequest         models.EPSBearerRequest
-	modifiedENB         models.FTEID
-	released            bool
-	deactivated         bool
-	ambrUpdated         bool
-	ambrUplink          models.BitRate
-	ambrDownlink        models.BitRate
-	ambrErr             error
-	framedChanged       bool
-	staticIPChanged     bool
-	subscriptionErr     error
+	forwardingTEID    uint32
+	forwardingIPv6    netip.Addr
+	forwardingErr     error
+	forwardingTargets []models.FTEID
+	forwardingClosed  []string
+	idleTransfers     []idleEPSTransfer
+	idleTransferErr   error
+	lastRequest       models.EPSBearerRequest
+	modifiedENB       models.FTEID
+	released          bool
+	deactivated       bool
+	ambrUpdated       bool
+	ambrUplink        models.BitRate
+	ambrDownlink      models.BitRate
+	ambrErr           error
+	framedChanged     bool
+	staticIPChanged   bool
+	subscriptionErr   error
 
 	suppressCalls         int
 	clearSuppressionCalls int
@@ -333,8 +332,4 @@ func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref str
 	f.forwardingClosed = append(f.forwardingClosed, ref)
 
 	return nil
-}
-
-func (f *fakeSessionManager) ScheduleEPSForwardingRelease(ref string) {
-	f.forwardingScheduled = append(f.forwardingScheduled, ref)
 }
