@@ -10,10 +10,10 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration4GBufferedDownlink runs the s1enb buffered-downlink scenario.
-// TS 23.401 §5.3.4.3
-func TestIntegration4GBufferedDownlink(t *testing.T) {
+// TestIntegration4GErrorIndication runs the s1enb error-indication scenario.
+// TS 23.007 §21.7, §22
+func TestIntegration4GErrorIndication(t *testing.T) {
 	suites.Require(t, suites.SRSRAN4G)
 
-	runLocalSwitchSuite(t, "s1enb/buffered_downlink")
+	runLocalSwitchSuite(t, "s1enb/error_indication")
 }

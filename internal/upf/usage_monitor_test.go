@@ -164,6 +164,10 @@ func (s *stubReportHandler) HandleDownlinkDataReport(context.Context, *models.Do
 	return nil
 }
 
+func (s *stubReportHandler) HandleErrorIndicationReport(context.Context, *models.ErrorIndicationReport) error {
+	return nil
+}
+
 func (s *stubReportHandler) HandleUsageReports(context.Context, []*models.UsageReport) error {
 	s.calls++
 

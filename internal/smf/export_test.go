@@ -27,6 +27,13 @@ func SetIndirectForwardingDurationForTest(d time.Duration) func() {
 	return func() { indirectForwardingDuration = prev }
 }
 
+func (smContext *SMContext) N2ReleasedForTest() bool {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	return smContext.n2Released
+}
+
 func (smContext *SMContext) ForwardingTEIDForTest() uint32 {
 	if smContext.Tunnel == nil {
 		return 0

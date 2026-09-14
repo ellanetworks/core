@@ -196,6 +196,8 @@ type UeContext struct {
 
 	paging pagingProc
 
+	forwardingRelease guard.Guard
+
 	lppaMu            sync.RWMutex
 	lppaMessages      []LPPaMessage
 	radioMu           sync.RWMutex

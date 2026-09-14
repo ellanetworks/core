@@ -83,6 +83,7 @@ type SMContext struct {
 	releasing                bool // guarded by Mutex
 	n1Released               bool
 	n2Released               bool
+	n2Release                n2ReleasePurpose
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
@@ -95,6 +96,17 @@ type SMContext struct {
 	pending *pendingTransfer
 
 	transferGuard guard.Guard
+}
+
+type n2ReleasePurpose uint8
+
+const (
+	n2ReleaseSession n2ReleasePurpose = iota
+	n2ReleaseUPConnection
+)
+
+func (smContext *SMContext) recordN2Release(purpose n2ReleasePurpose) {
+	smContext.n2Release = purpose
 }
 
 func (smContext *SMContext) releaseLegsComplete() bool {

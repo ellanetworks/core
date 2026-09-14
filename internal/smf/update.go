@@ -380,6 +380,10 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		return true, nil
 	}
 
+	if s.completeUPConnectionDeactivation(ctx, smContext) {
+		return false, nil
+	}
+
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -402,6 +406,24 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	s.teardownAndRemove(ctx, smContext)
 
 	return true, nil
+}
+
+func (s *SMF) completeUPConnectionDeactivation(ctx context.Context, smContext *SMContext) bool {
+	smContext.Mutex.Lock()
+	armed := smContext.n2Release == n2ReleaseUPConnection
+	smContext.n2Release = n2ReleaseSession
+	smContext.Mutex.Unlock()
+
+	if !armed {
+		return false
+	}
+
+	if err := s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication); err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("could not re-activate the user plane after the access resources were released",
+			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	}
+
+	return true
 }
 
 // UpdateSmContextCauseDuplicatePDUSessionID handles duplicate PDU session ID by releasing
@@ -431,6 +453,8 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	defer smContext.Mutex.Unlock()
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
+
+	smContext.recordN2Release(n2ReleaseSession)
 
 	n2Rsp, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {

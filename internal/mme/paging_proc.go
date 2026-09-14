@@ -39,10 +39,11 @@ type MTRequest struct {
 }
 
 type pagingProc struct {
-	mu      sync.Mutex
-	state   PagingState
-	pending *MTRequest
-	guard   guard.Guard
+	mu       sync.Mutex
+	state    PagingState
+	pending  *MTRequest
+	deferred *MTRequest
+	guard    guard.Guard
 }
 
 func (ue *UeContext) PagingState() PagingState {
@@ -69,6 +70,27 @@ func (ue *UeContext) PagingPending() *MTRequest {
 
 func (ue *UeContext) MTDeliveryInProgress() bool {
 	return ue.PagingState() != PagingIdle
+}
+
+func (ue *UeContext) deferServiceRequest(req *MTRequest) {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	ue.paging.deferred = req
+}
+
+func (ue *UeContext) takeDeferredServiceRequest() *MTRequest {
+	if ue == nil {
+		return nil
+	}
+
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	req := ue.paging.deferred
+	ue.paging.deferred = nil
+
+	return req
 }
 
 func (ue *UeContext) beginPaging(req *MTRequest) {

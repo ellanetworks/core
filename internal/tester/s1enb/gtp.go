@@ -27,6 +27,10 @@ const (
 
 	// gtpEndMarker is the GTP-U End Marker message type (TS 29.281 §7.3.2).
 	gtpEndMarker = 0xfe
+
+	gtpErrorIndication = 26
+	gtpIETEIDDataI     = 16
+	gtpIEPeerAddress   = 133
 )
 
 // tunnel is a UE bearer's GTP-U datapath: a TUN interface bridged to the S1-U
@@ -367,6 +371,44 @@ func (e *ENB) SendEndMarker(teid uint32, peer netip.Addr) error {
 
 	if _, err := e.n3Conn.WriteToUDP(pdu, to); err != nil {
 		return fmt.Errorf("send End Marker on TEID %#x to %s: %w", teid, peer, err)
+	}
+
+	return nil
+}
+
+func (e *ENB) N3Address() netip.Addr {
+	addr, ok := netip.AddrFromSlice(e.n3Addr)
+	if !ok {
+		return netip.Addr{}
+	}
+
+	return addr.Unmap()
+}
+
+func (e *ENB) SendGTPUErrorIndication(teid uint32, peer netip.Addr, localAddr netip.Addr) error {
+	if e.n3Conn == nil {
+		return fmt.Errorf("the eNB has no S1-U socket")
+	}
+
+	addr := localAddr.AsSlice()
+
+	pdu := make([]byte, 12, 12+5+3+len(addr))
+	pdu[0] = 0x32
+	pdu[1] = gtpErrorIndication
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(4+5+3+len(addr)))
+
+	ie := make([]byte, 5)
+	ie[0] = gtpIETEIDDataI
+	binary.BigEndian.PutUint32(ie[1:5], teid)
+	pdu = append(pdu, ie...)
+
+	pdu = append(pdu, gtpIEPeerAddress, 0, byte(len(addr)))
+	pdu = append(pdu, addr...)
+
+	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(peer, gtpUDPPort))
+
+	if _, err := e.n3Conn.WriteToUDP(pdu, to); err != nil {
+		return fmt.Errorf("send Error Indication for TEID %#x to %s: %w", teid, peer, err)
 	}
 
 	return nil

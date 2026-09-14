@@ -104,19 +104,18 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 }
 
 type fakeSessionManager struct {
-	forwardingTEID      uint32
-	forwardingIPv6      netip.Addr
-	forwardingErr       error
-	forwardingTargets   []models.FTEID
-	forwardingClosed    []string
-	forwardingScheduled []string
-	lastRequest         models.EPSBearerRequest
-	modifiedENB         models.FTEID
-	released            bool
-	deactivated         bool
-	modifyErr           map[uint8]error
-	modifiedEBIs        []uint8
-	releasedRefs        []string
+	forwardingTEID    uint32
+	forwardingIPv6    netip.Addr
+	forwardingErr     error
+	forwardingTargets []models.FTEID
+	forwardingClosed  []string
+	lastRequest       models.EPSBearerRequest
+	modifiedENB       models.FTEID
+	released          bool
+	deactivated       bool
+	modifyErr         map[uint8]error
+	modifiedEBIs      []uint8
+	releasedRefs      []string
 }
 
 func (f *fakeSessionManager) failModify(ebi uint8, err error) {
@@ -392,8 +391,4 @@ func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref str
 	f.forwardingClosed = append(f.forwardingClosed, ref)
 
 	return nil
-}
-
-func (f *fakeSessionManager) ScheduleEPSForwardingRelease(ref string) {
-	f.forwardingScheduled = append(f.forwardingScheduled, ref)
 }

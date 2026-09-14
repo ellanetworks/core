@@ -844,6 +844,7 @@ static __always_inline enum ctx_action handle_gtpu(struct packet_context *ctx)
 		return relay_forwarded_gtp(ctx, em_pdr);
 	}
 	case GTPU_ERROR_INDICATION:
+		return gtpu_control_tail_call(ctx);
 	case GTPU_SUPPORTED_EXTENSION_HEADERS_NOTIFICATION:
 		return DEFAULT_CTX_ACTION;
 	default:

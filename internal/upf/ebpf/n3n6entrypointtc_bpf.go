@@ -266,6 +266,7 @@ const (
 	N3N6EntrypointTcMapDlBufferScratch     = "dl_buffer_scratch"
 	N3N6EntrypointTcMapDownlinkRouteStats  = "downlink_route_stats"
 	N3N6EntrypointTcMapDownlinkStatistics  = "downlink_statistics"
+	N3N6EntrypointTcMapErrorIndMap         = "error_ind_map"
 	N3N6EntrypointTcMapFlowStats           = "flow_stats"
 	N3N6EntrypointTcMapFragNatIdSeq        = "frag_nat_id_seq"
 	N3N6EntrypointTcMapFragPortsIp4        = "frag_ports_ip4"
@@ -366,6 +367,7 @@ type N3N6EntrypointTcMapSpecs struct {
 	DlBufferScratch     *ebpf.MapSpec `ebpf:"dl_buffer_scratch"`
 	DownlinkRouteStats  *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics  *ebpf.MapSpec `ebpf:"downlink_statistics"`
+	ErrorIndMap         *ebpf.MapSpec `ebpf:"error_ind_map"`
 	FlowStats           *ebpf.MapSpec `ebpf:"flow_stats"`
 	FragNatIdSeq        *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4        *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
@@ -432,6 +434,7 @@ type N3N6EntrypointTcMaps struct {
 	DlBufferScratch     *ebpf.Map `ebpf:"dl_buffer_scratch"`
 	DownlinkRouteStats  *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics  *ebpf.Map `ebpf:"downlink_statistics"`
+	ErrorIndMap         *ebpf.Map `ebpf:"error_ind_map"`
 	FlowStats           *ebpf.Map `ebpf:"flow_stats"`
 	FragNatIdSeq        *ebpf.Map `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4        *ebpf.Map `ebpf:"frag_ports_ip4"`
@@ -464,6 +467,7 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 		m.DlBufferScratch,
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
+		m.ErrorIndMap,
 		m.FlowStats,
 		m.FragNatIdSeq,
 		m.FragPortsIp4,

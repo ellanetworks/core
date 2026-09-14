@@ -170,8 +170,9 @@ func runUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 }
 
 type ue2ueSession struct {
-	UEIPv4 string
-	DLTEID uint32
+	UEIPv4     string
+	UpfAddress string
+	DLTEID     uint32
 }
 
 func registerAndTunnel(g *gnb.GnodeB, sub subscriber, ranUENGAPID int64, tunName string, pduSessionType uint8) (*ue2ueSession, *ue.UE, error) {
@@ -207,7 +208,8 @@ func registerAndTunnel(g *gnb.GnodeB, sub subscriber, ranUENGAPID int64, tunName
 	awaitDownlinkReady()
 
 	return &ue2ueSession{
-		UEIPv4: session.UEIPv4,
-		DLTEID: session.DLTEID,
+		UEIPv4:     session.UEIPv4,
+		UpfAddress: session.UpfAddress,
+		DLTEID:     session.DLTEID,
 	}, newUE, nil
 }

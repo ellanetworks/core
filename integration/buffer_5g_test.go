@@ -19,10 +19,10 @@ import (
 func TestIntegration5GBufferedDownlink(t *testing.T) {
 	suites.Require(t, suites.Datapath5G)
 
-	runBufferedSuite(t, "gnb/buffered_downlink")
+	runLocalSwitchSuite(t, "gnb/buffered_downlink")
 }
 
-func runBufferedSuite(t *testing.T, scenario string) {
+func runLocalSwitchSuite(t *testing.T, scenario string) {
 	t.Helper()
 
 	ctx := context.Background()

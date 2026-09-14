@@ -135,6 +135,19 @@ func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	return c
 }
 
+func (s *Session) findFAR(match func(ebpf.FarInfo) bool) (uint32, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for id, far := range s.fars {
+		if match(far) {
+			return id, true
+		}
+	}
+
+	return 0, false
+}
+
 func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -15,6 +15,7 @@ import (
 // back to the SMF.
 type SMFReportHandler interface {
 	HandleDownlinkDataReport(context.Context, *models.DownlinkDataReport) error
+	HandleErrorIndicationReport(context.Context, *models.ErrorIndicationReport) error
 	HandleUsageReports(context.Context, []*models.UsageReport) error
 	SendFlowReports(context.Context, []*models.FlowReportRequest) error
 }

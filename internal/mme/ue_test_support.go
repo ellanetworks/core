@@ -30,6 +30,10 @@ func (ue *UeContext) reinstallSecurityContextForTest() {
 	ue.downlink().Install(sc, nas.NewDownlinkCounter(ue.downlink().Next()))
 }
 
+func (ue *UeContext) ForwardingReleaseArmedForTest() bool {
+	return ue.forwardingRelease.Active()
+}
+
 func (ue *UeContext) SetKnasIntForTest(k [16]byte) {
 	ue.knasInt = k
 	ue.reinstallSecurityContextForTest()
