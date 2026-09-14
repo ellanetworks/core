@@ -215,7 +215,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	targetRanUENGAPID := int64(100)
 	targetN3IP := netip.MustParseAddr(targetGNBSpec.N3Address)
 	targetDLTEID := uint32(9000)
-	targetForwardingTEID := uint32(9001)
+	targetForwardingTEID := targetGNB.AllocateForwardingTEID()
 
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,

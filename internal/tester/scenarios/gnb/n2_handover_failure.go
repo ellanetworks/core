@@ -202,6 +202,10 @@ func runN2HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
+	if err := relayRANStatusTransfer(pair.Source, pair.Target, pair.AMFUENGAPID, pair.RANUENGAPID, targetRanUENGAPID); err != nil {
+		return err
+	}
+
 	cancelCause := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHandoverCancelled}
 	if err := pair.Source.SendHandoverCancel(pair.AMFUENGAPID, pair.RANUENGAPID, cancelCause); err != nil {
 		return fmt.Errorf("cancel the handover at the source gNB: %w", err)

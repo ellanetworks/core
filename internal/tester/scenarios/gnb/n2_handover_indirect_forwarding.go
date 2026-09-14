@@ -106,7 +106,7 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("extract AMF UE NGAP ID from HandoverRequest: %w", err)
 	}
 
-	targetForwardingTEID := uint32(9101)
+	targetForwardingTEID := targetGNB.AllocateForwardingTEID()
 
 	targetGNB.WatchTEID(targetForwardingTEID)
 

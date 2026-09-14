@@ -116,7 +116,7 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 	}
 
 	if forwarding {
-		dlForwardingTEID = e.allocTEID()
+		dlForwardingTEID = e.allocForwardingTEID()
 		item.DLTransportLayerAddr = s1ap.TransportLayerAddress(addr)
 		item.DLGTPTEID = s1ap.Ptr(s1ap.GTPTEID(dlForwardingTEID))
 	}

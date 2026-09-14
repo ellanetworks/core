@@ -37,6 +37,20 @@ func DriveForwardingTunnel(p ForwardingProbe) error {
 	return awaitCount(p.EndMarkers, 1, "End Markers relayed to the target's forwarding tunnel")
 }
 
+func AwaitForwardingTunnelStillRelays(p ForwardingProbe) error {
+	before := p.Received()
+
+	for i := range ForwardingProbePackets {
+		payload := []byte(fmt.Sprintf("indirect-forwarding-still-relaying-%d", i))
+
+		if err := p.Send(payload); err != nil {
+			return fmt.Errorf("send probe %d on the forwarding tunnel: %w", i, err)
+		}
+	}
+
+	return awaitCount(p.Received, before+ForwardingProbePackets, "user data still relayed to the target's forwarding tunnel")
+}
+
 func AwaitForwardingTunnelReleased(p ForwardingProbe) error {
 	deadline := time.Now().Add(20 * time.Second)
 

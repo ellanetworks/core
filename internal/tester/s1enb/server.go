@@ -20,6 +20,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -114,6 +115,7 @@ type ENB struct {
 
 	nextENBUEID int64
 	nextTEID    uint32
+	nextFwdTEID uint32
 
 	UERadioCapability  []byte
 	capabilityReported map[int64]bool
@@ -202,6 +204,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 		receivedFrames:    make(map[Category]map[s1ap.ProcedureCode][]Frame),
 		nextENBUEID:       1,
 		nextTEID:          1,
+		nextFwdTEID:       teid.ForwardingBase,
 		mmeLocal:          local,
 		peers:             peers,
 		active:            -1,
