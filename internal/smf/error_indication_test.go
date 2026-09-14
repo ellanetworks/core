@@ -14,7 +14,10 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-const farIDDownlink = 2
+const (
+	farIDDownlink   = 2
+	farIDForwarding = 3
+)
 
 func establishSecondEPSSession(t *testing.T, s *smf.SMF) *smf.SMContext {
 	t.Helper()
@@ -337,24 +340,72 @@ func TestRepeatedErrorIndicationsActOnce(t *testing.T) {
 	}
 }
 
-func TestErrorIndicationOnAForwardingTunnelLeavesTheSessionAlone(t *testing.T) {
+func forwardingReport(seid uint64, target models.FTEID) *models.ErrorIndicationReport {
+	return &models.ErrorIndicationReport{SEID: seid, FARID: farIDForwarding, RemoteFTEID: target}
+}
+
+func epsSessionForwardingTo(t *testing.T, s *smf.SMF, target models.FTEID) *smf.SMContext {
+	t.Helper()
+
+	sc := establishEPSForArrival(t, s)
+	sc.Tunnel.AN = smf.AnchorBinding{TEID: 7000, IPv4: net.ParseIP("10.0.0.200").To4()}
+	sc.Tunnel.Downlink = smf.DownlinkForwarding
+
+	if _, err := s.OpenEPSForwardingTunnel(context.Background(), sc.Ref, target); err != nil {
+		t.Fatalf("OpenEPSForwardingTunnel: %v", err)
+	}
+
+	return sc
+}
+
+// The handover target has discarded the tunnel, so relaying into it for the rest
+// of the indirect data forwarding timer (TS 23.502 §4.9.1.3.3) achieves nothing.
+func TestErrorIndicationReleasesAForwardingTunnelEarly(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
+	upf.forwardingTEID = 4242
+
 	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(&fakeMME{})
 
-	smCtx, _ := setupSessionWithTunnel(t, s)
+	target := models.FTEID{TEID: 0x5150, Addr: netip.MustParseAddr("10.0.0.77")}
+	sc := epsSessionForwardingTo(t, s, target)
 
-	report := reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)
-	report.FARID = 3
+	if sc.ForwardingTEIDForTest() == 0 {
+		t.Fatal("no forwarding tunnel to release")
+	}
 
-	if err := s.HandleErrorIndicationReport(context.Background(), report); err != nil {
+	if err := s.HandleErrorIndicationReport(context.Background(), forwardingReport(sc.PFCPContext.SEID, target)); err != nil {
 		t.Fatalf("HandleErrorIndicationReport: %v", err)
 	}
 
-	if smCtx.Tunnel.Downlink != smf.DownlinkForwarding {
-		t.Errorf("a forwarding-tunnel Error Indication stopped the downlink: state = %v", smCtx.Tunnel.Downlink)
+	if sc.ForwardingTEIDForTest() != 0 {
+		t.Error("the forwarding tunnel still relays into a target that discarded it")
 	}
 
-	if len(amfCb.pageCalls) != 0 {
-		t.Errorf("a forwarding-tunnel Error Indication paged the UE %d times", len(amfCb.pageCalls))
+	if sc.Tunnel.Downlink != smf.DownlinkForwarding {
+		t.Errorf("releasing the forwarding tunnel disturbed the downlink: state = %v", sc.Tunnel.Downlink)
+	}
+}
+
+// A report naming a forwarding endpoint the session has moved off must not tear
+// down the tunnel that replaced it.
+func TestErrorIndicationForASupersededForwardingTunnelIsIgnored(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	upf.forwardingTEID = 4242
+
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(&fakeMME{})
+
+	target := models.FTEID{TEID: 0x5150, Addr: netip.MustParseAddr("10.0.0.77")}
+	sc := epsSessionForwardingTo(t, s, target)
+
+	stale := models.FTEID{TEID: target.TEID + 1, Addr: target.Addr}
+
+	if err := s.HandleErrorIndicationReport(context.Background(), forwardingReport(sc.PFCPContext.SEID, stale)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if sc.ForwardingTEIDForTest() == 0 {
+		t.Error("a superseded Error Indication released the current forwarding tunnel")
 	}
 }

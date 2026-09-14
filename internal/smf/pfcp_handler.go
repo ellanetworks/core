@@ -126,16 +126,19 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	if report.FARID != farIDDownlink {
+	switch report.FARID {
+	case farIDDownlink:
+		return s.releaseBrokenAccessTunnel(ctx, smContext, report)
+	case farIDForwarding:
+		return s.releaseBrokenForwardingTunnel(ctx, smContext, report)
+	default:
 		logger.WithTrace(ctx, logger.SmfLog).Info(
-			"Ignoring a GTP-U Error Indication for a tunnel that does not carry the downlink",
+			"Ignoring a GTP-U Error Indication for a tunnel that carries no traffic of its own",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID), logger.FARID(report.FARID),
 			logger.TEID(report.RemoteFTEID.TEID))
 
 		return nil
 	}
-
-	return s.releaseBrokenAccessTunnel(ctx, smContext, report)
 }
 
 func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContext, report *models.ErrorIndicationReport) error {
@@ -202,6 +205,35 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 	}
 
 	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication)
+}
+
+func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMContext, report *models.ErrorIndicationReport) error {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	if smContext.Tunnel == nil || smContext.Tunnel.Forwarding == nil {
+		return nil
+	}
+
+	if !reportNamesAnchor(report, *smContext.Tunnel.Forwarding) {
+		logger.WithTrace(ctx, logger.SmfLog).Debug(
+			"Ignoring a GTP-U Error Indication for a forwarding tunnel the session no longer relays into",
+			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
+			logger.TEID(report.RemoteFTEID.TEID))
+
+		return nil
+	}
+
+	smContext.forwardingRelease.Stop()
+
+	logger.WithTrace(ctx, logger.SmfLog).Info(
+		"Handover target reported a GTP-U Error Indication; releasing the indirect data forwarding tunnel early",
+		zap.String("supi", smContext.Supi.String()),
+		logger.SEID(report.SEID),
+		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
+		logger.TEID(report.RemoteFTEID.TEID))
+
+	return s.closeForwardingTunnel(ctx, smContext)
 }
 
 func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMContext) error {
