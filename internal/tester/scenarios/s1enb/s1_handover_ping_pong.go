@@ -191,6 +191,10 @@ func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEI
 		return s1LegEndpoints{}, fmt.Errorf("the target was told data forwarding is not possible, so it allocates no forwarding endpoint")
 	}
 
+	if err := assertSourceToTargetRelayed(hoReq); err != nil {
+		return s1LegEndpoints{}, err
+	}
+
 	targetMMEUEID := int64(hoReq.MMEUES1APID)
 	targetENBUEID := target.AllocateENBUEID()
 
@@ -204,6 +208,10 @@ func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEI
 	cmd, err := source.WaitForHandoverCommand(sourceENBUEID, 10*time.Second)
 	if err != nil {
 		return s1LegEndpoints{}, fmt.Errorf("await Handover Command: %w", err)
+	}
+
+	if err := assertTargetToSourceRelayed(cmd); err != nil {
+		return s1LegEndpoints{}, err
 	}
 
 	relayTEID, relayAddr, err := s1ForwardingEndpoint(cmd, erabID, upfAddress, targetFwdTEID)

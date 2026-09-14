@@ -29,7 +29,7 @@ const (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "gnb/ngap/n2_handover_ping_pong",
+		Name:      "gnb/n2_handover_ping_pong",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runN2HandoverPingPong,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
@@ -196,6 +196,7 @@ func n2PrepareHandoverLeg(opts *n2LegOpts) (n2LegEndpoints, error) {
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	})
 	if err != nil {
 		return n2LegEndpoints{}, fmt.Errorf("send HandoverRequired: %w", err)
@@ -207,6 +208,10 @@ func n2PrepareHandoverLeg(opts *n2LegOpts) (n2LegEndpoints, error) {
 	}
 
 	if err := assertTargetMayForward(hoReqFrame); err != nil {
+		return n2LegEndpoints{}, err
+	}
+
+	if err := assertSourceToTargetRelayed(hoReqFrame); err != nil {
 		return n2LegEndpoints{}, err
 	}
 
@@ -239,6 +244,10 @@ func n2PrepareHandoverLeg(opts *n2LegOpts) (n2LegEndpoints, error) {
 	hoCmdFrame, err := opts.Source.WaitForMessage(gnb.Successful, ngaplib.ProcHandoverPreparation, 5*time.Second)
 	if err != nil {
 		return n2LegEndpoints{}, fmt.Errorf("source gNB: wait HandoverCommand: %w", err)
+	}
+
+	if err := assertTargetToSourceRelayed(hoCmdFrame); err != nil {
+		return n2LegEndpoints{}, err
 	}
 
 	relay, err := forwardingEndpoint(hoCmdFrame, opts.UpfAddress, forwardingTEID)

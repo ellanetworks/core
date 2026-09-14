@@ -109,6 +109,7 @@ func (p *n2HandoverPair) requireHandover() (*ngaplib.HandoverRequest, error) {
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
 		},
+		SourceToTargetTransparentContainer: n2SourceToTargetContainer,
 	}); err != nil {
 		return nil, fmt.Errorf("send HandoverRequired: %w", err)
 	}
@@ -116,6 +117,10 @@ func (p *n2HandoverPair) requireHandover() (*ngaplib.HandoverRequest, error) {
 	req, err := p.Target.WaitForHandoverRequest(n2FailureTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("the target gNB got no HandoverRequest: %w", err)
+	}
+
+	if err := assertSourceToTargetOn(req); err != nil {
+		return nil, err
 	}
 
 	return req, nil

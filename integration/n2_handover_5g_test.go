@@ -112,7 +112,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	// Provision subscribers for both scenarios.
 	scenarioSpecsByName := map[string]scenarios.FixtureSpec{}
 
-	for _, name := range []string{"gnb/ngap/n2_handover", "gnb/ngap/n2_handover_indirect_forwarding", "gnb/ngap/n2_handover_ping_pong", "gnb/n2_handover_connectivity"} {
+	for _, name := range []string{"gnb/n2_handover", "gnb/n2_handover_indirect_forwarding", "gnb/n2_handover_ping_pong", "gnb/n2_handover_connectivity"} {
 		s, ok := scenarios.Get(name)
 		if !ok || s.Fixture == nil {
 			continue
@@ -137,9 +137,9 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	}
 
 	scenariosToRun := []scenarioRun{
-		{name: "gnb/ngap/n2_handover"},
-		{name: "gnb/ngap/n2_handover_indirect_forwarding"},
-		{name: "gnb/ngap/n2_handover_ping_pong"},
+		{name: "gnb/n2_handover"},
+		{name: "gnb/n2_handover_indirect_forwarding"},
+		{name: "gnb/n2_handover_ping_pong"},
 		{name: "gnb/n2_handover_connectivity"},
 	}
 

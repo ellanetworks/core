@@ -185,8 +185,13 @@ func runS1HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("send eNB Status Transfer: %w", err)
 	}
 
-	if _, err := pair.Target.WaitForMMEStatusTransfer(targetENBUEID, s1FailureTimeout); err != nil {
+	mst, err := pair.Target.WaitForMMEStatusTransfer(targetENBUEID, s1FailureTimeout)
+	if err != nil {
 		return fmt.Errorf("await MME Status Transfer: %w", err)
+	}
+
+	if err := assertStatusTransferRelayed(mst); err != nil {
+		return err
 	}
 
 	cancelCause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}

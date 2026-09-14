@@ -3,4 +3,4 @@
 
 package teid
 
-const ForwardingBase uint32 = 0x0100_0000
+const ForwardingBase uint32 = 0x0001_0000
