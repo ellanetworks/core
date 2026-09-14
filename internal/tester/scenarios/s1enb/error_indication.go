@@ -22,7 +22,6 @@ const (
 	errorIndS1TunIfacePrefix = "s1eitun"
 
 	errorIndS1DstPort         = 59997
-	errorIndS1Settle          = 500 * time.Millisecond
 	errorIndS1ReleaseDeadline = 10 * time.Second
 	errorIndS1PollDeadline    = 10 * time.Second
 )

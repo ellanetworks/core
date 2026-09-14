@@ -20,7 +20,6 @@ import (
 const (
 	errorIndicationStartIMSI      = "001017271247301"
 	errorIndicationDstPort        = 59998
-	errorIndicationSettle         = 500 * time.Millisecond
 	errorIndicationReleaseTimeout = 10 * time.Second
 )
 
