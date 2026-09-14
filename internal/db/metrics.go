@@ -42,13 +42,13 @@ func newMetricsCollector(db *Database) *metricsCollector {
 			nil,
 		),
 		ipTotalDesc: prometheus.NewDesc(
-			"app_ip_addresses_total",
+			"app_ip_addresses",
 			"The total number of IP addresses available for subscribers",
 			nil,
 			nil,
 		),
 		ipAllocatedDesc: prometheus.NewDesc(
-			"app_ip_addresses_allocated_total",
+			"app_ip_addresses_allocated",
 			"The total number of IP addresses currently allocated to subscribers",
 			nil,
 			nil,

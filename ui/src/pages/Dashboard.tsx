@@ -93,18 +93,18 @@ const parseMetrics = (raw: string): ParsedMetrics => {
   };
 
   return {
-    pduSessions: sumByPrefix("app_sessions_total{"),
+    pduSessions: sumByPrefix("app_sessions{"),
     datapathMemoryBytes: sumByPrefix("app_upf_bpf_map_memory_bytes{"),
     processMemoryBytes: g("process_resident_memory_bytes "),
     databaseSizeBytes: g("app_database_storage_bytes "),
     routines: g("go_goroutines "),
     allocatedIPs:
-      g("app_ip_addresses_allocated_total ") != null
-        ? Math.round(g("app_ip_addresses_allocated_total ")!)
+      g("app_ip_addresses_allocated ") != null
+        ? Math.round(g("app_ip_addresses_allocated ")!)
         : null,
     totalIPs:
-      g("app_ip_addresses_total ") != null
-        ? Math.round(g("app_ip_addresses_total ")!)
+      g("app_ip_addresses ") != null
+        ? Math.round(g("app_ip_addresses ")!)
         : null,
     processStart: g("process_start_time_seconds "),
   };

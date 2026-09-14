@@ -32,7 +32,7 @@
             "fixedColor": "blue"
           },
           "mappings": [],
-          "unit": "ns",
+          "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -81,7 +81,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N3 Average",
           "range": false,
@@ -104,7 +104,7 @@
             "fixedColor": "blue"
           },
           "mappings": [],
-          "unit": "ns",
+          "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -153,7 +153,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N6 Average",
           "range": false,
@@ -182,7 +182,7 @@
             }
           },
           "mappings": [],
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -222,7 +222,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -251,7 +251,7 @@
             }
           },
           "mappings": [],
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -291,7 +291,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -347,7 +347,7 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -388,7 +388,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -444,7 +444,7 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -485,7 +485,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -539,7 +539,7 @@
             }
           },
           "mappings": [],
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -570,7 +570,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval])",
+          "expr": "rate(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",stage!=\"total\"}[$__rate_interval])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,
@@ -624,7 +624,7 @@
             }
           },
           "mappings": [],
-          "unit": "ns"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -655,7 +655,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval])",
+          "expr": "rate(app_upf_pipeline_latency_seconds_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval]) / rate(app_upf_pipeline_latency_calls_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",stage!=\"total\"}[$__rate_interval])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,

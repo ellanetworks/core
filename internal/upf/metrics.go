@@ -230,8 +230,8 @@ func RegisterMetrics() {
 	// ReadProfilingStats returns nil, and the collector emits nothing — the
 	// metrics simply do not appear in the scrape output.
 	profilingNsDesc := prometheus.NewDesc(
-		"app_upf_pipeline_latency_nanoseconds_total",
-		"Total accumulated nanoseconds spent in each pipeline stage. Only present when compiled with -DENABLE_PROFILING.",
+		"app_upf_pipeline_latency_seconds_total",
+		"Total accumulated seconds spent in each pipeline stage. Only present when compiled with -DENABLE_PROFILING.",
 		[]string{"direction", "stage"},
 		nil,
 	)
@@ -281,7 +281,7 @@ func RegisterMetrics() {
 
 		for i, entry := range stats {
 			info := profilingStages[i]
-			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs), info.direction, info.stage)
+			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs)/1e9, info.direction, info.stage)
 
 			ch <- prometheus.MustNewConstMetric(profilingCallsDesc, prometheus.CounterValue, float64(entry.Count), info.direction, info.stage)
 		}

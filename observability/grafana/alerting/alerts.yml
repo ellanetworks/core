@@ -162,7 +162,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                (app_ip_addresses_allocated_total / clamp_min(app_ip_addresses_total, 1)) * 100
+                (app_ip_addresses_allocated / clamp_min(app_ip_addresses, 1)) * 100
               instant: true
               refId: A
           - refId: C

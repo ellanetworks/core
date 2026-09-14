@@ -48,8 +48,8 @@ func TestMetricsCollectorOmitsFailedReads(t *testing.T) {
 
 	for _, name := range []string{
 		"app_database_storage_bytes",
-		"app_ip_addresses_total",
-		"app_ip_addresses_allocated_total",
+		"app_ip_addresses",
+		"app_ip_addresses_allocated",
 	} {
 		if got[name] {
 			t.Errorf("%s was published from a failed read; it must be absent, not zero", name)
@@ -90,8 +90,8 @@ func TestMetricsCollectorPublishesHealthyReads(t *testing.T) {
 
 	for _, name := range []string{
 		"app_database_storage_bytes",
-		"app_ip_addresses_total",
-		"app_ip_addresses_allocated_total",
+		"app_ip_addresses",
+		"app_ip_addresses_allocated",
 	} {
 		if !got[name] {
 			t.Errorf("%s missing from a healthy database", name)
