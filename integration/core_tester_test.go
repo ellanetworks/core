@@ -55,6 +55,8 @@ var scenariosSkipped = map[string]string{
 	"s1enb/ue2ue":                            "requires NAT disabled; covered by TestIntegration4GUE2UE",
 	"gnb/buffered_downlink":                  "requires local switch enabled; covered by TestIntegration5GBufferedDownlink",
 	"s1enb/buffered_downlink":                "requires local switch enabled; covered by TestIntegration4GBufferedDownlink",
+	"gnb/error_indication":                   "requires local switch enabled; covered by TestIntegration5GErrorIndication",
+	"s1enb/error_indication":                 "requires local switch enabled; covered by TestIntegration4GErrorIndication",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
