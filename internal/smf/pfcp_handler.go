@@ -184,8 +184,8 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 		}
 	}
 
-	if !onEPS {
-		s.releaseAccessResources(ctx, smContext)
+	if !onEPS && s.releaseAccessResources(ctx, smContext) {
+		return nil
 	}
 
 	return s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication)
@@ -212,7 +212,13 @@ func (s *SMF) bufferDownlinkAfterErrorIndication(ctx context.Context, sc *SMCont
 	return nil
 }
 
-func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) {
+// releaseAccessResources asks the 5G-AN to release the PDU session's data radio
+// bearer and N3 tunnel (TS 23.527 §5.3.2 step 5, TS 23.502 §4.3.7). It reports
+// whether a release is now outstanding: the 5G-AN only has to accept a Setup for
+// that PDU session ID once it has answered the Release Command
+// (TS 38.413 §8.2.2.2), so re-activation waits for the response. A UE holding no
+// access resources leaves nothing to wait for.
+func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) bool {
 	smContext.Mutex.Lock()
 	supi, pduSessionID := smContext.Supi, smContext.PDUSessionID
 	smContext.Mutex.Unlock()
@@ -222,17 +228,27 @@ func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) 
 		logger.WithTrace(ctx, logger.SmfLog).Warn("could not build the PDU Session Resource Release Command transfer",
 			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
-		return
+		return false
 	}
+
+	smContext.Mutex.Lock()
+	smContext.upConnectionDeactivating = true
+	smContext.Mutex.Unlock()
 
 	if err := s.amf.ReleaseAccessResources(ctx, supi, pduSessionID, n2Transfer); err != nil {
-		if errors.Is(err, ErrUENotReachable) {
-			return
+		smContext.Mutex.Lock()
+		smContext.upConnectionDeactivating = false
+		smContext.Mutex.Unlock()
+
+		if !errors.Is(err, ErrUENotReachable) {
+			logger.WithTrace(ctx, logger.SmfLog).Warn("could not release the access resources of a broken tunnel",
+				zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 		}
 
-		logger.WithTrace(ctx, logger.SmfLog).Warn("could not release the access resources of a broken tunnel",
-			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+		return false
 	}
+
+	return true
 }
 
 func (s *SMF) epsSessionsOf(supi etsi.SUPI) []*SMContext {

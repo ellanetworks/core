@@ -57,7 +57,7 @@ func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	smCtx, _ := setupSessionWithTunnel(t, s)
+	smCtx, ref := setupSessionWithTunnel(t, s)
 	an := smCtx.Tunnel.AN
 
 	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, an)); err != nil {
@@ -72,13 +72,54 @@ func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 		t.Errorf("the dead access endpoint is still bound: %+v", smCtx.Tunnel.AN)
 	}
 
-	if len(amfCb.pageCalls) != 1 {
-		t.Errorf("AMF got %d N2-transfer-or-page calls, want 1", len(amfCb.pageCalls))
-	}
-
 	if got := amfCb.releasedAccess(); len(got) != 1 || got[0] != smCtx.PDUSessionID {
 		t.Errorf("access resources released for %v, want one release of PDU session %d (TS 23.527 §5.3.2 step 5)",
 			got, smCtx.PDUSessionID)
+	}
+
+	// TS 38.413 §8.2.2.2: the 5G-AN only has to accept a Setup for this PDU
+	// session ID once it has answered the Release Command.
+	if len(amfCb.pageCalls) != 0 {
+		t.Errorf("the user plane was re-activated before the release was acknowledged: %d transfers", len(amfCb.pageCalls))
+	}
+
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
+	}
+
+	if len(amfCb.pageCalls) != 1 {
+		t.Errorf("AMF got %d N2-transfer-or-page calls after the release response, want 1 (TS 23.527 §5.3.2 step 8)",
+			len(amfCb.pageCalls))
+	}
+}
+
+// TS 23.502 §4.3.7 deactivates the UP connection of an *existing* PDU session, so
+// the release response must not tear the session down.
+func TestAccessReleaseKeepsThePDUSessionEstablished(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+	ueIP := smCtx.PDUIPV4Address
+
+	if err := s.HandleErrorIndicationReport(context.Background(), reportFor(smCtx.PFCPContext.SEID, smCtx.Tunnel.AN)); err != nil {
+		t.Fatalf("HandleErrorIndicationReport: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("the PDU session was removed by a release that only deactivates the UP connection")
+	}
+
+	if smCtx.Tunnel == nil || smCtx.PFCPContext == nil {
+		t.Fatal("the user plane was torn down by a release that only deactivates the UP connection")
+	}
+
+	if !smCtx.PDUIPV4Address.Equal(ueIP) {
+		t.Errorf("the UE address was released: %v, want %v", smCtx.PDUIPV4Address, ueIP)
 	}
 }
 
@@ -199,8 +240,8 @@ func TestRepeatedErrorIndicationsActOnce(t *testing.T) {
 		}
 	}
 
-	if len(amfCb.pageCalls) != 1 {
-		t.Errorf("a peer answering every downlink packet paged the UE %d times, want 1", len(amfCb.pageCalls))
+	if got := amfCb.releasedAccess(); len(got) != 1 {
+		t.Errorf("a peer answering every downlink packet released the access resources %d times, want 1", len(got))
 	}
 }
 

@@ -83,6 +83,7 @@ type SMContext struct {
 	releasing                bool // guarded by Mutex
 	n1Released               bool
 	n2Released               bool
+	upConnectionDeactivating bool
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
