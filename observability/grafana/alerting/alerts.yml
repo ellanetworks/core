@@ -414,7 +414,7 @@ groups:
           component: runtime
         annotations:
           summary: Process memory usage exceeds 1 GiB.
-          description: "Resident memory is {{ $values.A | humanize1024 }}B. Check for memory leaks using the Pyroscope heap profile."
+          description: "Resident memory is {{ $values.A.Value | humanize1024 }}B. Check for memory leaks using the Pyroscope heap profile."
 
       - uid: ella-high-goroutines
         title: High Goroutine Count
@@ -541,7 +541,7 @@ groups:
           component: db
         annotations:
           summary: Database size exceeds 1 GiB.
-          description: "Database file is {{ $values.A | humanize1024 }}B. Large databases slow down queries and backups."
+          description: "Database file is {{ $values.A.Value | humanize1024 }}B. Large databases slow down queries and backups."
 
   - orgId: 1
     name: data-plane-health
