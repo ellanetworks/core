@@ -265,7 +265,14 @@ const PolicyDetail: React.FC = () => {
       >
         <Box sx={{ flex: 1 }}>
           <PageTitle
-            parent={{ label: "Profiles", to: "/profiles" }}
+            parent={[
+              { label: "Profiles", to: "/profiles" },
+              {
+                label: profileName ?? "",
+                to: `/profiles/${profileName}`,
+              },
+              { label: "Policies" },
+            ]}
             title={name ?? ""}
           />
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
