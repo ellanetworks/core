@@ -18,11 +18,11 @@ backend_scheduler:
   provider:
     compaction:
       compaction:
-        block_retention: 336h
+        block_retention: 720h
 
 backend_worker:
   compaction:
-    block_retention: 336h
+    block_retention: 720h
 
 metrics_generator:
   storage:
