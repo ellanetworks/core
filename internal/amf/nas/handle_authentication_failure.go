@@ -52,7 +52,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		fgs.GMMCauseNon5GAuthenticationUnacceptable,
 		fgs.GMMCauseNgKSIAlreadyInUse,
 		fgs.GMMCauseSynchFailure:
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
 			zap.Stringer("cause", fail.Cause))

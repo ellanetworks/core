@@ -35,7 +35,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		s.handlePduSessionContextReplacement(ctx, held, Access4G)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return models.EPSBearer{}, err
 	}
 

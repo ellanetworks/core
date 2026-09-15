@@ -25,7 +25,7 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 	m := newTestMME(t)
 
 	targetConn := &captureConn{}
-	if err := m.ClaimENBID(mme.NewRadioForTest(targetConn), targetENBID(), mme.DefaultRelativeCapacity); err != nil {
+	if err := m.ClaimENBID(t.Context(), mme.NewRadioForTest(targetConn), targetENBID(), mme.DefaultRelativeCapacity); err != nil {
 		t.Fatalf("ClaimENBID: %v", err)
 	}
 
@@ -36,7 +36,7 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleENBConfigurationTransfer(m, context.Background(), mme.NewRadioForTest(sourceConn), value)
+	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), value)
 
 	if targetConn.count() != 1 {
 		t.Fatalf("expected 1 relayed message to the target eNB, got %d", targetConn.count())
@@ -66,7 +66,7 @@ func TestHandleENBConfigurationTransfer_TargetNotConnected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleENBConfigurationTransfer(m, context.Background(), mme.NewRadioForTest(sourceConn), value)
+	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), value)
 
 	if sourceConn.count() != 0 {
 		t.Fatalf("no relay expected when the target eNB is not connected, got %d", sourceConn.count())

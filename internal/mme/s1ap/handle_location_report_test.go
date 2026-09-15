@@ -14,7 +14,7 @@ import (
 func TestHandleLocationReport(t *testing.T) {
 	m := newTestMME(t)
 	conn := &captureConn{}
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	m.RegisterUEForTest(ue, "001010000000001")
 
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
@@ -30,7 +30,7 @@ func TestHandleLocationReport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleLocationReport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, wire))
+	handleLocationReport(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, wire))
 
 	loc := ue.GetUserLocation()
 	if loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
@@ -42,7 +42,7 @@ func TestHandleLocationReportMalformed(t *testing.T) {
 	m := newTestMME(t)
 	conn := &captureConn{}
 
-	handleLocationReport(m, context.Background(), mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
+	handleLocationReport(context.Background(), m, mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
 
 	if got := conn.count(); got != 1 {
 		t.Fatalf("expected an Error Indication for the malformed report, got %d S1AP messages", got)

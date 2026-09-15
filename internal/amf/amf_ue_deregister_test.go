@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type deregisterTestSmf struct {
@@ -208,7 +209,7 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 	ue.smf = &deregisterTestSmf{}
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ueConn.SetN2SessionActive(2)
 	ue.ForceStateForTest(Registered)
@@ -243,7 +244,7 @@ func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ue.ForceStateForTest(Registered)
 
@@ -319,7 +320,7 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
-	a.AttachUeConn(ue, ueConn)
+	a.AttachUeConn(t.Context(), ue, ueConn)
 
 	if fake.clearSuppressionCalls != 2 {
 		t.Fatalf("clear-suppression calls = %d, want 2 (one per SM context)", fake.clearSuppressionCalls)
@@ -335,7 +336,7 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
-	a.abandonPaging(ue)
+	a.abandonPaging(trace.SpanContext{}, ue)
 
 	if fake.suppressCalls != 2 {
 		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)
@@ -358,11 +359,11 @@ func TestAttachUeConn_DeactivatesTheDisplacedConnectionsUserPlane(t *testing.T) 
 	ue.ForceStateForTest(Registered)
 
 	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
-	a.AttachUeConn(ue, first)
+	a.AttachUeConn(t.Context(), ue, first)
 	first.SetN2SessionActive(1)
 
 	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
-	a.AttachUeConn(ue, second)
+	a.AttachUeConn(t.Context(), ue, second)
 
 	if got := fake.deactivateCalls; len(got) != 1 || got[0] != "ref-1" {
 		t.Errorf("DeactivateSmContext calls = %v, want only ref-1: the user plane of the displaced connection is left pointing at a released NG-RAN context", got)
@@ -386,10 +387,10 @@ func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed
 	ue.ForceStateForTest(Registered)
 
 	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
-	a.AttachUeConn(ue, first)
+	a.AttachUeConn(t.Context(), ue, first)
 
 	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
-	a.AttachUeConn(ue, second)
+	a.AttachUeConn(t.Context(), ue, second)
 
 	if got := fake.deactivateCalls; len(got) != 0 {
 		t.Errorf("DeactivateSmContext calls = %v, want none: the displaced connection held no AN resources", got)

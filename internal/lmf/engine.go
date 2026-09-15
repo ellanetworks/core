@@ -143,18 +143,20 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 	// Wire transport functions.
 	// These closures are called from a different goroutine (AMF's UL NAS handler)
 	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
+	detached := context.WithoutCancel(ctx)
+
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(context.Background(), supi.String(), session.CorrelationID(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(detached, supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
-			return l.sessionMgr.CompleteSession(context.Background(), session.SessionID(), result)
+			return l.sessionMgr.CompleteSession(detached, session.SessionID(), result)
 		},
 		func() error {
-			return l.sessionMgr.FailSession(context.Background(), session.SessionID())
+			return l.sessionMgr.FailSession(detached, session.SessionID())
 		},
 		func() error {
-			return l.sessionMgr.CancelSession(context.Background(), session.SessionID())
+			return l.sessionMgr.CancelSession(detached, session.SessionID())
 		},
 		func() {
 			l.DeregisterLPPSession(session.SessionID())
@@ -181,7 +183,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 
 			// Discard any buffered LPP: this session has failed.
 			if l.amf != nil {
-				l.amf.CancelBufferedN1N2(supi, coremodels.N1ClassLPP, "")
+				l.amf.CancelBufferedN1N2(context.WithoutCancel(ctx), supi, coremodels.N1ClassLPP, "")
 			}
 
 			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,7 @@ type n2Releases struct {
 	open map[uint8]*guard.Guard
 }
 
-func (ueConn *UeConn) armN2Release(pduSessionID uint8) {
+func (ueConn *UeConn) armN2Release(ctx context.Context, pduSessionID uint8) {
 	if ueConn == nil {
 		return
 	}
@@ -36,7 +37,9 @@ func (ueConn *UeConn) armN2Release(pduSessionID uint8) {
 
 	ueConn.n2Releases.mu.Unlock()
 
-	g.ArmOnce(releaseGuardTimeout, func() { ueConn.expireN2Release(pduSessionID, g) })
+	link := trace.SpanContextFromContext(ctx)
+
+	g.ArmOnce(releaseGuardTimeout, func() { ueConn.expireN2Release(link, pduSessionID, g) })
 }
 
 func (ueConn *UeConn) EndN2Release(pduSessionID uint8) {
@@ -73,7 +76,7 @@ func (ueConn *UeConn) AbortN2Releases() {
 	}
 }
 
-func (ueConn *UeConn) expireN2Release(pduSessionID uint8, want *guard.Guard) {
+func (ueConn *UeConn) expireN2Release(link trace.SpanContext, pduSessionID uint8, want *guard.Guard) {
 	ueConn.n2Releases.mu.Lock()
 
 	g, ok := ueConn.n2Releases.open[pduSessionID]
@@ -87,7 +90,8 @@ func (ueConn *UeConn) expireN2Release(pduSessionID uint8, want *guard.Guard) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, span := guardSpan(link, "amf/n2_release_expire", "N2 release", 0)
+	defer span.End()
 
 	logger.From(ctx, ueConn.Log()).Warn("no answer to the PDU session resource release; completing it locally",
 		zap.Uint8("pdu_session_id", pduSessionID))

@@ -382,9 +382,9 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// (TS 24.501). The committed PFCP/policy change is not rolled back.
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
-	s.armRetransmit(smContext, s.t3591,
-		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1Msg, n2Msg) },
-		func(sc *SMContext) {
+	s.armRetransmit(ctx, smContext, s.t3591,
+		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1Msg, n2Msg) },
+		func(ctx context.Context, sc *SMContext) {
 			sc.ClearPTIInUse(networkRequestedPTI)
 			// Discard the uncommitted policy: the UE never confirmed, so the session
 			// keeps its previous configuration and the backstop re-attempts (TS 24.501

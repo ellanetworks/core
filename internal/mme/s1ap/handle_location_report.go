@@ -25,19 +25,19 @@ func captureUserLocation(ueConn *mme.UeConn, uli *s1ap.UserLocationInformation) 
 
 // handleLocationReport records the UE's serving cell from an eNB LOCATION REPORT
 // (TS 36.413 §8.12).
-func handleLocationReport(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleLocationReport(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseLocationReport(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcLocationReport, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcLocationReport, err)
 		return
 	}
 
-	_, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	_, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcLocationReport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcLocationReport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	if msg.EUTRANCGI != nil && msg.TAI != nil {
 		ueConn.UpdateLocation(*msg.EUTRANCGI, *msg.TAI)

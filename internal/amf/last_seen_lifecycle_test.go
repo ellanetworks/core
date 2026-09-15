@@ -26,7 +26,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 		ue.ForceStateForTest(amf.Registered)
 		ue.SetSecuredForTest(false)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	if snap, _, ok := amfInstance.LookupSubscriber(supi); !ok || !snap.Connected {
 		t.Fatalf("connected UE: found=%v Connected=%v, want true/true", ok, snap.Connected)
@@ -77,7 +77,7 @@ func TestLastSeenRadioFollowsARename(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	amfInstance.UpdateRadioName(radio, "gnb-a-renamed")
 
@@ -103,7 +103,7 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	seen, ok := amfInstance.LastSeen(imsi)
 	if !ok {
@@ -138,7 +138,7 @@ func TestLastSeenRadioFollowsAnXnPathSwitch(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	if !amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0) {
 		t.Fatal("CommitPathSwitch reported the UE released")
@@ -164,7 +164,7 @@ func TestRegisteringUEIsReportedAsConnectedButNotRegistered(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.RegistrationInitiated)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	cs, ok := amfInstance.ConnectedSubscribers()[imsi]
 	if !ok {
@@ -211,7 +211,7 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	var wg sync.WaitGroup
 
@@ -263,7 +263,7 @@ func TestLastSeenRadioIsRecordedWhenTheSupiArrivesAfterTheBind(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 
 	ue := amf.NewUeContext()
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	if _, ok := amfInstance.LastSeen(imsi); ok {
 		t.Fatal("a record exists before the SUPI is known")
@@ -297,7 +297,7 @@ func TestDeregistrationInitiatedStillReportsRegistered(t *testing.T) {
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	ue.ForceStateForTest(amf.DeregistrationInitiated)
 

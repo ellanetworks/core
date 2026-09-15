@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -30,7 +31,7 @@ func (c *UeConn) MTSignallingPending() bool {
 	return c.nasGuard.Active() || c.esmInfoGuard.Active()
 }
 
-func (c *UeConn) DeferRelease(cause s1ap.Cause) {
+func (c *UeConn) DeferRelease(ctx context.Context, cause s1ap.Cause) {
 	if c == nil {
 		return
 	}
@@ -40,15 +41,20 @@ func (c *UeConn) DeferRelease(cause s1ap.Cause) {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	c.deferGuard.ArmOnce(deferredReleaseTimeout, func() {
-		logger.From(context.Background(), c.Log()).Warn("deferred UE Context Release deadline reached; releasing the S1 connection",
+		guardCtx, span := guardSpan(link, "mme/deferred_release_expire", "deferred UE Context Release", 0)
+		defer span.End()
+
+		logger.From(guardCtx, c.Log()).Warn("deferred UE Context Release deadline reached; releasing the S1 connection",
 			zap.String("cause", cause.String()))
 
-		c.resumeDeferredRelease(context.Background())
+		c.resumeDeferredRelease(guardCtx)
 	})
 }
 
-func (c *UeConn) ResumeDeferredReleaseIfSettled() {
+func (c *UeConn) ResumeDeferredReleaseIfSettled(ctx context.Context) {
 	if c == nil || c.deferredCause.Load() == nil {
 		return
 	}
@@ -57,7 +63,7 @@ func (c *UeConn) ResumeDeferredReleaseIfSettled() {
 		return
 	}
 
-	c.resumeDeferredRelease(context.Background())
+	c.resumeDeferredRelease(ctx)
 }
 
 func (c *UeConn) resumeDeferredRelease(ctx context.Context) {

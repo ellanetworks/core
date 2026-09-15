@@ -96,7 +96,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	}
 
 	if conn := ue.Conn(); conn != nil {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 	}
 
 	if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {

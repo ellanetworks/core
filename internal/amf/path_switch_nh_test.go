@@ -24,7 +24,7 @@ func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 
 		radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source")
 		ueConn := amf.NewUeConnForTest(radio, 5, 10, zap.NewNop())
-		ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+		ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 		return amfInstance, ue, ueConn
 	}

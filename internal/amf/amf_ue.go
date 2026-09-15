@@ -213,7 +213,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	return displaced
 }
 
-func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
+func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	if ueConn == nil {
 		return
 	}
@@ -223,13 +223,13 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	a.mu.Unlock()
 
 	if displaced != nil {
-		a.deactivateDisplacedUserPlane(context.Background(), ue, displaced)
+		a.deactivateDisplacedUserPlane(ctx, ue, displaced)
 
-		displaced.SendUEContextReleaseCommand(context.Background(),
+		displaced.SendUEContextReleaseCommand(ctx,
 			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
 
-	a.clearPagingSuppression(context.Background(), ue)
+	a.clearPagingSuppression(ctx, ue)
 }
 
 // deactivateDisplacedUserPlane buffers the user plane the displaced connection was
@@ -615,7 +615,7 @@ func (ue *UeContext) SendDownlinkNAS(plain []byte, sht uint8, write nas.WriteFun
 	return nil
 }
 
-func (ue *UeContext) StopProcedureTimers() {
+func (ue *UeContext) StopProcedureTimers(ctx context.Context) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -624,10 +624,10 @@ func (ue *UeContext) StopProcedureTimers() {
 		return
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 }
 
-func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
+func (a *AMF) ReleaseNasConnection(ctx context.Context, ue *UeContext, target *UeConn) {
 	if ue == nil {
 		return
 	}
@@ -650,9 +650,9 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	detached.releaseAllN2Sessions()
 
 	ue.endKeyChainProcs()
-	ue.StopProcedureTimers()
+	ue.StopProcedureTimers(ctx)
 
-	detached.Release()
+	detached.Release(ctx)
 }
 
 func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
@@ -676,11 +676,11 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 
 func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(ctx)
 	}
 
 	ue.endKeyChainProcs()
-	ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+	ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
 
 	ue.mu.Lock()
 
@@ -693,11 +693,11 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 
 func (ue *UeContext) Deregister(ctx context.Context) {
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(ctx)
 	}
 
 	ue.endKeyChainProcs()
-	ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+	ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
 
 	ue.mu.Lock()
 

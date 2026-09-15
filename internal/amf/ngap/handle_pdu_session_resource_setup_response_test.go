@@ -72,7 +72,7 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
 	msg := &ngap.PDUSessionResourceSetupResponse{
@@ -105,7 +105,7 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
 	msg := &ngap.PDUSessionResourceSetupResponse{
@@ -132,7 +132,7 @@ func TestHandlePDUSessionResourceSetupResponse_RecordsUserLocation(t *testing.T)
 
 	amfUe := amf.NewUeContext()
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{

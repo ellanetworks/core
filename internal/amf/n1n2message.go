@@ -76,7 +76,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 			item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
 			if err != nil {
-				n2Setup.End()
+				n2Setup.End(ctx)
 
 				return fmt.Errorf("could not build PDU session setup item: %w", err)
 			}
@@ -84,12 +84,12 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			list := ngap.PDUSessionResourceSetupListSUReq{item}
 
 			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list); err != nil {
-				n2Setup.End()
+				n2Setup.End(ctx)
 
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
 
-			n2Setup.Arm(amf.N2SetupGuardCfg)
+			n2Setup.Arm(ctx, amf.N2SetupGuardCfg)
 
 			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
@@ -124,7 +124,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 		item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
 		if err != nil {
-			n2Setup.End()
+			n2Setup.End(ctx)
 
 			return fmt.Errorf("could not build PDU session setup item: %w", err)
 		}
@@ -144,19 +144,19 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			list,
 			operatorInfo.Guami,
 		); err != nil {
-			n2Setup.End()
+			n2Setup.End(ctx)
 
 			return fmt.Errorf("send initial context setup request error: %v", err)
 		}
 
-		n2Setup.Arm(amf.N2SetupGuardCfg)
+		n2Setup.Arm(ctx, amf.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
 		return nil
 	})
 	if err != nil {
-		ueConn.AbortICS()
+		ueConn.AbortICS(ctx)
 
 		return "", err
 	}
@@ -343,7 +343,7 @@ func (amf *AMF) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduS
 		return fmt.Errorf("send pdu session resource release command: %w", err)
 	}
 
-	ueConn.armN2Release(pduSessionID)
+	ueConn.armN2Release(ctx, pduSessionID)
 
 	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB (access resources only)",
 		logger.PDUSessionID(pduSessionID),
@@ -395,7 +395,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 		if err != nil {
-			n2Setup.End()
+			n2Setup.End(ctx)
 
 			return "", fmt.Errorf("could not build PDU session setup item: %w", err)
 		}
@@ -404,12 +404,12 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
-			n2Setup.End()
+			n2Setup.End(ctx)
 
 			return "", fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
 
-		n2Setup.Arm(amf.N2SetupGuardCfg)
+		n2Setup.Arm(ctx, amf.N2SetupGuardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
@@ -435,7 +435,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 	if err != nil {
-		ueConn.AbortICS()
+		ueConn.AbortICS(ctx)
 
 		return "", fmt.Errorf("could not build PDU session setup item: %w", err)
 	}
@@ -456,12 +456,12 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		operatorInfo.Guami,
 	)
 	if err != nil {
-		ueConn.AbortICS()
+		ueConn.AbortICS(ctx)
 
 		return "", fmt.Errorf("send initial context setup request error: %v", err)
 	}
 
-	n2Setup.Arm(amf.N2SetupGuardCfg)
+	n2Setup.Arm(ctx, amf.N2SetupGuardCfg)
 
 	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 

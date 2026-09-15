@@ -30,7 +30,7 @@ const (
 	directionDownlinkString = "downlink"
 )
 
-var tracer = otel.Tracer("ella-core/upf")
+var tracer = otel.Tracer("ella-core/upf/settings")
 
 // SettingsStore is the narrow view the reconciler needs over the DB.
 // *db.Database satisfies it; a fake satisfies it in tests.

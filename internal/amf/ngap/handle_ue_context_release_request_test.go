@@ -51,7 +51,7 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
@@ -97,7 +97,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityWithPendingMTTraffic(t *tes
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	msg := &ngap.UEContextReleaseRequest{
@@ -123,7 +123,7 @@ func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
 	msg := &ngap.UEContextReleaseRequest{
@@ -149,7 +149,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Fatal("could not open an initial context setup transaction")
@@ -168,7 +168,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 			len(sender.SentUEContextReleaseCommands))
 	}
 
-	ueConn.EndN2Setup(amf.N2SetupInitialContext)
+	ueConn.EndN2Setup(t.Context(), amf.N2SetupInitialContext)
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
 
@@ -186,10 +186,10 @@ func TestHandleUEContextReleaseRequest_PagedRequestDoesNotFollowTheUEOntoANewCon
 	amfUe.ForceStateForTest(amf.Registered)
 
 	answered := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	answered.AMFForTest().AttachUeConn(amfUe, answered)
+	answered.AMFForTest().AttachUeConn(t.Context(), amfUe, answered)
 
 	current := amf.NewUeConnForTest(ran, 2, 11, logger.AmfLog)
-	current.AMFForTest().AttachUeConn(amfUe, current)
+	current.AMFForTest().AttachUeConn(t.Context(), amfUe, current)
 
 	before := len(sender.SentUEContextReleaseCommands)
 
@@ -216,7 +216,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not open a PDU session resource setup transaction")
@@ -234,7 +234,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(
 		t.Fatalf("UEContextReleaseCommand count = %d, want 0 while the N2 setup is open", len(sender.SentUEContextReleaseCommands))
 	}
 
-	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+	ueConn.EndN2Setup(t.Context(), amf.N2SetupPDUSession)
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Errorf("UEContextReleaseCommand count = %d, want 1: the deferred AN Release never resumes once the pending signalling settles (TS 23.502 4.2.6 step 1)",
@@ -255,7 +255,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillRel
 	amfUe.ForceStateForTest(amf.RegistrationInitiated)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if err := amfUe.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
@@ -277,7 +277,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillRel
 		t.Fatalf("UEContextReleaseCommand count = %d, want 0 while the N2 setup is open", len(sender.SentUEContextReleaseCommands))
 	}
 
-	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+	ueConn.EndN2Setup(t.Context(), amf.N2SetupPDUSession)
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("UEContextReleaseCommand count = %d, want 1 once the pending signalling settles", len(sender.SentUEContextReleaseCommands))

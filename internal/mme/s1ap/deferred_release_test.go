@@ -29,7 +29,7 @@ func deliverReleaseRequest(t *testing.T, m *mme.MME, cc *captureConn, req *s1ap.
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 }
 
 func TestUserInactivityIsDeferredWhileAnMTDeliveryIsInProgress(t *testing.T) {
@@ -45,7 +45,7 @@ func TestUserInactivityIsDeferredWhileAnMTDeliveryIsInProgress(t *testing.T) {
 		t.Fatalf("UE Context Release Commands sent = %d, want 0: the MME is aware of pending MT traffic (TS 23.401 5.3.5)", len(cc.sent))
 	}
 
-	ue.PagingDelivered()
+	ue.PagingDelivered(t.Context())
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("UE Context Release Commands sent = %d, want 1: the deferred S1 release never resumes once the MT delivery settles", len(cc.sent))

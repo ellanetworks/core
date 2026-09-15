@@ -22,7 +22,7 @@ func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	cause := rej.Cause
 

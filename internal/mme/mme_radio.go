@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -273,7 +274,7 @@ func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
 // retain them (TS 36.413 §8.7.3.1), and Ella Core never offers UE retention. An
 // eNB repeating S1 Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the eNB has already forgotten.
-func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity uint8) error {
+func (m *MME) ClaimENBID(ctx context.Context, radio *Radio, g s1ap.GlobalENBID, advertisedCapacity uint8) error {
 	ranID, err := RanNodeID(g)
 	if err != nil {
 		return err
@@ -299,7 +300,7 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID, advertisedCapacity ui
 
 	m.mu.Unlock()
 
-	m.ReclaimConns(m.ConnsOnConn(radio.Conn), "S1 Setup")
+	m.ReclaimConns(ctx, m.ConnsOnConn(radio.Conn), "S1 Setup")
 
 	if stale != nil {
 		m.reclaimUEsOnConnLoss(stale)
@@ -442,7 +443,10 @@ func (m *MME) DisconnectRadio(conn *sctp.SCTPConn) {
 // dropped without a graceful S1 release, so no UE Context Release Complete will
 // arrive for them. Idle UEs are left alone — they run conn-independent supervision.
 func (m *MME) reclaimUEsOnConnLoss(conn S1APWriter) {
-	m.ReclaimConns(m.ConnsOnConn(conn), "eNB disconnect")
+	ctx, span := guardSpan(trace.SpanContext{}, "mme/reclaim_on_conn_loss", "eNB disconnect", 0)
+	defer span.End()
+
+	m.ReclaimConns(ctx, m.ConnsOnConn(conn), "eNB disconnect")
 }
 
 // ReclaimConns reclaims a set of UE-associated connections dropped by an eNB
@@ -450,7 +454,7 @@ func (m *MME) reclaimUEsOnConnLoss(conn S1APWriter) {
 // (or, mid-attach, drops it); a handover target connection aborts the handover,
 // leaving the UE on its surviving source; a detached or bare connection is removed.
 // trigger names the cause for the event log.
-func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
+func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string) {
 	m.mu.Lock()
 
 	var (
@@ -501,11 +505,11 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 	m.mu.Unlock()
 
 	for _, r := range releaseTargets {
-		SendUEContextRelease(context.Background(), m, r.conn, r.mmeID, r.enbID, r.pair, causeHandoverEUTRANReason)
+		SendUEContextRelease(ctx, m, r.conn, r.mmeID, r.enbID, r.pair, causeHandoverEUTRANReason)
 	}
 
 	for _, ue := range orphaned {
-		m.ReleaseUEContextLocally(ue, trigger)
+		m.ReleaseUEContextLocally(ctx, ue, trigger)
 	}
 }
 

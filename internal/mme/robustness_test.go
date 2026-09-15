@@ -11,7 +11,7 @@ func TestDropStaleUe(t *testing.T) {
 	m := newTestMME(t)
 
 	cc := &captureConn{}
-	m.NewUe(cc, 7)
+	m.NewUe(t.Context(), cc, 7)
 
 	m.DropStaleUe(cc, 7)
 

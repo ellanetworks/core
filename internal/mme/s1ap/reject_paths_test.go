@@ -38,7 +38,7 @@ func TestPathSwitchRequestRejectionAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(cc), body)
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(cc), body)
 
 	pdu := outcomeOf(t, cc)
 
@@ -70,7 +70,7 @@ func TestRejectionFallsBackToErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(cc), []byte{0x00, 0xff})
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(cc), []byte{0x00, 0xff})
 
 	pdu := outcomeOf(t, cc)
 
@@ -93,7 +93,7 @@ func TestENBConfigurationUpdateRejectionAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleENBConfigurationUpdate(m, context.Background(), mme.NewRadioForTest(cc), body)
+	handleENBConfigurationUpdate(context.Background(), m, mme.NewRadioForTest(cc), body)
 
 	pdu := outcomeOf(t, cc)
 
@@ -129,7 +129,7 @@ func TestReportOnResponseNamesTheOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), body)
+	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), body)
 
 	var ind *s1ap.ErrorIndication
 

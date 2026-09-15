@@ -133,7 +133,7 @@ func TestResumeRestoresTheWeightFactor(t *testing.T) {
 func TestOffloadReleasesRegisteredUEsWithLoadBalancingTAURequired(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	if released := m.Offload(context.Background(), 16); released != 1 {
 		t.Fatalf("off-loaded %d UEs, want 1", released)
@@ -168,7 +168,7 @@ func TestOffloadReleasesRegisteredUEsWithLoadBalancingTAURequired(t *testing.T) 
 func TestOffloadSkipsUEsThatAreNotYetRegistered(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), EMMRegistrationInitiated)
 
 	if released := m.Offload(context.Background(), 16); released != 0 {
 		t.Fatalf("off-loaded %d UEs, want 0", released)
@@ -187,7 +187,7 @@ func TestOffloadIsBounded(t *testing.T) {
 	for i := range 5 {
 		ue, cc := securedUE(t, m)
 		registerTestUE(m, ue, "00101000000000"+string(rune('0'+i)))
-		ue.TransitionTo(EMMRegistered)
+		ue.TransitionTo(t.Context(), EMMRegistered)
 
 		conns = append(conns, cc)
 	}
@@ -355,8 +355,8 @@ func TestIdleUEsAreNotOffloadable(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, _ := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
-	m.FreeUeConn(ue)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+	m.FreeUeConn(t.Context(), ue)
 
 	if got := m.Offload(context.Background(), 0); got != 0 {
 		t.Fatalf("released %d idle UEs, want 0: an idle UE has no S1 connection to release", got)

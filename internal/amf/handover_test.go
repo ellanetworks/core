@@ -20,7 +20,7 @@ func TestHandoverFSM_Lifecycle(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
 	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
 
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	if amfInstance.HandoverInProgress(amfUe) {
 		t.Fatal("a handover FSM exists before SetHandoverForTest")
@@ -57,7 +57,7 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
 	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
 
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)

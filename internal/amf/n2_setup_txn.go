@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -56,8 +57,8 @@ func (s N2Setup) ClaimSession(id uint8) bool {
 	return len(s.Claim([]uint8{id})) == 1
 }
 
-func (s N2Setup) End() {
-	s.conn.EndN2Setup(s.proc)
+func (s N2Setup) End(ctx context.Context) {
+	s.conn.EndN2Setup(ctx, s.proc)
 }
 
 func (s N2Setup) Claim(ids []uint8) []uint8 {
@@ -87,7 +88,7 @@ func (s N2Setup) Claim(ids []uint8) []uint8 {
 	return claimed
 }
 
-func (s N2Setup) Arm(cfg guard.TimerValue) {
+func (s N2Setup) Arm(ctx context.Context, cfg guard.TimerValue) {
 	if !cfg.Enable {
 		return
 	}
@@ -100,17 +101,19 @@ func (s N2Setup) Arm(cfg guard.TimerValue) {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	txn.guard.ArmOnce(cfg.ExpireTime, func() {
-		s.conn.expireN2Setup(s.proc, txn)
+		s.conn.expireN2Setup(link, s.proc, txn)
 	})
 }
 
-func (ueConn *UeConn) EndN2Setup(proc N2SetupProcedure) {
+func (ueConn *UeConn) EndN2Setup(ctx context.Context, proc N2SetupProcedure) {
 	ueConn.endN2SetupTxn(proc, nil)
-	ueConn.ResumeDeferredReleaseIfSettled()
+	ueConn.ResumeDeferredReleaseIfSettled(ctx)
 }
 
-func (ueConn *UeConn) expireN2Setup(proc N2SetupProcedure, txn *n2SetupTxn) {
+func (ueConn *UeConn) expireN2Setup(link trace.SpanContext, proc N2SetupProcedure, txn *n2SetupTxn) {
 	released := ueConn.endN2SetupTxn(proc, txn)
 	if len(released) == 0 {
 		return
@@ -121,7 +124,8 @@ func (ueConn *UeConn) expireN2Setup(proc N2SetupProcedure, txn *n2SetupTxn) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, span := guardSpan(link, "amf/n2_setup_expire", "N2 setup", 0)
+	defer span.End()
 
 	for _, id := range released {
 		smContext, ok := ue.SmContextFindByPDUSessionID(id)

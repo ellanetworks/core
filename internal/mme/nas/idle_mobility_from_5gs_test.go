@@ -230,7 +230,7 @@ func TestInterSystemTAULeavesTheUERegistered(t *testing.T) {
 		t.Fatalf("EMM state after the accepted update = %v, want %v", got, mme.EMMRegistered)
 	}
 
-	m.ReleaseUEContextLocally(ue, "test")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test")
 
 	if p := m.LookupPDN(ue, 6); p == nil {
 		t.Error("the S1 release destroyed the PDN connection the inter-system change moved")

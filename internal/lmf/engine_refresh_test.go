@@ -87,7 +87,7 @@ func TestDetermineLocation_NR_StaleTriggersRefresh(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {
@@ -188,7 +188,7 @@ func TestDetermineLocation_NR_FreshNoRefresh(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {
@@ -253,7 +253,7 @@ func TestDetermineLocation_EUTRA_StaleTriggersRefresh(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {
@@ -585,7 +585,7 @@ func TestRefreshLocation_Success(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	// Send a LocationReport message with EventType=Direct and NR user location.
 	// PLMN 262-01 in NGAP octets: reverse MCC="262"->"262", reverse MNC="01"->"10"
@@ -694,7 +694,7 @@ func TestRefreshLocation_Timeout(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
 	if err != nil {

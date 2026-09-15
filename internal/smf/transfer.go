@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -106,7 +107,7 @@ func (sc *SMContext) hasUserPlane() bool {
 	return sc.Tunnel != nil && sc.PFCPContext != nil && sc.PFCPContext.Established
 }
 
-func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
+func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRequest) error {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -127,6 +128,8 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 	move := &pendingTransfer{to: req.Access, ebi: req.EBI, policy: req.Policy}
 	sc.pending = move
 
+	link := trace.SpanContextFromContext(ctx)
+
 	sc.transferGuard.ArmOnce(transferSupervision, func() {
 		sc.Mutex.Lock()
 
@@ -141,12 +144,15 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 
 		sc.Mutex.Unlock()
 
-		logger.SmfLog.Warn("abandoning a move the target access never bound",
+		ctx, span := guardSpan(link, "smf/transfer_supervision_expire", "transfer supervision", 0)
+		defer span.End()
+
+		logger.From(ctx, logger.SmfLog).Warn("abandoning a move the target access never bound",
 			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
 			zap.Stringer("to", move.to))
 
 		if move.to == Access5G && s.amf != nil {
-			s.amf.SessionDropped(context.Background(), supi, pduSessionID, ref, nil)
+			s.amf.SessionDropped(ctx, supi, pduSessionID, ref, nil)
 		}
 	})
 

@@ -28,7 +28,7 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 	}
 
 	conn := &captureConn{}
-	handleUplinkNASTransport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, b))
+	handleUplinkNASTransport(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")

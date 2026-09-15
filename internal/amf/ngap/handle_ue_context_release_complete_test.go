@@ -21,7 +21,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 	amfUe.ForceStateForTest(amf.Registered)
 
 	sourceUeConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
-	sourceUeConn.AMFForTest().AttachUeConn(amfUe, sourceUeConn)
+	sourceUeConn.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUeConn)
 
 	targetUeConn := amf.NewUeConnForTest(ran, 2, 200, logger.AmfLog)
 
@@ -56,7 +56,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	amfUe.ForceStateForTest(amf.Registered)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
@@ -102,7 +102,7 @@ func TestHandleUEContextReleaseComplete_DeactivatesOnlyTheSessionsTheRANReported
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
@@ -132,7 +132,7 @@ func TestHandleUEContextReleaseComplete_DeactivatesASessionTheRANStoppedReportin
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ueConn.SetN2SessionActive(2)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
@@ -163,7 +163,7 @@ func TestHandleUEContextReleaseComplete_NoReportedListDeactivatesEverySession(t 
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ueConn.SetN2SessionActive(2)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)

@@ -34,7 +34,7 @@ func TestHandleUplinkNRPPaTransport_RoutingID(t *testing.T) {
 
 			ue := amf.NewUeContext()
 			ueConn := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
-			ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+			ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 			for _, id := range tt.addressed {
 				ue.RecordNRPPaRoutingID(id)

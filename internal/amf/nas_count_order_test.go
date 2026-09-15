@@ -110,7 +110,7 @@ func newDownlinkOrderUE(t *testing.T) (*UeContext, *downlinkOrderConn) {
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
 	ueConn.setLog(zap.NewNop())
-	ueConn.amf.AttachUeConn(ue, ueConn)
+	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue, sender
 }
@@ -188,11 +188,11 @@ func TestNASGuardRetransmissionTakesTheNextNASCount_TS24501_4_4_3_1(t *testing.T
 	sht := uint8(fgs.SHTIntegrityProtectedNewContext)
 	cfg := guard.TimerValue{Enable: true, ExpireTime: time.Millisecond, MaxRetryTimes: 8}
 
-	armNASGuard(conn, conn, cfg, "T3560 (Security Mode Command)", []byte{0x7e, 0x00, 0x5d, 0x02, 0x02}, sht, func() {})
+	armNASGuard(t.Context(), conn, conn, cfg, "T3560 (Security Mode Command)", []byte{0x7e, 0x00, 0x5d, 0x02, 0x02}, sht, func(context.Context) {})
 
 	seqs, shts := sender.awaitWrites(t, 2)
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(t.Context())
 
 	if seqs[0] != 0 || seqs[1] != 1 {
 		t.Fatalf("retransmissions carry NAS sequence numbers %v, want 0 then 1", seqs)

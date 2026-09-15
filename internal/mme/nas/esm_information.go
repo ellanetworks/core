@@ -15,26 +15,26 @@ import (
 	"go.uber.org/zap"
 )
 
-func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, onAbort func(pti uint8)) bool {
+func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, onAbort func(context.Context, uint8)) bool {
 	wait := ue.PendingESMInfo()
 	if wait == nil {
 		return false
 	}
 
-	abort := func() {
+	abort := func(ctx context.Context) {
 		w := ue.TakeESMInfoWait()
 		if w == nil {
 			return
 		}
 
 		ueConn.StopESMInfoGuard()
-		onAbort(w.PTI)
+		onAbort(ctx, w.PTI)
 	}
 
 	esm, err := (&eps.ESMInformationRequest{PTI: nas.ProcedureTransactionIdentity(wait.PTI)}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build ESM Information Request", zap.Error(err))
-		abort()
+		abort(ctx)
 
 		return true
 	}
@@ -52,14 +52,14 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.U
 			return true
 		}
 
-		abort()
+		abort(ctx)
 
 		return true
 	}
 
-	ueConn.ArmT3489("ESM Information Request", esm, eps.SHTIntegrityProtectedCiphered, func() {
-		logger.MmeLog.Info("ESM information not received", zap.String("imsi", ue.IMSI()))
-		abort()
+	ueConn.ArmT3489(ctx, "ESM Information Request", esm, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
+		logger.From(ctx, logger.MmeLog).Info("ESM information not received", zap.String("imsi", ue.IMSI()))
+		abort(ctx)
 	})
 
 	return true

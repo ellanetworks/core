@@ -116,7 +116,7 @@ func (ue *UeContext) PagingAnswered() {
 	}
 }
 
-func (ue *UeContext) PagingDelivered() {
+func (ue *UeContext) PagingDelivered(ctx context.Context) {
 	if ue == nil {
 		return
 	}
@@ -130,10 +130,10 @@ func (ue *UeContext) PagingDelivered() {
 
 	ue.paging.mu.Unlock()
 
-	ue.Conn().ResumeDeferredReleaseIfSettled()
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 }
 
-func (ue *UeContext) PagingFailed(cause models.EPSPagingFailureCause) *MTRequest {
+func (ue *UeContext) PagingFailed(ctx context.Context, cause models.EPSPagingFailureCause) *MTRequest {
 	if ue == nil {
 		return nil
 	}
@@ -147,15 +147,15 @@ func (ue *UeContext) PagingFailed(cause models.EPSPagingFailureCause) *MTRequest
 	ue.ClearLPPaBuffered()
 
 	if dropped != nil {
-		ue.notifyMTDeliveryFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
 
-	ue.Conn().ResumeDeferredReleaseIfSettled()
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 
 	return dropped
 }
 
-func (ue *UeContext) PagingUnanswered(cause models.EPSPagingFailureCause) (*MTRequest, bool) {
+func (ue *UeContext) PagingUnanswered(ctx context.Context, cause models.EPSPagingFailureCause) (*MTRequest, bool) {
 	if ue == nil {
 		return nil, false
 	}
@@ -177,15 +177,15 @@ func (ue *UeContext) PagingUnanswered(cause models.EPSPagingFailureCause) (*MTRe
 	ue.ClearLPPaBuffered()
 
 	if dropped != nil {
-		ue.notifyMTDeliveryFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
 
 	return dropped, true
 }
 
-func (ue *UeContext) settleDeliveryOnRelease() {
+func (ue *UeContext) settleDeliveryOnRelease(ctx context.Context) {
 	if ue.PagingState() == PagingDelivering {
-		ue.PagingFailed(models.EPSPagingUENotResponding)
+		ue.PagingFailed(ctx, models.EPSPagingUENotResponding)
 	}
 }
 
@@ -197,14 +197,14 @@ func (ue *UeContext) takePendingLocked() *MTRequest {
 	return dropped
 }
 
-func (ue *UeContext) notifyMTDeliveryFailure(req *MTRequest, cause models.EPSPagingFailureCause) {
+func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest, cause models.EPSPagingFailureCause) {
 	if ue.session == nil || req == nil || req.Ebi == 0 {
 		return
 	}
 
 	imsi := ue.imsiOrEmpty()
 
-	if err := ue.session.HandleEPSPagingFailure(context.Background(), imsi, req.Ebi, cause); err != nil {
+	if err := ue.session.HandleEPSPagingFailure(ctx, imsi, req.Ebi, cause); err != nil {
 		logger.MmeLog.Warn("could not report an EPS downlink data notification failure",
 			zap.String("imsi", imsi),
 			zap.Uint8("ebi", req.Ebi),

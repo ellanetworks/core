@@ -22,7 +22,7 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	m.ClearKeyChainBusy(ue)
 

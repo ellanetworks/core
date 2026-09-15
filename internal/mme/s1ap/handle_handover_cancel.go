@@ -16,19 +16,19 @@ import (
 
 // handleHandoverCancel releases any prepared target resources and acknowledges,
 // leaving the UE on the source (TS 36.413 §8.4.5).
-func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	cancel, err := s1ap.ParseHandoverCancel(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcHandoverCancel, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, err)
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, cancel.MMEUES1APID, cancel.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, cancel.MMEUES1APID, cancel.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverCancel, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), cancel.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), cancel.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -47,7 +47,7 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		case errors.Is(err, interworking.ErrRelocationTooLate):
 			logger.From(ctx, logger.MmeLog).Info("the UE has already reached 5GS; leaving the handover to complete",
 				zap.Error(err))
-			sendHandoverCancelAcknowledge(m, ctx, radio, cancel)
+			sendHandoverCancelAcknowledge(ctx, m, radio, cancel)
 
 			return
 		case err != nil:
@@ -66,10 +66,10 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", zap.Uint32("mme_ue_s1ap_id", uint32(cancel.MMEUES1APID)))
-	sendHandoverCancelAcknowledge(m, ctx, radio, cancel)
+	sendHandoverCancelAcknowledge(ctx, m, radio, cancel)
 }
 
-func sendHandoverCancelAcknowledge(m *mme.MME, ctx context.Context, radio *mme.Radio, cancel *s1ap.HandoverCancel) {
+func sendHandoverCancelAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, cancel *s1ap.HandoverCancel) {
 	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: s1ap.Ptr(cancel.MMEUES1APID), ENBUES1APID: s1ap.Ptr(cancel.ENBUES1APID)}
 
 	b, err := ack.Marshal()

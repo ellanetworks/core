@@ -4,6 +4,7 @@
 package amf
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -18,8 +19,10 @@ func TestNASGuardNameConcurrentAccessNoRace(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for _, op := range []func(){
-		func() { conn.armNASGuardWith(cfg, "T3560 (Authentication Request)", func(int32) {}, func() {}) },
-		func() { conn.StopNASGuard() },
+		func() {
+			conn.armNASGuardWith(t.Context(), cfg, "T3560 (Authentication Request)", func(context.Context, int32) {}, func(context.Context) {})
+		},
+		func() { conn.StopNASGuard(t.Context()) },
 		func() { _ = conn.nasGuardProcName() },
 	} {
 		wg.Add(1)
@@ -35,5 +38,5 @@ func TestNASGuardNameConcurrentAccessNoRace(t *testing.T) {
 
 	wg.Wait()
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(t.Context())
 }

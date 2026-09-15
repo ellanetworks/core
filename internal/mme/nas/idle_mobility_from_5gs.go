@@ -61,10 +61,10 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 	}
 
 	ue.Ambr = &models.Ambr{Uplink: resp.AMBRUplink, Downlink: resp.AMBRDownlink}
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(ctx, mme.EMMRegistrationInitiated)
 	ue.BeginIdleMobilityFrom5GS()
 
-	m.AttachUeConn(ue, conn)
+	m.AttachUeConn(ctx, ue, conn)
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
@@ -84,7 +84,7 @@ func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn
 		return nil, nil
 	}
 
-	m.AttachUeConn(held, conn)
+	m.AttachUeConn(ctx, held, conn)
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{RemappedHeldContext: true}
 

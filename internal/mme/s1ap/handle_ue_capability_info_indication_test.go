@@ -16,7 +16,7 @@ import (
 func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 
 	radioCap := []byte{0x01, 0x02, 0x03, 0x04}
 	pagingCap := []byte{0xaa, 0xbb}
@@ -32,7 +32,7 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(context.Background(), m, mme.NewRadioForTest(cc), initiatingValue(t, b))
 
 	if !bytes.Equal(ue.RadioCapability, radioCap) {
 		t.Fatalf("radio capability = %x, want %x", ue.RadioCapability, radioCap)
@@ -57,7 +57,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(context.Background(), m, mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")
@@ -68,7 +68,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 
 	stored := []byte{0x01, 0x02, 0x03, 0x04}
 	ue.RadioCapability = stored
@@ -87,7 +87,7 @@ func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 		t.Fatalf("UERadioCapability = %x, want absent", msg.UERadioCapability)
 	}
 
-	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), body)
+	handleUECapabilityInfoIndication(context.Background(), m, mme.NewRadioForTest(cc), body)
 
 	if !bytes.Equal(ue.RadioCapability, stored) {
 		t.Fatalf("radio capability = %x, want the stored %x", ue.RadioCapability, stored)

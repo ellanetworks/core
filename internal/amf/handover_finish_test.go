@@ -24,7 +24,7 @@ func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, 
 	source := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
 	target := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
 
-	source.AMFForTest().AttachUeConn(ue, source)
+	source.AMFForTest().AttachUeConn(t.Context(), ue, source)
 
 	if err := amf.SetHandoverForTest(source, target); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)

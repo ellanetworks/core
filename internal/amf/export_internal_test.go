@@ -48,7 +48,7 @@ func TestExportUeContext_ConcurrentWithReleaseNasConnection(t *testing.T) {
 		ue := NewUeContext()
 
 		conn := NewUeConnForTest(&Radio{Conn: nopNGAPSender{}, Log: zap.NewNop()}, 1, 10, zap.NewNop())
-		amf.AttachUeConn(ue, conn)
+		amf.AttachUeConn(t.Context(), ue, conn)
 
 		var wg sync.WaitGroup
 
@@ -57,7 +57,7 @@ func TestExportUeContext_ConcurrentWithReleaseNasConnection(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			amf.ReleaseNasConnection(ue, nil)
+			amf.ReleaseNasConnection(t.Context(), ue, nil)
 		}()
 
 		go func() {

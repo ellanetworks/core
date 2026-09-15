@@ -93,14 +93,14 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is
 		// retransmitted, and on exhaustion release only this PDN connection
 		// locally, leaving the UE attached (TS 24.301 §6.4.4.5).
-		m.ArmESMGuardAbortOnly(ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func() {
+		m.ArmESMGuardAbortOnly(ctx, ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
 			m.ReleasePDN(ctx, ue, p)
 		})
 
 		return
 	}
 
-	m.ArmESMGuard(ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered)
+	m.ArmESMGuard(ctx, ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular

@@ -57,7 +57,7 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 		return "", fmt.Errorf("no session to move to %s in idle mode: %w", access, err)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", fmt.Errorf("failed to prepare a session move to %s in idle mode: %w", access, err)
 	}
 

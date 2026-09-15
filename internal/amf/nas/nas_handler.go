@@ -89,7 +89,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			amfUe = amf.NewUeContext()
 		}
 
-		amfInstance.AttachUeConn(amfUe, ue)
+		amfInstance.AttachUeConn(ctx, amfUe, ue)
 	}
 
 	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)

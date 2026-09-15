@@ -351,7 +351,7 @@ func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(
 	}
 
 	fresh := amf.NewUeContext()
-	amfInstance.AttachUeConn(fresh, incumbent.Conn())
+	amfInstance.AttachUeConn(t.Context(), fresh, incumbent.Conn())
 	fresh.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 	fresh.TransitionTo(amf.RegistrationInitiated)
 	fresh.ForceRegStepForTest(amf.RegStepAuthenticating)

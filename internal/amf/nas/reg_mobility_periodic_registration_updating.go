@@ -119,12 +119,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 
 		if deliveredPending {
-			ue.PagingDelivered()
+			ue.PagingDelivered(ctx)
 
 			return
 		}
 
-		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+		ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
 	}()
 
 	proc, initialContextSetup := ueConn.ClaimN2Setup(n2SessionsRequested(ue, conn.RegistrationRequest, requestData))
@@ -215,12 +215,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 							wire,
 							suList,
 						); err != nil {
-							n2Setup.End()
+							n2Setup.End(ctx)
 
 							return err
 						}
 
-						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+						n2Setup.Arm(ctx, amfInstance.N2SetupGuardCfg)
 
 						return nil
 					}); err != nil {
@@ -229,7 +229,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						return
 					}
 
-					amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+					amf.ArmRegistrationAcceptGuard(ctx, amfInstance, ue, plain)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
@@ -238,9 +238,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) { return ctxList, nil }
 
 					if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, staged, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
-						n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+						n2Setup.Arm(ctx, amfInstance.N2SetupGuardCfg)
 					} else {
-						n2Setup.End()
+						n2Setup.End(ctx)
 					}
 
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
@@ -335,9 +335,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 
 		if amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, initialContextSetup, staged, *operatorInfo.Guami.PlmnID, operatorInfo.Guami) {
-			n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+			n2Setup.Arm(ctx, amfInstance.N2SetupGuardCfg)
 		} else {
-			n2Setup.End()
+			n2Setup.End(ctx)
 		}
 
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
@@ -380,15 +380,15 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			acceptWire,
 			suList,
 		); err != nil {
-			n2Setup.End()
+			n2Setup.End(ctx)
 			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
 
 			return
 		}
 
-		n2Setup.Arm(amfInstance.N2SetupGuardCfg)
+		n2Setup.Arm(ctx, amfInstance.N2SetupGuardCfg)
 	} else {
-		n2Setup.End()
+		n2Setup.End(ctx)
 
 		if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
 			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
@@ -397,7 +397,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
-	amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+	amf.ArmRegistrationAcceptGuard(ctx, amfInstance, ue, plain)
 
 	logger.From(ctx, logger.AmfLog).Info("sent registration accept")
 }

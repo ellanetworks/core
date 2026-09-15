@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext) nasreply.Disposition {
+func handleConfigurationUpdateComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) nasreply.Disposition {
 	if state := ue.State(); state != amf.Registered {
 		logger.AmfLog.Warn("state mismatch: receive Configuration Update Complete message", zap.String("state", string(state)))
 		return nasreply.Silent(nasreply.ReasonOutOfState)
@@ -20,16 +20,16 @@ func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.UeContext) 
 
 	conn := ue.Conn()
 	if conn != nil {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 	}
 
 	amfInstance.CommitGUTIRealloc(ue)
 
 	if req := ue.PagingPending().Request(); req != nil && req.Standalone() {
-		ue.PagingDelivered()
+		ue.PagingDelivered(ctx)
 
-		if err := amf.DeliverStandaloneN1N2(context.Background(), ue, conn, req); err != nil {
-			logger.AmfLog.Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
+		if err := amf.DeliverStandaloneN1N2(ctx, ue, conn, req); err != nil {
+			logger.WithTrace(ctx, logger.AmfLog).Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
 		}
 	}
 

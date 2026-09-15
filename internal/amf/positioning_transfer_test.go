@@ -29,7 +29,7 @@ func idlePageableUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *fakeN
 	})
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	radio := &amf.Radio{Conn: sender}
@@ -77,7 +77,7 @@ func TestTransferN1LPPMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Errorf("buffered correlation id = %x, want %x", req.LCSCorrelationID, correlID)
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 // TS 24.501 §5.4.5.3.1
@@ -97,7 +97,7 @@ func TestTransferN1LPPMsg_IdleUE_AssignsCorrelationID(t *testing.T) {
 		t.Errorf("correlation id = %x, want a 4-octet AMF-assigned value", req.LCSCorrelationID)
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 // TS 23.273 §6.11.2
@@ -135,7 +135,7 @@ func TestTransferN2NRPPaMsg_IdleUE_BuffersAsN1N2AndPages(t *testing.T) {
 		t.Error("expected no PDU session scoping on a positioning request")
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 func TestCancelBufferedN1N2_LeavesOtherClass(t *testing.T) {
@@ -145,13 +145,13 @@ func TestCancelBufferedN1N2_LeavesOtherClass(t *testing.T) {
 		t.Fatalf("unexpected error buffering the SM request: %v", err)
 	}
 
-	amfInstance.CancelBufferedN1N2(ue.SupiForTest(), models.N1ClassLPP, models.N2ClassNRPPa)
+	amfInstance.CancelBufferedN1N2(t.Context(), ue.SupiForTest(), models.N1ClassLPP, models.N2ClassNRPPa)
 
 	if ue.PagingPending().Request() == nil {
 		t.Error("an SM buffer must survive a cancel for other classes")
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
@@ -165,7 +165,7 @@ func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := amfInstance.TransferN1LPPMsg(context.Background(), ue.SupiForTest(), []byte{0x01, 0x02, 0x03, 0x04}, []byte{0xaa}); err != nil {
 		t.Fatalf("unexpected error: %v", err)

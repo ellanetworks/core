@@ -39,7 +39,7 @@ func TestSnapshotConnectedAgreesWithConnection(t *testing.T) {
 			a.attachUeConnLocked(ue, ueConn)
 			a.mu.Unlock()
 
-			ueConn.Release()
+			ueConn.Release(t.Context())
 		}
 	}()
 

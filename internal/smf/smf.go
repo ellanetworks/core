@@ -25,6 +25,23 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf/session")
 
+func guardSpan(link trace.SpanContext, spanName string, timer string, attempt int32) (context.Context, trace.Span) {
+	opts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String("nas.guard.timer", timer)),
+	}
+
+	if attempt > 0 {
+		opts = append(opts, trace.WithAttributes(attribute.Int("nas.guard.attempt", int(attempt))))
+	}
+
+	if link.IsValid() {
+		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: link}))
+	}
+
+	return tracer.Start(context.Background(), spanName, opts...)
+}
+
 // ErrDNNNotFound indicates that the requested data network (DNN) does not exist.
 var ErrDNNNotFound = errors.New("data network not found")
 

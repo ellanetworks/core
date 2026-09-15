@@ -18,7 +18,7 @@ func TestConnectedSubscribers(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
-	registered := m.NewUe(conn, 7)
+	registered := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, registered, "001010000000001")
 	registered.ForceStateForTest(EMMRegistered)
 	registered.cipheringAlg = 2
@@ -31,11 +31,11 @@ func TestConnectedSubscribers(t *testing.T) {
 	testPDN(registered).UeIP = netip.MustParseAddr("10.45.0.2")
 	registered.TouchLastSeen()
 
-	deregistered := m.NewUe(conn, 8)
+	deregistered := m.NewUe(t.Context(), conn, 8)
 	registerTestUE(m, deregistered, "001010000000002")
 	deregistered.ForceStateForTest(EMMDeregistered)
 
-	noIMSI := m.NewUe(conn, 9)
+	noIMSI := m.NewUe(t.Context(), conn, 9)
 	noIMSI.ForceStateForTest(EMMRegistered)
 
 	got := m.ConnectedSubscribers()
@@ -87,7 +87,7 @@ func TestStatusIncludesIdleSubscriber(t *testing.T) {
 	ue.ForceStateForTest(EMMRegistered)
 	testPDN(ue).Apn = "internet"
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	if ue.Connected() {
 		t.Fatal("UE still connected after FreeUeConn")
@@ -123,7 +123,7 @@ func TestLookupSubscriber(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, "001010000000001")
 	ue.ForceStateForTest(EMMRegistered)
 
@@ -140,11 +140,11 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	m := newTestMME(t)
 	conn := new(sctp.SCTPConn)
 
-	a := m.NewUe(conn, 7)
+	a := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, a, "001010000000001")
 	a.ForceStateForTest(EMMRegistered)
 
-	b := m.NewUe(conn, 8)
+	b := m.NewUe(t.Context(), conn, 8)
 	registerTestUE(m, b, "001010000000002")
 	b.ForceStateForTest(EMMDeregistered)
 
@@ -177,7 +177,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, "001010000000001")
 	ue.ForceStateForTest(EMMRegistered)
 
@@ -190,7 +190,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 		t.Fatalf("connected UE: found=%v Connected=%v, want true/true", ok, cs.Connected)
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	cs, ok = m.LookupSubscriber("001010000000001")
 	if !ok {
@@ -228,7 +228,7 @@ func TestLastSeenRadioFollowsARename(t *testing.T) {
 	m := newTestMME(t)
 	conn := connectENB(t, m, "enb-a", 1)
 
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, imsi)
 	ue.ForceStateForTest(EMMRegistered)
 
@@ -236,7 +236,7 @@ func TestLastSeenRadioFollowsARename(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	m.UpdateRadioName(m.RadioForConn(conn), "enb-a-renamed")
 
@@ -257,7 +257,7 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: "enb-unclaimed"})
 
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, imsi)
 	ue.ForceStateForTest(EMMRegistered)
 
@@ -286,7 +286,7 @@ func TestLastSeenRadioFollowsAnX2PathSwitch(t *testing.T) {
 	source := connectENB(t, m, "enb-a", 1)
 	target := connectENB(t, m, "enb-b", 2)
 
-	ue := m.NewUe(source, 7)
+	ue := m.NewUe(t.Context(), source, 7)
 	registerTestUE(m, ue, imsi)
 	ue.ForceStateForTest(EMMRegistered)
 
@@ -300,7 +300,7 @@ func TestLastSeenRadioFollowsAnX2PathSwitch(t *testing.T) {
 		t.Fatal("CommitPathSwitch reported the UE released")
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	seen, ok := m.LastSeen(imsi)
 	if !ok {

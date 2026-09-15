@@ -24,9 +24,9 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 }
 
 func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
-	ue.TransitionTo(mme.EMMDeregistered)
+	ue.TransitionTo(ctx, mme.EMMDeregistered)
 	releaseDetachSessions(ctx, m, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 
@@ -49,7 +49,7 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	ue.TransitionTo(mme.EMMDeregistered)
+	ue.TransitionTo(ctx, mme.EMMDeregistered)
 
 	// Release the user plane before acknowledging the detach, so the UPF has stopped
 	// forwarding by the time the UE acts on the DETACH ACCEPT (TS 23.401 §5.3.8.2.1);

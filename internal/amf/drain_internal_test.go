@@ -381,7 +381,7 @@ func TestGUAMIUnavailableIsResentAfterNGSetup(t *testing.T) {
 
 	a.SetEligible(context.Background(), false)
 
-	if _, err := a.ClaimRanID(radio, drainTestRanNodeID(), DefaultRelativeCapacity); err != nil {
+	if _, err := a.ClaimRanID(t.Context(), radio, drainTestRanNodeID(), DefaultRelativeCapacity); err != nil {
 		t.Fatalf("ClaimRanID: %v", err)
 	}
 
@@ -402,7 +402,7 @@ func TestSetupAcceptRecordsTheCapacityTheResponseCarried(t *testing.T) {
 
 	a.setRelativeCapacity(DefaultRelativeCapacity)
 
-	if _, err := a.ClaimRanID(radio, drainTestRanNodeID(), DefaultRelativeCapacity); err != nil {
+	if _, err := a.ClaimRanID(t.Context(), radio, drainTestRanNodeID(), DefaultRelativeCapacity); err != nil {
 		t.Fatalf("ClaimRanID: %v", err)
 	}
 

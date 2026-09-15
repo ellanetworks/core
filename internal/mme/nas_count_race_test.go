@@ -19,7 +19,7 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 	conn := new(sctp.SCTPConn)
 	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	ue.supi, _ = etsi.NewSUPIFromIMSI("001010000000001")
 	ue.ForceStateForTest(EMMRegistered)
 	ue.cipheringAlg, ue.integrityAlg = 0, 0

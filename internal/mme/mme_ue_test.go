@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TS 24.301 §5.5.1.2.7
@@ -15,7 +16,7 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 	m := newTestMME(t)
 	victim, _ := securedUE(t, m)
 
-	attacker := m.NewUe(&captureConn{}, 8)
+	attacker := m.NewUe(t.Context(), &captureConn{}, 8)
 	m.SetIMSI(attacker, victim.IMSI())
 
 	got, ok := m.LookupUeByIMSI(victim.IMSI())
@@ -49,7 +50,7 @@ func TestEstablishS1ConnectionMarksSecureExchange(t *testing.T) {
 
 func establishResumeForTest(m *MME, ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
-	m.AttachUeConn(ue, c)
+	m.AttachUeConn(context.Background(), ue, c)
 	c.MarkSecureExchangeEstablished()
 }
 
@@ -62,7 +63,7 @@ func TestAttachUeConn_ClearsEPSPagingSuppression(t *testing.T) {
 		6: {Ebi: 6},
 	}
 
-	m.AttachUeConn(ue, m.NewUeConn(&captureConn{}, 9))
+	m.AttachUeConn(t.Context(), ue, m.NewUeConn(&captureConn{}, 9))
 
 	fake := m.Session.(*fakeSessionManager)
 	if fake.clearSuppressionCalls != 2 {
@@ -79,7 +80,7 @@ func TestAbandonPaging_SuppressesAllPDNs(t *testing.T) {
 		6: {Ebi: 6},
 	}
 
-	m.abandonPaging(ue)
+	m.abandonPaging(trace.SpanContext{}, ue)
 
 	fake := m.Session.(*fakeSessionManager)
 	if fake.suppressCalls != 2 {

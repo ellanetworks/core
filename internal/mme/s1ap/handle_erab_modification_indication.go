@@ -23,22 +23,22 @@ var causeERABModOmittedERAB = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Val
 // bearer-relocation case) and confirms them (TS 36.413 §8.2.4). Per §8.2.4.4, an
 // indication that repeats an E-RAB ID or omits an E-RAB already in the UE context
 // is abnormal and triggers a UE Context Release, not a modification.
-func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseERABModificationIndication(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcERABModificationIndication, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModificationIndication, err)
 		return
 	}
 
 	// resolveUE checks both identities and the sending eNB. The procedure has no
 	// failure message, so an unresolvable UE is reported with an Error
 	// Indication (TS 36.413 §10.3.5).
-	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, msg.UserLocationInformation)
@@ -59,7 +59,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	modified := modifyBearerDownlinks(m, ctx, ue, msg.ToBeModified)
+	modified := modifyBearerDownlinks(ctx, m, ue, msg.ToBeModified)
 
 	confirm := &s1ap.ERABModificationConfirm{
 		MMEUES1APID:   s1ap.Ptr(msg.MMEUES1APID),
@@ -80,7 +80,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
 }
 
-func modifyBearerDownlinks(m *mme.MME, ctx context.Context, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) []s1ap.ERABID {
+func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) []s1ap.ERABID {
 	present := make([]mme.RANBearer, 0, len(items))
 
 	for _, erab := range items {

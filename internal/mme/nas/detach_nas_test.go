@@ -52,7 +52,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	mmes1ap.HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("UE context not deleted after network-initiated detach")
@@ -159,7 +159,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	mmes1ap.HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("UE context not deleted after release complete")

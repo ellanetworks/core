@@ -19,7 +19,7 @@ func handleGUTIReallocationComplete(ctx context.Context, m *mme.MME, ue *mme.UeC
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 	m.CommitGUTIRealloc(ue)
 
 	return nasreply.Handled()

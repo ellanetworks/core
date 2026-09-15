@@ -209,7 +209,7 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	}
 
 	smContext.Mutex.Lock()
-	s.scheduleForwardingRelease(smContext)
+	s.scheduleForwardingRelease(ctx, smContext)
 	smContext.Mutex.Unlock()
 
 	return s.finishBinding(ctx, smContext, dropped, err)

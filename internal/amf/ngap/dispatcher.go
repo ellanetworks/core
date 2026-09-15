@@ -32,11 +32,11 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 		ran, err = amfInstance.NewRadio(conn)
 		if err != nil {
-			logger.AmfLog.Error("Failed to add a new radio", zap.Error(err))
+			logger.WithTrace(ctx, logger.AmfLog).Error("Failed to add a new radio", zap.Error(err))
 			return
 		}
 
-		logger.AmfLog.Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
+		logger.WithTrace(ctx, logger.AmfLog).Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
 	}
 
 	if len(msg) == 0 {

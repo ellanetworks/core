@@ -16,7 +16,7 @@ func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), []byte{0xff, 0xff, 0xff})
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(cc), []byte{0xff, 0xff, 0xff})
 
 	if cc.count() != 1 {
 		t.Fatalf("expected 1 Error Indication, got %d", cc.count())
@@ -47,7 +47,7 @@ func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 
 	emmStatus := []byte{0x07, 0x60, 0x00}
 	for i := 0; i < 100; i++ {
-		HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(nil), initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))
+		HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(nil), initiatingValue(t, initialUEMessagePDU(t, s1ap.ENBUES1APID(1000+i), emmStatus)))
 	}
 
 	if got := m.ConnCountForTest(); got != 0 {

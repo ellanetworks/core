@@ -37,7 +37,7 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 
 	msg := &ngap.PDUSessionResourceReleaseResponse{
@@ -77,7 +77,7 @@ func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedBeforeSMFNotifi
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 
 	reactivated := false
@@ -114,7 +114,7 @@ func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedWhenSMFRemovesS
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 
 	msg := &ngap.PDUSessionResourceReleaseResponse{

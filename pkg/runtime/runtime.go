@@ -577,7 +577,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// the read loop), so no separate Notify handler is needed.
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
-				amfInstance.DisconnectRadio(context.Background(), ran)
+				amfInstance.DisconnectRadioOnConnLoss(ran)
 				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
@@ -651,12 +651,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// 2. Cancel all AMF UE timers immediately so paging and other
 		//    retransmissions stop firing during teardown.
 		logger.EllaLog.Info("Cancelling AMF timers")
-		amfInstance.StopAllTimers()
+
+		amfCtx, amfCancel := context.WithTimeout(context.Background(), stepTimeout)
+
+		amfInstance.StopAllTimers(amfCtx)
 
 		// 3. Notify RANs and close SCTP connections.
 		logger.EllaLog.Info("Shutting down AMF")
 
-		amfCtx, amfCancel := context.WithTimeout(context.Background(), stepTimeout)
 		closeAMF(amfCtx, amfInstance, sctpServer)
 		amfCancel()
 

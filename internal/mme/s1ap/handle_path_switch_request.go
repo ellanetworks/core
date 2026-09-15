@@ -24,10 +24,10 @@ var (
 // handlePathSwitchRequest handles an X2-handover PATH SWITCH REQUEST from the
 // target eNB, advancing the {NH, NCC} key chain and switching the UE's S1-U
 // downlink, or replying with FAILURE (TS 36.413).
-func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
-		rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcPathSwitchRequest, err,
+		rejectWithFailure(ctx, m, radio.Conn, s1ap.ProcPathSwitchRequest, err,
 			func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
 				mmeID, enbID := rejectedUEIDs(err)
 
@@ -39,14 +39,14 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcPathSwitchRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(req.SourceMMEUES1APID, req.ENBUES1APID), req.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcPathSwitchRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(req.SourceMMEUES1APID, req.ENBUES1APID), req.Diagnostics())
 
 	// TS 36.413: a to-be-switched list repeating an E-RAB ID is an
 	// abnormal condition the MME rejects.
 	if id, dup := duplicateERABID(req.ERABToBeSwitchedDL); dup {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request with a duplicate E-RAB ID",
 			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
-		sendPathSwitchFailure(m, radio.Conn, req, causeMultipleERABInstances)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causeMultipleERABInstances)
 
 		return
 	}
@@ -55,7 +55,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request for unknown UE",
 			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)))
-		sendPathSwitchFailure(m, radio.Conn, req, causeUnknownMMEUES1APID)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causeUnknownMMEUES1APID)
 
 		return
 	}
@@ -70,7 +70,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	if !ue.Secured() || !ue.HasKASME() {
 		logger.From(ctx, ueLog).Warn("Path Switch Request for a UE without a security context")
-		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchNoSecurity)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchNoSecurity)
 
 		return
 	}
@@ -82,7 +82,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request while the key chain is being advanced",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
-		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
 	}
@@ -95,7 +95,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	newNH, err := m.AdvancePathSwitchNH(ue, curNH)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to advance NH for Path Switch", zap.Error(err))
-		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
 	}
@@ -116,7 +116,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 		m.DetachUEAfterPathSwitchFailure(ctx, ue)
 
-		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
 	}
@@ -127,7 +127,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
-		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
+		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
 	}
@@ -209,7 +209,7 @@ func releasedERABItems(failed []uint8) []s1ap.ERABItem {
 
 // sendPathSwitchFailure sends a PATH SWITCH REQUEST FAILURE on the association the
 // request arrived on (TS 36.413). The UE keeps its source-eNB context.
-func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
+func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitchRequest, cause s1ap.Cause) {
 	fail := &s1ap.PathSwitchRequestFailure{
 		MMEUES1APID: s1ap.Ptr(req.SourceMMEUES1APID),
 		ENBUES1APID: s1ap.Ptr(req.ENBUES1APID),
@@ -218,12 +218,12 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 
 	b, err := fail.Marshal()
 	if err != nil {
-		logger.MmeLog.Error("failed to marshal Path Switch Request Failure", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to marshal Path Switch Request Failure", zap.Error(err))
 		return
 	}
 
 	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
-	m.SendToRadio(context.Background(), conn, mme.S1APProcedurePathSwitchRequestFailure, b)
+	m.SendToRadio(ctx, conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target

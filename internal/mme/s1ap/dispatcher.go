@@ -44,7 +44,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		logger.From(ctx, m.RadioLog(conn)).Warn("failed to decode S1AP PDU", zap.Error(err))
 
 		if conn != nil {
-			sendProtocolErrorIndication(m, conn, s1ap.CauseProtocolTransferSyntaxError)
+			sendProtocolErrorIndication(ctx, m, conn, s1ap.CauseProtocolTransferSyntaxError)
 		}
 
 		return
@@ -82,10 +82,10 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	// S1 Setup creates the radio, so it takes the raw conn (radio may be nil on a parse
 	// failure); every other procedure is dispatched by Route (TS 36.413).
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
-		handleS1Setup(m, ctx, conn, im.Value)
+		handleS1Setup(ctx, m, conn, im.Value)
 
 		return
 	}
 
-	Route(m, ctx, radio, pdu)
+	Route(ctx, m, radio, pdu)
 }

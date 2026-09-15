@@ -120,7 +120,7 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 	ue := newAttachUe(m, cc, 8)
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), mme.EMMRegistrationInitiated)
 
 	idResp, err := (&eps.IdentityResponse{MobileIdentity: eps.MobileIMSI(eps.IMSI(testSubscriber.IMSI))}).MarshalBinary()
 	if err != nil {
@@ -551,7 +551,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 		t.Fatal("could not claim the security mode exchange")
 	}
 
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), mme.EMMRegistrationInitiated)
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
 
 	plain, err := (&eps.SecurityModeReject{Cause: 23}).MarshalBinary()

@@ -91,7 +91,7 @@ func (ue *UeContext) MTDeliveryInProgress() bool {
 	return ue.PagingState() != PagingIdle
 }
 
-func (ue *UeContext) beginPaging(req *MTRequest) (models.N1N2MessageTransferCause, error) {
+func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1N2MessageTransferCause, error) {
 	ue.paging.mu.Lock()
 
 	if ue.paging.state == PagingAttempting && !outranks(req.arp(), ue.paging.pending.arp()) {
@@ -112,7 +112,7 @@ func (ue *UeContext) beginPaging(req *MTRequest) (models.N1N2MessageTransferCaus
 	ue.paging.mu.Unlock()
 
 	if displaced != nil && !sameDelivery(displaced, req) {
-		ue.notifyMTDeliveryFailure(displaced, models.N1N2FailureCauseUnspecified)
+		ue.notifyMTDeliveryFailure(ctx, displaced, models.N1N2FailureCauseUnspecified)
 	}
 
 	return models.N1N2AttemptingToReachUE, nil
@@ -149,7 +149,7 @@ func (ue *UeContext) PagingAnswered() {
 	}
 }
 
-func (ue *UeContext) PagingDelivered() {
+func (ue *UeContext) PagingDelivered(ctx context.Context) {
 	if ue == nil {
 		return
 	}
@@ -163,10 +163,10 @@ func (ue *UeContext) PagingDelivered() {
 
 	ue.paging.mu.Unlock()
 
-	ue.Conn().ResumeDeferredReleaseIfSettled()
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 }
 
-func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequest {
+func (ue *UeContext) PagingFailed(ctx context.Context, cause models.N1N2MessageTransferCause) *MTRequest {
 	if ue == nil {
 		return nil
 	}
@@ -178,15 +178,15 @@ func (ue *UeContext) PagingFailed(cause models.N1N2MessageTransferCause) *MTRequ
 	ue.paging.mu.Unlock()
 
 	if dropped != nil {
-		ue.notifyMTDeliveryFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
 
-	ue.Conn().ResumeDeferredReleaseIfSettled()
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 
 	return dropped
 }
 
-func (ue *UeContext) PagingUnanswered(cause models.N1N2MessageTransferCause) (*MTRequest, bool) {
+func (ue *UeContext) PagingUnanswered(ctx context.Context, cause models.N1N2MessageTransferCause) (*MTRequest, bool) {
 	if ue == nil {
 		return nil, false
 	}
@@ -206,13 +206,13 @@ func (ue *UeContext) PagingUnanswered(cause models.N1N2MessageTransferCause) (*M
 	ue.paging.mu.Unlock()
 
 	if dropped != nil {
-		ue.notifyMTDeliveryFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
 
 	return dropped, true
 }
 
-func (ue *UeContext) PagingAttemptFailed(req *MTRequest, cause models.N1N2MessageTransferCause) {
+func (ue *UeContext) PagingAttemptFailed(ctx context.Context, req *MTRequest, cause models.N1N2MessageTransferCause) {
 	if ue == nil {
 		return
 	}
@@ -232,10 +232,10 @@ func (ue *UeContext) PagingAttemptFailed(req *MTRequest, cause models.N1N2Messag
 	ue.paging.guard.Stop()
 
 	if dropped != nil {
-		ue.notifyMTDeliveryFailure(dropped, cause)
+		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
 	}
 
-	ue.Conn().ResumeDeferredReleaseIfSettled()
+	ue.Conn().ResumeDeferredReleaseIfSettled(ctx)
 }
 
 func (ue *UeContext) takePendingLocked() *MTRequest {
@@ -246,13 +246,13 @@ func (ue *UeContext) takePendingLocked() *MTRequest {
 	return dropped
 }
 
-func (ue *UeContext) notifyMTDeliveryFailure(req *MTRequest, cause models.N1N2MessageTransferCause) {
+func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest, cause models.N1N2MessageTransferCause) {
 	if ue.smf == nil || req == nil || req.Req.Standalone() {
 		return
 	}
 
-	if err := ue.smf.HandleN1N2TransferFailure(context.Background(), ue.Supi(), req.Req.PduSessionID, cause); err != nil {
-		logger.AmfLog.Warn("could not report an N1N2 transfer failure",
+	if err := ue.smf.HandleN1N2TransferFailure(ctx, ue.Supi(), req.Req.PduSessionID, cause); err != nil {
+		logger.WithTrace(ctx, logger.AmfLog).Warn("could not report an N1N2 transfer failure",
 			logger.SUPI(ue.Supi().String()),
 			zap.Uint8("pdu_session_id", req.Req.PduSessionID),
 			zap.String("cause", cause.String()),

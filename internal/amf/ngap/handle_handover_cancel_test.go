@@ -79,7 +79,7 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
 
 	amfUe := amf.NewUeContext()
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)
@@ -127,7 +127,7 @@ func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
 
 	amfUe := amf.NewUeContext()
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)

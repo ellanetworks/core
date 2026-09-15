@@ -197,7 +197,7 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	return amfInstance, amfUe, sender, sourceRan
 }

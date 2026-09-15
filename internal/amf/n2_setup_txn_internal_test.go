@@ -30,7 +30,7 @@ func TestEndN2SetupTxnOnlyClosesTheTransactionItNames(t *testing.T) {
 	stale := conn.n2Setups.open[N2SetupPDUSession]
 	conn.n2Setups.mu.Unlock()
 
-	conn.EndN2Setup(N2SetupPDUSession)
+	conn.EndN2Setup(t.Context(), N2SetupPDUSession)
 
 	if len(conn.N2Setup(N2SetupPDUSession).Claim([]uint8{2})) != 1 {
 		t.Fatal("could not open a second transaction")
@@ -57,13 +57,13 @@ func TestArmN2SetupDoesNotOrphanAGuardAcrossEnd(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			conn.N2Setup(N2SetupPDUSession).Arm(cfg)
+			conn.N2Setup(N2SetupPDUSession).Arm(t.Context(), cfg)
 		}()
 
 		go func() {
 			defer wg.Done()
 
-			conn.EndN2Setup(N2SetupPDUSession)
+			conn.EndN2Setup(t.Context(), N2SetupPDUSession)
 		}()
 
 		wg.Wait()

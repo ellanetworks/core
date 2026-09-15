@@ -15,11 +15,11 @@ import (
 
 // handleENBConfigurationUpdate validates any updated supported TAs against the
 // served PLMN/TAC and acknowledges, or fails the update (TS 36.413 §8.7.4).
-func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
 		logger.From(ctx, radio.Log).Warn("failed to decode ENB Configuration Update", zap.Error(err))
-		rejectENBConfigurationUpdate(m, ctx, radio, err)
+		rejectENBConfigurationUpdate(ctx, m, radio, err)
 
 		return
 	}
@@ -38,7 +38,7 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		plmn, tacs, err = servedPLMNAndTACs(ctx, m)
 		if err != nil {
 			logger.From(ctx, radio.Log).Error("Could not get operator info", zap.Error(err))
-			sendENBConfigurationUpdateFailure(m, ctx, radio, causeUnspecified, nil)
+			sendENBConfigurationUpdateFailure(ctx, m, radio, causeUnspecified, nil)
 
 			return
 		}
@@ -49,7 +49,7 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		// §8.7.4.3 obliges an answer whenever the MME cannot accept the update,
 		// which includes being unable to build its own response.
 		logger.From(ctx, radio.Log).Error("failed to handle ENB Configuration Update", zap.Error(err))
-		sendENBConfigurationUpdateFailure(m, ctx, radio, causeUnspecified, nil)
+		sendENBConfigurationUpdateFailure(ctx, m, radio, causeUnspecified, nil)
 
 		return
 	}
@@ -106,7 +106,7 @@ func servedPLMNAndTACs(ctx context.Context, m *mme.MME) (s1ap.PLMNIdentity, []ui
 // FAILURE carrying cause and, where the rejection answers a protocol error, the
 // per-IE diagnostics §10.3.5 wants. §8.7.4.3 obliges a response whenever the MME
 // cannot accept the update, including when it cannot read its own configuration.
-func sendENBConfigurationUpdateFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) {
+func sendENBConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) {
 	pkt, err := (&s1ap.ENBConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
 		logger.From(ctx, radio.Log).Error("error building ENB Configuration Update Failure", zap.Error(err))
@@ -119,8 +119,8 @@ func sendENBConfigurationUpdateFailure(m *mme.MME, ctx context.Context, radio *m
 // rejectENBConfigurationUpdate answers an undecodable update with ENB
 // CONFIGURATION UPDATE FAILURE, falling back to the Error Indication procedure
 // where the outcome cannot be built (TS 36.413 §10.3.5).
-func rejectENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, err error) {
-	rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcENBConfigurationUpdate, err,
+func rejectENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Radio, err error) {
+	rejectWithFailure(ctx, m, radio.Conn, s1ap.ProcENBConfigurationUpdate, err,
 		func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
 			return (&s1ap.ENBConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 		}, mme.S1APProcedureENBConfigUpdateFailure)

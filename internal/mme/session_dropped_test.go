@@ -43,7 +43,7 @@ func TestSessionDropped(t *testing.T) {
 	t.Run("the last PDN of an idle-mode move: the context waits for the acknowledgement", func(t *testing.T) {
 		m := newTestMME(t)
 		ue, _ := securedUE(t, m)
-		ue.TransitionTo(EMMRegistered)
+		ue.TransitionTo(t.Context(), EMMRegistered)
 		ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 		p := testPDN(ue)
@@ -67,7 +67,7 @@ func TestSessionDropped(t *testing.T) {
 	t.Run("the last PDN outside an inter-system move: the context goes with it", func(t *testing.T) {
 		m := newTestMME(t)
 		ue, _ := securedUE(t, m)
-		ue.TransitionTo(EMMRegistered)
+		ue.TransitionTo(t.Context(), EMMRegistered)
 
 		p := testPDN(ue)
 		p.SessionRef = "imsi-001010000000001-3#1"
@@ -98,7 +98,7 @@ func TestSessionDropped(t *testing.T) {
 func TestReleasePDNDeregistersAUELeftWithNone(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"
@@ -118,7 +118,7 @@ func TestReleasePDNDeregistersAUELeftWithNone(t *testing.T) {
 func TestReleasePDNKeepsAUEWithAnotherConnection(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"
@@ -136,7 +136,7 @@ func TestReleasePDNKeepsAUEWithAnotherConnection(t *testing.T) {
 func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	p := testPDN(ue)
@@ -165,7 +165,7 @@ func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 func TestMMContextAckReleasesPDNsFiveGSDidNotAdopt(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	moved := testPDN(ue)
 	moved.SessionRef = "imsi-001010000000001-3#1"
@@ -192,7 +192,7 @@ func TestMMContextAckReleasesPDNsFiveGSDidNotAdopt(t *testing.T) {
 func TestSessionDroppedLeavesTheReleaseToACommittingRelocationToFiveGS(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"

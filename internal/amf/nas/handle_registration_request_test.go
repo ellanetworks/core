@@ -273,7 +273,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	}
 
 	ue.ArmPagingForTest(10*time.Minute, 10)
-	amfInstance.AttachUeConn(ue, ue.Conn())
+	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -1225,7 +1225,7 @@ func buildUeAndRadio() (*amf.UeContext, *fakeNGAPSender, error) {
 		Tac: "000001",
 	}
 
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(context.Background(), ue, ueConn)
 
 	return ue, &ngapSender, nil
 }

@@ -14,10 +14,10 @@ import (
 
 // handleHandoverRequired starts S1 handover preparation toward the target eNB,
 // or replies HANDOVER PREPARATION FAILURE (TS 36.413 §8.4.1).
-func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {
-		rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, err,
+		rejectWithFailure(ctx, m, radio.Conn, s1ap.ProcHandoverPreparation, err,
 			func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
 				mmeID, enbID := rejectedUEIDs(err)
 
@@ -29,12 +29,12 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), req.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverPreparation, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), req.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -47,7 +47,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	}
 
 	if req.HandoverType == s1ap.HandoverTypeEPSToFiveGS {
-		handoverRequiredToFiveGS(m, ctx, radio, req, ue, ueConn)
+		handoverRequiredToFiveGS(ctx, m, radio, req, ue, ueConn)
 
 		return
 	}

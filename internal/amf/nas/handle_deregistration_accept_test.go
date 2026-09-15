@@ -42,7 +42,7 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.Conn().AMFForTest().ReleaseNasConnection(ue, nil)
+	ue.Conn().AMFForTest().ReleaseNasConnection(t.Context(), ue, nil)
 
 	handleDeregistrationAccept(t.Context(), ue)
 

@@ -55,7 +55,7 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("no session to move onto 5GS: %w", err)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("failed to prepare a session move onto 5GS: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 		return "", nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
 	}
 

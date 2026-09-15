@@ -21,11 +21,11 @@ func TestRegistrationAcceptGuardRetransmitsOnItsOwnConnection(t *testing.T) {
 	amfInstance := ue.Conn().amf
 	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Millisecond, MaxRetryTimes: 8}
 
-	ArmRegistrationAcceptGuard(amfInstance, ue, registrationAcceptPlain())
+	ArmRegistrationAcceptGuard(t.Context(), amfInstance, ue, registrationAcceptPlain())
 
 	sender.awaitWrites(t, 1)
 
-	ue.Conn().StopNASGuard()
+	ue.Conn().StopNASGuard(t.Context())
 }
 
 func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testing.T) {
@@ -35,7 +35,7 @@ func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testin
 	amfInstance := original.amf
 	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 150 * time.Millisecond, MaxRetryTimes: 8}
 
-	ArmRegistrationAcceptGuard(amfInstance, ue, registrationAcceptPlain())
+	ArmRegistrationAcceptGuard(t.Context(), amfInstance, ue, registrationAcceptPlain())
 
 	replacementSender := &downlinkOrderConn{wrote: make(chan struct{}, 1)}
 
@@ -48,7 +48,7 @@ func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testin
 	replacement.setRadio("", "test-gNB")
 	replacement.setLog(zap.NewNop())
 
-	amfInstance.AttachUeConn(ue, replacement)
+	amfInstance.AttachUeConn(t.Context(), ue, replacement)
 
 	time.Sleep(600 * time.Millisecond)
 

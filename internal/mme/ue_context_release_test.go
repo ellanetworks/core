@@ -12,7 +12,7 @@ import (
 func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(t.Context(), EMMRegistered)
 
 	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
 
@@ -20,10 +20,10 @@ func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 		t.Fatalf("first release sent %d messages, want 1 UE Context Release Command", len(cc.sent))
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	second := &captureConn{}
-	m.AttachUeConn(ue, m.NewUeConn(second, 8))
+	m.AttachUeConn(t.Context(), ue, m.NewUeConn(second, 8))
 
 	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
 
@@ -44,7 +44,7 @@ func TestAttachUeConn_DeactivatesTheSupersededConnectionsUserPlane(t *testing.T)
 	fake.deactivated = false
 
 	second := m.NewUeConn(&captureConn{}, 9)
-	m.AttachUeConn(ue, second)
+	m.AttachUeConn(t.Context(), ue, second)
 
 	if !fake.deactivated {
 		t.Error("the superseded connection's user plane was left pointing at a released eNB context")
