@@ -29,6 +29,9 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -49,6 +52,8 @@ const (
 // routeReconciler is used to reconcile routes periodically.
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
+
+var tracer = otel.Tracer("ella-core/api")
 
 // routeReconcileBackstop is the periodic invariant-checking sweep
 // when no change events have fired. The primary trigger is the
@@ -410,7 +415,20 @@ func resolveScheme(cfg config.Config) Scheme {
 // reconciler skips the bgpRouteMetric to avoid stepping on it.
 const bgpRouteMetric = 200
 
-func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {
+func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) (err error) {
+	ctx, span := tracer.Start(ctx, "api/reconcile_routes",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "kernel route reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	expectedRoutes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)

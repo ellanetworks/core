@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -172,7 +174,20 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 }
 
 // Reconcile performs one pass. Exposed for tests and explicit triggers.
-func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
+func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "bgp/reconcile_settings",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "bgp settings reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	desiredSettings, err := r.store.GetSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("get settings: %w", err)

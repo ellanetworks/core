@@ -15,6 +15,9 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -26,6 +29,8 @@ const (
 	directionUplinkString   = "uplink"
 	directionDownlinkString = "downlink"
 )
+
+var tracer = otel.Tracer("ella-core/upf")
 
 // SettingsStore is the narrow view the reconciler needs over the DB.
 // *db.Database satisfies it; a fake satisfies it in tests.
@@ -211,7 +216,20 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func (r *SettingsReconciler) reconcileSettings(ctx context.Context) error {
+func (r *SettingsReconciler) reconcileSettings(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "upf/reconcile_settings",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "upf settings reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	if err := r.reconcileDatapathSettings(ctx); err != nil {
 		return err
 	}
@@ -326,7 +344,20 @@ func (r *SettingsReconciler) reconcileN3Address(ctx context.Context) error {
 	return nil
 }
 
-func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
+func (r *SettingsReconciler) reconcileFilters(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "upf/reconcile_filters",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "upf policy filter reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	policies, _, err := r.store.ListPoliciesPage(ctx, 1, 1000)
 	if err != nil {
 		return fmt.Errorf("list policies: %w", err)

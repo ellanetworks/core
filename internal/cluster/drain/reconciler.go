@@ -10,6 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +24,8 @@ const (
 
 	DefaultDeadline = time.Hour
 )
+
+var tracer = otel.Tracer("ella-core/cluster/drain")
 
 type Eligibility interface {
 	SetEligible(ctx context.Context, eligible bool) int
@@ -126,6 +130,11 @@ func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context) {
+	ctx, span := tracer.Start(ctx, "drain/reconcile",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	state, ok := r.localState(ctx)
 	if !ok {
 		return
