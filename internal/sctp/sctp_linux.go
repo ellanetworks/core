@@ -449,7 +449,7 @@ func (c *SCTPConn) setReadBuffer(bytes int) error {
 // with the given SCTP options. The listener integrates with Go's runtime
 // poller via os.NewFile, enabling safe concurrent Accept/Close without manual
 // epoll or wakeup pipes.
-func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *rtoInfo, assocInfo *assocInfo, control func(network, address string, c syscall.RawConn) error) (*sctpListener, error) {
+func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoInfo *rtoInfo, assocInfo *assocInfo, control func(network, address string, c syscall.RawConn) error) (*Listener, error) {
 	af, ipv6only := favoriteAddrFamily(network, laddr, nil, "listen")
 
 	sock, err := syscall.Socket(
@@ -525,6 +525,17 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
+	boundAddr, addrErr := sctpGetAddrs(sock, 0, sctpOptGetLocalAddrs)
+	if addrErr != nil {
+		if laddr == nil || laddr.Port == 0 {
+			err = fmt.Errorf("failed to resolve bound address: %w", addrErr)
+
+			return nil, err
+		}
+
+		boundAddr = laddr
+	}
+
 	// Wrap the listener socket in os.File. Because the socket was created with
 	// SOCK_NONBLOCK, os.NewFile detects the non-blocking flag and registers the
 	// fd with Go's runtime poller. This enables Accept to park the goroutine
@@ -547,14 +558,14 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, fmt.Errorf("SyscallConn: %w", err)
 	}
 
-	return &sctpListener{file: f, rc: rc}, nil
+	return &Listener{file: f, rc: rc, laddr: boundAddr}, nil
 }
 
 // Accept waits for an incoming SCTP connection. It uses Go's runtime poller:
 // the goroutine parks efficiently until a connection is ready. When Close is
 // called, the poller wakes Accept which returns an error wrapping
 // net.ErrClosed, mirroring the behaviour of Go's net.Listener.
-func (ln *sctpListener) Accept() (*SCTPConn, error) {
+func (ln *Listener) Accept() (*SCTPConn, error) {
 	var newFd int
 
 	var err error
@@ -593,7 +604,7 @@ func acceptWouldBlock(err error) bool {
 
 // acceptErr reports a closed listener as net.ErrClosed: the poller surfaces the
 // close as a bare "use of closed file" that matches no exported sentinel.
-func (ln *sctpListener) acceptErr(err error) error {
+func (ln *Listener) acceptErr(err error) error {
 	if ln.closed.Load() {
 		return net.ErrClosed
 	}
@@ -604,7 +615,7 @@ func (ln *sctpListener) acceptErr(err error) error {
 // Close closes the listener and unblocks any concurrent Accept call. The
 // runtime poller safely wakes all parked goroutines before the file descriptor
 // is closed, avoiding the race that existed with manual epoll.
-func (ln *sctpListener) Close() error {
+func (ln *Listener) Close() error {
 	if !ln.closed.CompareAndSwap(false, true) {
 		return net.ErrClosed
 	}

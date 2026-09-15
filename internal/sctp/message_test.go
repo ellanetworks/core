@@ -32,7 +32,7 @@ func sendOneMessage(t *testing.T, fd int, size int) {
 }
 
 // serverCollecting starts a server recording the size of every dispatched message.
-func serverCollecting(t *testing.T, port int, dispatch func(msg []byte)) (int, chan struct{}) {
+func serverCollecting(t *testing.T, dispatch func(msg []byte)) (int, chan struct{}) {
 	t.Helper()
 
 	skipIfNoSCTP(t)
@@ -53,9 +53,12 @@ func serverCollecting(t *testing.T, port int, dispatch func(msg []byte)) (int, c
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
+
+	srv.Serve(ctx, ln)
 
 	t.Cleanup(func() {
 		sctx, c := context.WithTimeout(context.Background(), 5*time.Second)
@@ -64,7 +67,7 @@ func serverCollecting(t *testing.T, port int, dispatch func(msg []byte)) (int, c
 		srv.Shutdown(sctx)
 	})
 
-	fd, err := connectLoopback(port)
+	fd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
@@ -81,7 +84,7 @@ func TestServer_LargeMessageDispatchedOnce(t *testing.T) {
 
 	sizes := make(chan int, 16)
 
-	fd, _ := serverCollecting(t, 29421, func(msg []byte) { sizes <- len(msg) })
+	fd, _ := serverCollecting(t, func(msg []byte) { sizes <- len(msg) })
 
 	sendOneMessage(t, fd, size)
 
@@ -106,7 +109,7 @@ func TestServer_LargeMessageDispatchedOnce(t *testing.T) {
 func TestServer_OversizedMessageAbortsAssociation(t *testing.T) {
 	sizes := make(chan int, 16)
 
-	fd, disconnected := serverCollecting(t, 29422, func(msg []byte) { sizes <- len(msg) })
+	fd, disconnected := serverCollecting(t, func(msg []byte) { sizes <- len(msg) })
 
 	sendOneMessage(t, fd, int(readBufSize)+64*1024)
 
@@ -125,7 +128,7 @@ func TestServer_OversizedMessageAbortsAssociation(t *testing.T) {
 
 // A panic in message handling must be contained to its association.
 func TestServer_DispatchPanicDoesNotKillServer(t *testing.T) {
-	fd, disconnected := serverCollecting(t, 29423, func(_ []byte) {
+	fd, disconnected := serverCollecting(t, func(_ []byte) {
 		panic("decoder blew up")
 	})
 

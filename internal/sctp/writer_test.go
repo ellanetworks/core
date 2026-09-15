@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *SCTPConn, disconnected chan struct{}, client *SCTPConn) {
+func serverWithAcceptedConn(t *testing.T) (server *Server, accepted *SCTPConn, disconnected chan struct{}, client *SCTPConn) {
 	t.Helper()
 
 	skipIfNoSCTP(t)
@@ -44,11 +44,14 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
 
-	fd, err := connectLoopback(port)
+	srv.Serve(ctx, ln)
+
+	fd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
@@ -70,7 +73,7 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 }
 
 func TestWriter_DeliversInOrder(t *testing.T) {
-	srv, serverConn, _, client := serverWithAcceptedConn(t, 29411)
+	srv, serverConn, _, client := serverWithAcceptedConn(t)
 
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -119,7 +122,7 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 
 // A peer that keeps the association up but stops reading must not block a sender.
 func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
-	srv, serverConn, disconnected, client := serverWithAcceptedConn(t, 29412)
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -167,7 +170,7 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 }
 
 func TestWriter_CloseReleasesServeGoroutine(t *testing.T) {
-	srv, serverConn, disconnected, _ := serverWithAcceptedConn(t, 29413)
+	srv, serverConn, disconnected, _ := serverWithAcceptedConn(t)
 
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -188,10 +191,9 @@ func TestWriter_CloseReleasesServeGoroutine(t *testing.T) {
 func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29414
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
+	conn := acceptOne(t, ln)
 
 	_ = conn.Close()
 
@@ -219,7 +221,7 @@ func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
 
 	defer func() { writeTimeout = original }()
 
-	srv, serverConn, disconnected, client := serverWithAcceptedConn(t, 29415)
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

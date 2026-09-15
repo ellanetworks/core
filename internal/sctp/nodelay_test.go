@@ -34,8 +34,6 @@ func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
 func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29407
-
 	accepted := make(chan *SCTPConn, 1)
 
 	srv := NewServer(Config{
@@ -54,11 +52,14 @@ func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
 
-	fd, err := connectLoopback(port)
+	srv.Serve(ctx, ln)
+
+	fd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
