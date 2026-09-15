@@ -56,7 +56,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 		smContext, ok := ue.SmContextFindByPDUSessionID(s.PduSessionID)
 		if !ok {
 			logger.From(ctx, logger.AmfLog).Warn("RAN reports a PDU session the core does not know; not switched",
-				zap.Uint8("pdu-session-id", s.PduSessionID))
+				logger.PDUSessionID(s.PduSessionID))
 
 			result.Failed = append(result.Failed, s.PduSessionID)
 
@@ -66,8 +66,8 @@ func (a *AMF) ReconcileSessionsToRAN(
 		n2Rsp, err := apply(ctx, smContext.Ref, s.Transfer)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Error("failed to converge a PDU session onto the RAN endpoint",
-				logger.SUPI(ue.Supi().String()), zap.String("smContextRef", smContext.Ref),
-				zap.Uint8("pdu-session-id", s.PduSessionID), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), logger.SMContextRef(smContext.Ref),
+				logger.PDUSessionID(s.PduSessionID), zap.Error(err))
 
 			result.Failed = append(result.Failed, s.PduSessionID)
 
@@ -109,7 +109,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 			}
 
 			logger.From(ctx, logger.AmfLog).Info("deactivating a PDU session the RAN did not report",
-				logger.SUPI(ue.Supi().String()), zap.Uint8("pdu-session-id", sr.PduSessionID))
+				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(sr.PduSessionID))
 
 			a.deactivateSession(ctx, ueConn, sr.Ref, sr.PduSessionID)
 			result.Deactivated = append(result.Deactivated, sr.PduSessionID)
@@ -122,7 +122,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string, pduSessionID uint8) {
 	if err := a.Session.DeactivateSmContext(ctx, ref); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to deactivate a PDU session",
-			zap.String("smContextRef", ref), zap.Uint8("pdu-session-id", pduSessionID), zap.Error(err))
+			logger.SMContextRef(ref), logger.PDUSessionID(pduSessionID), zap.Error(err))
 
 		return
 	}

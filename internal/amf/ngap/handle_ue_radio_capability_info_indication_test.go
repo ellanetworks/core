@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -32,7 +31,7 @@ func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
 		RANUENGAPID: ngap.RANUENGAPID(1),
@@ -49,7 +48,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
@@ -68,7 +67,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
@@ -99,7 +98,7 @@ func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.
 	ran := newTestRadio(amfInstance)
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	stored := []byte{0x01, 0x02, 0x03, 0x04}

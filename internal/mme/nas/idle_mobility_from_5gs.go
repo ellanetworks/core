@@ -68,8 +68,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
-	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change",
-		zap.String("imsi", ue.IMSI()), zap.Int("pdu-sessions", len(resp.PDNConnections)))
+	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change", zap.Int("pdu_sessions", len(resp.PDNConnections)))
 
 	return ue, plain
 }
@@ -88,8 +87,7 @@ func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{RemappedHeldContext: true}
 
-	logger.From(ctx, logger.MmeLog).Info("re-keyed a held context for an inter-system change the UE repeated",
-		zap.String("imsi", held.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("re-keyed a held context for an inter-system change the UE repeated")
 
 	return held, plain
 }
@@ -128,8 +126,7 @@ func adoptIdlePDNsFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	adopted := m.AdoptIdlePDNs(ctx, ue, arriving.PDN)
 
-	logger.From(ctx, logger.MmeLog).Info("adopted the PDU sessions of a UE arriving from 5GS in idle mode",
-		zap.String("imsi", ue.IMSI()), zap.Int("adopted", len(adopted)),
+	logger.From(ctx, logger.MmeLog).Info("adopted the PDU sessions of a UE arriving from 5GS in idle mode", zap.Int("adopted", len(adopted)),
 		zap.Int("offered", len(arriving.PDN)))
 }
 
@@ -156,8 +153,7 @@ func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeCont
 	transferred := heldPDUSessions(m, ue)
 
 	if len(transferred) == 0 {
-		logger.From(ctx, logger.MmeLog).Info("no PDU session of a UE arriving from 5GS could become a PDN connection; rejecting the update",
-			zap.String("imsi", ue.IMSI()), zap.Int("offered", offered))
+		logger.From(ctx, logger.MmeLog).Info("no PDU session of a UE arriving from 5GS could become a PDN connection; rejecting the update", zap.Int("offered", offered))
 
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseNoEPSBearerContextActivated)
 
@@ -166,7 +162,7 @@ func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 	if err := m.AckEPSContext(ctx, ue.Supi(), transferred); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer refused the context acknowledgement for an idle-mode change",
-			zap.Error(err), zap.String("imsi", ue.IMSI()))
+			zap.Error(err))
 	}
 
 	return changeNASAlgorithmsForMappedContext(ctx, m, ue, ueConn, plain,
@@ -190,7 +186,7 @@ func changeNASAlgorithmsForMappedContext(ctx context.Context, m *mme.MME, ue *mm
 	_, changed, err := m.NASAlgorithmsForMappedContext(ctx, ue.UeNetCap(), current)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("could not compare the mapped context's NAS algorithms with the operator policy",
-			zap.Error(err), zap.String("imsi", ue.IMSI()))
+			zap.Error(err))
 
 		return false
 	}
@@ -199,8 +195,7 @@ func changeNASAlgorithmsForMappedContext(ctx context.Context, m *mme.MME, ue *mm
 		return false
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("the mapped EPS context uses algorithms this MME does not select; re-keying before the update",
-		zap.String("imsi", ue.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("the mapped EPS context uses algorithms this MME does not select; re-keying before the update")
 
 	switch startSecurityMode(ctx, m, ue, ueConn, rekeyedKeys) {
 	case securityModeCommandSent:

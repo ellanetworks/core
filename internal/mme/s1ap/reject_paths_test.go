@@ -122,7 +122,7 @@ func TestReportOnResponseNamesTheOutcome(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	mmeID := uint16(ue.Conn().MMEUES1APID)
-	enbID := uint16(ue.Conn().ENBUES1APID)
+	enbID := uint16(ue.Conn().ENBUES1APID())
 
 	body, err := hex.DecodeString(fmt.Sprintf("000003"+"00004002%04x"+"00084002%04x"+"ea608001"+"00", mmeID, enbID))
 	if err != nil {

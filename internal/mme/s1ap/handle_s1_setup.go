@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -42,7 +43,7 @@ var causeSemanticError = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.
 func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value []byte) {
 	operator, err := m.Operator(ctx)
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator for S1 Setup", zap.Error(err))
+		m.RadioLog(ctx, conn).Error("failed to get operator for S1 Setup", zap.Error(err))
 		sendS1SetupFailure(ctx, m, conn, causeUnspecified, nil)
 
 		return
@@ -52,7 +53,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 	tacs, err := operator.TACs()
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator TACs for S1 Setup", zap.Error(err))
+		m.RadioLog(ctx, conn).Error("failed to get operator TACs for S1 Setup", zap.Error(err))
 		sendS1SetupFailure(ctx, m, conn, causeUnspecified, nil)
 
 		return
@@ -71,31 +72,31 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 		// §8.7.3.3 obliges an answer whenever the MME cannot accept the setup,
 		// which includes being unable to build its own response.
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to handle S1 Setup Request", zap.Error(err))
+		m.RadioLog(ctx, conn).Error("failed to handle S1 Setup Request", zap.Error(err))
 		sendS1SetupFailure(ctx, m, conn, causeUnspecified, nil)
 
 		return
 	}
 
-	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Request",
-		zap.String("enb-name", enbName(req.ENBName)),
-		zap.Uint32("enb-id", req.GlobalENBID.ENBID.Value),
+	m.RadioLog(ctx, conn).Info("S1 Setup Request",
+		zap.String("enb_name", enbName(req.ENBName)),
+		zap.Uint32("enb_id", req.GlobalENBID.ENBID.Value),
 	)
 
 	if !accepted {
 		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
-		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
-			zap.String("enb-name", enbName(req.ENBName)),
+		m.RadioLog(ctx, conn).Warn("Radio setup rejected",
+			zap.String("enb_name", enbName(req.ENBName)),
 			zap.String("reason", reason),
-			zap.String("served-plmn", plmn.Mcc+"/"+plmn.Mnc))
+			zap.String("served_plmn", plmn.Mcc+"/"+plmn.Mnc))
 
 		return
 	}
 
 	tais, err := mme.EnbSupportedTAIs(req.SupportedTAs)
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+		m.RadioLog(ctx, conn).Warn("Radio setup rejected", zap.Error(err))
 		sendS1SetupFailure(ctx, m, conn, causeSemanticError, nil)
 
 		return
@@ -107,7 +108,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 		m.UpdateRadioSupportedTAs(radio, tais)
 
 		if err := m.ClaimENBID(ctx, radio, req.GlobalENBID, advertisedCapacity); err != nil {
-			logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+			m.RadioLog(ctx, conn).Warn("Radio setup rejected", zap.Error(err))
 			sendS1SetupFailure(ctx, m, conn, causeSemanticError, nil)
 
 			return
@@ -116,7 +117,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
-	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
+	m.RadioLog(ctx, conn).Info("Radio setup complete", logger.RAT(metrics.RAT4G))
 }
 
 // buildS1SetupFailure carries the cause and per-IE diagnostics the rejection
@@ -137,7 +138,7 @@ func buildS1SetupFailure(ase *s1ap.AbstractSyntaxError) ([]byte, error) {
 func sendS1SetupFailure(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) {
 	out, err := (&s1ap.S1SetupFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Error("failed to marshal S1 Setup Failure", zap.Error(err))
+		m.RadioLog(ctx, conn).Error("failed to marshal S1 Setup Failure", zap.Error(err))
 		return
 	}
 
@@ -152,7 +153,7 @@ func sendS1SetupProtocolFailure(ctx context.Context, m *mme.MME, conn *sctp.SCTP
 
 	sendS1SetupFailure(ctx, m, conn, ase.Cause, &diag)
 
-	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(ase))
+	m.RadioLog(ctx, conn).Warn("Radio setup rejected", zap.Error(ase))
 }
 
 // s1SetupOutcomeFor returns an S1 Setup Response when the eNB broadcasts a served

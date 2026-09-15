@@ -6,6 +6,7 @@ package s1ap
 import (
 	"context"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -39,7 +40,7 @@ func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mm
 		ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
 	}
 
-	ueConn.Log().Info("stored UE Radio Capability",
-		zap.Int("bytes", len(ue.RadioCapability)),
-		zap.Int("paging-bytes", len(ue.RadioCapabilityForPaging)))
+	ueConn.Log(ctx).Debug("stored UE Radio Capability",
+		logger.Bytes(uint64(len(ue.RadioCapability))),
+		zap.Int("paging_bytes", len(ue.RadioCapabilityForPaging)))
 }

@@ -4,8 +4,14 @@
 package smf
 
 import (
+	"context"
+
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // SessionEstablishmentAttempts counts session establishment outcomes by RAT
@@ -51,22 +57,37 @@ func RegisterMetrics(sessions sessionCounter) {
 
 // recordSessionEstablishment counts one session establishment outcome, deriving
 // the result from err. Safe to call before RegisterMetrics (no-op).
-func recordSessionEstablishment(rat string, err error) {
+func recordSessionEstablishment(ctx context.Context, rat string, err error, fields ...zap.Field) {
 	result := metrics.ResultAccept
+
 	if err != nil {
 		result = metrics.ResultReject
+
+		fields = append(fields, zap.Error(err))
 	}
 
-	recordSessionEstablishmentResult(rat, result)
+	recordSessionEstablishmentResult(ctx, rat, result, fields...)
 }
 
 // recordSessionEstablishmentResult counts one session establishment outcome. An
 // empty result is a no-op so a deferred call can leave the result unset on
 // non-establishment paths. Safe to call before RegisterMetrics (no-op).
-func recordSessionEstablishmentResult(rat, result string) {
-	if SessionEstablishmentAttempts == nil || result == "" {
+func recordSessionEstablishmentResult(ctx context.Context, rat, result string, fields ...zap.Field) {
+	if result == "" {
 		return
 	}
 
-	SessionEstablishmentAttempts.WithLabelValues(rat, result).Inc()
+	if SessionEstablishmentAttempts != nil {
+		SessionEstablishmentAttempts.WithLabelValues(rat, result).Inc()
+	}
+
+	msg := "PDU session established"
+	if result != metrics.ResultAccept {
+		msg = "PDU session establishment rejected"
+
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, msg)
+	}
+
+	logger.From(ctx, logger.SmfLog).WithOptions(zap.AddCallerSkip(2)).Info(msg,
+		append([]zap.Field{logger.RAT(rat), logger.Result(result)}, fields...)...)
 }

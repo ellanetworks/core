@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
@@ -189,14 +188,14 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	}
 
 	sender := newRelocationSender()
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sender}
+	sourceRan := &amf.Radio{Conn: sender}
 
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
 	amfInstance.EPS = peer
 
 	sourceRan.BindAMFForTest(amfInstance)
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	return amfInstance, amfUe, sender, sourceRan

@@ -56,6 +56,8 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	ctx = logger.Into(ctx, ueConn.LogFields()...)
+
 	for _, p := range m.SnapshotPDNs(ue) {
 		m.reconcileBearer(ctx, ue, ueConn, p)
 	}
@@ -93,8 +95,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 
 	delta, err := m.Session.EPSSubscriptionChanged(ctx, p.SessionRef)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check the subscription; deferring to next sweep",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check the subscription; deferring to next sweep", zap.String("apn", p.Apn), zap.Error(err))
 
 		return
 	}
@@ -103,8 +104,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// re-establishment. Checked before the QoS diff so a framed-only change still
 	// reactivates (framed routes are absent from the data-network fingerprint).
 	if delta.FramedRoutes {
-		logger.From(ctx, ueConn.Log()).Info("framed routes changed; reactivating EPS bearer",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		ueConn.Log(ctx).Info("framed routes changed; reactivating EPS bearer", zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
@@ -113,8 +113,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
 	// a reservation change requires reactivation, not in-place modification.
 	if delta.StaticIP {
-		logger.From(ctx, ueConn.Log()).Info("static IP changed; reactivating EPS bearer",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		ueConn.Log(ctx).Info("static IP changed; reactivating EPS bearer", zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
@@ -127,15 +126,13 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 		// §5.4.4.1), symmetric with the 5G release on an unresolvable policy. Other
 		// errors are transient (DB/infra); skip and let the backstop retry.
 		if errors.Is(err, ErrUnknownAPN) {
-			logger.From(ctx, ueConn.Log()).Info("APN no longer authorized; reactivating EPS bearer",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+			ueConn.Log(ctx).Info("APN no longer authorized; reactivating EPS bearer", zap.String("apn", p.Apn))
 			m.reactivateBearer(ctx, ue, p)
 
 			return
 		}
 
-		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to resolve QoS for APN; deferring to next sweep",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to resolve QoS for APN; deferring to next sweep", zap.String("apn", p.Apn), zap.Error(err))
 
 		return
 	}
@@ -155,16 +152,14 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// An IP-pool or MTU change cannot be adopted in place; reactivate so the UE
 	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
 	if dnChanged && !dnsOnlyChange(curDNConfig, newFingerprint) {
-		logger.From(ctx, ueConn.Log()).Info("data-network configuration changed; reactivating EPS bearer",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		ueConn.Log(ctx).Info("data-network configuration changed; reactivating EPS bearer", zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
 	}
 
-	logger.From(ctx, ueConn.Log()).Info("policy/data-network changed; modifying EPS bearer in place",
-		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn),
-		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
+	ueConn.Log(ctx).Info("policy/data-network changed; modifying EPS bearer in place", zap.String("apn", p.Apn),
+		zap.Bool("dns_changed", dnChanged), zap.Bool("session_ambr", ambrChanged), zap.Bool("qos", qosChanged))
 	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
@@ -236,8 +231,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		if refreshMappedQoS {
 			mapped, err := MappedFiveGSQoSRefresh(p.Ebi, qos)
 			if err != nil {
-				logger.From(ctx, logger.MmeLog).Error("failed to encode the mapped 5GS QoS parameters; deferring EPS bearer modification to the next reconcile",
-					zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+				logger.From(ctx, logger.MmeLog).Error("failed to encode the mapped 5GS QoS parameters; deferring EPS bearer modification to the next reconcile", zap.String("apn", p.Apn), zap.Error(err))
 
 				return
 			}
@@ -258,16 +252,14 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		// abort on failure: signalling anyway commits the new AMBR on UE-accept while
 		// the UPF stays behind, and reconcile then sees no diff to retry.
 		if err := m.Session.UpdateEPSSessionAMBR(ctx, p.SessionRef, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile", zap.String("apn", p.Apn), zap.Error(err))
 
 			return
 		}
 
 		apnAMBR, err := eps.APNAMBRFromKbps(qos.SessAmbrDL.Bps()/1000, qos.SessAmbrUL.Bps()/1000)
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to encode APN-AMBR",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to encode APN-AMBR", zap.String("apn", p.Apn), zap.Error(err))
 
 			return
 		}
@@ -301,8 +293,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()
 
-		logger.From(ctx, logger.MmeLog).Error("failed to build Modify EPS Bearer Context Request",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build Modify EPS Bearer Context Request", zap.Error(err))
 
 		return
 	}

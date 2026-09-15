@@ -98,7 +98,7 @@ func (db *Database) applyUpsertNodeCert(ctx context.Context, r *ClusterNodeCert)
 	}
 
 	logger.DBLog.Debug("applied cluster_node_certs upsert",
-		zap.Int("nodeID", r.NodeID),
+		zap.Int("node_id", r.NodeID),
 		zap.String("fingerprint", r.Fingerprint))
 
 	return nil, nil
@@ -110,7 +110,7 @@ func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert)
 	}
 
 	logger.DBLog.Debug("applied cluster_node_certs delete",
-		zap.Int("nodeID", r.NodeID))
+		zap.Int("node_id", r.NodeID))
 
 	return nil, nil
 }
@@ -215,7 +215,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	}
 
 	logger.DBLog.Info("redeemed cluster join token",
-		zap.Int("nodeID", p.NodeID),
+		zap.Int("node_id", p.NodeID),
 		zap.String("fingerprint", p.Fingerprint))
 
 	return db.pinSnapshot(ctx, runner)

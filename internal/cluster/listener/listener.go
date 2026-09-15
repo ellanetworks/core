@@ -344,7 +344,7 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	if !exists {
 		logger.RaftLog.Warn("Cluster connection with unknown ALPN protocol",
 			zap.String("remote", conn.RemoteAddr().String()),
-			zap.String("protocol", proto))
+			logger.ProtocolName(proto))
 		_ = conn.Close()
 
 		return

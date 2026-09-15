@@ -56,7 +56,7 @@ func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureC
 func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Error Indication", zap.Error(err))
+		ran.Log(ctx).Error("failed to marshal Error Indication", zap.Error(err))
 
 		return
 	}
@@ -123,24 +123,22 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	// indication naming a UE still says its NG connection is inconsistent, so
 	// dropping it here would strand the UE that the release below exists to
 	// clean up.
-	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
-	}
+	fields := make([]zap.Field, 0, 4)
+	fields = append(fields, zap.Bool("cause_or_diagnostics_present", msg.Cause != nil || msg.CriticalityDiagnostics != nil))
 
-	fields := make([]zap.Field, 0, 3)
 	if msg.AMFUENGAPID != nil {
-		fields = append(fields, zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
+		fields = append(fields, logger.AmfUeNgapID(models.AmfUeNgapID(*msg.AMFUENGAPID)))
 	}
 
 	if msg.RANUENGAPID != nil {
-		fields = append(fields, zap.Uint32("ran_ue_ngap_id", uint32(*msg.RANUENGAPID)))
+		fields = append(fields, logger.RanUeNgapID(models.RanUeNgapID(*msg.RANUENGAPID)))
 	}
 
 	if msg.Cause != nil {
-		fields = append(fields, zap.String("cause", msg.Cause.String()))
+		fields = append(fields, logger.Cause(msg.Cause.String()))
 	}
 
-	logger.WithTrace(ctx, ran.Log).Warn("Error Indication", fields...)
+	ran.Log(ctx).Warn("Error Indication", fields...)
 
 	if msg.AMFUENGAPID == nil {
 		return

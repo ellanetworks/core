@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 func testGuami() *models.Guami {
@@ -354,7 +353,7 @@ func TestDeregisterSubscriberConnectedUnsecuredRemovesLocally(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 
 	supi := newSUPI(t, "001010000000013")
 

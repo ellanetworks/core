@@ -292,3 +292,8 @@ func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
 func (ue *UeContext) SetPagedBearerForTest(ebi uint8) {
 	ue.beginPaging(&MTRequest{Ebi: ebi})
 }
+
+func BindRadioLogForTest(r *Radio, address string) {
+	r.address = address
+	r.refreshLogLocked()
+}

@@ -114,7 +114,7 @@ func (amf *AMF) notifyRelativeCapacity(ctx context.Context, served ngap.ServedGU
 
 	if notified > 0 {
 		logger.From(ctx, logger.AmfLog).Info("advertised relative AMF capacity",
-			zap.Uint8("relative-capacity", capacity), zap.Int("radios", notified))
+			zap.Uint8("relative_capacity", capacity), zap.Int("radios", notified))
 	}
 
 	return notified

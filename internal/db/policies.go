@@ -445,7 +445,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	ctx, span := tracer.Start(ctx, "db/get_session_policy",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attrs.IMSI(imsi),
+			attrs.SUPIFromIMSI(imsi),
 			attrs.SST(sst),
 			attrs.SD(sd),
 			attrs.DNN(dnn),

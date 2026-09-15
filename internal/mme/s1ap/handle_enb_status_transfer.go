@@ -27,13 +27,13 @@ func handleENBStatusTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), st.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), st.Diagnostics())
 
 	ue.TouchLastSeen()
 
 	targetConn, targetMMEID, targetENBID, ok := m.HandoverStatusTarget(ue)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Warn("eNB Status Transfer with no handover in progress", zap.Uint32("mme_ue_s1ap_id", uint32(st.MMEUES1APID)))
+		logger.From(ctx, logger.MmeLog).Warn("eNB Status Transfer with no handover in progress", logger.MMEUeS1apID(uint32(st.MMEUES1APID)))
 
 		return
 	}

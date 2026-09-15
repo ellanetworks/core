@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -37,5 +39,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		}
 	}
 
-	amfInstance.ReleaseUeConnServedBy(ctx, ueConn, served)
+	if amfInstance.ReleaseUeConnServedBy(ctx, ueConn, served) {
+		ueConn.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT5G))
+	}
 }

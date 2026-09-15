@@ -7,9 +7,9 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
-	"go.uber.org/zap"
 )
 
 // HandleUEContextReleaseComplete completes the release (TS 36.413): either
@@ -33,19 +33,19 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 	// A Release Complete for a detached association removes only that connection; the UE
 	// stays active on its current association (TS 36.413 §8.3, §8.4).
 	if m.ReleaseDetachedConn(radio.Conn, mmeUEID, enbUEID) {
-		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete (detached association)", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+		logger.From(ctx, logger.MmeLog).Debug("UE Context Release Complete (detached association)", logger.MMEUeS1apID(uint32(mmeUEID)))
 		return
 	}
 
 	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME no longer holds",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbUEID)))
+			logger.MMEUeS1apID(uint32(mmeUEID)), logger.ENBUeS1apID(uint32(enbUEID)))
 
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
@@ -58,7 +58,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
-		logger.From(ctx, logger.MmeLog).Info("UE context released", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+		ueConn.Log(ctx).Info("UE context removed", logger.RAT(metrics.RAT4G))
 
 		return
 	}
@@ -69,8 +69,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
 	m.StartMobileReachable(ue)
 
-	logger.From(ctx, logger.MmeLog).Info("UE moved to ECM-IDLE",
-		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
+	ueConn.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT4G))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 type nopNGAPSender struct{}
@@ -19,7 +18,6 @@ func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 	ue := NewUeContext()
 
 	conn := &UeConn{}
-	conn.setLog(zap.NewNop())
 	ue.active.Store(conn)
 	conn.ue.Store(nil)
 
@@ -47,7 +45,7 @@ func TestExportUeContext_ConcurrentWithReleaseNasConnection(t *testing.T) {
 		amf := New(nil, nil, nil)
 		ue := NewUeContext()
 
-		conn := NewUeConnForTest(&Radio{Conn: nopNGAPSender{}, Log: zap.NewNop()}, 1, 10, zap.NewNop())
+		conn := NewUeConnForTest(&Radio{Conn: nopNGAPSender{}}, 1, 10)
 		amf.AttachUeConn(t.Context(), ue, conn)
 
 		var wg sync.WaitGroup

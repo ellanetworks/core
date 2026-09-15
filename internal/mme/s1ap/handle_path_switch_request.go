@@ -45,7 +45,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	// abnormal condition the MME rejects.
 	if id, dup := duplicateERABID(req.ERABToBeSwitchedDL); dup {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request with a duplicate E-RAB ID",
-			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
+			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), logger.ERABID(uint8(id)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causeMultipleERABInstances)
 
 		return
@@ -63,13 +63,12 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ue.TouchLastSeen()
 
 	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.
-	ueLog := logger.MmeLog
 	if c := ue.Conn(); c != nil {
-		ueLog = c.Log()
+		ctx = logger.Into(ctx, c.LogFields()...)
 	}
 
 	if !ue.Secured() || !ue.HasKASME() {
-		logger.From(ctx, ueLog).Warn("Path Switch Request for a UE without a security context")
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request for a UE without a security context")
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchNoSecurity)
 
 		return
@@ -81,7 +80,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	curNH, curNCC, mmeID, ok := m.BeginPathSwitch(ue)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request while the key chain is being advanced",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
@@ -112,7 +111,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	if len(result.Applied) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no E-RAB",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 
 		m.DetachUEAfterPathSwitchFailure(ctx, ue)
 
@@ -121,12 +120,12 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	replayCaps := pathSwitchSecurityCapabilities(ue, ueLog, req.UESecurityCapabilities)
+	replayCaps := pathSwitchSecurityCapabilities(ctx, ue, req.UESecurityCapabilities)
 
 	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
@@ -135,7 +134,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released immediately after the path switch",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 
 		return
 	}
@@ -158,10 +157,10 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Path Switch Request",
-		zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)),
-		zap.Uint32("enb_ue_s1ap_id", uint32(req.ENBUES1APID)),
-		zap.Int("e-rabs-switched", len(result.Applied)),
-		zap.Int("e-rabs-released", len(result.Released)),
+		logger.MMEUeS1apID(uint32(mmeID)),
+		logger.ENBUeS1apID(uint32(req.ENBUES1APID)),
+		zap.Int("e_rabs_switched", len(result.Applied)),
+		zap.Int("e_rabs_released", len(result.Released)),
 		zap.Uint8("ncc", ncc))
 
 	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
@@ -176,7 +175,7 @@ func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Path Switch Request E-RAB has an invalid eNB transport address; not switched",
-				zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				logger.MMEUeS1apID(uint32(mmeID)), logger.ERABID(uint8(erab.ERABID)))
 
 			undecodable = append(undecodable, uint8(erab.ERABID))
 
@@ -230,7 +229,7 @@ func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter,
 // replay in the Acknowledge on a mismatch so the eNB corrects its context, or nil
 // (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
 // overwritten with the received ones.
-func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
+func pathSwitchSecurityCapabilities(ctx context.Context, ue *mme.UeContext, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap := ue.UeNetCap()
 
 	stored := mme.S1apSecurityCapabilities(uecap)
@@ -239,11 +238,11 @@ func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, receiv
 		return nil
 	}
 
-	ueLog.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
-		zap.Uint16("received-eea", received.EncryptionAlgorithms),
-		zap.Uint16("received-eia", received.IntegrityProtectionAlgorithms),
-		zap.Uint16("stored-eea", stored.EncryptionAlgorithms),
-		zap.Uint16("stored-eia", stored.IntegrityProtectionAlgorithms))
+	logger.From(ctx, logger.MmeLog).Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
+		zap.Uint16("received_eea", received.EncryptionAlgorithms),
+		zap.Uint16("received_eia", received.IntegrityProtectionAlgorithms),
+		zap.Uint16("stored_eea", stored.EncryptionAlgorithms),
+		zap.Uint16("stored_eia", stored.IntegrityProtectionAlgorithms))
 
 	return &stored
 }

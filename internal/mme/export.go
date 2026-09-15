@@ -232,7 +232,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 
 		rc := &RANConnectionExport{
 			MMEUES1APID: uint32(conn.MMEUES1APID),
-			ENBUES1APID: uint32(conn.ENBUES1APID),
+			ENBUES1APID: uint32(conn.ENBUES1APID()),
 		}
 
 		if s, ok := m.reg.Radio(conn.Conn()); ok {

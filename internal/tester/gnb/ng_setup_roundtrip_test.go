@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 // TestNGSetupGNBToAMF drives the whole procedure across both sides of the
@@ -41,7 +40,7 @@ func TestNGSetupGNBToAMF(t *testing.T) {
 		slices:   []db.NetworkSlice{{ID: "slice-1", Name: "default", Sst: 1, Sd: ngap.Ptr("010203")}},
 	}, nil, nil)
 
-	radio := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	radio := &amf.Radio{Conn: w}
 	radio.BindAMFForTest(amfInstance)
 
 	// The dispatcher's envelope check needs a live SCTP connection, so the
@@ -135,7 +134,7 @@ func TestErrorIndicationGNBToAMF(t *testing.T) {
 
 	amfInstance := amf.New(&stubDB{operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, nil)
 
-	radio := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	radio := &amf.Radio{Conn: w}
 	radio.BindAMFForTest(amfInstance)
 
 	pdu, err := ngap.Unmarshal(raw)
@@ -176,7 +175,7 @@ func TestNGResetGNBToAMF(t *testing.T) {
 
 	amfInstance := amf.New(&stubDB{operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, nil)
 
-	radio := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	radio := &amf.Radio{Conn: w}
 	radio.BindAMFForTest(amfInstance)
 
 	pdu, err := ngap.Unmarshal(raw)

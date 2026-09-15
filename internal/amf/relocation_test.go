@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 const testRelocationIMSI = "001010000000001"
@@ -110,7 +109,7 @@ func newRelocatingAMF(t *testing.T, peer *fakeEPSPeer) (*amf.AMF, *amf.UeContext
 	ue := relocatableUE(t)
 	ue.SetSupiForTest(mustSUPIFromIMSI(t, testRelocationIMSI))
 
-	source := amf.NewUeConnForTest(newRadioForTest(a, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
+	source := amf.NewUeConnForTest(newRadioForTest(a, &sctp.SCTPConn{}, "gNB-source"), 1, 1)
 	source.AMFForTest().AttachUeConn(t.Context(), ue, source)
 
 	return a, ue, source

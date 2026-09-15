@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -18,7 +17,7 @@ import (
 func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
-		logger.From(ctx, radio.Log).Warn("failed to decode ENB Configuration Update", zap.Error(err))
+		radio.Log(ctx).Warn("failed to decode ENB Configuration Update", zap.Error(err))
 		rejectENBConfigurationUpdate(ctx, m, radio, err)
 
 		return
@@ -37,7 +36,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 
 		plmn, tacs, err = servedPLMNAndTACs(ctx, m)
 		if err != nil {
-			logger.From(ctx, radio.Log).Error("Could not get operator info", zap.Error(err))
+			radio.Log(ctx).Error("Could not get operator info", zap.Error(err))
 			sendENBConfigurationUpdateFailure(ctx, m, radio, causeUnspecified, nil)
 
 			return
@@ -48,7 +47,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 	if err != nil {
 		// §8.7.4.3 obliges an answer whenever the MME cannot accept the update,
 		// which includes being unable to build its own response.
-		logger.From(ctx, radio.Log).Error("failed to handle ENB Configuration Update", zap.Error(err))
+		radio.Log(ctx).Error("failed to handle ENB Configuration Update", zap.Error(err))
 		sendENBConfigurationUpdateFailure(ctx, m, radio, causeUnspecified, nil)
 
 		return
@@ -57,7 +56,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 	if !accepted {
 		m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, out)
 
-		logger.From(ctx, radio.Log).Warn("ENB Configuration Update rejected",
+		radio.Log(ctx).Warn("ENB Configuration Update rejected",
 			zap.String("reason", reason),
 			zap.Any("enb_tai_list", tais),
 			zap.Any("core_tac_list", tacs))
@@ -77,8 +76,8 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateAck, out)
 
-	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged",
-		zap.String("enb-name", radio.NodeName()))
+	radio.Log(ctx).Info("ENB Configuration Update acknowledged",
+		zap.String("enb_name", radio.NodeName()))
 }
 
 // servedPLMNAndTACs reads the operator configuration this MME serves, encoded
@@ -109,7 +108,7 @@ func servedPLMNAndTACs(ctx context.Context, m *mme.MME) (s1ap.PLMNIdentity, []ui
 func sendENBConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) {
 	pkt, err := (&s1ap.ENBConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
-		logger.From(ctx, radio.Log).Error("error building ENB Configuration Update Failure", zap.Error(err))
+		radio.Log(ctx).Error("error building ENB Configuration Update Failure", zap.Error(err))
 		return
 	}
 

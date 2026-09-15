@@ -17,7 +17,7 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 	t.Helper()
 
 	oldMMEID = ue.Conn().MMEUES1APID
-	oldENBID = ue.Conn().ENBUES1APID
+	oldENBID = ue.Conn().ENBUES1APID()
 
 	plmn, err := m.OperatorPLMN(context.Background())
 	if err != nil {
@@ -60,8 +60,8 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 	newConn := &captureConn{}
 	HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(newConn), initiatingValue(t, im))
 
-	if ue.Conn().ENBUES1APID != 1001 {
-		t.Fatalf("resume did not bind the new connection (eNB-UE-S1AP-ID = %d)", ue.Conn().ENBUES1APID)
+	if ue.Conn().ENBUES1APID() != 1001 {
+		t.Fatalf("resume did not bind the new connection (eNB-UE-S1AP-ID = %d)", ue.Conn().ENBUES1APID())
 	}
 
 	return oldMMEID, oldENBID

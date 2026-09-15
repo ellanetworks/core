@@ -24,7 +24,7 @@ func (m *MME) OpenForwardingTunnel(ctx context.Context, ue *UeContext, ebi uint8
 	local, err := m.Session.OpenEPSForwardingTunnel(ctx, p.SessionRef, target)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("could not open an indirect data forwarding tunnel; this E-RAB forwards nothing",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", ebi), zap.Error(err))
+			logger.SUPI(ue.Supi().String()), logger.ERABID(ebi), zap.Error(err))
 
 		return models.ForwardingTunnel{}, false
 	}
@@ -42,7 +42,7 @@ func (m *MME) CloseForwardingTunnels(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.CloseEPSForwardingTunnel(ctx, p.SessionRef); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to release an indirect data forwarding tunnel",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), logger.ERABID(p.Ebi), zap.Error(err))
 		}
 	}
 }

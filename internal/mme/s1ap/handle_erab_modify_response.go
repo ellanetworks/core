@@ -30,13 +30,13 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), resp.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), resp.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, resp.UserLocationInformation)
 
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.From(ctx, logger.MmeLog).Warn("eNB failed to modify E-RAB(s)",
-			zap.Uint32("mme_ue_s1ap_id", uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
+			logger.MMEUeS1apID(uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
 	}
 }

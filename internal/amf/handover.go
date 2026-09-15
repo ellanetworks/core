@@ -288,7 +288,7 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) procedure.CancelFun
 			return procedure.Release, nil
 		}
 
-		logger.WithTrace(cctx, sourceUe.Log()).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+		sourceUe.Log(cctx).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
 
 		a.UnbindHandoverTarget(cctx, amfUe)
 
@@ -419,7 +419,7 @@ func (a *AMF) MarkHandoverCommitting(ue *UeContext, targetUe *UeConn) (admitted 
 // false — leaving the UE where it was — when the handover is not in a committing state
 // or the target UeConn was released during the (unlocked) user-plane switch, so a
 // handover cannot complete onto a UE that has gone away (TS 23.502).
-func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
+func (a *AMF) FinishHandoverCommit(ctx context.Context, ue *UeContext, targetUe *UeConn) bool {
 	if ue == nil {
 		return false
 	}
@@ -441,7 +441,7 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.
-	_ = a.attachUeConnLocked(ue, targetUe)
+	_ = a.attachUeConnLocked(ctx, ue, targetUe)
 
 	targetUe.MarkICSCompleted()
 
@@ -490,7 +490,7 @@ func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
 	for _, ref := range ue.SmContextRefs() {
 		if err := a.Session.UpdateSmContextN2HandoverCanceled(ctx, ref.Ref); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("failed to restore the source access tunnel after an abandoned handover",
-				zap.Error(err), zap.Uint8("pdu-session-id", ref.PduSessionID))
+				zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}
 }

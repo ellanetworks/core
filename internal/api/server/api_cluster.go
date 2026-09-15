@@ -266,7 +266,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// can re-run cleanup later via a direct DB operation if needed.
 		if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
 			logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
-				zap.Int("nodeId", nodeID), zap.Error(err))
+				zap.Int("node_id", nodeID), zap.Error(err))
 		}
 
 		// Drop the removed node's pin from cluster_node_certs. The

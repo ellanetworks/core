@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -16,7 +15,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
@@ -55,7 +54,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
@@ -78,7 +77,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
@@ -101,7 +100,7 @@ func TestHandleLocationReport_UEPresenceWithoutRequestedArea(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,

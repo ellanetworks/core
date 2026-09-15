@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
@@ -63,7 +64,8 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	ctx = logger.Into(ctx, ueConn.Log())
+	ctx = logger.Into(ctx, ueConn.LogFields()...)
+	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil {
@@ -128,7 +130,7 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
 	case *eps.UnknownEMMMessage:
-		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", zap.Stringer("message", msg))
+		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", logger.MessageType(msg.String()))
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	default:

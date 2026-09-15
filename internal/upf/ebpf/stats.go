@@ -67,7 +67,7 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 
 	if err := statsMap(bpfObjects, dir).Lookup(uint32(0), &perCPU); err != nil {
 		logger.UpfLog.Warn("failed to fetch UPF datapath stats",
-			zap.String("direction", string(dir)), zap.Error(err))
+			logger.Direction(string(dir)), zap.Error(err))
 
 		return total, false
 	}
@@ -174,7 +174,7 @@ func GetRouteStats(bpfObjects *BpfObjects) map[Direction]RouteStats {
 
 		if err := routeStatsMap(bpfObjects, dir).Lookup(uint32(0), &stats); err != nil {
 			logger.UpfLog.Warn("failed to fetch UPF route stats",
-				zap.String("direction", string(dir)), zap.Error(err))
+				logger.Direction(string(dir)), zap.Error(err))
 
 			continue
 		}

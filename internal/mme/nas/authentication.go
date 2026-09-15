@@ -46,10 +46,8 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, err error) {
 	cause, permanent := attachRejectCauseForAuthFailure(err)
 	if !permanent {
-		logger.From(ctx, logger.MmeLog).Info("attach aborted on a transient error: cannot authenticate subscriber; releasing the NAS signalling connection so the UE retries when T3411 expires",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
-
-		metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
+			logger.Cause("transient authentication failure; UE retries when T3411 expires"), zap.Error(err))
 		ueConn.StopNASGuard(ctx)
 
 		m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
@@ -57,7 +55,7 @@ func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.Error(err))
 	rejectAttach(ctx, m, ue, ueConn, cause)
 }
 

@@ -224,7 +224,7 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 	ack, err := lpp.BuildAcknowledgement(ackSeq, byte(*decoded.SequenceNumber))
 	if err != nil {
 		logger.LmfLog.Error("failed to build LPP acknowledgement",
-			zap.String("supi", supi.String()), zap.Error(err))
+			logger.SUPI(supi.String()), zap.Error(err))
 
 		return duplicate
 	}
@@ -232,7 +232,7 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 	if lmf.lppHandler != nil {
 		if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), ackCorrelationID, ack); err != nil {
 			logger.LmfLog.Error("failed to send LPP acknowledgement to UE",
-				zap.String("supi", supi.String()), zap.Error(err))
+				logger.SUPI(supi.String()), zap.Error(err))
 		}
 	}
 

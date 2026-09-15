@@ -4,9 +4,9 @@
 package amf
 
 import (
+	"context"
 	"slices"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -63,21 +63,23 @@ func (ue *UeContext) State() StateType {
 	return ue.state
 }
 
-func (ue *UeContext) TransitionTo(target StateType) {
+func (ue *UeContext) TransitionTo(ctx context.Context, target StateType) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.transitionToLocked(target)
+	ue.transitionToLocked(ctx, target)
 }
 
 // transitionToLocked enforces allowed state transitions and must only be called while ue.Mutex is held.
-func (ue *UeContext) transitionToLocked(target StateType) {
+func (ue *UeContext) transitionToLocked(ctx context.Context, target StateType) {
 	if ue.state == target {
 		return
 	}
 
+	log := ue.active.Load().Log(ctx)
+
 	if slices.Contains(validTransitions[ue.state], target) {
-		logger.AmfLog.Debug("state transition",
+		log.Debug("state transition",
 			zap.String("from", ue.state.String()),
 			zap.String("to", target.String()))
 
@@ -86,7 +88,7 @@ func (ue *UeContext) transitionToLocked(target StateType) {
 		return
 	}
 
-	logger.AmfLog.Error("invalid state transition",
+	log.Error("invalid state transition",
 		zap.String("from", ue.state.String()),
 		zap.String("to", target.String()))
 

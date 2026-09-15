@@ -88,7 +88,7 @@ func waitForAttach(ctx context.Context, t *testing.T, dc *DockerClient) bool {
 
 	for time.Now().Before(deadline) {
 		logs, err := dc.ComposeLogs(ctx, "compose/srsenb/", "ella-core")
-		if err == nil && strings.Contains(logs, "EMM-REGISTERED") {
+		if err == nil && strings.Contains(logs, "UE registration accepted") {
 			return true
 		}
 

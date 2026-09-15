@@ -45,7 +45,7 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 
 	if id, dup := duplicateModifiedERABID(msg); dup {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication repeats an E-RAB ID; releasing UE context",
-			zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
+			logger.MMEUeS1apID(uint32(msg.MMEUES1APID)), logger.ERABID(uint8(id)))
 		m.ReleaseUEContext(ctx, ue, causeMultipleERABInstances)
 
 		return
@@ -53,7 +53,7 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 
 	if ebi, omitted := omittedEstablishedERAB(ue, msg); omitted {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication omits an established E-RAB; releasing UE context",
-			zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)), zap.Uint8("e-rab-id", ebi))
+			logger.MMEUeS1apID(uint32(msg.MMEUES1APID)), logger.ERABID(ebi))
 		m.ReleaseUEContext(ctx, ue, causeERABModOmittedERAB)
 
 		return
@@ -74,8 +74,8 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("E-RAB Modification Indication",
-		zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)),
-		zap.Int("e-rabs-modified", len(modified)))
+		logger.MMEUeS1apID(uint32(msg.MMEUES1APID)),
+		zap.Int("e_rabs_modified", len(modified)))
 
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
 }
@@ -87,7 +87,7 @@ func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, i
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication has an invalid eNB transport address; skipped",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				logger.SUPI(ue.Supi().String()), logger.ERABID(uint8(erab.ERABID)))
 
 			continue
 		}

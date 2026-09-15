@@ -51,7 +51,7 @@ func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captur
 func sampleHandoverRequired(ue *mme.UeContext) *s1ap.HandoverRequired {
 	return &s1ap.HandoverRequired{
 		MMEUES1APID:    ue.Conn().MMEUES1APID,
-		ENBUES1APID:    ue.Conn().ENBUES1APID,
+		ENBUES1APID:    ue.Conn().ENBUES1APID(),
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
 		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}),
 		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
@@ -166,7 +166,7 @@ func TestHandoverHappyPath(t *testing.T) {
 	ue, source, target := handoverUE(t, m)
 
 	sourceMME := ue.Conn().MMEUES1APID
-	sourceENB := ue.Conn().ENBUES1APID
+	sourceENB := ue.Conn().ENBUES1APID()
 
 	wantNH, err := ue.DeriveNextNHForTest()
 	if err != nil {
@@ -254,8 +254,8 @@ func TestHandoverHappyPath(t *testing.T) {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
-	if ue.Conn().Conn() != target || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENBUEID || testPDN(ue).EnbFTEID != wantFTEID {
-		t.Fatalf("association not moved to the target connection: conn=%v mme-id=%d enb-id=%d", ue.Conn().Conn() == target, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
+	if ue.Conn().Conn() != target || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID() != targetENBUEID || testPDN(ue).EnbFTEID != wantFTEID {
+		t.Fatalf("association not moved to the target connection: conn=%v mme-id=%d enb-id=%d", ue.Conn().Conn() == target, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID())
 	}
 
 	if ue.NCCForTest() != 2 || ue.NHForTest() != wantNH {
@@ -500,7 +500,7 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 
 	targetMME, targetENBUEID := driveToPrepared(t, m, ue, source, target)
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID, Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -549,7 +549,7 @@ func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 		t.Fatalf("expected one HANDOVER REQUEST to the target, got %d", target.count())
 	}
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID, Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -654,7 +654,7 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 
 	targetBefore := target.count()
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID, Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if !ue.HasHandoverForTest() {
@@ -870,7 +870,7 @@ func TestHandoverNotifyStaleDuplicateAfterCompletion(t *testing.T) {
 	notify := initiatingValue(t, mustMarshal(t, handoverNotify(targetMME, targetENB).Marshal))
 	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target), notify)
 
-	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENB {
+	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID() != targetENB {
 		t.Fatal("handover did not complete onto the target")
 	}
 
@@ -882,7 +882,7 @@ func TestHandoverNotifyStaleDuplicateAfterCompletion(t *testing.T) {
 		t.Fatalf("stale Handover Notify drew %d response PDU(s); expected none", target.count()-before)
 	}
 
-	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID != targetENB {
+	if ue.Conn() == nil || ue.Conn().MMEUES1APID != targetMME || ue.Conn().ENBUES1APID() != targetENB {
 		t.Fatal("live UE torn down by a stale Handover Notify")
 	}
 }
@@ -1014,7 +1014,7 @@ func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t
 
 	ack := &s1ap.HandoverRequestAcknowledge{
 		MMEUES1APID:    s1ap.Ptr(ue.Conn().MMEUES1APID),
-		ENBUES1APID:    s1ap.Ptr(ue.Conn().ENBUES1APID),
+		ENBUES1APID:    s1ap.Ptr(ue.Conn().ENBUES1APID()),
 		ERABAdmitted:   []s1ap.ERABAdmittedItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 0x99}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
 	}

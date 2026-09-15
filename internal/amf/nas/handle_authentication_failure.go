@@ -55,7 +55,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		conn.StopNASGuard(ctx)
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("ignoring Authentication Failure with an out-of-enumeration cause",
-			zap.Stringer("cause", fail.Cause))
+			logger.Cause(fail.Cause.String()))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}

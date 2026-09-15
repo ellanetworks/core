@@ -71,30 +71,39 @@ loki.process "ella_core" {
     }
   }
 
-  // Parse the JSON log line
+  // Parse the JSON log line. service.version is dotted, so it needs a quoted
+  // JMESPath identifier; unquoted it silently resolves to nothing.
   stage.json {
     source = "log"
     expressions = {
-      level     = "level",
-      component = "component",
-      msg       = "msg",
-      caller    = "caller",
-      traceID   = "traceID",
+      level           = "level",
+      component       = "component",
+      msg             = "msg",
+      caller          = "caller",
+      trace_id        = "trace_id",
+      supi            = "supi",
+      radio_name      = "radio_name",
+      service_version = "\"service.version\"",
     }
   }
 
-  // Promote to labels for efficient querying
+  // Promote to labels for efficient querying. service_version is one value per
+  // deployment, so it costs no meaningful cardinality.
   stage.labels {
     values = {
-      level     = "level",
-      component = "component",
+      level           = "level",
+      component       = "component",
+      service_version = "service_version",
     }
   }
 
-  // Store traceID as structured metadata (avoids high-cardinality labels)
+  // Per-UE and per-radio identity as structured metadata: filterable without
+  // the cardinality of a label, and absent keys are simply skipped.
   stage.structured_metadata {
     values = {
-      traceID = "",
+      trace_id   = "",
+      supi       = "",
+      radio_name = "",
     }
   }
 

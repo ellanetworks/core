@@ -37,7 +37,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 		// Releasing an already-released session is a no-op success: the release is
 		// idempotent, so a caller that tears down the user plane up front and again on
 		// completion (e.g. the 4G deactivation handshake) does not see a spurious error.
-		logger.SmfLog.Debug("release: sm context already released", zap.String("smContextRef", smContextRef))
+		logger.SmfLog.Debug("release: sm context already released", logger.SMContextRef(smContextRef))
 
 		return nil
 	}
@@ -59,12 +59,15 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	// Remove from pool after all network I/O is complete.
 	s.dropFromPool(smContext)
 
+	logger.From(ctx, logger.SmfLog).Info("PDU session released",
+		logger.RAT(smContext.Access.rat()), logger.SUPI(smContext.Supi.String()), logger.DNN(smContext.Dnn))
+
 	return err
 }
 
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
+		logger.From(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
 			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
 
 		return err
@@ -76,7 +79,7 @@ func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) 
 
 	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
+		logger.From(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
 			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
 
 		return fmt.Errorf("resolve data network for address release: %w", err)

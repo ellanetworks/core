@@ -44,7 +44,7 @@ func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
-		ENBUES1APID:  ue.Conn().ENBUES1APID,
+		ENBUES1APID:  ue.Conn().ENBUES1APID(),
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
 	}
 
@@ -82,7 +82,7 @@ func TestERABModificationIndication_CapturesUserLocation(t *testing.T) {
 	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
-		ENBUES1APID:  ue.Conn().ENBUES1APID,
+		ENBUES1APID:  ue.Conn().ENBUES1APID(),
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
 		UserLocationInformation: &s1ap.UserLocationInformation{
 			EUTRANCGI: s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 0x0abcde1},
@@ -107,7 +107,7 @@ func TestERABModificationIndication_OmittedERABReleases(t *testing.T) {
 
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
-		ENBUES1APID:  ue.Conn().ENBUES1APID,
+		ENBUES1APID:  ue.Conn().ENBUES1APID(),
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
 	}
 
@@ -144,7 +144,7 @@ func TestERABModificationIndication_DuplicateERABReleases(t *testing.T) {
 
 	req := &s1ap.ERABModificationIndication{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: ue.Conn().ENBUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID(),
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
 			modifiedItem([4]byte{10, 5, 0, 2}, 0x1234),
 			modifiedItem([4]byte{10, 5, 0, 3}, 0x5678),

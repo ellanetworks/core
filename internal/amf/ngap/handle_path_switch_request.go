@@ -28,7 +28,7 @@ func appendPathSwitchReleasedItem(ctx context.Context, ueConn *amf.UeConn, list 
 		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
 	}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+		ueConn.Log(ctx).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		return
 	}
 
@@ -42,7 +42,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// TS 38.413: a to-be-switched downlink list that repeats a PDU Session ID is an
 	// abnormal condition the AMF rejects with a Path Switch Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceToBeSwitchedDLList); dup {
-		logger.WithTrace(ctx, ran.Log).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
+		ran.Log(ctx).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", logger.PDUSessionID(uint8(id)))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkMultiplePDUSessionIDs)
 
 		return
@@ -50,25 +50,25 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn := amfInstance.LookupUeConn(models.AmfUeNgapID(msg.SourceAMFUENGAPID))
 	if ueConn == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source_amf_ue_ngap_id", uint64(msg.SourceAMFUENGAPID)))
+		ran.Log(ctx).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source_amf_ue_ngap_id", uint64(msg.SourceAMFUENGAPID)))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 
 		return
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle Path Switch Request")
+	ueConn.Log(ctx).Debug("Handle Path Switch Request")
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("UeContext is nil")
+		ueConn.Log(ctx).Error("UeContext is nil")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ueConn.Log()).Error("No Security Context", logger.SUPI(amfUe.Supi().String()))
+		ueConn.Log(ctx).Error("No Security Context")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
@@ -77,7 +77,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ueConn, amfUe, msg.UESecurityCapabilities)
 
 	if !amfUe.BeginKeyChainProc(procedure.PathSwitch) {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("Path Switch rejected: a key-changing procedure is in progress")
+		ueConn.Log(ctx).Warn("Path Switch rejected: a key-changing procedure is in progress")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
@@ -88,24 +88,24 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	for _, item := range msg.PDUSessionResourceFailedToSetup {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			ueConn.Log(ctx).Error("invalid PDU session ID from gNB, skipping", logger.PDUSessionID(uint8(item.PDUSessionID)))
 			continue
 		}
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			ueConn.Log(ctx).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
 		if err := amfInstance.Session.UpdateSmContextXnHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			ueConn.Log(ctx).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 
 	nh, ncc, err := amfUe.AdvancePathSwitchNH()
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("error advancing NH", zap.Error(err))
+		ueConn.Log(ctx).Error("error advancing NH", zap.Error(err))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
@@ -113,7 +113,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("List Operator SNSSAI Error", zap.Error(err))
+		ueConn.Log(ctx).Error("List Operator SNSSAI Error", zap.Error(err))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
@@ -151,8 +151,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, models.RanUeNgapID(msg.RANUENGAPID), nh, ncc) {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("Path Switch Request: UE released during the user-plane switch")
+	if !amfInstance.CommitPathSwitch(ctx, amfUe, ueConn, ran, models.RanUeNgapID(msg.RANUENGAPID), nh, ncc) {
+		ueConn.Log(ctx).Warn("Path Switch Request: UE released during the user-plane switch")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return
@@ -193,13 +193,13 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 	case amf.VerifyMatch:
 		return
 	case amf.VerifyNoStoredValue:
-		logger.WithTrace(ctx, ueConn.Log()).Warn(
+		ueConn.Log(ctx).Warn(
 			"received UE security capabilities in PathSwitchRequest but AMF has no stored capabilities for this UE",
 		)
 
 		return
 	case amf.VerifyMismatch:
-		logger.WithTrace(ctx, ueConn.Log()).Warn(
+		ueConn.Log(ctx).Warn(
 			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501)",
 			zap.Stringer("stored", amfUe.UESecCap()),
 			zap.Stringer("received", reported),

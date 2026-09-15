@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/guard"
-	"go.uber.org/zap"
 )
 
 func registrationAcceptPlain() []byte {
@@ -46,7 +45,6 @@ func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testin
 	}
 	replacement.setRanUeNgapID(2)
 	replacement.setRadio("", "test-gNB")
-	replacement.setLog(zap.NewNop())
 
 	amfInstance.AttachUeConn(t.Context(), ue, replacement)
 

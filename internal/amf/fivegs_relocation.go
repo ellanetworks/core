@@ -141,7 +141,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, err
 	}
 
-	ue.TransitionTo(RegistrationInitiated)
+	ue.TransitionTo(ctx, RegistrationInitiated)
 
 	if !a.beginRelocationFromEPS(req.SUPI, req.ID, ue) {
 		return none, ErrRelocationFromEPSBusy
@@ -190,7 +190,7 @@ func (a *AMF) relocateFromEPS(
 	logger.From(ctx, logger.AmfLog).Info("Handover Request (EPS to 5GS)",
 		logger.SUPI(ue.Supi().String()),
 		zap.Uint64("target_amf_ue_ngap_id", uint64(targetUe.AmfUeNgapID)),
-		zap.Int("pdu-sessions", len(sessions)))
+		zap.Int("pdu_sessions", len(sessions)))
 
 	err = targetUe.SendHandoverRequest(ctx, HandoverRequestOpts{
 		HandoverType:         ngap.HandoverTypeEPSToFiveGS,
@@ -240,6 +240,8 @@ func (a *AMF) relocateFromEPS(
 }
 
 func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []interworking.PDNConnection) (ngap.PDUSessionResourceSetupListHOReq, []HandoverCandidate, map[uint8]uint8, error) {
+	ctx = logger.Into(ctx, logger.SUPI(ue.Supi().String()))
+
 	var (
 		sessions   ngap.PDUSessionResourceSetupListHOReq
 		candidates []HandoverCandidate
@@ -254,7 +256,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to take over a PDN connection as a PDU session; leaving it behind",
 				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(c.PDUSessionID),
-				zap.Uint8("ebi", c.EPSBearerIdentity), zap.String("dnn", c.APN), zap.Error(err))
+				zap.Uint8("ebi", c.EPSBearerIdentity), logger.DNN(c.APN), zap.Error(err))
 
 			continue
 		}
@@ -377,7 +379,7 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 	id := held.id
 
 	ue.MarkArrivedFromEPSHandover()
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(ctx, Registered)
 
 	if err := a.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not index a UE that arrived from EPS",

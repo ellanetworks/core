@@ -32,7 +32,7 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		if parsed, err := etsi.NewIMEIFromPEI(smc.IMEISV.IMEISV.String()); err == nil {
 			pei = parsed
 		} else {
-			logger.From(ctx, logger.MmeLog).Warn("failed to parse IMEISV", zap.String("imsi", ue.IMSI()), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Warn("failed to parse IMEISV", zap.Error(err))
 		}
 	}
 
@@ -48,15 +48,13 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 			return nasreply.Handled()
 		}
 
-		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container")
 
 		ingestAttachRequest(ctx, ue, ueConn, req)
 		ueConn.AttachRequestPlain = slices.Clone(smc.ReplayedNASMessageContainer)
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("NAS security context established",
-		zap.String("imsi", ue.IMSI()),
-	)
+	logger.From(ctx, logger.MmeLog).Info("NAS security context established")
 
 	if plain := ueConn.DeferredTAUPlain; len(plain) > 0 {
 		ueConn.DeferredTAUPlain = nil

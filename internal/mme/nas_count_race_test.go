@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	ue := m.NewUe(t.Context(), conn, 7)
 	ue.supi, _ = etsi.NewSUPIFromIMSI("001010000000001")

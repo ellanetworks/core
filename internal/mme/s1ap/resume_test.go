@@ -135,7 +135,7 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		t.Fatal("UE not connected after a verified resume")
 	}
 
-	if got := ue.Conn().ENBUES1APID; got != 1001 {
+	if got := ue.Conn().ENBUES1APID(); got != 1001 {
 		t.Fatalf("resumed connection eNB-UE-S1AP-ID = %d, want 1001", got)
 	}
 

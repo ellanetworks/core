@@ -63,8 +63,8 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 
 	if conn := ue.Conn(); conn != nil {
 		cs.Connection = &UEConnection{MMEUES1APID: uint32(conn.MMEUES1APID)}
-		if conn.ENBUES1APID != enbUES1APIDUnspecified {
-			enbID := uint32(conn.ENBUES1APID)
+		if conn.ENBUES1APID() != enbUES1APIDUnspecified {
+			enbID := uint32(conn.ENBUES1APID())
 			cs.Connection.ENBUES1APID = &enbID
 		}
 	}

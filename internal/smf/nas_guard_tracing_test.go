@@ -44,20 +44,9 @@ func TestRetransmitGuardLinksTimerSpanToArmingSpan(t *testing.T) {
 		t.Fatal("guard never fired")
 	}
 
+	retx := awaitSpan(t, exp, "smf/nas_guard_retransmit")
+
 	sc.procedureTimer.Stop()
-
-	var retx *tracetest.SpanStub
-
-	for _, sp := range exp.GetSpans() {
-		if sp.Name == "smf/nas_guard_retransmit" {
-			c := sp
-			retx = &c
-		}
-	}
-
-	if retx == nil {
-		t.Fatalf("no retransmit span; got %d spans", len(exp.GetSpans()))
-	}
 
 	if retx.Parent.IsValid() {
 		t.Error("guard span should be a root")
@@ -81,5 +70,32 @@ func TestRetransmitGuardLinksTimerSpanToArmingSpan(t *testing.T) {
 
 	if timer != "T3591" {
 		t.Errorf("nas.guard.timer = %q, want T3591", timer)
+	}
+}
+
+func awaitSpan(t *testing.T, exp *tracetest.InMemoryExporter, name string) *tracetest.SpanStub {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for {
+		var found *tracetest.SpanStub
+
+		for _, s := range exp.GetSpans() {
+			if s.Name == name {
+				c := s
+				found = &c
+			}
+		}
+
+		if found != nil {
+			return found
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("no %s span; got %d spans", name, len(exp.GetSpans()))
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }

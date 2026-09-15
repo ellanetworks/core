@@ -261,7 +261,7 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 			fresh := amf.NewUeContext()
 			amfInstance.AttachUeConn(t.Context(), fresh, ue.Conn())
 			fresh.Conn().RegistrationType5GS = tc.typ
-			fresh.TransitionTo(amf.RegistrationInitiated)
+			fresh.TransitionTo(t.Context(), amf.RegistrationInitiated)
 
 			if _, ok := amfInstance.LookupUeBySupi(ue.Supi()); !ok {
 				t.Fatal("fixture precondition: the incumbent context should be served")
@@ -326,7 +326,7 @@ func TestSupersedingRegistrationCarriesSessionsOnlyForAnUpdate(t *testing.T) {
 			fresh := amf.NewUeContext()
 			amfInstance.AttachUeConn(t.Context(), fresh, incumbent.Conn())
 			fresh.Conn().RegistrationType5GS = tc.typ
-			fresh.TransitionTo(amf.RegistrationInitiated)
+			fresh.TransitionTo(t.Context(), amf.RegistrationInitiated)
 			fresh.SetSupi(incumbent.Supi())
 
 			if isRegistrationUpdate(tc.typ) {

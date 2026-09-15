@@ -171,7 +171,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 	if highestApplied > lastApplied {
 		if err := f.writeLastApplied(highestApplied); err != nil {
 			logger.RaftLog.Error("FSM: failed to persist lastApplied after batch — halting node",
-				zap.Uint64("highestApplied", highestApplied),
+				zap.Uint64("highest_applied", highestApplied),
 				zap.Error(err))
 
 			panic(fmt.Sprintf("FSM.ApplyBatch: failed to write lastApplied at index %d: %v", highestApplied, err))
@@ -465,8 +465,8 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 			}
 
 			logger.RaftLog.Warn("FSM: preserved lastApplied from pre-upgrade database (one-time migration)",
-				zap.Uint64("snapshot_lastApplied", snapshotLastApplied),
-				zap.Uint64("preserved_lastApplied", oldLastApplied))
+				zap.Uint64("snapshot_last_applied", snapshotLastApplied),
+				zap.Uint64("preserved_last_applied", oldLastApplied))
 		}
 
 		if wErr := os.WriteFile(migrationMarker, []byte("1"), 0o600); wErr != nil {

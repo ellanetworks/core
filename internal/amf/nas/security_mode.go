@@ -21,14 +21,14 @@ import (
 // key-chain claim is released by the caller's !committed defer). Returns nil so the
 // dispatcher does not also emit a 5GMM STATUS.
 func abortSecurityMode(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeConn, reason string, err error) {
-	logger.From(ctx, logger.AmfLog).Error("security mode aborted, releasing UE", zap.String("reason", reason), zap.Error(err))
-	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(ueConn.RegistrationType5GS), metrics.ResultReject)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(ueConn.RegistrationType5GS), logger.RegistrationFailed,
+		logger.Cause(reason), zap.Error(err))
 	amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 	ue.Deregister(ctx)
 }
 
 func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Debug("Security Mode Procedure")
 
 	ctx, span := gmmTracer.Start(ctx, "nas/security_mode")
 	defer span.End()
@@ -88,9 +88,8 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		// The UE and operator policy share no NAS algorithm; reject the registration
 		// and release the UE to avoid a half-registered UE with an open RAN connection
 		// (5GMM cause #23).
-		logger.From(ctx, logger.AmfLog).Warn("NAS security algorithm negotiation failed, rejecting registration")
-
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationIncompatible,
+			logger.Cause("NAS security algorithm negotiation failed"))
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUESecurityCapabilitiesMismatch)
 		ue.Deregister(ctx)

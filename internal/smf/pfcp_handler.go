@@ -70,9 +70,9 @@ func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, c
 	}
 
 	logger.SmfLog.Debug("N1N2 message transfer accepted",
-		zap.String("supi", supi.String()),
-		zap.Uint8("pdu_session_id", pduSessionID),
-		zap.String("cause", transferCause.String()))
+		logger.SUPI(supi.String()),
+		logger.PDUSessionID(pduSessionID),
+		logger.Cause(transferCause.String()))
 
 	return nil
 }
@@ -133,7 +133,7 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 	case farIDForwarding:
 		return s.releaseBrokenForwardingTunnel(ctx, smContext, report)
 	default:
-		logger.WithTrace(ctx, logger.SmfLog).Info(
+		logger.From(ctx, logger.SmfLog).Info(
 			"Ignoring a GTP-U Error Indication for a tunnel that carries no traffic of its own",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID), logger.FARID(report.FARID),
 			logger.TEID(report.RemoteFTEID.TEID))
@@ -152,7 +152,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 	}
 
 	if !smContext.upConnectionActive() || !reportNamesAnchor(report, smContext.Tunnel.AN) {
-		logger.WithTrace(ctx, logger.SmfLog).Debug(
+		logger.From(ctx, logger.SmfLog).Debug(
 			"Ignoring a GTP-U Error Indication for a tunnel the session no longer forwards into",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
 			logger.TEID(report.RemoteFTEID.TEID))
@@ -166,9 +166,9 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 
 	smContext.Mutex.Unlock()
 
-	logger.WithTrace(ctx, logger.SmfLog).Warn(
+	logger.From(ctx, logger.SmfLog).Warn(
 		"Access network reported a GTP-U Error Indication; buffering the downlink and re-establishing the tunnel",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		logger.SEID(report.SEID), logger.FARID(report.FARID),
 		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
 		logger.TEID(report.RemoteFTEID.TEID))
@@ -192,9 +192,9 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 			continue
 		}
 
-		logger.WithTrace(ctx, logger.SmfLog).Warn(
+		logger.From(ctx, logger.SmfLog).Warn(
 			"could not stop the downlink of another PDN connection of the UE after an Error Indication",
-			zap.Error(err), zap.String("supi", supi.String()), logger.SEID(report.SEID))
+			zap.Error(err), logger.SUPI(supi.String()), logger.SEID(report.SEID))
 	}
 
 	if reportedErr != nil {
@@ -217,7 +217,7 @@ func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMCo
 	}
 
 	if !reportNamesAnchor(report, *smContext.Tunnel.Forwarding) {
-		logger.WithTrace(ctx, logger.SmfLog).Debug(
+		logger.From(ctx, logger.SmfLog).Debug(
 			"Ignoring a GTP-U Error Indication for a forwarding tunnel the session no longer relays into",
 			logger.SUPI(smContext.Supi.String()), logger.SEID(report.SEID),
 			logger.TEID(report.RemoteFTEID.TEID))
@@ -227,9 +227,9 @@ func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMCo
 
 	smContext.forwardingRelease.Stop()
 
-	logger.WithTrace(ctx, logger.SmfLog).Info(
+	logger.From(ctx, logger.SmfLog).Info(
 		"Handover target reported a GTP-U Error Indication; releasing the indirect data forwarding tunnel early",
-		zap.String("supi", smContext.Supi.String()),
+		logger.SUPI(smContext.Supi.String()),
 		logger.SEID(report.SEID),
 		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
 		logger.TEID(report.RemoteFTEID.TEID))
@@ -265,7 +265,7 @@ func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) 
 
 	n2Transfer, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("could not build the PDU Session Resource Release Command transfer",
+		logger.From(ctx, logger.SmfLog).Warn("could not build the PDU Session Resource Release Command transfer",
 			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
 		return false
@@ -281,7 +281,7 @@ func (s *SMF) releaseAccessResources(ctx context.Context, smContext *SMContext) 
 		smContext.Mutex.Unlock()
 
 		if !errors.Is(err, ErrUENotReachable) {
-			logger.WithTrace(ctx, logger.SmfLog).Warn("could not release the access resources of a broken tunnel",
+			logger.From(ctx, logger.SmfLog).Warn("could not release the access resources of a broken tunnel",
 				zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 		}
 
@@ -338,7 +338,7 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 	for _, report := range reports {
 		smContext := s.GetSessionBySEID(report.SEID)
 		if smContext == nil || !smContext.Supi.IsIMSI() {
-			logger.WithTrace(ctx, logger.SmfLog).Error(
+			logger.From(ctx, logger.SmfLog).Error(
 				"usage bytes lost: the SEID no longer resolves to a subscriber",
 				logger.SEID(report.SEID),
 				logger.UplinkVolume(report.UplinkVolume),
@@ -363,7 +363,7 @@ func (s *SMF) HandleUsageReports(ctx context.Context, reports []*models.UsageRep
 		return fmt.Errorf("failed to update data volume for %d subscribers: %w", len(usages), err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug(
+	logger.From(ctx, logger.SmfLog).Debug(
 		"Processed usage reports",
 		zap.Int("subscribers", len(usages)),
 	)
