@@ -31,8 +31,9 @@ func skipIfNoSCTP(t *testing.T) {
 	}
 }
 
-// newTestListener starts an SCTP listener on 127.0.0.1:port and registers cleanup.
-func newTestListener(t *testing.T, port int) *sctpListener {
+// newTestListener starts an SCTP listener on a free 127.0.0.1 port and
+// registers cleanup. Its port is in ln.laddr.
+func newTestListener(t *testing.T) *Listener {
 	t.Helper()
 
 	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
@@ -46,10 +47,10 @@ func newTestListener(t *testing.T, port int) *sctpListener {
 
 	ln, err := cfg.Listen("sctp", &SCTPAddr{
 		IPAddrs: []net.IPAddr{*netAddr},
-		Port:    port,
+		Port:    0,
 	})
 	if err != nil {
-		t.Fatalf("listen :%d: %v", port, err)
+		t.Fatalf("listen on an ephemeral port: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -59,6 +60,32 @@ func newTestListener(t *testing.T, port int) *sctpListener {
 	})
 
 	return ln
+}
+
+// freePort binds an SCTP socket to an ephemeral 127.0.0.1 port, then releases
+// it, so the caller has a port number nothing on the host is listening on.
+func freePort(t *testing.T) int {
+	t.Helper()
+
+	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := socketConfig{InitMsg: InitMsg{NumOstreams: 2, MaxInstreams: 5}}
+
+	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: 0})
+	if err != nil {
+		t.Fatalf("listen on an ephemeral port: %v", err)
+	}
+
+	port := ln.laddr.Port
+
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close probe listener: %v", err)
+	}
+
+	return port
 }
 
 // connectLoopback opens a blocking SCTP socket connected to 127.0.0.1:port.
@@ -102,7 +129,7 @@ func connectLoopback(port int) (int, error) {
 
 // acceptOne connects a raw SCTP client to ln and returns the accepted
 // server-side connection. The client fd is closed via t.Cleanup.
-func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
+func acceptOne(t *testing.T, ln *Listener) *SCTPConn {
 	t.Helper()
 
 	type acceptResult struct {
@@ -117,7 +144,7 @@ func acceptOne(t *testing.T, ln *sctpListener, port int) *SCTPConn {
 		connCh <- acceptResult{conn: conn, err: err}
 	}()
 
-	clientFd, err := connectLoopback(port)
+	clientFd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
@@ -167,9 +194,9 @@ func TestAcceptWouldBlock(t *testing.T) {
 func TestClose_Idempotent(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29300
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	connCh := make(chan *SCTPConn, 1)
 
@@ -214,9 +241,9 @@ func TestClose_Idempotent(t *testing.T) {
 func TestSendReceive(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29301
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	want := []byte("hello sctp")
 	errCh := make(chan error, 1)
@@ -271,9 +298,9 @@ func TestSendReceive(t *testing.T) {
 func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29302
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	clientFdCh := make(chan int, 1)
 
@@ -328,9 +355,9 @@ func TestClose_GracefulEOFReachesPeer(t *testing.T) {
 func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29304
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	// Establish one connection so the server is not idle during shutdown.
 	clientFd, err := connectLoopback(port)
@@ -381,9 +408,7 @@ func TestListenerClose_UnblocksAcceptWithActiveConn(t *testing.T) {
 func TestListenerClose_UnblocksAccept(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29303
-
-	ln := newTestListener(t, port)
+	ln := newTestListener(t)
 
 	errCh := make(chan error, 1)
 
@@ -412,10 +437,9 @@ func TestListenerClose_UnblocksAccept(t *testing.T) {
 func TestReadMsg_ClosedConn(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29306
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
+	conn := acceptOne(t, ln)
 
 	if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("Close: %v", err)
@@ -436,10 +460,9 @@ func TestReadMsg_ClosedConn(t *testing.T) {
 func TestWriteMsg_ClosedConn(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29307
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
+	conn := acceptOne(t, ln)
 
 	if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("Close: %v", err)
@@ -457,10 +480,9 @@ func TestWriteMsg_ClosedConn(t *testing.T) {
 func TestConcurrentReadAndClose(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29308
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
+	conn := acceptOne(t, ln)
 
 	// Block in readMsg — the peer is idle so this will park.
 	readDone := make(chan error, 1)
@@ -495,10 +517,9 @@ func TestConcurrentReadAndClose(t *testing.T) {
 func TestConn_LocalAndRemoteAddr(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29309
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
-	conn := acceptOne(t, ln, port)
+	conn := acceptOne(t, ln)
 
 	defer func() { _ = conn.Close() }()
 

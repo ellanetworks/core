@@ -15,7 +15,7 @@ import (
 // newSmallBufferListener shrinks SO_RCVBUF before bind. An association's rwnd is
 // derived from the listening socket when it is created (net/sctp/associola.c
 // sctp_association_init), so shrinking it after accept would be too late.
-func newSmallBufferListener(t *testing.T, port, rcvbuf int) *sctpListener {
+func newSmallBufferListener(t *testing.T, rcvbuf int) *Listener {
 	t.Helper()
 
 	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
@@ -38,9 +38,9 @@ func newSmallBufferListener(t *testing.T, port, rcvbuf int) *sctpListener {
 		},
 	}
 
-	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port})
+	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: 0})
 	if err != nil {
-		t.Fatalf("listen :%d: %v", port, err)
+		t.Fatalf("listen on an ephemeral port: %v", err)
 	}
 
 	t.Cleanup(func() { _ = ln.Close() })
@@ -51,12 +51,12 @@ func newSmallBufferListener(t *testing.T, port, rcvbuf int) *sctpListener {
 // splitPair returns the two ends of one association whose receive buffer is small
 // enough that the kernel splits a large message across deliveries. The sender is a
 // raw fd so writes are not routed through the write queue.
-func splitPair(t *testing.T, port, rcvbuf int) (server *SCTPConn, clientFd int) {
+func splitPair(t *testing.T, rcvbuf int) (server *SCTPConn, clientFd int) {
 	t.Helper()
 
 	skipIfNoSCTP(t)
 
-	ln := newSmallBufferListener(t, port, rcvbuf)
+	ln := newSmallBufferListener(t, rcvbuf)
 
 	type accepted struct {
 		conn *SCTPConn
@@ -70,7 +70,7 @@ func splitPair(t *testing.T, port, rcvbuf int) (server *SCTPConn, clientFd int) 
 		accepts <- accepted{conn: conn, err: err}
 	}()
 
-	fd, err := connectLoopback(port)
+	fd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}
@@ -115,7 +115,7 @@ func splitPayload() []byte {
 // A message the kernel splits across deliveries must come back from readMsg whole
 // and byte-exact. This drives the real kernel path rather than a modelled reader.
 func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
-	server, clientFd := splitPair(t, 29431, 4096)
+	server, clientFd := splitPair(t, 4096)
 	payload := splitPayload()
 
 	go func() {
@@ -152,7 +152,7 @@ func TestReadMsg_KernelSplitMessageIsReassembled(t *testing.T) {
 // Guards the test above against passing vacuously: it only proves reassembly if
 // the kernel really delivers the message in pieces on this host.
 func TestReadMsgOnce_KernelSplitsLargeMessage(t *testing.T) {
-	server, clientFd := splitPair(t, 29432, 4096)
+	server, clientFd := splitPair(t, 4096)
 	payload := splitPayload()
 
 	go func() {

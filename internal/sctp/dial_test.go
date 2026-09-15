@@ -27,9 +27,10 @@ var dialTestInit = InitMsg{NumOstreams: 2, MaxInstreams: 2, MaxAttempts: 2, MaxI
 // distinguishable from one that kept it.
 const echoStream = 1
 
-// echoServer starts a Server on 127.0.0.1:port that echoes every dispatched
-// message straight back to its sender.
-func echoServer(t *testing.T, port int) *Server {
+// echoServer starts a Server on a free 127.0.0.1 port that echoes every
+// dispatched message straight back to its sender, and returns it with the port
+// it bound.
+func echoServer(t *testing.T) (*Server, int) {
 	t.Helper()
 
 	srv := NewServer(Config{
@@ -46,10 +47,13 @@ func echoServer(t *testing.T, port int) *Server {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
+	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
 		cancel()
-		t.Fatalf("ListenAndServe: %v", err)
+		t.Fatalf("Listen: %v", err)
 	}
+
+	srv.Serve(ctx, ln)
 
 	t.Cleanup(func() {
 		cancel()
@@ -60,7 +64,7 @@ func echoServer(t *testing.T, port int) *Server {
 		srv.Shutdown(shutdownCtx)
 	})
 
-	return srv
+	return srv, ln.laddr.Port
 }
 
 // dialLoopback dials 127.0.0.1:port and registers cleanup.
@@ -94,9 +98,7 @@ func dialLoopback(t *testing.T, port int) *SCTPConn {
 func TestDial_RoundTrip(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29601
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	conn := dialLoopback(t, port)
 
@@ -137,9 +139,7 @@ func TestDial_RoundTrip(t *testing.T) {
 func TestDial_RemoteAddrResolved(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29602
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	conn := dialLoopback(t, port)
 
@@ -160,9 +160,7 @@ func TestDial_RemoteAddrResolved(t *testing.T) {
 func TestDial_PeerShutdownReportsEOF(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29603
-
-	srv := echoServer(t, port)
+	srv, port := echoServer(t)
 
 	conn := dialLoopback(t, port)
 
@@ -203,7 +201,7 @@ func TestDial_NoListenerFails(t *testing.T) {
 	skipIfNoSCTP(t)
 
 	// Nothing listens here; the kernel answers the INIT with an ABORT.
-	raddr, err := ResolveSCTPAddr("sctp", "127.0.0.1:29604")
+	raddr, err := ResolveSCTPAddr("sctp", net.JoinHostPort("127.0.0.1", strconv.Itoa(freePort(t))))
 	if err != nil {
 		t.Fatalf("ResolveSCTPAddr: %v", err)
 	}
@@ -444,9 +442,7 @@ func TestBindAddrDoesNotMutateCaller(t *testing.T) {
 func TestDial_BoundToLocalAddress(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29606
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	laddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.2")}}}
 	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
@@ -476,18 +472,21 @@ func TestDial_BoundToLocalAddress(t *testing.T) {
 func TestDial_Multihomed(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29607
-
 	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
 		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
 
 	// Listening on the wildcard so the server answers on both loopback aliases.
 	srvCtx, srvCancel := context.WithCancel(context.Background())
 
-	if err := srv.ListenAndServe(srvCtx, "0.0.0.0", port, ""); err != nil {
+	ln, err := Listen(srvCtx, "0.0.0.0", 0, "")
+	if err != nil {
 		srvCancel()
-		t.Fatalf("ListenAndServe: %v", err)
+		t.Fatalf("Listen: %v", err)
 	}
+
+	srv.Serve(srvCtx, ln)
+
+	port := ln.laddr.Port
 
 	t.Cleanup(func() {
 		srvCancel()
@@ -535,17 +534,20 @@ func TestDial_Multihomed(t *testing.T) {
 func TestDial_IPv6(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29608
-
 	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
 		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
 
 	srvCtx, srvCancel := context.WithCancel(context.Background())
 
-	if err := srv.ListenAndServe(srvCtx, "::1", port, ""); err != nil {
+	ln, err := Listen(srvCtx, "::1", 0, "")
+	if err != nil {
 		srvCancel()
 		t.Skipf("no IPv6 loopback listener: %v", err)
 	}
+
+	srv.Serve(srvCtx, ln)
+
+	port := ln.laddr.Port
 
 	t.Cleanup(func() {
 		srvCancel()
@@ -587,9 +589,7 @@ func TestDial_CancelDoesNotPoisonConn(t *testing.T) {
 
 	const cancelDialAttempts = 400
 
-	const port = 29609
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
 
@@ -644,9 +644,7 @@ func TestDial_CancelDoesNotPoisonConn(t *testing.T) {
 func TestDial_ClearsReadDeadline(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29610
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
 
@@ -709,9 +707,7 @@ func TestDial_RejectsUnknownNetwork(t *testing.T) {
 func TestDial_EmptyNetworkMatchesResolve(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29612
-
-	echoServer(t, port)
+	_, port := echoServer(t)
 
 	raddr, err := ResolveSCTPAddr("", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {
