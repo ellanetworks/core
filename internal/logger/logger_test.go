@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.uber.org/zap/zapcore"
 )
 
 func TestCloseFlushesAndClosesTheLogFile(t *testing.T) {
@@ -63,5 +65,28 @@ func TestReconfiguringClosesThePreviousLogFile(t *testing.T) {
 
 	if _, err := first[0].Write([]byte("x")); !errors.Is(err, os.ErrClosed) {
 		t.Errorf("reconfiguring left the previous log file open, got %v", err)
+	}
+}
+
+func TestCloseDisablesFurtherLogging(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "system.log")
+
+	if err := ConfigureLogging("info", "file", path, "stdout", ""); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+
+	t.Cleanup(func() { _ = ConfigureLogging("info", "stdout", "", "stdout", "") })
+
+	if !MmeLog.Core().Enabled(zapcore.ErrorLevel) {
+		t.Fatal("errors are not logged before Close")
+	}
+
+	if err := Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	// Nothing should reach the files Close just shut, not even an Error.
+	if MmeLog.Core().Enabled(zapcore.ErrorLevel) {
+		t.Error("logging is still enabled after Close, so a straggler would write to a closed file")
 	}
 }

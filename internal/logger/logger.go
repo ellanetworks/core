@@ -77,8 +77,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	atomicLevel.SetLevel(zl)
 
-	closeAll(trackFiles(append(sysFiles, auditFiles...)))
-
 	build := []zap.Field{zap.String("service.version", version.GetVersion().Version)}
 
 	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller()).With(build...)
@@ -100,6 +98,10 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	BgpLog = Scope("BGP")
 
 	zap.RedirectStdLog(EllaLog)
+
+	// Only now that every logger points at the new cores is it safe to close the
+	// files the previous ones were writing to.
+	closeAll(trackFiles(append(sysFiles, auditFiles...)))
 
 	return nil
 }
@@ -123,6 +125,11 @@ func Close() error {
 	// unbuffered, so a sync error here says nothing about whether records landed.
 	_ = log.Sync()
 	_ = AuditLog.Sync()
+
+	// Filter everything from here on, so a straggler that logs after shutdown is
+	// dropped at the level check rather than writing to a closed file.
+	// ConfigureLogging restores a real level if logging is set up again.
+	atomicLevel.SetLevel(zapcore.FatalLevel + 1)
 
 	var err error
 
