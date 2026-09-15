@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   CUSTOM_RANGE,
   DAILY_RANGES,
@@ -62,9 +62,11 @@ describe("timeRangeFilter", () => {
   });
 
   it("carries a preset as a relative token", () => {
-    expect(timeRangeFilter({ preset: "7d", from: "", to: "" }, "date")).toEqual({
-      relative: "7d",
-    });
+    expect(timeRangeFilter({ preset: "7d", from: "", to: "" }, "date")).toEqual(
+      {
+        relative: "7d",
+      },
+    );
   });
 });
 
@@ -86,6 +88,27 @@ describe("resolveTimeRangeFilter", () => {
       { ranges: DAILY_RANGES, granularity: "date" },
     );
     expect(resolved.from).toBe(resolved.to);
+  });
+
+  it("counts calendar days across a daylight saving change", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 9, 0, 30));
+    try {
+      expect(
+        resolveTimeRangeFilter(
+          { relative: "yesterday" },
+          { ranges: DAILY_RANGES, granularity: "date" },
+        ),
+      ).toEqual({ from: "2026-03-08", to: "2026-03-08" });
+      expect(
+        resolveTimeRangeFilter(
+          { relative: "7d" },
+          { ranges: DAILY_RANGES, granularity: "date" },
+        ),
+      ).toEqual({ from: "2026-03-03", to: "2026-03-09" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("resolves a relative instant to the past", () => {

@@ -115,8 +115,12 @@ export const toInputValue = (
 };
 
 const stamp = (offsetMs: number, granularity: TimeRangeGranularity): string => {
-  const at = new Date(Date.now() - offsetMs);
-  return granularity === "date" ? localDateString(at) : at.toISOString();
+  if (granularity !== "date") {
+    return new Date(Date.now() - offsetMs).toISOString();
+  }
+  const at = new Date();
+  at.setDate(at.getDate() - Math.round(offsetMs / DAY_MS));
+  return localDateString(at);
 };
 
 export const resolveTimeRangeFilter = (
