@@ -66,8 +66,6 @@ type Radio struct {
 	ConnectedAt    string  `json:"connected_at"`
 	LastSeenAt     string  `json:"last_seen_at"`
 	DisconnectedAt string  `json:"disconnected_at"`
-	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
-	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
 const ForgetRadioAction = "forget_radio"
@@ -207,7 +205,6 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 				ConnectedAt:    formatRadioTime(radio.ConnectedAt),
 				LastSeenAt:     formatRadioTime(radio.LastSeenAt),
 				DisconnectedAt: formatRadioTime(radio.DisconnectedAt),
-				SupportedTAIs:  convertRadioTaiToReturnTai(radio.SupportedTAIs),
 			})
 		}
 
@@ -228,7 +225,6 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
 					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
 					DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
-					SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
 				})
 			}
 		}
