@@ -24,7 +24,7 @@ func TestNextEksi(t *testing.T) {
 // TS 24.301 §4.4.3.1
 func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 	m := newTestMME(t)
-	ue := m.NewUe(&captureConn{}, 7)
+	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
 	ue.SetKASMEForTest(make([]byte, 32))
 	ue.SetULCountForTest(5)
@@ -46,7 +46,7 @@ func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 // TS 24.301 §5.4.3.2
 func TestRekeyNASSecurityContextKeepsNASCounts(t *testing.T) {
 	m := newTestMME(t)
-	ue := m.NewUe(&captureConn{}, 7)
+	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
 	ue.SetKASMEForTest(make([]byte, 32))
 

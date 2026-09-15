@@ -33,19 +33,19 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 // handleInitialContextSetupResponse records the eNB's bearer-setup result
 // (TS 36.413): each confirmed eNB S1-U F-TEID becomes the session's downlink
 // endpoint at the anchor; any bearer the eNB could not set up is torn down.
-func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcInitialContextSetup, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, err)
 		return
 	}
 
-	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	mmeUEID := *msg.MMEUES1APID
 
@@ -65,7 +65,7 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		zap.Int("e-rabs-setup", setup),
 		zap.Int("e-rabs-released", len(result.Released)))
 
-	ue.PagingDelivered()
+	ue.PagingDelivered(ctx)
 
 	// Deliver any LPPa message buffered while the UE was ECM-IDLE.
 	if lppaBuf := ue.PopLPPaBuffered(); lppaBuf != nil {

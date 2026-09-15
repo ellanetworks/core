@@ -1221,7 +1221,7 @@ func TestMobilityReg_UEContextRequest_ArmsTheN2SetupGuard(t *testing.T) {
 	}
 
 	amfInstance.N2SetupGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond}
-	conn.N2Setup(amf.N2SetupInitialContext).Arm(amfInstance.N2SetupGuardCfg)
+	conn.N2Setup(amf.N2SetupInitialContext).Arm(t.Context(), amfInstance.N2SetupGuardCfg)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for conn.N2SetupOpen(amf.N2SetupInitialContext) && time.Now().Before(deadline) {

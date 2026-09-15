@@ -52,7 +52,7 @@ func TestENBDisconnectDropsMidAttachUE(t *testing.T) {
 func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	m.reclaimUEsOnConnLoss(cc)
 

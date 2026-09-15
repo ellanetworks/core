@@ -45,7 +45,7 @@ func gnbRanNodeID(t *testing.T, hexID string) models.GlobalRanNodeID {
 func claimRanID(t *testing.T, a *amf.AMF, radio *amf.Radio, id ngap.GlobalRANNodeID) *amf.Radio {
 	t.Helper()
 
-	evicted, err := a.ClaimRanID(radio, id, amf.DefaultRelativeCapacity)
+	evicted, err := a.ClaimRanID(t.Context(), radio, id, amf.DefaultRelativeCapacity)
 	if err != nil {
 		t.Fatalf("ClaimRanID: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, zap.NewNop())
 	ue := amf.NewUeContext()
-	amfInstance.AttachUeConn(ue, ueConn)
+	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
 	if evicted := claimRanID(t, amfInstance, radio, gnbGlobalRANNodeID(t, "ABCDE1")); evicted != nil {
 		t.Fatalf("a repeat NG Setup must not evict its own association, got %q", amfInstance.RadioNameForTest(evicted))

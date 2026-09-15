@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -87,14 +88,17 @@ func (l *IPLease) Address() netip.Addr {
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
 func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	querySummary := fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -126,7 +130,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -138,14 +142,17 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 // concurrent allocations from any node serialise correctly under proposeMu.
 // Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
 func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	querySummary := fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -177,7 +184,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ipv6", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -187,14 +194,17 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
 func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -222,14 +232,17 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 
 // GetLeaseBySession returns the lease matching (poolID, poolType, sessionID, imsi), or ErrNotFound.
 func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolType string, sessionID int, imsi string) (*IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (by session)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by session)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -261,14 +274,17 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
 func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
+	querySummary := fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -294,14 +310,17 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 }
 
 func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	querySummary := fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -338,21 +357,24 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		return netip.Addr{}, fmt.Errorf("parse released address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
 }
 
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -378,14 +400,17 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 // DeleteAllDynamicLeases removes all dynamic leases cluster-wide,
 // preserving static ones. No production caller.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
+	querySummary := fmt.Sprintf("%s %s (dynamic)", "DELETE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		"DeleteAllDynamicLeases",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -412,15 +437,18 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 // given nodeID. Static leases are preserved: an admin-pinned IP stays
 // bound to its IMSI regardless of which node previously served it.
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
+	querySummary := fmt.Sprintf("%s %s (dynamic by node)", "DELETE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		"DeleteDynamicLeasesByNode",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
-			attribute.Int("node_id", nodeID),
+			attribute.String("db.collection.name", IPLeasesTableName),
+			attrs.NodeID(nodeID),
 		),
 	)
 	defer span.End()
@@ -446,14 +474,17 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
 func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
+	querySummary := fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -480,14 +511,17 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 
 // ListActiveLeases returns all leases with a non-NULL sessionID (dynamic + active static).
 func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (active)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (active)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -523,15 +557,18 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 // from the node that hosts the PDU session, not by every node in the
 // cluster.
 func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (active,by_node)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (active,by_node)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
-			attribute.Int("node_id", nodeID),
+			attribute.String("db.collection.name", IPLeasesTableName),
+			attrs.NodeID(nodeID),
 		),
 	)
 	defer span.End()
@@ -579,14 +616,17 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 
 // ListLeasesByPool returns all leases (dynamic + static) for a given pool.
 func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolType string) ([]IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -619,16 +659,19 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 // ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
 // along with the total count. The page parameter is 1-based.
 func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType string, page, perPage int) ([]IPLease, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", IPLeasesTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -679,14 +722,17 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 // ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.
 // Used by the allocator to find free offsets via merge-scan.
 func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolType string) ([]string, error) {
+	querySummary := fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -724,14 +770,17 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolTy
 
 // CountLeasesByPool returns the total number of leases in a pool.
 func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (count by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (count by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -759,14 +808,17 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 // CountIPv4LeasesByPool returns the number of IPv4 leases in a pool.
 // IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:x.x.x.x).
 func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (count IPv4 by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (count IPv4 by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -793,14 +845,17 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 
 // CountIPv6LeasesByPool returns the number of IPv6 leases in a pool.
 func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (count IPv6 by pool)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (count IPv6 by pool)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -827,14 +882,17 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 
 // CountActiveLeases returns the total number of active leases (sessionID IS NOT NULL).
 func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (count active)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (count active)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -861,14 +919,17 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 
 // CountLeasesByIMSI returns the total number of leases (all types) for a subscriber.
 func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (count by imsi)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (count by imsi)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -897,14 +958,17 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 // family. Returns ErrAlreadyExists when a static lease already exists for
 // (poolID, poolType, imsi) or the address is already leased.
 func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
+	querySummary := fmt.Sprintf("%s %s (static)", "INSERT", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static)", "INSERT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -938,14 +1002,17 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 // GetStaticLease returns the static reservation for (poolID, poolType,
 // imsi), or ErrNotFound.
 func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi string) (*IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (static)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -978,14 +1045,17 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 // ListStaticLeasesByIMSI returns every static reservation held by a
 // subscriber across data networks and families.
 func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (static by imsi)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static by imsi)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1018,14 +1088,17 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 // ListStaticLeasesByDataNetwork returns every static reservation in a pool
 // (both families), ordered by family then address.
 func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID string) ([]IPLease, error) {
+	querySummary := fmt.Sprintf("%s %s (static by data network)", "SELECT", IPLeasesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static by data network)", "SELECT", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1059,14 +1132,17 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 // sessionID, so listActiveLeases and BGP (sessionID IS NOT NULL) drop the
 // address while the row persists.
 func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
+	querySummary := fmt.Sprintf("%s %s (static clear)", "UPDATE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static clear)", "UPDATE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1093,14 +1169,17 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 // Returns ErrNotFound if the reservation is gone, ErrAlreadyExists if the
 // address is already leased.
 func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
+	querySummary := fmt.Sprintf("%s %s (static repin)", "UPDATE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static repin)", "UPDATE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1128,14 +1207,17 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 // DeleteStaticLease removes a reserved static lease. Returns ErrNotFound if
 // the reservation is gone.
 func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
+	querySummary := fmt.Sprintf("%s %s (static)", "DELETE", IPLeasesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (static)", "DELETE", IPLeasesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()

@@ -30,7 +30,7 @@ func idleRegisteredUE(t *testing.T, m *mme.MME) (*mme.UeContext, eps.EPSMobileId
 		t.Fatal(err)
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	return ue, guti
 }
@@ -359,7 +359,7 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(nil), initiatingValue(t, b))
+	mmes1ap.HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(nil), initiatingValue(t, b))
 
 	if ue.Connected() {
 		t.Fatal("a forged resume connected the idle victim")

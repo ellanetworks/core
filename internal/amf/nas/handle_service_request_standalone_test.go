@@ -73,7 +73,7 @@ func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo na
 	}
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
-	handleConfigurationUpdateComplete(amfInstance, ue)
+	handleConfigurationUpdateComplete(t.Context(), amfInstance, ue)
 }
 
 func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {

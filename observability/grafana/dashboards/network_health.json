@@ -894,7 +894,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "Received NGAP Messages per type.",
+      "description": "Received signaling messages per type.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -987,7 +987,7 @@
           "refId": "A"
         }
       ],
-      "title": "NGAP Message Rate",
+      "title": "Signaling Message Rate",
       "type": "timeseries"
     },
     {

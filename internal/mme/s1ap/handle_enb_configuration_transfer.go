@@ -16,14 +16,14 @@ import (
 // from ENB CONFIGURATION TRANSFER into an MME CONFIGURATION TRANSFER toward the eNB
 // named in its Target eNB-ID (TS 36.413 §8.15.2/§8.16.2). Non-UE, fire-and-forget:
 // an absent IE or an unconnected target is dropped.
-func handleENBConfigurationTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleENBConfigurationTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseENBConfigurationTransfer(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcENBConfigurationTransfer, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBConfigurationTransfer, err)
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBConfigurationTransfer, s1ap.TriggeringInitiatingMessage, nodeLevel(), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBConfigurationTransfer, s1ap.TriggeringInitiatingMessage, nodeLevel(), msg.Diagnostics())
 
 	if msg.SONConfigurationTransfer == nil {
 		return

@@ -136,7 +136,7 @@ func TestPathSwitchImplicitlyReleasesOmittedERABs(t *testing.T) {
 	req := samplePathSwitchRequest(ue)
 	req.ERABToBeSwitchedDL = []s1ap.ERABToBeSwitchedDLItem{switchedDLItemFor(mme.DefaultERABID, 0x99)}
 
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
 
 	if !releasedRef(fsm, second.SessionRef) {
 		t.Errorf("omitted E-RAB 6 was not released at the anchor; released refs = %v", fsm.releasedRefs)
@@ -157,7 +157,7 @@ func TestPathSwitchOmittedDefaultBearerReleasesPDNConnection(t *testing.T) {
 	req := samplePathSwitchRequest(ue)
 	req.ERABToBeSwitchedDL = []s1ap.ERABToBeSwitchedDLItem{switchedDLItemFor(6, 0xaa)}
 
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
 
 	if !releasedRef(fsm, first.SessionRef) {
 		t.Errorf("PDN connection whose default bearer was not accepted was not released; released refs = %v", fsm.releasedRefs)
@@ -179,7 +179,7 @@ func TestPathSwitchAllUPSwitchesFailSendsFailure(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Failure", target.count())
@@ -205,7 +205,7 @@ func TestPathSwitchPartialUPFailureReportsReleasedERAB(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
@@ -240,7 +240,7 @@ func TestPathSwitchFailedERABReleasesCoreNetworkResources(t *testing.T) {
 		switchedDLItemFor(6, 0xaa),
 	}
 
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(&captureConn{}), pathSwitchValue(t, req))
 
 	if !releasedRef(fsm, second.SessionRef) {
 		t.Errorf("core-network resources of the failed E-RAB 6 were not released; released refs = %v", fsm.releasedRefs)
@@ -266,7 +266,7 @@ func TestPathSwitchAckCarriesUEAMBR(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
@@ -284,7 +284,7 @@ func TestPathSwitchNCCWrapsToZero(t *testing.T) {
 	ue.SetNCCForTest(7)
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
@@ -312,7 +312,7 @@ func TestPathSwitchAckCarriesFreshlyDerivedNH(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
@@ -369,7 +369,7 @@ func TestPathSwitchFailureCarriesMandatoryIEs(t *testing.T) {
 			req := tt.prepare(t, m)
 
 			target := &captureConn{}
-			handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+			handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 			if target.count() != 1 {
 				t.Fatalf("sent %d messages, want exactly one Path Switch Request Failure", target.count())
@@ -400,7 +400,7 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 		ieIDEUTRANCGI, ieIDTAI, ieIDUESecurityCapabilities)
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), value)
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), value)
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
@@ -427,7 +427,7 @@ func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("sent %d messages, want exactly one Path Switch Request Failure", target.count())
@@ -457,7 +457,7 @@ func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
 	fsm.failModify(mme.DefaultERABID, errAnchorRefused)
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if ue.EMMState() == mme.EMMRegistered {
 		t.Error("UE is still registered after a total path-switch failure")

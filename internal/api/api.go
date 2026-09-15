@@ -29,6 +29,9 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -49,6 +52,8 @@ const (
 // routeReconciler is used to reconcile routes periodically.
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
+
+var tracer = otel.Tracer("ella-core/api")
 
 // routeReconcileBackstop is the periodic invariant-checking sweep
 // when no change events have fired. The primary trigger is the
@@ -410,19 +415,32 @@ func resolveScheme(cfg config.Config) Scheme {
 // reconciler skips the bgpRouteMetric to avoid stepping on it.
 const bgpRouteMetric = 200
 
-func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {
+func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) (err error) {
+	ctx, span := tracer.Start(ctx, "api/reconcile_routes",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "kernel route reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	expectedRoutes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}
 
-	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled()
+	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't check if IP forwarding is enabled: %v", err)
 	}
 
 	if !ipForwardingEnabled {
-		err := kernelInt.EnableIPForwarding()
+		err := kernelInt.EnableIPForwarding(ctx)
 		if err != nil {
 			return fmt.Errorf("couldn't enable IP forwarding: %v", err)
 		}
@@ -463,13 +481,13 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			ifKey:       kernelNetworkInterface,
 		}] = struct{}{}
 
-		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
+		routeExists, err := kernelInt.RouteExists(ctx, destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
 		}
 
 		if !routeExists {
-			err := kernelInt.CreateRoute(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
+			err := kernelInt.CreateRoute(ctx, destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 			if err != nil {
 				return fmt.Errorf("couldn't create route: %v", err)
 			}
@@ -477,7 +495,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	}
 
 	for _, netIf := range interfaceDBKernelMap {
-		managed, err := kernelInt.ListManagedRoutes(netIf)
+		managed, err := kernelInt.ListManagedRoutes(ctx, netIf)
 		if err != nil {
 			return fmt.Errorf("couldn't list managed routes on %v: %v", netIf, err)
 		}
@@ -502,7 +520,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 				continue
 			}
 
-			if err := kernelInt.DeleteRoute(dest, gw, r.Priority, netIf); err != nil {
+			if err := kernelInt.DeleteRoute(ctx, dest, gw, r.Priority, netIf); err != nil {
 				logger.APILog.Warn("couldn't delete stale route",
 					zap.String("destination", dest.String()),
 					zap.String("gateway", gw.String()),
@@ -513,7 +531,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	}
 
 	for _, netIf := range interfaceDBKernelMap {
-		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(netIf)
+		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(ctx, netIf)
 		if err != nil {
 			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Any("interface", netIf), zap.Error(err))
 		}

@@ -7,8 +7,18 @@ import (
 	"context"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/dbwriter")
+
+type queuedEvent struct {
+	event *RadioEvent
+	link  trace.SpanContext
+}
 
 // BufferedDBWriter wraps a DBWriter and performs InsertRadioEvent calls
 // asynchronously via a buffered channel. This prevents synchronous SQLite
@@ -19,7 +29,7 @@ import (
 type BufferedDBWriter struct {
 	delegate DBWriter
 	logger   *zap.Logger
-	eventCh  chan *RadioEvent
+	eventCh  chan queuedEvent
 	wg       sync.WaitGroup
 }
 
@@ -29,7 +39,7 @@ func NewBufferedDBWriter(delegate DBWriter, bufferSize int, logger *zap.Logger) 
 	b := &BufferedDBWriter{
 		delegate: delegate,
 		logger:   logger,
-		eventCh:  make(chan *RadioEvent, bufferSize),
+		eventCh:  make(chan queuedEvent, bufferSize),
 	}
 	b.wg.Add(1)
 
@@ -40,9 +50,14 @@ func NewBufferedDBWriter(delegate DBWriter, bufferSize int, logger *zap.Logger) 
 
 // InsertRadioEvent enqueues the event for asynchronous insertion.
 // If the buffer is full the event is dropped and a warning is logged.
-func (b *BufferedDBWriter) InsertRadioEvent(_ context.Context, radioEvent *RadioEvent) error {
+func (b *BufferedDBWriter) InsertRadioEvent(ctx context.Context, radioEvent *RadioEvent) error {
+	queued := queuedEvent{
+		event: radioEvent,
+		link:  trace.SpanContextFromContext(ctx),
+	}
+
 	select {
-	case b.eventCh <- radioEvent:
+	case b.eventCh <- queued:
 	default:
 		b.logger.Warn("radio event buffer full, dropping event",
 			zap.String("message_type", radioEvent.MessageType),
@@ -86,13 +101,31 @@ func (b *BufferedDBWriter) Stop(ctx context.Context) {
 func (b *BufferedDBWriter) drainLoop() {
 	defer b.wg.Done()
 
-	for event := range b.eventCh {
-		err := b.delegate.InsertRadioEvent(context.Background(), event)
-		if err != nil {
-			b.logger.Warn("failed to insert buffered radio event",
-				zap.String("message_type", event.MessageType),
-				zap.Error(err),
-			)
-		}
+	for queued := range b.eventCh {
+		b.write(queued)
+	}
+}
+
+func (b *BufferedDBWriter) write(queued queuedEvent) {
+	ctx := context.Background()
+	span := trace.SpanFromContext(ctx)
+
+	if queued.link.IsValid() {
+		ctx, span = tracer.Start(ctx, "dbwriter/insert_radio_event",
+			trace.WithSpanKind(trace.SpanKindInternal),
+			trace.WithLinks(trace.Link{SpanContext: queued.link}),
+		)
+		defer span.End()
+	}
+
+	err := b.delegate.InsertRadioEvent(ctx, queued.event)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to insert radio event")
+
+		b.logger.Warn("failed to insert buffered radio event",
+			zap.String("message_type", queued.event.MessageType),
+			zap.Error(err),
+		)
 	}
 }

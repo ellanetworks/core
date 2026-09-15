@@ -31,7 +31,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 
 	ue.EndKeyChainProc(procedure.SecurityMode)
 

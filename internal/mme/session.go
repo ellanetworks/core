@@ -76,7 +76,7 @@ func (m *MME) DeregisterEmptyUE(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	ue.TransitionTo(EMMDeregistered)
+	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 }
 
@@ -90,7 +90,7 @@ func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection
 		return
 	}
 
-	ue.TransitionTo(EMMDeregistered)
+	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseAllSessions(ctx, ue)
 	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 }

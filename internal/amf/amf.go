@@ -30,6 +30,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -440,7 +441,7 @@ func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Ra
 // retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
 // gNB repeating NG Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the gNB has already forgotten.
-func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) (*Radio, error) {
+func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.GlobalRANNodeID, advertisedCapacity uint8) (*Radio, error) {
 	newID, err := util.RANNodeIDToModels(ranNodeID)
 	if err != nil {
 		return nil, err
@@ -472,10 +473,10 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID, adverti
 	amf.reg.Claim(key, radio)
 	amf.mu.Unlock()
 
-	amf.RemoveAllUeInRan(context.Background(), radio)
+	amf.RemoveAllUeInRan(ctx, radio)
 
 	if evicted != nil {
-		amf.RemoveAllUeInRan(context.Background(), evicted)
+		amf.RemoveAllUeInRan(ctx, evicted)
 
 		if evicted.Conn != nil {
 			// Aborted, not shut down: the incumbent has been superseded and a
@@ -604,6 +605,13 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	}
 
 	return count
+}
+
+func (amf *AMF) DisconnectRadioOnConnLoss(ran *Radio) {
+	ctx, span := guardSpan(trace.SpanContext{}, "amf/reclaim_on_conn_loss", "gNB disconnect", 0)
+	defer span.End()
+
+	amf.DisconnectRadio(ctx, ran)
 }
 
 func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
@@ -782,7 +790,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 // Leaving the mobile-reachable or implicit-deregistration timers armed lets a
 // deregistration reach the SMF, and through it the UPF, after both have closed.
 // The three families each need their own lock.
-func (amf *AMF) StopAllTimers() {
+func (amf *AMF) StopAllTimers(ctx context.Context) {
 	amf.mu.Lock()
 
 	ues := make([]*UeContext, 0, len(amf.UEs))
@@ -803,13 +811,13 @@ func (amf *AMF) StopAllTimers() {
 	amf.mu.Unlock()
 
 	for _, ue := range ues {
-		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+		ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
 	}
 
 	// A UE in CM-IDLE has no connection and a bare connection has no UE, so
 	// neither list alone covers both.
 	for _, c := range conns {
-		c.StopNASGuard()
+		c.StopNASGuard(ctx)
 		c.releaseGuard.Stop()
 	}
 }
@@ -872,13 +880,13 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 // CancelBufferedN1N2 discards a buffered request of one of the given classes, once its
 // consumer stops waiting for it. Matching on class
 // keeps one consumer from discarding another's request.
-func (amf *AMF) CancelBufferedN1N2(supi etsi.SUPI, n1 models.N1MessageClass, n2 models.N2InformationClass) {
+func (amf *AMF) CancelBufferedN1N2(ctx context.Context, supi etsi.SUPI, n1 models.N1MessageClass, n2 models.N2InformationClass) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return
 	}
 
 	if pending := ue.PagingPending(); pending != nil && pending.Req.HasClass(n1, n2) {
-		ue.PagingDelivered()
+		ue.PagingDelivered(ctx)
 	}
 }

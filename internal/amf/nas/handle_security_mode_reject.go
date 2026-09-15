@@ -24,7 +24,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *fgs.S
 	defer ue.Deregister(ctx)
 
 	if conn := ue.Conn(); conn != nil {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 		ue.EndKeyChainProc(procedure.SecurityMode)
 	}
 

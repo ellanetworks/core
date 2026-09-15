@@ -156,7 +156,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
 	if ue.IdleMobilityFrom5GSPending() {
-		ue.TransitionTo(mme.EMMRegistered)
+		ue.TransitionTo(ctx, mme.EMMRegistered)
 	}
 
 	ueConn.TauRequestPlain = plain
@@ -166,7 +166,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ueConn.TauReleaseOnComplete = true
 	}
 
-	ueConn.ArmNASGuard("Tracking Area Update Accept", acceptPlain, eps.SHTIntegrityProtectedCiphered)
+	ueConn.ArmNASGuard(ctx, "Tracking Area Update Accept", acceptPlain, eps.SHTIntegrityProtectedCiphered)
 
 	return nasreply.Handled()
 }
@@ -175,7 +175,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // (TS 24.301 §5.5.3.2.5).
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
 	if ue.Secured() {
@@ -190,7 +190,7 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // handleTrackingAreaUpdateComplete finalises a GUTI reallocation; for a no-active
 // TAU it releases the UE back to ECM-IDLE (TS 24.301).
 func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 	m.CommitGUTIRealloc(ue)
 	ue.EndIdleMobilityFrom5GS()
 	ue.ClearLocalBearerDeactivation()

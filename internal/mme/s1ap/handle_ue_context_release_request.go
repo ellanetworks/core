@@ -28,10 +28,10 @@ func keepsConnectionForPendingDownlink(cause s1ap.Cause, ueConn *mme.UeConn) boo
 // Request (inactivity or radio-link failure), starting the S1 release procedure
 // (TS 36.413). Whether the context is deleted or retained in ECM-IDLE is decided
 // at release-complete from the EMM state.
-func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseRequest(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcUEContextReleaseRequest, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, err)
 		return
 	}
 
@@ -48,12 +48,12 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	fields := []zap.Field{
 		zap.String("imsi", ue.IMSI()),
@@ -77,7 +77,7 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {
-		ueConn.DeferRelease(cause)
+		ueConn.DeferRelease(ctx, cause)
 
 		logger.From(ctx, ueConn.Log()).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
 

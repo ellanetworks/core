@@ -23,7 +23,7 @@ func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	if resp.MobileIdentity.IMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Identity Response carries no IMSI",

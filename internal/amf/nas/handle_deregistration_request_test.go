@@ -90,7 +90,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 	}
 
 	ue.ForceStateForTest(amf.Registered)
-	ue.Conn().AMFForTest().ReleaseNasConnection(ue, nil)
+	ue.Conn().AMFForTest().ReleaseNasConnection(t.Context(), ue, nil)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistration()
 

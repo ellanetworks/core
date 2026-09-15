@@ -70,14 +70,17 @@ type CellPosition struct {
 }
 
 func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -122,14 +125,17 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 }
 
 func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPosition, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -157,14 +163,17 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 // GetCellPositionByCell looks up a provisioned position by its serving-cell
 // natural key. Returns ErrNotFound when no row matches.
 func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, cellIdentity string) (*CellPosition, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -197,14 +206,17 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 }
 
 func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -230,14 +242,17 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 }
 
 func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -276,14 +291,17 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 }
 
 func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", CellPositionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", CellPositionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()

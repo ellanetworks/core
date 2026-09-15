@@ -175,7 +175,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 			b.logger.Debug("route withdrawn from RIB, removing from kernel",
 				zap.String("prefix", prefixStr), zap.String("peer", lr.peer))
 
-			err := b.kernel.DeleteRoute(lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
+			err := b.kernel.DeleteRoute(ctx, lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove withdrawn BGP route",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -205,7 +205,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 			zap.String("newNextHop", r.nextHop.String()),
 			zap.String("peer", r.peer))
 
-		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
+		err := b.kernel.ReplaceRoute(ctx, r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to update BGP route",
 				zap.String("prefix", prefixStr), zap.Error(err))
@@ -253,7 +253,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 			zap.String("nextHop", r.nextHop.String()),
 			zap.String("peer", r.peer))
 
-		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
+		err := b.kernel.ReplaceRoute(ctx, r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to install BGP route",
 				zap.String("prefix", prefixStr), zap.Error(err))
@@ -279,8 +279,8 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 // cleanStaleRoutes removes leftover metric-200 routes from a prior crash.
 // Called before the BGP speaker starts so we begin with a clean slate.
-func (b *BGPService) cleanStaleRoutes() {
-	managed, err := b.kernel.ListManagedRoutes(kernel.N6)
+func (b *BGPService) cleanStaleRoutes(ctx context.Context) {
+	managed, err := b.kernel.ListManagedRoutes(ctx, kernel.N6)
 	if err != nil {
 		b.logger.Warn("failed to list stale BGP routes", zap.Error(err))
 
@@ -294,7 +294,7 @@ func (b *BGPService) cleanStaleRoutes() {
 			continue
 		}
 
-		err := b.kernel.DeleteRoute(r.Destination, r.Gateway, r.Priority, kernel.N6)
+		err := b.kernel.DeleteRoute(ctx, r.Destination, r.Gateway, r.Priority, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove stale BGP route",
 				zap.String("prefix", r.Destination.String()),
@@ -314,14 +314,14 @@ func (b *BGPService) cleanStaleRoutes() {
 
 // removeAllLearnedRoutes removes all learned routes from the kernel and
 // clears the in-memory map. Called during Stop().
-func (b *BGPService) removeAllLearnedRoutes() {
+func (b *BGPService) removeAllLearnedRoutes(ctx context.Context) {
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
 
 	for prefixStr, lr := range b.learnedRoutes {
 		dst := lr.prefix
 
-		err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		err := b.kernel.DeleteRoute(ctx, dst, lr.gateway, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove learned BGP route on stop",
 				zap.String("prefix", prefixStr), zap.Error(err))
@@ -339,7 +339,7 @@ func (b *BGPService) removeAllLearnedRoutes() {
 // removeLearnedRoutesForPeer removes all learned routes from the kernel
 // that were advertised by the given peer address and removes them from
 // the in-memory map. Called when a peer is removed during reconciliation.
-func (b *BGPService) removeLearnedRoutesForPeer(peerAddr string) {
+func (b *BGPService) removeLearnedRoutesForPeer(ctx context.Context, peerAddr string) {
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
 
@@ -352,7 +352,7 @@ func (b *BGPService) removeLearnedRoutesForPeer(peerAddr string) {
 
 		dst := lr.prefix
 
-		err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		err := b.kernel.DeleteRoute(ctx, dst, lr.gateway, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove learned BGP route for deleted peer",
 				zap.String("prefix", prefixStr), zap.String("peer", peerAddr), zap.Error(err))
@@ -388,7 +388,7 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 		dst := lr.prefix
 
 		if b.filter.overlapsAny(dst) {
-			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			err := b.kernel.DeleteRoute(ctx, dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route rejected by updated filter",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -406,7 +406,7 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 		entries := prefixCache[peerID]
 
 		if len(entries) == 0 || !matchesPrefixList(dst, entries) {
-			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			err := b.kernel.DeleteRoute(ctx, dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route no longer matching import policy",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -543,7 +543,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 					zap.String("nextHop", nextHop.String()),
 					zap.String("peer", peerAddr))
 
-				err := b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
+				err := b.kernel.ReplaceRoute(ctx, prefix, nextHop, bgpRouteMetric, kernel.N6)
 				if err != nil {
 					b.logger.Warn("failed to install route during RIB replay",
 						zap.String("prefix", prefixStr), zap.Error(err))

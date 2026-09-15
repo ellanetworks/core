@@ -79,7 +79,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 	// A UE returning to CM-CONNECTED applies any policy change deferred while it was
 	// idle. Skipped mid-registration: the session was just established with the
 	// current policy and the UE is not yet Registered.
-	ueConn.EndN2Setup(amf.N2SetupInitialContext)
+	ueConn.EndN2Setup(ctx, amf.N2SetupInitialContext)
 
 	if amfUe.State() == amf.Registered {
 		amfInstance.ReconcileSessionsForUE(ctx, amfUe)

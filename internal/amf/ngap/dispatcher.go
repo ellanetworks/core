@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -31,11 +32,11 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 		ran, err = amfInstance.NewRadio(conn)
 		if err != nil {
-			logger.AmfLog.Error("Failed to add a new radio", zap.Error(err))
+			logger.WithTrace(ctx, logger.AmfLog).Error("Failed to add a new radio", zap.Error(err))
 			return
 		}
 
-		logger.AmfLog.Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
+		logger.WithTrace(ctx, logger.AmfLog).Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
 	}
 
 	if len(msg) == 0 {
@@ -49,6 +50,11 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 	ctx, span := tracer.Start(ctx, "ngap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(
+			attribute.Int("ngap.message_size", len(msg)),
+			attribute.String("network.protocol.name", "ngap"),
+			attribute.String("network.transport", "sctp"),
+		),
 	)
 	defer span.End()
 

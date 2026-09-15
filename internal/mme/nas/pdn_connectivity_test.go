@@ -140,7 +140,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleERABSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), rpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), rpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Pdns[6].EnbFTEID.TEID != 0x1234 {
 		t.Fatalf("eNB F-TEID not recorded on the second PDN: %+v", ue.Pdns[6].EnbFTEID)
@@ -186,7 +186,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleERABReleaseResponse(m, context.Background(), mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABReleaseResponse(context.Background(), m, mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	da := &eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, PTI: 3}
 

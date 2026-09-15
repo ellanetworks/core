@@ -217,7 +217,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		radioAMF.UpdateRadioName(radio, "gNB-001")
 		ueConn := amf.NewUeConnForTest(radio, 42, 100, zap.NewNop())
 		ueConn.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
-		ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+		ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 		ue.ArmPagingForTest(1*time.Hour, 3)
 		ue.SetLastSeenForTest(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC))
 		ue.Conn().RegistrationType5GS = 1
@@ -227,7 +227,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	})
 
 	t.Cleanup(func() {
-		ue.StopPagingForTest()
+		ue.StopPagingForTest(t.Context())
 	})
 
 	result := exportAndMarshal(t, amfInstance)

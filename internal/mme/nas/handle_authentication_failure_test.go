@@ -195,7 +195,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTPlain)
+	ue.Conn().ArmNASGuard(t.Context(), "Authentication Request", []byte{0x07, 0x52}, eps.SHTPlain)
 
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
 

@@ -12,6 +12,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -85,7 +87,7 @@ func (r *SessionReconciler) Stop() {
 func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	r.Reconcile()
+	r.Reconcile(ctx)
 
 	ticker := time.NewTicker(r.backstop)
 	defer ticker.Stop()
@@ -95,9 +97,9 @@ func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 		case <-ctx.Done():
 			return
 		case <-r.wakeup:
-			r.Reconcile()
+			r.Reconcile(ctx)
 		case <-ticker.C:
-			r.Reconcile()
+			r.Reconcile(ctx)
 		}
 	}
 }
@@ -105,7 +107,7 @@ func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 // Reconcile iterates every registered UE and its PDU sessions, asking the
 // SMF to compare the current session policy against the latest DB values
 // and push updates to the UPF and UE where needed.
-func (r *SessionReconciler) Reconcile() {
+func (r *SessionReconciler) Reconcile(ctx context.Context) {
 	r.amf.mu.RLock()
 	ues := make([]*UeContext, 0, len(r.amf.UEs))
 
@@ -121,13 +123,19 @@ func (r *SessionReconciler) Reconcile() {
 		return
 	}
 
+	ctx, span := tracer.Start(ctx, "amf/reconcile_sessions",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.Int("reconcile.ue_count", len(ues))),
+	)
+	defer span.End()
+
 	for _, ue := range ues {
-		r.reconcileUE(ue)
+		r.reconcileUE(ctx, ue)
 	}
 }
 
-func (r *SessionReconciler) reconcileUE(ue *UeContext) {
-	r.amf.ReconcileSessionsForUE(context.Background(), ue)
+func (r *SessionReconciler) reconcileUE(ctx context.Context, ue *UeContext) {
+	r.amf.ReconcileSessionsForUE(ctx, ue)
 }
 
 // ReconcileSessionsForUE re-evaluates every PDU session of a UE against the

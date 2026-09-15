@@ -10,7 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"go.opentelemetry.io/otel/attribute"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -23,7 +23,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("smf.context_ref", smContextRef),
+			attrs.SMContextRef(smContextRef),
 		),
 	)
 	defer span.End()

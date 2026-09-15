@@ -14,19 +14,19 @@ import (
 // handleUECapabilityInfoIndication stores the UE Radio Capability reported by the
 // eNB (TS 36.413), replayed in later INITIAL CONTEXT SETUP REQUEST messages so the
 // eNB need not re-fetch it from the UE (TS 23.401).
-func handleUECapabilityInfoIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUECapabilityInfoIndication(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, err)
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

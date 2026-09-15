@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"go.opentelemetry.io/otel/attribute"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -27,7 +27,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("smf.context_ref", smContextRef),
+			attrs.SMContextRef(smContextRef),
 		),
 	)
 	defer span.End()

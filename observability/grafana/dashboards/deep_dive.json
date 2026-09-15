@@ -358,7 +358,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "Rate of NGAP messages processed per second. NGAP is the control plane protocol between radios (gNBs) and the core network.",
+      "description": "Rate of signaling messages processed per second. Signaling is the control plane traffic between radios and the core network.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -416,7 +416,7 @@
           "refId": "A"
         }
       ],
-      "title": "NGAP Rate",
+      "title": "Signaling Rate",
       "type": "stat"
     },
     {
@@ -569,7 +569,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "Rate of NGAP messages by message type. Useful for understanding control plane traffic patterns.",
+      "description": "Rate of signaling messages by message type. Useful for understanding control plane traffic patterns.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -660,7 +660,7 @@
           "refId": "A"
         }
       ],
-      "title": "NGAP Message Rate by Type",
+      "title": "Signaling Message Rate by Type",
       "type": "timeseries"
     },
     {
@@ -1465,7 +1465,7 @@
         "type": "tempo",
         "uid": "${DS_TEMPO}"
       },
-      "description": "Maximum NGAP trace duration (slowest NGAP request) in the selected time range.",
+      "description": "Maximum inbound signaling span duration in the selected time range. Covers both 4G (S1AP) and 5G (NGAP).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1524,12 +1524,12 @@
             "type": "tempo",
             "uid": "${DS_TEMPO}"
           },
-          "query": "{resource.service.name = \"${trace_service}\" && name = \"ngap/receive\"} | max_over_time(span:duration)",
+          "query": "{resource.service.name = \"${trace_service}\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server} | max_over_time(span:duration)",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "title": "Max NGAP Duration",
+      "title": "Max Signaling Duration",
       "type": "stat"
     },
     {
@@ -1648,7 +1648,7 @@
         "type": "tempo",
         "uid": "${DS_TEMPO}"
       },
-      "description": "Traces exceeding 1ms duration. These may indicate performance bottlenecks. Click on a Trace ID to investigate.",
+      "description": "Inbound signaling spans exceeding 1ms, across 4G (S1AP) and 5G (NGAP). Click a Trace ID to investigate.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1764,13 +1764,13 @@
             "uid": "${DS_TEMPO}"
           },
           "limit": 50,
-          "query": "{resource.service.name = \"${trace_service}\" && name = \"ngap/receive\" && duration > 1ms}",
+          "query": "{resource.service.name = \"${trace_service}\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server && duration > 1ms}",
           "queryType": "traceql",
           "refId": "A",
           "spss": 1
         }
       ],
-      "title": "Slow NGAP Traces (>1ms)",
+      "title": "Slow Signaling Traces (>1ms)",
       "transformations": [
         {
           "id": "organize",

@@ -55,7 +55,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID:                ngap.RANUENGAPID(1),
@@ -88,7 +88,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID:                ngap.RANUENGAPID(1),
@@ -109,7 +109,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionIDNotInContext(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID:                ngap.RANUENGAPID(1),
@@ -130,7 +130,7 @@ func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID:              1,

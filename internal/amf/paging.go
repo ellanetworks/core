@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g-tmsi", tmsi.Uint32()))
 
 	amf.pageRadios(ctx, ue, ngapBuf)
-	amf.armPaging(ue, ngapBuf)
+	amf.armPaging(ctx, ue, ngapBuf)
 
 	return nil
 }
@@ -57,7 +58,7 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 // each interval up to a bound, then abandon (T3513, TS 24.501 §5.6.2). Check-and-arm under
 // the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
 // T3513 is disabled.
-func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
+func (amf *AMF) armPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
@@ -65,33 +66,41 @@ func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	ue.paging.guard.ArmWith(amf.T3513Cfg,
-		func(attempt int32) { amf.retransmitPaging(ue, ngapBuf, attempt) },
-		func() { amf.abandonPaging(ue) })
+		func(attempt int32) { amf.retransmitPaging(link, ue, ngapBuf, attempt) },
+		func() { amf.abandonPaging(link, ue) })
 }
 
 // retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.6.2), or
 // stops the guard once the UE has answered by re-establishing its connection.
-func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
+func (amf *AMF) retransmitPaging(link trace.SpanContext, ue *UeContext, ngapBuf []byte, attempt int32) {
 	if ue.Conn() != nil {
 		ue.paging.guard.Stop()
 		return
 	}
 
-	logger.AmfLog.Info("paging unanswered, retransmitting", logger.SUPI(ue.Supi().String()), zap.Int32("attempt", attempt))
-	amf.pageRadios(context.Background(), ue, ngapBuf)
+	ctx, span := guardSpan(link, "amf/paging_retransmit", "T3513 (Paging)", attempt)
+	defer span.End()
+
+	logger.From(ctx, logger.AmfLog).Info("paging unanswered, retransmitting", logger.SUPI(ue.Supi().String()), zap.Int32("attempt", attempt))
+	amf.pageRadios(ctx, ue, ngapBuf)
 }
 
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
-func (amf *AMF) abandonPaging(ue *UeContext) {
+func (amf *AMF) abandonPaging(link trace.SpanContext, ue *UeContext) {
+	ctx, span := guardSpan(link, "amf/paging_abandon", "T3513 (Paging)", 0)
+	defer span.End()
+
 	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
-	dropped, abandoned := ue.PagingUnanswered(models.N1N2UENotResponding)
+	dropped, abandoned := ue.PagingUnanswered(ctx, models.N1N2UENotResponding)
 	if !abandoned {
 		return
 	}
 
-	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
 	if amf.Session == nil {
 		return
@@ -104,8 +113,8 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 			continue
 		}
 
-		if err := amf.Session.HandleN1N2TransferFailure(context.Background(), supi, id, models.N1N2UENotResponding); err != nil {
-			logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
+		if err := amf.Session.HandleN1N2TransferFailure(ctx, supi, id, models.N1N2UENotResponding); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to suppress downlink notification after paging failure",
 				logger.SUPI(supi.String()), zap.Error(err))
 		}
 	}
@@ -136,13 +145,13 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (
 
 	// Buffer immediately before the send: the UE may answer on another goroutine the
 	// moment the Paging leaves the AMF.
-	cause, err := ue.beginPaging(req)
+	cause, err := ue.beginPaging(ctx, req)
 	if err != nil {
 		return "", err
 	}
 
 	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
-		ue.PagingAttemptFailed(req, models.N1N2FailureCauseUnspecified)
+		ue.PagingAttemptFailed(ctx, req, models.N1N2FailureCauseUnspecified)
 
 		return "", fmt.Errorf("send paging: %w", err)
 	}

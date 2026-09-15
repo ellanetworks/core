@@ -4,10 +4,10 @@
 package amf
 
 import (
-	"context"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // mobileReachableMargin is added to the periodic registration timer (T3512) to form
@@ -92,5 +92,8 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 
 	a.mu.Unlock()
 
-	a.DeregisterAndRemoveUeContext(context.Background(), ue)
+	ctx, span := guardSpan(trace.SpanContext{}, "amf/implicit_deregistration_expire", "implicit deregistration", 0)
+	defer span.End()
+
+	a.DeregisterAndRemoveUeContext(ctx, ue)
 }

@@ -259,7 +259,7 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 			ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 			fresh := amf.NewUeContext()
-			amfInstance.AttachUeConn(fresh, ue.Conn())
+			amfInstance.AttachUeConn(t.Context(), fresh, ue.Conn())
 			fresh.Conn().RegistrationType5GS = tc.typ
 			fresh.TransitionTo(amf.RegistrationInitiated)
 
@@ -324,7 +324,7 @@ func TestSupersedingRegistrationCarriesSessionsOnlyForAnUpdate(t *testing.T) {
 			}
 
 			fresh := amf.NewUeContext()
-			amfInstance.AttachUeConn(fresh, incumbent.Conn())
+			amfInstance.AttachUeConn(t.Context(), fresh, incumbent.Conn())
 			fresh.Conn().RegistrationType5GS = tc.typ
 			fresh.TransitionTo(amf.RegistrationInitiated)
 			fresh.SetSupi(incumbent.Supi())

@@ -77,7 +77,7 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
-	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
+	targetUe.AMFForTest().AttachUeConn(t.Context(), amfUe, targetUe)
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -103,7 +103,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -171,7 +171,7 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 	sourceUe.SetN2SessionActive(1)
 	sourceUe.SetN2SessionActive(2)
 
@@ -225,7 +225,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 	sourceUe.SetN2SessionActive(1)
 
 	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
@@ -239,7 +239,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	impostor := amf.NewUeConnForTest(targetRan, 3, 4, logger.AmfLog)
-	impostor.AMFForTest().AttachUeConn(amfUe, impostor)
+	impostor.AMFForTest().AttachUeConn(t.Context(), amfUe, impostor)
 
 	releasesBeforeNotify := len(sourceNGAPSender.SentUEContextReleaseCommands)
 
@@ -274,7 +274,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 	sourceUe.SetN2SessionActive(1)
 
 	targetNGAPSender := &fakeNGAPSender{}

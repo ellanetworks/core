@@ -475,7 +475,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 
 	pdu := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, pdu)))
+	mmes1ap.HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, pdu)))
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", len(cc.sent))
@@ -514,7 +514,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if m.ConnCountForTest() != 0 {
 		t.Fatalf("bare connection not released after the Release Complete: %d remain", m.ConnCountForTest())

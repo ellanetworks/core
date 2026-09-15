@@ -38,10 +38,10 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	ueConn.AbortICS()
+	ueConn.AbortICS(ctx)
 
 	if conn := amfUe.Conn(); conn != nil && conn.NASGuardActive() {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 
 		amfUe.Deregister(ctx)
 		amfUe.ClearRegistrationRequestData()

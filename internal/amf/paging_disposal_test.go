@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func idleUE(t *testing.T) *UeContext {
@@ -33,7 +34,7 @@ func pagedUE(t *testing.T) (*AMF, *UeContext, *deregisterTestSmf) {
 
 	a, ue, fakeSmf := idleUEWithSmf(t)
 
-	cause, err := ue.beginPaging(&MTRequest{
+	cause, err := ue.beginPaging(t.Context(), &MTRequest{
 		Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: &models.Arp{PriorityLevel: 9}},
 	})
 	if err != nil {
@@ -64,7 +65,7 @@ func TestDeregisterFailsThePendingTransfer(t *testing.T) {
 func TestMoveToEPSFailsThePendingTransfer(t *testing.T) {
 	a, ue, _, fakeSmf := registeredUE(t)
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5}}); err != nil {
 		t.Fatalf("beginPaging: %v", err)
 	}
 
@@ -96,11 +97,11 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 	radio.BindAMFForTest(a)
 
 	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
-	a.AttachUeConn(ue, conn)
+	a.AttachUeConn(t.Context(), ue, conn)
 
 	ue.PagingAnswered()
 
-	conn.Release()
+	conn.Release(t.Context())
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the connection was released mid-delivery, want Idle", state)
@@ -116,11 +117,11 @@ func TestSameOrLowerPriorityTransferIsRejectedWhileAttempting(t *testing.T) {
 
 	high := &models.Arp{PriorityLevel: 5}
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: high}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: high}}); err != nil {
 		t.Fatalf("beginPaging: %v", err)
 	}
 
-	_, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 9}}})
+	_, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 9}}})
 
 	var rejected *models.N1N2MessageTransferError
 	if !asTransferError(err, &rejected) {
@@ -143,11 +144,11 @@ func TestSameOrLowerPriorityTransferIsRejectedWhileAttempting(t *testing.T) {
 func TestHigherPriorityTransferReplacesThePendingOne(t *testing.T) {
 	ue := idleUE(t)
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: &models.Arp{PriorityLevel: 9}}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: &models.Arp{PriorityLevel: 9}}}); err != nil {
 		t.Fatalf("beginPaging: %v", err)
 	}
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatalf("a higher-priority transfer was rejected: %v", err)
 	}
 
@@ -163,11 +164,11 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 	radio.BindAMFForTest(a)
 
 	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
-	a.AttachUeConn(ue, conn)
+	a.AttachUeConn(t.Context(), ue, conn)
 
 	ue.PagingAnswered()
 
-	a.abandonPaging(ue)
+	a.abandonPaging(trace.SpanContext{}, ue)
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Errorf("paging state = %s after an abort that raced the UE answering, want Delivering", state)
@@ -186,7 +187,7 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 func TestDisplacedTransferIsReportedToItsConsumer(t *testing.T) {
 	_, ue, fakeSmf := pagedUE(t)
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatalf("a higher-priority transfer was rejected: %v", err)
 	}
 
@@ -204,7 +205,7 @@ func TestDisplacedTransferIsReportedToItsConsumer(t *testing.T) {
 func TestReinvokedTransferForTheSameSessionIsNotAFailure(t *testing.T) {
 	_, ue, fakeSmf := pagedUE(t)
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 5, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatalf("a higher-priority transfer was rejected: %v", err)
 	}
 
@@ -222,7 +223,7 @@ func TestPagingAttemptFailedReleasesItsOwnRequest(t *testing.T) {
 
 	attempt := ue.PagingPending()
 
-	ue.PagingAttemptFailed(attempt, models.N1N2FailureCauseUnspecified)
+	ue.PagingAttemptFailed(t.Context(), attempt, models.N1N2FailureCauseUnspecified)
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the paging it buffered for could not be sent, want Idle", state)
@@ -242,13 +243,13 @@ func TestPagingAttemptFailedLeavesADisplacingRequestAlone(t *testing.T) {
 
 	attempt := ue.PagingPending()
 
-	if _, err := ue.beginPaging(&MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, Arp: &models.Arp{PriorityLevel: 2}}}); err != nil {
 		t.Fatalf("a higher-priority transfer was rejected: %v", err)
 	}
 
 	fakeSmf.transferFailures = nil
 
-	ue.PagingAttemptFailed(attempt, models.N1N2FailureCauseUnspecified)
+	ue.PagingAttemptFailed(t.Context(), attempt, models.N1N2FailureCauseUnspecified)
 
 	if state := ue.PagingState(); state != PagingAttempting {
 		t.Errorf("paging state = %s, want the displacing procedure still Attempting", state)
@@ -275,7 +276,7 @@ func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 	radio := &Radio{Log: logger.AmfLog}
 	radio.BindAMFForTest(a)
 
-	a.AttachUeConn(ue, NewUeConnForTest(radio, 1, 10, logger.AmfLog))
+	a.AttachUeConn(t.Context(), ue, NewUeConnForTest(radio, 1, 10, logger.AmfLog))
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Errorf("paging state = %s after the UE re-established its connection, want Delivering", state)
@@ -289,7 +290,7 @@ func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 		t.Error("the paging supervision guard is still armed after the UE answered")
 	}
 
-	ue.PagingDelivered()
+	ue.PagingDelivered(t.Context())
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after delivery, want Idle", state)

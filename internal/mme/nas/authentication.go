@@ -50,7 +50,7 @@ func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 
 		metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
-		ueConn.StopNASGuard()
+		ueConn.StopNASGuard(ctx)
 
 		m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 

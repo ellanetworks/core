@@ -284,7 +284,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	_, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
@@ -319,7 +319,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.ResetICS()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	_, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
@@ -384,7 +384,7 @@ func TestModifyN1N2Message_OngoingN2Handover_Deferred(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatal(err)
@@ -461,9 +461,9 @@ func TestArmRegistrationAcceptGuard_ArmsT3550(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	amf.ArmRegistrationAcceptGuard(amfInstance, ue, []byte{0x7e, 0x00, 0x42})
+	amf.ArmRegistrationAcceptGuard(t.Context(), amfInstance, ue, []byte{0x7e, 0x00, 0x42})
 
 	if !ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("ArmRegistrationAcceptGuard must arm T3550 for a GUTI-bearing accept")
@@ -477,7 +477,7 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000021", nil)
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	if ue.Conn() != nil {
@@ -492,7 +492,7 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 		t.Fatal("SendPaging must arm the persistent per-UE paging timer")
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
@@ -548,7 +548,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	_, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq())
 	if err != nil {
@@ -573,7 +573,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 	})
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	radio := &amf.Radio{Conn: sender}
@@ -606,7 +606,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 		t.Fatalf("buffered PDU session id: expected %d, got %d", req.PduSessionID, buffered.PduSessionID)
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
@@ -650,7 +650,7 @@ func TestTransferN1Msg_Success(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	err := amfInstance.TransferN1Msg(context.Background(), ue.SupiForTest(), []byte{0x01}, 1)
 	if err != nil {
@@ -675,7 +675,7 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	req := newReq()
 	req.SNssai = nil
@@ -703,11 +703,11 @@ func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	ue.TransitionTo(amf.RegistrationInitiated)
 
-	amf.ArmRegistrationAcceptGuard(amfInstance, ue, []byte{0x7e, 0x00, 0x42})
+	amf.ArmRegistrationAcceptGuard(t.Context(), amfInstance, ue, []byte{0x7e, 0x00, 0x42})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for peer.cancels.Load() == 0 {
@@ -771,7 +771,7 @@ func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testin
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("first transfer: %v", err)
@@ -808,7 +808,7 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Fatal("the first claim must succeed")
@@ -818,7 +818,7 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 		t.Fatal("a second claim must fail while the setup is outstanding")
 	}
 
-	amfInstance.ReleaseNasConnection(ue, ueConn)
+	amfInstance.ReleaseNasConnection(t.Context(), ue, ueConn)
 
 	if !ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Fatal("the UE dropping to CM-IDLE must clear the outstanding setup")
@@ -836,7 +836,7 @@ func TestN2SessionStateTransitions(t *testing.T) {
 	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.N2SessionInactive(1) {
 		t.Error("a session the RAN has not set up must start inactive")
@@ -885,12 +885,12 @@ func TestN2SessionStateDoesNotFollowTheUEToANewConnection(t *testing.T) {
 	radio.BindAMFForTest(amfInstance)
 
 	first := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	first.AMFForTest().AttachUeConn(ue, first)
+	first.AMFForTest().AttachUeConn(t.Context(), ue, first)
 	first.SetN2SessionActive(1)
 
 	// The UE turns up on a second connection before the first one is released.
 	second := amf.NewUeConnForTest(radio, 2, 2, zap.NewNop())
-	second.AMFForTest().AttachUeConn(ue, second)
+	second.AMFForTest().AttachUeConn(t.Context(), ue, second)
 
 	if !second.N2SessionInactive(1) {
 		t.Error("the new connection must not inherit the AN resources of the old one")
@@ -914,13 +914,13 @@ func TestN2SetupTransaction_GuardExpiryReleasesTheClaim(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(t.Context(), guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for ueConn.N2SetupOpen(amf.N2SetupPDUSession) && time.Now().Before(deadline) {
@@ -949,14 +949,14 @@ func TestN2SetupTransaction_TerminalKeepsConfirmedSessions(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
 	ueConn.SetN2SessionActive(1)
-	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+	ueConn.EndN2Setup(t.Context(), amf.N2SetupPDUSession)
 
 	if ueConn.ClaimN2Session(amf.N2SetupPDUSession, 1) {
 		t.Error("a session the NG-RAN node confirmed must stay active when its transaction closes")
@@ -985,7 +985,7 @@ func TestTransferN1N2Message_SessionAlreadySetUp_ReleasesTheICSClaim(t *testing.
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.ResetICS()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 	ueConn.SetN2SessionActive(1)
 
 	if _, err := amfInstance.TransferN1N2Message(context.Background(), ue.SupiForTest(), newReq()); err != nil {
@@ -1014,7 +1014,7 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 	})
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	radio := &amf.Radio{Conn: sender}
@@ -1064,13 +1064,13 @@ func TestN2SetupGuardExpiry_DeactivatesTheSessionAtTheSMF(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
-	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
+	ueConn.N2Setup(amf.N2SetupPDUSession).Arm(t.Context(), guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for len(smfStub.deactivated()) == 0 && time.Now().Before(deadline) {
@@ -1097,14 +1097,14 @@ func TestN2SetupTerminal_DoesNotDeactivateAConfirmedSession(t *testing.T) {
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")
 	}
 
 	ueConn.SetN2SessionActive(1)
-	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+	ueConn.EndN2Setup(t.Context(), amf.N2SetupPDUSession)
 
 	if got := smfStub.deactivated(); len(got) != 0 {
 		t.Errorf("DeactivateSmContext calls = %v, want none: the NG-RAN node confirmed the session", got)
@@ -1122,7 +1122,7 @@ func TestCreateSmContext_ClearsTheConnectionRecordForThatSession(t *testing.T) {
 	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
@@ -1150,7 +1150,7 @@ func TestDeleteSmContext_ClearsTheConnectionRecordForThatSession(t *testing.T) {
 	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
@@ -1183,7 +1183,7 @@ func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if _, err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), newReq()); err != nil {
 		t.Fatalf("first transfer: %v", err)

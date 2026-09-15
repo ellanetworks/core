@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/udm"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -126,7 +127,7 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 	ctx, span := tracer.Start(ctx, "ausf/authenticate",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("ue.suci", suci),
+			attrs.SUCI(suci),
 			attribute.String("ausf.serving_network", servingNetwork),
 		),
 	)
@@ -201,7 +202,7 @@ func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, []
 	_, span := tracer.Start(ctx, "ausf/confirm",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("ue.suci", suci),
+			attrs.SUCI(suci),
 		),
 	)
 	defer span.End()

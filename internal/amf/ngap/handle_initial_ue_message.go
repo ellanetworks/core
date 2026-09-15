@@ -119,5 +119,5 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	}
 
 	logger.WithTrace(ctx, ueConn.Log()).Debug("UeContext Attach UeConn")
-	amfInstance.AttachUeConn(amfUe, ueConn)
+	amfInstance.AttachUeConn(ctx, amfUe, ueConn)
 }

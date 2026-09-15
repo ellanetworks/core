@@ -11,7 +11,7 @@ func TestEMMTransition_AllowedTransitions(t *testing.T) {
 			ue := &UeContext{}
 
 			ue.ForceStateForTest(from)
-			ue.TransitionTo(to)
+			ue.TransitionTo(t.Context(), to)
 
 			if got := ue.EMMState(); got != to {
 				t.Errorf("transition(%s→%s): expected %s, got %s", from, to, to, got)
@@ -31,7 +31,7 @@ func TestEMMTransition_InvalidResetsToDeregistered(t *testing.T) {
 		ue := &UeContext{}
 
 		ue.ForceStateForTest(tc.from)
-		ue.TransitionTo(tc.to)
+		ue.TransitionTo(t.Context(), tc.to)
 
 		if got := ue.EMMState(); got != EMMDeregistered {
 			t.Errorf("transition(%s→%s): expected EMM-DEREGISTERED fallback, got %s", tc.from, tc.to, got)
@@ -44,7 +44,7 @@ func TestEMMTransition_Idempotent(t *testing.T) {
 		ue := &UeContext{}
 
 		ue.ForceStateForTest(s)
-		ue.TransitionTo(s)
+		ue.TransitionTo(t.Context(), s)
 
 		if got := ue.EMMState(); got != s {
 			t.Errorf("transition(%s→%s): expected idempotent, got %s", s, s, got)
@@ -57,7 +57,7 @@ func TestEMMTransition_FullAttachDetachCycle(t *testing.T) {
 
 	steps := []EMMState{EMMRegistrationInitiated, EMMRegistered, EMMDeregistrationInitiated, EMMDeregistered}
 	for i, step := range steps {
-		ue.TransitionTo(step)
+		ue.TransitionTo(t.Context(), step)
 
 		if got := ue.EMMState(); got != step {
 			t.Fatalf("step %d: expected %s, got %s", i, step, got)

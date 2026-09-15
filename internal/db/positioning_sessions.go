@@ -61,14 +61,17 @@ type PositioningSessionResult struct {
 }
 
 func (db *Database) CreatePositioningSession(ctx context.Context, s *PositioningSession) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", PositioningSessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", PositioningSessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -108,14 +111,17 @@ func (db *Database) CreatePositioningSession(ctx context.Context, s *Positioning
 }
 
 func (db *Database) GetPositioningSession(ctx context.Context, id string) (*PositioningSession, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", PositioningSessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", PositioningSessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -143,14 +149,17 @@ func (db *Database) GetPositioningSession(ctx context.Context, id string) (*Posi
 }
 
 func (db *Database) ListPositioningSessions(ctx context.Context, supi string, status int) ([]PositioningSession, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", PositioningSessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", PositioningSessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -187,14 +196,17 @@ func (db *Database) ListPositioningSessions(ctx context.Context, supi string, st
 }
 
 func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id string, status int, result *string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", PositioningSessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", PositioningSessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -222,14 +234,17 @@ func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id strin
 }
 
 func (db *Database) DeletePositioningSession(ctx context.Context, id string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", PositioningSessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", PositioningSessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()

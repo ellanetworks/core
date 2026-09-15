@@ -14,19 +14,19 @@ import (
 
 // HandleERABReleaseResponse logs the eNB's confirmation that each E-RAB was
 // released (TS 36.413 §8.2.3).
-func HandleERABReleaseResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func HandleERABReleaseResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseERABReleaseResponse(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode E-RAB Release Response", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to decode E-RAB Release Response", zap.Error(err))
 		return
 	}
 
-	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, msg.UserLocationInformation)

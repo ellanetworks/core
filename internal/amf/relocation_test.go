@@ -111,7 +111,7 @@ func newRelocatingAMF(t *testing.T, peer *fakeEPSPeer) (*amf.AMF, *amf.UeContext
 	ue.SetSupiForTest(mustSUPIFromIMSI(t, testRelocationIMSI))
 
 	source := amf.NewUeConnForTest(newRadioForTest(a, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
-	source.AMFForTest().AttachUeConn(ue, source)
+	source.AMFForTest().AttachUeConn(t.Context(), ue, source)
 
 	return a, ue, source
 }

@@ -27,7 +27,7 @@ func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Ra
 		t.Fatal(err)
 	}
 
-	amfInstance.AttachUeConn(amfUe, oldConn)
+	amfInstance.AttachUeConn(t.Context(), amfUe, oldConn)
 	oldAmfID = int64(oldConn.AmfUeNgapID)
 	oldRanID = int64(oldConn.RanUeNgapID())
 
@@ -36,7 +36,7 @@ func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Ra
 		t.Fatal(err)
 	}
 
-	amfInstance.AttachUeConn(amfUe, newConn)
+	amfInstance.AttachUeConn(t.Context(), amfUe, newConn)
 
 	return amfInstance, ran, sender, oldAmfID, oldRanID
 }

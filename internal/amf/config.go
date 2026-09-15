@@ -12,10 +12,10 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -154,7 +154,7 @@ type SubscriberProfile struct {
 func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
 	ctx, span := tracer.Start(ctx, "amf/get_subscriber_profile",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -235,9 +235,9 @@ func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *model
 
 	ctx, span := tracer.Start(ctx, "amf/get_subscriber_dnn",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-			attribute.Int("sst", int(snssai.Sst)),
-			attribute.String("sd", snssai.Sd),
+			attrs.SUPI(supi.String()),
+			attrs.SST(snssai.Sst),
+			attrs.SD(snssai.Sd),
 		),
 	)
 	defer span.End()

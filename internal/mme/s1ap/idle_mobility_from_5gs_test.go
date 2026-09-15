@@ -100,7 +100,7 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 			}
 
 			conn := &captureConn{}
-			HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, im))
+			HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, im))
 
 			if conn.count() != 2 {
 				t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", conn.count())

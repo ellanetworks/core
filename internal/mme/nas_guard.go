@@ -8,6 +8,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -30,7 +32,7 @@ func (c *UeConn) SendGuardedDownlink(ctx context.Context, name string, nas []byt
 		return
 	}
 
-	c.ArmNASGuard(name, nas, eps.SHTPlain)
+	c.ArmNASGuard(ctx, name, nas, eps.SHTPlain)
 	c.SendDownlinkNASTransport(ctx, nas)
 }
 
@@ -45,20 +47,20 @@ func (c *UeConn) SendGuardedProtected(ctx context.Context, name string, plain []
 		return err
 	}
 
-	c.ArmNASGuard(name, plain, sht)
+	c.ArmNASGuard(ctx, name, plain, sht)
 
 	return nil
 }
 
-func (c *UeConn) ArmNASGuard(name string, plain []byte, sht eps.SecurityHeaderType) {
-	c.armNASGuardMode(name, plain, sht, nil)
+func (c *UeConn) ArmNASGuard(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType) {
+	c.armNASGuardMode(ctx, name, plain, sht, nil)
 }
 
-func (c *UeConn) ArmNASGuardAbortOnly(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
-	c.armNASGuardMode(name, plain, sht, onAbort)
+func (c *UeConn) ArmNASGuardAbortOnly(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
+	c.armNASGuardMode(ctx, name, plain, sht, onAbort)
 }
 
-func (c *UeConn) ArmT3489(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
+func (c *UeConn) ArmT3489(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
 	if c == nil || c.ue == nil {
 		return
 	}
@@ -69,10 +71,12 @@ func (c *UeConn) ArmT3489(name string, plain []byte, sht eps.SecurityHeaderType,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	link := trace.SpanContextFromContext(ctx)
+
 	c.esmInfoGuard.ArmWith(
 		m.t3489Cfg,
-		func(attempt int32) { c.retransmitNASGuard(ue, name, plain, sht, attempt) },
-		func() { c.expireNASGuard(ue, name, onAbort) },
+		func(attempt int32) { c.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
+		func() { c.expireNASGuard(link, ue, name, onAbort) },
 	)
 }
 
@@ -87,7 +91,7 @@ func (c *UeConn) StopESMInfoGuard() {
 	c.esmInfoGuard.Stop()
 }
 
-func (c *UeConn) armNASGuardMode(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
+func (c *UeConn) armNASGuardMode(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
 	if c == nil || c.ue == nil {
 		return
 	}
@@ -100,22 +104,24 @@ func (c *UeConn) armNASGuardMode(name string, plain []byte, sht eps.SecurityHead
 	defer m.mu.Unlock()
 
 	c.nasGuardName = name
+	link := trace.SpanContextFromContext(ctx)
+
 	c.nasGuard.ArmWith(
 		m.nasGuardCfg,
-		func(attempt int32) { c.retransmitNASGuard(ue, name, plain, sht, attempt) },
-		func() { c.expireNASGuard(ue, name, onAbort) },
+		func(attempt int32) { c.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
+		func() { c.expireNASGuard(link, ue, name, onAbort) },
 	)
 }
 
-func (m *MME) ArmESMGuard(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType) {
-	m.armESMGuardMode(ue, p, name, plain, sht, nil)
+func (m *MME) ArmESMGuard(ctx context.Context, ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType) {
+	m.armESMGuardMode(ctx, ue, p, name, plain, sht, nil)
 }
 
-func (m *MME) ArmESMGuardAbortOnly(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
-	m.armESMGuardMode(ue, p, name, plain, sht, onAbort)
+func (m *MME) ArmESMGuardAbortOnly(ctx context.Context, ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
+	m.armESMGuardMode(ctx, ue, p, name, plain, sht, onAbort)
 }
 
-func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
+func (m *MME) armESMGuardMode(ctx context.Context, ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -124,20 +130,22 @@ func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, plai
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	p.guard.ArmWith(
 		m.esmGuardCfg,
-		func(attempt int32) { conn.retransmitNASGuard(ue, name, plain, sht, attempt) },
-		func() { conn.expireNASGuard(ue, name, onAbort) },
+		func(attempt int32) { conn.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
+		func() { conn.expireNASGuard(link, ue, name, onAbort) },
 	)
 }
 
 // StopNASGuard cancels the EMM guard.
-func (c *UeConn) StopNASGuard() {
+func (c *UeConn) StopNASGuard(ctx context.Context) {
 	if c == nil {
 		return
 	}
 
-	defer c.ResumeDeferredReleaseIfSettled()
+	defer c.ResumeDeferredReleaseIfSettled(ctx)
 
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
@@ -162,7 +170,7 @@ func (m *MME) StopESMGuard(p *PdnConnection) {
 	p.guard.Stop()
 }
 
-func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, attempt int32) {
+func (c *UeConn) retransmitNASGuard(link trace.SpanContext, ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, attempt int32) {
 	m := c.m
 	m.mu.Lock()
 
@@ -173,11 +181,12 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, plain []byte, sh
 
 	m.mu.Unlock()
 
-	c.Log().Info("retransmitting NAS message",
-		zap.String("procedure", name), zap.Int("attempt", int(attempt)))
-
 	// Retransmission is timer-driven, outside the original request; start a fresh root.
-	ctx := context.Background()
+	ctx, span := guardSpan(link, "mme/nas_guard_retransmit", name, attempt)
+	defer span.End()
+
+	logger.From(ctx, c.Log()).Info("retransmitting NAS message",
+		zap.String("procedure", name), zap.Int("attempt", int(attempt)))
 
 	if sht == eps.SHTPlain {
 		c.SendDownlinkNASTransport(ctx, plain)
@@ -190,7 +199,7 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, plain []byte, sh
 	}
 }
 
-func (c *UeConn) expireNASGuard(ue *UeContext, name string, onAbort func()) {
+func (c *UeConn) expireNASGuard(link trace.SpanContext, ue *UeContext, name string, onAbort func(context.Context)) {
 	m := c.m
 	m.mu.Lock()
 
@@ -201,16 +210,36 @@ func (c *UeConn) expireNASGuard(ue *UeContext, name string, onAbort func()) {
 
 	m.mu.Unlock()
 
+	// The guard fires from a timer outside any request; start a fresh root.
+	ctx, span := guardSpan(link, "mme/nas_guard_expire", name, 0)
+	defer span.End()
+
 	if onAbort != nil {
-		c.Log().Info("NAS procedure timed out, aborting (UE stays connected)",
+		logger.From(ctx, c.Log()).Info("NAS procedure timed out, aborting (UE stays connected)",
 			zap.String("procedure", name))
 
-		onAbort()
+		onAbort(ctx)
 
 		return
 	}
 
-	c.Log().Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
-	// The guard fires from a timer outside any request; start a fresh root.
-	m.ReleaseUEContext(context.Background(), ue, CauseNASUnspecified)
+	logger.From(ctx, c.Log()).Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
+	m.ReleaseUEContext(ctx, ue, CauseNASUnspecified)
+}
+
+func guardSpan(link trace.SpanContext, spanName string, timer string, attempt int32) (context.Context, trace.Span) {
+	opts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String("nas.guard.timer", timer)),
+	}
+
+	if attempt > 0 {
+		opts = append(opts, trace.WithAttributes(attribute.Int("nas.guard.attempt", int(attempt))))
+	}
+
+	if link.IsValid() {
+		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: link}))
+	}
+
+	return Tracer.Start(context.Background(), spanName, opts...)
 }

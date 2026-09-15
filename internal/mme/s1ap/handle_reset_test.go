@@ -55,7 +55,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	m.RegisterUEForTest(ue1, "001010000000010")
 	testPDN(ue1).Apn = "internet"
 
-	ue2 := m.NewUe(cc, 8)
+	ue2 := m.NewUe(t.Context(), cc, 8)
 	ue2.ForceStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
@@ -65,7 +65,7 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	testPDN(other).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(m, context.Background(), mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
 
 	for _, ue := range []*mme.UeContext{ue1, ue2} {
 		got, ok := m.LookupUeByIMSI(ue.IMSI())
@@ -100,7 +100,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	m.RegisterUEForTest(ue1, "001010000000010")
 	testPDN(ue1).Apn = "internet"
 
-	ue2 := m.NewUe(cc, 8)
+	ue2 := m.NewUe(t.Context(), cc, 8)
 	ue2.ForceStateForTest(mme.EMMRegistered)
 	m.RegisterUEForTest(ue2, "001010000000011")
 	testPDN(ue2).Apn = "internet"
@@ -109,7 +109,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	enbID := ue1.Conn().ENBUES1APID
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
-	handleReset(m, context.Background(), mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{
+	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{
 		Cause: s1ap.Ptr(cause),
 		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
 			{MMEUES1APID: &mmeID, ENBUES1APID: &enbID},
@@ -142,11 +142,11 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, cc := securedUE(t, m)
-	ue.TransitionTo(mme.EMMDeregistered)
+	ue.TransitionTo(t.Context(), mme.EMMDeregistered)
 	testPDN(ue).Apn = "internet"
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(m, context.Background(), mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("incomplete-registration UE retained after S1 reset; expected drop")

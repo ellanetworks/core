@@ -8,20 +8,25 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TracingMiddleware wraps the handler in OpenTelemetry HTTP middleware
 func TracingMiddleware(serviceName string, handler http.Handler) http.Handler {
 	return otelhttp.NewHandler(
-		handler,
-		"", // leave span name empty so formatter is used
-		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
-			path := r.URL.Path
-			// strip dynamic segments for better grouping, e.g., "/users/{email}"
-			path = strings.ReplaceAll(path, "/{", "/:")
-
-			return r.Method + " " + path
-		}),
+		routeAttributeMiddleware(handler),
+		"",
 		otelhttp.WithServerName(serviceName),
 	)
+}
+
+func routeAttributeMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+
+		if i := strings.IndexByte(r.Pattern, '/'); i >= 0 {
+			trace.SpanFromContext(r.Context()).SetAttributes(semconv.HTTPRoute(r.Pattern[i:]))
+		}
+	})
 }

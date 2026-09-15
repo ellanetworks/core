@@ -40,7 +40,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	// 2. Request radio measurements from the RAN over NRPPa and wait for the
 	//    asynchronous response. On any failure (no RAN connection, timeout,
 	//    decode error) measurements are left nil and E-CID degrades to Cell ID.
-	measurements := l.fetchECIDMeasurements(supi)
+	measurements := l.fetchECIDMeasurements(ctx, supi)
 
 	// 3. Anchor the estimate to a geographic coordinate: prefer the RAN-supplied
 	//    NG-RAN Access Point Position, else the provisioned cell-position table.
@@ -107,7 +107,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 type ecidMeasurementClient interface {
 	RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error)
 	WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*models.RadioMeasurements, error)
-	CancelMeasurements(supi etsi.SUPI, measurementID int64)
+	CancelMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64)
 }
 
 // measurementClient selects the positioning protocol by the access that owns the
@@ -137,8 +137,10 @@ func (l *LMF) measurementClient(supi etsi.SUPI) ecidMeasurementClient {
 //
 // A request for an idle UE pages it and may still be pending on return; the deferred
 // cancel discards it, since paging supervision outlives ecidMeasurementTimeout.
-func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
-	ctx, cancel := context.WithTimeout(context.Background(), ecidMeasurementTimeout)
+func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models.RadioMeasurements {
+	detached := context.WithoutCancel(ctx)
+
+	ctx, cancel := context.WithTimeout(detached, ecidMeasurementTimeout)
 	defer cancel()
 
 	client := l.measurementClient(supi)
@@ -155,7 +157,7 @@ func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
 		return nil
 	}
 
-	defer client.CancelMeasurements(supi, measID)
+	defer client.CancelMeasurements(detached, supi, measID)
 
 	measurements, err := client.WaitForMeasurements(ctx, supi, measID, requestedAt)
 	if err != nil {

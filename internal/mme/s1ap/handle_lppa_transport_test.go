@@ -15,7 +15,7 @@ import (
 func TestHandleUplinkLPPaTransport(t *testing.T) {
 	m := newTestMME(t)
 	conn := &captureConn{}
-	ue := m.NewUe(conn, 7)
+	ue := m.NewUe(t.Context(), conn, 7)
 	m.RegisterUEForTest(ue, "001010000000001")
 
 	lppaPDU := []byte{0x00, 0x05, 0xab, 0xcd}
@@ -30,7 +30,7 @@ func TestHandleUplinkLPPaTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUplinkLPPaTransport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, wire))
+	handleUplinkLPPaTransport(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, wire))
 
 	msgs := ue.GetLPPaMessages()
 	if len(msgs) != 1 || !bytes.Equal(msgs[0].Payload, lppaPDU) {
@@ -52,7 +52,7 @@ func TestHandleUplinkLPPaTransportUnknownUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUplinkLPPaTransport(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, wire))
+	handleUplinkLPPaTransport(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, wire))
 
 	if conn.count() == 0 {
 		t.Fatal("expected an Error Indication for the unknown MME-UE-S1AP-ID")
@@ -63,7 +63,7 @@ func TestHandleUplinkLPPaTransportMalformed(t *testing.T) {
 	m := newTestMME(t)
 	conn := &captureConn{}
 
-	handleUplinkLPPaTransport(m, context.Background(), mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
+	handleUplinkLPPaTransport(context.Background(), m, mme.NewRadioForTest(conn), []byte{0xff, 0xff, 0xff})
 
 	if got := conn.count(); got != 1 {
 		t.Fatalf("expected an Error Indication for the malformed transport, got %d S1AP messages", got)

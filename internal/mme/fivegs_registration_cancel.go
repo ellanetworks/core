@@ -13,7 +13,7 @@ import (
 
 func (m *MME) releaseTo5GS(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	m.ReleaseAllSessions(ctx, ue)
-	ue.TransitionTo(EMMDeregistered)
+	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, cause)
 }
 

@@ -33,7 +33,7 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
 	ueConn.setLog(zap.NewNop())
-	ueConn.amf.AttachUeConn(ue, ueConn)
+	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue
 }

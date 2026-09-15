@@ -29,7 +29,7 @@ func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.UeC
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue, ueConn
 }
@@ -41,10 +41,10 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 
 	first := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 	amfInstance := first.AMFForTest()
-	amfInstance.AttachUeConn(ue, first)
+	amfInstance.AttachUeConn(t.Context(), ue, first)
 
 	second := amf.NewUeConnForTest(radio, 2, 11, logger.AmfLog)
-	amfInstance.AttachUeConn(ue, second)
+	amfInstance.AttachUeConn(t.Context(), ue, second)
 
 	if first.UeContext() != nil {
 		t.Fatal("displaced UeConn was not detached from the UE after re-attach")
@@ -74,7 +74,7 @@ func TestReleaseNasConnection_AbortsProcedures(t *testing.T) {
 		t.Fatalf("begin Authentication: %v", err)
 	}
 
-	ueConn.AMFForTest().ReleaseNasConnection(ue, ueConn)
+	ueConn.AMFForTest().ReleaseNasConnection(t.Context(), ue, ueConn)
 
 	if ue.Conn() != nil {
 		t.Error("NAS connection still attached after release")
@@ -110,7 +110,7 @@ func TestReleaseNasConnection_AbortsSecurityMode(t *testing.T) {
 		t.Fatalf("begin SecurityMode: %v", err)
 	}
 
-	ueConn.AMFForTest().ReleaseNasConnection(ue, ueConn)
+	ueConn.AMFForTest().ReleaseNasConnection(t.Context(), ue, ueConn)
 
 	waitFor(t, func() bool {
 		return !ue.Procedures().Active(procedure.SecurityMode)
@@ -127,9 +127,9 @@ func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 		t.Fatalf("begin N2Handover: %v", err)
 	}
 
-	targetUeConn.AMFForTest().AttachUeConn(ue, targetUeConn)
+	targetUeConn.AMFForTest().AttachUeConn(t.Context(), ue, targetUeConn)
 
-	sourceUeConn.AMFForTest().ReleaseNasConnection(ue, sourceUeConn)
+	sourceUeConn.AMFForTest().ReleaseNasConnection(t.Context(), ue, sourceUeConn)
 
 	if !ue.Procedures().Active(procedure.N2Handover) {
 		t.Error("N2Handover aborted by stale source release")
@@ -146,7 +146,7 @@ func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 
 	staleUeConn := amf.NewUeConnForTest(radio, 99, 990, logger.AmfLog)
 
-	staleUeConn.AMFForTest().ReleaseNasConnection(ue, staleUeConn)
+	staleUeConn.AMFForTest().ReleaseNasConnection(t.Context(), ue, staleUeConn)
 
 	if ue.Conn() == nil {
 		t.Error("current UeConn was detached by stale release")

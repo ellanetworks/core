@@ -4,6 +4,7 @@
 package kernel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/google/nftables"
 	"github.com/vishvananda/netlink"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -41,15 +44,15 @@ type ManagedRoute struct {
 
 // Kernel defines the interface for kernel route management.
 type Kernel interface {
-	EnableIPForwarding() error
-	IsIPForwardingEnabled() (bool, error)
-	CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
-	DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
-	ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
-	ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute, error)
-	InterfaceExists(ifKey NetworkInterface) (bool, error)
-	RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error)
-	EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error
+	EnableIPForwarding(ctx context.Context) error
+	IsIPForwardingEnabled(ctx context.Context) (bool, error)
+	CreateRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	DeleteRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	ReplaceRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	ListManagedRoutes(ctx context.Context, ifKey NetworkInterface) ([]ManagedRoute, error)
+	InterfaceExists(ctx context.Context, ifKey NetworkInterface) (bool, error)
+	RouteExists(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error)
+	EnsureGatewaysOnInterfaceInNeighTable(ctx context.Context, ifKey NetworkInterface) error
 }
 
 // RealKernel is the production implementation of the Kernel interface.
@@ -169,7 +172,13 @@ func gwOrVia(destination netip.Prefix, gateway netip.Addr) (net.IP, *netlink.Via
 }
 
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
-func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) CreateRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+	_, span := tracer.Start(ctx, "kernel/create_route",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -216,7 +225,13 @@ func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, 
 // DeleteRoute removes a route from the kernel for the interface defined by ifKey.
 // Matches only routes carrying Ella's protocol marker, so an operator-installed
 // route with the same prefix/gateway/metric is left alone.
-func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) DeleteRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+	_, span := tracer.Start(ctx, "kernel/delete_route",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -251,7 +266,13 @@ func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, 
 // ReplaceRoute creates or updates a route in the kernel for the interface defined by ifKey.
 // Unlike CreateRoute, this is idempotent — it will update an existing route with the same
 // destination and priority rather than returning an error.
-func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) ReplaceRoute(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
+	_, span := tracer.Start(ctx, "kernel/replace_route",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -297,7 +318,13 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 // identified by ifKey, with full destination/gateway/priority info so the
 // caller can diff against a desired set and call DeleteRoute for stale
 // entries.
-func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute, error) {
+func (rk *RealKernel) ListManagedRoutes(ctx context.Context, ifKey NetworkInterface) ([]ManagedRoute, error) {
+	_, span := tracer.Start(ctx, "kernel/list_managed_routes",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
@@ -359,7 +386,13 @@ func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute,
 }
 
 // InterfaceExists checks if the interface corresponding to ifKey exists.
-func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
+func (rk *RealKernel) InterfaceExists(ctx context.Context, ifKey NetworkInterface) (bool, error) {
+	_, span := tracer.Start(ctx, "kernel/interface_exists",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return false, fmt.Errorf("invalid interface key: %v", ifKey)
@@ -380,7 +413,13 @@ func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
 // RouteExists checks if an Ella-owned route exists for the interface
 // defined by ifKey. Operator-installed routes with the same prefix do not
 // count.
-func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error) {
+func (rk *RealKernel) RouteExists(ctx context.Context, destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error) {
+	_, span := tracer.Start(ctx, "kernel/route_exists",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return false, fmt.Errorf("invalid interface key: %v", ifKey)
@@ -466,7 +505,12 @@ func isRunningInKubernetes() bool {
 }
 
 // EnableIPForwarding enables IP forwarding on the host.
-func (rk *RealKernel) EnableIPForwarding() error {
+func (rk *RealKernel) EnableIPForwarding(ctx context.Context) error {
+	_, span := tracer.Start(ctx, "kernel/enable_ip_forwarding",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	// Before enabling IP forwarding, we add a firewall rule to
 	// default drop any forwarding for security. Because we use XDP
 	// for forwarding, we will bypass these rules for legitimate traffic.
@@ -493,7 +537,12 @@ func (rk *RealKernel) EnableIPForwarding() error {
 }
 
 // IsIPForwardingEnabled checks if IP forwarding is enabled on the host.
-func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
+func (rk *RealKernel) IsIPForwardingEnabled(ctx context.Context) (bool, error) {
+	_, span := tracer.Start(ctx, "kernel/is_ip_forwarding_enabled",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	data, err := os.ReadFile("/proc/sys/net/ipv4/ip_forward")
 	if err != nil {
 		return false, fmt.Errorf("failed to read ip_forward: %v", err)
@@ -516,7 +565,13 @@ func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
 	return ipv4Enabled && ipv6Enabled, nil
 }
 
-func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error {
+func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ctx context.Context, ifKey NetworkInterface) error {
+	_, span := tracer.Start(ctx, "kernel/ensure_gateways_in_neigh_table",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(semconv.NetworkInterfaceName(rk.ifMapping[ifKey])),
+	)
+	defer span.End()
+
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)

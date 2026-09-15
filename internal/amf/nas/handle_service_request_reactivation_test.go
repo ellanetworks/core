@@ -98,7 +98,7 @@ func TestHandleServiceRequest_SecondRequestAfterBufferedN1N2_StillReactivates(t 
 
 	idleToActive(t, f, fgs.ServiceTypeData)
 
-	f.conn().AbortICS()
+	f.conn().AbortICS(t.Context())
 	f.ngapSender.SentInitialContextSetupRequest = nil
 
 	idleToActive(t, f, fgs.ServiceTypeData)

@@ -414,7 +414,7 @@ func (f *fakeNASHandler) HandleNAS(_ context.Context, ue *amf.UeConn, nasPdu []b
 	f.Calls = append(f.Calls, NASCall{UeConn: ue, NASPDU: nasPdu})
 
 	if !f.LeavesBare && ue.UeContext() == nil {
-		ue.AMFForTest().AttachUeConn(amf.NewUeContext(), ue)
+		ue.AMFForTest().AttachUeConn(context.Background(), amf.NewUeContext(), ue)
 	}
 }
 

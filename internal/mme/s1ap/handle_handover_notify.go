@@ -14,25 +14,25 @@ import (
 
 // handleHandoverNotify completes the handover once the UE reaches the target
 // (TS 36.413 §8.4.3, TS 23.401 §5.5.1.2.2 steps 13-19).
-func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcHandoverNotification, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverNotification, err)
 		return
 	}
 
 	ue, ok := m.LookupUe(notify.MMEUES1APID)
 	if !ok {
-		sendErrorIndication(m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)
+		sendErrorIndication(ctx, m, radio.Conn, &notify.MMEUES1APID, &notify.ENBUES1APID, causeUnknownMMEUES1APID)
 
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
 
 	admitted, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
-		if _, _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
+		if _, _, valid := resolveUE(ctx, m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target_mme_ue_s1ap_id", uint32(notify.MMEUES1APID)))
 		}
 
@@ -49,7 +49,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		Authoritative: true,
 	})
 
-	m.ScheduleForwardingRelease(ue)
+	m.ScheduleForwardingRelease(ctx, ue)
 
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {

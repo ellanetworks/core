@@ -39,39 +39,39 @@ const (
 
 type FakeKernel struct{}
 
-func (fk FakeKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) CreateRoute(_ context.Context, destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) DeleteRoute(_ context.Context, destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) InterfaceExists(networkInterface kernel.NetworkInterface) (bool, error) {
+func (fk FakeKernel) InterfaceExists(_ context.Context, networkInterface kernel.NetworkInterface) (bool, error) {
 	return true, nil
 }
 
-func (fk FakeKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
+func (fk FakeKernel) RouteExists(_ context.Context, destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
 	return false, nil
 }
 
-func (fk FakeKernel) EnableIPForwarding() error {
+func (fk FakeKernel) EnableIPForwarding(_ context.Context) error {
 	return nil
 }
 
-func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
+func (fk FakeKernel) IsIPForwardingEnabled(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (fk FakeKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) ReplaceRoute(_ context.Context, destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) ListManagedRoutes(networkInterface kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
+func (fk FakeKernel) ListManagedRoutes(_ context.Context, networkInterface kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
 	return nil, nil
 }
 
-func (fk FakeKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey kernel.NetworkInterface) error {
+func (fk FakeKernel) EnsureGatewaysOnInterfaceInNeighTable(_ context.Context, ifKey kernel.NetworkInterface) error {
 	return nil
 }
 

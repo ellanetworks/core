@@ -24,7 +24,7 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	}
 
 	c := ueConn
-	c.StopNASGuard()
+	c.StopNASGuard(ctx)
 
 	if c.AuthVector == nil || subtle.ConstantTimeCompare(resp.RES, c.AuthVector.XRES) != 1 {
 		logger.From(ctx, logger.MmeLog).Warn("authentication failed: RES mismatch")

@@ -43,9 +43,8 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
-	if requestESMInformation(ctx, ue, ueConn, func(pti uint8) {
-		// T3489's final expiry outlives the request's context.
-		rejectAttachESM(context.Background(), m, ue, ueConn, pti, eps.ESMCauseESMInformationNotReceived)
+	if requestESMInformation(ctx, ue, ueConn, func(ctx context.Context, pti uint8) {
+		rejectAttachESM(ctx, m, ue, ueConn, pti, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
 	}
@@ -170,7 +169,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
-	ueConn.ArmNASGuard("Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
+	ueConn.ArmNASGuard(ctx, "Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
 func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
@@ -336,11 +335,11 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	m.CommitGUTIRealloc(ue)
 
-	ue.TransitionTo(mme.EMMRegistered)
+	ue.TransitionTo(ctx, mme.EMMRegistered)
 
 	m.SupersedeFiveGSRegistration(ctx, ue)
 

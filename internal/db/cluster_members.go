@@ -54,14 +54,17 @@ func IsValidDrainState(s string) bool {
 }
 
 func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -93,14 +96,17 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 }
 
 func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterMember, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -133,14 +139,17 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterM
 }
 
 func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMember) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", ClusterMembersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -164,14 +173,17 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 }
 
 func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -201,14 +213,17 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string)
 		return fmt.Errorf("invalid drain state %q", state)
 	}
 
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -238,14 +253,17 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string)
 }
 
 func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()

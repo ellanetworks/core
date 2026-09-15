@@ -16,7 +16,7 @@ import (
 func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	testPDN(ue).Apn = "internet"
 
@@ -40,7 +40,7 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	want := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 
@@ -76,7 +76,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			cc := &captureConn{}
-			ue := m.NewUe(cc, 7)
+			ue := m.NewUe(t.Context(), cc, 7)
 			ue.SetIMSIForTest(testSubscriber.IMSI)
 			testPDN(ue).Apn = "internet"
 
@@ -100,7 +100,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+			handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 			if testPDN(ue).EnbFTEID.Addr != tc.want {
 				t.Fatalf("eNB F-TEID address = %v, want %v", testPDN(ue).EnbFTEID.Addr, tc.want)
@@ -112,7 +112,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 
 	p1 := testPDN(ue)
@@ -147,7 +147,7 @@ func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	want1 := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 	want2 := models.FTEID{TEID: 0x66, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 4})}
@@ -165,7 +165,7 @@ func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 
 	p1 := testPDN(ue)
@@ -197,7 +197,7 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if m.LookupPDN(ue, 6) != nil {
 		t.Fatal("failed E-RAB's PDN connection must be released")
@@ -225,7 +225,7 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	testPDN(ue).Apn = "internet"
 
@@ -247,7 +247,7 @@ func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupFailure(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
+	handleInitialContextSetupFailure(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
 
 	if cc.count() != 0 {
 		t.Fatalf("expected no S1AP command on Initial Context Setup Failure (local release), got %d", cc.count())

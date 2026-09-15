@@ -49,7 +49,7 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	c.StopNASGuard()
+	c.StopNASGuard(ctx)
 
 	if fail.Cause == eps.EMMCauseSynchFailure && len(fail.AUTS) > 0 && !c.ResyncTried() && c.AuthVector != nil {
 		c.SetResyncTried(true)

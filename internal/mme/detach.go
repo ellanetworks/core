@@ -20,7 +20,7 @@ func (m *MME) DetachUEAfterPathSwitchFailure(ctx context.Context, ue *UeContext)
 	logger.From(ctx, logger.MmeLog).Warn("detaching UE: no EPS bearer could be switched during path switch",
 		zap.String("imsi", ue.IMSI()))
 
-	ue.TransitionTo(EMMDeregistered)
+	ue.TransitionTo(ctx, EMMDeregistered)
 	m.ReleaseUEContext(ctx, ue, s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach})
 }
 
@@ -32,7 +32,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 
 	ueConn := ue.Conn()
 	if ueConn == nil || !m.UeConnected(ue) {
-		ue.TransitionTo(EMMDeregistered)
+		ue.TransitionTo(ctx, EMMDeregistered)
 		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
@@ -43,12 +43,12 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	if !ue.Secured() {
 		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion",
 			zap.String("imsi", imsi))
-		m.ReleaseUEContextLocally(ue, "subscriber deleted")
+		m.ReleaseUEContextLocally(ctx, ue, "subscriber deleted")
 
 		return
 	}
 
-	ue.TransitionTo(EMMDeregistrationInitiated)
+	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 
 	logger.From(ctx, ueConn.Log()).Info("network-initiated detach (subscriber deleted)",
 		zap.String("imsi", imsi))

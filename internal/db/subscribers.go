@@ -123,16 +123,19 @@ func (f *SubscriberFilters) args() subscriberFilterArgs {
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) ([]Subscriber, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", SubscribersTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -191,14 +194,17 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 }
 
 func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (filtered count)", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (filtered count)", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -228,14 +234,17 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 }
 
 func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -271,14 +280,17 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 }
 
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", SubscribersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -311,14 +323,17 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 }
 
 func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -342,14 +357,17 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 }
 
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
+	querySummary := fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -378,14 +396,17 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 }
 
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", SubscribersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -409,14 +430,17 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 }
 
 func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()

@@ -41,7 +41,7 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 
 	ue.AllocateRegistrationArea(served)
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	return ue
 }

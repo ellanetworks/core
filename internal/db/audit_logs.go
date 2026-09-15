@@ -53,14 +53,17 @@ type AuditLogFilters struct {
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
 func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", AuditLogsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", AuditLogsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("db.collection.name", AuditLogsTableName),
 		),
 	)
 	defer span.End()
@@ -92,16 +95,19 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 		filters = &AuditLogFilters{}
 	}
 
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", AuditLogsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", AuditLogsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", AuditLogsTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", AuditLogsTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -146,14 +152,17 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
+	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", AuditLogsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (retention)", "DELETE", AuditLogsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("db.collection.name", AuditLogsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)

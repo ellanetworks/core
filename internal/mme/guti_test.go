@@ -14,7 +14,7 @@ func TestReallocateGUTI(t *testing.T) {
 	m := newTestMME(t)
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
 
-	ue := m.NewUe(&captureConn{}, 7)
+	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
 	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, 0x1234, 0x56)
 	if err != nil {
@@ -35,7 +35,7 @@ func TestReallocateGUTI(t *testing.T) {
 		t.Fatal("UE not indexed by its M-TMSI")
 	}
 
-	ue2 := m.NewUe(&captureConn{}, 8)
+	ue2 := m.NewUe(t.Context(), &captureConn{}, 8)
 
 	guti2, err := m.ReallocateGUTI(t.Context(), ue2, plmn, 0x1234, 0x56)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestReallocateGUTI(t *testing.T) {
 func TestReallocateGUTITwoPhase(t *testing.T) {
 	m := newTestMME(t)
 	plmn := models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue := m.NewUe(&captureConn{}, 7)
+	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
 	firstGUTI, err := m.ReallocateGUTI(t.Context(), ue, plmn, 1, 1)
 	if err != nil {

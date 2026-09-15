@@ -15,19 +15,19 @@ import (
 // handleENBStatusTransfer relays the source's status container to the target as an
 // MME STATUS TRANSFER (TS 36.413 §8.4.6/§8.4.7). Optional: the source may omit it,
 // so it never gates completion.
-func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleENBStatusTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcENBStatusTransfer, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, err)
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), st.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), st.Diagnostics())
 
 	ue.TouchLastSeen()
 

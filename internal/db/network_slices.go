@@ -41,16 +41,19 @@ type NetworkSlice struct {
 }
 
 func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int) ([]NetworkSlice, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -99,14 +102,17 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 }
 
 func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -137,14 +143,17 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 }
 
 func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkSlice, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -175,14 +184,17 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 }
 
 func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*NetworkSlice, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -213,14 +225,17 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 }
 
 func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", NetworkSlicesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -253,14 +268,17 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 }
 
 func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkSlicesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -284,14 +302,17 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 }
 
 func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkSlicesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -315,14 +336,17 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -348,14 +372,17 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 }
 
 func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]NetworkSlice, error) {
+	querySummary := fmt.Sprintf("%s %s (by IDs)", "SELECT", NetworkSlicesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by IDs)", "SELECT", NetworkSlicesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()

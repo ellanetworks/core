@@ -21,7 +21,7 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 	}
 
 	if conn := ue.Conn(); conn != nil {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 	}
 
 	if msg.PDUSessionStatus == nil {

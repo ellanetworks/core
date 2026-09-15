@@ -32,14 +32,14 @@ func icsResponseFor(t *testing.T, m *mme.MME, cc *captureConn, ue *mme.UeContext
 		t.Fatalf("parse Initial Context Setup Response: %v", err)
 	}
 
-	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
+	handleInitialContextSetupResponse(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.SuccessfulOutcome).Value)
 }
 
 // TS 36.413 §8.3.1.2
 func TestInterworkingICSResponseReleasesABearerTheAnchorRefused(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	testPDN(ue).Apn = "internet"
 	secondPDN(ue)
@@ -61,11 +61,11 @@ func TestInterworkingICSResponseReleasesABearerTheAnchorRefused(t *testing.T) {
 func TestInterworkingICSResponseWithNoBearerLeavesNoRegisteredUE(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.SetIMSIForTest(testSubscriber.IMSI)
 	testPDN(ue).Apn = "internet"
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
-	ue.TransitionTo(mme.EMMRegistered)
+	ue.TransitionTo(t.Context(), mme.EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), mme.EMMRegistered)
 
 	if ue.EMMState() != mme.EMMRegistered {
 		t.Fatalf("EMM state = %v, want EMM-REGISTERED before the response arrives", ue.EMMState())

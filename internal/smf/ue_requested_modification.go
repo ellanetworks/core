@@ -94,12 +94,12 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 
-	s.armRetransmit(smContext, s.t3591,
-		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1SmMsg, nil) },
-		func(sc *SMContext) {
+	s.armRetransmit(ctx, smContext, s.timerT3591(),
+		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1SmMsg, nil) },
+		func(ctx context.Context, sc *SMContext) {
 			sc.ClearPTIInUse(pti)
 
-			logger.SmfLog.Warn("T3591 expired; UE-requested PDU session modification aborted, session remains active",
+			logger.From(ctx, logger.SmfLog).Warn("T3591 expired; UE-requested PDU session modification aborted, session remains active",
 				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 		})
 

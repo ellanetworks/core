@@ -15,19 +15,19 @@ import (
 // handleUplinkLPPaTransport stores an eNB-relayed LPPa PDU on its UE context for
 // the LMF to correlate and decode (TS 36.413 §8.14). The PDU is opaque to the
 // S1AP layer; the LMF matches it by the E-SMLC-UE-Measurement-ID inside.
-func handleUplinkLPPaTransport(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleUplinkLPPaTransport(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUplinkUEAssociatedLPPaTransport(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, err)
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.SetLPPaMessage([]byte(msg.LPPaPDU))
 

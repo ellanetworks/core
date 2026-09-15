@@ -116,7 +116,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 
 // CancelMeasurements discards a request buffered for a paged UE, once the LMF stops
 // waiting.
-func (c *Client) CancelMeasurements(supi etsi.SUPI, measurementID int64) {
+func (c *Client) CancelMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64) {
 	c.mme.CancelBufferedLPPa(supi, measurementID)
 }
 

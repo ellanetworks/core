@@ -323,7 +323,7 @@ func (h *nasHandler) HandleServiceRequest(ctx context.Context, conn mme.S1APWrit
 var servedAttachTAI = s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}
 
 func newAttachUe(m *mme.MME, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) *mme.UeContext {
-	ue := m.NewUe(conn, enbUEID)
+	ue := m.NewUe(context.Background(), conn, enbUEID)
 	if ue != nil {
 		ue.Conn().ServingTAI = servedAttachTAI
 	}
@@ -381,7 +381,7 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	c := m.NewUeConn(conn, enbUEID)
 	c.ServingTAI = servedAttachTAI
-	m.AttachUeConn(ue, c)
+	m.AttachUeConn(context.Background(), ue, c)
 	c.MarkSecureExchangeEstablished()
 }
 

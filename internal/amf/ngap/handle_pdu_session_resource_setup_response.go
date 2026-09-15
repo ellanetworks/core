@@ -80,7 +80,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf
 
 	// A UE whose user plane was just (re)established applies any policy change deferred
 	// while it was idle.
-	ueConn.EndN2Setup(amf.N2SetupPDUSession)
+	ueConn.EndN2Setup(ctx, amf.N2SetupPDUSession)
 
 	if amfUe.State() == amf.Registered {
 		amfInstance.ReconcileSessionsForUE(ctx, amfUe)

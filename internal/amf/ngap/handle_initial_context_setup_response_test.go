@@ -65,7 +65,7 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
 
@@ -100,7 +100,7 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
 
@@ -127,7 +127,7 @@ func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
 		RANUENGAPID:             ngap.Ptr(ngap.RANUENGAPID(1)),
@@ -152,7 +152,7 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
 		RANUENGAPID:             ngap.Ptr(ngap.RANUENGAPID(1)),
@@ -181,7 +181,7 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
 		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(1)),

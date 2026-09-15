@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handoverRequiredToFiveGS(m *mme.MME, ctx context.Context, radio *mme.Radio, req *s1ap.HandoverRequired, ue *mme.UeContext, source *mme.UeConn) {
+func handoverRequiredToFiveGS(ctx context.Context, m *mme.MME, radio *mme.Radio, req *s1ap.HandoverRequired, ue *mme.UeContext, source *mme.UeConn) {
 	if req.TargetID.TargetNgRanNodeID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required to 5GS whose target is not an NG-RAN node",
 			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)))

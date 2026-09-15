@@ -14,16 +14,16 @@ import (
 
 // HandleUEContextReleaseComplete completes the release (TS 36.413): either
 // deleting the UE context (detach) or retaining it in ECM-IDLE.
-func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseComplete(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcUEContextRelease, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, err)
 		return
 	}
 
 	if msg.MMEUES1APID == nil || msg.ENBUES1APID == nil {
-		logger.MmeLog.Warn("UE Context Release Complete without both UE S1AP IDs")
-		sendErrorIndication(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, causeMissingUES1APID)
+		logger.From(ctx, logger.MmeLog).Warn("UE Context Release Complete without both UE S1AP IDs")
+		sendErrorIndication(ctx, m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID, causeMissingUES1APID)
 
 		return
 	}
@@ -33,19 +33,19 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 	// A Release Complete for a detached association removes only that connection; the UE
 	// stays active on its current association (TS 36.413 §8.3, §8.4).
 	if m.ReleaseDetachedConn(radio.Conn, mmeUEID, enbUEID) {
-		logger.MmeLog.Info("UE Context Release Complete (detached association)", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete (detached association)", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 		return
 	}
 
 	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
-		logger.MmeLog.Info("UE Context Release Complete for a connection the MME no longer holds",
+		logger.From(ctx, logger.MmeLog).Info("UE Context Release Complete for a connection the MME no longer holds",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbUEID)))
 
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
@@ -58,18 +58,18 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
-		logger.MmeLog.Info("UE context released", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+		logger.From(ctx, logger.MmeLog).Info("UE context released", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 
 		return
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(ctx, ue)
 
 	// Supervise the UE's reachability while idle: the mobile reachable timer is
 	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
 	m.StartMobileReachable(ue)
 
-	logger.MmeLog.Info("UE moved to ECM-IDLE",
+	logger.From(ctx, logger.MmeLog).Info("UE moved to ECM-IDLE",
 		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", ue.IMSI()))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
