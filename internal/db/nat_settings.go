@@ -57,7 +57,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NATSettingsTableName),
+			attribute.String("db.collection.name", NATSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -90,7 +90,7 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", NATSettingsTableName),
+			attribute.String("db.collection.name", NATSettingsTableName),
 		),
 	)
 	defer span.End()

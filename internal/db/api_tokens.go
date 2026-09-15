@@ -45,7 +45,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", APITokensTableName),
+			attribute.String("db.collection.name", APITokensTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -106,7 +106,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", APITokensTableName),
+			attribute.String("db.collection.name", APITokensTableName),
 		),
 	)
 	defer span.End()
@@ -146,7 +146,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", APITokensTableName),
+			attribute.String("db.collection.name", APITokensTableName),
 		),
 	)
 	defer span.End()
@@ -184,7 +184,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", APITokensTableName),
+			attribute.String("db.collection.name", APITokensTableName),
 		),
 	)
 	defer span.End()
@@ -215,7 +215,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", APITokensTableName),
+			attribute.String("db.collection.name", APITokensTableName),
 		),
 	)
 	defer span.End()

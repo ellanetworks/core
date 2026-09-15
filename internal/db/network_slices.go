@@ -48,7 +48,7 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -106,7 +106,7 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -144,7 +144,7 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -182,7 +182,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -220,7 +220,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -260,7 +260,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -291,7 +291,7 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -322,7 +322,7 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -355,7 +355,7 @@ func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkSlicesTableName),
+			attribute.String("db.collection.name", NetworkSlicesTableName),
 		),
 	)
 	defer span.End()

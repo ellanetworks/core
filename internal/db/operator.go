@@ -161,7 +161,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -200,7 +200,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -232,7 +232,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -266,7 +266,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -308,7 +308,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -342,7 +342,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -376,7 +376,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -410,7 +410,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -460,7 +460,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -503,7 +503,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -537,7 +537,7 @@ func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID strin
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
+			attribute.String("db.collection.name", OperatorTableName),
 		),
 	)
 	defer span.End()

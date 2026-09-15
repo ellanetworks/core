@@ -27,7 +27,7 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 		ctx,
 		"kernel/add_neighbour_on_link",
 		trace.WithAttributes(
-			attribute.String("IP", neigh.String()),
+			attribute.String("ip", neigh.String()),
 			attribute.Int("ifindex", ifindex),
 		))
 	defer span.End()
@@ -40,7 +40,7 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 		ctx,
 		"kernel/add_neighbour",
 		trace.WithAttributes(
-			attribute.String("IP", neigh.String()),
+			attribute.String("ip", neigh.String()),
 		))
 	defer span.End()
 

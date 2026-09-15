@@ -130,7 +130,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -198,7 +198,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -235,7 +235,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -278,7 +278,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -318,7 +318,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -349,7 +349,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -385,7 +385,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -416,7 +416,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 		),
 	)
 	defer span.End()

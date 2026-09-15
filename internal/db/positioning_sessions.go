@@ -68,7 +68,7 @@ func (db *Database) CreatePositioningSession(ctx context.Context, s *Positioning
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -115,7 +115,7 @@ func (db *Database) GetPositioningSession(ctx context.Context, id string) (*Posi
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -150,7 +150,7 @@ func (db *Database) ListPositioningSessions(ctx context.Context, supi string, st
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -194,7 +194,7 @@ func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id strin
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -229,7 +229,7 @@ func (db *Database) DeletePositioningSession(ctx context.Context, id string) err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", PositioningSessionsTableName),
+			attribute.String("db.collection.name", PositioningSessionsTableName),
 		),
 	)
 	defer span.End()

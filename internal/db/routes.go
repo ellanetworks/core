@@ -66,7 +66,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -126,7 +126,7 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -165,7 +165,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -203,7 +203,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -244,7 +244,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -275,7 +275,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -308,7 +308,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -340,7 +340,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()

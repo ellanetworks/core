@@ -56,7 +56,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", JWTSecretTableName),
+			attribute.String("db.collection.name", JWTSecretTableName),
 		),
 	)
 	defer span.End()
@@ -94,7 +94,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", JWTSecretTableName),
+			attribute.String("db.collection.name", JWTSecretTableName),
 		),
 	)
 	defer span.End()
@@ -127,7 +127,7 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("ROTATE"),
-			attribute.String("db.collection", JWTSecretTableName),
+			attribute.String("db.collection.name", JWTSecretTableName),
 		),
 	)
 	defer span.End()

@@ -49,7 +49,7 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -107,7 +107,7 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -146,7 +146,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -186,7 +186,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -226,7 +226,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -266,7 +266,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -297,7 +297,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -328,7 +328,7 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DataNetworksTableName),
+			attribute.String("db.collection.name", DataNetworksTableName),
 		),
 	)
 	defer span.End()

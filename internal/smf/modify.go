@@ -18,7 +18,7 @@ import (
 // new transport address and returns a Modify Confirm Transfer (TS 38.413 §8.2.5.2).
 func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_modify_indication",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
 	)
 	defer span.End()
 

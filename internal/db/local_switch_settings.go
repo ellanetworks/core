@@ -54,7 +54,7 @@ func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", LocalSwitchSettingsTableName),
+			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -87,7 +87,7 @@ func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", LocalSwitchSettingsTableName),
+			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
 		),
 	)
 	defer span.End()

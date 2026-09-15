@@ -172,8 +172,8 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", FlowReportsTableName),
-			attribute.Int("db.batch_size", len(flowReports)),
+			attribute.String("db.collection.name", FlowReportsTableName),
+			attribute.Int("db.operation.batch.size", len(flowReports)),
 		),
 	)
 	defer span.End()
@@ -237,7 +237,7 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -302,7 +302,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -339,7 +339,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -370,7 +370,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -412,7 +412,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -455,7 +455,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()

@@ -56,7 +56,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", N3SettingsTableName),
+			attribute.String("db.collection.name", N3SettingsTableName),
 		),
 	)
 	defer span.End()
@@ -88,7 +88,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", N3SettingsTableName),
+			attribute.String("db.collection.name", N3SettingsTableName),
 		),
 	)
 	defer span.End()

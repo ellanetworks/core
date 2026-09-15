@@ -61,7 +61,7 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -100,7 +100,7 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterM
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -140,7 +140,7 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -171,7 +171,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -208,7 +208,7 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()
@@ -245,7 +245,7 @@ func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ClusterMembersTableName),
+			attribute.String("db.collection.name", ClusterMembersTableName),
 		),
 	)
 	defer span.End()

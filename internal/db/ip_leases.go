@@ -94,7 +94,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -145,7 +145,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -194,7 +194,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -229,7 +229,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -268,7 +268,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -301,7 +301,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -352,7 +352,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -385,7 +385,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -419,7 +419,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 			attribute.Int("node_id", nodeID),
 		),
 	)
@@ -453,7 +453,7 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -487,7 +487,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -530,7 +530,7 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]I
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 			attribute.Int("node_id", nodeID),
 		),
 	)
@@ -586,7 +586,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -626,7 +626,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -686,7 +686,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolTy
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -731,7 +731,7 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -766,7 +766,7 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -800,7 +800,7 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -834,7 +834,7 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -868,7 +868,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -904,7 +904,7 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -945,7 +945,7 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -985,7 +985,7 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1025,7 +1025,7 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1066,7 +1066,7 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1100,7 +1100,7 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1135,7 +1135,7 @@ func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", IPLeasesTableName),
+			attribute.String("db.collection.name", IPLeasesTableName),
 		),
 	)
 	defer span.End()

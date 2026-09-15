@@ -93,7 +93,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -132,7 +132,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -171,7 +171,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -210,7 +210,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -246,7 +246,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -278,7 +278,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", HomeNetworkKeysTableName),
+			attribute.String("db.collection.name", HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()

@@ -38,7 +38,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	ctx, span := tracer.Start(ctx, "smf/reconcile_sm_context",
 		trace.WithAttributes(
-			attribute.String("smf.smContextRef", req.SmContextRef),
+			attribute.String("smf.sm_context_ref", req.SmContextRef),
 			attribute.String("smf.reason", string(req.Reason)),
 		),
 	)

@@ -67,7 +67,7 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -125,8 +125,8 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
-			attribute.String("profileID", profileID),
+			attribute.String("db.collection.name", PoliciesTableName),
+			attribute.String("profile_id", profileID),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -181,8 +181,8 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
-			attribute.String("profileID", profileID),
+			attribute.String("db.collection.name", PoliciesTableName),
+			attribute.String("profile_id", profileID),
 		),
 	)
 	defer span.End()
@@ -223,7 +223,7 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -262,7 +262,7 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("profile_id", profileID),
 			attribute.String("slice_id", sliceID),
 			attribute.String("data_network_id", dataNetworkID),
@@ -308,7 +308,7 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("profile_id", profileID),
 		),
 	)
@@ -350,7 +350,7 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -381,7 +381,7 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("profile_id", profileID),
 			attribute.String("slice_id", sliceID),
 		),
@@ -534,7 +534,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -574,7 +574,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -605,7 +605,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -637,7 +637,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -670,7 +670,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("profile_id", profileID),
 		),
 	)
@@ -706,7 +706,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("slice_id", sliceID),
 		),
 	)
@@ -742,7 +742,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("db.collection.name", PoliciesTableName),
 			attribute.String("data_network_id", dataNetworkID),
 		),
 	)

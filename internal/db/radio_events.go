@@ -71,7 +71,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", RadioEventsTableName),
+			attribute.String("db.collection.name", RadioEventsTableName),
 		),
 	)
 	defer span.End()
@@ -102,7 +102,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RadioEventsTableName),
+			attribute.String("db.collection.name", RadioEventsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -167,7 +167,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RadioEventsTableName),
+			attribute.String("db.collection.name", RadioEventsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -204,7 +204,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RadioEventsTableName),
+			attribute.String("db.collection.name", RadioEventsTableName),
 		),
 	)
 	defer span.End()
@@ -235,7 +235,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RadioEventsTableName),
+			attribute.String("db.collection.name", RadioEventsTableName),
 			attribute.Int("id", id),
 		),
 	)

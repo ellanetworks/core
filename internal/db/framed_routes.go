@@ -52,7 +52,7 @@ func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("REPLACE"),
-			attribute.String("db.collection", FramedRoutesTableName),
+			attribute.String("db.collection.name", FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -127,7 +127,7 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FramedRoutesTableName),
+			attribute.String("db.collection.name", FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -167,7 +167,7 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FramedRoutesTableName),
+			attribute.String("db.collection.name", FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -207,7 +207,7 @@ func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramed
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FramedRoutesTableName),
+			attribute.String("db.collection.name", FramedRoutesTableName),
 		),
 	)
 	defer span.End()

@@ -16,7 +16,7 @@ import (
 // returns the N2 PDUSessionResourceSetupRequest transfer.
 func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error) {
 	_, span := tracer.Start(ctx, "smf/activate_session",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
 	)
 	defer span.End()
 

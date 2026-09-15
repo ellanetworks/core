@@ -75,7 +75,7 @@ func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPSettingsTableName),
+			attribute.String("db.collection.name", BGPSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -117,7 +117,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", BGPSettingsTableName),
+			attribute.String("db.collection.name", BGPSettingsTableName),
 		),
 	)
 	defer span.End()

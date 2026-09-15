@@ -112,7 +112,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", DailyUsageTableName),
+			attribute.String("db.collection.name", DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -157,8 +157,8 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", DailyUsageTableName),
-			attribute.Int("db.batch.size", len(usages)),
+			attribute.String("db.collection.name", DailyUsageTableName),
+			attribute.Int("db.operation.batch.size", len(usages)),
 		),
 	)
 	defer span.End()
@@ -196,7 +196,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DailyUsageTableName),
+			attribute.String("db.collection.name", DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -244,7 +244,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", DailyUsageTableName),
+			attribute.String("db.collection.name", DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -292,7 +292,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", DailyUsageTableName),
+			attribute.String("db.collection.name", DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -323,7 +323,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", DailyUsageTableName),
+			attribute.String("db.collection.name", DailyUsageTableName),
 			attribute.Int("retention.days", days),
 		),
 	)

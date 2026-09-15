@@ -77,7 +77,7 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -129,7 +129,7 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -164,7 +164,7 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -204,7 +204,7 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -237,7 +237,7 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -283,7 +283,7 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", CellPositionsTableName),
+			attribute.String("db.collection.name", CellPositionsTableName),
 		),
 	)
 	defer span.End()

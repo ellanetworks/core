@@ -55,7 +55,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -114,7 +114,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -153,7 +153,7 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -191,7 +191,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -231,7 +231,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -268,7 +268,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -305,7 +305,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -337,7 +337,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()

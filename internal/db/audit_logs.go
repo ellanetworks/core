@@ -60,7 +60,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("db.collection.name", AuditLogsTableName),
 		),
 	)
 	defer span.End()
@@ -99,7 +99,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("db.collection.name", AuditLogsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -153,7 +153,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", AuditLogsTableName),
+			attribute.String("db.collection.name", AuditLogsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)

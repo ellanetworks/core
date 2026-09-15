@@ -47,7 +47,7 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -105,7 +105,7 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -143,7 +143,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -181,7 +181,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -221,7 +221,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -252,7 +252,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -283,7 +283,7 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -316,7 +316,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
+			attribute.String("db.collection.name", SubscribersTableName),
 			attribute.String("profile_id", profileID),
 		),
 	)

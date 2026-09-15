@@ -51,7 +51,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -88,7 +88,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -130,7 +130,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(policy.Category)),
 			attribute.Int("policy.days", policy.Days),
 		),

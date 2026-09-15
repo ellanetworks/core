@@ -45,7 +45,7 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -103,7 +103,7 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -142,7 +142,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -182,7 +182,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -216,7 +216,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -248,7 +248,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -280,7 +280,7 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPPeersTableName),
+			attribute.String("db.collection.name", BGPPeersTableName),
 		),
 	)
 	defer span.End()

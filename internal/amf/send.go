@@ -91,7 +91,7 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType fg
 
 	sendGmm(ctx, ue, "nas/send_downlink_nas_transport",
 		[]attribute.KeyValue{
-			attribute.Int("pduSessionID", int(pduSessionID)),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
 			attribute.Int("cause", int(cause)),
 		},
 		uint8(fgs.SHTIntegrityProtectedCiphered),
@@ -111,7 +111,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
 			attribute.String("supi", amfUe.supi.String()),
-			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
+			attribute.Int("type_of_identity", int(typeOfIdentity)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

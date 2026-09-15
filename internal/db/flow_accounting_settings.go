@@ -56,7 +56,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowAccountingSettingsTableName),
+			attribute.String("db.collection.name", FlowAccountingSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -89,7 +89,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", FlowAccountingSettingsTableName),
+			attribute.String("db.collection.name", FlowAccountingSettingsTableName),
 		),
 	)
 	defer span.End()

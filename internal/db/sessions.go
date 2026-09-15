@@ -61,7 +61,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -101,7 +101,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -139,7 +139,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -170,7 +170,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -203,7 +203,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -238,7 +238,7 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -271,7 +271,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -302,7 +302,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string)
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -333,7 +333,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()

@@ -58,7 +58,7 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -103,7 +103,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -142,7 +142,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -176,7 +176,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -276,7 +276,7 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -308,7 +308,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -349,7 +349,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID s
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
