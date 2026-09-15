@@ -40,7 +40,7 @@ func tcpTransportFactory(cfg ClusterConfig) (hraft.Transport, error) {
 		advertise = resolved
 	}
 
-	transport, err := hraft.NewTCPTransport(bindAddress, advertise, 3, 10*time.Second, newZapIOWriter("transport"))
+	transport, err := hraft.NewTCPTransportWithLogger(bindAddress, advertise, 3, 10*time.Second, newZapRaftSubLogger("transport"))
 	if err != nil {
 		return nil, fmt.Errorf("create TCP transport on %s: %w", bindAddress, err)
 	}
@@ -57,7 +57,7 @@ func clusterTransportFactory(ln *listener.Listener, cfg ClusterConfig) (hraft.Tr
 		return nil, err
 	}
 
-	return hraft.NewNetworkTransport(sl, 3, 10*time.Second, newZapIOWriter("transport")), nil
+	return hraft.NewNetworkTransportWithLogger(sl, 3, 10*time.Second, newZapRaftSubLogger("transport")), nil
 }
 
 // ManagerOption configures optional behaviour of NewManager.

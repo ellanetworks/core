@@ -8,12 +8,12 @@ import (
 	"fmt"
 	stdlog "log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/ellanetworks/core/version"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -72,10 +72,8 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	atomicLevel.SetLevel(zl)
 
-	build := []zap.Field{zap.String("service.version", version.GetVersion().Version)}
-
-	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller()).With(build...)
-	auditRoot := zap.New(newDedupeCore(zapcore.NewTee(auditCores...)), zap.AddCaller()).With(build...)
+	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller())
+	auditRoot := zap.New(newDedupeCore(zapcore.NewTee(auditCores...)), zap.AddCaller())
 
 	AuditLog = auditRoot.Named("Audit")
 	NetworkLog = Scope("Network")
@@ -147,13 +145,23 @@ func Scope(name string) *zap.Logger {
 	return log.Named(name)
 }
 
-func StdLogger(l *zap.Logger) *stdlog.Logger {
-	std, err := zap.NewStdLogAt(l, zapcore.WarnLevel)
-	if err != nil {
-		return zap.NewStdLog(l)
+type stdLogWriter struct {
+	zap *zap.Logger
+}
+
+func (w stdLogWriter) Write(p []byte) (int, error) {
+	line := strings.TrimRight(string(p), "\n")
+	if line == "" {
+		return len(p), nil
 	}
 
-	return std
+	w.zap.Warn("HTTP server error", zap.String("error", line))
+
+	return len(p), nil
+}
+
+func StdLogger(l *zap.Logger) *stdlog.Logger {
+	return stdlog.New(stdLogWriter{zap: l}, "", 0)
 }
 
 func SetDb(db dbwriter.DBWriter) {
@@ -163,9 +171,7 @@ func SetDb(db dbwriter.DBWriter) {
 func SwapSystemCore(core zapcore.Core) func() {
 	prev := log
 
-	log = zap.New(newDedupeCore(core), zap.AddCaller()).With(
-		zap.String("service.version", version.GetVersion().Version),
-	)
+	log = zap.New(newDedupeCore(core), zap.AddCaller())
 
 	restore := namedScopes()
 
@@ -354,8 +360,8 @@ func LogNetworkEvent(
 ) {
 	if messageType == "" {
 		From(ctx, NetworkLog).Warn("attempted to log empty network message type",
-			zap.String("protocol", string(protocol)),
-			zap.String("dir", string(dir)),
+			ProtocolName(string(protocol)),
+			Direction(string(dir)),
 			zap.String("local_address", localAddress),
 			zap.String("remote_address", remoteAddress),
 		)

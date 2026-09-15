@@ -113,7 +113,7 @@ func TestMaybeRecoverCluster_ValidRecovery(t *testing.T) {
 		t.Fatalf("create bolt store: %v", err)
 	}
 
-	snaps, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snaps, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 	if err != nil {
 		_ = boltStore.Close()
 
@@ -221,7 +221,7 @@ func TestMaybeRecoverCluster_ValidRecovery(t *testing.T) {
 
 	defer func() { _ = boltStore2.Close() }()
 
-	snaps2, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snaps2, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestMaybeRecoverCluster_NoExistingState(t *testing.T) {
 
 	defer func() { _ = boltStore.Close() }()
 
-	snaps, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snaps, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestMaybeRecoverCluster_EmptyConfiguration(t *testing.T) {
 
 	defer func() { _ = boltStore.Close() }()
 
-	snaps, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snaps, err := hraft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 	if err != nil {
 		t.Fatal(err)
 	}
