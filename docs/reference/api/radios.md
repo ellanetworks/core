@@ -40,7 +40,6 @@ This path returns the list of radios in the inventory.
 | `connected_at`    | string | When the radio associated (RFC 3339). On an offline radio, when it last associated. |
 | `last_seen_at`    | string | Timestamp of the last message received from the radio (RFC 3339). |
 | `disconnected_at` | string | When the radio's association dropped (RFC 3339). Empty while the radio is online. |
-| `supported_tais`  | array  | **Deprecated.** Use [Get a Radio](#get-a-radio) for supported TAIs. This field will be removed in a future release. |
 
 ### Sample Response
 
@@ -59,8 +58,7 @@ This path returns the list of radios in the inventory.
                 "status": "online",
                 "connected_at": "2025-08-12T16:58:00Z",
                 "last_seen_at": "2025-08-12T17:02:30Z",
-                "disconnected_at": "",
-                "supported_tais": []
+                "disconnected_at": ""
             },
             {
                 "name": "gnb2",
@@ -73,8 +71,7 @@ This path returns the list of radios in the inventory.
                 "status": "offline",
                 "connected_at": "2025-08-12T09:12:00Z",
                 "last_seen_at": "2025-08-12T16:40:11Z",
-                "disconnected_at": "2025-08-12T16:41:02Z",
-                "supported_tais": []
+                "disconnected_at": "2025-08-12T16:41:02Z"
             }
         ],
         "page": 1,

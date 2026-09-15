@@ -38,16 +38,15 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name           string         `json:"name"`
-	Ref            string         `json:"ref"`
-	ID             string         `json:"id"`
-	Address        string         `json:"address"`
-	RanNodeType    string         `json:"type"`
-	Status         string         `json:"status"`
-	ConnectedAt    string         `json:"connected_at"`
-	LastSeenAt     string         `json:"last_seen_at"`
-	DisconnectedAt string         `json:"disconnected_at"`
-	SupportedTAIs  []SupportedTAI `json:"supported_tais"`
+	Name           string `json:"name"`
+	Ref            string `json:"ref"`
+	ID             string `json:"id"`
+	Address        string `json:"address"`
+	RanNodeType    string `json:"type"`
+	Status         string `json:"status"`
+	ConnectedAt    string `json:"connected_at"`
+	LastSeenAt     string `json:"last_seen_at"`
+	DisconnectedAt string `json:"disconnected_at"`
 }
 
 type GetRadioResponse struct {
@@ -155,34 +154,6 @@ func TestListRadios(t *testing.T) {
 			if radio.ID != "mcc:001:mnc:01:gnb-001" {
 				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.ID)
 			}
-
-			if len(radio.SupportedTAIs) != 1 {
-				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
-			}
-
-			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "123" {
-				t.Fatalf("expected mcc %q, got %q", "123", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
-			}
-
-			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "12" {
-				t.Fatalf("expected mnc %q, got %q", "12", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
-			}
-
-			if radio.SupportedTAIs[0].Tai.Tac != "0002" {
-				t.Fatalf("expected tac %q, got %q", "0002", radio.SupportedTAIs[0].Tai.Tac)
-			}
-
-			if len(radio.SupportedTAIs[0].SNssais) != 1 {
-				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
-			}
-
-			if radio.SupportedTAIs[0].SNssais[0].Sst != 2 {
-				t.Fatalf("expected sst %d, got %d", 2, radio.SupportedTAIs[0].SNssais[0].Sst)
-			}
-
-			if radio.SupportedTAIs[0].SNssais[0].Sd != "010204" {
-				t.Fatalf("expected sd %q, got %q", "010204", radio.SupportedTAIs[0].SNssais[0].Sd)
-			}
 		case "gnb-002":
 			if radio.Address != "" {
 				t.Fatalf("expected radio address %q, got %q", "", radio.Address)
@@ -190,26 +161,6 @@ func TestListRadios(t *testing.T) {
 
 			if radio.ID != "mcc:001:mnc:01:gnb-002" {
 				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.ID)
-			}
-
-			if len(radio.SupportedTAIs) != 1 {
-				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
-			}
-
-			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "001" {
-				t.Fatalf("expected mcc %q, got %q", "001", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
-			}
-
-			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "01" {
-				t.Fatalf("expected mnc %q, got %q", "01", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
-			}
-
-			if radio.SupportedTAIs[0].Tai.Tac != "0001" {
-				t.Fatalf("expected tac %q, got %q", "0001", radio.SupportedTAIs[0].Tai.Tac)
-			}
-
-			if len(radio.SupportedTAIs[0].SNssais) != 1 {
-				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
 			}
 		default:
 			t.Fatalf("unexpected radio name %q", radio.Name)
