@@ -3,7 +3,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Alert,
   Autocomplete,
   Box,
   Button,
@@ -12,8 +11,6 @@ import {
   IconButton,
   TextField,
   MenuItem,
-  MenuList,
-  Popover,
 } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
@@ -34,8 +31,6 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Edit as EditIcon } from "@mui/icons-material";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 
 import {
   listRadios,
@@ -63,6 +58,13 @@ import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import PageTitle from "@/components/PageTitle";
+import TimeRangePicker, {
+  EMPTY_TIME_RANGE,
+  resolveTimeRangeFilter,
+  timeRangeError,
+  timeRangeFilter,
+  type TimeRangeValue,
+} from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
 const NGAP_MESSAGE_TYPES = [
@@ -258,36 +260,16 @@ function usePageVisible() {
   return visible;
 }
 
-const toIsoInstant = (value: string): string => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
-};
-
 const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
 
-const CUSTOM_RANGE = "custom";
-
-const RELATIVE_RANGES = [
-  { value: "5m", label: "Last 5 minutes", ms: 5 * 60_000 },
-  { value: "15m", label: "Last 15 minutes", ms: 15 * 60_000 },
-  { value: "1h", label: "Last 1 hour", ms: 60 * 60_000 },
-  { value: "6h", label: "Last 6 hours", ms: 6 * 60 * 60_000 },
-  { value: "24h", label: "Last 24 hours", ms: 24 * 60 * 60_000 },
-  { value: "7d", label: "Last 7 days", ms: 7 * 24 * 60 * 60_000 },
-];
-
-const RELATIVE_RANGE_MS: Record<string, number> = Object.fromEntries(
-  RELATIVE_RANGES.map((r) => [r.value, r.ms]),
-);
-
-const resolveFilterParams = (
-  params: Record<string, string>,
-): Record<string, string> => {
-  const { relative_range: relative, ...rest } = params;
-  const ms = relative ? RELATIVE_RANGE_MS[relative] : undefined;
-  if (ms === undefined) return rest;
-  return { ...rest, timestamp_from: new Date(Date.now() - ms).toISOString() };
+const timestampParams = (range: {
+  from?: string;
+  to?: string;
+}): Record<string, string> => {
+  const params: Record<string, string> = {};
+  if (range.from) params.timestamp_from = range.from;
+  if (range.to) params.timestamp_to = range.to;
+  return params;
 };
 
 const PANEL_DEFAULT_WIDTH = 825;
@@ -320,11 +302,7 @@ export default function RadioEvents() {
   const [protocolFilter, setProtocolFilter] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
   const [messageTypeFilter, setMessageTypeFilter] = useState("");
-  const [timestampFrom, setTimestampFrom] = useState("");
-  const [timestampTo, setTimestampTo] = useState("");
-  const [rangePreset, setRangePreset] = useState("");
-  const [rangeAnchor, setRangeAnchor] = useState<HTMLElement | null>(null);
-  const isCustomRange = rangePreset === CUSTOM_RANGE;
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>(EMPTY_TIME_RANGE);
 
   const messageTypeOptions = useMemo(
     () => MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? ALL_MESSAGE_TYPES,
@@ -377,35 +355,8 @@ export default function RadioEvents() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
-  const timestampFromIso = toIsoInstant(timestampFrom);
-  const timestampToIso = toIsoInstant(timestampTo);
-
-  const timestampError = !isCustomRange
-    ? ""
-    : (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
-      ? "Enter a valid date and time."
-      : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
-        ? "The To timestamp must be on or after the From timestamp."
-        : "";
-
-  const customRangeLabel =
-    timestampFromIso && timestampToIso
-      ? `${formatDateTime(timestampFromIso)} \u2192 ${formatDateTime(timestampToIso)}`
-      : timestampFromIso
-        ? `After ${formatDateTime(timestampFromIso)}`
-        : timestampToIso
-          ? `Before ${formatDateTime(timestampToIso)}`
-          : "Custom range";
-
-  const rangeLabel = isCustomRange
-    ? customRangeLabel
-    : (RELATIVE_RANGES.find((r) => r.value === rangePreset)?.label ??
-      "Any time");
-
-  const applyRangePreset = (value: string) => {
-    setRangePreset(value);
-    setRangeAnchor(null);
-  };
+  const timestampError = timeRangeError(timeRange);
+  const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
 
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
@@ -413,48 +364,36 @@ export default function RadioEvents() {
     if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
     if (effectiveMessageType) params.message_type = effectiveMessageType;
-    if (isCustomRange) {
-      if (timestampFromIso) params.timestamp_from = timestampFromIso;
-      if (timestampToIso) params.timestamp_to = timestampToIso;
-    } else if (rangePreset) {
-      params.relative_range = rangePreset;
-    }
     return params;
-  }, [
-    radioFilter,
-    protocolFilter,
-    directionFilter,
-    effectiveMessageType,
-    isCustomRange,
-    rangePreset,
-    timestampFromIso,
-    timestampToIso,
-  ]);
+  }, [radioFilter, protocolFilter, directionFilter, effectiveMessageType]);
+
+  const queryFilters = useMemo(
+    () => ({ ...filterParams, ...timeFilter }),
+    [filterParams, timeFilter],
+  );
 
   const [paginationModel, setPaginationModel] =
-    useFilteredPagination(filterParams);
+    useFilteredPagination(queryFilters);
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
-    queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
+    queryKey: ["networkLogs", pageOneBased, perPage, queryFilters],
     enabled: authReady && !!accessToken && !timestampError,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
-      listRadioEvents(
-        accessToken!,
-        pageOneBased,
-        perPage,
-        resolveFilterParams(filterParams),
-      ),
+      listRadioEvents(accessToken!, pageOneBased, perPage, {
+        ...filterParams,
+        ...timestampParams(resolveTimeRangeFilter(timeFilter)),
+      }),
   });
 
   const networkRows = networkLogsQuery.data?.items ?? [];
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
-  const hasActiveFilters = Object.keys(filterParams).length > 0;
+  const hasActiveFilters = Object.keys(queryFilters).length > 0;
 
   const eventRow = useMemo<LogRow | null>(() => {
     if (!eventIdParam) return null;
@@ -701,122 +640,11 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <Button
-            variant="outlined"
-            color="inherit"
-            onClick={(event) => setRangeAnchor(event.currentTarget)}
-            startIcon={<AccessTimeIcon fontSize="small" />}
-            endIcon={<ArrowDropDownIcon />}
-            aria-haspopup="true"
-            aria-expanded={Boolean(rangeAnchor)}
-            aria-label={`Time range: ${rangeLabel}`}
-            sx={{
-              height: 40,
-              minWidth: 230,
-              justifyContent: "space-between",
-              textTransform: "none",
-              color: "text.primary",
-              borderColor: timestampError ? "error.main" : "divider",
-            }}
-          >
-            {rangeLabel}
-          </Button>
-          <Popover
-            open={Boolean(rangeAnchor)}
-            anchorEl={rangeAnchor}
-            onClose={() => setRangeAnchor(null)}
-            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            slotProps={{ paper: { sx: { mt: 1 } } }}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: { xs: "column", sm: "row" },
-              }}
-            >
-              <Box
-                sx={{
-                  p: 2,
-                  width: 300,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                }}
-              >
-                <Typography variant="subtitle2">Custom range</Typography>
-                <TextField
-                  label="From"
-                  type="datetime-local"
-                  value={timestampFrom}
-                  onChange={(e) => {
-                    setTimestampFrom(e.target.value);
-                    setRangePreset(CUSTOM_RANGE);
-                  }}
-                  error={!!timestampError}
-                  size="small"
-                  slotProps={{
-                    inputLabel: { shrink: true },
-                    htmlInput: {
-                      "aria-describedby": timestampError
-                        ? TIMESTAMP_ERROR_ID
-                        : undefined,
-                    },
-                  }}
-                />
-                <TextField
-                  label="To"
-                  type="datetime-local"
-                  value={timestampTo}
-                  onChange={(e) => {
-                    setTimestampTo(e.target.value);
-                    setRangePreset(CUSTOM_RANGE);
-                  }}
-                  error={!!timestampError}
-                  size="small"
-                  slotProps={{
-                    inputLabel: { shrink: true },
-                    htmlInput: {
-                      min: timestampFrom || undefined,
-                      "aria-describedby": timestampError
-                        ? TIMESTAMP_ERROR_ID
-                        : undefined,
-                    },
-                  }}
-                />
-                {timestampError && (
-                  <Alert severity="error" id={TIMESTAMP_ERROR_ID}>
-                    {timestampError}
-                  </Alert>
-                )}
-              </Box>
-              <Box
-                sx={{
-                  borderColor: "divider",
-                  borderLeft: { sm: 1 },
-                  borderTop: { xs: 1, sm: 0 },
-                  minWidth: 220,
-                }}
-              >
-                <MenuList>
-                  <MenuItem
-                    selected={rangePreset === ""}
-                    onClick={() => applyRangePreset("")}
-                  >
-                    Any time
-                  </MenuItem>
-                  {RELATIVE_RANGES.map((range) => (
-                    <MenuItem
-                      key={range.value}
-                      selected={rangePreset === range.value}
-                      onClick={() => applyRangePreset(range.value)}
-                    >
-                      {range.label}
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </Box>
-            </Box>
-          </Popover>
+          <TimeRangePicker
+            value={timeRange}
+            onChange={setTimeRange}
+            errorId={TIMESTAMP_ERROR_ID}
+          />
           <Autocomplete
             options={radioOptions}
             value={radioOptions.find((r) => r.name === radioFilter) ?? null}
@@ -904,16 +732,6 @@ export default function RadioEvents() {
             </MenuItem>
           </TextField>
         </Box>
-
-        {timestampError && !rangeAnchor && (
-          <Alert
-            id={TIMESTAMP_ERROR_ID}
-            severity="error"
-            sx={{ alignSelf: "flex-start" }}
-          >
-            {timestampError}
-          </Alert>
-        )}
 
         <Box
           sx={{
