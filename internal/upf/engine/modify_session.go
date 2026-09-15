@@ -12,8 +12,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -24,8 +24,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("session.operation", "modify"),
-			attribute.Int64("session.seid", int64(req.SEID)),
+			attrs.SessionOperation("modify"),
+			attrs.SEID(req.SEID),
 		),
 	)
 	defer span.End()

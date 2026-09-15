@@ -27,8 +27,8 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 		ctx,
 		"kernel/add_neighbour_on_link",
 		trace.WithAttributes(
-			attribute.String("ip", neigh.String()),
-			attribute.Int("ifindex", ifindex),
+			attribute.String("kernel.neighbour.address", neigh.String()),
+			attribute.Int("kernel.link.index", ifindex),
 		))
 	defer span.End()
 
@@ -40,7 +40,7 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 		ctx,
 		"kernel/add_neighbour",
 		trace.WithAttributes(
-			attribute.String("ip", neigh.String()),
+			attribute.String("kernel.neighbour.address", neigh.String()),
 		))
 	defer span.End()
 
@@ -56,7 +56,7 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 		return fmt.Errorf("%w: %s", errNoRouteToNeighbour, neigh)
 	}
 
-	span.SetAttributes(attribute.Int("nexthops", len(hops)))
+	span.SetAttributes(attribute.Int("kernel.nexthop.count", len(hops)))
 
 	var firstErr error
 
@@ -74,7 +74,7 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 		installed++
 	}
 
-	span.SetAttributes(attribute.Int("nexthops.installed", installed))
+	span.SetAttributes(attribute.Int("kernel.nexthop.installed", installed))
 
 	if installed == 0 {
 		return firstErr

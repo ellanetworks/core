@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -129,7 +130,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -183,7 +184,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ipv6", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -356,7 +357,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		return netip.Addr{}, fmt.Errorf("parse released address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -447,7 +448,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", IPLeasesTableName),
-			attribute.Int("node_id", nodeID),
+			attrs.NodeID(nodeID),
 		),
 	)
 	defer span.End()
@@ -567,7 +568,7 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]I
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", IPLeasesTableName),
-			attribute.Int("node_id", nodeID),
+			attrs.NodeID(nodeID),
 		),
 	)
 	defer span.End()
@@ -669,8 +670,8 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", IPLeasesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()

@@ -9,8 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -18,7 +18,7 @@ import (
 // new transport address and returns a Modify Confirm Transfer (TS 38.413 §8.2.5.2).
 func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_modify_indication",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 

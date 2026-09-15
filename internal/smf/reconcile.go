@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -38,7 +39,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	ctx, span := tracer.Start(ctx, "smf/reconcile_sm_context",
 		trace.WithAttributes(
-			attribute.String("smf.sm_context_ref", req.SmContextRef),
+			attrs.SMContextRef(req.SmContextRef),
 			attribute.String("smf.reason", string(req.Reason)),
 		),
 	)

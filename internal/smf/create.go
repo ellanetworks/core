@@ -16,10 +16,10 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -41,9 +41,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("ue.supi", supi.String()),
-			attribute.Int("smf.pdu_session_id", int(pduSessionID)),
-			attribute.String("smf.dnn", dnn),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
+			attrs.DNN(dnn),
 		),
 	)
 	defer span.End()

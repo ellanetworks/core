@@ -9,8 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -20,7 +20,7 @@ import (
 // and returns a PDUSession Resource Setup Request Transfer for the target radio.
 func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_preparing",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -92,7 +92,7 @@ func handleHandoverRequiredTransfer(b []byte) (direct bool, err error) {
 
 func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_prepared",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -183,7 +183,7 @@ func (s *SMF) openN2ForwardingTunnel(ctx context.Context, sc *SMContext) error {
 // (TS 23.502).
 func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_complete",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -272,7 +272,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_failed",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -316,7 +316,7 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 
 func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_canceled",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -359,7 +359,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 // UpdateSmContextXnHandoverPathSwitchReq handles an Xn handover path-switch request.
 func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_handover_path_switch_request",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -426,7 +426,7 @@ func anchorFromPathSwitchRequest(b []byte, smContext *SMContext) (AnchorBinding,
 
 func (s *SMF) UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_xn_handover_failed",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 

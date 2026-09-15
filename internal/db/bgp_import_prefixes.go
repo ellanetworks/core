@@ -43,7 +43,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPImportPrefixesTableName),
-			attribute.Int("peer_id", peerID),
+			attribute.Int("bgp.peer_id", peerID),
 		),
 	)
 	defer span.End()
@@ -86,7 +86,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("REPLACE"),
 			attribute.String("db.collection.name", BGPImportPrefixesTableName),
-			attribute.Int("peer_id", peerID),
+			attribute.Int("bgp.peer_id", peerID),
 		),
 	)
 	defer span.End()

@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,9 +32,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	ctx, span := tracer.Start(ctx, "upf/establish_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("models.operation", "establish"),
-			attribute.Int64("models.seid", int64(req.SEID)),
-			attribute.String("ue.imsi", req.IMSI),
+			attrs.SessionOperation("establish"),
+			attrs.SEID(req.SEID),
+			attrs.IMSI(req.IMSI),
 		),
 	)
 	defer span.End()
@@ -51,7 +52,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	sess := NewSession(seid)
 	sess.SetIMSI(req.IMSI)
-	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("models.seid", int64(seid))))
+	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
@@ -181,7 +182,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		bpfObjects.ClearNotified(seid, pdr.PDRID)
 	}
 
-	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
+	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("upf.pdr.count", len(createdPDRs))))
 	span.AddEvent("ebpf_maps_updated")
 
 	// Framed routes (TS 23.501 §5.6.14, TS 29.244 §5.16) redirect to the

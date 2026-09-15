@@ -439,16 +439,8 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 }
 
 func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
-	querySummary := "redeem join token"
-
-	_, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-		),
+	_, span := tracer.Start(ctx, "db/redeem_join_token",
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 

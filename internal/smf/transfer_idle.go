@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -36,10 +37,10 @@ func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionI
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(
-			attribute.String("ue.supi", supi.String()),
-			attribute.Int("smf.pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 			attribute.Int("eps.bearer_id", int(ebi)),
-			attribute.String("smf.dnn", dnn),
+			attrs.DNN(dnn),
 			attribute.String("smf.access", access.String()),
 		),
 	)

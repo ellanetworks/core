@@ -53,8 +53,8 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()

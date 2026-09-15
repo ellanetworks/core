@@ -106,8 +106,8 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", AuditLogsTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()

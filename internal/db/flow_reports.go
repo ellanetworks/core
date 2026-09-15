@@ -244,8 +244,8 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", FlowReportsTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()

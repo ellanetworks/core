@@ -18,9 +18,9 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -36,9 +36,9 @@ var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this
 func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF N1N2 MessageTransfer",
+		"amf/transfer_n1n2_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -188,10 +188,10 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF PDUSessionModification",
+		"amf/modify_n1n2_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -258,10 +258,10 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF PDUSessionResourceReleaseCommand",
+		"amf/release_session_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -313,10 +313,10 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 func (amf *AMF) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF PDUSessionResourceReleaseCommand (access resources)",
+		"amf/release_access_resources",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -355,9 +355,9 @@ func (amf *AMF) ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduS
 func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF N1N2 MessageTransfer",
+		"amf/transfer_n2_message_or_page",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -471,9 +471,9 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF N1N2 MessageTransfer",
+		"amf/transfer_n1_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -509,9 +509,9 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF N1 LPP Transfer",
+		"amf/transfer_n1_lpp_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -541,9 +541,9 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 func (amf *AMF) TransferN2NRPPaMsg(ctx context.Context, supi etsi.SUPI, routingID int64, nrppaPdu []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF N2 NRPPa Transfer",
+		"amf/transfer_n2_nrppa_message",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
+			attrs.SUPI(supi.String()),
 		),
 	)
 	defer span.End()
@@ -595,10 +595,10 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF SessionDropped",
+		"amf/session_dropped",
 		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()

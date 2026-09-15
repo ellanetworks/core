@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -51,8 +52,8 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", ProfilesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -341,7 +342,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", SubscribersTableName),
-			attribute.String("profile_id", profileID),
+			attrs.ProfileID(profileID),
 		),
 	)
 	defer span.End()
@@ -369,16 +370,8 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 }
 
 func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {
-	querySummary := "SubscribersInProfile"
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-		),
+	ctx, span := tracer.Start(ctx, "db/subscribers_in_profile",
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 

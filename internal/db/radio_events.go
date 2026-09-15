@@ -109,8 +109,8 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", RadioEventsTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -251,7 +251,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", RadioEventsTableName),
-			attribute.Int("id", id),
+			attribute.Int("radio_event.id", id),
 		),
 	)
 	defer span.End()

@@ -14,10 +14,10 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -37,7 +37,7 @@ type UpdateResult struct {
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
 func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*UpdateResult, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n1_msg",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -190,7 +190,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 // UpdateSmContextN2InfoPduResSetupRsp handles the N2 PDUSession Resource Setup Response.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_response",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -273,7 +273,7 @@ func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -361,7 +361,7 @@ func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 // UpdateSmContextN2InfoPduResRelRsp handles the N2 PDU Session Resource Release Response.
 func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) (bool, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_release_response",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 
@@ -430,7 +430,7 @@ func (s *SMF) completeUPConnectionDeactivation(ctx context.Context, smContext *S
 // the existing session and building a release command for the radio.
 func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_cause_duplicate_pdu_session_id",
-		trace.WithAttributes(attribute.String("smf.sm_context_ref", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 

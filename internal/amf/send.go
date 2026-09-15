@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -49,7 +50,7 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 	)
 }
 
-func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
+func sendGmm(ctx context.Context, ue *UeConn, spanName string, extra []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
 		return
@@ -58,7 +59,7 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute
 	amfUe := ue.UeContext()
 
 	ctx, span := nasSendTracer.Start(ctx, spanName,
-		trace.WithAttributes(append(attrs, attribute.String("supi", amfUe.supi.String()))...),
+		trace.WithAttributes(append(extra, attrs.SUPI(amfUe.supi.String()))...),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -91,8 +92,8 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType fg
 
 	sendGmm(ctx, ue, "nas/send_downlink_nas_transport",
 		[]attribute.KeyValue{
-			attribute.Int("pdu_session_id", int(pduSessionID)),
-			attribute.Int("cause", int(cause)),
+			attrs.PDUSessionID(uint8(pduSessionID)),
+			attribute.Int("nas.cause", int(cause)),
 		},
 		uint8(fgs.SHTIntegrityProtectedCiphered),
 		func(_ *UeContext) ([]byte, error) {
@@ -110,8 +111,8 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.supi.String()),
-			attribute.Int("type_of_identity", int(typeOfIdentity)),
+			attrs.SUPI(amfUe.supi.String()),
+			attribute.Int("nas.type_of_identity", int(typeOfIdentity)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -148,7 +149,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
+			attrs.SUPI(ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -186,13 +187,13 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
-		[]attribute.KeyValue{attribute.Int("cause", int(cause))}, rejectSHT(ue),
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
-		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause5GMM))},
 		rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
 			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
@@ -214,7 +215,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_security_mode_command",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
+			attrs.SUPI(ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -284,7 +285,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.Supi().String()),
+			attrs.SUPI(ue.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -513,7 +514,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.Supi().String()),
+			attrs.SUPI(amfUe.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

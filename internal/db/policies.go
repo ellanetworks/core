@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -71,8 +72,8 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -132,9 +133,9 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attrs.ProfileID(profileID),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -191,7 +192,7 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
+			attrs.ProfileID(profileID),
 		),
 	)
 	defer span.End()
@@ -278,9 +279,9 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
-			attribute.String("slice_id", sliceID),
-			attribute.String("data_network_id", dataNetworkID),
+			attrs.ProfileID(profileID),
+			attrs.SliceID(sliceID),
+			attrs.DataNetworkID(dataNetworkID),
 		),
 	)
 	defer span.End()
@@ -327,7 +328,7 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
+			attrs.ProfileID(profileID),
 		),
 	)
 	defer span.End()
@@ -406,8 +407,8 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
-			attribute.String("slice_id", sliceID),
+			attrs.ProfileID(profileID),
+			attrs.SliceID(sliceID),
 		),
 	)
 	defer span.End()
@@ -441,19 +442,13 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 // GetSessionPolicy resolves a subscriber's policy for a given slice (sst+sd) and DNN.
 // It follows the chain: subscriber → profileID → policy (by profile, slice, DNN) → network rules.
 func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, []*NetworkRule, *DataNetwork, error) {
-	querySummary := "GetSessionPolicy"
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
+	ctx, span := tracer.Start(ctx, "db/get_session_policy",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			attribute.String("imsi", imsi),
-			attribute.Int("sst", int(sst)),
-			attribute.String("sd", sd),
-			attribute.String("dnn", dnn),
+			attrs.IMSI(imsi),
+			attrs.SST(sst),
+			attrs.SD(sd),
+			attrs.DNN(dnn),
 		),
 	)
 	defer span.End()
@@ -713,7 +708,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("profile_id", profileID),
+			attrs.ProfileID(profileID),
 		),
 	)
 	defer span.End()
@@ -752,7 +747,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("slice_id", sliceID),
+			attrs.SliceID(sliceID),
 		),
 	)
 	defer span.End()
@@ -791,7 +786,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.String("data_network_id", dataNetworkID),
+			attrs.DataNetworkID(dataNetworkID),
 		),
 	)
 	defer span.End()
@@ -819,16 +814,8 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 }
 
 func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {
-	querySummary := "PoliciesInDataNetwork"
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-		),
+	ctx, span := tracer.Start(ctx, "db/policies_in_data_network",
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
@@ -854,16 +841,8 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 }
 
 func (db *Database) PoliciesInSlice(ctx context.Context, name string) (bool, error) {
-	querySummary := "PoliciesInSlice"
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-		),
+	ctx, span := tracer.Start(ctx, "db/policies_in_slice",
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
