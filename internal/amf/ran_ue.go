@@ -177,8 +177,6 @@ func (ueConn *UeConn) radioName() string {
 	return name
 }
 
-// LogFields returns the connection's identity: the serving gNB's fields plus the
-// subscriber and the NGAP identities, as they stand now.
 func (ueConn *UeConn) LogFields() []zap.Field {
 	if ueConn == nil {
 		return nil

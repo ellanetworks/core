@@ -39,9 +39,6 @@ const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
 type UeConn struct {
-	// Written under MME.mu by the X2 path switch and the handover target match, but
-	// read all over the S1AP dispatch path without it, so atomic — as the AMF's
-	// RAN-UE-NGAP-ID is. MMEUES1APID is fixed at allocation and needs no such care.
 	enbUES1APID               atomic.Uint32
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
@@ -87,8 +84,6 @@ func (c *UeConn) setENBUES1APID(enbUEID s1ap.ENBUES1APID) {
 	c.enbUES1APID.Store(uint32(enbUEID))
 }
 
-// LogFields returns the connection's identity: the serving eNB's fields plus
-// the subscriber and the S1AP identities, as they stand now.
 func (c *UeConn) LogFields() []zap.Field {
 	if c == nil {
 		return nil

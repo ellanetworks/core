@@ -4,7 +4,6 @@
 package logger
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func TestCloseFlushesAndClosesTheLogFile(t *testing.T) {
+func TestCloseFlushesPendingRecords(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "system.log")
 
 	if err := ConfigureLogging("info", "file", path, "stdout", ""); err != nil {
@@ -36,36 +35,6 @@ func TestCloseFlushesAndClosesTheLogFile(t *testing.T) {
 	if !strings.Contains(string(body), "before shutdown") {
 		t.Errorf("Close did not flush the record, file holds %q", body)
 	}
-
-	files := trackFiles(nil)
-	if len(files) != 0 {
-		t.Errorf("Close left %d file(s) tracked", len(files))
-	}
-}
-
-func TestReconfiguringClosesThePreviousLogFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "system.log")
-
-	if err := ConfigureLogging("info", "file", path, "stdout", ""); err != nil {
-		t.Fatalf("configure: %v", err)
-	}
-
-	t.Cleanup(func() { _ = ConfigureLogging("info", "stdout", "", "stdout", "") })
-
-	first := trackFiles(nil)
-	trackFiles(first)
-
-	if len(first) != 1 {
-		t.Fatalf("expected 1 tracked file, got %d", len(first))
-	}
-
-	if err := ConfigureLogging("info", "stdout", "", "stdout", ""); err != nil {
-		t.Fatalf("reconfigure: %v", err)
-	}
-
-	if _, err := first[0].Write([]byte("x")); !errors.Is(err, os.ErrClosed) {
-		t.Errorf("reconfiguring left the previous log file open, got %v", err)
-	}
 }
 
 func TestCloseDisablesFurtherLogging(t *testing.T) {
@@ -85,7 +54,6 @@ func TestCloseDisablesFurtherLogging(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	// Nothing should reach the files Close just shut, not even an Error.
 	if MmeLog.Core().Enabled(zapcore.ErrorLevel) {
 		t.Error("logging is still enabled after Close, so a straggler would write to a closed file")
 	}

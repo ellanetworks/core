@@ -286,7 +286,6 @@ func TestDeregister_EndsKeyChainProcedures(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.4.4: only a release that leaves the UE registered moves it to CM-IDLE.
 func TestReleaseUeConnServedBy_ReportsWhetherTheUEWentIdle(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

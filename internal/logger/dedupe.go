@@ -9,11 +9,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// dedupeCore drops a field whose key is named again later on the same record.
-// The JSON encoder does not deduplicate and Loki's json parser keeps only the
-// last occurrence, so a repeated key silently loses data. Later wins, which
-// orders precedence as the ambient context, then the logger the call site
-// named, then the fields on the log statement itself.
 type dedupeCore struct {
 	base    zapcore.Core
 	fields  []zapcore.Field
@@ -24,9 +19,6 @@ func newDedupeCore(base zapcore.Core) zapcore.Core {
 	return &dedupeCore{base: base}
 }
 
-// resolve builds base.With(fields) on first use. Deriving it eagerly in With
-// would clone the encoder and re-encode every field for loggers that never
-// emit, which is the common case for a Debug statement on the signalling path.
 func (c *dedupeCore) resolve() zapcore.Core {
 	if d := c.derived.Load(); d != nil {
 		return *d
@@ -42,8 +34,6 @@ func (c *dedupeCore) resolve() zapcore.Core {
 	return core
 }
 
-// Enabled asks the undecorated base: a level does not depend on the accumulated
-// fields, so answering it must not derive the core.
 func (c *dedupeCore) Enabled(l zapcore.Level) bool { return c.base.Enabled(l) }
 
 func (c *dedupeCore) With(fields []zapcore.Field) zapcore.Core {
@@ -76,9 +66,6 @@ func (c *dedupeCore) Write(e zapcore.Entry, fields []zapcore.Field) error {
 
 func (c *dedupeCore) Sync() error { return c.resolve().Sync() }
 
-// shadows reports whether an entry field repeats a key already accumulated on
-// this core. The accumulated fields are pre-encoded into the derived core, so a
-// record that repeats one has to be written through the undecorated base.
 func (c *dedupeCore) shadows(fields []zapcore.Field) bool {
 	for _, f := range fields {
 		if !keyed(f) {

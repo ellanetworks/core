@@ -44,8 +44,6 @@ type Radio struct {
 	guamiUnavailableSent bool
 }
 
-// LogFields returns the gNB's identity: its RAN address, and its name and
-// Global RAN Node ID once NG Setup has supplied them.
 func (r *Radio) LogFields() []zap.Field {
 	if r == nil {
 		return nil

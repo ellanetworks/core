@@ -211,7 +211,6 @@ func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
 	}
 }
 
-// TS 36.413 §8.7.3: the association bounds the eNB's presence, not the setup procedure.
 func TestRepeatS1SetupReusesTheAssociationsRadio(t *testing.T) {
 	m := newTestMME(t)
 

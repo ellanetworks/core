@@ -177,10 +177,7 @@ func (r *Radio) NodeID() string {
 	return r.ranID.NodeID()
 }
 
-// trackRadio records a connected eNB keyed by its SCTP association. A repeat S1
-// Setup on a live association re-surveys the same Radio rather than replacing it:
-// the association, not the setup procedure, bounds the eNB's presence, so
-// "Radio connected" pairs one-for-one with "Radio disconnected" (TS 36.413 §8.7.3).
+// trackRadio records a connected eNB keyed by its SCTP association.
 func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo) {
 	m.mu.Lock()
 
@@ -213,10 +210,6 @@ func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo
 	s.Log(ctx).Info("Radio connected", logger.RAT(metrics.RAT4G))
 }
 
-// releaseSetupLocked drops the configuration an earlier S1 Setup claimed, so a
-// repeat setup is gated exactly as a first one: until the new request is accepted
-// the eNB has no Global eNB ID, and the dispatcher's setup-first check drops the
-// association's UE signalling.
 func (m *MME) releaseSetupLocked(r *Radio) {
 	if r.ranID != nil {
 		if ref, ok := r.ranID.Ref(); ok {
@@ -293,8 +286,6 @@ func (m *MME) nodeLogFieldsLocked(conn S1APWriter) []zap.Field {
 	return nodeLogFields(radio, sc)
 }
 
-// LogFields returns the eNB's identity: its RAN address, and its name and Global
-// eNB ID once S1 Setup has supplied them.
 func (r *Radio) LogFields() []zap.Field {
 	if r == nil {
 		return nil

@@ -38,8 +38,6 @@ var (
 	LmfLog      *zap.Logger
 	BgpLog      *zap.Logger
 
-	// atomicLevel is created once and never replaced, so SetLevel reaches every
-	// logger already handed out.
 	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
 	filesMu   sync.Mutex
@@ -53,9 +51,6 @@ func init() {
 	_ = ConfigureLogging("info", "stdout", "", "stdout", "")
 }
 
-// ConfigureLogging builds every logger over a tee of console and optional file
-// output. It runs once at startup, before any server is listening, so the
-// loggers it assigns are only read afterwards.
 func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, auditFilePath string) error {
 	zl, err := zapcore.ParseLevel(systemLevel)
 	if err != nil {
@@ -99,8 +94,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	zap.RedirectStdLog(EllaLog)
 
-	// Only now that every logger points at the new cores is it safe to close the
-	// files the previous ones were writing to.
 	closeAll(trackFiles(append(sysFiles, auditFiles...)))
 
 	return nil
@@ -117,18 +110,10 @@ func SetLevel(level string) error {
 	return nil
 }
 
-// Close flushes and closes the log files. The shutdown sequence runs it after
-// the servers have stopped and the background goroutines have been waited on,
-// so nothing is still logging.
 func Close() error {
-	// Syncing stdout fails with EINVAL on Linux, and the file cores are
-	// unbuffered, so a sync error here says nothing about whether records landed.
 	_ = log.Sync()
 	_ = AuditLog.Sync()
 
-	// Filter everything from here on, so a straggler that logs after shutdown is
-	// dropped at the level check rather than writing to a closed file.
-	// ConfigureLogging restores a real level if logging is set up again.
 	atomicLevel.SetLevel(zapcore.FatalLevel + 1)
 
 	var err error
@@ -142,8 +127,6 @@ func Close() error {
 	return err
 }
 
-// trackFiles installs the files the loggers now write to and returns the ones
-// they wrote to before, for the caller to close.
 func trackFiles(files []*os.File) []*os.File {
 	filesMu.Lock()
 	defer filesMu.Unlock()
@@ -177,9 +160,6 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// SwapSystemCore rebuilds every system logger over core and returns a function
-// restoring the previous ones. Tests use it to observe records through the same
-// pipeline production writes through, rather than around it.
 func SwapSystemCore(core zapcore.Core) func() {
 	prev := log
 
