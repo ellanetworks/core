@@ -649,17 +649,18 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	a.ReleaseUeConnServedBy(ctx, ueConn, nil)
 }
 
-func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) {
+func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) (wentIdle bool) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log()).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
-		return
+		return false
 	}
 
-	if amfUe.State() == Registered {
+	registered := amfUe.State() == Registered
+	if registered {
 		for _, sr := range amfUe.SmContextRefs() {
 			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && ueConn.N2SessionInactive(sr.PduSessionID) {
 				continue
@@ -678,6 +679,8 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log()).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
+
+		return registered
 	case UeContextReleaseUeContext:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log()).Error("failed to remove RAN UE connection", zap.Error(err))
@@ -687,7 +690,11 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		// context deleted; a registered UE is kept.
 		if !amfUe.Secured() {
 			a.DeregisterAndRemoveUeContext(ctx, amfUe)
+
+			return false
 		}
+
+		return registered
 	case UeContextReleaseDueToNwInitiatedDeregistraion:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log()).Error("failed to remove RAN UE connection", zap.Error(err))
@@ -715,6 +722,8 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 	default:
 		logger.From(ctx, ueConn.Log()).Error("Invalid Release Action", zap.Any("release_action", ueConn.ReleaseAction))
 	}
+
+	return false
 }
 
 // abortHandoverOnRemoval ends an in-flight N2 handover when this UeConn — being removed —

@@ -149,7 +149,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationAccepted)
 
 	if ue.IdleMobilityFrom5GSPending() {
 		ue.TransitionTo(ctx, mme.EMMRegistered)
@@ -170,7 +170,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // rejectTrackingAreaUpdate sends a TAU REJECT and releases the UE's S1 context
 // (TS 24.301 §5.5.3.2.5).
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationRejected)
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
@@ -294,12 +294,12 @@ func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		}
 
 		if remaining == 1 {
-			logger.MmeLog.Info("keeping the last PDN connection the UE reported inactive", zap.Uint8("ebi", p.Ebi))
+			logger.From(ctx, logger.MmeLog).Info("keeping the last PDN connection the UE reported inactive", zap.Uint8("ebi", p.Ebi))
 
 			continue
 		}
 
-		logger.MmeLog.Info("releasing EPS bearer reported inactive by the UE", zap.Uint8("ebi", p.Ebi))
+		logger.From(ctx, logger.MmeLog).Info("releasing EPS bearer reported inactive by the UE", zap.Uint8("ebi", p.Ebi))
 		m.ReleasePDN(ctx, ue, p)
 
 		remaining--

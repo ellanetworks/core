@@ -209,3 +209,43 @@ func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
 		t.Errorf("ListRadios() = %d eNBs, want 2", got)
 	}
 }
+
+// TS 36.413 §8.7.3: the association bounds the eNB's presence, not the setup procedure.
+func TestRepeatS1SetupReusesTheAssociationsRadio(t *testing.T) {
+	m := newTestMME(t)
+
+	c := new(sctp.SCTPConn)
+	id := testENBKey(t, 1)
+
+	m.trackRadio(c, RadioInfo{Name: "enb-a"})
+
+	first := m.RadioForConn(c)
+	if first == nil {
+		t.Fatal("S1 Setup did not track the eNB")
+	}
+
+	claimENBID(t, m, first, testENBID(1))
+
+	m.trackRadio(c, RadioInfo{Name: "enb-a-renamed"})
+
+	again := m.RadioForConn(c)
+	if again != first {
+		t.Fatal("a repeat S1 Setup replaced the association's Radio instead of re-surveying it")
+	}
+
+	if again.NodeName() != "enb-a-renamed" {
+		t.Errorf("the repeat S1 Setup did not refresh the eNB name, got %q", again.NodeName())
+	}
+
+	if again.SetupComplete() {
+		t.Error("the eNB stayed setup-complete while its repeat S1 Setup was unanswered")
+	}
+
+	if _, ok := m.reg.ClaimedBy(id); ok {
+		t.Errorf("the Global eNB ID %q stayed claimed across a repeat S1 Setup", id)
+	}
+
+	if len(m.ListRadios()) != 1 {
+		t.Errorf("a repeat S1 Setup changed the connected eNB count, got %d", len(m.ListRadios()))
+	}
+}

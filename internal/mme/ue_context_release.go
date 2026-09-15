@@ -170,7 +170,8 @@ func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigge
 
 	m.DeactivateAllSessions(ctx, ue)
 	m.StartMobileReachable(ue)
-	logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger))
+	logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger),
+		logger.MMEUeS1apID(uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }

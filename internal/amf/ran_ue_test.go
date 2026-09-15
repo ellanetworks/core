@@ -286,3 +286,33 @@ func TestDeregister_EndsKeyChainProcedures(t *testing.T) {
 		})
 	}
 }
+
+// TS 23.501 §5.4.4: only a release that leaves the UE registered moves it to CM-IDLE.
+func TestReleaseUeConnServedBy_ReportsWhetherTheUEWentIdle(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		state    amf.StateType
+		action   amf.RelAction
+		wantIdle bool
+	}{
+		{"normal release of a registered UE", amf.Registered, amf.UeContextN2NormalRelease, true},
+		{"normal release of a deregistered UE", amf.Deregistered, amf.UeContextN2NormalRelease, false},
+		{"network-initiated deregistration", amf.Registered, amf.UeContextReleaseDueToNwInitiatedDeregistraion, false},
+		{"aborted registration", amf.RegistrationInitiated, amf.UeContextReleaseAbortRegistration, false},
+		{"handover", amf.Registered, amf.UeContextReleaseHandover, false},
+		{"move to EPS", amf.Registered, amf.UeContextReleaseToEPS, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			radio := newTestRadioForUeConn()
+			ue, ueConn := newBoundUeContext(t, radio)
+			ue.ForceStateForTest(tc.state)
+			ue.SetSupiForTest(mustSUPI(t))
+
+			ueConn.ReleaseAction = tc.action
+
+			if got := radio.AMFForTest().ReleaseUeConnServedBy(context.Background(), ueConn, nil); got != tc.wantIdle {
+				t.Errorf("wentIdle = %v, want %v", got, tc.wantIdle)
+			}
+		})
+	}
+}

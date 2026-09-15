@@ -87,7 +87,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 			cause = *c.TauRejectCause
 		}
 
-		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultReject,
+		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationRejected,
 			logger.ENBUeS1apID(uint32(msg.ENBUES1APID)), logger.Cause(cause.String()))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
 

@@ -211,7 +211,7 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
-	log := From(ctx, AuditLog)
+	log := WithTrace(ctx, AuditLog)
 
 	log.Info("Audit event",
 		zap.String("action", action),
@@ -251,18 +251,33 @@ func RAT(val string) zap.Field           { return zap.String("rat", val) }
 func Result(val string) zap.Field        { return zap.String("result", val) }
 func ProcedureType(val string) zap.Field { return zap.String("type", val) }
 
-func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType, result string, fields ...zap.Field) {
-	metrics.RegistrationAttempt(rat, regType, result)
+type RegistrationOutcome struct {
+	result string
+	level  zapcore.Level
+	failed bool
+}
+
+var (
+	RegistrationAccepted     = RegistrationOutcome{result: metrics.ResultAccept, level: zapcore.InfoLevel}
+	RegistrationRejected     = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.InfoLevel}
+	RegistrationIncompatible = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.WarnLevel}
+	RegistrationFailed       = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.ErrorLevel, failed: true}
+)
+
+func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType string, outcome RegistrationOutcome, fields ...zap.Field) {
+	metrics.RegistrationAttempt(rat, regType, outcome.result)
 
 	msg := "UE registration accepted"
-	if result != metrics.ResultAccept {
+	if outcome.result != metrics.ResultAccept {
 		msg = "UE registration rejected"
+	}
 
+	if outcome.failed {
 		trace.SpanFromContext(ctx).SetStatus(codes.Error, msg)
 	}
 
-	From(ctx, base).WithOptions(zap.AddCallerSkip(1)).Info(msg,
-		append([]zap.Field{RAT(rat), ProcedureType(regType), Result(result)}, fields...)...)
+	From(ctx, base).WithOptions(zap.AddCallerSkip(1)).Log(outcome.level, msg,
+		append([]zap.Field{RAT(rat), ProcedureType(regType), Result(outcome.result)}, fields...)...)
 }
 
 type LogDirection string

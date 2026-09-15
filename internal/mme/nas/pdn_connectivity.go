@@ -315,7 +315,7 @@ func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.
 // refused (TS 24.301 §6.4.1.5).
 func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, rej *eps.ActivateDefaultEPSBearerContextReject) nasreply.Disposition {
 	if p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity)); p != nil {
-		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), logger.ESMCause(rej.Cause.String()))
+		logger.From(ctx, logger.MmeLog).Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), logger.ESMCause(rej.Cause.String()))
 		m.StopESMGuard(p)
 		m.ReleasePDN(ctx, ue, p)
 	}

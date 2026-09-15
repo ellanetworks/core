@@ -58,7 +58,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		m.RemoveUe(ue)
-		logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G))
+		logger.From(ctx, ueConn.Log()).Info("UE context removed", logger.RAT(metrics.RAT4G))
 
 		return
 	}
@@ -69,7 +69,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 	// (re)started when the MME releases the NAS signalling connection (TS 24.301).
 	m.StartMobileReachable(ue)
 
-	logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G))
+	logger.From(ctx, ueConn.Log()).Info("UE idle", logger.RAT(metrics.RAT4G))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }

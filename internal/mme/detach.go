@@ -41,6 +41,8 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
+	ctx = logger.Into(ctx, ueConn.Log())
+
 	if !ue.Secured() {
 		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion")
 		m.ReleaseUEContextLocally(ctx, ue, "subscriber deleted")

@@ -11,18 +11,26 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func SUPI(val string) attribute.KeyValue { return attribute.String("ue.supi", val) }
+func SUPI(val string) attribute.KeyValue { return identity("ue.supi", val) }
 
 func SUPIFromIMSI(imsi string) attribute.KeyValue {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
-		return attribute.String("ue.supi", "")
+		return attribute.KeyValue{}
 	}
 
 	return SUPI(supi.String())
 }
 
-func SUCI(val string) attribute.KeyValue { return attribute.String("ue.suci", val) }
+func SUCI(val string) attribute.KeyValue { return identity("ue.suci", val) }
+
+func identity(key, val string) attribute.KeyValue {
+	if val == "" {
+		return attribute.KeyValue{}
+	}
+
+	return attribute.String(key, val)
+}
 
 func PDUSessionID(val uint8) attribute.KeyValue {
 	return attribute.Int("pdu_session.id", int(val))

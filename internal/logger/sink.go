@@ -11,22 +11,28 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+type sinkState struct {
+	gen  uint64
+	core zapcore.Core
+}
+
 type sink struct {
-	mu    sync.RWMutex
-	gen   uint64
-	core  zapcore.Core
+	mu    sync.Mutex
+	state atomic.Pointer[sinkState]
 	files []*os.File
 }
 
 func newSink() *sink {
-	return &sink{core: zapcore.NewNopCore()}
+	s := &sink{}
+	s.state.Store(&sinkState{core: zapcore.NewNopCore()})
+
+	return s
 }
 
 func (s *sink) load() (zapcore.Core, uint64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	state := s.state.Load()
 
-	return s.core, s.gen
+	return state.core, state.gen
 }
 
 func (s *sink) swap(core zapcore.Core, files []*os.File) []*os.File {
@@ -34,8 +40,8 @@ func (s *sink) swap(core zapcore.Core, files []*os.File) []*os.File {
 	defer s.mu.Unlock()
 
 	old := s.files
-	s.core, s.files = core, files
-	s.gen++
+	s.files = files
+	s.state.Store(&sinkState{gen: s.state.Load().gen + 1, core: core})
 
 	return old
 }
@@ -44,7 +50,11 @@ func (s *sink) close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_ = s.core.Sync()
+	prev := s.state.Load()
+
+	_ = prev.core.Sync()
+
+	s.state.Store(&sinkState{gen: prev.gen + 1, core: zapcore.NewNopCore()})
 
 	var err error
 

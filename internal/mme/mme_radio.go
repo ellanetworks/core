@@ -177,8 +177,27 @@ func (r *Radio) NodeID() string {
 	return r.ranID.NodeID()
 }
 
-// trackRadio records a connected eNB keyed by its SCTP association.
+// trackRadio records a connected eNB keyed by its SCTP association. A repeat S1
+// Setup on a live association re-surveys the same Radio rather than replacing it:
+// the association, not the setup procedure, bounds the eNB's presence, so
+// "Radio connected" pairs one-for-one with "Radio disconnected" (TS 36.413 §8.7.3).
 func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
+	m.mu.Lock()
+
+	if existing, ok := m.reg.Radio(key); ok {
+		existing.name = info.Name
+		existing.address = info.Address
+		existing.lastSeen.Store(info.LastSeenAt.UnixNano())
+		m.releaseSetupLocked(existing)
+		existing.refreshLogLocked()
+
+		m.mu.Unlock()
+
+		existing.configUpdateGuard.Stop()
+
+		return
+	}
+
 	s := &Radio{Conn: key, m: m, name: info.Name, address: info.Address, connectedAt: info.ConnectedAt, supportedTAIs: info.SupportedTAIs}
 	if info.ID != "" {
 		s.ranID = &models.GlobalRanNodeID{PlmnID: info.PlmnID, ENbID: info.ID}
@@ -186,13 +205,30 @@ func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 
 	s.lastSeen.Store(info.LastSeenAt.UnixNano())
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	s.refreshLogLocked()
 	m.reg.Track(key, s)
 
+	m.mu.Unlock()
+
 	s.Log().Info("Radio connected", logger.RAT(metrics.RAT4G))
+}
+
+// releaseSetupLocked drops the configuration an earlier S1 Setup claimed, so a
+// repeat setup is gated exactly as a first one: until the new request is accepted
+// the eNB has no Global eNB ID, and the dispatcher's setup-first check drops the
+// association's UE signalling.
+func (m *MME) releaseSetupLocked(r *Radio) {
+	if r.ranID != nil {
+		if ref, ok := r.ranID.Ref(); ok {
+			m.reg.Unclaim(ref)
+		}
+	}
+
+	r.ranID = nil
+	r.supportedTAIs = nil
+	r.advertisedCapacity = nil
+	r.retryNotBefore = time.Time{}
+	r.configUpdateOutstanding = false
 }
 
 // addRadio records a connected eNB from its S1 Setup Request, carrying only the

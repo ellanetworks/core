@@ -236,7 +236,7 @@ func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 }
 
 func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause, esm []byte) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), metrics.ResultReject,
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
 		logger.Cause(cause.String()))
 	ueConn.StopNASGuard(ctx)
 

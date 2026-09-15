@@ -56,6 +56,8 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	ctx = logger.Into(ctx, ueConn.Log())
+
 	for _, p := range m.SnapshotPDNs(ue) {
 		m.reconcileBearer(ctx, ue, ueConn, p)
 	}
