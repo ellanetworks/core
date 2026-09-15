@@ -607,8 +607,6 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	return count
 }
 
-// DisconnectRadioOnConnLoss handles a gNB whose SCTP association dropped without a
-// graceful NG release. Mirrors the MME's reclaimUEsOnConnLoss.
 func (amf *AMF) DisconnectRadioOnConnLoss(ran *Radio) {
 	ctx, span := guardSpan(trace.SpanContext{}, "amf/reclaim_on_conn_loss", "gNB disconnect", 0)
 	defer span.End()

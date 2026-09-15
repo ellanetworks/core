@@ -131,7 +131,6 @@ func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, d time.Du
 		})
 }
 
-// timerName labels a guard span with the 5GSM timer that armed it (TS 24.501).
 func timerName(d time.Duration, s *SMF) string {
 	switch d {
 	case s.t3591:
