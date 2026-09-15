@@ -262,6 +262,30 @@ const toIsoInstant = (value: string): string => {
 
 const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
 
+const CUSTOM_RANGE = "custom";
+
+const RELATIVE_RANGES = [
+  { value: "5m", label: "Last 5 minutes", ms: 5 * 60_000 },
+  { value: "15m", label: "Last 15 minutes", ms: 15 * 60_000 },
+  { value: "1h", label: "Last 1 hour", ms: 60 * 60_000 },
+  { value: "6h", label: "Last 6 hours", ms: 6 * 60 * 60_000 },
+  { value: "24h", label: "Last 24 hours", ms: 24 * 60 * 60_000 },
+  { value: "7d", label: "Last 7 days", ms: 7 * 24 * 60 * 60_000 },
+];
+
+const RELATIVE_RANGE_MS: Record<string, number> = Object.fromEntries(
+  RELATIVE_RANGES.map((r) => [r.value, r.ms]),
+);
+
+const resolveFilterParams = (
+  params: Record<string, string>,
+): Record<string, string> => {
+  const { relative_range: relative, ...rest } = params;
+  const ms = relative ? RELATIVE_RANGE_MS[relative] : undefined;
+  if (ms === undefined) return rest;
+  return { ...rest, timestamp_from: new Date(Date.now() - ms).toISOString() };
+};
+
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -294,6 +318,8 @@ export default function RadioEvents() {
   const [messageTypeFilter, setMessageTypeFilter] = useState("");
   const [timestampFrom, setTimestampFrom] = useState("");
   const [timestampTo, setTimestampTo] = useState("");
+  const [rangePreset, setRangePreset] = useState("");
+  const isCustomRange = rangePreset === CUSTOM_RANGE;
 
   const messageTypeOptions = useMemo(
     () => MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? ALL_MESSAGE_TYPES,
@@ -349,8 +375,9 @@ export default function RadioEvents() {
   const timestampFromIso = toIsoInstant(timestampFrom);
   const timestampToIso = toIsoInstant(timestampTo);
 
-  const timestampError =
-    (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
+  const timestampError = !isCustomRange
+    ? ""
+    : (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
       ? "Enter a valid date and time."
       : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
         ? "The To timestamp must be on or after the From timestamp."
@@ -362,14 +389,20 @@ export default function RadioEvents() {
     if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
     if (effectiveMessageType) params.message_type = effectiveMessageType;
-    if (timestampFromIso) params.timestamp_from = timestampFromIso;
-    if (timestampToIso) params.timestamp_to = timestampToIso;
+    if (isCustomRange) {
+      if (timestampFromIso) params.timestamp_from = timestampFromIso;
+      if (timestampToIso) params.timestamp_to = timestampToIso;
+    } else if (rangePreset) {
+      params.relative_range = rangePreset;
+    }
     return params;
   }, [
     radioFilter,
     protocolFilter,
     directionFilter,
     effectiveMessageType,
+    isCustomRange,
+    rangePreset,
     timestampFromIso,
     timestampToIso,
   ]);
@@ -385,7 +418,12 @@ export default function RadioEvents() {
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
-      listRadioEvents(accessToken!, pageOneBased, perPage, filterParams),
+      listRadioEvents(
+        accessToken!,
+        pageOneBased,
+        perPage,
+        resolveFilterParams(filterParams),
+      ),
   });
 
   const networkRows = networkLogsQuery.data?.items ?? [];
@@ -640,40 +678,60 @@ export default function RadioEvents() {
           }}
         >
           <TextField
-            label="From"
-            type="datetime-local"
-            value={timestampFrom}
-            onChange={(e) => setTimestampFrom(e.target.value)}
-            error={!!timestampError}
+            select
+            label="Time range"
+            value={rangePreset}
+            onChange={(e) => setRangePreset(e.target.value)}
             size="small"
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                "aria-describedby": timestampError
-                  ? TIMESTAMP_ERROR_ID
-                  : undefined,
-              },
-            }}
-            sx={{ minWidth: 200 }}
-          />
-          <TextField
-            label="To"
-            type="datetime-local"
-            value={timestampTo}
-            onChange={(e) => setTimestampTo(e.target.value)}
-            error={!!timestampError}
-            size="small"
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                min: timestampFrom || undefined,
-                "aria-describedby": timestampError
-                  ? TIMESTAMP_ERROR_ID
-                  : undefined,
-              },
-            }}
-            sx={{ minWidth: 200 }}
-          />
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">Any time</MenuItem>
+            {RELATIVE_RANGES.map((range) => (
+              <MenuItem key={range.value} value={range.value}>
+                {range.label}
+              </MenuItem>
+            ))}
+            <MenuItem value={CUSTOM_RANGE}>Custom range</MenuItem>
+          </TextField>
+          {isCustomRange && (
+            <>
+              <TextField
+                label="From"
+                type="datetime-local"
+                value={timestampFrom}
+                onChange={(e) => setTimestampFrom(e.target.value)}
+                error={!!timestampError}
+                size="small"
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: {
+                    "aria-describedby": timestampError
+                      ? TIMESTAMP_ERROR_ID
+                      : undefined,
+                  },
+                }}
+                sx={{ minWidth: 200 }}
+              />
+              <TextField
+                label="To"
+                type="datetime-local"
+                value={timestampTo}
+                onChange={(e) => setTimestampTo(e.target.value)}
+                error={!!timestampError}
+                size="small"
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: {
+                    min: timestampFrom || undefined,
+                    "aria-describedby": timestampError
+                      ? TIMESTAMP_ERROR_ID
+                      : undefined,
+                  },
+                }}
+                sx={{ minWidth: 200 }}
+              />
+            </>
+          )}
         </Box>
 
         <Box

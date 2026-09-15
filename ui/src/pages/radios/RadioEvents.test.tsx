@@ -78,6 +78,16 @@ const selectOption = async (
   );
 };
 
+const showCustomRange = async () => {
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Time range" }));
+  fireEvent.click(
+    within(await screen.findByRole("listbox")).getByRole("option", {
+      name: "Custom range",
+    }),
+  );
+  await screen.findByLabelText("From");
+};
+
 beforeEach(() => {
   seedApi();
 });
@@ -222,6 +232,7 @@ describe("RadioEvents timestamps", () => {
   it("sends the From bound as an ISO instant", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-01T10:30" },
@@ -235,6 +246,7 @@ describe("RadioEvents timestamps", () => {
   it("survives a timestamp the browser cannot parse", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
@@ -248,6 +260,7 @@ describe("RadioEvents timestamps", () => {
   it("does not send an unparseable timestamp to the API", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
@@ -267,6 +280,7 @@ describe("RadioEvents timestamps", () => {
   it("rejects a To bound that precedes the From bound", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
@@ -283,6 +297,7 @@ describe("RadioEvents timestamps", () => {
 
 describe("RadioEvents stale results", () => {
   const setInvalidRange = async () => {
+    await showCustomRange();
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
     });
@@ -331,6 +346,7 @@ describe("RadioEvents stale results", () => {
 
 describe("RadioEvents timestamp accessibility", () => {
   const invert = async () => {
+    await showCustomRange();
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
     });
@@ -372,6 +388,7 @@ describe("RadioEvents timestamp accessibility", () => {
   it("stops the picker offering a To before the From", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
@@ -383,6 +400,36 @@ describe("RadioEvents timestamp accessibility", () => {
         "2026-08-10T10:00",
       ),
     );
+  });
+});
+
+describe("RadioEvents relative time range", () => {
+  it("resolves a relative range into a sliding lower bound", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    await selectOption(user, "Time range", "Last 15 minutes");
+
+    await waitFor(() => expect(lastEventParams().timestamp_from).toBeDefined());
+    const params = lastEventParams();
+    expect(params).not.toHaveProperty("relative_range");
+    expect(params).not.toHaveProperty("timestamp_to");
+    expect(
+      Math.abs(Date.parse(params.timestamp_from) - (Date.now() - 15 * 60_000)),
+    ).toBeLessThan(60_000);
+  });
+
+  it("hides the custom bounds unless a custom range is selected", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+
+    await selectOption(user, "Time range", "Custom range");
+
+    expect(screen.getByLabelText("From")).toBeVisible();
   });
 });
 
