@@ -331,7 +331,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	querySummary := fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days)
+	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", DailyUsageTableName)
 
 	_, span := tracer.Start(
 		ctx,

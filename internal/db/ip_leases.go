@@ -399,7 +399,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 // DeleteAllDynamicLeases removes all dynamic leases cluster-wide,
 // preserving static ones. No production caller.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
-	querySummary := "DeleteAllDynamicLeases"
+	querySummary := fmt.Sprintf("%s %s (dynamic)", "DELETE", IPLeasesTableName)
 
 	_, span := tracer.Start(
 		ctx,
@@ -436,7 +436,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 // given nodeID. Static leases are preserved: an admin-pinned IP stays
 // bound to its IMSI regardless of which node previously served it.
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
-	querySummary := "DeleteDynamicLeasesByNode"
+	querySummary := fmt.Sprintf("%s %s (dynamic by node)", "DELETE", IPLeasesTableName)
 
 	_, span := tracer.Start(
 		ctx,

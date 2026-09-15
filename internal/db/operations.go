@@ -264,7 +264,7 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 	}
 
 	if db.raftManager == nil {
-		result, err := op.apply(db, context.Background(), payload)
+		result, err := op.apply(db, ctx, payload)
 		if err != nil {
 			return zero, err
 		}
@@ -279,7 +279,7 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 	}
 
 	if db.IsLeader() {
-		result, err := db.leaderCaptureAndPropose(op.name, op.minSchema, func(ctx context.Context) (any, error) {
+		result, err := db.leaderCaptureAndPropose(ctx, op.name, op.minSchema, func(ctx context.Context) (any, error) {
 			return op.apply(db, ctx, payload)
 		})
 		if err == nil {
@@ -291,10 +291,10 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 		}
 	}
 
-	return op.invokeFollower(db, payload)
+	return op.invokeFollower(ctx, db, payload)
 }
 
-func (op *ChangesetOp[P, R]) invokeFollower(db *Database, payload *P) (R, error) {
+func (op *ChangesetOp[P, R]) invokeFollower(ctx context.Context, db *Database, payload *P) (R, error) {
 	var zero R
 
 	payloadJSON, err := json.Marshal(payload)
@@ -302,7 +302,7 @@ func (op *ChangesetOp[P, R]) invokeFollower(db *Database, payload *P) (R, error)
 		return zero, fmt.Errorf("marshal %s payload: %w", op.name, err)
 	}
 
-	result, err := db.forwardOperation(op.name, payloadJSON)
+	result, err := db.forwardOperation(ctx, op.name, payloadJSON)
 	if err != nil {
 		return zero, err
 	}
@@ -323,7 +323,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	}
 
 	if db.raftManager == nil {
-		result, err := db.ApplyCommand(context.Background(), cmd, 0)
+		result, err := db.ApplyCommand(ctx, cmd, 0)
 		if err != nil {
 			return zero, err
 		}
@@ -357,7 +357,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 		return zero, fmt.Errorf("marshal %s payload: %w", op.name, err)
 	}
 
-	result, err := db.forwardOperation(op.name, payloadJSON)
+	result, err := db.forwardOperation(ctx, op.name, payloadJSON)
 	if err != nil {
 		return zero, err
 	}
@@ -418,7 +418,7 @@ func (db *Database) ReadBarrier() error {
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
 // RequiredSchema for the apply-time gate on every node.
-func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, applyFn func(context.Context) (any, error)) (any, error) {
+func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (any, error) {
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
 
@@ -426,7 +426,7 @@ func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, app
 		return nil, err
 	}
 
-	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
+	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(ctx), applyFn, operation)
 	if err != nil {
 		if errors.Is(err, ErrAlreadyExists) ||
 			errors.Is(err, ErrNotFound) ||
@@ -491,12 +491,12 @@ func sentinelForForwardCode(code string) error {
 	}
 }
 
-func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
+func (db *Database) forwardOperation(ctx context.Context, opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, hraft.ErrNotLeader
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), db.proposeTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), db.proposeTimeout)
 	defer cancel()
 
 	result, err := db.raftManager.ForwardOperation(ctx, opName, payload, db.proposeTimeout)
@@ -522,7 +522,7 @@ func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*e
 // ApplyForwardedOperation is the leader-side handler for the
 // /cluster/internal/propose endpoint. Changeset ops capture+propose;
 // intent ops go straight to raft.Apply.
-func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
+func (db *Database) ApplyForwardedOperation(ctx context.Context, opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, fmt.Errorf("cluster not enabled")
 	}
@@ -536,7 +536,7 @@ func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessa
 	}
 
 	if h, ok := changesetOps[opName]; ok {
-		return db.applyForwardedChangesetOp(opName, h, payload)
+		return db.applyForwardedChangesetOp(ctx, opName, h, payload)
 	}
 
 	if h, ok := intentOps[opName]; ok {
@@ -546,7 +546,7 @@ func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessa
 	return nil, fmt.Errorf("%w %q", ErrUnknownOperation, opName)
 }
 
-func (db *Database) applyForwardedChangesetOp(opName string, h changesetOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
+func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string, h changesetOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if err := db.checkOpSchema(h.minSchema); err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func (db *Database) applyForwardedChangesetOp(opName string, h changesetOpHandle
 		return nil, err
 	}
 
-	changeset, applyResult, err := db.captureChangeset(context.Background(), func(ctx context.Context) (any, error) {
+	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(ctx), func(ctx context.Context) (any, error) {
 		return h.applyJSON(db, ctx, payload)
 	}, opName)
 	if err != nil {

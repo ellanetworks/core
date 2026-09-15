@@ -79,7 +79,7 @@ func ClusterPropose(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		result, err := dbInstance.ApplyForwardedOperation(envelope.Operation, envelope.Payload)
+		result, err := dbInstance.ApplyForwardedOperation(ctx, envelope.Operation, envelope.Payload)
 		if err != nil {
 			mapApplyErrorToHTTP(ctx, w, err)
 			return

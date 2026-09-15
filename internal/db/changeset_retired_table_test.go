@@ -180,7 +180,7 @@ func TestApplyForwardedOperation_RejectsRetiredOps(t *testing.T) {
 
 	for _, opName := range []string{"InsertAuditLog", "DeleteOldAuditLogs"} {
 		t.Run(opName, func(t *testing.T) {
-			_, err := database.ApplyForwardedOperation(opName, []byte(`{}`))
+			_, err := database.ApplyForwardedOperation(t.Context(), opName, []byte(`{}`))
 			if err == nil {
 				t.Fatalf("%s: forwarded retired operation returned success", opName)
 			}
@@ -197,7 +197,7 @@ func TestApplyForwardedOperation_AcceptsLiveOps(t *testing.T) {
 
 	const sliceID = "01900000-0000-7000-8000-00000000abcd"
 
-	result, err := database.ApplyForwardedOperation("CreateNetworkSlice", []byte(
+	result, err := database.ApplyForwardedOperation(t.Context(), "CreateNetworkSlice", []byte(
 		`{"id":"`+sliceID+`","sst":1,"sd":"000001","name":"forwarded-live"}`))
 	if err != nil {
 		t.Fatalf("live operation rejected: %v", err)
