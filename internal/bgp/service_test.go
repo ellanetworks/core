@@ -37,8 +37,9 @@ func TestStartStop(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -65,8 +66,9 @@ func TestStartAlreadyRunning(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -107,8 +109,9 @@ func TestAnnounceWithdraw(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -183,8 +186,9 @@ func TestAnnounceAfterStartPopulatesRIB(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -220,8 +224,9 @@ func TestStartWithPeers(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	peers := []bgp.BGPPeer{
@@ -289,8 +294,9 @@ func TestReconfigureHotPeerAdd(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with one peer
@@ -331,8 +337,9 @@ func TestReconfigureHotPeerRemove(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	peers := []bgp.BGPPeer{
@@ -372,8 +379,9 @@ func TestReconfigureWithRestart(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -390,8 +398,9 @@ func TestReconfigureWithRestart(t *testing.T) {
 
 	// Change AS number → triggers full restart
 	newSettings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65001,
+		Enabled:  true,
+		LocalAS:  65001,
+		RouterID: "10.0.0.1",
 	}
 
 	err = svc.Reconfigure(ctx, newSettings, nil)
@@ -419,8 +428,9 @@ func TestReconfigureWhenNotRunning(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Should be a no-op
@@ -435,8 +445,9 @@ func TestAnnounce_IPv6(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -494,8 +505,9 @@ func TestAnnounceBothIPv4AndIPv6(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -547,8 +559,9 @@ func TestWithdraw_IPv6(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -593,8 +606,9 @@ func TestStartWithIPv6Peer(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	peers := []bgp.BGPPeer{
@@ -631,8 +645,9 @@ func TestReconfigureHotPeerPropertyChange(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with one peer
@@ -676,8 +691,9 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	err := svc.Start(ctx, settings, nil, true)
@@ -728,8 +744,9 @@ func TestIsAdvertising(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with advertising enabled
@@ -754,8 +771,9 @@ func TestIsAdvertisingFalseWhenNATEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with advertising disabled (NAT enabled)
@@ -780,8 +798,9 @@ func TestAnnounceNoOpWhenNotAdvertising(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with advertising disabled (NAT enabled)
@@ -813,8 +832,9 @@ func TestAnnounceNoOpWhenNATEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	settings := bgp.BGPSettings{
-		Enabled: true,
-		LocalAS: 65000,
+		Enabled:  true,
+		LocalAS:  65000,
+		RouterID: "10.0.0.1",
 	}
 
 	// Start with advertising disabled (NAT on) — subsequent Announce
@@ -858,7 +878,7 @@ func TestSetAdvertisingEnableIsFlagFlipOnly(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	err := svc.Start(ctx, settings, nil, false)
 	if err != nil {
@@ -898,7 +918,7 @@ func TestSetAdvertisingDisableWithdrawsAllImmediately(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
 
-	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
 
 	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
