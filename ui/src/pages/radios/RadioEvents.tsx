@@ -12,6 +12,8 @@ import {
   IconButton,
   TextField,
   MenuItem,
+  MenuList,
+  Popover,
 } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
@@ -32,6 +34,8 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Edit as EditIcon } from "@mui/icons-material";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 
 import {
   listRadios,
@@ -319,6 +323,7 @@ export default function RadioEvents() {
   const [timestampFrom, setTimestampFrom] = useState("");
   const [timestampTo, setTimestampTo] = useState("");
   const [rangePreset, setRangePreset] = useState("");
+  const [rangeAnchor, setRangeAnchor] = useState<HTMLElement | null>(null);
   const isCustomRange = rangePreset === CUSTOM_RANGE;
 
   const messageTypeOptions = useMemo(
@@ -382,6 +387,25 @@ export default function RadioEvents() {
       : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
         ? "The To timestamp must be on or after the From timestamp."
         : "";
+
+  const customRangeLabel =
+    timestampFromIso && timestampToIso
+      ? `${formatDateTime(timestampFromIso)} \u2192 ${formatDateTime(timestampToIso)}`
+      : timestampFromIso
+        ? `After ${formatDateTime(timestampFromIso)}`
+        : timestampToIso
+          ? `Before ${formatDateTime(timestampToIso)}`
+          : "Custom range";
+
+  const rangeLabel = isCustomRange
+    ? customRangeLabel
+    : (RELATIVE_RANGES.find((r) => r.value === rangePreset)?.label ??
+      "Any time");
+
+  const applyRangePreset = (value: string) => {
+    setRangePreset(value);
+    setRangeAnchor(null);
+  };
 
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
@@ -677,71 +701,122 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <TextField
-            select
-            label="Time range"
-            value={rangePreset}
-            onChange={(e) => setRangePreset(e.target.value)}
-            size="small"
-            sx={{ minWidth: 180 }}
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={(event) => setRangeAnchor(event.currentTarget)}
+            startIcon={<AccessTimeIcon fontSize="small" />}
+            endIcon={<ArrowDropDownIcon />}
+            aria-haspopup="true"
+            aria-expanded={Boolean(rangeAnchor)}
+            aria-label={`Time range: ${rangeLabel}`}
+            sx={{
+              height: 40,
+              minWidth: 230,
+              justifyContent: "space-between",
+              textTransform: "none",
+              color: "text.primary",
+              borderColor: timestampError ? "error.main" : "divider",
+            }}
           >
-            <MenuItem value="">Any time</MenuItem>
-            {RELATIVE_RANGES.map((range) => (
-              <MenuItem key={range.value} value={range.value}>
-                {range.label}
-              </MenuItem>
-            ))}
-            <MenuItem value={CUSTOM_RANGE}>Custom range</MenuItem>
-          </TextField>
-          {isCustomRange && (
-            <>
-              <TextField
-                label="From"
-                type="datetime-local"
-                value={timestampFrom}
-                onChange={(e) => setTimestampFrom(e.target.value)}
-                error={!!timestampError}
-                size="small"
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: {
-                    "aria-describedby": timestampError
-                      ? TIMESTAMP_ERROR_ID
-                      : undefined,
-                  },
+            {rangeLabel}
+          </Button>
+          <Popover
+            open={Boolean(rangeAnchor)}
+            anchorEl={rangeAnchor}
+            onClose={() => setRangeAnchor(null)}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            slotProps={{ paper: { sx: { mt: 1 } } }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: { xs: "column", sm: "row" },
+              }}
+            >
+              <Box
+                sx={{
+                  p: 2,
+                  width: 300,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
                 }}
-                sx={{ minWidth: 200 }}
-              />
-              <TextField
-                label="To"
-                type="datetime-local"
-                value={timestampTo}
-                onChange={(e) => setTimestampTo(e.target.value)}
-                error={!!timestampError}
-                size="small"
-                slotProps={{
-                  inputLabel: { shrink: true },
-                  htmlInput: {
-                    min: timestampFrom || undefined,
-                    "aria-describedby": timestampError
-                      ? TIMESTAMP_ERROR_ID
-                      : undefined,
-                  },
+              >
+                <Typography variant="subtitle2">Custom range</Typography>
+                <TextField
+                  label="From"
+                  type="datetime-local"
+                  value={timestampFrom}
+                  onChange={(e) => {
+                    setTimestampFrom(e.target.value);
+                    setRangePreset(CUSTOM_RANGE);
+                  }}
+                  error={!!timestampError}
+                  size="small"
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    htmlInput: {
+                      "aria-describedby": timestampError
+                        ? TIMESTAMP_ERROR_ID
+                        : undefined,
+                    },
+                  }}
+                />
+                <TextField
+                  label="To"
+                  type="datetime-local"
+                  value={timestampTo}
+                  onChange={(e) => {
+                    setTimestampTo(e.target.value);
+                    setRangePreset(CUSTOM_RANGE);
+                  }}
+                  error={!!timestampError}
+                  size="small"
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    htmlInput: {
+                      min: timestampFrom || undefined,
+                      "aria-describedby": timestampError
+                        ? TIMESTAMP_ERROR_ID
+                        : undefined,
+                    },
+                  }}
+                />
+                {timestampError && (
+                  <Alert severity="error" id={TIMESTAMP_ERROR_ID}>
+                    {timestampError}
+                  </Alert>
+                )}
+              </Box>
+              <Box
+                sx={{
+                  borderColor: "divider",
+                  borderLeft: { sm: 1 },
+                  borderTop: { xs: 1, sm: 0 },
+                  minWidth: 220,
                 }}
-                sx={{ minWidth: 200 }}
-              />
-            </>
-          )}
-        </Box>
-
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 2,
-            alignItems: "center",
-          }}
-        >
+              >
+                <MenuList>
+                  <MenuItem
+                    selected={rangePreset === ""}
+                    onClick={() => applyRangePreset("")}
+                  >
+                    Any time
+                  </MenuItem>
+                  {RELATIVE_RANGES.map((range) => (
+                    <MenuItem
+                      key={range.value}
+                      selected={rangePreset === range.value}
+                      onClick={() => applyRangePreset(range.value)}
+                    >
+                      {range.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Box>
+            </Box>
+          </Popover>
           <Autocomplete
             options={radioOptions}
             value={radioOptions.find((r) => r.name === radioFilter) ?? null}
@@ -830,7 +905,7 @@ export default function RadioEvents() {
           </TextField>
         </Box>
 
-        {timestampError && (
+        {timestampError && !rangeAnchor && (
           <Alert
             id={TIMESTAMP_ERROR_ID}
             severity="error"

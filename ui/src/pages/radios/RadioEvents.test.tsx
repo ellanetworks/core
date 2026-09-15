@@ -78,14 +78,27 @@ const selectOption = async (
   );
 };
 
+const timeRangeButton = () =>
+  screen.getByRole("button", { name: /^Time range:/ });
+
 const showCustomRange = async () => {
-  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Time range" }));
-  fireEvent.click(
-    within(await screen.findByRole("listbox")).getByRole("option", {
-      name: "Custom range",
-    }),
-  );
+  fireEvent.click(timeRangeButton());
   await screen.findByLabelText("From");
+};
+
+const closeTimeRange = async () => {
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+  await waitFor(() =>
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+  );
+};
+
+const selectQuickRange = async (
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) => {
+  await user.click(timeRangeButton());
+  await user.click(await screen.findByRole("menuitem", { name }));
 };
 
 beforeEach(() => {
@@ -251,6 +264,7 @@ describe("RadioEvents timestamps", () => {
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
     });
+    await closeTimeRange();
 
     expect(
       await screen.findByRole("heading", { name: /Network Events/ }),
@@ -265,6 +279,7 @@ describe("RadioEvents timestamps", () => {
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
     });
+    await closeTimeRange();
     await waitFor(() =>
       expect(
         screen.getByRole("heading", { name: /Network Events/ }),
@@ -409,7 +424,7 @@ describe("RadioEvents relative time range", () => {
     await renderEvents();
     await waitForEventRequests(1);
 
-    await selectOption(user, "Time range", "Last 15 minutes");
+    await selectQuickRange(user, "Last 15 minutes");
 
     await waitFor(() => expect(lastEventParams().timestamp_from).toBeDefined());
     const params = lastEventParams();
@@ -420,16 +435,49 @@ describe("RadioEvents relative time range", () => {
     ).toBeLessThan(60_000);
   });
 
-  it("hides the custom bounds unless a custom range is selected", async () => {
-    const user = userEvent.setup();
+  it("offers the quick ranges and the custom bounds in one panel", async () => {
     await renderEvents();
     await waitForEventRequests(1);
 
     expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
 
-    await selectOption(user, "Time range", "Custom range");
+    fireEvent.click(timeRangeButton());
 
-    expect(screen.getByLabelText("From")).toBeVisible();
+    expect(await screen.findByLabelText("From")).toBeVisible();
+    expect(screen.getByLabelText("To")).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Any time" })).toBeVisible();
+    expect(
+      screen.getByRole("menuitem", { name: "Last 6 hours" }),
+    ).toBeVisible();
+  });
+
+  it("names the selected range on the button and closes the panel", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    await selectQuickRange(user, "Last 1 hour");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem")).not.toBeInTheDocument(),
+    );
+    expect(timeRangeButton()).toHaveAccessibleName("Time range: Last 1 hour");
+  });
+
+  it("switches to the custom range when a bound is typed", async () => {
+    await renderEvents();
+    await waitForEventRequests(1);
+    await showCustomRange();
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-01T10:30" },
+    });
+
+    await waitFor(() =>
+      expect(lastEventParams().timestamp_from).toBe("2026-08-01T10:30:00.000Z"),
+    );
+    await closeTimeRange();
+    expect(timeRangeButton()).toHaveAccessibleName(/After/);
   });
 });
 
