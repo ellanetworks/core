@@ -17,7 +17,7 @@ import (
 func handoverRequiredToFiveGS(ctx context.Context, m *mme.MME, radio *mme.Radio, req *s1ap.HandoverRequired, ue *mme.UeContext, source *mme.UeConn) {
 	if req.TargetID.TargetNgRanNodeID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required to 5GS whose target is not an NG-RAN node",
-			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)))
+			logger.MMEUeS1apID(uint32(req.MMEUES1APID)))
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
 
 		return
@@ -26,7 +26,7 @@ func handoverRequiredToFiveGS(ctx context.Context, m *mme.MME, radio *mme.Radio,
 	target, err := mme.NGRANIdentityFromS1AP(*req.TargetID.TargetNgRanNodeID)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required to 5GS with an unusable NG-RAN node identity",
-			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)), zap.Error(err))
+			logger.MMEUeS1apID(uint32(req.MMEUES1APID)), zap.Error(err))
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
 
 		return
@@ -35,7 +35,7 @@ func handoverRequiredToFiveGS(ctx context.Context, m *mme.MME, radio *mme.Radio,
 	prep, err := m.PrepareHandoverToFiveGS(ue, source, target, req.SourceToTarget, req.Cause)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("handover to 5GS could not be prepared",
-			zap.Uint32("mme_ue_s1ap_id", uint32(req.MMEUES1APID)), zap.Error(err))
+			logger.MMEUeS1apID(uint32(req.MMEUES1APID)), zap.Error(err))
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, preparationFailureCause(err))
 
 		return
@@ -50,7 +50,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer could not prepare the handover", zap.Error(err))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(),
 				handoverToFiveGSFailureCause(err))
 		}
 
@@ -59,10 +59,10 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	if len(resp.AcceptedEPSBearers) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer accepted no EPS bearer; failing the preparation",
-			zap.Uint32("mme_ue_s1ap_id", uint32(source.MMEUES1APID)))
+			logger.MMEUeS1apID(uint32(source.MMEUES1APID)))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(),
 				causeHOFailureInTarget)
 		}
 
@@ -87,7 +87,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	cmd := &s1ap.HandoverCommand{
 		MMEUES1APID:    source.MMEUES1APID,
-		ENBUES1APID:    source.ENBUES1APID,
+		ENBUES1APID:    source.ENBUES1APID(),
 		HandoverType:   s1ap.HandoverTypeEPSToFiveGS,
 		ERABToRelease:  releaseItems(unadmitted, nil),
 		TargetToSource: s1ap.TransparentContainer(resp.TargetToSource),
@@ -98,14 +98,14 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal the inter-system Handover Command", zap.Error(err))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID, causeHandoverPrepUnspecific)
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), causeHandoverPrepUnspecific)
 		}
 
 		return
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Command (EPS to 5GS)",
-		zap.Uint32("mme_ue_s1ap_id", uint32(source.MMEUES1APID)),
+		logger.MMEUeS1apID(uint32(source.MMEUES1APID)),
 		zap.Int("accepted", len(accepted)),
 		zap.Int("released", len(unadmitted)))
 	m.SendToRadio(ctx, source.Conn(), mme.S1APProcedureHandoverCommand, b)

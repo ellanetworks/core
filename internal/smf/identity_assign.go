@@ -70,7 +70,7 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 
 func (s *SMF) assignEPSBearerIdentity(ctx context.Context, sc *SMContext, ebi uint8) {
 	if err := s.setEPSBearerIdentity(sc, ebi); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Error("failed to restore the EPS bearer identity of a session whose move was refused",
+		logger.From(ctx, logger.SmfLog).Error("failed to restore the EPS bearer identity of a session whose move was refused",
 			zap.Error(err), logger.SUPI(sc.Supi.String()),
 			logger.PDUSessionID(sc.PDUSessionID), zap.Uint8("ebi", ebi))
 	}

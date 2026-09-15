@@ -33,15 +33,15 @@ func timeToWaitDuration(t s1ap.TimeToWait) time.Duration {
 func handleMMEConfigurationUpdateAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	ack, err := s1ap.ParseMMEConfigurationUpdateAcknowledge(value)
 	if err != nil {
-		logger.From(ctx, radio.Log).Warn("failed to decode MME Configuration Update Acknowledge", zap.Error(err))
+		radio.Log(ctx).Warn("failed to decode MME Configuration Update Acknowledge", zap.Error(err))
 		return
 	}
 
 	if ack.CriticalityDiagnostics != nil {
-		logger.From(ctx, radio.Log).Warn("eNB reported criticality diagnostics for MME Configuration Update")
+		radio.Log(ctx).Warn("eNB reported criticality diagnostics for MME Configuration Update")
 	}
 
-	logger.From(ctx, radio.Log).Info("MME Configuration Update acknowledged")
+	radio.Log(ctx).Info("MME Configuration Update acknowledged")
 
 	m.ConfigUpdateAcknowledged(ctx, radio)
 }
@@ -49,7 +49,7 @@ func handleMMEConfigurationUpdateAcknowledge(ctx context.Context, m *mme.MME, ra
 func handleMMEConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	fail, err := s1ap.ParseMMEConfigurationUpdateFailure(value)
 	if err != nil {
-		logger.From(ctx, radio.Log).Warn("failed to decode MME Configuration Update Failure", zap.Error(err))
+		radio.Log(ctx).Warn("failed to decode MME Configuration Update Failure", zap.Error(err))
 		return
 	}
 
@@ -57,15 +57,15 @@ func handleMMEConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio 
 	fields := []zap.Field{}
 
 	if fail.Cause != nil {
-		fields = append(fields, zap.String("cause", mme.S1apCauseName(fail.Cause)))
+		fields = append(fields, logger.Cause(mme.S1apCauseName(fail.Cause)))
 	}
 
 	if fail.TimeToWait != nil {
 		wait = timeToWaitDuration(*fail.TimeToWait)
-		fields = append(fields, zap.Duration("time-to-wait", wait))
+		fields = append(fields, zap.Duration("time_to_wait", wait))
 	}
 
-	logger.From(ctx, radio.Log).Warn("eNB rejected MME Configuration Update", fields...)
+	radio.Log(ctx).Warn("eNB rejected MME Configuration Update", fields...)
 
 	m.ConfigUpdateFailed(ctx, radio, wait)
 }

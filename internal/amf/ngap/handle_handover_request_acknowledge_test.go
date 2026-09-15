@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
@@ -62,13 +61,11 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: targetNGAPSender,
 	}
 
@@ -78,10 +75,10 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 1)
 
 	err := amf.SetHandoverForTest(sourceUe, targetUe, candidates...)
 	if err != nil {
@@ -117,7 +114,6 @@ func TestHandoverRequestAcknowledge_NotFromPreparedTarget(t *testing.T) {
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := newTestAMF()
@@ -146,7 +142,6 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := newTestAMF()
@@ -155,7 +150,7 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(ran, 2, 1)
 	targetUe.AMFForTest().AttachUeConn(t.Context(), amfUe, targetUe)
 
 	amfID := ngap.AMFUENGAPID(1)

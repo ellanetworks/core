@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -50,7 +49,7 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.UEContextReleaseRequest{
@@ -78,7 +77,7 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	sender := ran.Conn.(*fakeNGAPSender)
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 
 	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
@@ -96,7 +95,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityWithPendingMTTraffic(t *tes
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
@@ -122,7 +121,7 @@ func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	amfUe.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1})
 
@@ -148,7 +147,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
@@ -185,10 +184,10 @@ func TestHandleUEContextReleaseRequest_PagedRequestDoesNotFollowTheUEOntoANewCon
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	answered := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	answered := amf.NewUeConnForTest(ran, 1, 10)
 	answered.AMFForTest().AttachUeConn(t.Context(), amfUe, answered)
 
-	current := amf.NewUeConnForTest(ran, 2, 11, logger.AmfLog)
+	current := amf.NewUeConnForTest(ran, 2, 11)
 	current.AMFForTest().AttachUeConn(t.Context(), amfUe, current)
 
 	before := len(sender.SentUEContextReleaseCommands)
@@ -215,7 +214,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupPDUSession).ClaimSession(1) {
@@ -254,7 +253,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillRel
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.RegistrationInitiated)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if err := amfUe.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {

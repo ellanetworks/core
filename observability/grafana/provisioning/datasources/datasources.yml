@@ -18,8 +18,8 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: '"traceID":"([a-f0-9]+)"'
-          name: traceID
+          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+          name: trace_id
           url: "$${__value.raw}"
 
   - name: Tempo
@@ -36,7 +36,7 @@ datasources:
         filterByTraceID: false
         filterBySpanID: false
         customQuery: true
-        query: '{job="ella-core"} | traceID=`$${__trace.traceId}`'
+        query: '{job="ella-core"} | trace_id=`$${__trace.traceId}`'
 
   - name: Pyroscope
     uid: pyroscope

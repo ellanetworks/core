@@ -19,7 +19,7 @@ func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUS
 	for _, item := range items {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("invalid PDU session ID from gNB, not switched", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			ueConn.Log(ctx).Error("invalid PDU session ID from gNB, not switched", logger.PDUSessionID(uint8(item.PDUSessionID)))
 
 			undecodable = append(undecodable, uint8(item.PDUSessionID))
 
@@ -57,7 +57,7 @@ func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSRe
 func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap.PathSwitchRequest, causeValue int) {
 	released, err := pathSwitchReleasedList(msg.PDUSessionResourceToBeSwitchedDLList, causeValue)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
+		ran.Log(ctx).Error("error building path switch released list", zap.Error(err))
 	}
 
 	amfID, ranID := msg.SourceAMFUENGAPID, msg.RANUENGAPID
@@ -68,7 +68,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap
 		PDUSessionResourceReleased: released,
 	}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building path switch request failure", zap.Error(err))
+		ran.Log(ctx).Error("error building path switch request failure", zap.Error(err))
 		return
 	}
 
@@ -126,7 +126,7 @@ func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ng
 
 	released, err := pathSwitchReleasedList(sessions, ngap.CauseRadioNetworkUnspecified)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
+		ran.Log(ctx).Error("error building path switch released list", zap.Error(err))
 		return false
 	}
 
@@ -139,13 +139,13 @@ func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ng
 		CriticalityDiagnostics:     &diagnostics,
 	}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Path Switch Request Failure", zap.Error(err))
+		ran.Log(ctx).Error("failed to marshal Path Switch Request Failure", zap.Error(err))
 		return false
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedurePathSwitchRequestFailure, pkt)
 
-	logger.WithTrace(ctx, ran.Log).Warn("Path Switch rejected", zap.Error(ase))
+	ran.Log(ctx).Warn("Path Switch rejected", zap.Error(ase))
 
 	return true
 }

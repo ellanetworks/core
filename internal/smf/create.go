@@ -117,7 +117,10 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// not establishment attempts, so they precede this defer.
 	var establishmentResult string
 
-	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
+	defer func() {
+		recordSessionEstablishmentResult(ctx, metrics.RAT5G, establishmentResult,
+			logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
+	}()
 
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept
@@ -366,7 +369,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.From(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }

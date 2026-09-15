@@ -1635,7 +1635,7 @@
             "renameByName": {
               "duration": "Duration",
               "startTime": "Start Time",
-              "traceID": "Trace ID",
+              "trace_id": "Trace ID",
               "traceName": "Operation"
             }
           }
@@ -1791,7 +1791,7 @@
               "duration": "Duration",
               "span.ngap.message_type": "Message Type",
               "startTime": "Start Time",
-              "traceID": "Trace ID",
+              "trace_id": "Trace ID",
               "traceName": "Operation"
             }
           }

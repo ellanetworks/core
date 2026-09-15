@@ -283,8 +283,8 @@ func (m *Manager) waitForLocalApply(ctx context.Context, target uint64) {
 		if !time.Now().Before(deadline) {
 			logger.RaftLog.Warn(
 				"forward operation: follower did not catch up to leader applied index before response",
-				zap.Uint64("targetIdx", target),
-				zap.Uint64("localIdx", m.AppliedIndex()),
+				zap.Uint64("target_idx", target),
+				zap.Uint64("local_idx", m.AppliedIndex()),
 			)
 
 			return

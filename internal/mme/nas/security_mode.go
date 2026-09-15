@@ -32,8 +32,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
 	if !m.TryClaimKeyChain(ue) {
-		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)")
 
 		return securityModeNotSent
 	}
@@ -59,7 +58,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	eea, eia, ok := eps.SelectNASAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
-			zap.Stringer("ue-network-capability", ue.UeNetCap()))
+			zap.Stringer("ue_network_capability", ue.UeNetCap()))
 
 		return securityModeNoCommonAlgorithm
 	}
@@ -93,9 +92,9 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
 		zap.Stringer("eea", eea), zap.Stringer("eia", eia),
-		zap.Stringer("ue-network-capability", ue.UeNetCap()),
-		zap.Any("ms-network-capability", ue.MsNetCap()),
-		zap.Stringer("replayed-ue-security-capability", smc.ReplayedUESecurityCapability))
+		zap.Stringer("ue_network_capability", ue.UeNetCap()),
+		zap.Any("ms_network_capability", ue.MsNetCap()),
+		zap.Stringer("replayed_ue_security_capability", smc.ReplayedUESecurityCapability))
 
 	if err := ueConn.SendGuardedProtected(ctx, "Security Mode Command", plain, eps.SHTIntegrityProtectedNewContext); err != nil {
 		return securityModeNotSent

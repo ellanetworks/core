@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -35,7 +34,7 @@ func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{

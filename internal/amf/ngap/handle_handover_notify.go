@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -21,7 +20,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, targetUe.Log()).Error("UeContext is nil")
+		targetUe.Log(ctx).Error("UeContext is nil")
 		return
 	}
 
@@ -29,13 +28,13 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil && !fromEPS {
-		logger.WithTrace(ctx, targetUe.Log()).Error("N2 Handover between AMF has not been implemented yet")
+		targetUe.Log(ctx).Error("N2 Handover between AMF has not been implemented yet")
 		return
 	}
 
 	admitted, ok := amfInstance.MarkHandoverCommitting(amfUe, targetUe)
 	if !ok {
-		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Notify with no prepared handover for this target; dropping")
+		targetUe.Log(ctx).Warn("Handover Notify with no prepared handover for this target; dropping")
 		return
 	}
 
@@ -60,8 +59,8 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return nil, amfInstance.Session.UpdateSmContextN2HandoverComplete(ctx, ref)
 	})
 
-	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
-		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Notify: UE released during the user-plane switch")
+	if !amfInstance.FinishHandoverCommit(ctx, amfUe, targetUe) {
+		targetUe.Log(ctx).Warn("Handover Notify: UE released during the user-plane switch")
 
 		amfInstance.ClearHandover(amfUe)
 
@@ -72,7 +71,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	logger.WithTrace(ctx, targetUe.Log()).Info("Handle Handover notification Finished")
+	targetUe.Log(ctx).Info("Handle Handover notification Finished")
 
 	if fromEPS {
 		amfInstance.CompleteRelocationFromEPS(ctx, amfUe)

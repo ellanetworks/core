@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -31,7 +30,7 @@ func TestUplinkRanStatusTransfer_RelaysToTarget(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	sourceRan := &amf.Radio{Conn: sourceNGAPSender, Log: logger.AmfLog}
+	sourceRan := &amf.Radio{Conn: sourceNGAPSender}
 	msg := &ngap.UplinkRANStatusTransfer{
 		AMFUENGAPID: 100,
 		RANUENGAPID: 10,
@@ -62,7 +61,7 @@ func TestUplinkRanStatusTransfer_NoHandover_Dropped(t *testing.T) {
 	sourceUe := amfInstance.FindUEByAmfUeNgapID(&amf.Radio{Conn: sourceNGAPSender}, 100)
 	amfInstance.ClearHandover(sourceUe.UeContext())
 
-	sourceRan := &amf.Radio{Conn: sourceNGAPSender, Log: logger.AmfLog}
+	sourceRan := &amf.Radio{Conn: sourceNGAPSender}
 	msg := &ngap.UplinkRANStatusTransfer{
 		AMFUENGAPID: 100,
 		RANUENGAPID: 10,

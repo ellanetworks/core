@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -104,7 +103,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -154,7 +152,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -209,7 +206,6 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -310,7 +306,6 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -387,7 +382,6 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -474,7 +468,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -519,7 +512,6 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -559,7 +551,6 @@ func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -600,7 +591,6 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

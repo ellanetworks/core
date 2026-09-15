@@ -25,7 +25,7 @@ func (t *sessionTxn) onRollback(f func() error) {
 func (t *sessionTxn) rollback(ctx context.Context) {
 	for i := len(t.undo) - 1; i >= 0; i-- {
 		if err := t.undo[i](); err != nil {
-			logger.WithTrace(ctx, logger.UpfLog).Warn("session rollback step failed", zap.Error(err))
+			logger.From(ctx, logger.UpfLog).Warn("session rollback step failed", zap.Error(err))
 		}
 	}
 }

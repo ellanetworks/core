@@ -8,16 +8,15 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
 func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	radio := &amf.Radio{Log: logger.AmfLog}
+	radio := &amf.Radio{}
 	radio.BindAMFForTest(amfInstance)
 
-	ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500)
 
 	old := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) { ueConn.AMFForTest().AttachUeConn(t.Context(), u, ueConn) })
 
@@ -41,7 +40,7 @@ func TestNewUeContext_HasNoConn(t *testing.T) {
 
 func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 	radio := newTestRadioForUeConn()
-	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(radio, 1, 10)
 
 	ue := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
@@ -57,7 +56,7 @@ func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 
 func TestUeConn_Release(t *testing.T) {
 	radio := newTestRadioForUeConn()
-	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(radio, 1, 10)
 
 	ue := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
@@ -71,7 +70,7 @@ func TestUeConn_Release(t *testing.T) {
 
 func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 	radio := newTestRadioForUeConn()
-	ranUe1 := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ranUe1 := amf.NewUeConnForTest(radio, 1, 10)
 
 	ue := amf.NewUeContext()
 	ranUe1.AMFForTest().AttachUeConn(t.Context(), ue, ranUe1)
@@ -87,7 +86,7 @@ func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 		t.Fatal("NasConn should be nil right after Release")
 	}
 
-	ranUe2 := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
+	ranUe2 := amf.NewUeConnForTest(radio, 2, 20)
 	ranUe2.AMFForTest().AttachUeConn(t.Context(), ue, ranUe2)
 
 	if ue.Conn() == nil {
@@ -97,8 +96,8 @@ func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 
 func TestUeContext_AttachUeConn_ReplacesOld(t *testing.T) {
 	radio := newTestRadioForUeConn()
-	ranUe1 := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
-	ranUe2 := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
+	ranUe1 := amf.NewUeConnForTest(radio, 1, 10)
+	ranUe2 := amf.NewUeConnForTest(radio, 2, 20)
 
 	ue := amf.NewUeContext()
 	ranUe1.AMFForTest().AttachUeConn(t.Context(), ue, ranUe1)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -27,11 +28,18 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI))
 	if !ok || ue.EMMState() != mme.EMMRegistered {
 		logger.From(ctx, logger.MmeLog).Info("Service Request for an unknown or deregistered UE",
-			zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
+			zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)))
 		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, eps.EMMCauseUEIdentityCannotBeDerived)
 
 		return
 	}
+
+	ctx = logger.Into(ctx, m.RadioLogFields(conn)...)
+	ctx = logger.Into(ctx,
+		logger.SUPI(ue.Supi().String()),
+		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)),
+	)
+	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
 	if !decoded(ctx, "ServiceRequest", err) {
@@ -48,10 +56,10 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	expSeq, ul, err := ue.VerifyServiceRequest(sr)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request verification failed",
-			zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)),
-			zap.Uint8("expected-sequence", expSeq),
-			zap.Uint8("received-sequence", sr.SeqShort),
-			zap.Uint32("stored-ul-count", ul),
+			zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)),
+			zap.Uint8("expected_sequence", expSeq),
+			zap.Uint8("received_sequence", sr.SeqShort),
+			zap.Uint32("stored_ul_count", ul),
 			zap.Error(err))
 
 		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, eps.EMMCauseUEIdentityCannotBeDerived)
@@ -68,6 +76,9 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	// held context, so secure exchange is established on the new connection from the
 	// outset.
 	m.AttachUeConn(ctx, ue, c)
+
+	ctx = logger.Into(ctx, c.LogFields()...)
+
 	c.MarkSecureExchangeEstablished()
 	c.MarkCipheringStarted()
 
@@ -80,13 +91,11 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	ue.AdvanceULCount()
 	ue.PinKeNBFreshness()
 
-	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",
-		zap.Uint32("enb_ue_s1ap_id", uint32(c.ENBUES1APID)),
-		zap.String("imsi", ue.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("Service Request accepted")
 
 	qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
 		return
 	}
 

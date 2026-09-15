@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -200,10 +199,10 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 
 // TS 23.501 §5.3.3.2.4
 func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(New(nil, nil, nil))
 
-	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := NewUeConnForTest(radio, 1, 10)
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
@@ -236,10 +235,10 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 }
 
 func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(New(nil, nil, nil))
 
-	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := NewUeConnForTest(radio, 1, 10)
 
 	ue := NewUeContext()
 	ue.smf = &deregisterTestSmf{}
@@ -311,10 +310,10 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
-	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := NewUeConnForTest(radio, 1, 10)
 
 	ue := NewUeContext()
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
@@ -350,7 +349,7 @@ func TestAttachUeConn_DeactivatesTheDisplacedConnectionsUserPlane(t *testing.T) 
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ue := NewUeContext()
@@ -358,11 +357,11 @@ func TestAttachUeConn_DeactivatesTheDisplacedConnectionsUserPlane(t *testing.T) 
 	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 	ue.ForceStateForTest(Registered)
 
-	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	first := NewUeConnForTest(radio, 1, 10)
 	a.AttachUeConn(t.Context(), ue, first)
 	first.SetN2SessionActive(1)
 
-	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	second := NewUeConnForTest(radio, 2, 11)
 	a.AttachUeConn(t.Context(), ue, second)
 
 	if got := fake.deactivateCalls; len(got) != 1 || got[0] != "ref-1" {
@@ -379,17 +378,17 @@ func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ue := NewUeContext()
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.ForceStateForTest(Registered)
 
-	first := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	first := NewUeConnForTest(radio, 1, 10)
 	a.AttachUeConn(t.Context(), ue, first)
 
-	second := NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	second := NewUeConnForTest(radio, 2, 11)
 	a.AttachUeConn(t.Context(), ue, second)
 
 	if got := fake.deactivateCalls; len(got) != 0 {

@@ -90,11 +90,11 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 
 	if pdrErr != nil {
 		span.RecordError(pdrErr)
-		logger.WithTrace(ctx, logger.UpfLog).Warn("deleted session with residual PDR-delete errors",
+		logger.From(ctx, logger.UpfLog).Warn("deleted session with residual PDR-delete errors",
 			logger.SEID(req.SEID), zap.Error(pdrErr))
 	}
 
-	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
+	logger.From(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
 
 	return nil
 }

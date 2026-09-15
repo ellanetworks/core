@@ -34,7 +34,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		trace.WithAttributes(
 			attrs.SessionOperation("establish"),
 			attrs.SEID(req.SEID),
-			attrs.IMSI(req.IMSI),
+			attrs.SUPIFromIMSI(req.IMSI),
 		),
 	)
 	defer span.End()
@@ -45,7 +45,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
 	if conn.GetSession(seid) != nil {
 		if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
-			logger.WithTrace(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
+			logger.From(ctx, logger.UpfLog).Warn("could not tear down existing session before re-establish",
 				logger.SEID(seid), zap.Error(err))
 		}
 	}
@@ -54,7 +54,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	sess.SetIMSI(req.IMSI)
 	span.AddEvent("session_created", trace.WithAttributes(attrs.SEID(seid)))
 
-	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
+	logger.From(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
 	var createdPDRs []SPDRInfo
 
@@ -75,8 +75,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		sess.PutFar(far.FARID, farInfo)
 		farMap[far.FARID] = farInfo
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule",
-			logger.FARID(far.FARID), zap.Any("farInfo", farInfo))
+		logger.From(ctx, logger.UpfLog).Debug("Created Forwarding Action Rule",
+			logger.FARID(far.FARID), zap.Any("far_info", farInfo))
 	}
 
 	for _, qer := range req.QERs {
@@ -85,8 +85,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		sess.PutQer(qer.QERID, qerInfo)
 		qerMap[qer.QERID] = qerInfo
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule",
-			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
+		logger.From(ctx, logger.UpfLog).Debug("Created QoS Enforcement Rule",
+			logger.QERID(qer.QERID), zap.Any("qer_info", qerInfo))
 	}
 
 	for _, urr := range req.URRs {
@@ -99,7 +99,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		txn.onRollback(func() error { return bpfObjects.DeleteUrr(seid, urr.URRID) })
 
-		logger.WithTrace(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule",
+		logger.From(ctx, logger.UpfLog).Debug("Created Usage Reporting Rule",
 			logger.URRID(urr.URRID),
 		)
 	}
@@ -174,7 +174,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule",
+		logger.From(ctx, logger.UpfLog).Debug("Applied packet detection rule",
 			logger.PDRID(spdrInfo.PdrID))
 
 		createdPDRs = append(createdPDRs, spdrInfo)
@@ -200,7 +200,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 				// No same-family downlink PDR (e.g. an IPv6 framed route on an
 				// IPv4-only session): the route cannot apply here, so skip it. A
 				// dormant route must not deny the UE all connectivity.
-				logger.WithTrace(ctx, logger.UpfLog).Warn("Skipping framed route with no same-family downlink PDR",
+				logger.From(ctx, logger.UpfLog).Warn("Skipping framed route with no same-family downlink PDR",
 					logger.SEID(seid), zap.String("prefix", fr.String()))
 
 				continue
@@ -220,7 +220,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		sess.SetFramedRoutes(installed)
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Applied framed routes",
+		logger.From(ctx, logger.UpfLog).Info("Applied framed routes",
 			logger.SEID(seid), zap.Int("count", len(installed)))
 	}
 
@@ -233,7 +233,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	conn.registerPolicy(req.PolicyID, seid)
 	conn.mu.Unlock()
 
-	logger.WithTrace(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
+	logger.From(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
 
 	advertisedN3IPv4, advertisedN3IPv6 := conn.GetAdvertisedN3Addresses()
 

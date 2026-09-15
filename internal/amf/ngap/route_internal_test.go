@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	ngaplib "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 type capturingWriter struct{ msgs [][]byte }
@@ -25,7 +24,7 @@ func (w *capturingWriter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 }
 
 func newDecodeReportRadio(w amf.NGAPWriter) *amf.Radio {
-	ran := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	ran := &amf.Radio{Conn: w}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
 	return ran

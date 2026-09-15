@@ -69,9 +69,9 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 		return "", err
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("moved a session between systems in idle mode",
+	logger.From(ctx, logger.SmfLog).Info("moved a session between systems in idle mode",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
-		zap.Uint8("ebi", ebi), zap.String("dnn", dnn), zap.Stringer("to", access))
+		zap.Uint8("ebi", ebi), logger.DNN(dnn), zap.Stringer("to", access))
 
 	s.dropSourceRouting(ctx, sc.Ref, dropped)
 

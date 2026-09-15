@@ -27,12 +27,12 @@ func handleUplinkLPPaTransport(ctx context.Context, m *mme.MME, radio *mme.Radio
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.SetLPPaMessage([]byte(msg.LPPaPDU))
 
-	logger.From(ctx, radio.Log).Debug("stored uplink LPPa PDU",
-		zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)),
-		zap.Int("payload-len", len(msg.LPPaPDU)),
+	radio.Log(ctx).Debug("stored uplink LPPa PDU",
+		logger.MMEUeS1apID(uint32(msg.MMEUES1APID)),
+		zap.Int("payload_len", len(msg.LPPaPDU)),
 	)
 }

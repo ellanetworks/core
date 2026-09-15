@@ -24,9 +24,9 @@ func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	m.StopESMGuard(p)
 
 	if ue.BearerReleaseOnly(p) {
-		logger.From(ctx, logger.MmeLog).Info("PDN connection released", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+		logger.From(ctx, logger.MmeLog).Info("PDN connection released", zap.String("apn", p.Apn))
 	} else {
-		logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("EPS bearer deactivated for reactivation; UE will re-attach")
 	}
 
 	m.DeactivatePDN(ctx, ue, p)

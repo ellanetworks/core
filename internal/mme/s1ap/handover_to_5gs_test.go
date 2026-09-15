@@ -430,7 +430,7 @@ func answerRelease(t *testing.T, m *mme.MME, source *captureConn, ue *mme.UeCont
 
 	complete := &s1ap.UEContextReleaseComplete{
 		MMEUES1APID: s1ap.Ptr(conn.MMEUES1APID),
-		ENBUES1APID: s1ap.Ptr(conn.ENBUES1APID),
+		ENBUES1APID: s1ap.Ptr(conn.ENBUES1APID()),
 	}
 
 	b, err := complete.Marshal()
@@ -514,7 +514,7 @@ func TestRelocationCompleteReleasesEvenWhenTheGuardFiredFirst(t *testing.T) {
 func handoverCancel(ue *mme.UeContext) *s1ap.HandoverCancel {
 	return &s1ap.HandoverCancel{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: ue.Conn().ENBUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID(),
 		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}),
 	}
 }
@@ -604,7 +604,7 @@ func TestENBStatusTransferDuringAHandoverToFiveGS(t *testing.T) {
 
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: ue.Conn().ENBUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID(),
 		Container:   s1ap.StatusTransferContainer{0xde, 0xad},
 	}
 

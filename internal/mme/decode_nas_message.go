@@ -82,14 +82,14 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		// forged plain NAS message cannot disrupt an authenticated UE.
 		if connSecured {
 			logger.MmeLog.Warn("discarding plain NAS message: secure exchange already established",
-				zap.String("imsi", ue.IMSI()))
+				logger.SUPI(ue.Supi().String()))
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS discarded: secure exchange established (TS 24.301 §4.4.4.3)")
 		}
 
 		if !plainNasAllowed(mt) {
 			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
-				zap.String("message", EmmMessageTypeName(mt)))
+				logger.MessageType(EmmMessageTypeName(mt)))
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS %s not permitted (TS 24.301 §4.4.4.3)", EmmMessageTypeName(mt))
 		}
@@ -110,7 +110,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if err == nil {
 		if requiresNewContextSecurityHeader(p) && spm.SecurityHeaderType != eps.SHTIntegrityProtectedCipheredNewContext {
 			logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
-				zap.String("imsi", ue.IMSI()))
+				logger.SUPI(ue.Supi().String()))
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail,
 				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.301 §5.4.3.3)")
@@ -118,7 +118,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 
 		if conn.CipheringStarted() && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
 			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
-				zap.String("imsi", ue.IMSI()))
+				logger.SUPI(ue.Supi().String()))
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.301 §4.4.5)")
 		}
@@ -149,7 +149,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 
 	if connSecured {
 		logger.MmeLog.Warn("discarding NAS message: integrity check failed after secure exchange established",
-			zap.String("imsi", ue.IMSI()))
+			logger.SUPI(ue.Supi().String()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: integrity failed after secure exchange (TS 24.301 §4.4.4.3)")
 	}
@@ -160,8 +160,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if securityHeader != eps.SHTIntegrityProtected && securityHeader != eps.SHTIntegrityProtectedNewContext {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
-			zap.Uint8("security-header-type", uint8(securityHeader)),
-			zap.Bool("has-security-context", ue.HasKASME()))
+			zap.Uint8("security_header_type", uint8(securityHeader)),
+			zap.Bool("has_security_context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed (ciphered, unreadable): %v", err)
 	}
@@ -179,11 +179,11 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if !plainNasAllowed(mt) {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
-			zap.String("attempted-message", EmmMessageTypeName(mt)),
-			zap.Uint8("security-header-type", uint8(securityHeader)),
-			zap.Uint32("expected-ul-count", ue.ULCount()),
-			zap.Stringer("integrity-alg", ue.EIA()),
-			zap.Bool("has-security-context", ue.HasKASME()))
+			zap.String("attempted_message", EmmMessageTypeName(mt)),
+			zap.Uint8("security_header_type", uint8(securityHeader)),
+			zap.Uint32("expected_ul_count", ue.ULCount()),
+			zap.Stringer("integrity_alg", ue.EIA()),
+			zap.Bool("has_security_context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed: %s not whitelisted", EmmMessageTypeName(mt))
 	}

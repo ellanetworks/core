@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -20,10 +19,10 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	sourceUeConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	sourceUeConn := amf.NewUeConnForTest(ran, 1, 100)
 	sourceUeConn.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUeConn)
 
-	targetUeConn := amf.NewUeConnForTest(ran, 2, 200, logger.AmfLog)
+	targetUeConn := amf.NewUeConnForTest(ran, 2, 200)
 
 	err := amf.SetHandoverForTest(sourceUeConn, targetUeConn)
 	if err != nil {
@@ -55,7 +54,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	amfUe := amf.NewUeContext()
 	amfUe.ForceStateForTest(amf.Registered)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 100)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
@@ -101,7 +100,7 @@ func TestHandleUEContextReleaseComplete_DeactivatesOnlyTheSessionsTheRANReported
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 100)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
@@ -131,7 +130,7 @@ func TestHandleUEContextReleaseComplete_DeactivatesASessionTheRANStoppedReportin
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 100)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ueConn.SetN2SessionActive(2)
@@ -162,7 +161,7 @@ func TestHandleUEContextReleaseComplete_NoReportedListDeactivatesEverySession(t 
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-2"}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 100, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 100)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 	ueConn.SetN2SessionActive(2)

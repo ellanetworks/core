@@ -122,12 +122,12 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			logger.SmfLog.Info("MTU or IP pool changed, releasing session for re-establishment",
 				logger.SUPI(smContext.Supi.String()),
 				logger.PDUSessionID(smContext.PDUSessionID),
-				zap.Uint16("oldMTU", smContext.PolicyData.MTU),
-				zap.Uint16("newMTU", req.NewPolicy.MTU),
-				zap.String("oldIPv4Pool", smContext.PolicyData.IPv4Pool),
-				zap.String("newIPv4Pool", req.NewPolicy.IPv4Pool),
-				zap.String("oldIPv6Pool", smContext.PolicyData.IPv6Pool),
-				zap.String("newIPv6Pool", req.NewPolicy.IPv6Pool),
+				zap.Uint16("old_mtu", smContext.PolicyData.MTU),
+				zap.Uint16("new_mtu", req.NewPolicy.MTU),
+				zap.String("old_ipv4_pool", smContext.PolicyData.IPv4Pool),
+				zap.String("new_ipv4_pool", req.NewPolicy.IPv4Pool),
+				zap.String("old_ipv6_pool", smContext.PolicyData.IPv6Pool),
+				zap.String("new_ipv6_pool", req.NewPolicy.IPv6Pool),
 			)
 
 			return s.sendSessionRelease(ctx, smContext)
@@ -265,8 +265,8 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		logger.SmfLog.Info("PFCP rules updated during reconciliation",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
-			zap.Bool("qosChange", hasQoSChange),
-			zap.Bool("ambrChange", hasAmbrChange),
+			zap.Bool("qos_change", hasQoSChange),
+			zap.Bool("ambr_change", hasAmbrChange),
 			zap.String("reason", string(req.Reason)),
 		)
 	}
@@ -399,10 +399,10 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	logger.SmfLog.Info("session modification N1+N2 sent",
 		logger.SUPI(smContext.Supi.String()),
 		logger.PDUSessionID(smContext.PDUSessionID),
-		zap.Bool("ambrChange", hasAmbrChange),
-		zap.Bool("qosChange", hasQoSChange),
-		zap.Bool("dnsChange", hasDNSChange),
-		zap.Bool("mappedEPSBearerRefresh", mappedEPSQoS != nil),
+		zap.Bool("ambr_change", hasAmbrChange),
+		zap.Bool("qos_change", hasQoSChange),
+		zap.Bool("dns_change", hasDNSChange),
+		zap.Bool("mapped_eps_bearer_refresh", mappedEPSQoS != nil),
 	)
 
 	return nil

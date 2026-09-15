@@ -185,7 +185,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		logger.WithTrace(ctx, logger.DBLog).Error("Failed to get operator", zap.Error(err))
+		logger.From(ctx, logger.DBLog).Error("Failed to get operator", zap.Error(err))
 
 		return false
 	}

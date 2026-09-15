@@ -128,6 +128,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 
 	srv := &http.Server{
 		Addr:              httpAddr,
+		ErrorLog:          logger.StdLogger(logger.APILog),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
@@ -513,7 +514,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	for _, netIf := range interfaceDBKernelMap {
 		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(ctx, netIf)
 		if err != nil {
-			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Any("interface", netIf), zap.Error(err))
+			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Int("interface_id", int(netIf)), zap.Error(err))
 		}
 	}
 

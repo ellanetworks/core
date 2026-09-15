@@ -94,7 +94,7 @@ func NewSettingsReconciler(service SettingsService, store SettingsStore, filterB
 		filterBuilder: filterBuilder,
 		wakeup:        wakeup,
 		backstop:      defaultSettingsReconcileBackstop,
-		log:           logger.EllaLog.With(zap.String("component", "BGPSettingsReconciler")),
+		log:           logger.Scope("BGP/settings-reconciler"),
 	}
 }
 
@@ -227,7 +227,7 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
 		}
 
 		r.log.Info("started BGP service from reconcile",
-			zap.Int("peers", len(desiredPeers)),
+			zap.Int("peer_count", len(desiredPeers)),
 			zap.Bool("advertising", advertising))
 
 	case desiredSettings.Enabled && r.service.IsRunning():

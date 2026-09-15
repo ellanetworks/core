@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
@@ -182,16 +183,17 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
+func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
+	ueConn.bindSupi(ue.Supi())
 
 	var displaced *UeConn
 
 	if oldUeConn != nil && oldUeConn != ueConn {
 		if oldUeConn.ue.Load() == ue {
-			oldUeConn.Log().Info("Detached UeContext from previous UeConn")
+			oldUeConn.Log(ctx).Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
 			displaced = oldUeConn
 		}
@@ -219,7 +221,7 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	}
 
 	a.mu.Lock()
-	displaced := a.attachUeConnLocked(ue, ueConn)
+	displaced := a.attachUeConnLocked(ctx, ue, ueConn)
 	a.mu.Unlock()
 
 	if displaced != nil {
@@ -251,7 +253,7 @@ func (a *AMF) deactivateDisplacedUserPlane(ctx context.Context, ue *UeContext, d
 		displaced.SetN2SessionInactive(pduSessionID)
 
 		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
-			logger.From(ctx, displaced.Log()).Warn("could not deactivate the user plane of a displaced connection",
+			displaced.Log(ctx).Warn("could not deactivate the user plane of a displaced connection",
 				zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
@@ -675,7 +677,12 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 }
 
 func (ue *UeContext) SuspendRegistration(ctx context.Context) {
-	if conn := ue.Conn(); conn != nil {
+	conn := ue.Conn()
+
+	log := conn.Log(ctx)
+	if conn == nil {
+		log = log.With(logger.SUPI(ue.Supi().String()))
+	} else {
 		conn.Release(ctx)
 	}
 
@@ -684,11 +691,11 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 
 	ue.mu.Lock()
 
-	ue.transitionToLocked(Registered)
+	ue.transitionToLocked(ctx, Registered)
 
 	ue.mu.Unlock()
 
-	logger.From(ctx, logger.AmfLog).Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained", logger.SUPI(ue.supi.String()))
+	log.Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained")
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {
@@ -701,7 +708,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.mu.Lock()
 
-	ue.transitionToLocked(Deregistered)
+	ue.transitionToLocked(ctx, Deregistered)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -723,7 +730,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 		}
 	}
 
-	logger.From(ctx, logger.AmfLog).Debug("ue deregistered", logger.SUPI(ue.supi.String()))
+	logger.From(ctx, logger.AmfLog).Info("UE deregistered", logger.RAT(metrics.RAT5G))
 }
 
 func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
@@ -733,7 +740,7 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 
 	for _, ref := range ue.SmContextRefs() {
 		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), zap.Uint8("PduSessionID", ref.PduSessionID))
+			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}
 }

@@ -22,7 +22,7 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 	pagingCap := []byte{0xaa, 0xbb}
 	ind := &s1ap.UECapabilityInfoIndication{
 		MMEUES1APID:                ue.Conn().MMEUES1APID,
-		ENBUES1APID:                ue.Conn().ENBUES1APID,
+		ENBUES1APID:                ue.Conn().ENBUES1APID(),
 		UERadioCapability:          radioCap,
 		UERadioCapabilityForPaging: pagingCap,
 	}

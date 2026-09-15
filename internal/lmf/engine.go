@@ -64,14 +64,14 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 
 	if IsLocationStale(loc, maxAge) {
 		logger.LmfLog.Info("location stale, triggering refresh",
-			zap.String("supi", supi.String()),
-			zap.Int32("maxAge", maxAge),
+			logger.SUPI(supi.String()),
+			zap.Int32("max_age", maxAge),
 		)
 
 		refreshed, err := l.refreshLocation(ctx, supi, loc)
 		if err != nil {
 			logger.LmfLog.Warn("location refresh failed, returning stale location",
-				zap.String("supi", supi.String()),
+				logger.SUPI(supi.String()),
 				zap.Error(err),
 			)
 		} else {
@@ -84,7 +84,7 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	// N3IWF has no cell coordinate — skip coordinate resolution.
 	if loc.N3gaLocation != nil && loc.EutraLocation == nil && loc.NrLocation == nil {
 		logger.LmfLog.Info("location computed",
-			zap.String("supi", supi.String()),
+			logger.SUPI(supi.String()),
 			zap.String("method", "cell_id"),
 			zap.String("access_type", result.AccessType),
 		)
@@ -100,7 +100,7 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	applyCellCoordinate(result, coord)
 
 	logger.LmfLog.Info("location computed",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		zap.String("method", "cell_id"),
 		zap.String("access_type", result.AccessType),
 	)
@@ -118,7 +118,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 	defer cancel()
 
 	logger.LmfLog.Info("A-GNSS positioning via LPP",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		zap.String("method", string(method)),
 	)
 

@@ -97,7 +97,7 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 	logger.RaftLog.Info("Starting cluster discovery",
 		zap.Int("node_id", m.nodeID),
 		zap.Bool("has_join_token", m.config.HasJoinToken),
-		zap.Int("peers", len(m.config.Peers)),
+		zap.Int("peer_count", len(m.config.Peers)),
 		zap.Duration("warn_after", slowAfter),
 	)
 
@@ -215,8 +215,8 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 		if m.config.SchemaVersion < peerSchema {
 			logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
 				zap.String("peer", peerAddr),
-				zap.Int("local", m.config.SchemaVersion),
-				zap.Int("remote", peerSchema),
+				zap.Int("local_schema", m.config.SchemaVersion),
+				zap.Int("remote_schema", peerSchema),
 			)
 
 			continue

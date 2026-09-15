@@ -104,7 +104,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 				if !nextHop.IsValid() || nextHop == n6AddrV4 {
 					b.logger.Debug("skipping route: invalid or own next-hop",
 						zap.String("prefix", prefix.String()),
-						zap.String("nextHop", nextHop.String()),
+						zap.String("next_hop", nextHop.String()),
 						zap.String("peer", path.PeerAddress.String()))
 
 					continue
@@ -140,7 +140,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 				b.logger.Debug("accepting route from peer",
 					zap.String("prefix", prefix.String()),
-					zap.String("nextHop", nextHop.String()),
+					zap.String("next_hop", nextHop.String()),
 					zap.String("peer", peerAddr))
 
 				ribRoutes = append(ribRoutes, ribEntry{
@@ -201,8 +201,8 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 		b.logger.Debug("route changed, updating in kernel",
 			zap.String("prefix", prefixStr),
-			zap.String("oldNextHop", lr.gateway.String()),
-			zap.String("newNextHop", r.nextHop.String()),
+			zap.String("old_next_hop", lr.gateway.String()),
+			zap.String("new_next_hop", r.nextHop.String()),
 			zap.String("peer", r.peer))
 
 		err := b.kernel.ReplaceRoute(ctx, r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
@@ -221,7 +221,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 		b.logger.Info("updated BGP route",
 			zap.String("prefix", prefixStr),
-			zap.String("nextHop", r.nextHop.String()),
+			zap.String("next_hop", r.nextHop.String()),
 			zap.String("peer", r.peer),
 		)
 	}
@@ -250,7 +250,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 		b.logger.Debug("installing new route to kernel",
 			zap.String("prefix", prefixStr),
-			zap.String("nextHop", r.nextHop.String()),
+			zap.String("next_hop", r.nextHop.String()),
 			zap.String("peer", r.peer))
 
 		err := b.kernel.ReplaceRoute(ctx, r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
@@ -271,7 +271,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 		b.logger.Info("installed BGP route",
 			zap.String("prefix", prefixStr),
-			zap.String("nextHop", r.nextHop.String()),
+			zap.String("next_hop", r.nextHop.String()),
 			zap.String("peer", r.peer),
 		)
 	}
@@ -483,7 +483,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				if !nextHop.IsValid() {
 					b.logger.Debug("skipping route during replay: invalid next-hop",
 						zap.String("prefix", prefixStr),
-						zap.String("nextHop", nextHop.String()),
+						zap.String("next_hop", nextHop.String()),
 						zap.String("peer", path.PeerAddress.String()))
 
 					continue
@@ -493,7 +493,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				if nextHop == b.n6AddrV4 {
 					b.logger.Debug("skipping route during replay: own next-hop",
 						zap.String("prefix", prefixStr),
-						zap.String("nextHop", nextHop.String()),
+						zap.String("next_hop", nextHop.String()),
 						zap.String("peer", path.PeerAddress.String()))
 
 					continue
@@ -540,7 +540,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 
 				b.logger.Debug("installing route during RIB replay",
 					zap.String("prefix", prefixStr),
-					zap.String("nextHop", nextHop.String()),
+					zap.String("next_hop", nextHop.String()),
 					zap.String("peer", peerAddr))
 
 				err := b.kernel.ReplaceRoute(ctx, prefix, nextHop, bgpRouteMetric, kernel.N6)

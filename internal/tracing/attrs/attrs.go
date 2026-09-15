@@ -3,13 +3,34 @@
 
 package attrs
 
-import "go.opentelemetry.io/otel/attribute"
+import (
+	"context"
 
-func SUPI(val string) attribute.KeyValue { return attribute.String("ue.supi", val) }
+	"github.com/ellanetworks/core/etsi"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
 
-func IMSI(val string) attribute.KeyValue { return attribute.String("ue.imsi", val) }
+func SUPI(val string) attribute.KeyValue { return identity("ue.supi", val) }
 
-func SUCI(val string) attribute.KeyValue { return attribute.String("ue.suci", val) }
+func SUPIFromIMSI(imsi string) attribute.KeyValue {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return attribute.KeyValue{}
+	}
+
+	return SUPI(supi.String())
+}
+
+func SUCI(val string) attribute.KeyValue { return identity("ue.suci", val) }
+
+func identity(key, val string) attribute.KeyValue {
+	if val == "" {
+		return attribute.KeyValue{}
+	}
+
+	return attribute.String(key, val)
+}
 
 func PDUSessionID(val uint8) attribute.KeyValue {
 	return attribute.Int("pdu_session.id", int(val))
@@ -44,3 +65,11 @@ func NodeID(val int) attribute.KeyValue { return attribute.Int("cluster.node_id"
 func LeaseIPv4(val string) attribute.KeyValue { return attribute.String("ip_lease.ipv4", val) }
 
 func LeaseIPv6(val string) attribute.KeyValue { return attribute.String("ip_lease.ipv6", val) }
+
+func IdentifyUE(ctx context.Context, supi string) {
+	if supi == "" {
+		return
+	}
+
+	trace.SpanFromContext(ctx).SetAttributes(SUPI(supi))
+}

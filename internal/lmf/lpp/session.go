@@ -74,7 +74,7 @@ func NewSession(supi, sessionID, method string) *Session {
 		method:        method,
 		state:         SessionIdle,
 		transactionID: 0x00,
-		log:           logger.LmfLog.With(zap.String("supi", supi), zap.String("session_id", sessionID)),
+		log:           logger.LmfLog.With(logger.SUPI(supi), zap.String("session_id", sessionID)),
 	}
 }
 

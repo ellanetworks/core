@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -33,7 +32,7 @@ func TestHandleUplinkNRPPaTransport_RoutingID(t *testing.T) {
 			ran := newTestRadio(amfInstance)
 
 			ue := amf.NewUeContext()
-			ueConn := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
+			ueConn := amf.NewUeConnForTest(ran, 2, 1)
 			ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 			for _, id := range tt.addressed {

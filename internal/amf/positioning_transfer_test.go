@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 func idlePageableUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *fakeNGAPSender) {
@@ -164,7 +163,7 @@ func TestTransferN1LPPMsg_ConnectedUE_SendsDLNASTransport(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := amfInstance.TransferN1LPPMsg(context.Background(), ue.SupiForTest(), []byte{0x01, 0x02, 0x03, 0x04}, []byte{0xaa}); err != nil {

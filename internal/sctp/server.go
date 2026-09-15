@@ -169,7 +169,7 @@ func (s *Server) Serve(ctx context.Context, ln *Listener) {
 		addr = ln.reqAddr
 	}
 
-	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", addr.String())}
+	logFields := []zap.Field{zap.String("listener", s.cfg.Name), zap.String("address", addr.String())}
 	if ln.ifaceName != "" {
 		logFields = append(logFields, zap.String("interface_name", ln.ifaceName))
 	}

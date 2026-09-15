@@ -46,8 +46,7 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
 		err := ue.CitesCurrentNgKSI(req.NgKSI)
 		if err == nil {
-			logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
-				logger.SUPI(resp.SUPI.String()))
+			logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context")
 
 			conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
@@ -69,8 +68,7 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		NeedsSecurityModeControl: true,
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change",
-		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
+	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change", zap.Int("pdn_connections", len(resp.PDNConnections)))
 }
 
 func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) bool {
@@ -97,18 +95,18 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		ref, err := amfInstance.Session.TransferIdleTo5GS(ctx, supi, c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("a PDN connection could not move onto 5GS; leaving it behind",
-				zap.Error(err), zap.Uint8("pdu_session_id", c.PDUSessionID), zap.String("apn", c.APN))
+				zap.Error(err), logger.PDUSessionID(c.PDUSessionID), zap.String("apn", c.APN))
 
 			continue
 		}
 
 		if err := ue.CreateSmContext(c.PDUSessionID, ref, &snssai, c.APN); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to open the SM context of an arriving PDN connection; releasing the session it moved",
-				zap.Error(err), zap.Uint8("pdu_session_id", c.PDUSessionID))
+				zap.Error(err), logger.PDUSessionID(c.PDUSessionID))
 
 			if err := amfInstance.Session.ReleaseSmContext(ctx, ref); err != nil {
 				logger.From(ctx, logger.AmfLog).Warn("failed to release the session of a PDN connection the AMF could not adopt",
-					zap.Error(err), zap.Uint8("pdu_session_id", c.PDUSessionID))
+					zap.Error(err), logger.PDUSessionID(c.PDUSessionID))
 			}
 
 			continue
@@ -121,11 +119,10 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 
 	if err := amfInstance.AckMMContext(ctx, supi, transferred); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("the MME refused the context acknowledgement for an idle-mode change",
-			zap.Error(err), logger.SUPI(supi.String()))
+			zap.Error(err))
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("adopted the PDN connections of a UE arriving from EPS in idle mode",
-		logger.SUPI(supi.String()), zap.Int("adopted", len(transferred)),
+	logger.From(ctx, logger.AmfLog).Info("adopted the PDN connections of a UE arriving from EPS in idle mode", zap.Int("adopted", len(transferred)),
 		zap.Int("offered", len(arriving.PDN)))
 
 	return true
