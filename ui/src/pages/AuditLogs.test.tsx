@@ -58,6 +58,15 @@ const lastLogParams = () => {
   return Object.fromEntries(request.params);
 };
 
+const timeRangeButton = () =>
+  screen.getByRole("button", { name: /^Time range:/ });
+
+const openTimeRange = async (user: ReturnType<typeof userEvent.setup>) => {
+  if (screen.queryByLabelText("From")) return;
+  await user.click(timeRangeButton());
+  await screen.findByLabelText("From");
+};
+
 const waitForLogRequests = (count: number) =>
   waitFor(() => expect(logRequests().length).toBeGreaterThanOrEqual(count));
 
@@ -109,8 +118,9 @@ describe("AuditLogs filters", () => {
 
 describe("AuditLogs date range accessibility", () => {
   const invert = async (user: ReturnType<typeof userEvent.setup>) => {
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    await openTimeRange(user);
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -118,12 +128,13 @@ describe("AuditLogs date range accessibility", () => {
     await screen.findByRole("alert");
   };
 
-  it.each(["Start date", "End date"])(
+  it.each(["From", "To"])(
     "describes the %s field with the reason it is invalid",
     async (label) => {
       const user = userEvent.setup();
       await renderAuditLogs();
       await waitForLogRequests(1);
+      await openTimeRange(user);
 
       await invert(user);
 
@@ -137,16 +148,14 @@ describe("AuditLogs date range accessibility", () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await waitForLogRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
+    const start = screen.getByLabelText("From");
     await user.clear(start);
     await user.type(start, "2026-08-10");
 
     await waitFor(() =>
-      expect(screen.getByLabelText("End date")).toHaveAttribute(
-        "min",
-        "2026-08-10",
-      ),
+      expect(screen.getByLabelText("To")).toHaveAttribute("min", "2026-08-10"),
     );
   });
 });
@@ -156,9 +165,10 @@ describe("AuditLogs stale results", () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await screen.findAllByText("create_subscriber");
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -172,9 +182,10 @@ describe("AuditLogs stale results", () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await waitForLogRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -190,31 +201,37 @@ describe("AuditLogs date range", () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await waitForLogRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
     await user.type(end, "2026-08-01");
 
     expect(
-      await screen.findByText("End date must be on or after the start date."),
-    ).toBeVisible();
+      (
+        await screen.findAllByText(
+          "End date must be on or after the start date.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("does not query an inverted range", async () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await waitForLogRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
     await user.type(end, "2026-08-01");
-    await screen.findByText("End date must be on or after the start date.");
+    await screen.findAllByText("End date must be on or after the start date.");
 
     const inverted = logRequests().filter((r) => {
       const from = r.params.get("start");
