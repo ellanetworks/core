@@ -155,7 +155,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 	}, nil, &fakeSmfSbi{SMF: smfInstance})
 	sourceRan.BindAMFForTest(amfInstance)
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -231,7 +231,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
@@ -290,7 +290,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	amfInstance.ClearRadiosForTest()
 
@@ -353,7 +353,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetSender := &releaseSignalSender{fakeNGAPSender: targetNGAPSender, released: make(chan struct{})}
@@ -436,7 +436,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -517,7 +517,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 			sourceRan.BindAMFForTest(amfInstance)
 
 			sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-			sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+			sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 			HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
@@ -577,7 +577,7 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetRan := &amf.Radio{
 		Log:   logger.AmfLog,

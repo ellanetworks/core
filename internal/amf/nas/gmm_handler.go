@@ -41,7 +41,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case *fgs.ULNASTransport:
 		return handleULNASTransport(ctx, amfInstance, ue, msg)
 	case *fgs.ConfigurationUpdateComplete:
-		return handleConfigurationUpdateComplete(amfInstance, ue)
+		return handleConfigurationUpdateComplete(ctx, amfInstance, ue)
 	case *fgs.NotificationResponse:
 		return handleNotificationResponse(ctx, amfInstance, ue, msg)
 	case *fgs.DeregistrationRequestUEOriginating:

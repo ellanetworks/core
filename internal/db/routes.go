@@ -59,16 +59,19 @@ type Route struct {
 }
 
 func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) ([]Route, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", RoutesTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -119,14 +122,17 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 // ListAllRoutes returns every route. The framed-route overlap validation reads
 // the full set to enforce non-overlap against the global routing table.
 func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -158,14 +164,17 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 }
 
 func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -196,14 +205,17 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 }
 
 func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, error) {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -237,14 +249,17 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 }
 
 func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -268,14 +283,17 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 }
 
 func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", RoutesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -301,14 +319,17 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 }
 
 func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", RoutesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -333,14 +354,17 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 // NumRoutes returns route count
 func (db *Database) CountRoutes(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RoutesTableName),
+			attribute.String("db.collection.name", RoutesTableName),
 		),
 	)
 	defer span.End()

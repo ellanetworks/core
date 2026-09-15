@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type releaseGuardTestSmf struct {
@@ -35,7 +36,7 @@ func releaseGuardFixture(t *testing.T) (*UeConn, *releaseGuardTestSmf) {
 
 	ue := NewUeContext()
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 	ueConn.SetN2SessionActive(1)
 
 	t.Cleanup(ueConn.AbortN2Releases)
@@ -46,14 +47,14 @@ func releaseGuardFixture(t *testing.T) (*UeConn, *releaseGuardTestSmf) {
 func TestUnansweredPDUSessionResourceReleaseCompletesLocally(t *testing.T) {
 	ueConn, smf := releaseGuardFixture(t)
 
-	ueConn.armN2Release(1)
+	ueConn.armN2Release(t.Context(), 1)
 
 	g := ueConn.n2Releases.open[1]
 	if g == nil {
 		t.Fatal("sending a PDU Session Resource Release Command armed no supervision")
 	}
 
-	ueConn.expireN2Release(1, g)
+	ueConn.expireN2Release(trace.SpanContext{}, 1, g)
 
 	if !ueConn.N2SessionInactive(1) {
 		t.Error("the connection still records AN resources for a release the NG-RAN node never answered")
@@ -67,7 +68,7 @@ func TestUnansweredPDUSessionResourceReleaseCompletesLocally(t *testing.T) {
 func TestAnsweredPDUSessionResourceReleaseDisarmsTheGuard(t *testing.T) {
 	ueConn, smf := releaseGuardFixture(t)
 
-	ueConn.armN2Release(1)
+	ueConn.armN2Release(t.Context(), 1)
 
 	g := ueConn.n2Releases.open[1]
 	if g == nil {
@@ -75,7 +76,7 @@ func TestAnsweredPDUSessionResourceReleaseDisarmsTheGuard(t *testing.T) {
 	}
 
 	ueConn.EndN2Release(1)
-	ueConn.expireN2Release(1, g)
+	ueConn.expireN2Release(trace.SpanContext{}, 1, g)
 
 	if len(smf.relRspCalls) != 0 {
 		t.Errorf("a disarmed guard still completed the release at the SMF: %v", smf.relRspCalls)

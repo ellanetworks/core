@@ -316,7 +316,7 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 	t.Helper()
 
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 
 	kasme := make([]byte, 32)
 	for i := range kasme {

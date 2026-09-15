@@ -144,7 +144,7 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 			ue, source, target := handoverUE(t, m)
 			secondPDN(ue)
 
-			handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+			handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 				initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 			req := handoverRequestOn(t, target)
@@ -153,7 +153,7 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 			}
 
 			ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, tt.failed)
-			handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+			handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 				successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 			cmd := handoverCommandOn(t, source)
@@ -214,7 +214,7 @@ func TestS1HandoverCommandReportsABearerTheCoreCouldNotOffer(t *testing.T) {
 	unusable.Qci, unusable.Arp = 5, 7
 	unusable.SgwFTEID = models.FTEID{TEID: 0x2222}
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
@@ -223,7 +223,7 @@ func TestS1HandoverCommandReportsABearerTheCoreCouldNotOffer(t *testing.T) {
 	}
 
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
-	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	cmd := handoverCommandOn(t, source)
@@ -239,7 +239,7 @@ func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 	req := sampleHandoverRequired(ue)
 	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x99}
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, req.Marshal)))
 
 	fail := preparationFailureOn(t, source)
@@ -263,7 +263,7 @@ func TestS1HandoverRequiredWithoutTargetIDIsRejected(t *testing.T) {
 
 	body := dropIEs(t, initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)), ieIDHandoverTargetID)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), body)
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), body)
 
 	if target.count() != 0 {
 		t.Fatalf("a HANDOVER REQUIRED missing a mandatory reject-criticality IE was acted on: %d messages to the target",
@@ -290,7 +290,7 @@ func TestS1HandoverRequiredWithoutCauseStillPrepares(t *testing.T) {
 		t.Fatal("dropIEs did not strip the Cause")
 	}
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), body)
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), body)
 
 	if target.count() != 1 {
 		t.Fatalf("the preparation did not reach the target: %d messages", target.count())
@@ -307,7 +307,7 @@ func TestS1HandoverRequestNCCWrapsToZero(t *testing.T) {
 
 	ue.SetNCCForTest(7)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	if got := handoverRequestOn(t, target).SecurityContext.NextHopChainingCount; got != 0 {
@@ -323,7 +323,7 @@ func TestS1HandoverRequestCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
@@ -370,14 +370,14 @@ func TestS1HandoverFailureWithoutENBUES1APIDFailsPreparation(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	targetMME := handoverRequestOn(t, target).MMEUES1APID
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
 
 	fail := &s1ap.HandoverFailure{MMEUES1APID: s1ap.Ptr(targetMME), Cause: s1ap.Ptr(cause)}
-	handleHandoverFailure(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverFailure(context.Background(), m, mme.NewRadioForTest(target),
 		unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
 
 	got := preparationFailureOn(t, source)
@@ -398,7 +398,7 @@ func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
@@ -406,7 +406,7 @@ func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	ack.ERABAdmitted[0].TransportLayerAddress = s1ap.TransportLayerAddress{10, 4, 0}
 
-	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	rel := parseUEContextReleaseCommand(t, lastSent(t, target))
@@ -432,7 +432,7 @@ func TestS1AcknowledgeWithoutENBUES1APIDIsNotActedOn(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
@@ -441,7 +441,7 @@ func TestS1AcknowledgeWithoutENBUES1APIDIsNotActedOn(t *testing.T) {
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	body := dropIEs(t, successfulValue(t, mustMarshal(t, ack.Marshal)), ieIDHandoverENBUEID)
 
-	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target), body)
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target), body)
 
 	if source.count() != sourceBefore {
 		t.Errorf("an acknowledge with no eNB UE S1AP ID produced %d messages to the source",
@@ -465,7 +465,7 @@ func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 		t.Fatal("the downlink was switched to the target before HANDOVER NOTIFY")
 	}
 
-	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target),
 		initiatingValue(t, mustMarshal(t, handoverNotify(targetMME, targetENB).Marshal)))
 
 	pdn := m.LookupPDN(ue, mme.DefaultERABID)
@@ -489,16 +489,16 @@ func TestS1HandoverNotifyReleasesTheRejectedPDNConnection(t *testing.T) {
 	ue, source, target := handoverUE(t, m)
 	secondPDN(ue)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
 
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, []uint8{6})
-	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
-	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target),
 		initiatingValue(t, mustMarshal(t, handoverNotify(req.MMEUES1APID, ackTargetENBUEID).Marshal)))
 
 	if m.LookupPDN(ue, 6) != nil {
@@ -537,7 +537,7 @@ func TestS1HandoverNotifyToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 		t.Fatal("dropIEs did not strip the ignore-criticality IEs")
 	}
 
-	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target), body)
+	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target), body)
 
 	if ue.HasHandoverForTest() {
 		t.Error("the handover did not complete without E-UTRAN CGI and TAI")
@@ -559,7 +559,7 @@ func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}
 
 	cancel := &s1ap.HandoverCancel{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB, Cause: s1ap.Ptr(cause)}
-	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	rel := parseUEContextReleaseCommand(t, lastSent(t, target))
@@ -614,7 +614,7 @@ func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 			Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}),
 		}).Marshal)), ieIDHandoverCause)
 
-	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(source), body)
+	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), body)
 
 	if target.count() != targetBefore+1 {
 		t.Errorf("a HANDOVER CANCEL without Cause did not release the target: %d new messages",
@@ -643,7 +643,7 @@ func TestS1MMEStatusTransferAddressesTheTargetWithTheSameContainer(t *testing.T)
 
 	sourceBefore := source.count()
 
-	handleENBStatusTransfer(m, context.Background(), mme.NewRadioForTest(source),
+	handleENBStatusTransfer(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, st.Marshal)))
 
 	im, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
@@ -676,7 +676,7 @@ func TestS1HandoverCompletesWithoutAStatusTransfer(t *testing.T) {
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
-	handleHandoverNotify(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverNotify(context.Background(), m, mme.NewRadioForTest(target),
 		initiatingValue(t, mustMarshal(t, handoverNotify(targetMME, targetENB).Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -694,7 +694,7 @@ func TestS1StatusTransferWithNoHandoverIsNotRelayed(t *testing.T) {
 		Container:   s1ap.StatusTransferContainer{0x01},
 	}
 
-	handleENBStatusTransfer(m, context.Background(), mme.NewRadioForTest(source),
+	handleENBStatusTransfer(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, st.Marshal)))
 
 	if target.count() != 0 {
@@ -720,7 +720,7 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 	ue, source, target := handoverUE(t, m)
 	secondPDN(ue)
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	req := handoverRequestOn(t, target)
@@ -730,7 +730,7 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	ack.ERABFailedToSetup = []s1ap.ERABItem{{ERABID: 6, Cause: targetCause}}
 
-	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	cmd := handoverCommandOn(t, source)

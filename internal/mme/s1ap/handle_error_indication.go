@@ -32,12 +32,12 @@ func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enb
 	return ue, ueConn, true
 }
 
-func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
+func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
-		logger.MmeLog.Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
+		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
-		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
@@ -46,27 +46,27 @@ func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1
 	// whatever ue.active holds at each read.
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
+		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
-		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
 
 	if ueConn.Conn() != conn {
-		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
+		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
-		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
 	}
 
 	if ueConn.ENBUES1APID != enbID {
-		logger.MmeLog.Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
+		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
 			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)),
 			zap.Uint32("stored_enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
 			zap.Uint32("received_enb_ue_s1ap_id", uint32(enbID)))
-		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
+		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
 
 		return nil, nil, false
 	}
@@ -81,22 +81,22 @@ var causeMissingUES1APID = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1a
 
 // resolveUEIDs is resolveUE for a message whose UE S1AP IDs carry ignore
 // criticality and may therefore be absent.
-func resolveUEIDs(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
+func resolveUEIDs(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	if mmeID == nil || enbID == nil {
-		logger.MmeLog.Warn("UE-associated S1AP message without both UE S1AP IDs")
-		sendErrorIndication(m, conn, mmeID, enbID, causeMissingUES1APID)
+		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message without both UE S1AP IDs")
+		sendErrorIndication(ctx, m, conn, mmeID, enbID, causeMissingUES1APID)
 
 		return nil, nil, false
 	}
 
-	return resolveUE(m, conn, *mmeID, *enbID)
+	return resolveUE(ctx, m, conn, *mmeID, *enbID)
 }
 
 // sendErrorIndication replies to the sending eNB with an ERROR INDICATION
 // carrying the UE S1AP ID pair and a cause (TS 36.413).
-func sendErrorIndication(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
+func sendErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID, cause s1ap.Cause) {
 	c := cause
-	emitErrorIndication(m, context.Background(), conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
+	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
 }
 
 // handleParseError reports a failed decode of an eNB-initiated initiating
@@ -106,22 +106,22 @@ func sendErrorIndication(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1API
 // An abstract syntax error carries the cause and the per-IE diagnostics the
 // rejection must report (TS 36.413 §10.3.5); where the message is UE
 // associated, the UE S1AP IDs that did decode address it (§8.7.2.2).
-func handleParseError(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
-	logger.MmeLog.Warn("failed to decode S1AP message",
+func handleParseError(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
+	logger.From(ctx, logger.MmeLog).Warn("failed to decode S1AP message",
 		zap.Int("procedure-code", int(proc)),
 		zap.Error(err))
 
-	sendParseErrorIndication(m, context.Background(), conn, proc, err)
+	sendParseErrorIndication(ctx, m, conn, proc, err)
 }
 
 // sendParseErrorIndication reports a failed decode with an ERROR INDICATION.
-func sendParseErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
+func sendParseErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
 	trigger := s1ap.TriggeringInitiatingMessage
 	crit := s1ap.CriticalityReject
 
 	ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err)
 	if !ok {
-		emitErrorIndication(m, ctx, conn, &s1ap.ErrorIndication{
+		emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 			Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError},
 			CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
 				ProcedureCode:        &proc,
@@ -136,7 +136,7 @@ func sendParseErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWrit
 	diag := ase.ErrorIndicationDiagnostics()
 	mmeID, enbID := ase.UEIDs()
 
-	emitErrorIndication(m, ctx, conn, &s1ap.ErrorIndication{
+	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 		MMEUES1APID:            mmeID,
 		ENBUES1APID:            enbID,
 		Cause:                  &ase.Cause,
@@ -148,7 +148,7 @@ func sendParseErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWrit
 // survived. TS 36.413 §10.3.4.2 requires reporting a not-comprehended IE
 // marked notify; ignore-criticality entries are carried silently and
 // §9.2.1.21 forbids naming them.
-func reportDiagnostics(m *mme.MME, ctx context.Context, conn mme.S1APWriter, proc s1ap.ProcedureCode,
+func reportDiagnostics(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode,
 	trigger s1ap.TriggeringMessage, ids ueIDs, diag s1ap.Diagnostics,
 ) {
 	if !diag.ReportRequired() {
@@ -157,7 +157,7 @@ func reportDiagnostics(m *mme.MME, ctx context.Context, conn mme.S1APWriter, pro
 
 	crit := s1ap.ProcedureCriticality(proc)
 
-	emitErrorIndication(m, ctx, conn, &s1ap.ErrorIndication{
+	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 		MMEUES1APID: ids.mme,
 		ENBUES1APID: ids.enb,
 		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
@@ -202,7 +202,7 @@ func rejectedUEIDs(err error) (*s1ap.MMEUES1APID, *s1ap.ENBUES1APID) {
 // Error Indication procedure".
 //
 // build may be nil for a procedure that defines no unsuccessful outcome.
-func rejectWithFailure(m *mme.MME, ctx context.Context, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error,
+func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error,
 	build func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error),
 	msgType mme.S1APProcedure,
 ) {
@@ -230,15 +230,15 @@ func rejectWithFailure(m *mme.MME, ctx context.Context, conn mme.S1APWriter, pro
 		log.Warn("cannot build the unsuccessful outcome; reporting by Error Indication", zap.Error(buildErr))
 	}
 
-	sendParseErrorIndication(m, ctx, conn, proc, err)
+	sendParseErrorIndication(ctx, m, conn, proc, err)
 }
 
 // sendProtocolErrorIndication answers a PDU the MME could not decode with a cause-only
 // ERROR INDICATION (TS 36.413 §10.2). It carries no Criticality Diagnostics because a
 // transfer-syntax error decodes nothing to cite; it applies where a decode failed
 // outright.
-func sendProtocolErrorIndication(m *mme.MME, conn mme.S1APWriter, cause int) {
-	emitErrorIndication(m, context.Background(), conn, &s1ap.ErrorIndication{
+func sendProtocolErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, cause int) {
+	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
 	})
 }
@@ -248,7 +248,7 @@ func sendProtocolErrorIndication(m *mme.MME, conn mme.S1APWriter, cause int) {
 // or Ignore-and-Notify draw an ERROR INDICATION carrying Criticality Diagnostics
 // (Procedure Code, Triggering Message, Procedure Criticality); Ignore is dropped
 // silently, as most procedures an eNB sends that the MME does not handle are.
-func respondToUnknownProcedure(m *mme.MME, conn mme.S1APWriter, im *s1ap.InitiatingMessage) {
+func respondToUnknownProcedure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, im *s1ap.InitiatingMessage) {
 	var cause int
 
 	switch im.Criticality {
@@ -264,7 +264,7 @@ func respondToUnknownProcedure(m *mme.MME, conn mme.S1APWriter, im *s1ap.Initiat
 	trigger := s1ap.TriggeringInitiatingMessage
 	crit := im.Criticality
 
-	emitErrorIndication(m, context.Background(), conn, &s1ap.ErrorIndication{
+	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
 		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
 			ProcedureCode:        &proc,
@@ -276,7 +276,7 @@ func respondToUnknownProcedure(m *mme.MME, conn mme.S1APWriter, im *s1ap.Initiat
 
 // emitErrorIndication sends an ERROR INDICATION. Callers outside a request
 // span pass a fresh root.
-func emitErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWriter, ind *s1ap.ErrorIndication) {
+func emitErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, ind *s1ap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal Error Indication", zap.Error(err))
@@ -290,7 +290,7 @@ func emitErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWriter, i
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413). A
 // protocol error on a UE-associated S1 connection leaves it in an inconsistent
 // state, so if the indication names a known UE the MME releases it to ECM-IDLE.
-func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseErrorIndication(value)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Error Indication", zap.Error(err))

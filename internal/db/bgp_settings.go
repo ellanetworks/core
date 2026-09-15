@@ -68,14 +68,17 @@ func (db *Database) InitializeBGPSettings(ctx context.Context) error {
 }
 
 func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPSettingsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", BGPSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", BGPSettingsTableName),
+			attribute.String("db.collection.name", BGPSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -110,14 +113,17 @@ func (db *Database) IsBGPEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", BGPSettingsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", BGPSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", BGPSettingsTableName),
+			attribute.String("db.collection.name", BGPSettingsTableName),
 		),
 	)
 	defer span.End()

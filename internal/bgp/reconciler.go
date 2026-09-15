@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +47,8 @@ type Lease struct {
 // caller (typically the lease changefeed); this exists to recover
 // from missed signals.
 const reconcileBackstop = 5 * time.Minute
+
+var tracer = otel.Tracer("ella-core/bgp")
 
 // Reconciler continuously reconciles a BGPService's RIB against the set
 // of active leases owned by this cluster node.
@@ -123,7 +128,20 @@ func (r *Reconciler) Stop() {
 // current RIB, apply. Exposed for on-demand triggering (e.g. after a
 // known lease change) and unit tests. Safe to call concurrently with
 // the background loop; BGPService methods serialise access internally.
-func (r *Reconciler) Reconcile(ctx context.Context) error {
+func (r *Reconciler) Reconcile(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "bgp/reconcile_routes",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "bgp route reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	leases, err := r.store.ListActiveLeasesByNode(ctx, r.nodeID)
 	if err != nil {
 		return fmt.Errorf("list active leases by node: %w", err)

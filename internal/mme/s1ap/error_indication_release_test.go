@@ -47,7 +47,7 @@ func TestErrorIndicationPagesTheUEOnReleaseComplete(t *testing.T) {
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Connected() {
 		t.Fatal("the UE should be ECM-IDLE after the Release Complete")

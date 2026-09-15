@@ -109,7 +109,7 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 func TestMMELocationAccessors(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	m.RegisterUEForTest(ue, testSubscriber.IMSI)
 	ue.ForceStateForTest(EMMRegistered)
 

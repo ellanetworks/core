@@ -13,6 +13,11 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/sqn"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type AdvanceSQNPayload struct {
@@ -98,12 +103,35 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 }
 
 func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
+	querySummary := fmt.Sprintf("%s %s (advance sqn)", "UPDATE", SubscribersTableName)
+
+	_, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection.name", SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
+
 	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, &AdvanceSQNPayload{
 		IMSI:       imsi,
 		ResyncAuts: resyncAuts,
 		ResyncRand: resyncRand,
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		return nil, err
 	}
 

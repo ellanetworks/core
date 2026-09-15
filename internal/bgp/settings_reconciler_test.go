@@ -116,7 +116,7 @@ func (f *fakeService) SetAdvertising(advertising bool) {
 	f.advertisingSet = append(f.advertisingSet, advertising)
 }
 
-func (f *fakeService) UpdateFilter(_ *RouteFilter) {
+func (f *fakeService) UpdateFilter(_ context.Context, _ *RouteFilter) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

@@ -23,7 +23,7 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleErrorIndication(m, context.Background(), &mme.Radio{Conn: cc}, initiatingValue(t, b))
+	handleErrorIndication(context.Background(), m, &mme.Radio{Conn: cc}, initiatingValue(t, b))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected the referenced UE to be released, got %d S1AP messages", len(cc.sent))
@@ -44,7 +44,7 @@ func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 
 	conn := &captureConn{}
 
-	handleErrorIndication(m, context.Background(), &mme.Radio{Conn: conn}, initiatingValue(t, b))
+	handleErrorIndication(context.Background(), m, &mme.Radio{Conn: conn}, initiatingValue(t, b))
 
 	if got := conn.count(); got != 0 {
 		t.Fatalf("an Error Indication naming no UE must release nothing, got %d S1AP messages", got)
@@ -64,7 +64,7 @@ func TestErrorIndicationFromAnotherENBDoesNotRelease(t *testing.T) {
 	}
 
 	other := &captureConn{}
-	handleErrorIndication(m, context.Background(), &mme.Radio{Conn: other}, initiatingValue(t, b))
+	handleErrorIndication(context.Background(), m, &mme.Radio{Conn: other}, initiatingValue(t, b))
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("UE released by a foreign eNB: %d S1AP messages sent", len(cc.sent))

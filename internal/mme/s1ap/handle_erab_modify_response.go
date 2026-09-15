@@ -15,28 +15,28 @@ import (
 // handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
 // completes on the NAS Modify Accept, so a failed-to-modify list is logged but
 // does not itself abort the modification (TS 36.413 §8.2.2).
-func handleERABModifyResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcERABModify, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModify, err)
 		return
 	}
 
 	// Both identities are mandatory but ignore criticality, so an absent one
 	// still reaches the handler. resolveUEIDs also rejects a response naming a
 	// UE on another radio.
-	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, resp.MMEUES1APID, resp.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(ctx, m, radio.Conn, resp.MMEUES1APID, resp.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), resp.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), resp.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, resp.UserLocationInformation)
 
 	if len(resp.ERABFailedToModify) > 0 {
-		logger.MmeLog.Warn("eNB failed to modify E-RAB(s)",
+		logger.From(ctx, logger.MmeLog).Warn("eNB failed to modify E-RAB(s)",
 			zap.Uint32("mme_ue_s1ap_id", uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
 	}
 }

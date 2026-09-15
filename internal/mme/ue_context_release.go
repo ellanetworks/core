@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -26,15 +27,20 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
-	m.guardDetachedRelease(c)
+	m.guardDetachedRelease(ctx, c)
 }
 
 // guardDetachedRelease supervises the Release Complete for a detached connection, so a
 // lost Complete cannot leak its reserved MME-UE-S1AP-ID.
-func (m *MME) guardDetachedRelease(c *UeConn) {
+func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
+	link := trace.SpanContextFromContext(ctx)
+
 	c.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
+		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release (detached)", 0)
+		defer span.End()
+
 		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID) {
-			c.Log().Info("reaped detached S1 connection after release timeout")
+			logger.From(guardCtx, c.Log()).Info("reaped detached S1 connection after release timeout")
 		}
 	})
 }
@@ -57,7 +63,7 @@ func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEI
 
 	if !c.releaseGuard.Active() {
 		SendUEContextRelease(ctx, m, conn, mmeUEID, enbUEID, true, cause)
-		m.guardDetachedRelease(c)
+		m.guardDetachedRelease(ctx, c)
 	}
 
 	return true
@@ -79,7 +85,7 @@ func (m *MME) ReleaseAnsweredBareConn(ctx context.Context, c *UeConn, cause s1ap
 	}
 
 	c.SendUEContextReleaseCommand(ctx, cause)
-	m.guardDetachedRelease(c)
+	m.guardDetachedRelease(ctx, c)
 }
 
 // SendUEContextReleaseCommand builds a UE Context Release Command for this
@@ -118,7 +124,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	conn := ue.Conn()
 	if conn == nil {
 		// No S1 connection to command; release the context locally.
-		m.ReleaseUEContextLocally(ue, "release-no-connection")
+		m.ReleaseUEContextLocally(ctx, ue, "release-no-connection")
 		return
 	}
 
@@ -133,8 +139,13 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 
 	// Supervise the Release Complete: a lost Complete (or a command that could not be
 	// marshalled/sent) fires the guard, which runs the EMMState-keyed local cleanup.
+	link := trace.SpanContextFromContext(ctx)
+
 	conn.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
-		m.ReleaseUEContextLocally(ue, "release-command-timeout")
+		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release", 0)
+		defer span.End()
+
+		m.ReleaseUEContextLocally(guardCtx, ue, "release-command-timeout")
 	})
 }
 
@@ -142,24 +153,24 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // for cases where the eNB has already released its side (e.g. INITIAL CONTEXT SETUP
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
-func (m *MME) ReleaseUEContextLocally(ue *UeContext, trigger string) {
-	ue.settleDeliveryOnRelease()
+func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
+	ue.settleDeliveryOnRelease(ctx)
 
 	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
 
 	if !registered {
-		m.DropDeferredServiceRequest(context.Background(), ue)
-		m.ReleaseAllSessions(context.Background(), ue)
-		logger.MmeLog.Info("aborted incomplete UE registration",
+		m.DropDeferredServiceRequest(ctx, ue)
+		m.ReleaseAllSessions(ctx, ue)
+		logger.From(ctx, logger.MmeLog).Info("aborted incomplete UE registration",
 			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
 
 		return
 	}
 
-	m.DeactivateAllSessions(context.Background(), ue)
+	m.DeactivateAllSessions(ctx, ue)
 	m.StartMobileReachable(ue)
-	logger.MmeLog.Info("UE moved to ECM-IDLE",
+	logger.From(ctx, logger.MmeLog).Info("UE moved to ECM-IDLE",
 		zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
 
-	m.ResumeDeferredServiceRequest(context.Background(), ue)
+	m.ResumeDeferredServiceRequest(ctx, ue)
 }

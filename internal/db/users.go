@@ -48,16 +48,19 @@ type User struct {
 }
 
 func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]User, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", UsersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", UsersTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -107,14 +110,17 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 // GetUser fetches a single user by email with a span named "SELECT users".
 func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -146,14 +152,17 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
 func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -184,14 +193,17 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 }
 
 func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", UsersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -224,14 +236,17 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -261,14 +276,17 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -298,14 +316,17 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 // DeleteUser removes a user by email with a span named "DELETE users".
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", UsersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()
@@ -330,14 +351,17 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 // CountUsers returns user count with a span named "SELECT users".
 func (db *Database) CountUsers(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", UsersTableName),
+			attribute.String("db.collection.name", UsersTableName),
 		),
 	)
 	defer span.End()

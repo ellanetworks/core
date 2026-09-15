@@ -87,7 +87,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// The attach procedure is under way until ATTACH COMPLETE (TS 24.301 §5.1.3.2):
 	// EMM-REGISTERED-INITIATED. An attach supersedes any prior state.
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(ctx, mme.EMMRegistrationInitiated)
 
 	// An adopted native-GUTI re-attach reuses the held EPS security context, so
 	// authentication and the security mode procedure are skipped (TS 24.301 §4.4.3,
@@ -216,7 +216,7 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 	// AttachUeConn primitive the S-TMSI resume uses; it detaches the discarded transient
 	// context). The uplink NAS COUNT and secure exchange are committed by the subsequent
 	// decode against this context, not here (TS 24.301 §4.4.3, §5.4.3.3).
-	m.AttachUeConn(existing, ueConn)
+	m.AttachUeConn(ctx, existing, ueConn)
 
 	logger.From(ctx, logger.MmeLog).Info("Attach with valid native GUTI: reusing security context, skipping authentication",
 		zap.String("imsi", existing.IMSI()))
@@ -244,7 +244,7 @@ func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 
 func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause, esm []byte) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 

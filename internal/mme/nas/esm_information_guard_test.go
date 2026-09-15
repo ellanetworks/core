@@ -139,7 +139,7 @@ func TestS1ReleaseDropsTheESMInformationWait(t *testing.T) {
 		t.Fatal("the ESM information procedure is not outstanding before the release")
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	if ue.PendingESMInfo() != nil {
 		t.Error("the ESM information wait survived the S1 release")

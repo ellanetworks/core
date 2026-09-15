@@ -26,7 +26,7 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredIgnored(t *testing.T) {
 
 			amfInstance := amf.New(nil, nil, nil)
 
-			handleConfigurationUpdateComplete(amfInstance, ue)
+			handleConfigurationUpdateComplete(t.Context(), amfInstance, ue)
 
 			if !ue.Conn().NASGuardForTest().Active() {
 				t.Fatal("expected out-of-state Configuration Update Complete to be ignored, leaving the NAS guard armed")
@@ -48,7 +48,7 @@ func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	handleConfigurationUpdateComplete(amfInstance, ue)
+	handleConfigurationUpdateComplete(t.Context(), amfInstance, ue)
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatal("expected timer T3555 to be stopped and cleared")

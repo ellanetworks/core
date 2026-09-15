@@ -39,7 +39,7 @@ func TestApplyForwardedOperation_IntentOpReturnsResult(t *testing.T) {
 		t.Fatalf("marshal payload: %v", marshalErr)
 	}
 
-	result, err := database.ApplyForwardedOperation("DeleteExpiredSessions", payload)
+	result, err := database.ApplyForwardedOperation(t.Context(), "DeleteExpiredSessions", payload)
 	if err != nil {
 		t.Fatalf("ApplyForwardedOperation(DeleteExpiredSessions): %v", err)
 	}
@@ -69,7 +69,7 @@ func TestApplyForwardedOperation_IntentOpReturnsResult(t *testing.T) {
 func TestApplyForwardedOperation_UnknownOpIsRejected(t *testing.T) {
 	database := newAtomicTestDB(t)
 
-	_, err := database.ApplyForwardedOperation("ThisOperationDoesNotExist", json.RawMessage(`{}`))
+	_, err := database.ApplyForwardedOperation(t.Context(), "ThisOperationDoesNotExist", json.RawMessage(`{}`))
 	if !errors.Is(err, ErrUnknownOperation) {
 		t.Fatalf("error = %v, want ErrUnknownOperation", err)
 	}

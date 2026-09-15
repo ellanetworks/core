@@ -92,8 +92,8 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 
 // CancelMeasurements discards a request buffered for a paged UE, once the LMF stops
 // waiting. Safe to call unconditionally.
-func (c *Client) CancelMeasurements(supi etsi.SUPI, _ int64) {
-	c.amf.CancelBufferedN1N2(supi, "", coremodels.N2ClassNRPPa)
+func (c *Client) CancelMeasurements(ctx context.Context, supi etsi.SUPI, _ int64) {
+	c.amf.CancelBufferedN1N2(ctx, supi, "", coremodels.N2ClassNRPPa)
 }
 
 // WaitForMeasurements blocks until an NRPPa E-CIDMeasurementInitiationResponse

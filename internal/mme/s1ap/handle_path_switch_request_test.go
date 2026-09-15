@@ -119,7 +119,7 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
@@ -166,7 +166,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -180,10 +180,10 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 // TS 33.401 §7.2.8
 func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	m := newTestMME(t)
-	ue := m.NewUe(&captureConn{}, 7)
+	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -206,7 +206,7 @@ func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	req.ERABToBeSwitchedDL = append(req.ERABToBeSwitchedDL, switchedDLItem())
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causeMultipleERABInstances {
 		t.Fatalf("cause = %+v, want multiple-E-RAB-ID-instances", fail.Cause)
@@ -225,7 +225,7 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(mme.DefaultERABID + 1)
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causePathSwitchUPFailure {
 		t.Fatalf("cause = %+v, want transport-resource-unavailable", fail.Cause)
@@ -248,7 +248,7 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	req.UESecurityCapabilities = s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000})
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
@@ -263,10 +263,10 @@ func TestPathSwitchUEReleasedDuringSwitch(t *testing.T) {
 	ue := pathSwitchUE(t, m)
 
 	base := m.Session.(*fakeSessionManager)
-	m.Session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.FreeUeConn(ue) }}
+	m.Session = &hookSessionManager{fakeSessionManager: base, onModify: func() { m.FreeUeConn(t.Context(), ue) }}
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if ue.Conn() != nil {
 		t.Fatal("UE unexpectedly reconnected after being released mid-switch")
@@ -295,7 +295,7 @@ func TestPathSwitchPartialFailureReleasesUnswitchedERAB(t *testing.T) {
 	})
 
 	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, req))
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Acknowledge), got %d", target.count())

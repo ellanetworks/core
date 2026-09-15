@@ -64,7 +64,7 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 	}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, sourceRanUeNgapID, sourceAmfUeNgapID, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	for _, id := range sessions {
 		sourceUe.SetN2SessionActive(id)

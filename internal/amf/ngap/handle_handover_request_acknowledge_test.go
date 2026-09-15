@@ -79,7 +79,7 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
@@ -156,7 +156,7 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	targetUe := amf.NewUeConnForTest(ran, 2, 1, logger.AmfLog)
-	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
+	targetUe.AMFForTest().AttachUeConn(t.Context(), amfUe, targetUe)
 
 	amfID := ngap.AMFUENGAPID(1)
 	ranID := ngap.RANUENGAPID(2)
@@ -224,7 +224,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetache
 		t.Fatal("source AMF UE not found")
 	}
 
-	sourceUeContext.Conn().AMFForTest().ReleaseNasConnection(sourceUeContext, nil)
+	sourceUeContext.Conn().AMFForTest().ReleaseNasConnection(t.Context(), sourceUeContext, nil)
 
 	amfID := ngap.AMFUENGAPID(1)
 	ranID := ngap.RANUENGAPID(2)

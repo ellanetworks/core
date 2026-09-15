@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -89,7 +90,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			amfUe = amf.NewUeContext()
 		}
 
-		amfInstance.AttachUeConn(amfUe, ue)
+		amfInstance.AttachUeConn(ctx, amfUe, ue)
 	}
 
 	result, err := amf.DecodeNASMessage(ue.UeContext(), nasPdu)
@@ -110,7 +111,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attribute.String("ue.supi", ue.UeContext().Supi().String()),
+			attrs.SUPI(ue.UeContext().Supi().String()),
 		),
 	)
 	defer span.End()

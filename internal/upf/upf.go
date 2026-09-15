@@ -26,6 +26,9 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -1129,17 +1132,26 @@ func (u *UPF) reportFlows(flowch chan flowReport) {
 			reqs[i] = engine.BuildFlowReportRequest(f.flow, f.stats)
 		}
 
-		rctx, cancel := context.WithTimeout(context.Background(), flowReportTimeout)
+		rctx, span := tracer.Start(context.Background(), "upf/report_flows",
+			trace.WithSpanKind(trace.SpanKindInternal),
+			trace.WithAttributes(attribute.Int("upf.flow_report.batch_size", len(batch))),
+		)
+
+		rctx, cancel := context.WithTimeout(rctx, flowReportTimeout)
 		err := u.smf.SendFlowReports(rctx, reqs)
 
 		cancel()
 
 		if err != nil {
-			logger.UpfLog.Error("failed to send flow report batch",
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to send flow report batch")
+			logger.From(rctx, logger.UpfLog).Error("failed to send flow report batch",
 				zap.Int("batch_size", len(batch)),
 				zap.Error(err),
 			)
 		}
+
+		span.End()
 
 		batch = batch[:0]
 	}

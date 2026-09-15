@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -40,16 +41,19 @@ type Profile struct {
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", ProfilesTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -98,14 +102,17 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 }
 
 func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -136,14 +143,17 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 }
 
 func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -174,14 +184,17 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 }
 
 func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -214,14 +227,17 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -245,14 +261,17 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -276,14 +295,17 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountProfiles(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", ProfilesTableName),
+			attribute.String("db.collection.name", ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -309,15 +331,18 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 }
 
 func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-			attribute.String("profile_id", profileID),
+			attribute.String("db.collection.name", SubscribersTableName),
+			attrs.ProfileID(profileID),
 		),
 	)
 	defer span.End()
@@ -345,13 +370,8 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 }
 
 func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"SubscribersInProfile",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
+	ctx, span := tracer.Start(ctx, "db/subscribers_in_profile",
+		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 

@@ -28,7 +28,7 @@ func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 	})
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	radio := &amf.Radio{Conn: sender}
@@ -54,7 +54,7 @@ func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 		t.Error("expected paging supervision to be armed for the refresh")
 	}
 
-	ue.StopPagingForTest()
+	ue.StopPagingForTest(t.Context())
 }
 
 func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
@@ -70,7 +70,7 @@ func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	})
 
 	if conn := ue.Conn(); conn != nil {
-		conn.Release()
+		conn.Release(t.Context())
 	}
 
 	radio := &amf.Radio{Conn: sender}
@@ -80,7 +80,7 @@ func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	}})
 
 	ue.ArmPagingForTest(time.Hour, 1)
-	defer ue.StopPagingForTest()
+	defer ue.StopPagingForTest(t.Context())
 
 	if err := amfInstance.RefreshLocation(context.Background(), ue.SupiForTest()); err != nil {
 		t.Fatalf("expected a deliberate skip reported as success, got error: %v", err)
@@ -103,7 +103,7 @@ func TestRefreshLocation_ConnectedUE_SendsLocationReportingControl(t *testing.T)
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := amfInstance.RefreshLocation(context.Background(), ue.SupiForTest()); err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -67,6 +68,11 @@ func (c *metricsCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *metricsCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), metricsCollectTimeout)
 	defer cancel()
+
+	ctx, span := tracer.Start(ctx, "db/collect_metrics",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
 
 	size, err := c.db.GetSize()
 	if err != nil {

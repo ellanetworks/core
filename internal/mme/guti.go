@@ -53,7 +53,7 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	ueConn.ArmNASGuardAbortOnly("GUTI Reallocation Command", plain, eps.SHTIntegrityProtectedCiphered, func() {
+	ueConn.ArmNASGuardAbortOnly(ctx, "GUTI Reallocation Command", plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
 		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
 			zap.String("imsi", ue.IMSI()))
 	})

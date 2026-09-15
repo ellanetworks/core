@@ -59,7 +59,7 @@ func abortRegistrationRetainingContext(ctx context.Context, amfInstance *amf.AMF
 
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
 	if ue.MTDeliveryInProgress() {
-		ue.PagingFailed(models.N1N2FailureCauseUnspecified)
+		ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
 	}
 
 	ue.ClearRegistrationData(ctx)

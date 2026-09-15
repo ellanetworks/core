@@ -37,7 +37,7 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
@@ -49,7 +49,7 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	amfUe.Conn().AMFForTest().ReleaseNasConnection(amfUe, nil)
+	amfUe.Conn().AMFForTest().ReleaseNasConnection(t.Context(), amfUe, nil)
 
 	msg := ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
@@ -82,7 +82,7 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
@@ -127,7 +127,7 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
@@ -168,7 +168,7 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
@@ -210,7 +210,7 @@ func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 
@@ -248,7 +248,7 @@ func TestHandleHandoverFailure_NoContainerToRelay(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
 

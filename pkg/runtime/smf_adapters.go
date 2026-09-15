@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/internal/upf"
 	upfengine "github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel"
@@ -66,7 +67,7 @@ type smfDNNStore struct {
 
 func (a *smfDBAdapter) ResolveDNN(ctx context.Context, dnn string) (smf.DNNStore, error) {
 	ctx, span := tracer.Start(ctx, "smf/resolve_dnn",
-		trace.WithAttributes(attribute.String("dnn", dnn)),
+		trace.WithAttributes(attrs.DNN(dnn)),
 	)
 	defer span.End()
 
@@ -101,9 +102,9 @@ func (s *smfDNNStore) pool(ipv6 bool) (ipam.Pool, error) {
 func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ip",
 		trace.WithAttributes(
-			attribute.String("imsi", imsi),
-			attribute.String("dnn", s.dnn),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.IMSI(imsi),
+			attrs.DNN(s.dnn),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -128,7 +129,7 @@ func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID 
 		return netip.Addr{}, err
 	}
 
-	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 
 	return addr, nil
 }
@@ -136,9 +137,9 @@ func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID 
 func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ip",
 		trace.WithAttributes(
-			attribute.String("imsi", imsi),
-			attribute.String("dnn", s.dnn),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.IMSI(imsi),
+			attrs.DNN(s.dnn),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -165,9 +166,9 @@ func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID u
 func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ipv6",
 		trace.WithAttributes(
-			attribute.String("imsi", imsi),
-			attribute.String("dnn", s.dnn),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.IMSI(imsi),
+			attrs.DNN(s.dnn),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()
@@ -188,7 +189,7 @@ func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionI
 		return netip.Addr{}, err
 	}
 
-	span.SetAttributes(attribute.String("ipv6", addr.String()))
+	span.SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
 
 	return addr, nil
 }
@@ -196,9 +197,9 @@ func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionI
 func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ipv6",
 		trace.WithAttributes(
-			attribute.String("imsi", imsi),
-			attribute.String("dnn", s.dnn),
-			attribute.Int("pdu_session_id", int(pduSessionID)),
+			attrs.IMSI(imsi),
+			attrs.DNN(s.dnn),
+			attrs.PDUSessionID(pduSessionID),
 		),
 	)
 	defer span.End()

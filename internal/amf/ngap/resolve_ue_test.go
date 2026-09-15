@@ -56,7 +56,7 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 	ueConn = amf.NewUeConnForTest(legitimateRan, 1, 10, logger.AmfLog)
 
 	amfUe := amf.NewUeContext()
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	return legitimateRan, attackerRan, ueConn, amfInstance
 }

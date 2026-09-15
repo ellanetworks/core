@@ -64,7 +64,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 
 	// TS 24.501: a present NASMessageContainer holds a ciphered inner
 	// Registration Request with the non-cleartext IEs. Decrypt it only when
@@ -243,7 +243,7 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 
 	fresh := amf.NewUeContext()
 	fresh.SetSupi(supi)
-	amfInstance.AttachUeConn(fresh, ueConn)
+	amfInstance.AttachUeConn(ctx, fresh, ueConn)
 
 	handleRegistrationRequest(ctx, amfInstance, fresh, req, plain, integrityVerified, arrivedPlain)
 }

@@ -15,7 +15,7 @@ import (
 // TS 23.502
 func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply.Disposition {
 	if conn := ue.Conn(); conn != nil {
-		conn.StopNASGuard()
+		conn.StopNASGuard(ctx)
 	}
 
 	defer ue.Deregister(ctx)

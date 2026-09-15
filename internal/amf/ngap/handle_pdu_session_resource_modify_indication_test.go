@@ -69,7 +69,7 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.PDUSessionResourceModifyIndication{
 		RANUENGAPID:              ngap.RANUENGAPID(1),
@@ -112,7 +112,7 @@ func TestPDUSessionResourceModifyIndication_SmContextNotFound(t *testing.T) {
 	amfUe := newValidUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.PDUSessionResourceModifyIndication{
 		RANUENGAPID:              ngap.RANUENGAPID(1),

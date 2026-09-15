@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -55,26 +56,28 @@ func (s *SMF) closeForwardingTunnel(ctx context.Context, sc *SMContext) error {
 	return nil
 }
 
-func (s *SMF) scheduleForwardingRelease(sc *SMContext) {
+func (s *SMF) scheduleForwardingRelease(ctx context.Context, sc *SMContext) {
 	if sc.Tunnel == nil || sc.Tunnel.Forwarding == nil {
 		return
 	}
 
 	ref := sc.Ref
+	link := trace.SpanContextFromContext(ctx)
 
 	sc.forwardingRelease.ArmOnce(indirectForwardingDuration, func() {
-		ctx := context.Background()
-
 		released := s.GetSession(ref)
 		if released == nil {
 			return
 		}
 
+		ctx, span := guardSpan(link, "smf/forwarding_release_expire", "indirect forwarding", 0)
+		defer span.End()
+
 		released.Mutex.Lock()
 		defer released.Mutex.Unlock()
 
 		if err := s.closeForwardingTunnel(ctx, released); err != nil {
-			logger.SmfLog.Warn("failed to release an indirect data forwarding tunnel",
+			logger.From(ctx, logger.SmfLog).Warn("failed to release an indirect data forwarding tunnel",
 				zap.String("ref", ref), zap.Error(err))
 		}
 	})

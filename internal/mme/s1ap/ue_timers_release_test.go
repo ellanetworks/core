@@ -28,7 +28,7 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Connected() {
 		t.Fatal("UE still connected after S1 release")

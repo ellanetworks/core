@@ -22,7 +22,7 @@ func TestECMIdleBuffersSession(t *testing.T) {
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	if ue.Connected() {
 		t.Fatal("UE not ECM-IDLE after release complete")
@@ -51,7 +51,7 @@ func TestUEContextReleaseCompleteCapturesLocation(t *testing.T) {
 	b, _ := complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	loc := ue.GetUserLocation()
 	if loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
@@ -71,7 +71,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	b, _ := req.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 UE Context Release Command, got %d", len(cc.sent))
@@ -90,7 +90,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	b, _ = complete.Marshal()
 	cpdu, _ := s1ap.Unmarshal(b)
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	got, ok := m.LookupUeByIMSI(ue.IMSI())
 	if !ok {
@@ -101,7 +101,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(cc), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected an Error Indication for the released AP ID, got %d S1AP messages", len(cc.sent))
@@ -126,7 +126,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	pdu, _ := s1ap.Unmarshal(b)
 
 	foreign := &captureConn{}
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(foreign), pdu.(*s1ap.InitiatingMessage).Value)
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(foreign), pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("foreign eNB released a UE on another association: %d S1AP messages on the owning association", len(cc.sent))

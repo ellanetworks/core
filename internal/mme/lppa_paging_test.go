@@ -92,7 +92,7 @@ func TestPageAndRetryLPPa_RejectsUEThatNeedsNoPage(t *testing.T) {
 
 		ue := idleRegisteredUE(t, m)
 
-		m.armPaging(ue, []byte{0x00})
+		m.armPaging(t.Context(), ue, []byte{0x00})
 
 		defer func() {
 			m.mu.Lock()
@@ -161,7 +161,7 @@ func TestAbandonPaging_DiscardsBufferedLPPa(t *testing.T) {
 
 	ue.SetLPPaBuffered(3, []byte{0x01})
 
-	m.armPaging(ue, []byte{0x00})
+	m.armPaging(t.Context(), ue, []byte{0x00})
 
 	deadline := time.Now().Add(2 * time.Second)
 	for lppaBuffered(ue) {

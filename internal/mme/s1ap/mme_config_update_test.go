@@ -46,7 +46,7 @@ func TestMMEConfigurationUpdateOutcomesAreRouted(t *testing.T) {
 			conn := &captureConn{}
 			radio := mme.NewRadioForTest(conn)
 
-			Route(m, context.Background(), radio, tc.pdu(t))
+			Route(context.Background(), m, radio, tc.pdu(t))
 
 			if got := conn.count(); got != 0 {
 				t.Fatalf("MME answered a configuration-update outcome with %d messages, want 0", got)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -48,12 +49,17 @@ func (m *MME) CloseForwardingTunnels(ctx context.Context, ue *UeContext) {
 
 var indirectForwardingDuration = 2 * time.Second
 
-func (m *MME) ScheduleForwardingRelease(ue *UeContext) {
+func (m *MME) ScheduleForwardingRelease(ctx context.Context, ue *UeContext) {
 	if ue == nil {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	ue.forwardingRelease.ArmOnce(indirectForwardingDuration, func() {
-		m.CloseForwardingTunnels(context.Background(), ue)
+		guardCtx, span := guardSpan(link, "mme/forwarding_release_expire", "indirect forwarding", 0)
+		defer span.End()
+
+		m.CloseForwardingTunnels(guardCtx, ue)
 	})
 }

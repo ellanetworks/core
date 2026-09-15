@@ -12,10 +12,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 const retentionInterval = 24 * time.Hour
+
+var tracer = otel.Tracer("ella-core/jobs")
 
 func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
 	ticker := time.NewTicker(retentionInterval)
@@ -36,6 +40,11 @@ func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
 }
 
 func runRetentionPass(ctx context.Context, database *db.Database, isLeader bool) {
+	ctx, span := tracer.Start(ctx, "jobs/data_retention",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	if err := enforceRadioDataRetention(ctx, database); err != nil {
 		logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
 	}

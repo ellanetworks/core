@@ -87,7 +87,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	ue.Ambr = &models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink}
 	ue.mu.Unlock()
 
-	ue.TransitionTo(EMMRegistrationInitiated)
+	ue.TransitionTo(ctx, EMMRegistrationInitiated)
 
 	if !m.beginRelocation(req.SUPI, req.ID, ue) {
 		return none, ErrRelocationInProgress
@@ -275,7 +275,7 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 
 	id := held.id
 
-	ue.TransitionTo(EMMRegistered)
+	ue.TransitionTo(ctx, EMMRegistered)
 
 	if err := m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("could not index a UE that arrived from 5GS",

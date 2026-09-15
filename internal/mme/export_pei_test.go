@@ -51,7 +51,7 @@ func TestExportPeiIsNASPrefixed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 
-			ue := m.NewUe(&captureConn{}, 7)
+			ue := m.NewUe(t.Context(), &captureConn{}, 7)
 			if ue == nil {
 				t.Fatal("NewUe returned nil")
 			}

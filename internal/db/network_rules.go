@@ -51,14 +51,17 @@ type NetworkRule struct {
 
 // CreateNetworkRule creates a new network rule and returns its ID.
 func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -96,14 +99,17 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 
 // GetNetworkRule retrieves a network rule by ID.
 func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -135,14 +141,17 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 
 // UpdateNetworkRule updates an existing network rule.
 func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -169,14 +178,17 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 // ReorderRulesForPolicy moves a rule to a new position within its policy and normalizes all precedence values.
 func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -269,14 +281,17 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 
 // DeleteNetworkRule deletes a network rule by ID.
 func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -301,14 +316,17 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.
 func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]*NetworkRule, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -342,14 +360,17 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkRulesTableName),
+			attribute.String("db.collection.name", NetworkRulesTableName),
 		),
 	)
 	defer span.End()

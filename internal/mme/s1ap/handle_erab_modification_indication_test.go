@@ -48,7 +48,7 @@ func TestERABModificationIndication_RelocatesAndConfirms(t *testing.T) {
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
 	}
 
-	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
+	handleERABModificationIndication(context.Background(), m, mme.NewRadioForTest(cc), erabModValue(t, req))
 
 	wantFTEID := models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 5, 0, 2})}
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != wantFTEID {
@@ -90,7 +90,7 @@ func TestERABModificationIndication_CapturesUserLocation(t *testing.T) {
 		},
 	}
 
-	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
+	handleERABModificationIndication(context.Background(), m, mme.NewRadioForTest(cc), erabModValue(t, req))
 
 	loc := ue.GetUserLocation()
 	if loc.EutraLocation == nil || loc.EutraLocation.Ecgi.EutraCellID != "0abcde1" {
@@ -111,7 +111,7 @@ func TestERABModificationIndication_OmittedERABReleases(t *testing.T) {
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{modifiedItem([4]byte{10, 5, 0, 2}, 0x1234)},
 	}
 
-	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
+	handleERABModificationIndication(context.Background(), m, mme.NewRadioForTest(cc), erabModValue(t, req))
 
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
 		t.Fatalf("expected no E-RAB modification, got F-TEID %+v", fsm.modifiedENB)
@@ -151,7 +151,7 @@ func TestERABModificationIndication_DuplicateERABReleases(t *testing.T) {
 		},
 	}
 
-	handleERABModificationIndication(m, context.Background(), mme.NewRadioForTest(cc), erabModValue(t, req))
+	handleERABModificationIndication(context.Background(), m, mme.NewRadioForTest(cc), erabModValue(t, req))
 
 	if fsm := m.Session.(*fakeSessionManager); fsm.modifiedENB != (models.FTEID{}) {
 		t.Fatalf("expected no E-RAB modification on duplicate, got F-TEID %+v", fsm.modifiedENB)

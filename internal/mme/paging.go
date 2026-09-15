@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -121,14 +122,14 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 
 	logger.From(ctx, logger.MmeLog).Info("Paging", zap.String("imsi", imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
 
-	m.armPaging(ue, b)
+	m.armPaging(ctx, ue, b)
 
 	return nil
 }
 
 // armPaging starts the paging supervision guard for a UE just paged. A guard
 // already running (a paging procedure in progress) is left untouched.
-func (m *MME) armPaging(ue *UeContext, pdu []byte) {
+func (m *MME) armPaging(ctx context.Context, ue *UeContext, pdu []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -136,9 +137,11 @@ func (m *MME) armPaging(ue *UeContext, pdu []byte) {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	ue.paging.guard.ArmWith(m.pagingCfg,
-		func(attempt int32) { m.retransmitPaging(ue, pdu, attempt) },
-		func() { m.abandonPaging(ue) })
+		func(attempt int32) { m.retransmitPaging(link, ue, pdu, attempt) },
+		func() { m.abandonPaging(link, ue) })
 }
 
 func (ue *UeContext) clearPaging() {
@@ -154,7 +157,7 @@ func (ue *UeContext) clearPaging() {
 
 // retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301
 // §5.6.2), or stops the guard once the UE has answered (ECM-CONNECTED).
-func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
+func (m *MME) retransmitPaging(link trace.SpanContext, ue *UeContext, pdu []byte, attempt int32) {
 	m.mu.RLock()
 
 	connected := ue.Connected()
@@ -167,33 +170,37 @@ func (m *MME) retransmitPaging(ue *UeContext, pdu []byte, attempt int32) {
 		return
 	}
 
-	logger.MmeLog.Info("paging unanswered, retransmitting",
+	ctx, span := guardSpan(link, "mme/paging_retransmit", "T3413 (Paging)", attempt)
+	defer span.End()
+
+	logger.From(ctx, logger.MmeLog).Info("paging unanswered, retransmitting",
 		zap.String("imsi", imsi), zap.Int32("attempt", attempt))
-	m.pageRadios(context.Background(), ue, pdu)
+	m.pageRadios(ctx, ue, pdu)
 }
 
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.401 §5.3.4.3); the UE
 // stays under mobile-reachable supervision until it returns or is implicitly detached.
-func (m *MME) abandonPaging(ue *UeContext) {
+func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext) {
 	m.mu.RLock()
 
 	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
 
-	dropped, abandoned := ue.PagingUnanswered(models.EPSPagingUENotResponding)
+	ctx, span := guardSpan(link, "mme/paging_abandon", "T3413 (Paging)", 0)
+	defer span.End()
+
+	dropped, abandoned := ue.PagingUnanswered(ctx, models.EPSPagingUENotResponding)
 	if !abandoned {
 		return
 	}
 
-	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
+	logger.From(ctx, logger.MmeLog).Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
 
 	if m.Session == nil {
 		return
 	}
-
-	ctx := context.Background()
 
 	for _, p := range m.SnapshotPDNs(ue) {
 		if dropped != nil && dropped.Ebi == p.Ebi {

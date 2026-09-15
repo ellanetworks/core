@@ -695,7 +695,7 @@ func TestTargetENBDropDuringARelocationDoesNotWedgeTheSubscriber(t *testing.T) {
 		t.Fatalf("ForwardRelocation: %v", err)
 	}
 
-	m.ReclaimConns(m.ConnsOnConn(target.conn), "eNB disconnect")
+	m.ReclaimConns(t.Context(), m.ConnsOnConn(target.conn), "eNB disconnect")
 
 	if !sessions.released {
 		t.Error("the dropped relocation left its anchor session behind")

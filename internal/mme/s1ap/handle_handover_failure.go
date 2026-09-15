@@ -15,18 +15,18 @@ import (
 // handleHandoverFailure fails the preparation toward the source when the target
 // could not admit the handover, leaving the UE on the source (TS 36.413 §8.4.2.3).
 // The failure carries the target's MME-UE-S1AP-ID.
-func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleHandoverFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	fail, err := s1ap.ParseHandoverFailure(value)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Handover Failure", zap.Error(err))
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringUnsuccessfulOutcome, nodeLevel(), fail.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringUnsuccessfulOutcome, nodeLevel(), fail.Diagnostics())
 
 	if fail.MMEUES1APID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Failure without an MME-UE-S1AP-ID")
-		sendErrorIndication(m, radio.Conn, nil, nil, causeMissingUES1APID)
+		sendErrorIndication(ctx, m, radio.Conn, nil, nil, causeMissingUES1APID)
 
 		return
 	}

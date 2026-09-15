@@ -29,11 +29,11 @@ type fakeRoute struct {
 	priority    int
 }
 
-func (fk *fakeKernel) CreateRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) CreateRoute(_ context.Context, dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk *fakeKernel) DeleteRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) DeleteRoute(_ context.Context, dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
@@ -51,7 +51,7 @@ func (fk *fakeKernel) DeleteRoute(dst netip.Prefix, gw netip.Addr, priority int,
 	return nil
 }
 
-func (fk *fakeKernel) ReplaceRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) ReplaceRoute(_ context.Context, dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
@@ -64,21 +64,24 @@ func (fk *fakeKernel) ReplaceRoute(dst netip.Prefix, gw netip.Addr, priority int
 	return nil
 }
 
-func (fk *fakeKernel) ListManagedRoutes(_ kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
+func (fk *fakeKernel) ListManagedRoutes(_ context.Context, _ kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
 	return fk.managed, nil
 }
 
-func (fk *fakeKernel) InterfaceExists(_ kernel.NetworkInterface) (bool, error) { return true, nil }
-func (fk *fakeKernel) RouteExists(_ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) (bool, error) {
+func (fk *fakeKernel) InterfaceExists(_ context.Context, _ kernel.NetworkInterface) (bool, error) {
+	return true, nil
+}
+
+func (fk *fakeKernel) RouteExists(_ context.Context, _ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) (bool, error) {
 	return false, nil
 }
 
-func (fk *fakeKernel) EnableIPForwarding() error            { return nil }
-func (fk *fakeKernel) IsIPForwardingEnabled() (bool, error) { return true, nil }
-func (fk *fakeKernel) EnsureGatewaysOnInterfaceInNeighTable(_ kernel.NetworkInterface) error {
+func (fk *fakeKernel) EnableIPForwarding(_ context.Context) error            { return nil }
+func (fk *fakeKernel) IsIPForwardingEnabled(_ context.Context) (bool, error) { return true, nil }
+func (fk *fakeKernel) EnsureGatewaysOnInterfaceInNeighTable(_ context.Context, _ kernel.NetworkInterface) error {
 	return nil
 }
 
@@ -462,7 +465,7 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 		RejectPrefixes: bgp.BuildRejectPrefixes([]netip.Prefix{uePool}),
 	}
 
-	svc.UpdateFilter(newFilter)
+	svc.UpdateFilter(ctx, newFilter)
 
 	// The route in 10.45.0.0/16 should now be rejected and removed.
 	routes := svc.GetLearnedRoutes()

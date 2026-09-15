@@ -27,7 +27,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 
 	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501)
 	amfInstance.CommitGUTIRealloc(ue)

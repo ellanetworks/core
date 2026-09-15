@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	smfNgap "github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,7 +56,7 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("no session to move onto 5GS: %w", err)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, transferRejectCause(err)),
 			fmt.Errorf("failed to prepare a session move onto 5GS: %w", err)
 	}
@@ -93,10 +94,10 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 
 	ctx, span := tracer.Start(ctx, "smf/prepare_sm_context_from_eps",
 		trace.WithAttributes(
-			attribute.String("ue.supi", supi.String()),
-			attribute.Int("smf.pdu_session_id", int(pduSessionID)),
+			attrs.SUPI(supi.String()),
+			attrs.PDUSessionID(pduSessionID),
 			attribute.Int("eps.bearer_id", int(epsBearerIdentity)),
-			attribute.String("smf.dnn", dnn),
+			attrs.DNN(dnn),
 		),
 	)
 	defer span.End()
@@ -113,7 +114,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 		return "", nil, fmt.Errorf("no PDN connection to move onto 5GS: %w", err)
 	}
 
-	if err := s.prepareTransfer(sc, move); err != nil {
+	if err := s.prepareTransfer(ctx, sc, move); err != nil {
 		return "", nil, fmt.Errorf("failed to prepare a PDN connection move onto 5GS: %w", err)
 	}
 

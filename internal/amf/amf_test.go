@@ -361,7 +361,7 @@ func TestDeregisterSubscriberConnectedUnsecuredRemovesLocally(t *testing.T) {
 	ue := addTestUE(t, amfInstance, "001010000000013", func(ue *amf.UeContext) {
 		ue.SetSecuredForTest(false)
 	})
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	amfInstance.DeregisterSubscriber(context.Background(), supi)
 

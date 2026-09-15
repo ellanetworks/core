@@ -80,9 +80,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 			PDNType: uint8(req.PDNType),
 		})
 
-		// T3489's final expiry outlives this request's context.
-		requestESMInformation(ctx, ue, ueConn, func(abortedPTI uint8) {
-			rejectPDNConnectivity(context.Background(), ueConn, abortedPTI, eps.ESMCauseESMInformationNotReceived)
+		requestESMInformation(ctx, ue, ueConn, func(ctx context.Context, abortedPTI uint8) {
+			rejectPDNConnectivity(ctx, ueConn, abortedPTI, eps.ESMCauseESMInformationNotReceived)
 		})
 
 		return nasreply.Handled()
@@ -217,8 +216,8 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", esm, eps.SHTIntegrityProtectedCiphered, func() {
-		m.ReleasePDN(context.Background(), ue, p)
+	m.ArmESMGuardAbortOnly(ctx, ue, p, "Activate Default EPS Bearer Context Request", esm, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
+		m.ReleasePDN(ctx, ue, p)
 	})
 
 	return nasreply.Handled()

@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -62,9 +63,11 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 	smContext.releasing = true
 
 	smContext.MarkPTIInUse(pti)
-	s.armRetransmit(smContext, s.t3592,
-		func() error { return s.amf.ReleaseSession(context.Background(), supi, pduSessionID, n1Msg, n2Transfer) },
-		func(sc *SMContext) { s.removeSessionUnlocked(context.Background(), sc.Ref) })
+	s.armRetransmit(ctx, smContext, s.timerT3592(),
+		func(ctx context.Context) error {
+			return s.amf.ReleaseSession(ctx, supi, pduSessionID, n1Msg, n2Transfer)
+		},
+		func(ctx context.Context, sc *SMContext) { s.removeSessionUnlocked(ctx, sc.Ref) })
 
 	return nil
 }
@@ -90,19 +93,24 @@ func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext) {
 // maxSMProcedureRetransmissions expiries, and abort runs once that limit is
 // exceeded. Both fire on the timer goroutine and re-fetch the session, no-op if it
 // is gone. Caller must hold smContext.Mutex.
-func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func() error, abort func(*SMContext)) {
+func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, timer smProcedureTimer, resend func(context.Context) error, abort func(context.Context, *SMContext)) {
 	ref := smContext.Ref
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 
-	smContext.procedureTimer.Arm(d, maxSMProcedureRetransmissions,
+	link := trace.SpanContextFromContext(ctx)
+
+	smContext.procedureTimer.Arm(timer.d, maxSMProcedureRetransmissions,
 		func(expiry int32) {
 			if s.GetSession(ref) == nil {
 				return
 			}
 
-			if err := resend(); err != nil {
-				logger.SmfLog.Warn("network-requested procedure retransmission failed",
+			guardCtx, span := guardSpan(link, "smf/nas_guard_retransmit", timer.name, expiry)
+			defer span.End()
+
+			if err := resend(guardCtx); err != nil {
+				logger.From(guardCtx, logger.SmfLog).Warn("network-requested procedure retransmission failed",
 					zap.Error(err), zap.Int32("attempt", expiry),
 					logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 			}
@@ -113,9 +121,21 @@ func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func()
 				return
 			}
 
+			guardCtx, span := guardSpan(link, "smf/nas_guard_expire", timer.name, 0)
+			defer span.End()
+
 			sc.Mutex.Lock()
 			defer sc.Mutex.Unlock()
 
-			abort(sc)
+			abort(guardCtx, sc)
 		})
 }
+
+type smProcedureTimer struct {
+	name string
+	d    time.Duration
+}
+
+func (s *SMF) timerT3591() smProcedureTimer { return smProcedureTimer{name: "T3591", d: s.t3591} }
+
+func (s *SMF) timerT3592() smProcedureTimer { return smProcedureTimer{name: "T3592", d: s.t3592} }

@@ -17,14 +17,14 @@ import (
 // HandleInitialUEMessage routes a UE's first NAS message on a new S1 association
 // (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE context
 // (resolved by S-TMSI); anything else starts a new one.
-func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcInitialUEMessage, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, err)
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, ueIDs{enb: &msg.ENBUES1APID}, msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, ueIDs{enb: &msg.ENBUES1APID}, msg.Diagnostics())
 
 	nas := []byte(msg.NASPDU)
 	if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTServiceRequest) {
@@ -65,7 +65,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
 				logger.From(ctx, c.Log()).Debug("Initial UE Message: resuming held context",
 					zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
-				m.AttachUeConn(ue, c)
+				m.AttachUeConn(ctx, ue, c)
 			}
 		}
 	}

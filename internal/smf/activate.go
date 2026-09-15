@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"go.opentelemetry.io/otel/attribute"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -16,7 +16,7 @@ import (
 // returns the N2 PDUSessionResourceSetupRequest transfer.
 func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error) {
 	_, span := tracer.Start(ctx, "smf/activate_session",
-		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
 

@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -147,9 +148,9 @@ func (ue *UeContext) EMMState() EMMState {
 // TransitionTo moves the UE's EMM registration state through the validated
 // transition graph under ue.mu (TS 24.301 §5.1.3.2); an unexpected transition
 // fails safe to EMM-DEREGISTERED.
-func (ue *UeContext) TransitionTo(s EMMState) {
+func (ue *UeContext) TransitionTo(ctx context.Context, s EMMState) {
 	if s == EMMDeregistered {
-		ue.PagingFailed(models.EPSPagingUENotResponding)
+		ue.PagingFailed(ctx, models.EPSPagingUENotResponding)
 	}
 
 	ue.mu.Lock()

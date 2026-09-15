@@ -16,18 +16,18 @@ import (
 // handleHandoverRequestAcknowledge records the target's downlink endpoints and
 // sends a HANDOVER COMMAND to the source, or fails the handover when no usable
 // bearer was admitted (TS 36.413 §8.4.2).
-func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	ack, err := s1ap.ParseHandoverRequestAcknowledge(value)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to decode Handover Request Acknowledge", zap.Error(err))
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), ack.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), ack.Diagnostics())
 
 	if ack.MMEUES1APID == nil || ack.ENBUES1APID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge without both UE S1AP IDs")
-		sendErrorIndication(m, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, causeMissingUES1APID)
+		sendErrorIndication(ctx, m, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, causeMissingUES1APID)
 
 		return
 	}
@@ -36,7 +36,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 
 	ue, ok := m.LookupUe(mmeUEID)
 	if !ok {
-		sendErrorIndication(m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownMMEUES1APID)
+		sendErrorIndication(ctx, m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownMMEUES1APID)
 		return
 	}
 

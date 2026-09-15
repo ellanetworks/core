@@ -147,7 +147,7 @@ func TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleENBConfigurationUpdate(m, context.Background(), radio, initiatingValue(t, b))
+	handleENBConfigurationUpdate(context.Background(), m, radio, initiatingValue(t, b))
 
 	if cc.count() != 1 {
 		t.Fatalf("expected 1 response, got %d", cc.count())
@@ -180,7 +180,7 @@ func TestHandleENBConfigurationUpdate_RejectPreservesTAs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleENBConfigurationUpdate(m, context.Background(), radio, initiatingValue(t, b))
+	handleENBConfigurationUpdate(context.Background(), m, radio, initiatingValue(t, b))
 
 	if cc.count() != 1 {
 		t.Fatalf("expected 1 response, got %d", cc.count())

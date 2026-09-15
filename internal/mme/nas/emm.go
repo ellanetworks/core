@@ -31,7 +31,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		switch peekEMMMessageType(pdu) {
 		case eps.MsgAttachRequest:
 			ue = mme.NewUeContext()
-			m.AttachUeConn(ue, conn)
+			m.AttachUeConn(ctx, ue, conn)
 		case eps.MsgTrackingAreaUpdateRequest:
 			resolved, plain := recoverContextFrom5GS(ctx, m, conn, pdu)
 			if resolved == nil {

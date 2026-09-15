@@ -26,7 +26,7 @@ func connectedUE(t *testing.T, imsi string) (*amf.UeContext, *amf.UeConn, *fakeN
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue, ueConn, sender
 }

@@ -41,7 +41,7 @@ func TestReconcileDataNetworkReactivatesChangedBearer(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !testPDN(ue).Deactivating {
 		t.Fatal("UE not marked deactivating after a data-network change")
@@ -99,7 +99,7 @@ func TestReconcileDataNetworkDeactivatesOnUnknownAPN(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !testPDN(ue).Deactivating {
 		t.Fatal("UE not marked deactivating after its APN was unbound")
@@ -126,7 +126,7 @@ func TestReconcileDataNetworkReactivatesOnFramedRouteChange(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !testPDN(ue).Deactivating {
 		t.Fatal("UE not marked deactivating after a framed-route change")
@@ -153,7 +153,7 @@ func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !testPDN(ue).Deactivating {
 		t.Fatal("UE not marked deactivating after a static IP change")
@@ -167,7 +167,7 @@ func TestReconcileDataNetworkReactivatesOnStaticIPChange(t *testing.T) {
 func TestReconcileDataNetworkSkipsIdleUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 	testPDN(ue).DnConfig = "stale|config|0.0.0.0|0"
 
 	m.ReconcileDataNetwork(context.Background())
@@ -193,7 +193,7 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !testPDN(ue).Modifying {
 		t.Fatal("UE not marked modifying after a DNS-only change")
@@ -244,7 +244,7 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !p.Modifying {
 		t.Fatal("UE not marked modifying after a Session-AMBR change")
@@ -344,7 +344,7 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if !p.Modifying {
 		t.Fatal("UE not marked modifying after a QoS change")
@@ -425,7 +425,7 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	fsm := m.Session.(*fakeSessionManager)
 	if !fsm.ambrUpdated {
@@ -482,7 +482,7 @@ func TestReconcileUEIdleNoPanic(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	m.ReconcileUE(context.Background(), ue)
 
@@ -581,7 +581,7 @@ func TestReconcileSessionAMBRRefreshesTheMappedFiveGSQoS(t *testing.T) {
 
 	m.ReconcileDataNetwork(context.Background())
 
-	defer ue.Conn().StopNASGuard()
+	defer ue.Conn().StopNASGuard(t.Context())
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one Modify EPS Bearer Context Request, got %d", len(cc.sent))

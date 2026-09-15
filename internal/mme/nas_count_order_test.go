@@ -108,7 +108,7 @@ func TestResentAttachAcceptTakesTheNextCount_TS24301_5_5_1_2_7d(t *testing.T) {
 
 	ueConn.ResendAttachAccept(context.Background())
 	ueConn.ResendAttachAccept(context.Background())
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(t.Context())
 
 	if cc.count() != 2 {
 		t.Fatalf("wrote %d Attach Accepts, want 2", cc.count())

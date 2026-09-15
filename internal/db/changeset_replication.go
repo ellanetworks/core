@@ -322,6 +322,56 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 	return changeset, result, nil
 }
 
+func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn func(context.Context) (any, error)) (any, error) {
+	conn, err := db.conn().PlainDB().Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire sqlite conn for %s: %w", operation, err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	var result any
+
+	if err := conn.Raw(func(raw any) error {
+		sqliteConn, ok := raw.(*sqlite3.SQLiteConn)
+		if !ok {
+			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
+		}
+
+		dconn, ok := raw.(driver.Conn)
+		if !ok {
+			return fmt.Errorf("raw sqlite conn does not implement driver.Conn")
+		}
+
+		if _, err := sqliteConn.ExecContext(ctx, "BEGIN IMMEDIATE", nil); err != nil {
+			return fmt.Errorf("begin %s transaction: %w", operation, err)
+		}
+
+		rollback := func() {
+			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
+		}
+
+		applyResult, applyErr := db.applyWithPinnedConn(ctx, dconn, applyFn)
+		if applyErr != nil {
+			rollback()
+			return applyErr
+		}
+
+		if _, err := sqliteConn.ExecContext(ctx, "COMMIT", nil); err != nil {
+			rollback()
+			return fmt.Errorf("commit %s transaction: %w", operation, err)
+		}
+
+		result = applyResult
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // pinnedRunnerCtxKey is the context key under which applyWithPinnedConn stores
 // the pinned *sqlair.DB for apply functions. Applier methods resolve the
 // runner via (*Database).runner so they target the pinned connection during
@@ -342,9 +392,6 @@ func (db *Database) runner(ctx context.Context) *sqlair.DB {
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
-	// The caller (leaderCaptureAndPropose) holds db.proposeMu, so concurrent
-	// captures are serialised at the propose level — no additional mutex
-	// is needed here.
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})
 	pinned.SetMaxOpenConns(1)
 	pinned.SetMaxIdleConns(1)

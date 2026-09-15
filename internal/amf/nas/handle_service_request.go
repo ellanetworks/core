@@ -138,7 +138,7 @@ func sendServiceAccept(
 			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
 
-		ueConn.N2Setup(amf.N2SetupInitialContext).Arm(guardCfg)
+		ueConn.N2Setup(amf.N2SetupInitialContext).Arm(ctx, guardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
 	case len(suList) != 0:
@@ -152,11 +152,11 @@ func sendServiceAccept(
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
 
-		ueConn.N2Setup(amf.N2SetupPDUSession).Arm(guardCfg)
+		ueConn.N2Setup(amf.N2SetupPDUSession).Arm(ctx, guardCfg)
 
 		logger.From(ctx, logger.AmfLog).Info("sent service accept")
 	default:
-		ueConn.EndN2Setup(proc)
+		ueConn.EndN2Setup(ctx, proc)
 
 		if err := ueConn.SendDownlinkNASTransport(ctx, acceptWire); err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %v", err)
@@ -276,7 +276,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 
 	// TS 24.501: an integrity-protected SERVICE REQUEST carrying a NAS
 	// message container holds the real initial NAS message in that container;
@@ -526,9 +526,9 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 
 			if initialContextSetup {
-				ueConn.AbortICS()
+				ueConn.AbortICS(ctx)
 			} else {
-				ueConn.EndN2Setup(amf.N2SetupPDUSession)
+				ueConn.EndN2Setup(ctx, amf.N2SetupPDUSession)
 			}
 		}
 
@@ -536,10 +536,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if buffered.stale && serviceType == fgs.ServiceTypeMobileTerminatedServices {
-		ue.PagingDelivered()
+		ue.PagingDelivered(ctx)
 
 		if initialContextSetup {
-			ueConn.AbortICS()
+			ueConn.AbortICS(ctx)
 		}
 
 		return nasreply.Silent(nasreply.ReasonNoContext)
@@ -550,7 +550,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if buffered.present {
-		ue.PagingDelivered()
+		ue.PagingDelivered(ctx)
 	}
 
 	if buffered.n1Only != nil {

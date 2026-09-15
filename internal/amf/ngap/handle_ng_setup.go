@@ -100,7 +100,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// ran.RanID != nil guard gates all other NGAP handlers. The claim precedes
 	// the response because evicting a duplicate association aborts it, and the
 	// answer must not go out while the superseded one is still live.
-	evicted, err := amfInstance.ClaimRanID(ran, req.GlobalRANNodeID, advertisedCapacity)
+	evicted, err := amfInstance.ClaimRanID(ctx, ran, req.GlobalRANNodeID, advertisedCapacity)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected", zap.Error(err))
 		sendNGSetupFailure(ctx, ran, causeSemanticError, nil)

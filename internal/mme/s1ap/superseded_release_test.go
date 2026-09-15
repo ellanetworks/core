@@ -58,7 +58,7 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 	}
 
 	newConn := &captureConn{}
-	HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(newConn), initiatingValue(t, im))
+	HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(newConn), initiatingValue(t, im))
 
 	if ue.Conn().ENBUES1APID != 1001 {
 		t.Fatalf("resume did not bind the new connection (eNB-UE-S1AP-ID = %d)", ue.Conn().ENBUES1APID)
@@ -138,7 +138,7 @@ func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	}
 
 	before := oldConn.count()
-	handleUEContextReleaseRequest(m, context.Background(), mme.NewRadioForTest(oldConn), initiatingValue(t, relReq))
+	handleUEContextReleaseRequest(context.Background(), m, mme.NewRadioForTest(oldConn), initiatingValue(t, relReq))
 
 	for _, pdu := range oldConn.sent[before:] {
 		if isErrorIndication(t, pdu) {

@@ -106,7 +106,7 @@ func TestHandleUplinkNASTransport_HappyPath_NASDispatched(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	nasPDU := []byte{0xAA, 0xBB}
 
@@ -138,7 +138,7 @@ func TestHandleUplinkNASTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{
 		AMFUENGAPID: 10,

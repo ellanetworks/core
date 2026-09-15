@@ -613,14 +613,14 @@ func (m *MME) ReleaseBareConn(c *UeConn) {
 }
 
 // NewUe registers a bare connection and immediately binds a fresh UE context to it.
-func (m *MME) NewUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
+func (m *MME) NewUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 	c := m.NewUeConn(conn, enbUEID)
 	if c == nil {
 		return nil
 	}
 
 	ue := NewUeContext()
-	m.AttachUeConn(ue, c)
+	m.AttachUeConn(ctx, ue, c)
 
 	return ue
 }
@@ -658,17 +658,17 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 
 // AttachUeConn binds a bare connection to a held UE context under the registry lock,
 // releasing any superseded connection.
-func (m *MME) AttachUeConn(ue *UeContext, c *UeConn) {
+func (m *MME) AttachUeConn(ctx context.Context, ue *UeContext, c *UeConn) {
 	m.mu.Lock()
 	superseded := m.attachUeConnLocked(ue, c)
 	m.mu.Unlock()
 
 	if superseded != nil {
-		m.deactivateSupersededUserPlane(context.Background(), ue)
-		m.releaseSupersededConn(context.Background(), superseded)
+		m.deactivateSupersededUserPlane(ctx, ue)
+		m.releaseSupersededConn(ctx, superseded)
 	}
 
-	m.clearPagingSuppression(context.Background(), ue)
+	m.clearPagingSuppression(ctx, ue)
 }
 
 // deactivateSupersededUserPlane buffers the downlink of the bearers the superseded
@@ -741,8 +741,8 @@ func (m *MME) freeUeConnLocked(ue *UeContext) {
 }
 
 // FreeUeConn releases the UE's S1-connection under m.mu, moving it to ECM-IDLE.
-func (m *MME) FreeUeConn(ue *UeContext) {
-	ue.settleDeliveryOnRelease()
+func (m *MME) FreeUeConn(ctx context.Context, ue *UeContext) {
+	ue.settleDeliveryOnRelease(ctx)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

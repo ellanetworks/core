@@ -44,14 +44,17 @@ type RetentionPolicy struct {
 }
 
 func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -81,14 +84,17 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 // Ensure that we have a row for the Audit Log retention policy.
 func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category RetentionCategory) bool {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -123,14 +129,17 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 // If policy.ID is empty (new row, not an update of an existing one),
 // a UUIDv7 is generated. The id is ignored on UPDATE conflict.
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection", RetentionPolicyTableName),
+			attribute.String("db.collection.name", RetentionPolicyTableName),
 			attribute.String("policy.category", string(policy.Category)),
 			attribute.Int("policy.days", policy.Days),
 		),

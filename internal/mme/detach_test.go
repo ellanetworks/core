@@ -54,7 +54,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	t.Helper()
 
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 
 	kasme := make([]byte, 32)
 	for i := range kasme {
@@ -105,7 +105,7 @@ func TestDetachSubscriberIdleReleasesLocally(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	testPDN(ue).Apn = "internet"
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	m.DetachSubscriber(context.Background(), ue.imsiOrEmpty())
 
@@ -123,7 +123,7 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 	m := newTestMME(t)
 
 	cc := &captureConn{}
-	ue := m.NewUe(cc, 7)
+	ue := m.NewUe(t.Context(), cc, 7)
 	ue.secured = false
 	ue.ForceStateForTest(EMMRegistrationInitiated)
 	registerTestUE(m, ue, testSubscriber.IMSI)
@@ -151,7 +151,7 @@ func TestDetachSubscriberConnectedUnsecuredReleasesLocally(t *testing.T) {
 func TestReleaseUEContextIdleNoPanic(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
 

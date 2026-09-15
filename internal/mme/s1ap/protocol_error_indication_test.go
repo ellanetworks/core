@@ -16,7 +16,7 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	sendProtocolErrorIndication(m, cc, s1ap.CauseProtocolTransferSyntaxError)
+	sendProtocolErrorIndication(t.Context(), m, cc, s1ap.CauseProtocolTransferSyntaxError)
 
 	if cc.count() != 1 {
 		t.Fatalf("sent %d messages, want 1 (Error Indication)", cc.count())
@@ -52,7 +52,7 @@ func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 			m := newTestMME(t)
 			cc := &captureConn{}
 
-			Route(m, context.Background(), mme.NewRadioForTest(cc), &s1ap.InitiatingMessage{
+			Route(context.Background(), m, mme.NewRadioForTest(cc), &s1ap.InitiatingMessage{
 				ProcedureCode: s1ap.ProcedureCode(200),
 				Criticality:   tt.crit,
 			})

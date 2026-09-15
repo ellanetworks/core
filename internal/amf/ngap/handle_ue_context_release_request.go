@@ -54,7 +54,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {
-		ueConn.DeferRelease(cause)
+		ueConn.DeferRelease(ctx, cause)
 
 		logger.WithTrace(ctx, ueConn.Log()).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
 

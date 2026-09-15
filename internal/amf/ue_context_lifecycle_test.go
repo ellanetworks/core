@@ -19,10 +19,10 @@ func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 
 	ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
 
-	old := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) { ueConn.AMFForTest().AttachUeConn(u, ueConn) })
+	old := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) { ueConn.AMFForTest().AttachUeConn(t.Context(), u, ueConn) })
 
 	fresh := amf.NewUeContext()
-	ueConn.AMFForTest().AttachUeConn(fresh, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), fresh, ueConn)
 
 	amfInstance.DeregisterAndRemoveUeContext(context.Background(), old)
 
@@ -44,7 +44,7 @@ func TestUeContext_AttachUeConn_BindsConn(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if ue.Conn() != ueConn {
 		t.Errorf("NasConn() = %p, want %p", ue.Conn(), ueConn)
@@ -60,9 +60,9 @@ func TestUeConn_Release(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	ueConn.Release()
+	ueConn.Release(t.Context())
 
 	if ue.Conn() != nil {
 		t.Error("NasConn() still set after Release")
@@ -74,21 +74,21 @@ func TestUeContext_AttachUeConn_RestoresNasConnAfterRelease(t *testing.T) {
 	ranUe1 := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ranUe1.AMFForTest().AttachUeConn(ue, ranUe1)
+	ranUe1.AMFForTest().AttachUeConn(t.Context(), ue, ranUe1)
 
 	conn := ue.Conn()
 	if conn == nil {
 		t.Fatal("initial NasConn is nil")
 	}
 
-	conn.Release()
+	conn.Release(t.Context())
 
 	if ue.Conn() != nil {
 		t.Fatal("NasConn should be nil right after Release")
 	}
 
 	ranUe2 := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
-	ranUe2.AMFForTest().AttachUeConn(ue, ranUe2)
+	ranUe2.AMFForTest().AttachUeConn(t.Context(), ue, ranUe2)
 
 	if ue.Conn() == nil {
 		t.Error("NasConn still nil after re-AttachUeConn")
@@ -101,8 +101,8 @@ func TestUeContext_AttachUeConn_ReplacesOld(t *testing.T) {
 	ranUe2 := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
 
 	ue := amf.NewUeContext()
-	ranUe1.AMFForTest().AttachUeConn(ue, ranUe1)
-	ranUe2.AMFForTest().AttachUeConn(ue, ranUe2)
+	ranUe1.AMFForTest().AttachUeConn(t.Context(), ue, ranUe1)
+	ranUe2.AMFForTest().AttachUeConn(t.Context(), ue, ranUe2)
 
 	if ue.Conn() != ranUe2 {
 		t.Errorf("NasConn() = %p, want %p", ue.Conn(), ranUe2)

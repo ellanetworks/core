@@ -43,7 +43,7 @@ func mustRanNodeID(t *testing.T, g s1ap.GlobalENBID) models.GlobalRanNodeID {
 func claimENBID(t *testing.T, m *MME, radio *Radio, g s1ap.GlobalENBID) {
 	t.Helper()
 
-	if err := m.ClaimENBID(radio, g, DefaultRelativeCapacity); err != nil {
+	if err := m.ClaimENBID(t.Context(), radio, g, DefaultRelativeCapacity); err != nil {
 		t.Fatalf("ClaimENBID: %v", err)
 	}
 }

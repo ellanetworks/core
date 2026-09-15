@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -44,7 +46,7 @@ type SettingsService interface {
 	Stop() error
 	Reconfigure(ctx context.Context, settings BGPSettings, peers []BGPPeer) error
 	SetAdvertising(advertising bool)
-	UpdateFilter(filter *RouteFilter)
+	UpdateFilter(ctx context.Context, filter *RouteFilter)
 }
 
 // FilterBuilder returns the RouteFilter this node should apply,
@@ -172,7 +174,20 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 }
 
 // Reconcile performs one pass. Exposed for tests and explicit triggers.
-func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
+func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "bgp/reconcile_settings",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "bgp settings reconcile failed")
+		}
+
+		span.End()
+	}()
+
 	desiredSettings, err := r.store.GetSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("get settings: %w", err)
@@ -252,7 +267,7 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
 		r.stateMu.Unlock()
 
 		if !filtersEqual(prevFilter, nextFilter) {
-			r.service.UpdateFilter(nextFilter)
+			r.service.UpdateFilter(ctx, nextFilter)
 			r.log.Info("updated BGP route filter from reconcile")
 		}
 	}

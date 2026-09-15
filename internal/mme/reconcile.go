@@ -13,6 +13,8 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +26,18 @@ import (
 // cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) so the UE
 // re-establishes.
 func (m *MME) ReconcileDataNetwork(ctx context.Context) {
-	for _, ue := range m.ConnectedUEs() {
+	ues := m.ConnectedUEs()
+	if len(ues) == 0 {
+		return
+	}
+
+	ctx, span := Tracer.Start(ctx, "mme/reconcile_sessions",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.Int("reconcile.ue_count", len(ues))),
+	)
+	defer span.End()
+
+	for _, ue := range ues {
 		m.ReconcileUE(ctx, ue)
 	}
 }
@@ -320,7 +333,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		return
 	}
 
-	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func() {
+	m.ArmESMGuardAbortOnly(ctx, ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
 		ue.mu.Lock()
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()

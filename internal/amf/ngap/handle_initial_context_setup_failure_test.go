@@ -76,7 +76,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	amfUe.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	conn := amfUe.Conn()
 	conn.NASGuardForTest().Arm(time.Hour, 4, func(int32) {}, func() {})
@@ -110,7 +110,7 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 	}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xEE, 0xFF}
 
@@ -142,7 +142,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateForEverySession(t *t
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-session-2", Snssai: &models.Snssai{Sst: 1}}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if got := ueConn.N2Setup(amf.N2SetupInitialContext).Claim([]uint8{1, 2}); len(got) != 2 {
 		t.Fatalf("claimed %v, want both PDU sessions", got)
@@ -181,7 +181,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateWithoutAFailedList(t
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-session-1", Snssai: &models.Snssai{Sst: 1}}
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {
 		t.Fatal("could not claim the PDU session")

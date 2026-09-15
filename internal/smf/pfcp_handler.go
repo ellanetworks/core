@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -78,7 +79,7 @@ func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, c
 
 func (s *SMF) SendFlowReports(ctx context.Context, reqs []*models.FlowReportRequest) error {
 	ctx, span := tracer.Start(ctx, "smf/send_flow_reports",
-		trace.WithAttributes(attribute.Int("batch_size", len(reqs))),
+		trace.WithAttributes(attribute.Int("pfcp.report_batch_size", len(reqs))),
 	)
 	defer span.End()
 
@@ -117,8 +118,8 @@ func (s *SMF) HandleErrorIndicationReport(ctx context.Context, report *models.Er
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.Int64("seid", int64(report.SEID)),
-		attribute.Int64("far_id", int64(report.FARID)),
+		attrs.SEID(report.SEID),
+		attribute.Int64("pfcp.far_id", int64(report.FARID)),
 	)
 
 	smContext := s.GetSessionBySEID(report.SEID)

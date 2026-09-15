@@ -23,7 +23,7 @@ func attachTestConn(t *testing.T, ue *amf.UeContext) {
 	amfInstance := amf.New(nil, nil, nil)
 	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
 	radio.BindAMFForTest(amfInstance)
-	amfInstance.AttachUeConn(ue, amf.NewUeConnForTest(radio, 1, 1, zap.NewNop()))
+	amfInstance.AttachUeConn(t.Context(), ue, amf.NewUeConnForTest(radio, 1, 1, zap.NewNop()))
 }
 
 func epsCapableUE(t *testing.T, s1 []byte) *amf.UeContext {

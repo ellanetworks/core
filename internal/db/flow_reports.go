@@ -165,15 +165,18 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 		return nil
 	}
 
+	querySummary := fmt.Sprintf("BATCH INSERT %s", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("BATCH INSERT %s", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", FlowReportsTableName),
-			attribute.Int("db.batch_size", len(flowReports)),
+			attribute.String("db.collection.name", FlowReportsTableName),
+			attribute.Int("db.operation.batch.size", len(flowReports)),
 		),
 	)
 	defer span.End()
@@ -230,16 +233,19 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 }
 
 func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, filters *FlowReportFilters) ([]dbwriter.FlowReport, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged+filtered)", "SELECT", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged+filtered)", "SELECT", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
+			attribute.String("db.collection.name", FlowReportsTableName),
+			attribute.Int("db.page", page),
+			attribute.Int("db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -295,14 +301,17 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 
 // DeleteOldFlowReports removes flow reports older than the specified retention period in days.
 func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
+	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (retention)", "DELETE", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -332,14 +341,17 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 }
 
 func (db *Database) ClearFlowReports(ctx context.Context) error {
+	querySummary := fmt.Sprintf("%s %s (all)", "DELETE", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (all)", "DELETE", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -363,14 +375,17 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 }
 
 func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
+	querySummary := fmt.Sprintf("%s %s (by day)", "SELECT", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by day)", "SELECT", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -405,14 +420,17 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 }
 
 func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
+	querySummary := fmt.Sprintf("%s %s (by subscriber)", "SELECT", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by subscriber)", "SELECT", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -448,14 +466,17 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 
 // GetFlowReportStats returns aggregated protocol counts and top destination IPs for uplink traffic.
 func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, error) {
+	querySummary := fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", FlowReportsTableName),
+			attribute.String("db.collection.name", FlowReportsTableName),
 		),
 	)
 	defer span.End()

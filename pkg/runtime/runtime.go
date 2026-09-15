@@ -577,7 +577,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// the read loop), so no separate Notify handler is needed.
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
-				amfInstance.DisconnectRadio(context.Background(), ran)
+				amfInstance.DisconnectRadioOnConnLoss(ran)
 				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
@@ -626,6 +626,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// does not starve subsequent ones.
 		stepTimeout := 5 * time.Second
 
+		step := func(name string, fn func(context.Context)) {
+			logger.EllaLog.Info(name)
+
+			stepCtx, cancel := context.WithTimeout(context.Background(), stepTimeout)
+			defer cancel()
+
+			fn(stepCtx)
+		}
+
 		// 0. Transfer leadership (HA only) so the cluster can continue
 		//    serving writes while this node tears down.
 		if dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
@@ -639,45 +648,39 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 
 		// 1. Stop accepting new HTTP requests.
-		logger.EllaLog.Info("Shutting down API server")
+		step("Shutting down API server", func(stepCtx context.Context) {
+			if err := apiServer.Shutdown(stepCtx); err != nil {
+				logger.EllaLog.Warn("API server shutdown error", zap.Error(err))
+			}
+		})
 
-		apiCtx, apiCancel := context.WithTimeout(context.Background(), stepTimeout)
-		if err := apiServer.Shutdown(apiCtx); err != nil {
-			logger.EllaLog.Warn("API server shutdown error", zap.Error(err))
-		}
-
-		apiCancel()
+		// 1b. Stop the session reconcilers so no more reconcile calls land
+		// on a shutting-down SMF or eNB.
+		logger.EllaLog.Info("Shutting down session reconcilers")
+		sessionReconciler.Stop()
+		mmeReconciler.Stop()
 
 		// 2. Cancel all AMF UE timers immediately so paging and other
 		//    retransmissions stop firing during teardown.
-		logger.EllaLog.Info("Cancelling AMF timers")
-		amfInstance.StopAllTimers()
+		step("Cancelling AMF timers", func(stepCtx context.Context) {
+			amfInstance.StopAllTimers(stepCtx)
+		})
 
 		// 3. Notify RANs and close SCTP connections.
-		logger.EllaLog.Info("Shutting down AMF")
-
-		amfCtx, amfCancel := context.WithTimeout(context.Background(), stepTimeout)
-		closeAMF(amfCtx, amfInstance, sctpServer)
-		amfCancel()
+		step("Shutting down AMF", func(stepCtx context.Context) {
+			closeAMF(stepCtx, amfInstance, sctpServer)
+		})
 
 		// 3b. Shut down the 4G S1-MME server.
-		logger.EllaLog.Info("Shutting down MME")
-
-		mmeCtx, mmeCancel := context.WithTimeout(context.Background(), stepTimeout)
-		mmeServer.Shutdown(mmeCtx)
-		mmeCancel()
+		step("Shutting down MME", func(stepCtx context.Context) {
+			mmeServer.Shutdown(stepCtx)
+		})
 
 		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
 		// stops first so no more Announce/Withdraw calls land on a
 		// shutting-down service.
 		logger.EllaLog.Info("Shutting down BGP reconciler")
 		bgpReconciler.Stop()
-
-		// 4b. Stop the session reconcilers so no more reconcile calls land
-		// on a shutting-down SMF or eNB.
-		logger.EllaLog.Info("Shutting down session reconcilers")
-		sessionReconciler.Stop()
-		mmeReconciler.Stop()
 
 		logger.EllaLog.Info("Shutting down BGP")
 
@@ -691,19 +694,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		upfReconciler.Stop()
 
 		// 5. Stop UPF — this flushes remaining flow reports to SMF.
-		logger.EllaLog.Info("Shutting down UPF")
-
-		upfCtx, upfCancel := context.WithTimeout(context.Background(), stepTimeout)
-		upfInstance.Close(upfCtx)
-		upfCancel()
+		step("Shutting down UPF", func(stepCtx context.Context) {
+			upfInstance.Close(stepCtx)
+		})
 
 		// 6. Drain the buffered writer so queued events (including the
 		//    flow reports just flushed by the UPF) are persisted to DB.
-		logger.EllaLog.Info("Flushing buffered writer")
-
-		bwCtx, bwCancel := context.WithTimeout(context.Background(), stepTimeout)
-		bufferedWriter.Stop(bwCtx)
-		bwCancel()
+		step("Flushing buffered writer", func(stepCtx context.Context) {
+			bufferedWriter.Stop(stepCtx)
+		})
 
 		// 7. Wait for background goroutines (data retention, session
 		//    cleanup, AUSF) which were already signalled via ctx.Done().
@@ -719,14 +718,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		// 9. Flush the OpenTelemetry tracer.
 		if tp != nil {
-			logger.EllaLog.Info("Shutting down tracer")
-
-			tpCtx, tpCancel := context.WithTimeout(context.Background(), stepTimeout)
-			if err := tp.Shutdown(tpCtx); err != nil {
-				logger.EllaLog.Warn("could not shutdown tracer", zap.Error(err))
-			}
-
-			tpCancel()
+			step("Shutting down tracer", func(stepCtx context.Context) {
+				if err := tp.Shutdown(stepCtx); err != nil {
+					logger.EllaLog.Warn("could not shutdown tracer", zap.Error(err))
+				}
+			})
 		}
 	}()
 

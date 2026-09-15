@@ -54,14 +54,17 @@ type DeleteOldestArgs struct {
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -94,14 +97,17 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 }
 
 func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (*Session, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", SessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -132,14 +138,17 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -163,14 +172,17 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 }
 
 func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -196,14 +208,17 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 }
 
 func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "COUNT", SessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -231,14 +246,17 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 }
 
 func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "COUNT", SessionsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -264,14 +282,17 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 }
 
 func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -295,14 +316,17 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 }
 
 func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -326,14 +350,17 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string)
 }
 
 func (db *Database) DeleteAllSessions(ctx context.Context) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", SessionsTableName),
+			attribute.String("db.collection.name", SessionsTableName),
 		),
 	)
 	defer span.End()

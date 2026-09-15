@@ -57,7 +57,7 @@ func (k *recordingKernel) seedManaged(routes ...kernel.ManagedRoute) {
 	k.managed[kernel.N6] = append(k.managed[kernel.N6], routes...)
 }
 
-func (k *recordingKernel) EnableIPForwarding() error {
+func (k *recordingKernel) EnableIPForwarding(_ context.Context) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -67,14 +67,14 @@ func (k *recordingKernel) EnableIPForwarding() error {
 	return nil
 }
 
-func (k *recordingKernel) IsIPForwardingEnabled() (bool, error) {
+func (k *recordingKernel) IsIPForwardingEnabled(_ context.Context) (bool, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
 	return k.forwardingOn, nil
 }
 
-func (k *recordingKernel) CreateRoute(dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) error {
+func (k *recordingKernel) CreateRoute(_ context.Context, dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -84,7 +84,7 @@ func (k *recordingKernel) CreateRoute(dest netip.Prefix, gw netip.Addr, prio int
 	return nil
 }
 
-func (k *recordingKernel) DeleteRoute(dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) error {
+func (k *recordingKernel) DeleteRoute(_ context.Context, dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -105,11 +105,11 @@ func (k *recordingKernel) DeleteRoute(dest netip.Prefix, gw netip.Addr, prio int
 	return nil
 }
 
-func (k *recordingKernel) ReplaceRoute(_ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) error {
+func (k *recordingKernel) ReplaceRoute(_ context.Context, _ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) error {
 	return nil
 }
 
-func (k *recordingKernel) ListManagedRoutes(ifKey kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
+func (k *recordingKernel) ListManagedRoutes(_ context.Context, ifKey kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -119,9 +119,11 @@ func (k *recordingKernel) ListManagedRoutes(ifKey kernel.NetworkInterface) ([]ke
 	return out, nil
 }
 
-func (k *recordingKernel) InterfaceExists(_ kernel.NetworkInterface) (bool, error) { return true, nil }
+func (k *recordingKernel) InterfaceExists(_ context.Context, _ kernel.NetworkInterface) (bool, error) {
+	return true, nil
+}
 
-func (k *recordingKernel) RouteExists(dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) (bool, error) {
+func (k *recordingKernel) RouteExists(_ context.Context, dest netip.Prefix, gw netip.Addr, prio int, ifKey kernel.NetworkInterface) (bool, error) {
 	if k.existsCheckErr != nil {
 		return false, k.existsCheckErr
 	}
@@ -138,7 +140,7 @@ func (k *recordingKernel) RouteExists(dest netip.Prefix, gw netip.Addr, prio int
 	return false, nil
 }
 
-func (k *recordingKernel) EnsureGatewaysOnInterfaceInNeighTable(_ kernel.NetworkInterface) error {
+func (k *recordingKernel) EnsureGatewaysOnInterfaceInNeighTable(_ context.Context, _ kernel.NetworkInterface) error {
 	return nil
 }
 

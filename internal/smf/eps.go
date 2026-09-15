@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -44,7 +45,7 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
-			attribute.String("ue.imsi", req.IMSI),
+			attrs.IMSI(req.IMSI),
 			attribute.Int("eps.bearer_id", int(req.EPSBearerIdentity)),
 			attribute.String("eps.apn", req.APN),
 		),
@@ -143,7 +144,7 @@ var errTransferRolledBack = errors.New("transfer rolled back")
 func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error {
 	ctx, span := tracer.Start(ctx, "smf/modify_eps_session",
 		trace.WithAttributes(
-			attribute.String("smf.session_ref", ref),
+			attrs.SMContextRef(ref),
 			attribute.Int("eps.bearer_id", int(ebi)),
 		),
 	)
@@ -191,7 +192,7 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 
 func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error {
 	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr",
-		trace.WithAttributes(attribute.String("smf.session_ref", ref)),
+		trace.WithAttributes(attrs.SMContextRef(ref)),
 	)
 	defer span.End()
 
@@ -274,7 +275,7 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
 
 func (s *SMF) OpenEPSForwardingTunnel(ctx context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error) {
 	ctx, span := tracer.Start(ctx, "smf/open_eps_forwarding_tunnel",
-		trace.WithAttributes(attribute.String("smf.session_ref", ref)),
+		trace.WithAttributes(attrs.SMContextRef(ref)),
 	)
 	defer span.End()
 

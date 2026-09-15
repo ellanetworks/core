@@ -132,7 +132,7 @@ func handoverRequiredToGNB(ue *mme.UeContext) *s1ap.HandoverRequired {
 func requireHandoverToFiveGS(t *testing.T, m *mme.MME, ue *mme.UeContext, source *captureConn) {
 	t.Helper()
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, handoverRequiredToGNB(ue).Marshal)))
 }
 
@@ -331,7 +331,7 @@ func TestHandoverRequiredToFiveGSWithAnENBTarget(t *testing.T) {
 	req := handoverRequiredToGNB(ue)
 	req.TargetID = s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}}
 
-	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, req.Marshal)))
+	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, req.Marshal)))
 
 	if got := lastPreparationFailure(t, source); got.Cause == nil {
 		t.Error("no cause in the preparation failure")
@@ -443,7 +443,7 @@ func answerRelease(t *testing.T, m *mme.MME, source *captureConn, ue *mme.UeCont
 		t.Fatalf("unmarshal UE Context Release Complete: %v", err)
 	}
 
-	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(source), pdu.(*s1ap.SuccessfulOutcome).Value)
+	HandleUEContextReleaseComplete(context.Background(), m, mme.NewRadioForTest(source), pdu.(*s1ap.SuccessfulOutcome).Value)
 }
 
 func TestHandoverToFiveGSGuardCancelsAUEThatNeverArrives(t *testing.T) {
@@ -522,7 +522,7 @@ func handoverCancel(ue *mme.UeContext) *s1ap.HandoverCancel {
 func cancelHandover(t *testing.T, m *mme.MME, radio *captureConn, cancel *s1ap.HandoverCancel) {
 	t.Helper()
 
-	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(radio), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(radio), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 }
 
 func expectCancelAcknowledge(t *testing.T, source *captureConn) {
@@ -608,7 +608,7 @@ func TestENBStatusTransferDuringAHandoverToFiveGS(t *testing.T) {
 		Container:   s1ap.StatusTransferContainer{0xde, 0xad},
 	}
 
-	handleENBStatusTransfer(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, st.Marshal)))
+	handleENBStatusTransfer(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, st.Marshal)))
 
 	if _, held := m.RelocationToFiveGS(ue); !held {
 		t.Error("an eNB Status Transfer disturbed the handover to 5GS")
@@ -627,7 +627,7 @@ func TestSourceENBLossLeavesTheArrivalToThePeersGuard(t *testing.T) {
 	requireHandoverToFiveGS(t, m, ue, source)
 	awaitSourceMessage(t, source, before+1)
 
-	m.ReclaimConns(m.ConnsOnConn(source), "eNB disconnect")
+	m.ReclaimConns(t.Context(), m.ConnsOnConn(source), "eNB disconnect")
 
 	deadline := time.Now().Add(2 * time.Second)
 

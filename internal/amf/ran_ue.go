@@ -22,6 +22,8 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -221,12 +223,12 @@ func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
 // ue.active is done under the registry lock (amf.mu), like bind, so it cannot race an
 // AttachUeConn. A key-changing procedure still in flight is left to its supervision
 // deadline (TS 38.413 handover guard), which runs its cleanup.
-func (ueConn *UeConn) Release() {
+func (ueConn *UeConn) Release(ctx context.Context) {
 	ueConn.cancelDeferredRelease()
-	ueConn.stopTimers()
+	ueConn.stopTimers(ctx)
 
 	if ue := ueConn.ue.Load(); ue != nil && ue.PagingState() == PagingDelivering {
-		ue.PagingFailed(models.N1N2UENotResponding)
+		ue.PagingFailed(ctx, models.N1N2UENotResponding)
 	}
 
 	a := ueConn.amf
@@ -242,25 +244,57 @@ func (ueConn *UeConn) Release() {
 }
 
 // stopTimers stops the connection's NAS guard.
-func (ueConn *UeConn) stopTimers() {
-	ueConn.StopNASGuard()
+func (ueConn *UeConn) stopTimers(ctx context.Context) {
+	ueConn.StopNASGuard(ctx)
 }
 
 // armNASGuardWith arms the connection's NAS common-procedure guard (a no-op when cfg is
 // disabled). The procedures are mutually exclusive, so arming supersedes any prior one.
-func (ueConn *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, onRetransmit func(int32), onAbort func()) {
+func (ueConn *UeConn) armNASGuardWith(ctx context.Context, cfg guard.TimerValue, name string, onRetransmit func(context.Context, int32), onAbort func(context.Context)) {
 	if !cfg.Enable {
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	ueConn.nasGuardName.Store(&name)
-	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, onRetransmit, onAbort)
+	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
+		func(attempt int32) {
+			guardCtx, span := guardSpan(link, "amf/nas_guard_retransmit", name, attempt)
+			defer span.End()
+
+			onRetransmit(guardCtx, attempt)
+		},
+		func() {
+			guardCtx, span := guardSpan(link, "amf/nas_guard_expire", name, 0)
+			defer span.End()
+
+			onAbort(guardCtx)
+		},
+	)
 }
 
-func (ueConn *UeConn) StopNASGuard() {
+func guardSpan(link trace.SpanContext, spanName string, timer string, attempt int32) (context.Context, trace.Span) {
+	opts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String("nas.guard.timer", timer)),
+	}
+
+	if attempt > 0 {
+		opts = append(opts, trace.WithAttributes(attribute.Int("nas.guard.attempt", int(attempt))))
+	}
+
+	if link.IsValid() {
+		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: link}))
+	}
+
+	return tracer.Start(context.Background(), spanName, opts...)
+}
+
+func (ueConn *UeConn) StopNASGuard(ctx context.Context) {
 	ueConn.nasGuardName.Store(nil)
 	ueConn.nasGuard.Stop()
-	ueConn.ResumeDeferredReleaseIfSettled()
+	ueConn.ResumeDeferredReleaseIfSettled(ctx)
 }
 
 // nasGuardProcName returns the procedure the NAS guard currently supervises, or ""
@@ -379,9 +413,9 @@ func (ueConn *UeConn) ResetICS() {
 	ueConn.ics.Store(int32(ICSNotStarted))
 }
 
-func (ueConn *UeConn) AbortICS() {
+func (ueConn *UeConn) AbortICS(ctx context.Context) {
 	ueConn.ResetICS()
-	ueConn.EndN2Setup(N2SetupInitialContext)
+	ueConn.EndN2Setup(ctx, N2SetupInitialContext)
 }
 
 // The registration/auth status fields (RegistrationType5GS, IdentityTypeUsedForRegistration,
@@ -738,7 +772,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	ueConn.abortHandoverOnRemoval(ctx)
 
 	if ue := ueConn.ue.Load(); ue != nil {
-		a.ReleaseNasConnection(ue, ueConn)
+		a.ReleaseNasConnection(ctx, ue, ueConn)
 	}
 
 	a.mu.Lock()

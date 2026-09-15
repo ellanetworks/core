@@ -50,7 +50,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
 		RANUENGAPID:       ngap.RANUENGAPID(1),
@@ -69,7 +69,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
 		RANUENGAPID: ngap.RANUENGAPID(1),
@@ -100,7 +100,7 @@ func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	stored := []byte{0x01, 0x02, 0x03, 0x04}
 	amfUe.RadioCapability = stored

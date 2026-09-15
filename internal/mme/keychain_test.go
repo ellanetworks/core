@@ -93,7 +93,7 @@ func TestKeyChainBusy_ClearedOnConnectionRelease(t *testing.T) {
 		t.Fatal("expected to claim a free key chain")
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	if !m.TryClaimKeyChain(ue) {
 		t.Fatal("key chain still busy after the connection was released")

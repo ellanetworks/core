@@ -67,7 +67,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	// A resume reaches here only after its message was integrity-verified against the
 	// held context, so secure exchange is established on the new connection from the
 	// outset.
-	m.AttachUeConn(ue, c)
+	m.AttachUeConn(ctx, ue, c)
 	c.MarkSecureExchangeEstablished()
 	c.MarkCipheringStarted()
 
@@ -107,7 +107,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 // rejectService answers a service request the MME cannot accept (TS 24.301 §5.6.1.5).
 func rejectService(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
-	ueConn.StopNASGuard()
+	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.ServiceReject{Cause: cause}
 	if ue.Secured() {

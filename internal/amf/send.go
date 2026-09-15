@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -29,27 +30,27 @@ import (
 
 var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 
-func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string, plain []byte, sht uint8, onExhausted func()) {
+func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string, plain []byte, sht uint8, onExhausted func(context.Context)) {
 	ue := conn.UeContext()
 
-	conn.armNASGuardWith(cfg, name,
-		func(attempt int32) {
-			conn.Log().Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
+	conn.armNASGuardWith(ctx, cfg, name,
+		func(ctx context.Context, attempt int32) {
+			logger.From(ctx, conn.Log()).Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-				return ueConn.SendDownlinkNASTransport(context.Background(), wire)
+				return ueConn.SendDownlinkNASTransport(ctx, wire)
 			}); err != nil {
-				ueConn.Log().Error("failed to retransmit NAS request", zap.String("timer", name), zap.Error(err))
+				logger.From(ctx, ueConn.Log()).Error("failed to retransmit NAS request", zap.String("timer", name), zap.Error(err))
 			}
 		},
-		func() {
-			conn.Log().Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
-			onExhausted()
+		func(ctx context.Context) {
+			logger.From(ctx, conn.Log()).Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
+			onExhausted(ctx)
 		},
 	)
 }
 
-func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
+func sendGmm(ctx context.Context, ue *UeConn, spanName string, extra []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
 		return
@@ -58,7 +59,7 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute
 	amfUe := ue.UeContext()
 
 	ctx, span := nasSendTracer.Start(ctx, spanName,
-		trace.WithAttributes(append(attrs, attribute.String("supi", amfUe.supi.String()))...),
+		trace.WithAttributes(append(extra, attrs.SUPI(amfUe.supi.String()))...),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -91,8 +92,8 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType fg
 
 	sendGmm(ctx, ue, "nas/send_downlink_nas_transport",
 		[]attribute.KeyValue{
-			attribute.Int("pduSessionID", int(pduSessionID)),
-			attribute.Int("cause", int(cause)),
+			attrs.PDUSessionID(uint8(pduSessionID)),
+			attribute.Int("nas.cause", int(cause)),
 		},
 		uint8(fgs.SHTIntegrityProtectedCiphered),
 		func(_ *UeContext) ([]byte, error) {
@@ -110,8 +111,8 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.supi.String()),
-			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
+			attrs.SUPI(amfUe.supi.String()),
+			attribute.Int("nas.type_of_identity", int(typeOfIdentity)),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -129,8 +130,8 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 		return
 	}
 
-	armNASGuard(conn, ue, amfInstance.NASGuardCfg, "T3570 (Identity Request)", nasMsg, uint8(fgs.SHTPlain), func() {
-		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
+	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3570 (Identity Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
+		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -148,7 +149,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_authentication_request",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
+			attrs.SUPI(ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -168,8 +169,8 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 		return
 	}
 
-	armNASGuard(conn, ue, amfInstance.NASGuardCfg, "T3560 (Authentication Request)", nasMsg, uint8(fgs.SHTPlain), func() {
-		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
+	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Authentication Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
+		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -186,13 +187,13 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
-		[]attribute.KeyValue{attribute.Int("cause", int(cause))}, rejectSHT(ue),
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
-		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause5GMM))},
 		rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
 			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
@@ -214,7 +215,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_security_mode_command",
 		trace.WithAttributes(
-			attribute.String("supi", ue.UeContext().supi.String()),
+			attrs.SUPI(ue.UeContext().supi.String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -244,9 +245,9 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	}
 
 	conn := amfUe.Conn()
-	armNASGuard(conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", plain, sht, func() {
+	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", plain, sht, func(ctx context.Context) {
 		amfUe.EndKeyChainProc(procedure.SecurityMode)
-		amfInstance.DeregisterAndRemoveUeContext(context.Background(), amfUe)
+		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
 	})
 
 	return nil
@@ -284,7 +285,7 @@ func SendRegistrationAccept(
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
-			attribute.String("supi", ue.Supi().String()),
+			attrs.SUPI(ue.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -329,7 +330,7 @@ func SendRegistrationAccept(
 		ReportProtectFailure(ctx, ue, "registration accept", err)
 
 		if initialContextSetup {
-			ueConn.AbortICS()
+			ueConn.AbortICS(ctx)
 		}
 
 		return false
@@ -343,7 +344,7 @@ func SendRegistrationAccept(
 			ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
 
 			if initialContextSetup {
-				ueConn.AbortICS()
+				ueConn.AbortICS(ctx)
 			}
 
 			return false
@@ -377,14 +378,14 @@ func SendRegistrationAccept(
 	}
 
 	if initialContextSetup && !initialContextSetupSent {
-		ueConn.AbortICS()
+		ueConn.AbortICS(ctx)
 
 		return false
 	}
 
 	if amfInstance.NASGuardCfg.Enable {
 		cfg := amfInstance.NASGuardCfg
-		ueConn.armNASGuardWith(cfg, "T3550 (Registration Accept)", func(expireTimes int32) {
+		ueConn.armNASGuardWith(ctx, cfg, "T3550 (Registration Accept)", func(ctx context.Context, expireTimes int32) {
 			retryUeConn := ue.Conn()
 			if retryUeConn == nil {
 				logger.From(ctx, ueConn.Log()).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
@@ -394,7 +395,7 @@ func SendRegistrationAccept(
 
 			if retryUeConn != ueConn {
 				logger.From(ctx, ueConn.Log()).Warn("[NAS] NAS signalling connection replaced, abort retransmission of Registration Accept")
-				ueConn.StopNASGuard()
+				ueConn.StopNASGuard(ctx)
 
 				return
 			}
@@ -402,7 +403,7 @@ func SendRegistrationAccept(
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				if initialContextSetup && ueConn.ICS() != ICSCompleted {
 					if err := ueConn.SendInitialContextSetup(
-						context.Background(),
+						ctx,
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
 						ue.AllowedNssai,
@@ -428,7 +429,7 @@ func SendRegistrationAccept(
 
 				logger.From(ctx, ueConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-				if err := ueConn.SendDownlinkNASTransport(context.Background(), wire); err != nil {
+				if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 					logger.From(ctx, ueConn.Log()).Error("could not send downlink NAS transport message", zap.Error(err))
 				}
 
@@ -438,10 +439,10 @@ func SendRegistrationAccept(
 			}); err != nil {
 				logger.From(ctx, ueConn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
-		}, func() {
+		}, func(ctx context.Context) {
 			logger.From(ctx, ueConn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			amfInstance.MarkRegistered(context.Background(), ue)
+			amfInstance.MarkRegistered(ctx, ue)
 			ue.ClearRegistrationRequestData()
 		})
 	}
@@ -449,7 +450,7 @@ func SendRegistrationAccept(
 	return initialContextSetupSent
 }
 
-func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
+func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeContext, plain []byte) {
 	if !amfInstance.NASGuardCfg.Enable {
 		return
 	}
@@ -460,31 +461,31 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 	}
 
 	cfg := amfInstance.NASGuardCfg
-	conn.armNASGuardWith(cfg, "T3550 (Registration Accept)", func(expireTimes int32) {
+	conn.armNASGuardWith(ctx, cfg, "T3550 (Registration Accept)", func(ctx context.Context, expireTimes int32) {
 		retryUeConn := ue.Conn()
 		if retryUeConn == nil {
-			conn.Log().Warn("UE context released, abort retransmission of Registration Accept")
+			logger.From(ctx, conn.Log()).Warn("UE context released, abort retransmission of Registration Accept")
 			return
 		}
 
 		if retryUeConn != conn {
-			conn.Log().Warn("NAS signalling connection replaced, abort retransmission of Registration Accept")
-			conn.StopNASGuard()
+			logger.From(ctx, conn.Log()).Warn("NAS signalling connection replaced, abort retransmission of Registration Accept")
+			conn.StopNASGuard(ctx)
 
 			return
 		}
 
-		conn.Log().Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+		logger.From(ctx, conn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
 		if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-			return conn.SendDownlinkNASTransport(context.Background(), wire)
+			return conn.SendDownlinkNASTransport(ctx, wire)
 		}); err != nil {
-			conn.Log().Error("could not retransmit Registration Accept", zap.Error(err))
+			logger.From(ctx, conn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
 		}
-	}, func() {
-		conn.Log().Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
+	}, func(ctx context.Context) {
+		logger.From(ctx, conn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-		amfInstance.MarkRegistered(context.Background(), ue)
+		amfInstance.MarkRegistered(ctx, ue)
 		ue.ClearRegistrationRequestData()
 	})
 }
@@ -503,7 +504,7 @@ func ResendRegistrationAccept(ctx context.Context, amfInstance *AMF, ue *UeConte
 		logger.From(ctx, logger.AmfLog).Warn("failed to resend Registration Accept", zap.Error(err))
 	}
 
-	ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+	ArmRegistrationAcceptGuard(ctx, amfInstance, ue, plain)
 }
 
 func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe *UeContext, includeGUTI bool, operator OperatorConfig) {
@@ -513,7 +514,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 
 	ctx, span := nasSendTracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
-			attribute.String("supi", amfUe.Supi().String()),
+			attrs.SUPI(amfUe.Supi().String()),
 		),
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -568,7 +569,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 			return
 		}
 
-		conn.armNASGuardWith(cfg, "T3555 (Configuration Update)", func(expireTimes int32) {
+		conn.armNASGuardWith(ctx, cfg, "T3555 (Configuration Update)", func(ctx context.Context, expireTimes int32) {
 			logger.From(ctx, conn.Log()).Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			retryUeConn := amfUe.Conn()
@@ -584,11 +585,11 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 			}
 
 			if err := amfUe.SendDownlinkNAS(plain, sht, func(wire []byte) error {
-				return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
+				return retryUeConn.SendDownlinkNASTransport(ctx, wire)
 			}); err != nil {
 				logger.From(ctx, retryUeConn.Log()).Error("could not send configuration update command", zap.Error(err))
 			}
-		}, func() {
+		}, func(ctx context.Context) {
 			logger.From(ctx, conn.Log()).Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum retries", cfg.MaxRetryTimes))
 		},
 		)
@@ -709,8 +710,13 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 		return
 	}
 
+	link := trace.SpanContextFromContext(ctx)
+
 	ueConn.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
-		amfInstance.ReleaseUeConn(context.Background(), ueConn)
+		guardCtx, span := guardSpan(link, "amf/release_guard_expire", "UE Context Release", 0)
+		defer span.End()
+
+		amfInstance.ReleaseUeConn(guardCtx, ueConn)
 	})
 }
 

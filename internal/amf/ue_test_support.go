@@ -4,6 +4,7 @@
 package amf
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -133,8 +134,8 @@ func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
 	ue.paging.state = PagingAttempting
 }
 
-func (ue *UeContext) StopPagingForTest() {
-	ue.PagingDelivered()
+func (ue *UeContext) StopPagingForTest(ctx context.Context) {
+	ue.PagingDelivered(ctx)
 }
 
 func (ue *UeContext) PagingActiveForTest() bool {

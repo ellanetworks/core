@@ -38,7 +38,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nasreply.Handled()
 	}
 
-	conn.StopNASGuard()
+	conn.StopNASGuard(ctx)
 
 	if conn.AuthenticationCtx == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue amf.Authentication Context is nil")

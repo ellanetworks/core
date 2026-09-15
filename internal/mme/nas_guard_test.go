@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
+	ue.Conn().ArmNASGuard(t.Context(), "Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
 
 	eventually(t, time.Second, func() bool {
 		return cc.count() >= 3
@@ -35,7 +36,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 
 	finalized := make(chan struct{}, 1)
 
-	ue.Conn().ArmNASGuardAbortOnly("Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() {
+	ue.Conn().ArmNASGuardAbortOnly(t.Context(), "Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func(context.Context) {
 		finalized <- struct{}{}
 	})
 
@@ -66,7 +67,7 @@ func TestESMGuardUsesESMTimeout(t *testing.T) {
 
 	finalized := make(chan struct{}, 1)
 
-	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() {
+	m.ArmESMGuardAbortOnly(t.Context(), ue, p, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func(context.Context) {
 		finalized <- struct{}{}
 	})
 
@@ -94,8 +95,8 @@ func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 	a1 := make(chan struct{}, 1)
 	a2 := make(chan struct{}, 1)
 
-	m.ArmESMGuardAbortOnly(ue, p1, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() { a1 <- struct{}{} })
-	m.ArmESMGuardAbortOnly(ue, p2, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xcd}, eps.SHTIntegrityProtectedCiphered, func() { a2 <- struct{}{} })
+	m.ArmESMGuardAbortOnly(t.Context(), ue, p1, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func(context.Context) { a1 <- struct{}{} })
+	m.ArmESMGuardAbortOnly(t.Context(), ue, p2, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xcd}, eps.SHTIntegrityProtectedCiphered, func(context.Context) { a2 <- struct{}{} })
 
 	for i, ch := range []chan struct{}{a1, a2} {
 		select {
@@ -113,8 +114,8 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
-	ue.Conn().StopNASGuard()
+	ue.Conn().ArmNASGuard(t.Context(), "Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
+	ue.Conn().StopNASGuard(t.Context())
 
 	time.Sleep(50 * time.Millisecond)
 

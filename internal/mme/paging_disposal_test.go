@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestPagingFailedReportsTheCauseForThePendingBearer(t *testing.T) {
@@ -23,7 +24,7 @@ func TestPagingFailedReportsTheCauseForThePendingBearer(t *testing.T) {
 		t.Fatalf("paging state = %s after Page, want Attempting", state)
 	}
 
-	dropped := ue.PagingFailed(models.EPSPagingUENotResponding)
+	dropped := ue.PagingFailed(t.Context(), models.EPSPagingUENotResponding)
 	if dropped == nil || dropped.Ebi != 5 {
 		t.Fatalf("dropped = %+v, want the pending bearer", dropped)
 	}
@@ -47,7 +48,7 @@ func TestPagingAnsweredThenDelivered(t *testing.T) {
 		t.Errorf("paging state = %s after the UE answered, want Delivering", state)
 	}
 
-	ue.PagingDelivered()
+	ue.PagingDelivered(t.Context())
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after delivery, want Idle", state)
@@ -64,7 +65,7 @@ func TestClearPagingDropsTheBufferedLPPa(t *testing.T) {
 		t.Fatalf("Page: %v", err)
 	}
 
-	ue.PagingFailed(models.EPSPagingUENotResponding)
+	ue.PagingFailed(t.Context(), models.EPSPagingUENotResponding)
 
 	if ue.PopLPPaBuffered() != nil {
 		t.Error("the buffered LPPa payload survived the failed paging procedure")
@@ -79,7 +80,7 @@ func TestDetachFailsThePendingTransfer(t *testing.T) {
 		t.Fatalf("Page: %v", err)
 	}
 
-	ue.TransitionTo(EMMDeregistered)
+	ue.TransitionTo(t.Context(), EMMDeregistered)
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the UE was deregistered, want Idle", state)
@@ -96,7 +97,7 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 
 	ue.PagingAnswered()
 
-	m.ReleaseUEContextLocally(ue, "test")
+	m.ReleaseUEContextLocally(t.Context(), ue, "test")
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the connection carrying the delivery was released, want Idle", state)
@@ -122,9 +123,9 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 		6: {Ebi: 6},
 	}
 
-	m.AttachUeConn(ue, m.NewUeConn(&captureConn{}, 9))
+	m.AttachUeConn(t.Context(), ue, m.NewUeConn(&captureConn{}, 9))
 
-	m.abandonPaging(ue)
+	m.abandonPaging(trace.SpanContext{}, ue)
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Errorf("paging state = %s after an abort that raced the UE answering, want Delivering", state)
@@ -155,13 +156,13 @@ func TestReleaseCompleteFailsADeliveringTransfer(t *testing.T) {
 		t.Fatalf("Page: %v", err)
 	}
 
-	m.AttachUeConn(ue, m.NewUeConn(&captureConn{}, 9))
+	m.AttachUeConn(t.Context(), ue, m.NewUeConn(&captureConn{}, 9))
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Fatalf("paging state = %s after the UE answered, want Delivering", state)
 	}
 
-	m.FreeUeConn(ue)
+	m.FreeUeConn(t.Context(), ue)
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after the UE returned to ECM-IDLE, want Idle", state)

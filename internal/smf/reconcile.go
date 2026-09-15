@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -38,7 +39,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	ctx, span := tracer.Start(ctx, "smf/reconcile_sm_context",
 		trace.WithAttributes(
-			attribute.String("smf.smContextRef", req.SmContextRef),
+			attrs.SMContextRef(req.SmContextRef),
 			attribute.String("smf.reason", string(req.Reason)),
 		),
 	)
@@ -382,9 +383,9 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// (TS 24.501). The committed PFCP/policy change is not rolled back.
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
-	s.armRetransmit(smContext, s.t3591,
-		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1Msg, n2Msg) },
-		func(sc *SMContext) {
+	s.armRetransmit(ctx, smContext, s.timerT3591(),
+		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1Msg, n2Msg) },
+		func(ctx context.Context, sc *SMContext) {
 			sc.ClearPTIInUse(networkRequestedPTI)
 			// Discard the uncommitted policy: the UE never confirmed, so the session
 			// keeps its previous configuration and the backstop re-attempts (TS 24.501

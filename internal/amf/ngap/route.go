@@ -57,9 +57,6 @@ const (
 // criticality of its Procedure Code IE (§10.3.4.1).
 func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span, remote, local net.Addr) {
 	span.SetAttributes(
-		attribute.Int("ngap.message_size", len(msg)),
-		attribute.String("network.protocol.name", "ngap"),
-		attribute.String("network.transport", "sctp"),
 		attribute.String("network.peer.address", amf.AddrString(remote)),
 		attribute.String("network.local.address", amf.AddrString(local)),
 	)
@@ -203,9 +200,6 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 func traceMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, name amf.NGAPProcedure, span trace.Span) {
 	span.SetAttributes(
 		attribute.String("ngap.message_type", string(name)),
-		attribute.Int("ngap.message_size", len(msg)),
-		attribute.String("network.protocol.name", "ngap"),
-		attribute.String("network.transport", "sctp"),
 	)
 
 	amfInstance.LogNetworkEvent(ctx, ran.Conn, name, logger.DirectionInbound, msg)

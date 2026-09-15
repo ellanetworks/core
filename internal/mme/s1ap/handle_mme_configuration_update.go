@@ -30,7 +30,7 @@ func timeToWaitDuration(t s1ap.TimeToWait) time.Duration {
 	}
 }
 
-func handleMMEConfigurationUpdateAcknowledge(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleMMEConfigurationUpdateAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	ack, err := s1ap.ParseMMEConfigurationUpdateAcknowledge(value)
 	if err != nil {
 		logger.From(ctx, radio.Log).Warn("failed to decode MME Configuration Update Acknowledge", zap.Error(err))
@@ -46,7 +46,7 @@ func handleMMEConfigurationUpdateAcknowledge(m *mme.MME, ctx context.Context, ra
 	m.ConfigUpdateAcknowledged(ctx, radio)
 }
 
-func handleMMEConfigurationUpdateFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
+func handleMMEConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	fail, err := s1ap.ParseMMEConfigurationUpdateFailure(value)
 	if err != nil {
 		logger.From(ctx, radio.Log).Warn("failed to decode MME Configuration Update Failure", zap.Error(err))

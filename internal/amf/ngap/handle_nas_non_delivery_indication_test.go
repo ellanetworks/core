@@ -36,7 +36,7 @@ func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
-	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{
 		RANUENGAPID: 1,

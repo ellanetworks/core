@@ -334,7 +334,7 @@ func TestAttachCompleteReportsTheUEDiscardingTheMappedFiveGSQoS(t *testing.T) {
 	m.SetIMSI(ue, "001010000000042")
 
 	ue.Pdns = map[uint8]*mme.PdnConnection{mme.DefaultERABID: {Ebi: mme.DefaultERABID, Apn: "internet"}}
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), mme.EMMRegistrationInitiated)
 	ue.AdvanceRegStep(mme.RegStepContextSetup)
 
 	accept := &eps.ActivateDefaultEPSBearerContextAccept{
@@ -377,7 +377,7 @@ func TestAttachCompleteWithAnUndecodableESMContainerStillCompletes(t *testing.T)
 	m.SetIMSI(ue, "001010000000043")
 
 	ue.Pdns = map[uint8]*mme.PdnConnection{mme.DefaultERABID: {Ebi: mme.DefaultERABID, Apn: "internet"}}
-	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.TransitionTo(t.Context(), mme.EMMRegistrationInitiated)
 	ue.AdvanceRegStep(mme.RegStepContextSetup)
 
 	got := handleAttachComplete(context.Background(), m, ue, ue.Conn(),

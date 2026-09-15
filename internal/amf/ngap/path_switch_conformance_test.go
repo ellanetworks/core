@@ -36,7 +36,7 @@ func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8)
 	}
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
