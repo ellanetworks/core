@@ -434,13 +434,13 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}
 
-	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled()
+	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't check if IP forwarding is enabled: %v", err)
 	}
 
 	if !ipForwardingEnabled {
-		err := kernelInt.EnableIPForwarding()
+		err := kernelInt.EnableIPForwarding(ctx)
 		if err != nil {
 			return fmt.Errorf("couldn't enable IP forwarding: %v", err)
 		}
@@ -481,13 +481,13 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			ifKey:       kernelNetworkInterface,
 		}] = struct{}{}
 
-		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
+		routeExists, err := kernelInt.RouteExists(ctx, destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
 		}
 
 		if !routeExists {
-			err := kernelInt.CreateRoute(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
+			err := kernelInt.CreateRoute(ctx, destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 			if err != nil {
 				return fmt.Errorf("couldn't create route: %v", err)
 			}
@@ -495,7 +495,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	}
 
 	for _, netIf := range interfaceDBKernelMap {
-		managed, err := kernelInt.ListManagedRoutes(netIf)
+		managed, err := kernelInt.ListManagedRoutes(ctx, netIf)
 		if err != nil {
 			return fmt.Errorf("couldn't list managed routes on %v: %v", netIf, err)
 		}
@@ -520,7 +520,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 				continue
 			}
 
-			if err := kernelInt.DeleteRoute(dest, gw, r.Priority, netIf); err != nil {
+			if err := kernelInt.DeleteRoute(ctx, dest, gw, r.Priority, netIf); err != nil {
 				logger.APILog.Warn("couldn't delete stale route",
 					zap.String("destination", dest.String()),
 					zap.String("gateway", gw.String()),
@@ -531,7 +531,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	}
 
 	for _, netIf := range interfaceDBKernelMap {
-		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(netIf)
+		err := kernelInt.EnsureGatewaysOnInterfaceInNeighTable(ctx, netIf)
 		if err != nil {
 			logger.APILog.Warn("failed to ensure gateways are in neighbour table for interface", zap.Any("interface", netIf), zap.Error(err))
 		}

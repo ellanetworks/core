@@ -46,7 +46,7 @@ type SettingsService interface {
 	Stop() error
 	Reconfigure(ctx context.Context, settings BGPSettings, peers []BGPPeer) error
 	SetAdvertising(advertising bool)
-	UpdateFilter(filter *RouteFilter)
+	UpdateFilter(ctx context.Context, filter *RouteFilter)
 }
 
 // FilterBuilder returns the RouteFilter this node should apply,
@@ -267,7 +267,7 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
 		r.stateMu.Unlock()
 
 		if !filtersEqual(prevFilter, nextFilter) {
-			r.service.UpdateFilter(nextFilter)
+			r.service.UpdateFilter(ctx, nextFilter)
 			r.log.Info("updated BGP route filter from reconcile")
 		}
 	}

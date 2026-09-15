@@ -102,7 +102,7 @@ func WithRouteFilter(f *RouteFilter) Option {
 // UpdateFilter replaces the safety rejection filter and re-evaluates all
 // learned routes against the new filter. Routes that now match a reject
 // prefix are immediately removed from the kernel.
-func (b *BGPService) UpdateFilter(f *RouteFilter) {
+func (b *BGPService) UpdateFilter(ctx context.Context, f *RouteFilter) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -121,7 +121,7 @@ func (b *BGPService) UpdateFilter(f *RouteFilter) {
 		dst := lr.prefix
 
 		if f.overlapsAny(dst) {
-			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			err := b.kernel.DeleteRoute(ctx, dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route rejected by updated filter",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -235,7 +235,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 
 	// Clean stale BGP routes from a prior crash before starting the speaker.
 	if b.routeLearningEnabled() {
-		b.cleanStaleRoutes()
+		b.cleanStaleRoutes(ctx)
 	}
 
 	s := gobgp.NewBgpServer(gobgp.GrpcListenAddress(""))
@@ -323,7 +323,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 // mgmtOperation (e.g. ListPath) would block forever once Serve() exits.
 // This is safe because syncRoutes uses TryRLock — it never blocks on mu,
 // so waiting here (with mu write-locked) cannot deadlock.
-func (b *BGPService) stopLocked() error {
+func (b *BGPService) stopLocked(ctx context.Context) error {
 	if !b.running {
 		return nil
 	}
@@ -339,9 +339,7 @@ func (b *BGPService) stopLocked() error {
 	}
 
 	// Remove all learned routes from the kernel.
-	b.removeAllLearnedRoutes()
-
-	ctx := context.Background()
+	b.removeAllLearnedRoutes(ctx)
 
 	err := b.server.StopBgp(ctx, &api.StopBgpRequest{})
 	if err != nil {
@@ -359,7 +357,7 @@ func (b *BGPService) Stop() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.stopLocked()
+	return b.stopLocked(context.Background())
 }
 
 // Restart starts the BGP speaker again after a prior Stop, reusing the last
@@ -451,7 +449,7 @@ func (b *BGPService) Reconfigure(ctx context.Context, settings BGPSettings, peer
 		oldSettings := b.settings
 		oldPeers := b.peers
 
-		if err := b.stopLocked(); err != nil {
+		if err := b.stopLocked(ctx); err != nil {
 			return fmt.Errorf("failed to stop BGP for reconfigure: %w", err)
 		}
 
@@ -915,7 +913,7 @@ func (b *BGPService) reconcilePeers(ctx context.Context, desired []BGPPeer) {
 				b.logger.Warn("failed to delete BGP peer", zap.String("address", addr), zap.Error(err))
 			}
 
-			b.removeLearnedRoutesForPeer(addr)
+			b.removeLearnedRoutesForPeer(ctx, addr)
 		}
 	}
 
