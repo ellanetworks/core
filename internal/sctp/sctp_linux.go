@@ -525,11 +525,15 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		return nil, err
 	}
 
-	var boundAddr *SCTPAddr
+	boundAddr, addrErr := sctpGetAddrs(sock, 0, sctpOptGetLocalAddrs)
+	if addrErr != nil {
+		if laddr == nil || laddr.Port == 0 {
+			err = fmt.Errorf("failed to resolve bound address: %w", addrErr)
 
-	boundAddr, err = sctpGetAddrs(sock, 0, sctpOptGetLocalAddrs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve bound address: %w", err)
+			return nil, err
+		}
+
+		boundAddr = laddr
 	}
 
 	// Wrap the listener socket in os.File. Because the socket was created with
