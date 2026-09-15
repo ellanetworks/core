@@ -82,7 +82,7 @@ func (a *AMF) RelocationFromEPSInProgress(supi etsi.SUPI) bool {
 // A UE arriving by handover from EPS transitions inside the relocation instead: that
 // procedure owns both halves of the registration and sends the MME its own completion.
 func (a *AMF) MarkRegistered(ctx context.Context, ue *UeContext) {
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(ctx, Registered)
 
 	// An illegal transition drops the UE to Deregistered instead. Superseding then would
 	// take the subscriber's EPS registration away in exchange for a 5GS one it never got.

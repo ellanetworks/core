@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -21,7 +20,7 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
 	}, nil, nil)
-	radio := amf.Radio{Log: logger.AmfLog, Conn: ngapSender}
+	radio := amf.Radio{Conn: ngapSender}
 	radio.BindAMFForTest(amfInstance)
 
 	ueConn, err := amfInstance.NewUeConn(&radio, 0)
@@ -61,7 +60,7 @@ func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
 	}, nil, nil)
-	radio := amf.Radio{Log: logger.AmfLog, Conn: ngapSender}
+	radio := amf.Radio{Conn: ngapSender}
 	radio.BindAMFForTest(amfInstance)
 
 	ueConn, err := amfInstance.NewUeConn(&radio, 0)

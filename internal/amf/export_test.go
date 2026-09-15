@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
-	"go.uber.org/zap"
 )
 
 func addTestUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.UeContext)) *amf.UeContext {
@@ -211,11 +210,11 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
-		radio := &amf.Radio{Log: zap.NewNop()}
+		radio := &amf.Radio{}
 		radioAMF := amf.New(nil, nil, nil)
 		radio.BindAMFForTest(radioAMF)
 		radioAMF.UpdateRadioName(radio, "gNB-001")
-		ueConn := amf.NewUeConnForTest(radio, 42, 100, zap.NewNop())
+		ueConn := amf.NewUeConnForTest(radio, 42, 100)
 		ueConn.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 		ue.ArmPagingForTest(1*time.Hour, 3)

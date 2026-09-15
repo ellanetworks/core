@@ -53,7 +53,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
 	}
 
-	logger.From(ctx, c.Log()).Info("Initial UE Message")
+	c.Log(ctx).Info("Initial UE Message")
 
 	// Optimistic S-TMSI resume: a security-protected message whose S-TMSI resolves a
 	// held, secured context is bound to that context only after the message verifies
@@ -63,8 +63,8 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
-				logger.From(ctx, c.Log()).Debug("Initial UE Message: resuming held context",
-					zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
+				c.Log(ctx).Debug("Initial UE Message: resuming held context",
+					zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)))
 				m.AttachUeConn(ctx, ue, c)
 			}
 		}
@@ -87,9 +87,8 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 			cause = *c.TauRejectCause
 		}
 
-		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
-			zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)), zap.Stringer("cause", cause))
+		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", logger.RegistrationRejected,
+			logger.ENBUeS1apID(uint32(msg.ENBUES1APID)), logger.Cause(cause.String()))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
 
 		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
@@ -98,7 +97,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
-		zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)))
+		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
 }

@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -65,8 +66,8 @@ func TestENBTable(t *testing.T) {
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)
 
-	m.trackRadio(c1, RadioInfo{Name: "enb-a", ID: "00f110-1"})
-	m.trackRadio(c2, RadioInfo{Name: "enb-b", ID: "00f110-2"})
+	m.trackRadio(context.Background(), c1, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), c2, RadioInfo{Name: "enb-b", ID: "00f110-2"})
 
 	if got := len(m.ListRadios()); got != 2 {
 		t.Fatalf("ListRadios = %d, want 2", got)
@@ -100,7 +101,7 @@ func TestENBSetupCompleteGate(t *testing.T) {
 		t.Fatal("untracked eNB reported setup-complete")
 	}
 
-	m.trackRadio(c, RadioInfo{Name: "enb-a"})
+	m.trackRadio(context.Background(), c, RadioInfo{Name: "enb-a"})
 
 	if setupComplete(c) {
 		t.Fatal("tracked-but-not-set-up eNB reported setup-complete")
@@ -128,14 +129,14 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)
 
-	m.trackRadio(c1, RadioInfo{Name: "enb-old"})
+	m.trackRadio(context.Background(), c1, RadioInfo{Name: "enb-old"})
 	claimENBID(t, m, m.RadioForConn(c1), enbID)
 
 	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c1) {
 		t.Fatalf("setup: the Global eNB ID %q resolved to the wrong association", id)
 	}
 
-	m.trackRadio(c2, RadioInfo{Name: "enb-new"})
+	m.trackRadio(context.Background(), c2, RadioInfo{Name: "enb-new"})
 	claimENBID(t, m, m.RadioForConn(c2), enbID)
 
 	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c2) {
@@ -162,7 +163,7 @@ func TestClaimENBID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	enbID := testENBID(1)
 	c := new(sctp.SCTPConn)
 
-	m.trackRadio(c, RadioInfo{Name: "enb-a"})
+	m.trackRadio(context.Background(), c, RadioInfo{Name: "enb-a"})
 	claimENBID(t, m, m.RadioForConn(c), enbID)
 
 	m.NewUeConn(c, 10)
@@ -189,10 +190,10 @@ func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)
 
-	m.trackRadio(c1, RadioInfo{Name: "enb-macro"})
+	m.trackRadio(context.Background(), c1, RadioInfo{Name: "enb-macro"})
 	claimENBID(t, m, m.RadioForConn(c1), macro)
 
-	m.trackRadio(c2, RadioInfo{Name: "enb-home"})
+	m.trackRadio(context.Background(), c2, RadioInfo{Name: "enb-home"})
 	claimENBID(t, m, m.RadioForConn(c2), home)
 
 	first, ok := m.FindConnectedRadioByRanID(mustRanNodeID(t, macro))
@@ -207,5 +208,44 @@ func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
 
 	if got := len(m.ListRadios()); got != 2 {
 		t.Errorf("ListRadios() = %d eNBs, want 2", got)
+	}
+}
+
+func TestRepeatS1SetupReusesTheAssociationsRadio(t *testing.T) {
+	m := newTestMME(t)
+
+	c := new(sctp.SCTPConn)
+	id := testENBKey(t, 1)
+
+	m.trackRadio(context.Background(), c, RadioInfo{Name: "enb-a"})
+
+	first := m.RadioForConn(c)
+	if first == nil {
+		t.Fatal("S1 Setup did not track the eNB")
+	}
+
+	claimENBID(t, m, first, testENBID(1))
+
+	m.trackRadio(context.Background(), c, RadioInfo{Name: "enb-a-renamed"})
+
+	again := m.RadioForConn(c)
+	if again != first {
+		t.Fatal("a repeat S1 Setup replaced the association's Radio instead of re-surveying it")
+	}
+
+	if again.NodeName() != "enb-a-renamed" {
+		t.Errorf("the repeat S1 Setup did not refresh the eNB name, got %q", again.NodeName())
+	}
+
+	if again.SetupComplete() {
+		t.Error("the eNB stayed setup-complete while its repeat S1 Setup was unanswered")
+	}
+
+	if _, ok := m.reg.ClaimedBy(id); ok {
+		t.Errorf("the Global eNB ID %q stayed claimed across a repeat S1 Setup", id)
+	}
+
+	if len(m.ListRadios()) != 1 {
+		t.Errorf("a repeat S1 Setup changed the connected eNB count, got %d", len(m.ListRadios()))
 	}
 }

@@ -82,7 +82,7 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("handing the UE's context to EPS for an idle-mode change",
-		logger.SUPI(ue.Supi().String()), zap.Int("pdu-sessions", len(sessions)))
+		logger.SUPI(ue.Supi().String()), zap.Int("pdu_sessions", len(sessions)))
 
 	return interworking.EPSContextResponse{
 		SUPI:           ue.Supi(),

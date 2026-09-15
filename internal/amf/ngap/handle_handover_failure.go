@@ -16,17 +16,17 @@ import (
 
 func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverFailure) {
 	if msg.AMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMF UE NGAP ID is nil")
+		ran.Log(ctx).Error("AMF UE NGAP ID is nil")
 		return
 	}
 
 	if msg.Cause != nil {
-		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(msg.Cause.String()))
+		ran.Log(ctx).Debug("Handover Failure Cause", logger.Cause(msg.Cause.String()))
 	}
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
+		ran.Log(ctx).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 		sendErrorIndication(ctx, ran, msg.AMFUENGAPID, nil, causeUnknownLocalUEID)
 
 		return
@@ -37,7 +37,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	amfUe := targetUe.UeContext()
 
 	if amfUe == nil || amfInstance.HandoverTarget(amfUe) != targetUe {
-		logger.WithTrace(ctx, ran.Log).Warn("ignoring Handover Failure not from the prepared handover target",
+		ran.Log(ctx).Warn("ignoring Handover Failure not from the prepared handover target",
 			zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 
 		return
@@ -57,18 +57,18 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		amfInstance.FailRelocationPreparation(amfUe,
 			interworking.TargetRefusal{Cause: amf.S1APHandoverFailureCause(failureCause)})
 	case sourceUe == nil:
-		logger.WithTrace(ctx, targetUe.Log()).Error("N2 Handover between AMF has not been implemented yet")
+		targetUe.Log(ctx).Error("N2 Handover between AMF has not been implemented yet")
 	default:
 		amfInstance.ClearHandover(amfUe)
 
 		if sourceUe.Radio() == nil {
-			logger.WithTrace(ctx, targetUe.Log()).Error("source UE radio is nil, cannot send handover preparation failure")
+			targetUe.Log(ctx).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
 			sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil, msg.TargettoSourceFailureTransparentContainer)
 		}
 	}
 
 	if err := amfInstance.RemoveUeConn(ctx, targetUe); err != nil {
-		logger.WithTrace(ctx, targetUe.Log()).Error("error removing target UE association", zap.Error(err))
+		targetUe.Log(ctx).Error("error removing target UE association", zap.Error(err))
 	}
 }

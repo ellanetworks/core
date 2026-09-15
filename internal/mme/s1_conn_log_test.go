@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -18,10 +17,8 @@ func observeMmeLogAt(t *testing.T, lvl zapcore.Level) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(lvl)
-	saved := logger.MmeLog
-	logger.MmeLog = zap.New(core)
 
-	t.Cleanup(func() { logger.MmeLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }
@@ -30,7 +27,9 @@ func trackRadioAt(m *MME, w S1APWriter, address string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.reg.Track(w, &Radio{m: m, address: address, Log: logger.MmeLog.With(logger.RanAddr(address))})
+	r := &Radio{Conn: w, m: m, address: address}
+	r.refreshLogLocked()
+	m.reg.Track(w, r)
 }
 
 func ranAddrOf(t *testing.T, e observer.LoggedEntry) string {
@@ -62,13 +61,13 @@ func TestCommitPathSwitchRebindsConnLoggerToTargetENB(t *testing.T) {
 	ue.active.Store(c)
 	c.ue = ue
 
-	c.Log().Info("before")
+	c.Log(t.Context()).Info("before")
 
 	if _, ok := m.CommitPathSwitch(ue, target, 7, [32]byte{}, 0); !ok {
 		t.Fatal("CommitPathSwitch did not commit")
 	}
 
-	c.Log().Info("after")
+	c.Log(t.Context()).Info("after")
 
 	entries := logs.All()
 	if len(entries) != 2 {
@@ -108,7 +107,7 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 				commits.Add(1)
 			}
 		},
-		func() { _ = c.Log() },
+		func() { _ = c.Log(t.Context()) },
 	} {
 		wg.Add(1)
 

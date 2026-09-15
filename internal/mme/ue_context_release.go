@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
-	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
+	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 	m.guardDetachedRelease(ctx, c)
 }
 
@@ -39,8 +40,8 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release (detached)", 0)
 		defer span.End()
 
-		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID) {
-			logger.From(guardCtx, c.Log()).Info("reaped detached S1 connection after release timeout")
+		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
+			c.Log(guardCtx).Info("reaped detached S1 connection after release timeout")
 		}
 	})
 }
@@ -53,7 +54,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) bool {
 	m.mu.RLock()
 	c, ok := m.conns[uint32(mmeUEID)]
-	matched := ok && c.ue == nil && c.Conn() == conn && c.ENBUES1APID == enbUEID
+	matched := ok && c.ue == nil && c.Conn() == conn && c.ENBUES1APID() == enbUEID
 
 	m.mu.RUnlock()
 
@@ -96,7 +97,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 	}
 
 	cmd := &s1ap.UEContextReleaseCommand{
-		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID, Pair: true},
+		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID(), Pair: true},
 		Cause:     s1ap.Ptr(cause),
 	}
 
@@ -106,7 +107,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 		return
 	}
 
-	logger.From(ctx, c.Log()).Info("UE Context Release Command")
+	c.Log(ctx).Debug("UE Context Release Command")
 	c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
 }
 
@@ -154,23 +155,28 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
 func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
+	ueConn := ue.Conn()
+	log := ueConn.Log(ctx)
+
 	ue.settleDeliveryOnRelease(ctx)
 
-	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
+	registered, imsi := m.releaseContextLockedPart(ue)
+
+	if ueConn == nil {
+		log = log.With(logger.SUPIFromIMSI(imsi))
+	}
 
 	if !registered {
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
-		logger.From(ctx, logger.MmeLog).Info("aborted incomplete UE registration",
-			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
+		log.Info("aborted incomplete UE registration", zap.String("trigger", trigger))
 
 		return
 	}
 
 	m.DeactivateAllSessions(ctx, ue)
 	m.StartMobileReachable(ue)
-	logger.From(ctx, logger.MmeLog).Info("UE moved to ECM-IDLE",
-		zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
+	log.Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }

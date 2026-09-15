@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -42,7 +41,7 @@ func TestPDUSessionResourceModifyResponse_RanUeNgapIDNotFound(t *testing.T) {
 
 func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)

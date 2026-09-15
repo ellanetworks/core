@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
@@ -18,7 +17,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 
 	supi := newSUPI(t, imsi)
 
@@ -73,7 +72,7 @@ func TestLastSeenRadioFollowsARename(t *testing.T) {
 	amfInstance.SetRadioForTest(conn, radio)
 	claimRanID(t, amfInstance, radio, gnbGlobalRANNodeID(t, "ABCDE1"))
 
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
@@ -99,7 +98,7 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 	radio := newRadioForTest(amfInstance, conn, "gnb-unclaimed")
 	amfInstance.SetRadioForTest(conn, radio)
 
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
@@ -134,13 +133,13 @@ func TestLastSeenRadioFollowsAnXnPathSwitch(t *testing.T) {
 	amfInstance.SetRadioForTest(targetConn, target)
 	claimRanID(t, amfInstance, target, gnbGlobalRANNodeID(t, "ABCDE2"))
 
-	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(source, 1, 1)
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
 	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 
-	if !amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0) {
+	if !amfInstance.CommitPathSwitch(context.Background(), ue, ueConn, target, 2, [32]uint8{}, 0) {
 		t.Fatal("CommitPathSwitch reported the UE released")
 	}
 
@@ -159,7 +158,7 @@ func TestRegisteringUEIsReportedAsConnectedButNotRegistered(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.RegistrationInitiated)
@@ -207,7 +206,7 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 	amfInstance.SetRadioForTest(targetConn, target)
 	claimRanID(t, amfInstance, target, gnbGlobalRANNodeID(t, "ABCDE2"))
 
-	ueConn := amf.NewUeConnForTest(source, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(source, 1, 1)
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
 	})
@@ -231,7 +230,7 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 
 		for range iters {
-			amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0)
+			amfInstance.CommitPathSwitch(context.Background(), ue, ueConn, target, 2, [32]uint8{}, 0)
 		}
 	}()
 
@@ -247,7 +246,7 @@ func TestUeConnRadioConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	amfInstance.CommitPathSwitch(ue, ueConn, target, 2, [32]uint8{}, 0)
+	amfInstance.CommitPathSwitch(context.Background(), ue, ueConn, target, 2, [32]uint8{}, 0)
 	ueConn.TouchLastSeen()
 
 	if seen, ok := amfInstance.LastSeen(imsi); !ok || seen.RadioName != "gnb-b" {
@@ -260,7 +259,7 @@ func TestLastSeenRadioIsRecordedWhenTheSupiArrivesAfterTheBind(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 
 	ue := amf.NewUeContext()
 	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
@@ -292,7 +291,7 @@ func TestDeregistrationInitiatedStillReportsRegistered(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 	radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gnb-a")
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 
 	ue := addTestUE(t, amfInstance, imsi, func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)

@@ -90,6 +90,7 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
 	mux := newClusterMux(dbInstance)
 	srv := &http.Server{
 		Handler:           mux,
+		ErrorLog:          logger.StdLogger(logger.APILog),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		ConnContext:       peerNodeIDConnContext,

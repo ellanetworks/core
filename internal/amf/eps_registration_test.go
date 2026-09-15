@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf) {
@@ -31,8 +30,8 @@ func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf
 	fakeSmf := &deregisterTestSmf{}
 	ue.smf = fakeSmf
 
-	ue.TransitionTo(RegistrationInitiated)
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(t.Context(), RegistrationInitiated)
+	ue.TransitionTo(t.Context(), Registered)
 
 	a.mu.Lock()
 	a.UEs[supi] = ue
@@ -182,16 +181,16 @@ func TestSupersedeEPSRegistrationDefersToARelocationArrivingFromEPS(t *testing.T
 func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
-	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a, Log: zap.NewNop()}
+	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a}
 
 	a.mu.Lock()
 	a.reg.Track(radio.Conn, radio)
 	a.mu.Unlock()
 
-	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7), zap.NewNop())
+	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7))
 
 	a.mu.Lock()
-	a.attachUeConnLocked(ue, ueConn)
+	a.attachUeConnLocked(context.Background(), ue, ueConn)
 	a.mu.Unlock()
 
 	a.CancelRegistration(context.Background(), supi)

@@ -34,7 +34,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 		// failure so ongoing NAS procedures are aborted per TS 24.501.
 		amfInstance.RemoveAllUeInRan(ctx, ran)
 
-		logger.WithTrace(ctx, ran.Log).Info("NG Reset (whole interface)", zap.String("cause", cause))
+		ran.Log(ctx).Info("NG Reset (whole interface)", logger.Cause(cause))
 		sendNGResetAcknowledge(ctx, ran, nil, req.Diagnostics())
 
 		return
@@ -42,8 +42,8 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 
 	released := releaseListedUEs(ctx, amfInstance, ran, req.ResetType.Part)
 
-	logger.WithTrace(ctx, ran.Log).Info("NG Reset (part of interface)",
-		zap.String("cause", cause),
+	ran.Log(ctx).Info("NG Reset (part of interface)",
+		logger.Cause(cause),
 		zap.Int("requested", len(req.ResetType.Part)),
 		zap.Int("connections", len(released)))
 
@@ -68,14 +68,22 @@ func releaseListedUEs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 			// §8.7.4.4.1: an item naming neither identity names nothing and is
 			// ignored; one naming a UE this AMF has already lost is equally
 			// nothing to release. Both are still echoed by the caller.
-			logger.WithTrace(ctx, ran.Log).Warn("NG Reset names a UE this AMF does not hold",
-				zap.Any("amf_ue_ngap_id", item.AMFUENGAPID), zap.Any("ran_ue_ngap_id", item.RANUENGAPID))
+			fields := make([]zap.Field, 0, 2)
+			if item.AMFUENGAPID != nil {
+				fields = append(fields, logger.AmfUeNgapID(models.AmfUeNgapID(*item.AMFUENGAPID)))
+			}
+
+			if item.RANUENGAPID != nil {
+				fields = append(fields, logger.RanUeNgapID(models.RanUeNgapID(*item.RANUENGAPID)))
+			}
+
+			ran.Log(ctx).Warn("NG Reset names a UE this AMF does not hold", fields...)
 
 			continue
 		}
 
 		if err := amfInstance.RemoveUe(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("failed to remove UE named by NG Reset", zap.Error(err))
+			ueConn.Log(ctx).Error("failed to remove UE named by NG Reset", zap.Error(err))
 
 			continue
 		}
@@ -116,7 +124,7 @@ func sendNGResetAcknowledge(ctx context.Context, ran *amf.Radio, connectionList 
 
 	b, err := ack.Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("failed to marshal NG Reset Acknowledge", zap.Error(err))
+		ran.Log(ctx).Error("failed to marshal NG Reset Acknowledge", zap.Error(err))
 		return
 	}
 

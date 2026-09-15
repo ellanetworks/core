@@ -57,7 +57,7 @@ func (m *MME) notifyRelativeCapacity(ctx context.Context) int {
 
 	if notified > 0 {
 		logger.From(ctx, logger.MmeLog).Info("advertised relative MME capacity",
-			zap.Uint8("relative-capacity", capacity), zap.Int("radios", notified))
+			zap.Uint8("relative_capacity", capacity), zap.Int("radios", notified))
 	}
 
 	return notified
@@ -108,7 +108,7 @@ func (m *MME) emitConfigUpdate(ctx context.Context, radio *Radio, capacity uint8
 	guarded := context.WithoutCancel(ctx)
 
 	radio.configUpdateGuard.ArmOnce(configUpdateGuardTimeout, func() {
-		logger.From(guarded, radio.Log).Warn("MME Configuration Update went unanswered")
+		radio.Log(guarded).Warn("MME Configuration Update went unanswered")
 		m.forgetAdvertisedCapacity(radio)
 		m.finishConfigUpdate(guarded, radio)
 	})

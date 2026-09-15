@@ -106,7 +106,7 @@ func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection) {
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 	}
 }
 
@@ -116,7 +116,7 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.DeactivateEPSSession(ctx, p.SessionRef); err != nil {
 			logger.MmeLog.Warn("failed to deactivate PDN connection session for paging",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
 }
@@ -130,7 +130,7 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 	p, last := takePDNByRef(ue, ebi, ref)
 	if p == nil {
 		logger.From(ctx, logger.MmeLog).Debug("ignoring a transfer report for a PDN connection this MME no longer holds",
-			zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.String("ref", ref))
+			logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", ebi), zap.String("ref", ref))
 
 		return
 	}
@@ -138,7 +138,7 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 	m.StopESMGuard(p)
 
 	logger.From(ctx, logger.MmeLog).Info("PDN connection moved to 5GS; dropping the EPS routing context",
-		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
+		logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", ebi), zap.Bool("last_pdn", last))
 
 	if !last {
 		return

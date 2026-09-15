@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const deferredReleaseTimeout = 30 * time.Second
@@ -47,8 +46,8 @@ func (ueConn *UeConn) DeferRelease(ctx context.Context, cause ngap.Cause) {
 		guardCtx, span := guardSpan(link, "amf/deferred_release_expire", "deferred UE Context Release", 0)
 		defer span.End()
 
-		logger.From(guardCtx, ueConn.Log()).Warn("deferred UE Context Release deadline reached; releasing the NG connection",
-			zap.String("cause", cause.String()))
+		ueConn.Log(guardCtx).Warn("deferred UE Context Release deadline reached; releasing the NG connection",
+			logger.Cause(cause.String()))
 
 		ueConn.resumeDeferredRelease(guardCtx)
 	})
@@ -74,7 +73,7 @@ func (ueConn *UeConn) resumeDeferredRelease(ctx context.Context) {
 
 	ueConn.deferGuard.Stop()
 
-	logger.From(ctx, ueConn.Log()).Info("resuming the deferred UE Context Release: the pending downlink traffic or signalling has settled")
+	ueConn.Log(ctx).Info("resuming the deferred UE Context Release: the pending downlink traffic or signalling has settled")
 
 	a := ueConn.amf
 	if a == nil {

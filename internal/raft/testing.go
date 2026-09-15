@@ -78,7 +78,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 
 		var ssErr error
 
-		snapshots, ssErr = raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+		snapshots, ssErr = raft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 		if ssErr != nil {
 			_ = boltStore.Close()
 			return fmt.Errorf("create snapshot store: %w", ssErr)

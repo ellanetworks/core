@@ -27,7 +27,7 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, msg.UserLocationInformation)
@@ -38,9 +38,9 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	})
 
 	logger.From(ctx, logger.MmeLog).Info("additional PDN connection radio legs reconciled",
-		zap.String("imsi", ue.IMSI()),
-		zap.Int("e-rabs-setup", len(result.Applied)),
-		zap.Int("e-rabs-released", len(result.Released)))
+		logger.SUPI(ue.Supi().String()),
+		zap.Int("e_rabs_setup", len(result.Applied)),
+		zap.Int("e_rabs_released", len(result.Released)))
 }
 
 // bearerSetupBearers projects an E-RAB SETUP RESPONSE setup list.

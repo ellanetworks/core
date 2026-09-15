@@ -76,20 +76,20 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 	gsm, ok := msg.(fgs.GSMMessage)
 	if !ok {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg is not a 5GSM message",
+		logger.From(ctx, logger.SmfLog).Warn("N1 Msg is not a 5GSM message",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		return nil, nil
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Update SM Context Request N1SmMessage", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.From(ctx, logger.SmfLog).Debug("Update SM Context Request N1SmMessage", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	msgType := gsm.MessageType()
 	pti := uint8(gsm.TransactionIdentity())
 
 	switch verdict, cause := smfNas.PolicePTI(msgType, pti, smContext.IsPTIInUse); verdict {
 	case smfNas.PTIIgnore:
-		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", zap.Uint8("MessageType", uint8(msgType)), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, nil
 	case smfNas.PTIRespondStatus:
 		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
@@ -106,7 +106,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// (TS 24.501 §6.4.3.3 → §6.3.3): the UE-allocated PTI is carried on the
 		// Release Command and held until the matching Release Complete; T3592
 		// retransmits the command meanwhile.
-		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		if err := s.startRelease(ctx, smContext, pti, fgs.GSMCauseRegularDeactivation); err != nil {
 			return nil, fmt.Errorf("start PDU session release: %w", err)
@@ -115,12 +115,12 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case *fgs.PDUSessionModificationRequest:
-		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		return s.handleUERequestedModification(ctx, smContext, msg, pti)
 
 	case *fgs.PDUSessionReleaseComplete:
-		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 		smContext.n1Released = true
@@ -136,7 +136,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	case *fgs.PDUSessionModificationComplete:
 		// The UE accepted the modification; stop T3591 and commit the new policy
 		// (TS 24.501 §6.3.2.2, "consider the PDU session as modified").
-		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
@@ -150,7 +150,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	case *fgs.PDUSessionModificationCommandReject:
 		// The UE rejected the modification; stop T3591 and discard the pending policy,
 		// keeping the previous configuration (TS 24.501 §6.3.2.4, §6.3.2.5).
-		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
@@ -169,8 +169,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// TS 24.501 §7.4: a 5GSM message type the receiver does not implement is
 		// ignored except that it draws a 5GSM STATUS with cause #97, naming the
 		// PDU session and transaction the offending message carried.
-		logger.WithTrace(ctx, logger.SmfLog).Warn("unimplemented 5GSM message type",
-			zap.Stringer("MessageType", msgType), logger.SUPI(smContext.Supi.String()),
+		logger.From(ctx, logger.SmfLog).Warn("unimplemented 5GSM message type",
+			logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID))
 
 		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(msg.SessionIdentity(), msg.TransactionIdentity(),
@@ -182,7 +182,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	default:
-		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Stringer("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.From(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, nil
 	}
 }
@@ -244,7 +244,7 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
-	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.SmfLog.Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return dropped, nil
 }
@@ -319,14 +319,14 @@ func (s *SMF) rejectUnforwardedEstablishment(ctx context.Context, sc *SMContext)
 	reject, err := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID),
 		naslib.ProcedureTransactionIdentity(pti), fgs.GSMCauseInsufficientResources)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the establishment reject for an undelivered accept",
+		logger.From(ctx, logger.SmfLog).Warn("failed to build the establishment reject for an undelivered accept",
 			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
 		return
 	}
 
 	if err := s.amf.TransferN1(ctx, supi, reject, pduSessionID); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("failed to send the establishment reject for an undelivered accept",
+		logger.From(ctx, logger.SmfLog).Warn("failed to send the establishment reject for an undelivered accept",
 			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 	}
 }
@@ -375,7 +375,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
 		logger.SmfLog.Info("SM context already removed, skipping",
-			zap.String("smContextRef", smContextRef))
+			logger.SMContextRef(smContextRef))
 
 		return true, nil
 	}
@@ -419,7 +419,7 @@ func (s *SMF) completeUPConnectionDeactivation(ctx context.Context, smContext *S
 	}
 
 	if err := s.notifyDownlinkWaiting(ctx, smContext, models.DownlinkDataErrorIndication); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("could not re-activate the user plane after the access resources were released",
+		logger.From(ctx, logger.SmfLog).Warn("could not re-activate the user plane after the access resources were released",
 			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
 

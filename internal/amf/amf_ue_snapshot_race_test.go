@@ -4,16 +4,16 @@
 package amf
 
 import (
+	"context"
 	"sync"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
 func TestSnapshotConnectedAgreesWithConnection(t *testing.T) {
 	a := New(nil, nil, nil)
-	radio := &Radio{amf: a, name: "gnb-1", Log: logger.AmfLog}
+	radio := &Radio{amf: a, name: "gnb-1"}
 	ue := NewUeContext()
 
 	ueConn, err := a.NewUeConn(radio, models.RanUeNgapID(1))
@@ -36,7 +36,7 @@ func TestSnapshotConnectedAgreesWithConnection(t *testing.T) {
 
 		for range 20000 {
 			a.mu.Lock()
-			a.attachUeConnLocked(ue, ueConn)
+			a.attachUeConnLocked(context.Background(), ue, ueConn)
 			a.mu.Unlock()
 
 			ueConn.Release(t.Context())

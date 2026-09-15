@@ -43,7 +43,7 @@ func handleENBConfigurationTransfer(ctx context.Context, m *mme.MME, radio *mme.
 
 	targetRadio, ok := m.FindConnectedRadioByRanID(targetID)
 	if !ok {
-		logger.From(ctx, logger.MmeLog).Warn("SON Configuration Transfer target eNB not connected", zap.Stringer("target-enb", targetID))
+		logger.From(ctx, logger.MmeLog).Warn("SON Configuration Transfer target eNB not connected", zap.Stringer("target_enb", targetID))
 		return
 	}
 

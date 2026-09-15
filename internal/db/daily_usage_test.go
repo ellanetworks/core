@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -1001,10 +1000,7 @@ func observeDBLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(zapcore.ErrorLevel)
-	saved := logger.DBLog
-	logger.DBLog = zap.New(core)
-
-	t.Cleanup(func() { logger.DBLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }
@@ -1040,11 +1036,11 @@ func TestIncrementDailyUsageBatch_ReportsTheUsageItCouldNotCharge(t *testing.T) 
 		t.Errorf("rows = %v, want 2", fields["rows"])
 	}
 
-	if fields["uplink_volume"] != int64(170) {
+	if fields["uplink_volume"] != uint64(170) {
 		t.Errorf("uplink_volume = %v, want 170", fields["uplink_volume"])
 	}
 
-	if fields["downlink_volume"] != int64(220) {
+	if fields["downlink_volume"] != uint64(220) {
 		t.Errorf("downlink_volume = %v, want 220", fields["downlink_volume"])
 	}
 }

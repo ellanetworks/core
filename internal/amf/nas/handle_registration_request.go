@@ -80,7 +80,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		} else {
 			inner, err := fgs.ParseRegistrationRequest(contents)
 			if !decoded(ctx, "RegistrationRequest", err) {
-				metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+				logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 				amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
 
@@ -112,7 +112,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	regName := registrationTypeName(conn.RegistrationType5GS)
 
-	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registrationType", regName))
+	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registration_type", regName))
 
 	if conn.RegistrationType5GS == fgs.RegistrationTypeDisasterRoamingInitial {
 		conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeInitial))
@@ -141,7 +141,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 		ue.Imei = pei
 		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
-			zap.Stringer("type", mobileIdentity.Type()), zap.String("pei", pei.String()))
+			zap.Stringer("type", mobileIdentity.Type()), logger.PEI(pei.String()))
 	default:
 		// TS 24.501 §5.5.1.2.2: a registration must present a SUCI, a 5G-GUTI or,
 		// for emergency registration, a PEI. Nothing else identifies a subscriber.
@@ -157,7 +157,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	ue.Tai = ueConn.Tai
 
 	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)
 
@@ -168,7 +168,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// unless it performs a periodic registration updating procedure.
 	if req.UESecurityCapability == nil &&
 		conn.RegistrationType5GS != fgs.RegistrationTypePeriodicUpdating {
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 
@@ -216,7 +216,7 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 
 		logger.From(ctx, logger.AmfLog).Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501)",
-			zap.String("registrationType", registrationTypeName(conn.RegistrationType5GS)),
+			zap.String("registration_type", registrationTypeName(conn.RegistrationType5GS)),
 			zap.Stringer("stored", ue.UESecCap()),
 			zap.Stringer("received", received),
 		)
@@ -269,7 +269,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
-		ue.TransitionTo(amf.RegistrationInitiated)
+		ue.TransitionTo(ctx, amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
 			recoverContextFromEPS(ctx, amfInstance, ue, req, integrityVerified)
@@ -284,7 +284,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 				regType = conn.RegistrationType5GS
 			}
 
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(regType), metrics.ResultReject)
+			logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(regType), logger.RegistrationRejected)
 
 			if !permanent {
 				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))

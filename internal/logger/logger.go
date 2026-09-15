@@ -6,12 +6,16 @@ package logger
 import (
 	"context"
 	"fmt"
+	stdlog "log"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -32,10 +36,12 @@ var (
 	NetworkLog  *zap.Logger
 	RaftLog     *zap.Logger
 	LmfLog      *zap.Logger
+	BgpLog      *zap.Logger
 
-	atomicLevel zap.AtomicLevel
+	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
-	auditDBSink zapcore.WriteSyncer
+	filesMu   sync.Mutex
+	openFiles []*os.File
 
 	dbInstance dbwriter.DBWriter
 )
@@ -45,85 +51,168 @@ func init() {
 	_ = ConfigureLogging("info", "stdout", "", "stdout", "")
 }
 
-// ConfigureLogging builds loggers with a simple tee of console + optional file.
-// Audit logs also go to DB if SetAuditDBWriter was called.
 func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, auditFilePath string) error {
 	zl, err := zapcore.ParseLevel(systemLevel)
 	if err != nil {
 		return fmt.Errorf("failed to parse log level: %v", err)
 	}
 
-	atomicLevel = zap.NewAtomicLevelAt(zl)
-
 	jsonEnc := zapcore.NewJSONEncoder(jsonEncoderConfig())
 
-	sysCores, err := makeCores(systemOutput, systemFilePath, jsonEnc)
+	sysCores, sysFiles, err := makeCores(systemOutput, systemFilePath, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("system logger: %w", err)
 	}
 
-	sysLogger := zap.New(zapcore.NewTee(sysCores...), zap.AddCaller())
-
-	auditCores, err := makeCores(auditOutput, auditFilePath, jsonEnc)
+	auditCores, auditFiles, err := makeCores(auditOutput, auditFilePath, jsonEnc)
 	if err != nil {
-		return fmt.Errorf("could not make cores: %w", err)
+		closeAll(sysFiles)
+		return fmt.Errorf("audit logger: %w", err)
 	}
 
-	if auditDBSink != nil {
-		auditCores = append(auditCores, zapcore.NewCore(jsonEnc, auditDBSink, atomicLevel))
-	}
+	atomicLevel.SetLevel(zl)
 
-	auditLogger := zap.New(zapcore.NewTee(auditCores...), zap.AddCaller())
+	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller())
+	auditRoot := zap.New(newDedupeCore(zapcore.NewTee(auditCores...)), zap.AddCaller())
 
-	networkCores, err := makeCores(systemOutput, systemFilePath, jsonEnc)
-	if err != nil {
-		return fmt.Errorf("could not make cores: %w", err)
-	}
+	AuditLog = auditRoot.Named("Audit")
+	NetworkLog = Scope("Network")
+	EllaLog = Scope("Ella")
+	MetricsLog = Scope("Metrics")
+	DBLog = Scope("DB")
+	AmfLog = Scope("AMF")
+	MmeLog = Scope("MME")
+	APILog = Scope("API")
+	SmfLog = Scope("SMF")
+	UpfLog = Scope("UPF")
+	SessionsLog = Scope("Sessions")
+	RaftLog = Scope("Raft")
+	LmfLog = Scope("LMF")
+	BgpLog = Scope("BGP")
 
-	networkLogger := zap.New(zapcore.NewTee(networkCores...), zap.AddCaller())
+	zap.RedirectStdLog(EllaLog)
 
-	// Swap roots
-	log = sysLogger
-	AuditLog = auditLogger.With(zap.String("component", "Audit"))
-	NetworkLog = networkLogger.With(zap.String("component", "Network"))
-
-	// Component children from system logger
-	EllaLog = log.With(zap.String("component", "Ella"))
-	MetricsLog = log.With(zap.String("component", "Metrics"))
-	DBLog = log.With(zap.String("component", "DB"))
-	AmfLog = log.With(zap.String("component", "AMF"))
-	MmeLog = log.With(zap.String("component", "MME"))
-	APILog = log.With(zap.String("component", "API"))
-	SmfLog = log.With(zap.String("component", "SMF"))
-	UpfLog = log.With(zap.String("component", "UPF"))
-	SessionsLog = log.With(zap.String("component", "Sessions"))
-	RaftLog = log.With(zap.String("component", "Raft"))
-	LmfLog = log.With(zap.String("component", "LMF"))
+	closeAll(trackFiles(append(sysFiles, auditFiles...)))
 
 	return nil
+}
+
+func SetLevel(level string) error {
+	zl, err := zapcore.ParseLevel(level)
+	if err != nil {
+		return fmt.Errorf("failed to parse log level: %v", err)
+	}
+
+	atomicLevel.SetLevel(zl)
+
+	return nil
+}
+
+func Close() error {
+	_ = log.Sync()
+	_ = AuditLog.Sync()
+
+	atomicLevel.SetLevel(zapcore.FatalLevel + 1)
+
+	var err error
+
+	for _, f := range trackFiles(nil) {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}
+
+	return err
+}
+
+func trackFiles(files []*os.File) []*os.File {
+	filesMu.Lock()
+	defer filesMu.Unlock()
+
+	prev := openFiles
+	openFiles = files
+
+	return prev
+}
+
+func closeAll(files []*os.File) {
+	for _, f := range files {
+		_ = f.Close()
+	}
+}
+
+func Scope(name string) *zap.Logger {
+	return log.Named(name)
+}
+
+type stdLogWriter struct {
+	zap *zap.Logger
+}
+
+func (w stdLogWriter) Write(p []byte) (int, error) {
+	line := strings.TrimRight(string(p), "\n")
+	if line == "" {
+		return len(p), nil
+	}
+
+	w.zap.Warn("HTTP server error", zap.String("error", line))
+
+	return len(p), nil
+}
+
+func StdLogger(l *zap.Logger) *stdlog.Logger {
+	return stdlog.New(stdLogWriter{zap: l}, "", 0)
 }
 
 func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// WithTrace returns a logger enriched with traceID and spanID fields
-// extracted from the given context. If the context has no active span,
-// the original logger is returned unchanged.
-func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
-	sc := trace.SpanFromContext(ctx).SpanContext()
-	if !sc.IsValid() {
-		return l
+func SwapSystemCore(core zapcore.Core) func() {
+	prev := log
+
+	log = zap.New(newDedupeCore(core), zap.AddCaller())
+
+	restore := namedScopes()
+
+	for _, s := range restore {
+		*s.target = Scope(s.name)
 	}
 
-	return l.With(
-		zap.String("traceID", sc.TraceID().String()),
-		zap.String("spanID", sc.SpanID().String()),
-	)
+	return func() {
+		log = prev
+
+		for _, s := range restore {
+			*s.target = Scope(s.name)
+		}
+	}
+}
+
+type namedScope struct {
+	target **zap.Logger
+	name   string
+}
+
+func namedScopes() []namedScope {
+	return []namedScope{
+		{&NetworkLog, "Network"},
+		{&EllaLog, "Ella"},
+		{&MetricsLog, "Metrics"},
+		{&DBLog, "DB"},
+		{&AmfLog, "AMF"},
+		{&MmeLog, "MME"},
+		{&APILog, "API"},
+		{&SmfLog, "SMF"},
+		{&UpfLog, "UPF"},
+		{&SessionsLog, "Sessions"},
+		{&RaftLog, "Raft"},
+		{&LmfLog, "LMF"},
+		{&BgpLog, "BGP"},
+	}
 }
 
 // makeCores returns JSON cores for stdout and optional file output.
-func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, error) {
+func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, []*os.File, error) {
 	cores := []zapcore.Core{
 		zapcore.NewCore(enc, zapcore.Lock(os.Stdout), atomicLevel),
 	}
@@ -133,29 +222,30 @@ func makeCores(mode, filePath string, enc zapcore.Encoder) ([]zapcore.Core, erro
 		// nothing else
 	case "file":
 		if filePath == "" {
-			return nil, fmt.Errorf("file output selected but file path is empty")
+			return nil, nil, fmt.Errorf("file output selected but file path is empty")
 		}
 
-		ws, err := openFileSync(filePath)
+		f, err := openLogFile(filePath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		cores = append(cores, zapcore.NewCore(enc, ws, atomicLevel))
+		cores = append(cores, zapcore.NewCore(enc, zapcore.Lock(zapcore.AddSync(f)), atomicLevel))
+
+		return cores, []*os.File{f}, nil
 	default:
 	}
 
-	return cores, nil
+	return cores, nil, nil
 }
 
-// openFileSync opens/creates a file and returns a WriteSyncer with a lock.
-func openFileSync(path string) (zapcore.WriteSyncer, error) {
+func openLogFile(path string) (*os.File, error) {
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) // #nosec: G304
 	if err != nil {
 		return nil, fmt.Errorf("open log file %q: %w", path, err)
 	}
 
-	return zapcore.Lock(zapcore.AddSync(f)), nil
+	return f, nil
 }
 
 func jsonEncoderConfig() zapcore.EncoderConfig {
@@ -167,6 +257,7 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 	enc.CallerKey = "caller"
 	enc.EncodeCaller = zapcore.ShortCallerEncoder
 	enc.MessageKey = "msg"
+	enc.NameKey = "component"
 	enc.StacktraceKey = ""
 
 	return enc
@@ -174,7 +265,9 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
-	WithTrace(ctx, AuditLog).Info("Audit event",
+	log := From(ctx, AuditLog)
+
+	log.Info("Audit event",
 		zap.String("action", action),
 		zap.String("actor", actor),
 		zap.String("ip", ip),
@@ -182,13 +275,13 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 	)
 
 	if dbInstance == nil {
-		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		log.Warn("cannot persist audit log: no database configured")
 		return
 	}
 
 	id, err := uuid.NewV7()
 	if err != nil {
-		AuditLog.Warn("failed to generate audit log id", zap.Error(err))
+		log.Warn("failed to generate audit log id", zap.Error(err))
 		return
 	}
 
@@ -202,10 +295,43 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 		Details:   details,
 	})
 	if err != nil {
-		AuditLog.Warn("failed to insert audit log",
+		log.Warn("failed to insert audit log",
 			zap.Error(err),
 		)
 	}
+}
+
+func RAT(val string) zap.Field           { return zap.String("rat", val) }
+func Result(val string) zap.Field        { return zap.String("result", val) }
+func ProcedureType(val string) zap.Field { return zap.String("type", val) }
+
+type RegistrationOutcome struct {
+	result string
+	level  zapcore.Level
+	failed bool
+}
+
+var (
+	RegistrationAccepted     = RegistrationOutcome{result: metrics.ResultAccept, level: zapcore.InfoLevel}
+	RegistrationRejected     = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.InfoLevel}
+	RegistrationIncompatible = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.WarnLevel}
+	RegistrationFailed       = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.ErrorLevel, failed: true}
+)
+
+func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType string, outcome RegistrationOutcome, fields ...zap.Field) {
+	metrics.RegistrationAttempt(rat, regType, outcome.result)
+
+	msg := "UE registration accepted"
+	if outcome.result != metrics.ResultAccept {
+		msg = "UE registration rejected"
+	}
+
+	if outcome.failed {
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, msg)
+	}
+
+	From(ctx, base).WithOptions(zap.AddCallerSkip(1)).Log(outcome.level, msg,
+		append([]zap.Field{RAT(rat), ProcedureType(regType), Result(outcome.result)}, fields...)...)
 }
 
 type LogDirection string
@@ -233,9 +359,9 @@ func LogNetworkEvent(
 	rawBytes []byte,
 ) {
 	if messageType == "" {
-		EllaLog.Warn("attempted to log empty network message type",
-			zap.String("protocol", string(protocol)),
-			zap.String("dir", string(dir)),
+		From(ctx, NetworkLog).Warn("attempted to log empty network message type",
+			ProtocolName(string(protocol)),
+			Direction(string(dir)),
 			zap.String("local_address", localAddress),
 			zap.String("remote_address", remoteAddress),
 		)
@@ -256,7 +382,9 @@ func LogNetworkEvent(
 		return
 	}
 
-	WithTrace(ctx, NetworkLog).Info("network_event",
+	log := From(ctx, NetworkLog)
+
+	log.Info("network_event",
 		zap.String("protocol", string(protocol)),
 		MessageType(messageType),
 		Direction(string(dir)),
@@ -266,7 +394,7 @@ func LogNetworkEvent(
 	)
 
 	if dbInstance == nil {
-		NetworkLog.Warn("dbInstance is nil, cannot log network event to database")
+		log.Warn("cannot persist radio event: no database configured")
 		return
 	}
 
@@ -281,7 +409,7 @@ func LogNetworkEvent(
 		Raw:           rawBytes,
 	})
 	if err != nil {
-		NetworkLog.Warn("failed to insert radio event",
+		log.Warn("failed to insert radio event",
 			zap.Error(err),
 		)
 	}

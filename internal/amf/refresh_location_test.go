@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 // TS 23.273 §6.5.1
@@ -102,7 +101,7 @@ func TestRefreshLocation_ConnectedUE_SendsLocationReportingControl(t *testing.T)
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	if err := amfInstance.RefreshLocation(context.Background(), ue.SupiForTest()); err != nil {

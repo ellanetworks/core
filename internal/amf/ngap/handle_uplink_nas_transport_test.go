@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -42,7 +41,7 @@ func TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{
 		AMFUENGAPID: 99999,
@@ -64,7 +63,7 @@ func TestHandleUplinkNASTransport_InconsistentRanUeNgapID_SendsErrorIndication(t
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{
 		AMFUENGAPID: 10,
@@ -84,7 +83,7 @@ func TestHandleUplinkNASTransport_NilUeContext_RemovesUeConn(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{
 		AMFUENGAPID: 10,
@@ -105,7 +104,7 @@ func TestHandleUplinkNASTransport_HappyPath_NASDispatched(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	nasPDU := []byte{0xAA, 0xBB}
@@ -137,7 +136,7 @@ func TestHandleUplinkNASTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{

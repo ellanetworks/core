@@ -43,9 +43,10 @@ func (ue *UeContext) Supi() etsi.SUPI {
 
 func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
 	ue.supi = supi
+	ue.mu.Unlock()
+
+	ue.active.Load().bindSupi(supi)
 }
 
 // IMSI returns the UE's IMSI, or "" when the identity is unset.
@@ -63,6 +64,10 @@ func (ue *UeContext) IMSI() string {
 // The lock-free counterpart of IMSI(), for callers already holding ue.mu.
 func (ue *UeContext) imsiOrEmpty() string {
 	return ue.supi.IMSI()
+}
+
+func (ue *UeContext) supiOrEmpty() string {
+	return ue.supi.String()
 }
 
 // AmbrRates returns the UE-AMBR uplink/downlink rates, both zero when the

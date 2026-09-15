@@ -106,7 +106,7 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 	testPDN(ue2).Apn = "internet"
 
 	mmeID := ue1.Conn().MMEUES1APID
-	enbID := ue1.Conn().ENBUES1APID
+	enbID := ue1.Conn().ENBUES1APID()
 	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
 
 	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{

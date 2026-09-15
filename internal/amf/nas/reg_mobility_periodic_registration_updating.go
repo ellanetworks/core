@@ -53,7 +53,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if !subscriberProfile.Allow5G {
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		logger.From(ctx, logger.AmfLog).Info("registration update rejected: 5G not allowed for subscriber")
 
@@ -64,7 +64,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if len(subscriberProfile.AllowedNssai) == 0 {
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 		ue.Deregister(ctx)
@@ -75,13 +75,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("RAAI", conn.RegistrationRequest.MICOIndication.RAAI))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
 		drx := conn.RegistrationRequest.RequestedDRXParameters.Value
 		if drx > fgs.DRXCycleParameterT256 {
-			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drxValue", drx))
+			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drx_value", drx))
 			drx = fgs.DRXValueNotSpecified
 		}
 
@@ -141,14 +141,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				if hasUplinkData {
 					if !n2Setup.ClaimSession(pduSessionID) {
 						logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
-							zap.Uint8("pdu_session_id", pduSessionID))
+							logger.PDUSessionID(pduSessionID))
 
 						continue
 					}
 
 					binaryDataN2SmInformation, err := amfInstance.Session.ActivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						logger.From(ctx, logger.AmfLog).Warn("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+						logger.From(ctx, logger.AmfLog).Warn("SendActivateSmContextRequest Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := fgs.GMMCauseProtocolErrorUnspecified
@@ -157,14 +157,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						if initialContextSetup {
 							item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {
-								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(pduSessionID))
 							} else {
 								ctxList = append(ctxList, item)
 							}
 						} else {
 							item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {
-								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(pduSessionID))
 							} else {
 								suList = append(suList, item)
 							}
@@ -205,7 +205,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						return
 					}
 
-					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
 					if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 						if err := ueConn.SendPDUSessionResourceSetupRequest(
@@ -233,7 +233,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
-					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
 					staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) { return ctxList, nil }
 
@@ -273,7 +273,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					if initialContextSetup {
 						item, err := amf.PDUSessionSetupItem(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 						if err != nil {
-							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(requestData.PduSessionID))
 
 							return nil
 						}
@@ -285,7 +285,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 					if err != nil {
-						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(requestData.PduSessionID))
 
 						return nil
 					}
@@ -324,7 +324,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
 	if initialContextSetup {
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
 		staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) {
 			if err := appendPendingN1(sht); err != nil {
@@ -352,7 +352,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
 	var acceptWire []byte
 
@@ -424,7 +424,7 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 
 		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
-				zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), zap.Uint8("ebi", ebi))
+				zap.Error(err), logger.PDUSessionID(pduSessionID), zap.Uint8("ebi", ebi))
 		}
 
 		ue.DeleteSmContext(pduSessionID)

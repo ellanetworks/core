@@ -53,11 +53,11 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	fields := []zap.Field{
-		zap.String("imsi", ue.IMSI()),
-		zap.String("cause", mme.S1apCauseName(&cause)),
+		logger.SUPI(ue.Supi().String()),
+		logger.Cause(mme.S1apCauseName(&cause)),
 	}
 
 	// A release after the NAS security context is established but before the UE is
@@ -70,16 +70,16 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 			icsReceived = p.EnbFTEID.TEID != 0
 		}
 
-		logger.From(ctx, ueConn.Log()).Warn("UE Context Release Request aborted an in-progress attach",
-			append(fields, zap.Bool("ics-response-received", icsReceived))...)
+		ueConn.Log(ctx).Warn("UE Context Release Request aborted an in-progress attach",
+			append(fields, zap.Bool("ics_response_received", icsReceived))...)
 	} else {
-		logger.From(ctx, ueConn.Log()).Info("UE Context Release Request", fields...)
+		ueConn.Log(ctx).Debug("UE Context Release Request", fields...)
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {
 		ueConn.DeferRelease(ctx, cause)
 
-		logger.From(ctx, ueConn.Log()).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
+		ueConn.Log(ctx).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
 
 		return
 	}

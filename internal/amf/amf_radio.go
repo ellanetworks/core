@@ -36,11 +36,51 @@ type Radio struct {
 	disconnectedAt time.Time
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
-	Log            *zap.Logger
+	address        string
+	logFields      atomic.Pointer[[]zap.Field]
 
 	advertisedCapacity   *uint8
 	retryNotBefore       time.Time
 	guamiUnavailableSent bool
+}
+
+func (r *Radio) LogFields() []zap.Field {
+	if r == nil {
+		return nil
+	}
+
+	if f := r.logFields.Load(); f != nil {
+		return *f
+	}
+
+	return nil
+}
+
+func (r *Radio) Log(ctx context.Context) *zap.Logger {
+	return logger.From(ctx, logger.AmfLog, r.LogFields()...)
+}
+
+func (r *Radio) refreshLogLocked() {
+	fields := []zap.Field{logger.RanAddr(r.address)}
+	if r.name != "" {
+		fields = append(fields, logger.RadioName(r.name))
+	}
+
+	if id := radioIDOf(r); id != "" {
+		fields = append(fields, logger.RadioID(id))
+	}
+
+	r.logFields.Store(&fields)
+
+	if r.amf == nil {
+		return
+	}
+
+	for _, ueConn := range r.amf.conns {
+		if ueConn.conn == r.Conn {
+			ueConn.bindLogFields(fields)
+		}
+	}
 }
 
 // UpdateRadioName sets a radio's RAN node name under the registry lock, so a
@@ -50,6 +90,7 @@ func (a *AMF) UpdateRadioName(radio *Radio, name string) {
 	defer a.mu.Unlock()
 
 	radio.name = name
+	radio.refreshLogLocked()
 }
 
 // UpdateRadioSupportedTAIs replaces a radio's broadcast TAI list under the registry lock.

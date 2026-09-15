@@ -353,7 +353,7 @@ func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(
 	fresh := amf.NewUeContext()
 	amfInstance.AttachUeConn(t.Context(), fresh, incumbent.Conn())
 	fresh.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
-	fresh.TransitionTo(amf.RegistrationInitiated)
+	fresh.TransitionTo(t.Context(), amf.RegistrationInitiated)
 	fresh.ForceRegStepForTest(amf.RegStepAuthenticating)
 	fresh.Conn().AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",

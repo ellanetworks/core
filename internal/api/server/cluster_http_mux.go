@@ -100,7 +100,7 @@ func removedNodeFence(dbInstance *db.Database, next http.Handler) http.Handler {
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				logger.APILog.Warn("proxy: rejected write from removed cluster member",
-					zap.Int("peerNodeId", peerID),
+					zap.Int("peer_node_id", peerID),
 					zap.String("method", r.Method),
 					zap.String("path", r.URL.Path))
 				writeError(r.Context(), w, http.StatusGone,

@@ -86,9 +86,9 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		}
 
 		logger.LmfLog.Debug("LPPa E-CID measurement request buffered, paging ECM-IDLE UE",
-			zap.String("supi", supi.String()),
+			logger.SUPI(supi.String()),
 			zap.String("method", method),
-			zap.Int64("esmlcMeasurementID", measID),
+			zap.Int64("esmlc_measurement_id", measID),
 		)
 
 		return measID, nil
@@ -106,9 +106,9 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 	}
 
 	logger.LmfLog.Debug("LPPa E-CID measurement request sent",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		zap.String("method", method),
-		zap.Int64("esmlcMeasurementID", measID),
+		zap.Int64("esmlc_measurement_id", measID),
 	)
 
 	return measID, nil
@@ -147,9 +147,9 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 			// accept it and just log the id discrepancy rather than time out.
 			if resp.ESMLCUEMeasurementID != measurementID {
 				logger.LmfLog.Warn("eNB returned a different E-SMLC-UE-Measurement-ID; accepting newest fresh E-CID response",
-					zap.String("supi", supi.String()),
-					zap.Int64("expectedMeasurementID", measurementID),
-					zap.Int64("receivedMeasurementID", resp.ESMLCUEMeasurementID),
+					logger.SUPI(supi.String()),
+					zap.Int64("expected_measurement_id", measurementID),
+					zap.Int64("received_measurement_id", resp.ESMLCUEMeasurementID),
 				)
 			}
 
@@ -165,10 +165,10 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 
 		if fail != nil {
 			logger.LmfLog.Warn("E-CID measurement rejected by RAN; falling back to Cell ID",
-				zap.String("supi", supi.String()),
-				zap.Int64("esmlcMeasurementID", measurementID),
-				zap.Int("causeGroup", int(fail.Cause.Group)),
-				zap.Int64("causeValue", fail.Cause.Value),
+				logger.SUPI(supi.String()),
+				zap.Int64("esmlc_measurement_id", measurementID),
+				zap.Int("cause_group", int(fail.Cause.Group)),
+				zap.Int64("cause_value", fail.Cause.Value),
 			)
 
 			return nil, fmt.Errorf("E-CID measurement rejected by RAN (cause=%d/%d)", fail.Cause.Group, fail.Cause.Value)
@@ -214,7 +214,7 @@ func matchMeasurementResponse(messages []mme.LPPaMessage, measurementID int64, n
 		if err != nil {
 			logger.LmfLog.Debug("LPPa ParsePDU failed, retrying with first byte stripped",
 				zap.Error(err),
-				zap.Int("payloadLen", len(msg.Payload)),
+				zap.Int("payload_len", len(msg.Payload)),
 			)
 			// Fallback: some eNBs prepend an extra length octet; retry stripped.
 			if len(msg.Payload) > 1 {
@@ -222,7 +222,7 @@ func matchMeasurementResponse(messages []mme.LPPaMessage, measurementID int64, n
 				if err != nil {
 					logger.LmfLog.Debug("LPPa ParsePDU also failed with first byte stripped",
 						zap.Error(err),
-						zap.Int("payloadLen", len(msg.Payload)-1),
+						zap.Int("payload_len", len(msg.Payload)-1),
 					)
 
 					continue

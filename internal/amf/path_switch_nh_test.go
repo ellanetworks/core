@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 // TS 33.501 §6.9.2.1.1
@@ -23,7 +22,7 @@ func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 		ue.SetNCCForTest(3)
 
 		radio := newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source")
-		ueConn := amf.NewUeConnForTest(radio, 5, 10, zap.NewNop())
+		ueConn := amf.NewUeConnForTest(radio, 5, 10)
 		ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 		return amfInstance, ue, ueConn
@@ -60,7 +59,7 @@ func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 			t.Fatalf("AdvancePathSwitchNH: %v", err)
 		}
 
-		if !amfInstance.CommitPathSwitch(ue, ueConn, target, 99, staged, stagedNCC) {
+		if !amfInstance.CommitPathSwitch(context.Background(), ue, ueConn, target, 99, staged, stagedNCC) {
 			t.Fatal("CommitPathSwitch returned false for a live UE")
 		}
 
@@ -91,7 +90,7 @@ func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 			t.Fatalf("Remove: %v", err)
 		}
 
-		if amfInstance.CommitPathSwitch(ue, ueConn, target, 99, staged, stagedNCC) {
+		if amfInstance.CommitPathSwitch(context.Background(), ue, ueConn, target, 99, staged, stagedNCC) {
 			t.Fatal("CommitPathSwitch must return false for a UE released during the switch")
 		}
 

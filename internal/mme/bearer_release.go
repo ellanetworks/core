@@ -22,7 +22,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("deactivate EPS bearer: UE has no S1 connection",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi))
 
 		return
 	}
@@ -50,7 +50,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 		ue.mu.Unlock()
 
 		logger.From(ctx, logger.MmeLog).Error("failed to build Deactivate EPS Bearer Context Request",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 
 		return
 	}

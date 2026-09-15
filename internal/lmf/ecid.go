@@ -90,7 +90,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	applyCellCoordinate(result, coord)
 
 	logger.LmfLog.Info("E-CID location computed",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		zap.String("access_type", result.AccessType),
 		zap.Int("shape", int(result.Shape)),
 		zap.Any("rsrp", result.RSRP),
@@ -150,7 +150,7 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 	measID, err := client.RequestMeasurements(ctx, supi, string(MethodECID))
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurement request failed; falling back to Cell ID",
-			zap.String("supi", supi.String()),
+			logger.SUPI(supi.String()),
 			zap.Error(err),
 		)
 
@@ -162,7 +162,7 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 	measurements, err := client.WaitForMeasurements(ctx, supi, measID, requestedAt)
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurements unavailable; falling back to Cell ID",
-			zap.String("supi", supi.String()),
+			logger.SUPI(supi.String()),
 			zap.Error(err),
 		)
 

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -53,7 +52,7 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), legitimateRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), attackerRan)
 
-	ueConn = amf.NewUeConnForTest(legitimateRan, 1, 10, logger.AmfLog)
+	ueConn = amf.NewUeConnForTest(legitimateRan, 1, 10)
 
 	amfUe := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)

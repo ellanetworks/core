@@ -204,7 +204,7 @@ func (rk *RealKernel) CreateRoute(ctx context.Context, destination netip.Prefix,
 	}
 
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
-		logger.EllaLog.Debug("failed to add route", zap.Any("nlRoute", nlRoute))
+		logger.EllaLog.Debug("failed to add route", zap.Any("nl_route", nlRoute))
 		return fmt.Errorf("failed to add route: %v", err)
 	}
 

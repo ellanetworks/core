@@ -32,7 +32,7 @@ type Response struct {
 }
 
 func writeResponse(ctx context.Context, w http.ResponseWriter, v any, status int, l *zap.Logger) {
-	log := logger.WithTrace(ctx, l)
+	log := logger.From(ctx, l)
 	resp := Response{Result: v}
 
 	respBytes, err := json.Marshal(&resp)
@@ -76,7 +76,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, status int, message 
 		w.Header().Set("Retry-After", "10")
 	}
 
-	log := logger.WithTrace(ctx, l)
+	log := logger.From(ctx, l)
 	if status >= 500 {
 		log.Error(message, zap.Error(err))
 	} else {

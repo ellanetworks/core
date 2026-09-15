@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -47,7 +46,7 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
-	ueConn := amf.NewUeConnForTest(ran, 2, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 2, 10)
 
 	amfID := ngap.AMFUENGAPID(10)
 	msg := &ngap.ErrorIndication{

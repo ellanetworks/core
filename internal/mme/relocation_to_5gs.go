@@ -112,7 +112,7 @@ func TransferablePDNConnections(ue *UeContext) ([]interworking.PDNConnection, []
 	for _, p := range ue.Pdns {
 		if p.PDUSessionID == 0 || p.Snssai == nil {
 			logger.MmeLog.Warn("PDN connection cannot move to 5GS; leaving it behind",
-				zap.String("imsi", ue.imsiOrEmpty()), zap.Uint8("ebi", p.Ebi), zap.String("apn", p.Apn))
+				logger.SUPI(ue.supiOrEmpty()), zap.Uint8("ebi", p.Ebi), zap.String("apn", p.Apn))
 
 			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverInterSystemTriggered})
 

@@ -83,7 +83,7 @@ func NewReconciler(rib RIB, store LeaseStore, nodeID int, wakeup <-chan struct{}
 		nodeID:   nodeID,
 		wakeup:   wakeup,
 		backstop: reconcileBackstop,
-		log:      logger.EllaLog.With(zap.String("component", "BGPReconciler")),
+		log:      logger.Scope("BGP/reconciler"),
 	}
 }
 
@@ -173,7 +173,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) (err error) {
 
 		if annErr := r.rib.Announce(prefix, imsi); annErr != nil {
 			r.log.Warn("announce failed during reconcile",
-				zap.String("prefix", prefixStr), zap.String("imsi", imsi), zap.Error(annErr))
+				zap.String("prefix", prefixStr), logger.SUPIFromIMSI(imsi), zap.Error(annErr))
 		}
 	}
 

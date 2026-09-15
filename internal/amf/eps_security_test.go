@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"go.uber.org/zap"
 )
 
 func s1NetworkCapability(eea, eia, uea, uia byte) []byte {
@@ -23,7 +22,7 @@ func attachTestConn(t *testing.T, ue *amf.UeContext) {
 	amfInstance := amf.New(nil, nil, nil)
 	radio := &amf.Radio{Conn: &fakeNGAPSender{}}
 	radio.BindAMFForTest(amfInstance)
-	amfInstance.AttachUeConn(t.Context(), ue, amf.NewUeConnForTest(radio, 1, 1, zap.NewNop()))
+	amfInstance.AttachUeConn(t.Context(), ue, amf.NewUeConnForTest(radio, 1, 1))
 }
 
 func epsCapableUE(t *testing.T, s1 []byte) *amf.UeContext {

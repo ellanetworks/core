@@ -116,12 +116,11 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 	)
 	defer span.End()
 
-	ctx = logger.Into(ctx, ue.Log())
+	ctx = logger.Into(ctx, ue.LogFields()...)
 
-	logger.From(ctx, logger.AmfLog).Info(
+	logger.From(ctx, logger.AmfLog).Debug(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
-		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
 	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)
@@ -306,9 +305,9 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		switch {
 		case req.MobileIdentity.GUTI != nil:
 			guti, _ = etsi.NewGUTI5GFromNAS(req.MobileIdentity)
-			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
+			logger.From(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		case req.MobileIdentity.SUCI != nil:
-			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context",
+			logger.From(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context",
 				zap.Stringer("suci", req.MobileIdentity.SUCI))
 
 			return nil, nil
@@ -325,7 +324,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %w", err)
 			}
 
-			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti derived from Service Request Message", logger.GUTI(guti.String()))
+			logger.From(ctx, logger.AmfLog).Debug("Guti derived from Service Request Message", logger.GUTI(guti.String()))
 		}
 	case fgs.MsgDeregistrationRequestUEOrig:
 		req, err := fgs.ParseDeregistrationRequestUEOriginating(body)
@@ -339,7 +338,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 				return nil, nil
 			}
 
-			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Deregistraion Request Message", logger.GUTI(guti.String()))
+			logger.From(ctx, logger.AmfLog).Debug("Guti received in Deregistraion Request Message", logger.GUTI(guti.String()))
 		}
 	}
 
@@ -349,7 +348,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("could not get operator info; resolving no context by GUTI", zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Error("could not get operator info; resolving no context by GUTI", zap.Error(err))
 		return nil, nil
 	}
 
@@ -365,7 +364,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if !ue.ReuseForInboundNAS(payload) {
-			logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(candidate.String()))
+			logger.From(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(candidate.String()))
 			continue
 		}
 
@@ -374,7 +373,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return ue, nil
 	}
 
-	logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(candidates[0].String()))
+	logger.From(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(candidates[0].String()))
 
 	return nil, nil
 }

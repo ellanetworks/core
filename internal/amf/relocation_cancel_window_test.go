@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func cancelWindowUE(t *testing.T) (*AMF, *UeContext, *Radio, etsi.SUPI) {
@@ -24,7 +23,7 @@ func cancelWindowUE(t *testing.T) (*AMF, *UeContext, *Radio, etsi.SUPI) {
 	ue.SetSupi(supi)
 
 	a := New(nil, nil, nil)
-	radio := &Radio{Conn: &sctp.SCTPConn{}, Log: zap.NewNop()}
+	radio := &Radio{Conn: &sctp.SCTPConn{}}
 	radio.BindAMFForTest(a)
 
 	return a, ue, radio, supi

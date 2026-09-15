@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -319,10 +318,7 @@ func observeMmeLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(zapcore.WarnLevel)
-	saved := logger.MmeLog
-	logger.MmeLog = zap.New(core)
-
-	t.Cleanup(func() { logger.MmeLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }
@@ -365,7 +361,7 @@ func TestAttachCompleteReportsTheUEDiscardingTheMappedFiveGSQoS(t *testing.T) {
 		t.Fatalf("the UE reported 5GSM cause #83 for the mapped 5GS QoS parameters of the default bearer and the MME did not record it: the ESM message container of the ATTACH COMPLETE was discarded, and the initial attach is where those parameters are delivered (matching warnings = %d)", reported.Len())
 	}
 
-	if got := reported.All()[0].ContextMap()["5gsm-cause"]; got != uint8(83) {
+	if got := reported.All()[0].ContextMap()["5gsm_cause"]; got != uint8(83) {
 		t.Errorf("recorded 5gsm-cause = %v, want 83", got)
 	}
 }

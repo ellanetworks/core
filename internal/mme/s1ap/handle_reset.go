@@ -32,8 +32,8 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 		affected := m.ConnsOnConn(radio.Conn)
 		m.ReclaimConns(ctx, affected, "S1 reset")
 
-		logger.From(ctx, radio.Log).Info("S1 Reset (whole interface)",
-			zap.String("cause", cause), zap.Int("connections", len(affected)))
+		radio.Log(ctx).Info("S1 Reset (whole interface)",
+			logger.Cause(cause), zap.Int("connections", len(affected)))
 		sendResetAcknowledge(ctx, m, radio.Conn, nil, req.Diagnostics())
 
 		return
@@ -42,8 +42,8 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 	affected := m.ConnsForConnectionList(radio.Conn, req.ResetType.Part)
 	m.ReclaimConns(ctx, affected, "S1 reset")
 
-	logger.From(ctx, radio.Log).Info("S1 Reset (part of interface)",
-		zap.String("cause", cause),
+	radio.Log(ctx).Info("S1 Reset (part of interface)",
+		logger.Cause(cause),
 		zap.Int("requested", len(req.ResetType.Part)),
 		zap.Int("connections", len(affected)))
 
@@ -67,7 +67,7 @@ func sendResetAcknowledge(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 	b, err := ack.Marshal()
 	if err != nil {
-		m.RadioLog(conn).Error("failed to marshal Reset Acknowledge", zap.Error(err))
+		m.RadioLog(ctx, conn).Error("failed to marshal Reset Acknowledge", zap.Error(err))
 		return
 	}
 

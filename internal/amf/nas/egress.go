@@ -34,7 +34,7 @@ func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
 // 5GSM handlers answer directly (forward, or a DL NAS "payload not forwarded") and never
 // resolve to an SM-domain STATUS disposition.
 func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
-	logger.From(ctx, logger.AmfLog).Error("unexpected 5GSM STATUS egress in the AMF", zap.Stringer("cause", fgs.GSMCause(cause)))
+	logger.From(ctx, logger.AmfLog).Error("unexpected 5GSM STATUS egress in the AMF", logger.Cause(fgs.GSMCause(cause).String()))
 }
 
 func (e egress) Discard(ctx context.Context, reason nasreply.Reason) {

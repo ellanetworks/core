@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -31,7 +30,7 @@ func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
 		RANUENGAPID: ngap.RANUENGAPID(1),
@@ -54,7 +53,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
@@ -87,7 +86,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
@@ -108,7 +107,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionIDNotInContext(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{
@@ -129,7 +128,7 @@ func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceNotify{

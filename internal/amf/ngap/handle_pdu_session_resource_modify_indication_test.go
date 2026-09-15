@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -39,7 +38,7 @@ func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceModifyIndication{
 		RANUENGAPID: ngap.RANUENGAPID(1),
@@ -68,7 +67,7 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.PDUSessionResourceModifyIndication{
@@ -111,7 +110,7 @@ func TestPDUSessionResourceModifyIndication_SmContextNotFound(t *testing.T) {
 
 	amfUe := newValidUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	msg := &ngap.PDUSessionResourceModifyIndication{

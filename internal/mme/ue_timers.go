@@ -6,7 +6,6 @@ package mme
 import (
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 // StartMobileReachable arms the mobile reachable timer when the UE moves to
@@ -45,7 +44,7 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 		return
 	}
 
-	logger.MmeLog.Debug("mobile reachable timer expired", zap.String("imsi", ue.imsiOrEmpty()))
+	logger.MmeLog.Debug("mobile reachable timer expired", logger.SUPI(ue.Supi().String()))
 
 	ue.implicitDetachTimer.ArmOnce(m.implicitDetachTime, func() {
 		m.onImplicitDetachExpiry(ue, gen)
@@ -78,7 +77,7 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	ue.TransitionTo(ctx, EMMDeregistered)
 
 	logger.From(ctx, logger.MmeLog).Info("implicit detach: UE unreachable, deregistering (native security context retained)",
-		zap.String("imsi", imsi))
+		logger.SUPIFromIMSI(imsi))
 
 	m.ReleaseAllSessions(ctx, ue)
 }

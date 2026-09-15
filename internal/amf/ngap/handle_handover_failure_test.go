@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -36,10 +35,10 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	err := amf.SetHandoverForTest(sourceUe, targetUe)
 	if err != nil {
@@ -81,10 +80,10 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)
@@ -126,10 +125,10 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)
@@ -167,10 +166,10 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)
@@ -209,10 +208,10 @@ func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)
@@ -247,10 +246,10 @@ func TestHandleHandoverFailure_NoContainerToRelay(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100)
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200)
 
 	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
 		t.Fatalf("SetHandoverForTest: %v", err)

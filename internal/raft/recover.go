@@ -72,7 +72,7 @@ func maybeRecoverCluster(
 	}
 
 	logger.RaftLog.Info("Raft: cluster recovered from peers.json",
-		zap.Int("servers", len(recoveryConfig.Servers)))
+		zap.Int("server_count", len(recoveryConfig.Servers)))
 
 	return true, nil
 }

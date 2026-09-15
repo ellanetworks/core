@@ -16,7 +16,7 @@ import (
 
 // handleBearerResourceAllocationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.3).
-func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceAllocationRequest) nasreply.Disposition {
+func handleBearerResourceAllocationRequest(ctx context.Context, _ *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceAllocationRequest) nasreply.Disposition {
 	pti := req.PTI
 
 	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
@@ -24,7 +24,7 @@ func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContex
 		cause = eps.ESMCauseRequestRejectedUnspecified
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.Uint8("pti", uint8(pti)), logger.ESMCause(cause.String()))
 	rejectBearerResourceAllocation(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()
@@ -32,7 +32,7 @@ func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContex
 
 // handleBearerResourceModificationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.4).
-func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceModificationRequest) nasreply.Disposition {
+func handleBearerResourceModificationRequest(ctx context.Context, _ *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceModificationRequest) nasreply.Disposition {
 	pti := req.PTI
 
 	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
@@ -40,8 +40,7 @@ func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeCont
 		cause = eps.ESMCauseEPSQoSNotAccepted
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected",
-		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected", zap.Uint8("pti", uint8(pti)), logger.ESMCause(cause.String()))
 	rejectBearerResourceModification(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()

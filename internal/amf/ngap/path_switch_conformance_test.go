@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
@@ -23,8 +22,8 @@ func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8)
 
 	const sourceAmfUeNgapID = int64(10)
 
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
-	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
+	targetRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 
 	amfUe := newValidUeContext()
 
@@ -35,7 +34,7 @@ func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8)
 		}
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID))
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	amfInstance := newTestAMFWithSmf(fakeSmf)
