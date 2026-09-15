@@ -31,8 +31,6 @@ func skipIfNoSCTP(t *testing.T) {
 	}
 }
 
-// newTestListener starts an SCTP listener on a free 127.0.0.1 port and
-// registers cleanup. Its port is in ln.laddr.
 func newTestListener(t *testing.T) *Listener {
 	t.Helper()
 
@@ -62,8 +60,6 @@ func newTestListener(t *testing.T) *Listener {
 	return ln
 }
 
-// freePort binds an SCTP socket to an ephemeral 127.0.0.1 port, then releases
-// it, so the caller has a port number nothing on the host is listening on.
 func freePort(t *testing.T) int {
 	t.Helper()
 

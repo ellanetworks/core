@@ -27,9 +27,6 @@ var dialTestInit = InitMsg{NumOstreams: 2, MaxInstreams: 2, MaxAttempts: 2, MaxI
 // distinguishable from one that kept it.
 const echoStream = 1
 
-// echoServer starts a Server on a free 127.0.0.1 port that echoes every
-// dispatched message straight back to its sender, and returns it with the port
-// it bound.
 func echoServer(t *testing.T) (*Server, int) {
 	t.Helper()
 

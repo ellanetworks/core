@@ -76,10 +76,6 @@ func NewServer(cfg Config, cb Callbacks) *Server {
 	return &Server{cfg: cfg, cb: cb}
 }
 
-// Listen binds an SCTP listener the way the RAN-facing interfaces need it,
-// mirroring net.Listen: the returned Listener owns the socket and reports the
-// address it bound, so a port of 0 is resolved to the port the kernel assigned.
-// Pass the result to Server.Serve, or use Server.ListenAndServe to do both.
 func Listen(ctx context.Context, address string, port int, interfaceName string) (*Listener, error) {
 	var laddr *SCTPAddr
 
@@ -163,8 +159,6 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 	return listener, nil
 }
 
-// Serve takes ownership of ln and starts accepting on it in the background.
-// Shutdown closes ln and releases the goroutines Serve started.
 func (s *Server) Serve(ctx context.Context, ln *Listener) {
 	s.listener = ln
 	s.acceptDone = make(chan struct{})

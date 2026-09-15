@@ -647,9 +647,6 @@ func (c *SCTPConn) setReadDeadline(t time.Time) error {
 	return c.file.SetReadDeadline(t)
 }
 
-// Listener is an SCTP listening socket. It mirrors net.Listener: Accept, Close
-// and Addr, with Accept returning the concrete *SCTPConn the dispatch path
-// needs rather than a net.Conn.
 type Listener struct {
 	file      *os.File
 	rc        syscall.RawConn
@@ -658,8 +655,6 @@ type Listener struct {
 	closed    atomic.Bool
 }
 
-// Addr returns the address the listener is bound to, resolved after bind so a
-// port of 0 reports the port the kernel actually assigned.
 func (ln *Listener) Addr() net.Addr {
 	if ln.laddr == nil {
 		return nil
