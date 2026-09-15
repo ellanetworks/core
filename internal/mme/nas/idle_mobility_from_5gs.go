@@ -68,7 +68,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
-	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change", zap.Int("pdu-sessions", len(resp.PDNConnections)))
+	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change", zap.Int("pdu_sessions", len(resp.PDNConnections)))
 
 	return ue, plain
 }

@@ -1040,11 +1040,11 @@ func TestIncrementDailyUsageBatch_ReportsTheUsageItCouldNotCharge(t *testing.T) 
 		t.Errorf("rows = %v, want 2", fields["rows"])
 	}
 
-	if fields["uplink_volume"] != int64(170) {
+	if fields["uplink_volume"] != uint64(170) {
 		t.Errorf("uplink_volume = %v, want 170", fields["uplink_volume"])
 	}
 
-	if fields["downlink_volume"] != int64(220) {
+	if fields["downlink_volume"] != uint64(220) {
 		t.Errorf("downlink_volume = %v, want 220", fields["downlink_volume"])
 	}
 }

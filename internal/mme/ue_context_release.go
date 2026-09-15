@@ -163,7 +163,7 @@ func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigge
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		logger.From(ctx, logger.MmeLog).Info("aborted incomplete UE registration",
-			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
+			zap.String("trigger", trigger), logger.MMEUeS1apID(uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
 
 		return
 	}

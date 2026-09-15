@@ -375,7 +375,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
 		logger.SmfLog.Info("SM context already removed, skipping",
-			zap.String("smContextRef", smContextRef))
+			logger.SMContextRef(smContextRef))
 
 		return true, nil
 	}

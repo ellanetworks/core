@@ -43,7 +43,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	if cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity)); cause != 0 {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: invalid ESM header", zap.Uint8("pti", uint8(pti)),
-			zap.Uint8("header-ebi", uint8(req.EPSBearerIdentity)), zap.Stringer("esm-cause", cause))
+			zap.Uint8("header_ebi", uint8(req.EPSBearerIdentity)), logger.ESMCause(cause.String()))
 		rejectPDNConnectivity(ctx, ueConn, uint8(pti), cause)
 
 		return nasreply.Handled()
@@ -61,7 +61,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	}
 
 	if cause, refused := requestTypeRefusal(req.RequestType); refused {
-		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: request type not served", zap.Stringer("request-type", req.RequestType))
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: request type not served", zap.Stringer("request_type", req.RequestType))
 		rejectPDNConnectivity(ctx, ueConn, uint8(pti), cause)
 
 		return nasreply.Handled()
@@ -251,7 +251,7 @@ func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	if cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity)); cause != 0 {
 		logger.From(ctx, logger.MmeLog).Info("PDN disconnect rejected: invalid ESM header", zap.Uint8("pti", uint8(pti)),
-			zap.Uint8("header-ebi", uint8(req.EPSBearerIdentity)), zap.Stringer("esm-cause", cause))
+			zap.Uint8("header_ebi", uint8(req.EPSBearerIdentity)), logger.ESMCause(cause.String()))
 		rejectPDNDisconnect(ctx, ueConn, uint8(pti), cause)
 
 		return nasreply.Handled()
@@ -259,7 +259,7 @@ func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	p := m.LookupPDN(ue, uint8(req.LinkedEPSBearerIdentity))
 	if p == nil {
-		logger.From(ctx, logger.MmeLog).Info("PDN disconnect rejected: unknown linked EPS bearer", zap.Uint8("linked-ebi", uint8(req.LinkedEPSBearerIdentity)))
+		logger.From(ctx, logger.MmeLog).Info("PDN disconnect rejected: unknown linked EPS bearer", zap.Uint8("linked_ebi", uint8(req.LinkedEPSBearerIdentity)))
 		rejectPDNDisconnect(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
 
 		return nasreply.Handled()
@@ -268,7 +268,7 @@ func handlePDNDisconnectRequest(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	numPDNs := ue.PDNCount()
 
 	if numPDNs <= 1 {
-		logger.From(ctx, logger.MmeLog).Info("PDN disconnect rejected: last PDN connection", zap.Uint8("linked-ebi", uint8(req.LinkedEPSBearerIdentity)))
+		logger.From(ctx, logger.MmeLog).Info("PDN disconnect rejected: last PDN connection", zap.Uint8("linked_ebi", uint8(req.LinkedEPSBearerIdentity)))
 		rejectPDNDisconnect(ctx, ueConn, uint8(pti), eps.ESMCauseLastPDNDisconnectionNotAllow)
 
 		return nasreply.Handled()
@@ -303,7 +303,7 @@ func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.
 	m.StopESMGuard(p)
 
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
-		logger.From(ctx, logger.MmeLog).Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection", zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))
+		logger.From(ctx, logger.MmeLog).Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection", zap.String("apn", p.Apn), logger.FiveGSMCause(cause))
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("PDN connection active", zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
@@ -315,7 +315,7 @@ func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.
 // refused (TS 24.301 §6.4.1.5).
 func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, rej *eps.ActivateDefaultEPSBearerContextReject) nasreply.Disposition {
 	if p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity)); p != nil {
-		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), zap.Stringer("esm-cause", rej.Cause))
+		logger.MmeLog.Info("UE rejected an additional PDN connection; releasing it", zap.Uint8("ebi", p.Ebi), logger.ESMCause(rej.Cause.String()))
 		m.StopESMGuard(p)
 		m.ReleasePDN(ctx, ue, p)
 	}

@@ -172,7 +172,7 @@ func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
 			Reason:       reason,
 		}); err != nil {
 			logger.AmfLog.Warn("session reconcile failed",
-				zap.String("smContextRef", ref),
+				logger.SMContextRef(ref),
 				zap.Error(err))
 		}
 	}
@@ -206,7 +206,7 @@ func (amf *AMF) fetchSessionPolicy(ctx context.Context, smContextRef string) (*m
 	if err != nil {
 		if permanentPolicyFailure(err) {
 			logger.AmfLog.Debug("session policy not found, triggering slice mismatch release",
-				zap.String("smContextRef", smContextRef),
+				logger.SMContextRef(smContextRef),
 				zap.Error(err))
 
 			return nil, models.ReconcileSliceMismatch
@@ -214,7 +214,7 @@ func (amf *AMF) fetchSessionPolicy(ctx context.Context, smContextRef string) (*m
 
 		// The backstop timer will retry.
 		logger.AmfLog.Warn("transient error fetching session policy, skipping reconciliation",
-			zap.String("smContextRef", smContextRef),
+			logger.SMContextRef(smContextRef),
 			zap.Error(err))
 
 		return nil, models.ReconcileSkip

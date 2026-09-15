@@ -39,6 +39,10 @@ func RanUeNgapID(val models.RanUeNgapID) zap.Field { return zap.Int64("ran_ue_ng
 func MMEUeS1apID(val uint32) zap.Field             { return zap.Uint32("mme_ue_s1ap_id", val) }
 func ENBUeS1apID(val uint32) zap.Field             { return zap.Uint32("enb_ue_s1ap_id", val) }
 func PDUSessionID(val uint8) zap.Field             { return zap.Uint8("pdu_session_id", val) }
+func ERABID(val uint8) zap.Field                   { return zap.Uint8("e_rab_id", val) }
+func SMContextRef(val string) zap.Field            { return zap.String("sm_context_ref", val) }
+func ESMCause(val string) zap.Field                { return zap.String("esm_cause", val) }
+func FiveGSMCause(val uint8) zap.Field             { return zap.Uint8("5gsm_cause", val) }
 func DNN(val string) zap.Field                     { return zap.String("dnn", val) }
 func SST(val uint8) zap.Field                      { return zap.Uint8("sst", val) }
 func SD(val string) zap.Field                      { return zap.String("sd", val) }
@@ -54,20 +58,16 @@ func URRID(val uint32) zap.Field { return zap.Uint32("urr_id", val) }
 func QFI(val uint8) zap.Field    { return zap.Uint8("qfi", val) }
 
 // Network & Transport
-func RanAddr(val string) zap.Field         { return zap.String("ran_addr", val) }
-func RadioName(val string) zap.Field       { return identity("radio_name", val) }
-func RadioID(val string) zap.Field         { return identity("radio_id", val) }
-func SourceIP(val string) zap.Field        { return zap.String("source_ip", val) }
-func DestinationIP(val string) zap.Field   { return zap.String("destination_ip", val) }
-func SourcePort(val uint16) zap.Field      { return zap.Uint16("source_port", val) }
-func DestinationPort(val uint16) zap.Field { return zap.Uint16("destination_port", val) }
-func ProtocolName(val string) zap.Field    { return zap.String("protocol", val) }
-func IPAddress(val string) zap.Field       { return zap.String("ip_address", val) }
-func IPv6Prefix(val string) zap.Field      { return zap.String("ipv6_prefix", val) }
-func IPv6IID(val string) zap.Field         { return zap.String("ipv6_iid", val) }
-func TEID(val uint32) zap.Field            { return zap.Uint32("teid", val) }
-func Direction(val string) zap.Field       { return zap.String("direction", val) }
-func N3Address(val string) zap.Field       { return zap.String("n3_address", val) }
+func RanAddr(val string) zap.Field      { return zap.String("ran_addr", val) }
+func RadioName(val string) zap.Field    { return identity("radio_name", val) }
+func RadioID(val string) zap.Field      { return identity("radio_id", val) }
+func ProtocolName(val string) zap.Field { return zap.String("protocol", val) }
+func IPAddress(val string) zap.Field    { return zap.String("ip_address", val) }
+func IPv6Prefix(val string) zap.Field   { return zap.String("ipv6_prefix", val) }
+func IPv6IID(val string) zap.Field      { return zap.String("ipv6_iid", val) }
+func TEID(val uint32) zap.Field         { return zap.Uint32("teid", val) }
+func Direction(val string) zap.Field    { return zap.String("direction", val) }
+func N3Address(val string) zap.Field    { return zap.String("n3_address", val) }
 
 // Metrics & Volume
 func Packets(val uint64) zap.Field        { return zap.Uint64("packets", val) }

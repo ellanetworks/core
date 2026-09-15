@@ -19,8 +19,8 @@ import (
 
 func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.TrackingAreaUpdateRequest, plain []byte) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
-		zap.String("update-type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
-		zap.Bool("active-flag", req.ActiveFlag))
+		zap.String("update_type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
+		zap.Bool("active_flag", req.ActiveFlag))
 
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept")

@@ -76,7 +76,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Request transfer",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
-		zap.Bool("direct-forwarding", direct))
+		zap.Bool("direct_forwarding", direct))
 
 	return n2Rsp, nil
 }
@@ -145,7 +145,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Command transfer",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
-		zap.Bool("data-forwarding", smContext.handoverForwardingPlan.Forwards()))
+		zap.Bool("data_forwarding", smContext.handoverForwardingPlan.Forwards()))
 
 	return n2Rsp, nil
 }
@@ -309,7 +309,7 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("target NG-RAN node refused a PDU session at handover",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
-		zap.String("cause", transfer.Cause.String()))
+		logger.Cause(transfer.Cause.String()))
 
 	return nil
 }

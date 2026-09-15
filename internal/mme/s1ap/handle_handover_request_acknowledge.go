@@ -55,7 +55,7 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 		addr, ok := enbTransportAddress(it.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge E-RAB has an invalid target address; treating as failed",
-				zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(it.ERABID)))
+				zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)), logger.ERABID(uint8(it.ERABID)))
 
 			continue
 		}
@@ -93,7 +93,7 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 		logger.From(ctx, logger.MmeLog).Info("Forward Relocation Response",
 			zap.Uint32("target_mme_ue_s1ap_id", uint32(mmeUEID)),
 			zap.Int("admitted", len(admitted)),
-			zap.Int("not-admitted", len(prep.Unadmitted)))
+			zap.Int("not_admitted", len(prep.Unadmitted)))
 		m.FinishRelocationPreparation(ue, ack.TargetToSource, prep.Unadmitted)
 
 		return
@@ -122,10 +122,10 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Command",
-		zap.Uint32("mme_ue_s1ap_id", uint32(prep.SourceMMEID)),
+		logger.MMEUeS1apID(uint32(prep.SourceMMEID)),
 		zap.Int("admitted", len(admitted)),
 		zap.Int("released", len(prep.Unadmitted)),
-		zap.Bool("data-forwarding", len(forwarding) > 0))
+		zap.Bool("data_forwarding", len(forwarding) > 0))
 	m.SendToRadio(ctx, prep.SourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
@@ -196,7 +196,7 @@ func relayForwardingThroughUPF(ctx context.Context, m *mme.MME, ue *mme.UeContex
 		tla, err := models.EncodeTransportLayerAddress(local.IPv4, local.IPv6)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("could not encode the forwarding tunnel's transport address",
-				zap.Uint8("e-rab-id", a.Ebi), zap.Error(err))
+				logger.ERABID(a.Ebi), zap.Error(err))
 
 			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
 			out = append(out, a)

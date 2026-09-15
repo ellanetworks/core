@@ -713,7 +713,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			logger.From(ctx, ueConn.Log()).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 	default:
-		logger.From(ctx, ueConn.Log()).Error("Invalid Release Action", zap.Any("ReleaseAction", ueConn.ReleaseAction))
+		logger.From(ctx, ueConn.Log()).Error("Invalid Release Action", zap.Any("release_action", ueConn.ReleaseAction))
 	}
 }
 

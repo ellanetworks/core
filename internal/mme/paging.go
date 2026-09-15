@@ -120,7 +120,7 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 
 	m.pageRadios(ctx, ue, b)
 
-	logger.From(ctx, logger.MmeLog).Info("Paging", logger.SUPIFromIMSI(imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
+	logger.From(ctx, logger.MmeLog).Info("Paging", logger.SUPIFromIMSI(imsi), zap.Uint32("m_tmsi", ue.Tmsi().Uint32()))
 
 	m.armPaging(ctx, ue, b)
 

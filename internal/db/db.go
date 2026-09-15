@@ -845,9 +845,9 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if current >= target {
 		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on cluster member upgrades",
 			zap.Int("current", current),
-			zap.Int("binaryMax", binaryMax),
-			zap.Int("memberFloor", floor),
-			zap.Int("laggardNodeID", laggard),
+			zap.Int("binary_max", binaryMax),
+			zap.Int("member_floor", floor),
+			zap.Int("laggard_node_id", laggard),
 		)
 
 		return nil
@@ -855,7 +855,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 
 	for v := current + 1; v <= target; v++ {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
-			zap.Int("targetVersion", v))
+			zap.Int("target_version", v))
 
 		if _, err := opMigrateShared.Invoke(ctx, db, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
@@ -982,7 +982,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		if err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
 				zap.Int("node_id", nodeID),
-				zap.String("raftAddress", m.RaftAddress),
+				zap.String("raft_address", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
 			)

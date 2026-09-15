@@ -79,17 +79,17 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 	}
 
 	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Request",
-		zap.String("enb-name", enbName(req.ENBName)),
-		zap.Uint32("enb-id", req.GlobalENBID.ENBID.Value),
+		zap.String("enb_name", enbName(req.ENBName)),
+		zap.Uint32("enb_id", req.GlobalENBID.ENBID.Value),
 	)
 
 	if !accepted {
 		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		logger.From(ctx, m.RadioLog(conn)).Warn("Radio setup rejected",
-			zap.String("enb-name", enbName(req.ENBName)),
+			zap.String("enb_name", enbName(req.ENBName)),
 			zap.String("reason", reason),
-			zap.String("served-plmn", plmn.Mcc+"/"+plmn.Mnc))
+			zap.String("served_plmn", plmn.Mcc+"/"+plmn.Mnc))
 
 		return
 	}

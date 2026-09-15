@@ -81,7 +81,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	}
 
 	if cause, refused := requestTypeRefusal(ue.RequestedType); refused {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served", zap.Stringer("request-type", ue.RequestedType))
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served", zap.Stringer("request_type", ue.RequestedType))
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), cause)
 
 		return
@@ -113,9 +113,9 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
-		zap.Uint8("pdn-type", pdnType),
+		zap.Uint8("pdn_type", pdnType),
 		zap.String("dns", dns),
-		zap.Stringer("esm-cause", esmCause),
+		logger.ESMCause(esmCause.String()),
 	)
 
 	plain, err := buildAttachAccept(ctx, m, ue, qos)
@@ -191,7 +191,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		// (TS 36.413).
 		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(p.Ebi), zap.Error(err))
 
 			continue
 		}
@@ -223,9 +223,9 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Debug("Initial Context Setup Request",
-		zap.Uint8("nas-pdu-bearer", carrier),
+		zap.Uint8("nas_pdu_bearer", carrier),
 		zap.Int("bearers", len(erabs)),
-		zap.Uint32("kenb-ul-count", kenbCount),
+		zap.Uint32("kenb_ul_count", kenbCount),
 		zap.Stringer("eea", ue.EEA()),
 		zap.Stringer("eia", ue.EIA()),
 	)

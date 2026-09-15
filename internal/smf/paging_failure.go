@@ -20,9 +20,9 @@ func (s *SMF) HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pdu
 	}
 
 	logger.SmfLog.Info("N1N2 message transfer failed",
-		zap.String("supi", supi.String()),
-		zap.Uint8("pdu_session_id", pduSessionID),
-		zap.String("cause", cause.String()))
+		logger.SUPI(supi.String()),
+		logger.PDUSessionID(pduSessionID),
+		logger.Cause(cause.String()))
 
 	s.suppressDownlinkDataNotification(ctx, smContext)
 
@@ -43,7 +43,7 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 	logger.SmfLog.Info("EPS downlink data notification failed",
 		logger.SUPIFromIMSI(imsi),
 		zap.Uint8("ebi", ebi),
-		zap.String("cause", cause.String()))
+		logger.Cause(cause.String()))
 
 	s.suppressDownlinkDataNotification(ctx, smContext)
 

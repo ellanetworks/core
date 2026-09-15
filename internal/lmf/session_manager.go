@@ -58,7 +58,7 @@ func (m *SessionManager) CreateSession(ctx context.Context, params CreateSession
 
 	logger.LmfLog.Info("positioning session created",
 		zap.String("session_id", s.ID),
-		zap.String("supi", params.SUPI),
+		logger.SUPI(params.SUPI),
 		zap.String("method", string(params.Method)),
 	)
 
@@ -79,7 +79,7 @@ func (m *SessionManager) CreateLPPSession(ctx context.Context, params CreateSess
 
 	logger.LmfLog.Info("LPP session created",
 		zap.String("session_id", sessionID),
-		zap.String("supi", params.SUPI),
+		logger.SUPI(params.SUPI),
 		zap.String("method", string(params.Method)),
 	)
 

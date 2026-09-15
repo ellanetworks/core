@@ -81,7 +81,7 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 		ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*ranID))
 		if ueConn == nil {
 			logger.WithTrace(ctx, ran.Log()).Warn("Unknown remote RAN-UE-NGAP-ID on this radio",
-				zap.Uint32("ran_ue_ngap_id", uint32(*ranID)))
+				logger.RanUeNgapID(models.RanUeNgapID(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 
 			return nil, false

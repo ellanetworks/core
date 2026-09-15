@@ -164,7 +164,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smContext *SMContext) {
 	if held := s.currentSession(smContext.Supi, smContext.sessionKey()); held != nil && held != smContext {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("skipping UE address release for a superseded session",
-			logger.SUPI(smContext.Supi.String()), zap.String("heldBy", held.Ref))
+			logger.SUPI(smContext.Supi.String()), zap.String("held_by", held.Ref))
 
 		smContext.PDUIPV4Address = nil
 		smContext.PDUIPV6Prefix = nil

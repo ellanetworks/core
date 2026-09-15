@@ -75,7 +75,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupFailure, outBytes)
 
 		logger.WithTrace(ctx, ran.Log()).Warn("Radio setup rejected",
-			zap.String("gnb-name", name),
+			zap.String("gnb_name", name),
 			zap.String("reason", reason),
 			zap.Any("gnb_tai_list", tais),
 			zap.Any("core_tai_list", operatorInfo.Tais))

@@ -190,7 +190,7 @@ func (a *AMF) relocateFromEPS(
 	logger.From(ctx, logger.AmfLog).Info("Handover Request (EPS to 5GS)",
 		logger.SUPI(ue.Supi().String()),
 		zap.Uint64("target_amf_ue_ngap_id", uint64(targetUe.AmfUeNgapID)),
-		zap.Int("pdu-sessions", len(sessions)))
+		zap.Int("pdu_sessions", len(sessions)))
 
 	err = targetUe.SendHandoverRequest(ctx, HandoverRequestOpts{
 		HandoverType:         ngap.HandoverTypeEPSToFiveGS,
@@ -254,7 +254,7 @@ func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []i
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to take over a PDN connection as a PDU session; leaving it behind",
 				logger.SUPI(ue.Supi().String()), logger.PDUSessionID(c.PDUSessionID),
-				zap.Uint8("ebi", c.EPSBearerIdentity), zap.String("dnn", c.APN), zap.Error(err))
+				zap.Uint8("ebi", c.EPSBearerIdentity), logger.DNN(c.APN), zap.Error(err))
 
 			continue
 		}

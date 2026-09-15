@@ -207,7 +207,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	if fromEPS {
 		logger.WithTrace(ctx, targetUe.Log()).Info("Handover Request Acknowledge (EPS to 5GS)",
-			zap.Int("admitted", len(admitted)), zap.Int("not-handed-over", len(unadmitted)))
+			zap.Int("admitted", len(admitted)), zap.Int("not_handed_over", len(unadmitted)))
 		amfInstance.FinishRelocationPreparation(amfUe, msg.TargetToSourceTransparentContainer, unadmitted)
 
 		return

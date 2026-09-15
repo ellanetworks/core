@@ -49,7 +49,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	if msg.HandoverType != ngap.HandoverTypeIntra5GS {
 		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [unsupported Handover Type]",
-			zap.Uint8("handoverType", uint8(msg.HandoverType)))
+			zap.Uint8("handover_type", uint8(msg.HandoverType)))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOTargetNotAllowed, nil, nil)
 
@@ -75,7 +75,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRan, ok := amfInstance.FindConnectedRadioByRanID(targetRanNodeID)
 	if !ok {
-		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Stringer("target-ran-node-id", targetRanNodeID))
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Stringer("target_ran_node_id", targetRanNodeID))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
 

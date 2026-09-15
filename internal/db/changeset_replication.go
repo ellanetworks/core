@@ -317,7 +317,7 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 
 	logger.WithTrace(ctx, logger.DBLog).Debug("captured changeset",
 		zap.String("operation", operation),
-		zap.Int("bytes", len(changeset)))
+		logger.Bytes(uint64(len(changeset))))
 
 	return changeset, result, nil
 }

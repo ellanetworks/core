@@ -160,8 +160,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if securityHeader != eps.SHTIntegrityProtected && securityHeader != eps.SHTIntegrityProtectedNewContext {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
-			zap.Uint8("security-header-type", uint8(securityHeader)),
-			zap.Bool("has-security-context", ue.HasKASME()))
+			zap.Uint8("security_header_type", uint8(securityHeader)),
+			zap.Bool("has_security_context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed (ciphered, unreadable): %v", err)
 	}
@@ -179,11 +179,11 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if !plainNasAllowed(mt) {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
-			zap.String("attempted-message", EmmMessageTypeName(mt)),
-			zap.Uint8("security-header-type", uint8(securityHeader)),
-			zap.Uint32("expected-ul-count", ue.ULCount()),
-			zap.Stringer("integrity-alg", ue.EIA()),
-			zap.Bool("has-security-context", ue.HasKASME()))
+			zap.String("attempted_message", EmmMessageTypeName(mt)),
+			zap.Uint8("security_header_type", uint8(securityHeader)),
+			zap.Uint32("expected_ul_count", ue.ULCount()),
+			zap.Stringer("integrity_alg", ue.EIA()),
+			zap.Bool("has_security_context", ue.HasKASME()))
 
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS integrity check failed: %s not whitelisted", EmmMessageTypeName(mt))
 	}

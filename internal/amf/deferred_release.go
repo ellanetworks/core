@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const deferredReleaseTimeout = 30 * time.Second
@@ -48,7 +47,7 @@ func (ueConn *UeConn) DeferRelease(ctx context.Context, cause ngap.Cause) {
 		defer span.End()
 
 		logger.From(guardCtx, ueConn.Log()).Warn("deferred UE Context Release deadline reached; releasing the NG connection",
-			zap.String("cause", cause.String()))
+			logger.Cause(cause.String()))
 
 		ueConn.resumeDeferredRelease(guardCtx)
 	})

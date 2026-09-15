@@ -66,7 +66,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 		n2Rsp, err := apply(ctx, smContext.Ref, s.Transfer)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Error("failed to converge a PDU session onto the RAN endpoint",
-				logger.SUPI(ue.Supi().String()), zap.String("smContextRef", smContext.Ref),
+				logger.SUPI(ue.Supi().String()), logger.SMContextRef(smContext.Ref),
 				logger.PDUSessionID(s.PduSessionID), zap.Error(err))
 
 			result.Failed = append(result.Failed, s.PduSessionID)
@@ -122,7 +122,7 @@ func (a *AMF) ReconcileSessionsToRAN(
 func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string, pduSessionID uint8) {
 	if err := a.Session.DeactivateSmContext(ctx, ref); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to deactivate a PDU session",
-			zap.String("smContextRef", ref), logger.PDUSessionID(pduSessionID), zap.Error(err))
+			logger.SMContextRef(ref), logger.PDUSessionID(pduSessionID), zap.Error(err))
 
 		return
 	}

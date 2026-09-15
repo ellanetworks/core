@@ -38,7 +38,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle Location Report",
-		zap.Int("report-area", int(msg.LocationReportingRequestType.ReportArea)))
+		zap.Int("report_area", int(msg.LocationReportingRequestType.ReportArea)))
 
 	switch msg.LocationReportingRequestType.EventType {
 	case ngap.EventTypeDirect:
@@ -53,8 +53,8 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		// the presences are reported for the record only.
 		for _, item := range msg.UEPresenceInAreaOfInterestList {
 			logger.WithTrace(ctx, ueConn.Log()).Debug("UE presence in an area this AMF did not request",
-				zap.Int("reference-id", int(item.LocationReportingReferenceID)),
-				zap.Int("ue-presence", int(item.UEPresence)))
+				zap.Int("reference_id", int(item.LocationReportingReferenceID)),
+				zap.Int("ue_presence", int(item.UEPresence)))
 		}
 
 	case ngap.EventTypeStopChangeOfServeCell:
@@ -69,7 +69,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 
 		logger.WithTrace(ctx, ueConn.Log()).Debug("To stop reporting UE presence in the area of interest",
-			zap.Int("reference-id", int(*msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled)))
+			zap.Int("reference_id", int(*msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled)))
 
 	case ngap.EventTypeCancelLocationReportingForTheUE:
 		logger.WithTrace(ctx, ueConn.Log()).Debug("To cancel location reporting for the UE")

@@ -101,7 +101,7 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information", zap.String("apn", ue.RequestedAPN),
-		zap.Uint8("pdu_session_id", ue.RequestedPDUSessionID))
+		logger.PDUSessionID(ue.RequestedPDUSessionID))
 
 	if wait.Standalone != nil {
 		resumePDNConnectivity(ctx, m, ue, ueConn, wait.Standalone)

@@ -45,7 +45,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	// abnormal condition the MME rejects.
 	if id, dup := duplicateERABID(req.ERABToBeSwitchedDL); dup {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request with a duplicate E-RAB ID",
-			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), zap.Uint8("e-rab-id", uint8(id)))
+			zap.Uint32("source_mme_ue_s1ap_id", uint32(req.SourceMMEUES1APID)), logger.ERABID(uint8(id)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causeMultipleERABInstances)
 
 		return
@@ -81,7 +81,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	curNH, curNCC, mmeID, ok := m.BeginPathSwitch(ue)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request while the key chain is being advanced",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
@@ -112,7 +112,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	if len(result.Applied) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no E-RAB",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 
 		m.DetachUEAfterPathSwitchFailure(ctx, ue)
 
@@ -126,7 +126,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
@@ -135,7 +135,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released immediately after the path switch",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)))
+			logger.MMEUeS1apID(uint32(mmeID)))
 
 		return
 	}
@@ -158,10 +158,10 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Path Switch Request",
-		zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)),
-		zap.Uint32("enb_ue_s1ap_id", uint32(req.ENBUES1APID)),
-		zap.Int("e-rabs-switched", len(result.Applied)),
-		zap.Int("e-rabs-released", len(result.Released)),
+		logger.MMEUeS1apID(uint32(mmeID)),
+		logger.ENBUeS1apID(uint32(req.ENBUES1APID)),
+		zap.Int("e_rabs_switched", len(result.Applied)),
+		zap.Int("e_rabs_released", len(result.Released)),
 		zap.Uint8("ncc", ncc))
 
 	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
@@ -176,7 +176,7 @@ func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Path Switch Request E-RAB has an invalid eNB transport address; not switched",
-				zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				logger.MMEUeS1apID(uint32(mmeID)), logger.ERABID(uint8(erab.ERABID)))
 
 			undecodable = append(undecodable, uint8(erab.ERABID))
 
@@ -240,10 +240,10 @@ func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, receiv
 	}
 
 	ueLog.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
-		zap.Uint16("received-eea", received.EncryptionAlgorithms),
-		zap.Uint16("received-eia", received.IntegrityProtectionAlgorithms),
-		zap.Uint16("stored-eea", stored.EncryptionAlgorithms),
-		zap.Uint16("stored-eia", stored.IntegrityProtectionAlgorithms))
+		zap.Uint16("received_eea", received.EncryptionAlgorithms),
+		zap.Uint16("received_eia", received.IntegrityProtectionAlgorithms),
+		zap.Uint16("stored_eea", stored.EncryptionAlgorithms),
+		zap.Uint16("stored_eia", stored.IntegrityProtectionAlgorithms))
 
 	return &stored
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 // HandleUERadioCapabilityInfoIndication stores the UE Radio Capability reported
@@ -56,5 +55,5 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 	}
 
 	logger.WithTrace(ctx, ueConn.Log()).Debug("stored UE Radio Capability",
-		zap.Int("bytes", len(amfUe.RadioCapability)))
+		logger.Bytes(uint64(len(amfUe.RadioCapability))))
 }

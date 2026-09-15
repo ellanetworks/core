@@ -75,13 +75,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("RAAI", conn.RegistrationRequest.MICOIndication.RAAI))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
 		drx := conn.RegistrationRequest.RequestedDRXParameters.Value
 		if drx > fgs.DRXCycleParameterT256 {
-			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drxValue", drx))
+			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drx_value", drx))
 			drx = fgs.DRXValueNotSpecified
 		}
 
@@ -141,7 +141,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				if hasUplinkData {
 					if !n2Setup.ClaimSession(pduSessionID) {
 						logger.From(ctx, logger.AmfLog).Debug("skipping PDU session already set up on the NG-RAN node",
-							zap.Uint8("pdu_session_id", pduSessionID))
+							logger.PDUSessionID(pduSessionID))
 
 						continue
 					}
@@ -157,14 +157,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						if initialContextSetup {
 							item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {
-								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(pduSessionID))
 							} else {
 								ctxList = append(ctxList, item)
 							}
 						} else {
 							item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {
-								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(pduSessionID))
 							} else {
 								suList = append(suList, item)
 							}
@@ -273,7 +273,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					if initialContextSetup {
 						item, err := amf.PDUSessionSetupItem(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 						if err != nil {
-							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(requestData.PduSessionID))
 
 							return nil
 						}
@@ -285,7 +285,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 					if err != nil {
-						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), logger.PDUSessionID(requestData.PduSessionID))
 
 						return nil
 					}
@@ -424,7 +424,7 @@ func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.A
 
 		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
-				zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), zap.Uint8("ebi", ebi))
+				zap.Error(err), logger.PDUSessionID(pduSessionID), zap.Uint8("ebi", ebi))
 		}
 
 		ue.DeleteSmContext(pduSessionID)

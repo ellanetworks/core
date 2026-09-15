@@ -464,9 +464,9 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 
 	logger.WithTrace(ctx, logger.DBLog).Debug("proposed changeset",
 		zap.String("operation", operation),
-		zap.Int("requiredSchema", minSchema),
+		zap.Int("required_schema", minSchema),
 		zap.Uint64("index", index.Index),
-		zap.Int("bytes", len(changeset)))
+		logger.Bytes(uint64(len(changeset))))
 
 	return applyResult, nil
 }

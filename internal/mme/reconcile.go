@@ -157,7 +157,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	}
 
 	logger.From(ctx, ueConn.Log()).Info("policy/data-network changed; modifying EPS bearer in place", zap.String("apn", p.Apn),
-		zap.Bool("dns_changed", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
+		zap.Bool("dns_changed", dnChanged), zap.Bool("session_ambr", ambrChanged), zap.Bool("qos", qosChanged))
 	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 

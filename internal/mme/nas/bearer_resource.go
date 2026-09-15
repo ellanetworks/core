@@ -24,7 +24,7 @@ func handleBearerResourceAllocationRequest(ctx context.Context, _ *mme.UeContext
 		cause = eps.ESMCauseRequestRejectedUnspecified
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.Uint8("pti", uint8(pti)), logger.ESMCause(cause.String()))
 	rejectBearerResourceAllocation(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()
@@ -40,7 +40,7 @@ func handleBearerResourceModificationRequest(ctx context.Context, _ *mme.UeConte
 		cause = eps.ESMCauseEPSQoSNotAccepted
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected", zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
+	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected", zap.Uint8("pti", uint8(pti)), logger.ESMCause(cause.String()))
 	rejectBearerResourceModification(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()

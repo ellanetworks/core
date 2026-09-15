@@ -78,7 +78,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateAck, out)
 
 	logger.From(ctx, radio.Log()).Info("ENB Configuration Update acknowledged",
-		zap.String("enb-name", radio.NodeName()))
+		zap.String("enb_name", radio.NodeName()))
 }
 
 // servedPLMNAndTACs reads the operator configuration this MME serves, encoded

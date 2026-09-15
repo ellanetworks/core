@@ -76,7 +76,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
 		m.mu.Unlock()
 		logger.MmeLog.Warn("Handover Required while a key-changing procedure is in progress",
-			zap.Uint32("mme_ue_s1ap_id", uint32(reqMMEID)))
+			logger.MMEUeS1apID(uint32(reqMMEID)))
 
 		return 0, [32]byte{}, 0, false
 	}
@@ -661,7 +661,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Debug("UE Context Release Command", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+	logger.From(ctx, logger.MmeLog).Debug("UE Context Release Command", logger.MMEUeS1apID(uint32(mmeUEID)))
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 

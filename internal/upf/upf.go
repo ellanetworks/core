@@ -147,7 +147,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
-	logger.UpfLog.Info("datapath attached", zap.String("attach-mode", attachedMode),
+	logger.UpfLog.Info("datapath attached", zap.String("attach_mode", attachedMode),
 		zap.String("n3", n3AttachmentInterface), zap.String("n6", n6AttachmentInterface))
 
 	if attachedMode == config.DatapathTCX {
@@ -866,7 +866,7 @@ func (u *UPF) restoreDrainedUsage(usage sessionUsage) {
 	for id, volume := range usage.drained {
 		if err := u.se.BpfObjects.AddUrr(usage.localSeid, id, volume); err != nil {
 			logger.UpfLog.Error("usage bytes lost: report failed and URR counter could not be restored",
-				zap.Uint64("bytes", volume), zap.Error(err), logger.SEID(usage.localSeid), logger.URRID(id))
+				logger.Bytes(volume), zap.Error(err), logger.SEID(usage.localSeid), logger.URRID(id))
 		}
 	}
 }
@@ -930,7 +930,7 @@ func (u *UPF) listenForMissingNeighbours() {
 
 		ifindex, ip, ok := parseNoNeighEvent(record.RawSample)
 		if !ok {
-			logger.UpfLog.Debug("could not parse no-neighbour event", zap.Binary("bytes", record.RawSample))
+			logger.UpfLog.Debug("could not parse no-neighbour event", zap.Binary("raw", record.RawSample))
 			continue
 		}
 

@@ -23,7 +23,7 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 	logger.From(ctx, logger.MmeLog).Warn("received ESM STATUS",
 		zap.Uint8("ebi", uint8(status.EPSBearerIdentity)),
 		zap.Uint8("pti", uint8(status.PTI)),
-		zap.Stringer("esm-cause", status.Cause))
+		logger.ESMCause(status.Cause.String()))
 
 	// TS 24.301 §7.3.1 f); clause 7 applies ahead of the §6.7 handling below.
 	if status.PTI == nas.PTIReserved {

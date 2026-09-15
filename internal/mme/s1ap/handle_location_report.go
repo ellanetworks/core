@@ -43,9 +43,9 @@ func handleLocationReport(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		ueConn.UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
 	}
 
-	fields := []zap.Field{zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID))}
+	fields := []zap.Field{logger.MMEUeS1apID(uint32(msg.MMEUES1APID))}
 	if msg.RequestType != nil {
-		fields = append(fields, zap.Int("event-type", int(msg.RequestType.EventType)))
+		fields = append(fields, zap.Int("event_type", int(msg.RequestType.EventType)))
 	}
 
 	logger.From(ctx, radio.Log()).Debug("Location Report", fields...)

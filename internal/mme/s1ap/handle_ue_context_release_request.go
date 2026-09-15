@@ -57,7 +57,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 
 	fields := []zap.Field{
 		logger.SUPI(ue.Supi().String()),
-		zap.String("cause", mme.S1apCauseName(&cause)),
+		logger.Cause(mme.S1apCauseName(&cause)),
 	}
 
 	// A release after the NAS security context is established but before the UE is
@@ -71,7 +71,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 		}
 
 		logger.From(ctx, ueConn.Log()).Warn("UE Context Release Request aborted an in-progress attach",
-			append(fields, zap.Bool("ics-response-received", icsReceived))...)
+			append(fields, zap.Bool("ics_response_received", icsReceived))...)
 	} else {
 		logger.From(ctx, ueConn.Log()).Debug("UE Context Release Request", fields...)
 	}

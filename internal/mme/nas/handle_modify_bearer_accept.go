@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
@@ -20,7 +21,7 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 	m.StopESMGuard(p)
 
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
-		ueConn.Log().Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification", zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))
+		ueConn.Log().Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification", zap.String("apn", p.Apn), logger.FiveGSMCause(cause))
 	}
 
 	if !ue.CommitBearerModification(p) {

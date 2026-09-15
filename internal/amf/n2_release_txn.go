@@ -94,7 +94,7 @@ func (ueConn *UeConn) expireN2Release(link trace.SpanContext, pduSessionID uint8
 	defer span.End()
 
 	logger.From(ctx, ueConn.Log()).Warn("no answer to the PDU session resource release; completing it locally",
-		zap.Uint8("pdu_session_id", pduSessionID))
+		logger.PDUSessionID(pduSessionID))
 
 	ueConn.SetN2SessionInactive(pduSessionID)
 
@@ -111,7 +111,7 @@ func (ueConn *UeConn) expireN2Release(link trace.SpanContext, pduSessionID uint8
 	removed, err := ueConn.amf.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 	if err != nil {
 		logger.From(ctx, ueConn.Log()).Error("could not complete an unanswered PDU session resource release at the SMF",
-			zap.Uint8("pdu_session_id", pduSessionID), zap.Error(err))
+			logger.PDUSessionID(pduSessionID), zap.Error(err))
 
 		return
 	}

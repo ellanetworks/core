@@ -365,7 +365,7 @@ func TestAttachCompleteReportsTheUEDiscardingTheMappedFiveGSQoS(t *testing.T) {
 		t.Fatalf("the UE reported 5GSM cause #83 for the mapped 5GS QoS parameters of the default bearer and the MME did not record it: the ESM message container of the ATTACH COMPLETE was discarded, and the initial attach is where those parameters are delivered (matching warnings = %d)", reported.Len())
 	}
 
-	if got := reported.All()[0].ContextMap()["5gsm-cause"]; got != uint8(83) {
+	if got := reported.All()[0].ContextMap()["5gsm_cause"]; got != uint8(83) {
 		t.Errorf("recorded 5gsm-cause = %v, want 83", got)
 	}
 }

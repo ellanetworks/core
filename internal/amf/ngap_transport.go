@@ -30,7 +30,7 @@ type NGAPWriter interface {
 // (*AMF).SendToRadio directly.
 func (r *Radio) SendToRadio(ctx context.Context, msgType NGAPProcedure, packet []byte) {
 	if r == nil || r.amf == nil {
-		logger.From(ctx, logger.AmfLog).Error("cannot send NGAP message: radio is not bound to an amf", zap.String("message_type", string(msgType)))
+		logger.From(ctx, logger.AmfLog).Error("cannot send NGAP message: radio is not bound to an amf", logger.MessageType(string(msgType)))
 		return
 	}
 
@@ -73,7 +73,7 @@ func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType NGAPProc
 	if _, err := conn.WriteMsg(packet, &info); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send NGAP message")
-		logger.From(ctx, logger.AmfLog).Error("failed to send NGAP message", zap.String("message_type", string(msgType)), zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Error("failed to send NGAP message", logger.MessageType(string(msgType)), zap.Error(err))
 
 		return fmt.Errorf("send write to sctp connection: %w", err)
 	}

@@ -112,7 +112,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	regName := registrationTypeName(conn.RegistrationType5GS)
 
-	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registrationType", regName))
+	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registration_type", regName))
 
 	if conn.RegistrationType5GS == fgs.RegistrationTypeDisasterRoamingInitial {
 		conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeInitial))
@@ -141,7 +141,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 		ue.Imei = pei
 		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
-			zap.Stringer("type", mobileIdentity.Type()), zap.String("pei", pei.String()))
+			zap.Stringer("type", mobileIdentity.Type()), logger.PEI(pei.String()))
 	default:
 		// TS 24.501 §5.5.1.2.2: a registration must present a SUCI, a 5G-GUTI or,
 		// for emergency registration, a PEI. Nothing else identifies a subscriber.
@@ -216,7 +216,7 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 
 		logger.From(ctx, logger.AmfLog).Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501)",
-			zap.String("registrationType", registrationTypeName(conn.RegistrationType5GS)),
+			zap.String("registration_type", registrationTypeName(conn.RegistrationType5GS)),
 			zap.Stringer("stored", ue.UESecCap()),
 			zap.Stringer("received", received),
 		)

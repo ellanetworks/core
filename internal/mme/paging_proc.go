@@ -208,7 +208,7 @@ func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest
 		logger.MmeLog.Warn("could not report an EPS downlink data notification failure",
 			logger.SUPIFromIMSI(imsi),
 			zap.Uint8("ebi", req.Ebi),
-			zap.String("cause", cause.String()),
+			logger.Cause(cause.String()),
 			zap.Error(err))
 	}
 }

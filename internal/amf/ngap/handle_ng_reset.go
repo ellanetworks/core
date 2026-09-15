@@ -34,7 +34,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 		// failure so ongoing NAS procedures are aborted per TS 24.501.
 		amfInstance.RemoveAllUeInRan(ctx, ran)
 
-		logger.WithTrace(ctx, ran.Log()).Info("NG Reset (whole interface)", zap.String("cause", cause))
+		logger.WithTrace(ctx, ran.Log()).Info("NG Reset (whole interface)", logger.Cause(cause))
 		sendNGResetAcknowledge(ctx, ran, nil, req.Diagnostics())
 
 		return
@@ -43,7 +43,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 	released := releaseListedUEs(ctx, amfInstance, ran, req.ResetType.Part)
 
 	logger.WithTrace(ctx, ran.Log()).Info("NG Reset (part of interface)",
-		zap.String("cause", cause),
+		logger.Cause(cause),
 		zap.Int("requested", len(req.ResetType.Part)),
 		zap.Int("connections", len(released)))
 

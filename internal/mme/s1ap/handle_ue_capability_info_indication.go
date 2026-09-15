@@ -6,6 +6,7 @@ package s1ap
 import (
 	"context"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -40,6 +41,6 @@ func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mm
 	}
 
 	ueConn.Log().Debug("stored UE Radio Capability",
-		zap.Int("bytes", len(ue.RadioCapability)),
-		zap.Int("paging-bytes", len(ue.RadioCapabilityForPaging)))
+		logger.Bytes(uint64(len(ue.RadioCapability))),
+		zap.Int("paging_bytes", len(ue.RadioCapabilityForPaging)))
 }

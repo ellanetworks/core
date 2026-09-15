@@ -61,7 +61,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 
 	if req.Cause != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Info("the UE reported an error against its own QoS state",
-			zap.Stringer("cause", *req.Cause),
+			logger.Cause(req.Cause.String()),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
 
@@ -69,7 +69,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 		cause := qoSChangeRejectCause(req)
 
 		logger.WithTrace(ctx, logger.SmfLog).Info("rejecting a UE request to change the session's QoS",
-			zap.Stringer("cause", cause),
+			logger.Cause(cause.String()),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)

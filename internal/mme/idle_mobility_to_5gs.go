@@ -74,7 +74,7 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	logger.From(ctx, logger.MmeLog).Info("handing the UE's EPS context to 5GS for an idle-mode change",
-		logger.SUPI(ue.Supi().String()), zap.Int("pdn-connections", len(connections)))
+		logger.SUPI(ue.Supi().String()), zap.Int("pdn_connections", len(connections)))
 
 	return interworking.MMContextResponse{
 		SUPI:                ue.Supi(),

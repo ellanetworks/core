@@ -44,7 +44,7 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Request",
-		zap.Bool("switch-off", req.SwitchOff),
+		zap.Bool("switch_off", req.SwitchOff),
 	)
 
 	ue.TransitionTo(ctx, mme.EMMDeregistered)

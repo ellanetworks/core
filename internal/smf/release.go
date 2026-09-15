@@ -37,7 +37,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 		// Releasing an already-released session is a no-op success: the release is
 		// idempotent, so a caller that tears down the user plane up front and again on
 		// completion (e.g. the 4G deactivation handshake) does not see a spurious error.
-		logger.SmfLog.Debug("release: sm context already released", zap.String("smContextRef", smContextRef))
+		logger.SmfLog.Debug("release: sm context already released", logger.SMContextRef(smContextRef))
 
 		return nil
 	}

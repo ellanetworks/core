@@ -37,7 +37,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
+			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
 		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
@@ -50,7 +50,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
+			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
 		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
@@ -58,7 +58,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 
 	if ueConn.Conn() != conn {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)), zap.Uint32("enb_ue_s1ap_id", uint32(enbID)))
+			logger.MMEUeS1apID(uint32(mmeID)), logger.ENBUeS1apID(uint32(enbID)))
 		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
 		return nil, nil, false
@@ -66,7 +66,7 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 
 	if ueConn.ENBUES1APID != enbID {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
-			zap.Uint32("mme_ue_s1ap_id", uint32(mmeID)),
+			logger.MMEUeS1apID(uint32(mmeID)),
 			zap.Uint32("stored_enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
 			zap.Uint32("received_enb_ue_s1ap_id", uint32(enbID)))
 		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
@@ -111,7 +111,7 @@ func sendErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, m
 // associated, the UE S1AP IDs that did decode address it (§8.7.2.2).
 func handleParseError(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
 	logger.From(ctx, logger.MmeLog).Warn("failed to decode S1AP message",
-		zap.Int("procedure-code", int(proc)),
+		zap.Int("procedure_code", int(proc)),
 		zap.Error(err))
 
 	sendParseErrorIndication(ctx, m, conn, proc, err)
@@ -210,7 +210,7 @@ func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 	msgType mme.S1APProcedure,
 ) {
 	log := logger.From(ctx, logger.MmeLog)
-	log.Warn("failed to decode S1AP message", zap.Int("procedure-code", int(proc)), zap.Error(err))
+	log.Warn("failed to decode S1AP message", zap.Int("procedure_code", int(proc)), zap.Error(err))
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}
 
@@ -335,7 +335,7 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 
 	if ueConn := ue.Conn(); ueConn == nil || ueConn.Conn() != radio.Conn {
 		logger.From(ctx, logger.MmeLog).Warn("Error Indication for an MME-UE-S1AP-ID on a different S1 association",
-			zap.Uint32("mme_ue_s1ap_id", uint32(*msg.MMEUES1APID)))
+			logger.MMEUeS1apID(uint32(*msg.MMEUES1APID)))
 
 		return
 	}

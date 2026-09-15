@@ -38,7 +38,7 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 	targetRadio, ok := amfInstance.FindConnectedRadioByRanID(targetID)
 	if !ok {
 		logger.WithTrace(ctx, ran.Log()).Warn("SON Configuration Transfer target NG-RAN node not connected",
-			zap.Stringer("target-ran-node-id", targetID))
+			zap.Stringer("target_ran_node_id", targetID))
 
 		return
 	}

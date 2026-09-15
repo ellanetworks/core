@@ -51,7 +51,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if response == nil {
-		logger.From(ctx, logger.AmfLog).Warn("SMF did not return any N1/N2 message", zap.Uint8("pdu_session_id", pduSessionID))
+		logger.From(ctx, logger.AmfLog).Warn("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
 		return
 	}
 
@@ -286,7 +286,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	if errResponse != nil {
 		amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, errResponse, fgs.PDUSessionID(pduSessionID), 0)
 
-		logger.From(ctx, logger.AmfLog).Info("PDU session establishment rejected by SMF", zap.Uint8("pdu_session_id", pduSessionID), zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Info("PDU session establishment rejected by SMF", logger.PDUSessionID(pduSessionID), zap.Error(err))
 
 		return
 	}
@@ -294,7 +294,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	// The SMF failed without producing a reject. Tell the UE the payload was not
 	// forwarded (5GMM cause #90) so it does not time out (TS 24.501).
 	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("couldn't create sm context", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+		logger.From(ctx, logger.AmfLog).Error("couldn't create sm context", zap.Error(err), logger.PDUSessionID(pduSessionID))
 
 		sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 
@@ -380,7 +380,7 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			return nasreply.Handled()
 		}
 
-		logger.From(ctx, logger.AmfLog).Debug("UpuMac in UPU ACK NAS Msg", zap.String("UpuMac", hex.EncodeToString(upuMac.MAC[:])))
+		logger.From(ctx, logger.AmfLog).Debug("UpuMac in UPU ACK NAS Msg", zap.String("upu_mac", hex.EncodeToString(upuMac.MAC[:])))
 	case fgs.PayloadContainerTypeMultiplePayload:
 		logger.From(ctx, logger.AmfLog).Warn("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
 	}

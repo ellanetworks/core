@@ -152,7 +152,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 		if err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error(
 				"failed to list rules for policy",
-				zap.String("policyID", policy.ID),
+				zap.String("policy_id", policy.ID),
 				zap.Error(err),
 			)
 
@@ -187,7 +187,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionUplink, uplinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
-					zap.String("policyID", policy.ID),
+					zap.String("policy_id", policy.ID),
 					zap.Error(err),
 				)
 			}
@@ -197,7 +197,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionDownlink, downlinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
-					zap.String("policyID", policy.ID),
+					zap.String("policy_id", policy.ID),
 					zap.Error(err),
 				)
 			}

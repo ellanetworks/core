@@ -76,14 +76,14 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update names a Global RAN Node ID that cannot be decoded", zap.Error(err))
 		case !rebound:
 			logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
-				zap.String("global-ran-node-id", req.GlobalRANNodeID.Hex()))
+				zap.String("global_ran_node_id", req.GlobalRANNodeID.Hex()))
 		}
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
 
 	logger.WithTrace(ctx, ran.Log()).Info("RAN Configuration Update acknowledged",
-		zap.String("gnb-name", ran.NodeName()))
+		zap.String("gnb_name", ran.NodeName()))
 }
 
 // ranConfigUpdateOutcomeFor returns an Acknowledge when the update may be taken

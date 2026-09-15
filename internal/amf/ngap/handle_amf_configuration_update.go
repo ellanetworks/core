@@ -55,12 +55,12 @@ func handleAMFConfigurationUpdateFailure(amfInstance *amf.AMF, ctx context.Conte
 	fields := []zap.Field{}
 
 	if fail.Cause != nil {
-		fields = append(fields, zap.String("cause", fail.Cause.String()))
+		fields = append(fields, logger.Cause(fail.Cause.String()))
 	}
 
 	if fail.TimeToWait != nil {
 		wait = timeToWaitDuration(*fail.TimeToWait)
-		fields = append(fields, zap.Duration("time-to-wait", wait))
+		fields = append(fields, zap.Duration("time_to_wait", wait))
 	}
 
 	logger.From(ctx, radio.Log()).Warn("gNB rejected AMF Configuration Update", fields...)

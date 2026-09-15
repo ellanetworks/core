@@ -78,7 +78,7 @@ func (s *SMF) transferTo5GS(
 	sc.Mutex.Unlock()
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
-		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("dnn", dnn))
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), logger.DNN(dnn))
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
 		sc.abandonTransferTo(Access5G)
@@ -129,7 +129,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("admitting a PDN connection handed over from EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
-		zap.Uint8("ebi", epsBearerIdentity), zap.String("dnn", dnn))
+		zap.Uint8("ebi", epsBearerIdentity), logger.DNN(dnn))
 
 	return sc.Ref, n2, nil
 }

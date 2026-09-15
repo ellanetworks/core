@@ -76,7 +76,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		farMap[far.FARID] = farInfo
 
 		logger.WithTrace(ctx, logger.UpfLog).Debug("Created Forwarding Action Rule",
-			logger.FARID(far.FARID), zap.Any("farInfo", farInfo))
+			logger.FARID(far.FARID), zap.Any("far_info", farInfo))
 	}
 
 	for _, qer := range req.QERs {
@@ -86,7 +86,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		qerMap[qer.QERID] = qerInfo
 
 		logger.WithTrace(ctx, logger.UpfLog).Debug("Created QoS Enforcement Rule",
-			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
+			logger.QERID(qer.QERID), zap.Any("qer_info", qerInfo))
 	}
 
 	for _, urr := range req.URRs {

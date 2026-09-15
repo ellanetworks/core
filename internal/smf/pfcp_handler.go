@@ -70,9 +70,9 @@ func (s *SMF) notifyDownlinkWaiting(ctx context.Context, smContext *SMContext, c
 	}
 
 	logger.SmfLog.Debug("N1N2 message transfer accepted",
-		zap.String("supi", supi.String()),
-		zap.Uint8("pdu_session_id", pduSessionID),
-		zap.String("cause", transferCause.String()))
+		logger.SUPI(supi.String()),
+		logger.PDUSessionID(pduSessionID),
+		logger.Cause(transferCause.String()))
 
 	return nil
 }
@@ -168,7 +168,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 
 	logger.WithTrace(ctx, logger.SmfLog).Warn(
 		"Access network reported a GTP-U Error Indication; buffering the downlink and re-establishing the tunnel",
-		zap.String("supi", supi.String()),
+		logger.SUPI(supi.String()),
 		logger.SEID(report.SEID), logger.FARID(report.FARID),
 		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
 		logger.TEID(report.RemoteFTEID.TEID))
@@ -194,7 +194,7 @@ func (s *SMF) releaseBrokenAccessTunnel(ctx context.Context, smContext *SMContex
 
 		logger.WithTrace(ctx, logger.SmfLog).Warn(
 			"could not stop the downlink of another PDN connection of the UE after an Error Indication",
-			zap.Error(err), zap.String("supi", supi.String()), logger.SEID(report.SEID))
+			zap.Error(err), logger.SUPI(supi.String()), logger.SEID(report.SEID))
 	}
 
 	if reportedErr != nil {
@@ -229,7 +229,7 @@ func (s *SMF) releaseBrokenForwardingTunnel(ctx context.Context, smContext *SMCo
 
 	logger.WithTrace(ctx, logger.SmfLog).Info(
 		"Handover target reported a GTP-U Error Indication; releasing the indirect data forwarding tunnel early",
-		zap.String("supi", smContext.Supi.String()),
+		logger.SUPI(smContext.Supi.String()),
 		logger.SEID(report.SEID),
 		zap.String("gtpu_peer", report.RemoteFTEID.Addr.String()),
 		logger.TEID(report.RemoteFTEID.TEID))

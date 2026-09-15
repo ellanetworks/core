@@ -57,12 +57,12 @@ func handleMMEConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio 
 	fields := []zap.Field{}
 
 	if fail.Cause != nil {
-		fields = append(fields, zap.String("cause", mme.S1apCauseName(fail.Cause)))
+		fields = append(fields, logger.Cause(mme.S1apCauseName(fail.Cause)))
 	}
 
 	if fail.TimeToWait != nil {
 		wait = timeToWaitDuration(*fail.TimeToWait)
-		fields = append(fields, zap.Duration("time-to-wait", wait))
+		fields = append(fields, zap.Duration("time_to_wait", wait))
 	}
 
 	logger.From(ctx, radio.Log()).Warn("eNB rejected MME Configuration Update", fields...)

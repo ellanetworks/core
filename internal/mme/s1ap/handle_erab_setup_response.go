@@ -39,8 +39,8 @@ func HandleERABSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	logger.From(ctx, logger.MmeLog).Info("additional PDN connection radio legs reconciled",
 		logger.SUPI(ue.Supi().String()),
-		zap.Int("e-rabs-setup", len(result.Applied)),
-		zap.Int("e-rabs-released", len(result.Released)))
+		zap.Int("e_rabs_setup", len(result.Applied)),
+		zap.Int("e_rabs_released", len(result.Released)))
 }
 
 // bearerSetupBearers projects an E-RAB SETUP RESPONSE setup list.

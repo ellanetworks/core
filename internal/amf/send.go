@@ -427,7 +427,7 @@ func SendRegistrationAccept(
 					return nil
 				}
 
-				logger.From(ctx, ueConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+				logger.From(ctx, ueConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
 
 				if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 					logger.From(ctx, ueConn.Log()).Error("could not send downlink NAS transport message", zap.Error(err))
@@ -440,7 +440,7 @@ func SendRegistrationAccept(
 				logger.From(ctx, ueConn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
-			logger.From(ctx, ueConn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			logger.From(ctx, ueConn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 			amfInstance.MarkRegistered(ctx, ue)
 			ue.ClearRegistrationRequestData()
@@ -475,7 +475,7 @@ func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeCon
 			return
 		}
 
-		logger.From(ctx, conn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
+		logger.From(ctx, conn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
 
 		if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 			return conn.SendDownlinkNASTransport(ctx, wire)
@@ -483,7 +483,7 @@ func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeCon
 			logger.From(ctx, conn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func(ctx context.Context) {
-		logger.From(ctx, conn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
+		logger.From(ctx, conn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 		amfInstance.MarkRegistered(ctx, ue)
 		ue.ClearRegistrationRequestData()
@@ -590,7 +590,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 				logger.From(ctx, retryUeConn.Log()).Error("could not send configuration update command", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
-			logger.From(ctx, conn.Log()).Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum retries", cfg.MaxRetryTimes))
+			logger.From(ctx, conn.Log()).Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum_retries", cfg.MaxRetryTimes))
 		},
 		)
 	}

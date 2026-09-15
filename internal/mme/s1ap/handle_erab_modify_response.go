@@ -37,6 +37,6 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.From(ctx, logger.MmeLog).Warn("eNB failed to modify E-RAB(s)",
-			zap.Uint32("mme_ue_s1ap_id", uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
+			logger.MMEUeS1apID(uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
 	}
 }

@@ -103,7 +103,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 
 	logger.WithTrace(ctx, sourceUe.Log()).Info("Handover Command (5GS to EPS)",
 		zap.Int("admitted", len(admitted)),
-		zap.Int("not-handed-over", len(notHandedOver)))
+		zap.Int("not_handed_over", len(notHandedOver)))
 
 	sourceUe.SendHandoverCommandToEPS(ctx,
 		releaseItems(ctx, sourceUe, append(notHandedOver, unusable...), nil),

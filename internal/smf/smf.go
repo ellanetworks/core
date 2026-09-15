@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/smf/session")
@@ -364,7 +363,7 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 
 	s.dropFromPool(smCtx)
 
-	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
+	logger.SmfLog.Info("SM Context removed", logger.SMContextRef(ref))
 }
 
 func (s *SMF) SessionsByDNN(dnn string) []*SMContext {

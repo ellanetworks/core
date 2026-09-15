@@ -138,7 +138,7 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 	m.StopESMGuard(p)
 
 	logger.From(ctx, logger.MmeLog).Info("PDN connection moved to 5GS; dropping the EPS routing context",
-		logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
+		logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", ebi), zap.Bool("last_pdn", last))
 
 	if !last {
 		return

@@ -162,8 +162,8 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 	logger.From(ctx, logger.MmeLog).Info("Handover Request (5GS to EPS)",
 		logger.SUPI(ue.Supi().String()),
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
-		zap.String("target-enb", targetID),
-		zap.Int("e-rabs", len(bearers)))
+		zap.String("target_enb", targetID),
+		zap.Int("e_rabs", len(bearers)))
 	m.SendToRadio(ctx, target.Conn, S1APProcedureHandoverRequest, b)
 	m.SuperviseHandover(ue)
 

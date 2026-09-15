@@ -64,7 +64,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
 				logger.From(ctx, c.Log()).Debug("Initial UE Message: resuming held context",
-					zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
+					zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)))
 				m.AttachUeConn(ctx, ue, c)
 			}
 		}
@@ -97,7 +97,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	}
 
 	logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
-		zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)))
+		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
 }
