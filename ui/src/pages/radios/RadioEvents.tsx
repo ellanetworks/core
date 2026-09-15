@@ -639,92 +639,6 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <Autocomplete
-            options={radioOptions}
-            value={radioOptions.find((r) => r.name === radioFilter) ?? null}
-            onChange={(_event, value) => setRadioFilter(value?.name ?? "")}
-            getOptionLabel={radioOptionLabel}
-            isOptionEqualToValue={(option, value) => option.name === value.name}
-            size="small"
-            sx={{ minWidth: 220 }}
-            renderInput={(params) => (
-              <TextField {...params} label="Radio" placeholder="All radios" />
-            )}
-          />
-          <TextField
-            select
-            label="Protocol"
-            value={protocolFilter}
-            onChange={(e) => setProtocolFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="NGAP">NGAP (5G)</MenuItem>
-            <MenuItem value="S1AP">S1AP (4G)</MenuItem>
-          </TextField>
-          <TextField
-            select
-            label="Direction"
-            value={directionFilter}
-            onChange={(e) => setDirectionFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="inbound">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                Inbound
-                <WestIcon
-                  fontSize="small"
-                  sx={{ color: theme.palette.success.main }}
-                />
-              </Box>
-            </MenuItem>
-            <MenuItem value="outbound">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                Outbound
-                <EastIcon
-                  fontSize="small"
-                  sx={{ color: theme.palette.info.main }}
-                />
-              </Box>
-            </MenuItem>
-          </TextField>
-          <Autocomplete
-            options={messageTypeOptions}
-            value={effectiveMessageType || null}
-            onChange={(_event, value) => setMessageTypeFilter(value ?? "")}
-            size="small"
-            sx={{ minWidth: 280 }}
-            renderOption={({ key, ...optionProps }, option) => {
-              const protocol = protocolFilter
-                ? ""
-                : messageTypeProtocol(option);
-              return (
-                <Box
-                  component="li"
-                  key={key}
-                  {...optionProps}
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 2,
-                  }}
-                >
-                  {option}
-                  {protocol && (
-                    <Typography variant="caption" color="textSecondary">
-                      {protocol}
-                    </Typography>
-                  )}
-                </Box>
-              );
-            }}
-            renderInput={(params) => (
-              <TextField {...params} label="Message Type" placeholder="All" />
-            )}
-          />
           <TextField
             label="From"
             type="datetime-local"
@@ -760,6 +674,102 @@ export default function RadioEvents() {
             }}
             sx={{ minWidth: 200 }}
           />
+        </Box>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <Autocomplete
+            options={radioOptions}
+            value={radioOptions.find((r) => r.name === radioFilter) ?? null}
+            onChange={(_event, value) => setRadioFilter(value?.name ?? "")}
+            getOptionLabel={radioOptionLabel}
+            isOptionEqualToValue={(option, value) => option.name === value.name}
+            size="small"
+            sx={{ flex: "1 1 260px", minWidth: 220 }}
+            renderInput={(params) => (
+              <TextField {...params} label="Radio" placeholder="All radios" />
+            )}
+          />
+          <Autocomplete
+            options={messageTypeOptions}
+            value={effectiveMessageType || null}
+            onChange={(_event, value) => setMessageTypeFilter(value ?? "")}
+            size="small"
+            sx={{ flex: "1 1 340px", minWidth: 280 }}
+            renderOption={({ key, ...optionProps }, option) => {
+              const protocol = protocolFilter
+                ? ""
+                : messageTypeProtocol(option);
+              return (
+                <Box
+                  component="li"
+                  key={key}
+                  {...optionProps}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 2,
+                  }}
+                >
+                  {option}
+                  {protocol && (
+                    <Typography variant="caption" color="textSecondary">
+                      {protocol}
+                    </Typography>
+                  )}
+                </Box>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Message Type" placeholder="All" />
+            )}
+          />
+          <TextField
+            select
+            label="Protocol"
+            value={protocolFilter}
+            onChange={(e) => setProtocolFilter(e.target.value)}
+            size="small"
+            sx={{ flex: "0 0 auto", minWidth: 150 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="NGAP">NGAP (5G)</MenuItem>
+            <MenuItem value="S1AP">S1AP (4G)</MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="Direction"
+            value={directionFilter}
+            onChange={(e) => setDirectionFilter(e.target.value)}
+            size="small"
+            sx={{ flex: "0 0 auto", minWidth: 150 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="inbound">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                Inbound
+                <WestIcon
+                  fontSize="small"
+                  sx={{ color: theme.palette.success.main }}
+                />
+              </Box>
+            </MenuItem>
+            <MenuItem value="outbound">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                Outbound
+                <EastIcon
+                  fontSize="small"
+                  sx={{ color: theme.palette.info.main }}
+                />
+              </Box>
+            </MenuItem>
+          </TextField>
         </Box>
 
         {timestampError && (
