@@ -128,6 +128,7 @@ type GnodeB struct {
 	pduSessions          map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
 	sessionGen           uint64                                     // bumped on every store; see awaitPDUSession
 	pinnedDLTEIDs        map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
+	advertisedDLTEIDs    map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> last downlink TEID reported to the AMF
 	UEAmbr               map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 	UERadioCapability    []byte
 	OmitUEContextRequest bool
@@ -176,6 +177,16 @@ func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	if g.pduSessions[ranUeID] == nil {
 		g.pduSessions[ranUeID] = make(map[int64]*PDUSessionInformation)
 	}
+
+	if g.advertisedDLTEIDs == nil {
+		g.advertisedDLTEIDs = make(map[int64]map[int64]uint32)
+	}
+
+	if g.advertisedDLTEIDs[ranUeID] == nil {
+		g.advertisedDLTEIDs[ranUeID] = make(map[int64]uint32)
+	}
+
+	g.advertisedDLTEIDs[ranUeID][info.PDUSessionID] = info.DLTEID
 
 	g.sessionGen++
 	info.generation = g.sessionGen
@@ -983,6 +994,26 @@ func (g *GnodeB) AllocateForwardingTEID() uint32 {
 	g.nextFwdTEID++
 
 	return t
+}
+
+// reusableDLTEID reports the downlink TEID the gNB last told the AMF it would
+// receive (ranUeID, pduSessionID) on, when it still holds a tunnel bound to
+// that TEID. A real NG-RAN node that keeps the downlink GTP-U endpoint of a
+// session reports that endpoint again rather than one it cannot receive on.
+func (g *GnodeB) reusableDLTEID(ranUeID, pduSessionID int64) uint32 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	teid := g.advertisedDLTEIDs[ranUeID][pduSessionID]
+	if teid == 0 {
+		return 0
+	}
+
+	if _, ok := g.tunnels[teid]; !ok {
+		return 0
+	}
+
+	return teid
 }
 
 // PinDLTEID pins the downlink TEID reported at the next re-establishment of
