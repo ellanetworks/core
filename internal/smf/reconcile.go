@@ -382,7 +382,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// (TS 24.501). The committed PFCP/policy change is not rolled back.
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
-	s.armRetransmit(ctx, smContext, s.t3591,
+	s.armRetransmit(ctx, smContext, s.timerT3591(),
 		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1Msg, n2Msg) },
 		func(ctx context.Context, sc *SMContext) {
 			sc.ClearPTIInUse(networkRequestedPTI)

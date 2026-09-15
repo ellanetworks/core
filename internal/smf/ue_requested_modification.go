@@ -94,7 +94,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 
-	s.armRetransmit(ctx, smContext, s.t3591,
+	s.armRetransmit(ctx, smContext, s.timerT3591(),
 		func(ctx context.Context) error { return s.amf.ModifyN1N2(ctx, supi, pduSessionID, n1SmMsg, nil) },
 		func(ctx context.Context, sc *SMContext) {
 			sc.ClearPTIInUse(pti)

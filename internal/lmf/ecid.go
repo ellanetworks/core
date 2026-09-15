@@ -138,7 +138,9 @@ func (l *LMF) measurementClient(supi etsi.SUPI) ecidMeasurementClient {
 // A request for an idle UE pages it and may still be pending on return; the deferred
 // cancel discards it, since paging supervision outlives ecidMeasurementTimeout.
 func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models.RadioMeasurements {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ecidMeasurementTimeout)
+	detached := context.WithoutCancel(ctx)
+
+	ctx, cancel := context.WithTimeout(detached, ecidMeasurementTimeout)
 	defer cancel()
 
 	client := l.measurementClient(supi)
@@ -155,7 +157,7 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 		return nil
 	}
 
-	defer client.CancelMeasurements(ctx, supi, measID)
+	defer client.CancelMeasurements(detached, supi, measID)
 
 	measurements, err := client.WaitForMeasurements(ctx, supi, measID, requestedAt)
 	if err != nil {

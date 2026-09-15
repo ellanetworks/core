@@ -222,7 +222,6 @@ func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter,
 		return
 	}
 
-	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
 	m.SendToRadio(ctx, conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 

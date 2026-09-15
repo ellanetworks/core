@@ -63,7 +63,7 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 	smContext.releasing = true
 
 	smContext.MarkPTIInUse(pti)
-	s.armRetransmit(ctx, smContext, s.t3592,
+	s.armRetransmit(ctx, smContext, s.timerT3592(),
 		func(ctx context.Context) error {
 			return s.amf.ReleaseSession(ctx, supi, pduSessionID, n1Msg, n2Transfer)
 		},
@@ -93,20 +93,20 @@ func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext) {
 // maxSMProcedureRetransmissions expiries, and abort runs once that limit is
 // exceeded. Both fire on the timer goroutine and re-fetch the session, no-op if it
 // is gone. Caller must hold smContext.Mutex.
-func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, d time.Duration, resend func(context.Context) error, abort func(context.Context, *SMContext)) {
+func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, timer smProcedureTimer, resend func(context.Context) error, abort func(context.Context, *SMContext)) {
 	ref := smContext.Ref
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 
 	link := trace.SpanContextFromContext(ctx)
 
-	smContext.procedureTimer.Arm(d, maxSMProcedureRetransmissions,
+	smContext.procedureTimer.Arm(timer.d, maxSMProcedureRetransmissions,
 		func(expiry int32) {
 			if s.GetSession(ref) == nil {
 				return
 			}
 
-			guardCtx, span := guardSpan(link, "smf/nas_guard_retransmit", timerName(d, s), expiry)
+			guardCtx, span := guardSpan(link, "smf/nas_guard_retransmit", timer.name, expiry)
 			defer span.End()
 
 			if err := resend(guardCtx); err != nil {
@@ -121,7 +121,7 @@ func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, d time.Du
 				return
 			}
 
-			guardCtx, span := guardSpan(link, "smf/nas_guard_expire", timerName(d, s), 0)
+			guardCtx, span := guardSpan(link, "smf/nas_guard_expire", timer.name, 0)
 			defer span.End()
 
 			sc.Mutex.Lock()
@@ -131,13 +131,11 @@ func (s *SMF) armRetransmit(ctx context.Context, smContext *SMContext, d time.Du
 		})
 }
 
-func timerName(d time.Duration, s *SMF) string {
-	switch d {
-	case s.t3591:
-		return "T3591"
-	case s.t3592:
-		return "T3592"
-	default:
-		return "SM procedure"
-	}
+type smProcedureTimer struct {
+	name string
+	d    time.Duration
 }
+
+func (s *SMF) timerT3591() smProcedureTimer { return smProcedureTimer{name: "T3591", d: s.t3591} }
+
+func (s *SMF) timerT3592() smProcedureTimer { return smProcedureTimer{name: "T3592", d: s.t3592} }

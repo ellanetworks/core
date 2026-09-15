@@ -32,7 +32,7 @@ func TestRetransmitGuardLinksTimerSpanToArmingSpan(t *testing.T) {
 
 	fired := make(chan context.Context, 4)
 
-	s.armRetransmit(armCtx, sc, s.t3591,
+	s.armRetransmit(armCtx, sc, s.timerT3591(),
 		func(ctx context.Context) error { fired <- ctx; return nil },
 		func(ctx context.Context, _ *SMContext) { fired <- ctx })
 

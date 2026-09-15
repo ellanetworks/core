@@ -183,7 +183,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 
 			// Discard any buffered LPP: this session has failed.
 			if l.amf != nil {
-				l.amf.CancelBufferedN1N2(context.WithoutCancel(ctx), supi, coremodels.N1ClassLPP, "")
+				l.amf.CancelBufferedN1N2(detached, supi, coremodels.N1ClassLPP, "")
 			}
 
 			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())

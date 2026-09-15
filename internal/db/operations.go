@@ -264,7 +264,9 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 	}
 
 	if db.raftManager == nil {
-		result, err := op.apply(db, ctx, payload)
+		result, err := db.applyLocalTx(context.WithoutCancel(ctx), op.name, func(ctx context.Context) (any, error) {
+			return op.apply(db, ctx, payload)
+		})
 		if err != nil {
 			return zero, err
 		}
@@ -323,7 +325,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	}
 
 	if db.raftManager == nil {
-		result, err := db.ApplyCommand(ctx, cmd, 0)
+		result, err := db.ApplyCommand(context.WithoutCancel(ctx), cmd, 0)
 		if err != nil {
 			return zero, err
 		}
