@@ -272,7 +272,7 @@ func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
 		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
 	defer span.End()
