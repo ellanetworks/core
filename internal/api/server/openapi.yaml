@@ -302,35 +302,6 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /api/v1/pprof/block:
-    get:
-      operationId: getPprofBlock
-      tags: [Profiling]
-      summary: Get blocking profile
-      description: Returns the goroutine blocking profile.
-      parameters:
-        - name: debug
-          in: query
-          schema:
-            type: integer
-            enum: [0, 1]
-          description: Set to 1 for human-readable output.
-      responses:
-        "200":
-          description: Blocking profile data.
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-            text/plain:
-              schema:
-                type: string
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
   /api/v1/pprof/goroutine:
     get:
       operationId: getPprofGoroutine
@@ -382,35 +353,6 @@ paths:
       responses:
         "200":
           description: Heap profile data.
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-            text/plain:
-              schema:
-                type: string
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /api/v1/pprof/mutex:
-    get:
-      operationId: getPprofMutex
-      tags: [Profiling]
-      summary: Get mutex profile
-      description: Returns the mutex contention profile.
-      parameters:
-        - name: debug
-          in: query
-          schema:
-            type: integer
-            enum: [0, 1]
-          description: Set to 1 for human-readable output.
-      responses:
-        "200":
-          description: Mutex profile data.
           content:
             application/octet-stream:
               schema:

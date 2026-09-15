@@ -356,10 +356,8 @@ func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret *JWTSecret, dbIns
 	pp.HandleFunc("/api/v1/pprof/trace", pprof.Trace)
 
 	pp.Handle("/api/v1/pprof/allocs", pprof.Handler("allocs"))
-	pp.Handle("/api/v1/pprof/block", pprof.Handler("block"))
 	pp.Handle("/api/v1/pprof/goroutine", pprof.Handler("goroutine"))
 	pp.Handle("/api/v1/pprof/heap", pprof.Handler("heap"))
-	pp.Handle("/api/v1/pprof/mutex", pprof.Handler("mutex"))
 	pp.Handle("/api/v1/pprof/threadcreate", pprof.Handler("threadcreate"))
 
 	root.Handle("/api/v1/pprof/", Authenticate(jwtSecret, dbInstance, Authorize(PermPprof, pp)))
