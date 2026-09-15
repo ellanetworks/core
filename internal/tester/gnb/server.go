@@ -128,12 +128,12 @@ type GnodeB struct {
 	pduSessions          map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
 	sessionGen           uint64                                     // bumped on every store; see awaitPDUSession
 	pinnedDLTEIDs        map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> pinned downlink TEID
-	advertisedDLTEIDs    map[int64]map[int64]uint32                 // RANUENGAPID -> PDUSessionID -> last downlink TEID reported to the AMF
 	UEAmbr               map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 	UERadioCapability    []byte
 	OmitUEContextRequest bool
 	radioCapReported     map[int64]bool
 	ueContexts           map[int64]bool
+	advertisedDLTEIDs    map[int64]map[int64]uint32
 	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
@@ -996,10 +996,6 @@ func (g *GnodeB) AllocateForwardingTEID() uint32 {
 	return t
 }
 
-// reusableDLTEID reports the downlink TEID the gNB last told the AMF it would
-// receive (ranUeID, pduSessionID) on, when it still holds a tunnel bound to
-// that TEID. A real NG-RAN node that keeps the downlink GTP-U endpoint of a
-// session reports that endpoint again rather than one it cannot receive on.
 func (g *GnodeB) reusableDLTEID(ranUeID, pduSessionID int64) uint32 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
