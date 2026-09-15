@@ -4,6 +4,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Typography,
@@ -11,7 +12,6 @@ import {
   IconButton,
   TextField,
   MenuItem,
-  ListSubheader,
 } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
@@ -199,6 +199,23 @@ const MESSAGE_TYPES_BY_PROTOCOL: Record<string, string[]> = {
   S1AP: S1AP_MESSAGE_TYPES,
 };
 
+const NGAP_MESSAGE_TYPE_SET = new Set(NGAP_MESSAGE_TYPES);
+const S1AP_MESSAGE_TYPE_SET = new Set(S1AP_MESSAGE_TYPES);
+
+const ALL_MESSAGE_TYPES = [
+  ...new Set([...NGAP_MESSAGE_TYPES, ...S1AP_MESSAGE_TYPES]),
+].sort((a, b) => a.localeCompare(b));
+
+const messageTypeProtocol = (messageType: string): string => {
+  const inNGAP = NGAP_MESSAGE_TYPE_SET.has(messageType);
+  const inS1AP = S1AP_MESSAGE_TYPE_SET.has(messageType);
+  if (inNGAP === inS1AP) return "";
+  return inNGAP ? "NGAP" : "S1AP";
+};
+
+const radioOptionLabel = (radio: APIRadio): string =>
+  radio.address ? `${radio.name} (${radio.address})` : radio.name;
+
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
   if (!value) return null;
@@ -279,11 +296,7 @@ export default function RadioEvents() {
   const [timestampTo, setTimestampTo] = useState("");
 
   const messageTypeOptions = useMemo(
-    () =>
-      MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? [
-        ...NGAP_MESSAGE_TYPES,
-        ...S1AP_MESSAGE_TYPES,
-      ],
+    () => MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? ALL_MESSAGE_TYPES,
     [protocolFilter],
   );
 
@@ -626,21 +639,18 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <TextField
-            select
-            label="Radio"
-            value={radioFilter}
-            onChange={(e) => setRadioFilter(e.target.value)}
+          <Autocomplete
+            options={radioOptions}
+            value={radioOptions.find((r) => r.name === radioFilter) ?? null}
+            onChange={(_event, value) => setRadioFilter(value?.name ?? "")}
+            getOptionLabel={radioOptionLabel}
+            isOptionEqualToValue={(option, value) => option.name === value.name}
             size="small"
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All radios</MenuItem>
-            {radioOptions.map((r) => (
-              <MenuItem key={r.name} value={r.name}>
-                {r.name} ({r.address})
-              </MenuItem>
-            ))}
-          </TextField>
+            sx={{ minWidth: 220 }}
+            renderInput={(params) => (
+              <TextField {...params} label="Radio" placeholder="All radios" />
+            )}
+          />
           <TextField
             select
             label="Protocol"
@@ -681,36 +691,40 @@ export default function RadioEvents() {
               </Box>
             </MenuItem>
           </TextField>
-          <TextField
-            select
-            label="Message Type"
-            value={effectiveMessageType}
-            onChange={(e) => setMessageTypeFilter(e.target.value)}
+          <Autocomplete
+            options={messageTypeOptions}
+            value={effectiveMessageType || null}
+            onChange={(_event, value) => setMessageTypeFilter(value ?? "")}
             size="small"
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {protocolFilter
-              ? messageTypeOptions.map((mt) => (
-                  <MenuItem key={mt} value={mt}>
-                    {mt}
-                  </MenuItem>
-                ))
-              : [
-                  <ListSubheader key="ngap-header">NGAP (5G)</ListSubheader>,
-                  ...NGAP_MESSAGE_TYPES.map((mt) => (
-                    <MenuItem key={`ngap-${mt}`} value={mt}>
-                      {mt}
-                    </MenuItem>
-                  )),
-                  <ListSubheader key="s1ap-header">S1AP (4G)</ListSubheader>,
-                  ...S1AP_MESSAGE_TYPES.map((mt) => (
-                    <MenuItem key={`s1ap-${mt}`} value={mt}>
-                      {mt}
-                    </MenuItem>
-                  )),
-                ]}
-          </TextField>
+            sx={{ minWidth: 280 }}
+            renderOption={({ key, ...optionProps }, option) => {
+              const protocol = protocolFilter
+                ? ""
+                : messageTypeProtocol(option);
+              return (
+                <Box
+                  component="li"
+                  key={key}
+                  {...optionProps}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 2,
+                  }}
+                >
+                  {option}
+                  {protocol && (
+                    <Typography variant="caption" color="textSecondary">
+                      {protocol}
+                    </Typography>
+                  )}
+                </Box>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Message Type" placeholder="All" />
+            )}
+          />
           <TextField
             label="From"
             type="datetime-local"

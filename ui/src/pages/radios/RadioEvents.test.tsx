@@ -198,7 +198,7 @@ describe("RadioEvents protocol and message type", () => {
     await selectOption(user, "Protocol", "S1AP (4G)");
     await selectOption(user, "Protocol", "NGAP (5G)");
 
-    expect(messageType()).not.toHaveTextContent(NGAP_ONLY_MESSAGE);
+    expect(messageType()).toHaveValue("");
   });
 
   it("keeps a message type both protocols share", async () => {
