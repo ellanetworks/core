@@ -974,7 +974,13 @@ func cleanSnapshotStaging(dataDir, raftDir string) {
 	}
 
 	for _, dir := range dirs {
-		if _, err := os.Stat(dir); err != nil {
+		switch _, err := os.Stat(dir); {
+		case os.IsNotExist(err):
+			continue
+		case err != nil:
+			logger.RaftLog.Warn("Could not inspect snapshot staging directory",
+				zap.String("path", dir), zap.Error(err))
+
 			continue
 		}
 
