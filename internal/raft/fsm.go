@@ -512,7 +512,7 @@ func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 		return fmt.Errorf("write snapshot header: %w", err)
 	}
 
-	f, err := os.Open(s.path) // #nosec: G304 — path is under our snapshot tmp dir
+	f, err := os.Open(s.path) // #nosec: G304 — path is under our snapshot staging dir
 	if err != nil {
 		_ = sink.Cancel()
 		return fmt.Errorf("open snapshot file: %w", err)
@@ -548,10 +548,19 @@ func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil
 }
 
+// snapshotStagingDir is where a snapshot stages its SQLite copy. It sits beside
+// the raft snapshot store rather than inside it: hashicorp/raft scans
+// raft/snapshots on every List and warns about any directory it cannot parse as
+// a snapshot. Staging on the data volume rather than in os.TempDir keeps the
+// copy off a possibly tmpfs-backed /tmp.
+func snapshotStagingDir(dataDir string) string {
+	return filepath.Join(dataDir, "raft", "snapshot-staging")
+}
+
 func (s *fsmSnapshot) copyPinned() error {
-	snapshotDir := filepath.Join(s.dataDir, "raft", "snapshots", "tmp")
+	snapshotDir := snapshotStagingDir(s.dataDir)
 	if err := os.MkdirAll(snapshotDir, 0o700); err != nil {
-		return fmt.Errorf("create snapshot tmp dir: %w", err)
+		return fmt.Errorf("create snapshot staging dir: %w", err)
 	}
 
 	tmpFile, err := os.CreateTemp(snapshotDir, "snapshot-*.db")

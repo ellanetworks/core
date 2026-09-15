@@ -314,6 +314,10 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
+	// Safe to run only now: holding the bolt file lock means no other Ella Core
+	// process is snapshotting into these directories.
+	cleanSnapshotStaging(dataDir, raftDir)
+
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
 		_ = boltStore.Close()
@@ -955,6 +959,34 @@ func (m *Manager) AddNonvoter(nodeID int, address string) error {
 	}
 
 	return nil
+}
+
+// cleanSnapshotStaging removes snapshot staging left behind by a process that
+// died mid-snapshot. Nothing under these directories outlives the snapshot that
+// wrote it, so deleting them outright is safe. A failure here only leaks disk,
+// so it is logged rather than allowed to block startup.
+func cleanSnapshotStaging(dataDir, raftDir string) {
+	dirs := []string{
+		snapshotStagingDir(dataDir),
+		// Legacy location, inside the raft snapshot store. Swept so existing
+		// nodes stop logging "failed to read metadata: name=tmp".
+		filepath.Join(raftDir, "snapshots", "tmp"),
+	}
+
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+
+		if err := os.RemoveAll(dir); err != nil {
+			logger.RaftLog.Warn("Could not remove leftover snapshot staging directory",
+				zap.String("path", dir), zap.Error(err))
+
+			continue
+		}
+
+		logger.RaftLog.Info("Removed leftover snapshot staging directory", zap.String("path", dir))
+	}
 }
 
 func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.SnapshotStore, raftDir string) error {

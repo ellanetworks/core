@@ -1090,7 +1090,7 @@ func TestFSM_Snapshot_DefersCopyToPersist(t *testing.T) {
 
 	defer snap.Release()
 
-	tmpDir := filepath.Join(dataDir, "raft", "snapshots", "tmp")
+	tmpDir := snapshotStagingDir(dataDir)
 	if entries, err := os.ReadDir(tmpDir); err == nil && len(entries) != 0 {
 		t.Fatalf("Snapshot() must not copy the database; found %d temp files", len(entries))
 	}
