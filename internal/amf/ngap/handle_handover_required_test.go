@@ -560,8 +560,8 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
-	amfUe.TransitionTo(amf.RegistrationInitiated)
-	amfUe.TransitionTo(amf.Registered)
+	amfUe.TransitionTo(t.Context(), amf.RegistrationInitiated)
+	amfUe.TransitionTo(t.Context(), amf.Registered)
 
 	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	smfSbi := &fakeSmfSbi{SMF: smfInstance}

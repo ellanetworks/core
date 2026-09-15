@@ -159,7 +159,7 @@ func writeProposeForwardCodedError(ctx context.Context, w http.ResponseWriter, s
 	if cause != nil {
 		logger.APILog.Warn("cluster propose forward error",
 			zap.Int("status", status),
-			zap.String("message", message),
+			zap.String("detail", message),
 			zap.Error(cause))
 	}
 

@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 // HandlePDUSessionResourceModifyResponse records the NG-RAN node's modify
@@ -41,6 +40,6 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *am
 	// refused is indistinguishable from one it applied.
 	for _, item := range msg.PDUSessionResourceFailed {
 		logger.WithTrace(ctx, ueConn.Log()).Warn("NG-RAN node did not modify a PDU session",
-			zap.Uint8("pdu-session-id", uint8(item.PDUSessionID)))
+			logger.PDUSessionID(uint8(item.PDUSessionID)))
 	}
 }

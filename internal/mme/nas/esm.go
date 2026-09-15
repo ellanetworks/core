@@ -46,12 +46,12 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.ESMStatus:
 		return handleESMStatus(ctx, m, ue, msg)
 	case eps.ESMMessage:
-		logger.From(ctx, logger.MmeLog).Warn("unhandled ESM message", zap.String("message-type", messageName(msg)))
+		logger.From(ctx, logger.MmeLog).Warn("unhandled ESM message", zap.String("message_type", messageName(msg)))
 
 		return nasreply.StatusSM(nasreply.CauseMessageTypeNotImplemented)
 	default:
 		// An EMM message type this MME does not implement (TS 24.301 §7.4).
-		logger.From(ctx, logger.MmeLog).Warn("unhandled EMM message", zap.String("message-type", messageName(msg)))
+		logger.From(ctx, logger.MmeLog).Warn("unhandled EMM message", zap.String("message_type", messageName(msg)))
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	}

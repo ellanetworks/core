@@ -305,7 +305,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	// e.g. an establishment request with a reserved PTI it had to ignore
 	// (TS 24.501). Send nothing.
 	if smContextRef == "" {
-		logger.From(ctx, logger.AmfLog).Info("SMF ignored the PDU session establishment request, sending no response", zap.Uint8("pduSessionID", pduSessionID))
+		logger.From(ctx, logger.AmfLog).Info("SMF ignored the PDU session establishment request, sending no response", logger.PDUSessionID(pduSessionID))
 		return
 	}
 
@@ -316,7 +316,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 
 	ue.SetEPSBearerIdentity(pduSessionID, epsBearerIdentity)
 
-	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
+	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", logger.PDUSessionID(pduSessionID))
 }
 
 func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8) uint8 {
@@ -327,13 +327,13 @@ func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionI
 	ebi, err := ue.NextEPSBearerIdentity(pduSessionID)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("no EPS bearer identity for this PDU session, it will not transfer to EPS",
-			zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
+			logger.PDUSessionID(pduSessionID), zap.Error(err))
 
 		return 0
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("assigned EPS bearer identity",
-		zap.Uint8("pduSessionID", pduSessionID), zap.Uint8("ebi", ebi))
+		logger.PDUSessionID(pduSessionID), zap.Uint8("ebi", ebi))
 
 	return ebi
 }

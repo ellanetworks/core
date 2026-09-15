@@ -686,7 +686,7 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 
 	ue.mu.Lock()
 
-	ue.transitionToLocked(Registered)
+	ue.transitionToLocked(ctx, Registered)
 
 	ue.mu.Unlock()
 
@@ -703,7 +703,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.mu.Lock()
 
-	ue.transitionToLocked(Deregistered)
+	ue.transitionToLocked(ctx, Deregistered)
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
@@ -735,7 +735,7 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 
 	for _, ref := range ue.SmContextRefs() {
 		if err := ue.smf.DeactivateSmContext(ctx, ref.Ref); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), zap.Uint8("PduSessionID", ref.PduSessionID))
+			logger.From(ctx, logger.AmfLog).Warn("failed to deactivate SM context for paging", zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}
 }

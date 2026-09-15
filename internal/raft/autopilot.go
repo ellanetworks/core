@@ -61,7 +61,7 @@ func (d *autopilotDelegate) NotifyState(state *autopilot.State) {
 	logger.RaftLog.Debug("Autopilot state updated",
 		zap.Bool("healthy", state.Healthy),
 		zap.Int("failure_tolerance", state.FailureTolerance),
-		zap.Int("servers", len(state.Servers)),
+		zap.Int("server_count", len(state.Servers)),
 		zap.Int("healthy_servers", healthy),
 	)
 }

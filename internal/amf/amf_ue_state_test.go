@@ -14,7 +14,7 @@ func TestTransitionTo_AllowedTransitions(t *testing.T) {
 			ue := NewUeContext()
 			ue.state = from
 
-			ue.TransitionTo(to)
+			ue.TransitionTo(t.Context(), to)
 
 			if got := ue.State(); got != to {
 				t.Errorf("TransitionTo(%s→%s): expected %s, got %s", from, to, to, got)
@@ -37,7 +37,7 @@ func TestTransitionTo_InvalidTransitionResetsToDeregistered(t *testing.T) {
 		ue := NewUeContext()
 		ue.state = tc.from
 
-		ue.TransitionTo(tc.to)
+		ue.TransitionTo(t.Context(), tc.to)
 
 		if got := ue.State(); got != Deregistered {
 			t.Errorf("TransitionTo(%s→%s): expected Deregistered (fallback), got %s", tc.from, tc.to, got)
@@ -50,7 +50,7 @@ func TestTransitionTo_IdempotentSameState(t *testing.T) {
 		ue := NewUeContext()
 		ue.state = s
 
-		ue.TransitionTo(s)
+		ue.TransitionTo(t.Context(), s)
 
 		if got := ue.State(); got != s {
 			t.Errorf("TransitionTo(%s→%s): expected idempotent %s, got %s", s, s, s, got)
@@ -68,7 +68,7 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 		Deregistered,
 	}
 	for i, step := range steps {
-		ue.TransitionTo(step)
+		ue.TransitionTo(t.Context(), step)
 
 		if got := ue.State(); got != step {
 			t.Fatalf("step %d: expected %s, got %s", i, step, got)
@@ -83,7 +83,7 @@ func TestRegStep_TracksRegistrationSubPhase(t *testing.T) {
 		t.Fatalf("a fresh UE must carry no registration sub-phase, got %d", got)
 	}
 
-	ue.TransitionTo(RegistrationInitiated)
+	ue.TransitionTo(t.Context(), RegistrationInitiated)
 
 	if got := ue.RegStep(); got != RegStepAuthenticating {
 		t.Fatalf("entering RegistrationInitiated must start at the authentication exchange, got %d", got)
@@ -95,7 +95,7 @@ func TestRegStep_TracksRegistrationSubPhase(t *testing.T) {
 		t.Fatalf("AdvanceRegStep must move the sub-phase, got %d", got)
 	}
 
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(t.Context(), Registered)
 
 	if got := ue.RegStep(); got != RegStepNone {
 		t.Fatalf("leaving RegistrationInitiated must clear the sub-phase, got %d", got)
@@ -119,7 +119,7 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			ue.TransitionTo(RegistrationInitiated)
+			ue.TransitionTo(t.Context(), RegistrationInitiated)
 		}()
 		go func() {
 			defer wg.Done()

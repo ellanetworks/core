@@ -269,7 +269,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
-		ue.TransitionTo(amf.RegistrationInitiated)
+		ue.TransitionTo(ctx, amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
 			recoverContextFromEPS(ctx, amfInstance, ue, req, integrityVerified)

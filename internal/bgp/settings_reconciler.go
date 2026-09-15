@@ -227,7 +227,7 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) (err error) {
 		}
 
 		r.log.Info("started BGP service from reconcile",
-			zap.Int("peers", len(desiredPeers)),
+			zap.Int("peer_count", len(desiredPeers)),
 			zap.Bool("advertising", advertising))
 
 	case desiredSettings.Enabled && r.service.IsRunning():

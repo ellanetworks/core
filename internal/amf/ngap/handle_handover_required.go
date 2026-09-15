@@ -104,7 +104,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	for _, item := range msg.PDUSessionResourceListHORqd {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, sourceUe.Log()).Error("invalid PDU session ID from gNB, reporting it as not handed over", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("invalid PDU session ID from gNB, reporting it as not handed over", logger.PDUSessionID(uint8(item.PDUSessionID)))
 			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
 
 			continue
@@ -112,7 +112,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !exist {
-			logger.WithTrace(ctx, sourceUe.Log()).Error("no SM context for a PDU session the gNB asked to hand over", zap.Uint8("pduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("no SM context for a PDU session the gNB asked to hand over", logger.PDUSessionID(pduSessionID))
 			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
 
 			continue
@@ -120,7 +120,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, item.Transfer)
 		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log()).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			notOffered(item.PDUSessionID, causeHandoverCNReason)
 
 			continue
@@ -128,7 +128,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		setupItem, err := amf.PDUSessionSetupItemHOReq(pduSessionID, smContext.Snssai, n2Rsp)
 		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log()).Error("could not build the handover request item", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("could not build the handover request item", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			notOffered(item.PDUSessionID, causeHandoverCNReason)
 
 			continue

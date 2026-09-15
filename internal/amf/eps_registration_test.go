@@ -31,8 +31,8 @@ func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf
 	fakeSmf := &deregisterTestSmf{}
 	ue.smf = fakeSmf
 
-	ue.TransitionTo(RegistrationInitiated)
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(t.Context(), RegistrationInitiated)
+	ue.TransitionTo(t.Context(), Registered)
 
 	a.mu.Lock()
 	a.UEs[supi] = ue

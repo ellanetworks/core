@@ -54,7 +54,7 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 		bearer, err := m.Session.TransferIdleToEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("a PDU session could not move onto EPS; leaving it behind",
-				zap.Error(err), zap.Uint8("pdu-session-id", c.PDUSessionID), zap.String("apn", c.APN))
+				zap.Error(err), logger.PDUSessionID(c.PDUSessionID), zap.String("apn", c.APN))
 
 			continue
 		}

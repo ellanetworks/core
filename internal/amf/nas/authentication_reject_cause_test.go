@@ -220,8 +220,8 @@ func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fake
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	ue.TransitionTo(amf.RegistrationInitiated)
-	ue.TransitionTo(amf.Registered)
+	ue.TransitionTo(t.Context(), amf.RegistrationInitiated)
+	ue.TransitionTo(t.Context(), amf.Registered)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {

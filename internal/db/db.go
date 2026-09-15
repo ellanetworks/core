@@ -972,7 +972,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		m, ok := rows[nodeID]
 		if !ok {
 			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
-				zap.Int("nodeID", nodeID),
+				zap.Int("node_id", nodeID),
 			)
 
 			return 0, nodeID, nil
@@ -981,7 +981,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
-				zap.Int("nodeID", nodeID),
+				zap.Int("node_id", nodeID),
 				zap.String("raftAddress", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
@@ -1107,7 +1107,7 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		}
 
 		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
-			zap.Int("nodeId", nodeID),
+			zap.Int("node_id", nodeID),
 		)
 
 		db.purgeReconciledNodeArtifacts(ctx, nodeID)
@@ -1153,12 +1153,12 @@ func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
 func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID int) {
 	if err := db.DeleteDynamicLeasesByNode(ctx, nodeID); err != nil {
 		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
-			zap.Int("nodeId", nodeID), zap.Error(err))
+			zap.Int("node_id", nodeID), zap.Error(err))
 	}
 
 	if err := db.DeleteClusterNodeCert(ctx, nodeID); err != nil {
 		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
-			zap.Int("nodeId", nodeID), zap.Error(err))
+			zap.Int("node_id", nodeID), zap.Error(err))
 	}
 }
 

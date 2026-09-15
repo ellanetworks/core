@@ -705,7 +705,7 @@ func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	ue.TransitionTo(amf.RegistrationInitiated)
+	ue.TransitionTo(t.Context(), amf.RegistrationInitiated)
 
 	amf.ArmRegistrationAcceptGuard(t.Context(), amfInstance, ue, []byte{0x7e, 0x00, 0x42})
 

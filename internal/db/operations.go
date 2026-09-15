@@ -462,7 +462,7 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 		return nil, classifyProposeErr(err)
 	}
 
-	logger.DBLog.Debug("proposed changeset",
+	logger.WithTrace(ctx, logger.DBLog).Debug("proposed changeset",
 		zap.String("operation", operation),
 		zap.Int("requiredSchema", minSchema),
 		zap.Uint64("index", index.Index),

@@ -89,7 +89,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 	switch verdict, cause := smfNas.PolicePTI(msgType, pti, smContext.IsPTIInUse); verdict {
 	case smfNas.PTIIgnore:
-		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", zap.Uint8("MessageType", uint8(msgType)), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, nil
 	case smfNas.PTIRespondStatus:
 		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
@@ -170,7 +170,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// ignored except that it draws a 5GSM STATUS with cause #97, naming the
 		// PDU session and transaction the offending message carried.
 		logger.WithTrace(ctx, logger.SmfLog).Warn("unimplemented 5GSM message type",
-			zap.Stringer("MessageType", msgType), logger.SUPI(smContext.Supi.String()),
+			logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID))
 
 		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(msg.SessionIdentity(), msg.TransactionIdentity(),
@@ -182,7 +182,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	default:
-		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Stringer("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", logger.MessageType(msgType.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, nil
 	}
 }

@@ -28,7 +28,7 @@ func appendPathSwitchReleasedItem(ctx context.Context, ueConn *amf.UeConn, list 
 		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
 	}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+		logger.WithTrace(ctx, ueConn.Log()).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		return
 	}
 
@@ -42,7 +42,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// TS 38.413: a to-be-switched downlink list that repeats a PDU Session ID is an
 	// abnormal condition the AMF rejects with a Path Switch Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceToBeSwitchedDLList); dup {
-		logger.WithTrace(ctx, ran.Log()).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
+		logger.WithTrace(ctx, ran.Log()).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", logger.PDUSessionID(uint8(id)))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkMultiplePDUSessionIDs)
 
 		return
@@ -88,18 +88,18 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	for _, item := range msg.PDUSessionResourceFailedToSetup {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, ueConn.Log()).Error("invalid PDU session ID from gNB, skipping", logger.PDUSessionID(uint8(item.PDUSessionID)))
 			continue
 		}
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
 		if err := amfInstance.Session.UpdateSmContextXnHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 

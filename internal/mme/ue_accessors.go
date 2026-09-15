@@ -66,6 +66,10 @@ func (ue *UeContext) imsiOrEmpty() string {
 	return ue.supi.IMSI()
 }
 
+func (ue *UeContext) supiOrEmpty() string {
+	return ue.supi.String()
+}
+
 // AmbrRates returns the UE-AMBR uplink/downlink rates, both zero when the
 // UE-AMBR has not been set.
 func (ue *UeContext) AmbrRates() (uplink, downlink models.BitRate) {

@@ -89,7 +89,7 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 
 		if !plainNasAllowed(mt) {
 			logger.MmeLog.Warn("discarding plain NAS message not permitted without integrity (TS 24.301 §4.4.4.3)",
-				zap.String("message", EmmMessageTypeName(mt)))
+				logger.MessageType(EmmMessageTypeName(mt)))
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS %s not permitted (TS 24.301 §4.4.4.3)", EmmMessageTypeName(mt))
 		}

@@ -52,7 +52,7 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 
 func sendGmm(ctx context.Context, ue *UeConn, spanName string, extra []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
-		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
+		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("procedure", spanName))
 		return
 	}
 
@@ -73,7 +73,7 @@ func sendGmm(ctx context.Context, ue *UeConn, spanName string, extra []attribute
 
 	write := func(wire []byte) error {
 		if err := ue.SendDownlinkNASTransport(ctx, wire); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", spanName), zap.Error(err))
+			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("procedure", spanName), zap.Error(err))
 		}
 
 		return nil
@@ -137,7 +137,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
 		return ue.SendDownlinkNASTransport(ctx, wire)
 	}); err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_identity_request"), zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("procedure", "nas/send_identity_request"), zap.Error(err))
 	}
 }
 
@@ -176,7 +176,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
 		return ue.SendDownlinkNASTransport(ctx, wire)
 	}); err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_authentication_request"), zap.Error(err))
+		logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("procedure", "nas/send_authentication_request"), zap.Error(err))
 	}
 }
 
@@ -232,7 +232,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 
 	if err := amfUe.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 		if err := ue.SendDownlinkNASTransport(ctx, wire); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("message", "nas/send_security_mode_command"), zap.Error(err))
+			logger.From(ctx, logger.AmfLog).Warn("failed to send downlink NAS transport", zap.String("procedure", "nas/send_security_mode_command"), zap.Error(err))
 		}
 
 		return nil
@@ -1204,7 +1204,7 @@ func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err e
 	}
 
 	log.Error("downlink NAS COUNT exhausted, releasing the connection",
-		zap.String("message", what), zap.Error(err))
+		zap.String("procedure", what), zap.Error(err))
 
 	if conn := ue.Conn(); conn != nil {
 		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})

@@ -490,7 +490,7 @@ func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
 	for _, ref := range ue.SmContextRefs() {
 		if err := a.Session.UpdateSmContextN2HandoverCanceled(ctx, ref.Ref); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("failed to restore the source access tunnel after an abandoned handover",
-				zap.Error(err), zap.Uint8("pdu-session-id", ref.PduSessionID))
+				zap.Error(err), logger.PDUSessionID(ref.PduSessionID))
 		}
 	}
 }

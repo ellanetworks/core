@@ -128,7 +128,7 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
 	case *eps.UnknownEMMMessage:
-		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", zap.Stringer("message", msg))
+		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", logger.MessageType(msg.String()))
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	default:

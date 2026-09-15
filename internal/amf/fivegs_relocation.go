@@ -141,7 +141,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, err
 	}
 
-	ue.TransitionTo(RegistrationInitiated)
+	ue.TransitionTo(ctx, RegistrationInitiated)
 
 	if !a.beginRelocationFromEPS(req.SUPI, req.ID, ue) {
 		return none, ErrRelocationFromEPSBusy
@@ -377,7 +377,7 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 	id := held.id
 
 	ue.MarkArrivedFromEPSHandover()
-	ue.TransitionTo(Registered)
+	ue.TransitionTo(ctx, Registered)
 
 	if err := a.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not index a UE that arrived from EPS",

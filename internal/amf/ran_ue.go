@@ -178,6 +178,10 @@ func (ueConn *UeConn) radioName() string {
 }
 
 func (ueConn *UeConn) Log() *zap.Logger {
+	if ueConn == nil {
+		return logger.AmfLog
+	}
+
 	if l := ueConn.log.Load(); l != nil {
 		return l
 	}
@@ -589,7 +593,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 
 		for _, sr := range amfUe.SmContextRefs() {
 			if err := a.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				logger.From(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 
@@ -619,7 +623,7 @@ func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, am
 			}
 
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 
@@ -630,13 +634,13 @@ func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, am
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
 			logger.From(ctx, ueConn.Log()).Warn("no SM context for a PDU session the NG-RAN node reported as established",
-				zap.Uint8("PduSessionID", pduSessionID))
+				logger.PDUSessionID(pduSessionID))
 
 			continue
 		}
 
 		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
-			logger.From(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.From(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 }
@@ -662,7 +666,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			}
 
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 

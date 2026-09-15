@@ -167,7 +167,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	ueConn.ArmNASGuard(ctx, "Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
+func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, _ *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to derive AS keys", zap.Error(err))
@@ -223,7 +223,6 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Debug("Initial Context Setup Request",
-		zap.Uint32("enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
 		zap.Uint8("nas-pdu-bearer", carrier),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),

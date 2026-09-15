@@ -49,7 +49,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				logger.WithTrace(ctx, ueConn.Log()).Warn("SmContext not found during release response (may already be removed by SMF)",
-					zap.Uint8("PduSessionID", pduSessionID))
+					logger.PDUSessionID(pduSessionID))
 			}
 
 			if smContext == nil {
@@ -58,7 +58,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 
 			removed, err := amfInstance.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
-				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
 
 			if removed {

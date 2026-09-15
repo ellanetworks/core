@@ -61,7 +61,6 @@ func SourceIP(val string) zap.Field        { return zap.String("source_ip", val)
 func DestinationIP(val string) zap.Field   { return zap.String("destination_ip", val) }
 func SourcePort(val uint16) zap.Field      { return zap.Uint16("source_port", val) }
 func DestinationPort(val uint16) zap.Field { return zap.Uint16("destination_port", val) }
-func Protocol(val uint8) zap.Field         { return zap.Uint8("protocol", val) }
 func ProtocolName(val string) zap.Field    { return zap.String("protocol", val) }
 func IPAddress(val string) zap.Field       { return zap.String("ip_address", val) }
 func IPv6Prefix(val string) zap.Field      { return zap.String("ipv6_prefix", val) }

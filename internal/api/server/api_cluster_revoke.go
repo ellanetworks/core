@@ -21,7 +21,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {
 		logger.APILog.Warn("revocation: list pins failed",
-			zap.Int("nodeId", nodeID), zap.Error(err))
+			zap.Int("node_id", nodeID), zap.Error(err))
 
 		return
 	}
@@ -42,7 +42,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 
 	if err := dbInstance.DeleteClusterNodeCert(ctx, nodeID); err != nil {
 		logger.APILog.Warn("revocation: delete pin failed",
-			zap.Int("nodeId", nodeID), zap.Error(err))
+			zap.Int("node_id", nodeID), zap.Error(err))
 
 		return
 	}
@@ -53,7 +53,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 
 	if closed := ln.CloseByPeerFingerprint(fingerprint); closed > 0 {
 		logger.APILog.Info("revocation: closed active cluster connections after member removal",
-			zap.Int("nodeId", nodeID),
+			zap.Int("node_id", nodeID),
 			zap.String("fingerprint", fingerprint),
 			zap.Int("closed", closed))
 	}

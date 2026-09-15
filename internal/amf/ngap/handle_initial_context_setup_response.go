@@ -41,7 +41,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 				continue
 			}
 
@@ -49,7 +49,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
 		}
 	}
@@ -63,13 +63,13 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
-				logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 				continue
 			}
 
 			err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
 		}
 	}

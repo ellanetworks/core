@@ -44,12 +44,12 @@ func reportFailedSessionsToSmf(ctx context.Context, amfInstance *amf.AMF, target
 	for _, item := range failed {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID in the failed-to-setup list", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID in the failed-to-setup list", logger.PDUSessionID(uint8(item.PDUSessionID)))
 			continue
 		}
 
 		if _, isAdmitted := admitted[pduSessionID]; isAdmitted {
-			logger.WithTrace(ctx, targetUe.Log()).Warn("PDU session reported both admitted and failed to setup; keeping it handed over", zap.Uint8("pduSessionID", pduSessionID))
+			logger.WithTrace(ctx, targetUe.Log()).Warn("PDU session reported both admitted and failed to setup; keeping it handed over", logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
@@ -60,7 +60,7 @@ func reportFailedSessionsToSmf(ctx context.Context, amfInstance *amf.AMF, target
 
 		if err := amfInstance.Session.UpdateSmContextN2HandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
 			logger.WithTrace(ctx, targetUe.Log()).Error("failed to hand the target's handover refusal to the SMF",
-				zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+				zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 }
@@ -86,7 +86,7 @@ func releaseItems(ctx context.Context, targetUe *amf.UeConn, unadmitted []amf.Ha
 
 		item, err := toReleaseItemHOCmd(c.PDUSessionID, cause)
 		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log()).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", int64(c.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("failed to build PDU session to-release item", zap.Error(err), logger.PDUSessionID(uint8(c.PDUSessionID)))
 			continue
 		}
 
@@ -149,7 +149,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	for _, item := range msg.PDUSessionResourceAdmittedList {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID from gNB, skipping", logger.PDUSessionID(uint8(item.PDUSessionID)))
 			continue
 		}
 
@@ -160,7 +160,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, item.Transfer)
 		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log()).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, targetUe.Log()).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			continue
 		}
 

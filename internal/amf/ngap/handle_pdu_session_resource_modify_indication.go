@@ -44,7 +44,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnknownPDUSessionID)
 
 			continue
@@ -52,7 +52,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 		confirmTransfer, err := amfInstance.Session.UpdateSmContextN2ModifyIndication(ctx, smContext.Ref, []byte(item.Transfer))
 		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("UpdateSmContextN2ModifyIndication error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("UpdateSmContextN2ModifyIndication error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnspecified)
 
 			continue

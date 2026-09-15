@@ -38,7 +38,7 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
 			logger.WithTrace(ctx, sourceUe.Log()).Error("invalid PDU session ID from gNB, reporting it as not handed over",
-				zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+				logger.PDUSessionID(uint8(item.PDUSessionID)))
 
 			cause := causeUnknownPDUSessionID
 			unusable = append(unusable, amf.HandoverCandidate{PDUSessionID: item.PDUSessionID, Cause: &cause})
