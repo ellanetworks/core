@@ -29,7 +29,7 @@ func RegisterMetrics(sessions sessionCounter) {
 	)
 
 	sessionsDesc := prometheus.NewDesc(
-		"app_sessions_total",
+		"app_sessions",
 		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions).",
 		[]string{"rat"},
 		nil,
