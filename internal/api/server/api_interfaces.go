@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 type N2Interface struct {
@@ -113,11 +114,10 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 		if cfg.Interfaces.N6.Name != "" {
 			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N6.Name)
 			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N6 interface IPs", err, logger.APILog)
-				return
+				logger.APILog.Warn("Failed to get N6 interface IPs; returning empty list", zap.Error(err), zap.String("interface", cfg.Interfaces.N6.Name))
+			} else {
+				n6Addresses = ips
 			}
-
-			n6Addresses = ips
 		}
 
 		resp := &NetworkInterfaces{
