@@ -81,6 +81,15 @@ const renderTraffic = async (path = "/traffic/flows") => {
   return result;
 };
 
+const timeRangeButton = () =>
+  screen.getByRole("button", { name: /^Time range:/ });
+
+const openTimeRange = async (user: ReturnType<typeof userEvent.setup>) => {
+  if (screen.queryByLabelText("From")) return;
+  await user.click(timeRangeButton());
+  await screen.findByLabelText("From");
+};
+
 const flowRequests = () => api.requests(FLOWS_PATH);
 
 const lastFlowParams = () => {
@@ -258,8 +267,9 @@ describe("Traffic flow pagination", () => {
     await renderTraffic();
     await waitForFlowRequests(1);
     await goToNextPage(user);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
+    const start = screen.getByLabelText("From");
     await user.clear(start);
     await user.type(start, "2026-07-01");
 
@@ -339,9 +349,10 @@ describe("Traffic date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -356,9 +367,10 @@ describe("Traffic date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -376,8 +388,9 @@ describe("Traffic date range", () => {
 
 describe("Traffic date range accessibility", () => {
   const invert = async (user: ReturnType<typeof userEvent.setup>) => {
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    await openTimeRange(user);
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);
@@ -389,10 +402,11 @@ describe("Traffic date range accessibility", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
     await invert(user);
 
-    expect(screen.getByLabelText("Start date")).toHaveAccessibleDescription(
+    expect(screen.getByLabelText("From")).toHaveAccessibleDescription(
       /end date must be on or after the start date/i,
     );
   });
@@ -401,10 +415,11 @@ describe("Traffic date range accessibility", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
     await invert(user);
 
-    expect(screen.getByLabelText("End date")).toHaveAccessibleDescription(
+    expect(screen.getByLabelText("To")).toHaveAccessibleDescription(
       /end date must be on or after the start date/i,
     );
   });
@@ -413,9 +428,10 @@ describe("Traffic date range accessibility", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
     await invert(user);
 
-    const end = screen.getByLabelText("End date");
+    const end = screen.getByLabelText("To");
     await user.clear(end);
     await user.type(end, "2026-08-20");
 
@@ -429,16 +445,14 @@ describe("Traffic date range accessibility", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
+    const start = screen.getByLabelText("From");
     await user.clear(start);
     await user.type(start, "2026-08-10");
 
     await waitFor(() =>
-      expect(screen.getByLabelText("End date")).toHaveAttribute(
-        "min",
-        "2026-08-10",
-      ),
+      expect(screen.getByLabelText("To")).toHaveAttribute("min", "2026-08-10"),
     );
   });
 });
@@ -448,8 +462,9 @@ describe("Traffic incomplete date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /select both a start and an end date/i,
@@ -460,9 +475,10 @@ describe("Traffic incomplete date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
     const before = flowRequests().length;
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     expect(flowRequests().length).toBe(before);
@@ -472,8 +488,9 @@ describe("Traffic incomplete date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    for (const label of ["Start date", "End date"]) {
+    for (const label of ["From", "To"]) {
       await user.clear(screen.getByLabelText(label));
       expect(
         screen.queryAllByRole("alert").length,
@@ -486,8 +503,9 @@ describe("Traffic incomplete date range", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
+    const start = screen.getByLabelText("From");
     await user.clear(start);
     await screen.findByRole("alert");
 
@@ -503,9 +521,10 @@ describe("Traffic stale results", () => {
     const user = userEvent.setup();
     seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
     await renderTraffic();
+    await openTimeRange(user);
     await screen.findAllByText("93.184.216.34");
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     expect(screen.queryByText("93.184.216.34")).not.toBeInTheDocument();
@@ -515,9 +534,10 @@ describe("Traffic stale results", () => {
     const user = userEvent.setup();
     seedApi({ flows: [] });
     await renderTraffic();
+    await openTimeRange(user);
     await screen.findByText("No flow reports found");
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     expect(screen.queryByText("No flow reports found")).not.toBeInTheDocument();
@@ -527,8 +547,9 @@ describe("Traffic stale results", () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
+    await openTimeRange(user);
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     expect(screen.queryAllByRole("progressbar")).toEqual([]);
@@ -537,9 +558,10 @@ describe("Traffic stale results", () => {
   it("hides the usage chart while the range is incomplete", async () => {
     const user = userEvent.setup();
     await renderTraffic("/traffic/usage");
+    await openTimeRange(user);
     await screen.findByText(/Daily data usage/);
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     expect(screen.queryByText(/Daily data usage/)).not.toBeInTheDocument();
@@ -629,9 +651,10 @@ describe("Traffic usage query", () => {
   it("never requests an incomplete range", async () => {
     const user = userEvent.setup();
     await renderTraffic("/traffic/usage");
+    await openTimeRange(user);
     await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
 
-    await user.clear(screen.getByLabelText("Start date"));
+    await user.clear(screen.getByLabelText("From"));
     await screen.findByRole("alert");
 
     const ranges = usageRequests().map((r) => [
@@ -644,10 +667,11 @@ describe("Traffic usage query", () => {
   it("never requests an inverted range", async () => {
     const user = userEvent.setup();
     await renderTraffic("/traffic/usage");
+    await openTimeRange(user);
     await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
+    const start = screen.getByLabelText("From");
+    const end = screen.getByLabelText("To");
     await user.clear(start);
     await user.type(start, "2026-08-10");
     await user.clear(end);

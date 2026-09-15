@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import PageTitle from "@/components/PageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import { type GridColDef } from "@mui/x-data-grid";
@@ -41,7 +41,13 @@ import {
 } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
-import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
+import TimeRangePicker, {
+  CUSTOM_RANGE,
+  DAILY_RANGES,
+  resolveTimeRangeFilter,
+  timeRangeFilter,
+  type TimeRangeValue,
+} from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
 const DATE_ERROR_ID = "audit-logs-date-range-error";
@@ -56,8 +62,52 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const { startDate, endDate, handleStartChange, handleEndChange } =
-    useDateRangeSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const timeRange: TimeRangeValue = useMemo(() => {
+    const from = searchParams.get("start") ?? "";
+    const to = searchParams.get("end") ?? "";
+    const preset =
+      searchParams.get("range") ?? (from || to ? CUSTOM_RANGE : "7d");
+    return { preset, from, to };
+  }, [searchParams]);
+
+  const setTimeRange = useCallback(
+    (next: TimeRangeValue) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          params.set("range", next.preset);
+          if (next.preset === CUSTOM_RANGE) {
+            if (next.from) params.set("start", next.from);
+            else params.delete("start");
+            if (next.to) params.set("end", next.to);
+            else params.delete("end");
+          } else {
+            params.delete("start");
+            params.delete("end");
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const timeFilter = useMemo(
+    () => timeRangeFilter(timeRange, "date"),
+    [timeRange],
+  );
+
+  const { from: startDate = "", to: endDate = "" } = useMemo(
+    () =>
+      resolveTimeRangeFilter(timeFilter, {
+        ranges: DAILY_RANGES,
+        granularity: "date",
+      }),
+    [timeFilter],
+  );
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
   const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
@@ -115,7 +165,7 @@ const AuditLog: React.FC = () => {
   });
 
   const hasActiveFilters = Boolean(
-    startDate || endDate || selectedUser || selectedAction,
+    Object.keys(timeFilter).length || selectedUser || selectedAction,
   );
 
   const rowCount = auditLogsQuery.data?.total_count ?? 0;
@@ -235,34 +285,13 @@ const AuditLog: React.FC = () => {
             alignItems: { xs: "flex-start", sm: "center" },
           }}
         >
-          <TextField
-            label="Start date"
-            type="date"
-            value={startDate}
-            onChange={handleStartChange}
-            error={!!dateError}
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
-              },
-            }}
-            size="small"
-          />
-          <TextField
-            label="End date"
-            type="date"
-            value={endDate}
-            onChange={handleEndChange}
-            size="small"
-            error={!!dateError}
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                min: startDate || undefined,
-                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
-              },
-            }}
+          <TimeRangePicker
+            value={timeRange}
+            onChange={setTimeRange}
+            errorId={DATE_ERROR_ID}
+            ranges={DAILY_RANGES}
+            granularity="date"
+            error={dateError}
           />
           <TextField
             select
@@ -314,11 +343,7 @@ const AuditLog: React.FC = () => {
       </Box>
 
       {dateError ? (
-        <Alert
-          id={DATE_ERROR_ID}
-          severity="error"
-          sx={{ alignSelf: "flex-start" }}
-        >
+        <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
           {dateError}
         </Alert>
       ) : (

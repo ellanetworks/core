@@ -55,7 +55,12 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { listAllSubscriberImsis } from "@/queries/subscribers";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
 import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -75,7 +80,13 @@ import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
-import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
+import TimeRangePicker, {
+  CUSTOM_RANGE,
+  DAILY_RANGES,
+  resolveTimeRangeFilter,
+  timeRangeFilter,
+  type TimeRangeValue,
+} from "@/components/TimeRangePicker";
 import { useDebouncedState } from "@/hooks/useDebouncedState";
 
 const renderSubscriberLink = (params: any) => {
@@ -154,6 +165,7 @@ const Traffic: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const currentTab = TAB_PATHS.includes(
     location.pathname as (typeof TAB_PATHS)[number],
@@ -168,8 +180,45 @@ const Traffic: React.FC = () => {
     [navigate, location.search],
   );
 
-  const { startDate, endDate, handleStartChange, handleEndChange } =
-    useDateRangeSearchParams();
+  const timeRange: TimeRangeValue = useMemo(() => {
+    const from = searchParams.get("start") ?? "";
+    const to = searchParams.get("end") ?? "";
+    const preset =
+      searchParams.get("range") ?? (from || to ? CUSTOM_RANGE : "7d");
+    return { preset, from, to };
+  }, [searchParams]);
+
+  const setTimeRange = useCallback(
+    (next: TimeRangeValue) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          params.set("range", next.preset);
+          if (next.preset === CUSTOM_RANGE) {
+            if (next.from) params.set("start", next.from);
+            else params.delete("start");
+            if (next.to) params.set("end", next.to);
+            else params.delete("end");
+          } else {
+            params.delete("start");
+            params.delete("end");
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const { from: startDate = "", to: endDate = "" } = useMemo(
+    () =>
+      resolveTimeRangeFilter(timeRangeFilter(timeRange, "date"), {
+        ranges: DAILY_RANGES,
+        granularity: "date",
+      }),
+    [timeRange],
+  );
   const [selectedSubscriber, setSelectedSubscriber] =
     useSearchParamState("subscriber_id");
   const { showSnackbar } = useSnackbar();
@@ -848,38 +897,14 @@ const Traffic: React.FC = () => {
               alignItems: { xs: "flex-start", sm: "center" },
             }}
           >
-            <TextField
-              label="Start date"
-              type="date"
-              value={startDate}
-              onChange={handleStartChange}
-              error={!!dateRangeError}
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: {
-                  "aria-describedby": dateRangeError
-                    ? DATE_ERROR_ID
-                    : undefined,
-                },
-              }}
-              size="small"
-            />
-            <TextField
-              label="End date"
-              type="date"
-              value={endDate}
-              onChange={handleEndChange}
-              error={!!dateRangeError}
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: {
-                  min: startDate || undefined,
-                  "aria-describedby": dateRangeError
-                    ? DATE_ERROR_ID
-                    : undefined,
-                },
-              }}
-              size="small"
+            <TimeRangePicker
+              value={timeRange}
+              onChange={setTimeRange}
+              errorId={DATE_ERROR_ID}
+              ranges={DAILY_RANGES}
+              granularity="date"
+              allowAnyTime={false}
+              error={dateRangeError}
             />
             <Autocomplete
               options={subscriberOptions}
@@ -898,11 +923,7 @@ const Traffic: React.FC = () => {
           </Box>
 
           {dateRangeError && (
-            <Alert
-              id={DATE_ERROR_ID}
-              severity="error"
-              sx={{ alignSelf: "flex-start" }}
-            >
+            <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
               {dateRangeError}
             </Alert>
           )}
