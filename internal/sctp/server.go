@@ -155,6 +155,7 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 	}
 
 	listener.ifaceName = interfaceName
+	listener.reqAddr = &SCTPAddr{IPAddrs: laddr.IPAddrs, Port: listener.laddr.Port}
 
 	return listener, nil
 }
@@ -163,7 +164,12 @@ func (s *Server) Serve(ctx context.Context, ln *Listener) {
 	s.listener = ln
 	s.acceptDone = make(chan struct{})
 
-	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", ln.Addr().String())}
+	addr := ln.laddr
+	if ln.reqAddr != nil {
+		addr = ln.reqAddr
+	}
+
+	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", addr.String())}
 	if ln.ifaceName != "" {
 		logFields = append(logFields, zap.String("interface_name", ln.ifaceName))
 	}

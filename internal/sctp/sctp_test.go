@@ -63,25 +63,28 @@ func newTestListener(t *testing.T) *Listener {
 func freePort(t *testing.T) int {
 	t.Helper()
 
-	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, syscall.IPPROTO_SCTP)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("socket: %v", err)
 	}
 
-	cfg := socketConfig{InitMsg: InitMsg{NumOstreams: 2, MaxInstreams: 5}}
+	t.Cleanup(func() { _ = syscall.Close(fd) })
 
-	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: 0})
+	if err := syscall.Bind(fd, &syscall.SockaddrInet4{Addr: [4]byte{127, 0, 0, 1}}); err != nil {
+		t.Fatalf("bind an ephemeral port: %v", err)
+	}
+
+	sa, err := syscall.Getsockname(fd)
 	if err != nil {
-		t.Fatalf("listen on an ephemeral port: %v", err)
+		t.Fatalf("getsockname: %v", err)
 	}
 
-	port := ln.laddr.Port
-
-	if err := ln.Close(); err != nil {
-		t.Fatalf("close probe listener: %v", err)
+	addr, ok := sa.(*syscall.SockaddrInet4)
+	if !ok {
+		t.Fatalf("getsockname returned %T, want *syscall.SockaddrInet4", sa)
 	}
 
-	return port
+	return addr.Port
 }
 
 // connectLoopback opens a blocking SCTP socket connected to 127.0.0.1:port.

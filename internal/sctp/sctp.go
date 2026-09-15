@@ -651,15 +651,12 @@ type Listener struct {
 	file      *os.File
 	rc        syscall.RawConn
 	laddr     *SCTPAddr
+	reqAddr   *SCTPAddr
 	ifaceName string
 	closed    atomic.Bool
 }
 
 func (ln *Listener) Addr() net.Addr {
-	if ln.laddr == nil {
-		return nil
-	}
-
 	return ln.laddr
 }
 
