@@ -305,7 +305,7 @@ func LogNetworkEvent(
 	rawBytes []byte,
 ) {
 	if messageType == "" {
-		From(ctx, NetworkLog).Warn("attempted to log empty network message type",
+		WithTrace(ctx, NetworkLog).Warn("attempted to log empty network message type",
 			zap.String("protocol", string(protocol)),
 			zap.String("dir", string(dir)),
 			zap.String("local_address", localAddress),
@@ -328,7 +328,7 @@ func LogNetworkEvent(
 		return
 	}
 
-	log := From(ctx, NetworkLog)
+	log := WithTrace(ctx, NetworkLog)
 
 	log.Info("network_event",
 		zap.String("protocol", string(protocol)),

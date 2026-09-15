@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestSinkCloseDropsLaterRecordsInsteadOfWritingToAClosedFile(t *testing.T) {
@@ -37,5 +38,30 @@ func TestSinkCloseDropsLaterRecordsInsteadOfWritingToAClosedFile(t *testing.T) {
 
 	if _, err := f.Write([]byte("x")); !errors.Is(err, os.ErrClosed) {
 		t.Errorf("close did not close the sink's file, got %v", err)
+	}
+}
+
+func TestNetworkEventKeepsItsComponentUnderAnAmbientLogger(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+
+	saved := systemSink
+	systemSink = newSink()
+
+	t.Cleanup(func() { systemSink = saved })
+
+	systemSink.swap(core, nil)
+
+	root := zap.New(&followingCore{sink: systemSink})
+	NetworkLog = root.Named("Network")
+	MmeLog = root.Named("MME")
+
+	ctx := Into(t.Context(), MmeLog)
+
+	LogNetworkEvent(ctx, S1APNetworkProtocol, "DownlinkNASTransport", DirectionOutbound, "", "", "enb-a", nil)
+
+	for _, e := range logs.All() {
+		if e.Message == "network_event" && e.LoggerName != "Network" {
+			t.Errorf("network event logged as component %q, want Network", e.LoggerName)
+		}
 	}
 }
