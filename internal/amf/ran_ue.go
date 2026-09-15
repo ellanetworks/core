@@ -192,7 +192,7 @@ func (ueConn *UeConn) LogFields() []zap.Field {
 }
 
 func (ueConn *UeConn) Log(ctx context.Context) *zap.Logger {
-	return logger.From(logger.Into(ctx, ueConn.LogFields()...), logger.AmfLog)
+	return logger.From(ctx, logger.AmfLog, ueConn.LogFields()...)
 }
 
 func (ueConn *UeConn) setLogFields(fields []zap.Field) {

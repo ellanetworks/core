@@ -8,6 +8,7 @@ import (
 	"fmt"
 	stdlog "log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -37,41 +38,24 @@ var (
 	LmfLog      *zap.Logger
 	BgpLog      *zap.Logger
 
+	// atomicLevel is created once and never replaced, so SetLevel reaches every
+	// logger already handed out.
 	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
-	systemSink = newSink()
-	auditSink  = newSink()
+	filesMu   sync.Mutex
+	openFiles []*os.File
 
 	dbInstance dbwriter.DBWriter
 )
 
 // Default: console only, info level.
 func init() {
-	build := []zap.Field{zap.String("service.version", version.GetVersion().Version)}
-
-	log = zap.New(&followingCore{sink: systemSink}, zap.AddCaller()).With(build...)
-	auditRoot := zap.New(&followingCore{sink: auditSink}, zap.AddCaller()).With(build...)
-
-	AuditLog = auditRoot.Named("Audit")
-	NetworkLog = Scope("Network")
-	EllaLog = Scope("Ella")
-	MetricsLog = Scope("Metrics")
-	DBLog = Scope("DB")
-	AmfLog = Scope("AMF")
-	MmeLog = Scope("MME")
-	APILog = Scope("API")
-	SmfLog = Scope("SMF")
-	UpfLog = Scope("UPF")
-	SessionsLog = Scope("Sessions")
-	RaftLog = Scope("Raft")
-	LmfLog = Scope("LMF")
-	BgpLog = Scope("BGP")
-
-	zap.RedirectStdLog(EllaLog)
-
 	_ = ConfigureLogging("info", "stdout", "", "stdout", "")
 }
 
+// ConfigureLogging builds every logger over a tee of console and optional file
+// output. It runs once at startup, before any server is listening, so the
+// loggers it assigns are only read afterwards.
 func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, auditFilePath string) error {
 	zl, err := zapcore.ParseLevel(systemLevel)
 	if err != nil {
@@ -93,8 +77,29 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	atomicLevel.SetLevel(zl)
 
-	closeAll(systemSink.swap(zapcore.NewTee(sysCores...), sysFiles))
-	closeAll(auditSink.swap(zapcore.NewTee(auditCores...), auditFiles))
+	closeAll(trackFiles(append(sysFiles, auditFiles...)))
+
+	build := []zap.Field{zap.String("service.version", version.GetVersion().Version)}
+
+	log = zap.New(newDedupeCore(zapcore.NewTee(sysCores...)), zap.AddCaller()).With(build...)
+	auditRoot := zap.New(newDedupeCore(zapcore.NewTee(auditCores...)), zap.AddCaller()).With(build...)
+
+	AuditLog = auditRoot.Named("Audit")
+	NetworkLog = Scope("Network")
+	EllaLog = Scope("Ella")
+	MetricsLog = Scope("Metrics")
+	DBLog = Scope("DB")
+	AmfLog = Scope("AMF")
+	MmeLog = Scope("MME")
+	APILog = Scope("API")
+	SmfLog = Scope("SMF")
+	UpfLog = Scope("UPF")
+	SessionsLog = Scope("Sessions")
+	RaftLog = Scope("Raft")
+	LmfLog = Scope("LMF")
+	BgpLog = Scope("BGP")
+
+	zap.RedirectStdLog(EllaLog)
 
 	return nil
 }
@@ -110,13 +115,36 @@ func SetLevel(level string) error {
 	return nil
 }
 
+// Close flushes and closes the log files. The shutdown sequence runs it after
+// the servers have stopped and the background goroutines have been waited on,
+// so nothing is still logging.
 func Close() error {
-	err := systemSink.close()
-	if aerr := auditSink.close(); aerr != nil && err == nil {
-		err = aerr
+	// Syncing stdout fails with EINVAL on Linux, and the file cores are
+	// unbuffered, so a sync error here says nothing about whether records landed.
+	_ = log.Sync()
+	_ = AuditLog.Sync()
+
+	var err error
+
+	for _, f := range trackFiles(nil) {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
 	}
 
 	return err
+}
+
+// trackFiles installs the files the loggers now write to and returns the ones
+// they wrote to before, for the caller to close.
+func trackFiles(files []*os.File) []*os.File {
+	filesMu.Lock()
+	defer filesMu.Unlock()
+
+	prev := openFiles
+	openFiles = files
+
+	return prev
 }
 
 func closeAll(files []*os.File) {
@@ -142,14 +170,52 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// SwapSystemCore redirects every system-sink logger at core and returns a
-// function restoring the previous one. Tests use it to observe records through
-// the same pipeline production writes through, rather than around it.
+// SwapSystemCore rebuilds every system logger over core and returns a function
+// restoring the previous ones. Tests use it to observe records through the same
+// pipeline production writes through, rather than around it.
 func SwapSystemCore(core zapcore.Core) func() {
-	prev, _ := systemSink.load()
-	files := systemSink.swap(core, nil)
+	prev := log
 
-	return func() { systemSink.swap(prev, files) }
+	log = zap.New(newDedupeCore(core), zap.AddCaller()).With(
+		zap.String("service.version", version.GetVersion().Version),
+	)
+
+	restore := namedScopes()
+
+	for _, s := range restore {
+		*s.target = Scope(s.name)
+	}
+
+	return func() {
+		log = prev
+
+		for _, s := range restore {
+			*s.target = Scope(s.name)
+		}
+	}
+}
+
+type namedScope struct {
+	target **zap.Logger
+	name   string
+}
+
+func namedScopes() []namedScope {
+	return []namedScope{
+		{&NetworkLog, "Network"},
+		{&EllaLog, "Ella"},
+		{&MetricsLog, "Metrics"},
+		{&DBLog, "DB"},
+		{&AmfLog, "AMF"},
+		{&MmeLog, "MME"},
+		{&APILog, "API"},
+		{&SmfLog, "SMF"},
+		{&UpfLog, "UPF"},
+		{&SessionsLog, "Sessions"},
+		{&RaftLog, "Raft"},
+		{&LmfLog, "LMF"},
+		{&BgpLog, "BGP"},
+	}
 }
 
 // makeCores returns JSON cores for stdout and optional file output.

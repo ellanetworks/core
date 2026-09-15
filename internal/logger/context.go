@@ -47,28 +47,43 @@ func Fields(ctx context.Context) []zap.Field {
 	return f
 }
 
-// From returns base enriched with the request-scoped fields carried by ctx and
-// with the trace and span IDs of the active span. base itself — its sink and
-// its component name — is never substituted, so a helper that names its own
-// destination keeps it whatever the caller put in the context.
-func From(ctx context.Context, base *zap.Logger) *zap.Logger {
+// From returns base enriched with the request-scoped fields carried by ctx, any
+// extra fields the call site adds, and the trace and span IDs of the active
+// span. base itself — its sink and its component name — is never substituted,
+// so a helper that names its own destination keeps it whatever the caller put
+// in the context. extra comes after the context's own fields, so a call site
+// naming a specific connection wins over an ambient one.
+func From(ctx context.Context, base *zap.Logger, extra ...zap.Field) *zap.Logger {
 	fields := Fields(ctx)
 
 	sc := trace.SpanFromContext(ctx).SpanContext()
-	if !sc.IsValid() {
-		if len(fields) == 0 {
-			return base
-		}
 
-		return base.With(fields...)
+	n := len(fields) + len(extra)
+	if sc.IsValid() {
+		n += 2
 	}
 
-	out := make([]zap.Field, 0, len(fields)+2)
+	if n == 0 {
+		return base
+	}
+
+	out := make([]zap.Field, 0, n)
 	out = append(out, fields...)
-	out = append(out,
-		zap.String("trace_id", sc.TraceID().String()),
-		zap.String("span_id", sc.SpanID().String()),
-	)
+	out = append(out, extra...)
+
+	if sc.IsValid() {
+		out = append(out,
+			zap.String("trace_id", sc.TraceID().String()),
+			zap.String("span_id", sc.SpanID().String()),
+		)
+	}
 
 	return base.With(out...)
+}
+
+// Enabled reports whether a record at lvl would be emitted. Hot paths guard a
+// Debug statement with it so the logger and its fields are never built for a
+// record that is dropped.
+func Enabled(lvl zapcore.Level) bool {
+	return atomicLevel.Enabled(lvl)
 }

@@ -270,7 +270,7 @@ func (m *MME) TrackRadioFromSetup(ctx context.Context, conn *sctp.SCTPConn, valu
 // remote address, so node-level events are attributed to the RAN address
 // throughout the association.
 func (m *MME) RadioLog(ctx context.Context, conn S1APWriter) *zap.Logger {
-	return logger.From(logger.Into(ctx, m.RadioLogFields(conn)...), logger.MmeLog)
+	return logger.From(ctx, logger.MmeLog, m.RadioLogFields(conn)...)
 }
 
 func (m *MME) RadioLogFields(conn S1APWriter) []zap.Field {
@@ -308,7 +308,7 @@ func (r *Radio) LogFields() []zap.Field {
 }
 
 func (r *Radio) Log(ctx context.Context) *zap.Logger {
-	return logger.From(logger.Into(ctx, r.LogFields()...), logger.MmeLog)
+	return logger.From(ctx, logger.MmeLog, r.LogFields()...)
 }
 
 func (r *Radio) refreshLogLocked() {

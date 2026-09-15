@@ -59,7 +59,7 @@ func (r *Radio) LogFields() []zap.Field {
 }
 
 func (r *Radio) Log(ctx context.Context) *zap.Logger {
-	return logger.From(logger.Into(ctx, r.LogFields()...), logger.AmfLog)
+	return logger.From(ctx, logger.AmfLog, r.LogFields()...)
 }
 
 func (r *Radio) refreshLogLocked() {
