@@ -66,7 +66,7 @@ type Callbacks struct {
 type Server struct {
 	cfg        Config
 	cb         Callbacks
-	listener   *sctpListener
+	listener   *Listener
 	conns      sync.Map
 	wg         sync.WaitGroup
 	acceptDone chan struct{}
@@ -76,11 +76,8 @@ func NewServer(cfg Config, cb Callbacks) *Server {
 	return &Server{cfg: cfg, cb: cb}
 }
 
-func (s *Server) ListenAndServe(ctx context.Context, address string, port int, interfaceName string) error {
-	var (
-		laddr   *SCTPAddr
-		addrStr string
-	)
+func Listen(ctx context.Context, address string, port int, interfaceName string) (*Listener, error) {
+	var laddr *SCTPAddr
 
 	// A bind can transiently fail while a shared N2/N3 interface flaps; retry
 	// resolve and listen together.
@@ -121,7 +118,6 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 			}
 
 			laddr = &SCTPAddr{IPAddrs: ipAddrs, Port: port}
-			addrStr = laddr.String()
 		} else {
 			netAddr, err := net.ResolveIPAddr("ip", address)
 			if err != nil {
@@ -129,7 +125,6 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 			}
 
 			laddr = &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port}
-			addrStr = laddr.String()
 		}
 
 		return nil
@@ -139,7 +134,7 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 		return errors.Is(err, errNoInterfaceAddrs) || netutil.IsAddrNotAvailable(err)
 	}
 
-	var listener *sctpListener
+	var listener *Listener
 
 	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, isTransient, func() error {
 		if err := bind(); err != nil {
@@ -148,7 +143,7 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 
 		l, err := serverSocketConfig.Listen("sctp", laddr)
 		if err != nil {
-			return fmt.Errorf("failed to listen on %s: %w", addrStr, err)
+			return fmt.Errorf("failed to listen on %s: %w", laddr, err)
 		}
 
 		listener = l
@@ -156,20 +151,41 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	s.listener = listener
+	listener.ifaceName = interfaceName
+	listener.reqAddr = &SCTPAddr{IPAddrs: laddr.IPAddrs, Port: listener.laddr.Port}
+
+	return listener, nil
+}
+
+func (s *Server) Serve(ctx context.Context, ln *Listener) {
+	s.listener = ln
 	s.acceptDone = make(chan struct{})
 
-	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", addrStr)}
-	if interfaceName != "" {
-		logFields = append(logFields, zap.String("interface_name", interfaceName))
+	addr := ln.laddr
+	if ln.reqAddr != nil {
+		addr = ln.reqAddr
+	}
+
+	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", addr.String())}
+	if ln.ifaceName != "" {
+		logFields = append(logFields, zap.String("interface_name", ln.ifaceName))
 	}
 
 	s.cfg.Logger.Info("SCTP server started", logFields...)
 
 	go s.acceptLoop(ctx)
+}
+
+func (s *Server) ListenAndServe(ctx context.Context, address string, port int, interfaceName string) error {
+	ln, err := Listen(ctx, address, port, interfaceName)
+	if err != nil {
+		return err
+	}
+
+	s.Serve(ctx, ln)
 
 	return nil
 }

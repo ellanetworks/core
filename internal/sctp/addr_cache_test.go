@@ -17,8 +17,6 @@ import (
 func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29409
-
 	srv := NewServer(Config{
 		PPID:   testPPID,
 		Name:   "TEST",
@@ -30,11 +28,14 @@ func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
 
-	fd, err := connectLoopback(port)
+	srv.Serve(ctx, ln)
+
+	fd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		t.Fatalf("connectLoopback: %v", err)
 	}

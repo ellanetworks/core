@@ -48,9 +48,9 @@ func connectLoopbackNoPRSCTP(port int) (int, error) {
 func TestClose_PeerObservesOnlyShutdown(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29310
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	connCh := make(chan *SCTPConn, 1)
 
@@ -107,9 +107,9 @@ func TestClose_PeerObservesOnlyShutdown(t *testing.T) {
 func TestClose_UnreadDataStillShutsDownGracefully(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const port = 29311
+	ln := newTestListener(t)
 
-	ln := newTestListener(t, port)
+	port := ln.laddr.Port
 
 	connCh := make(chan *SCTPConn, 1)
 

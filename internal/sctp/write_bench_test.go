@@ -74,8 +74,6 @@ func BenchmarkWriteQueueOverhead(b *testing.B) {
 // The sendmsg the queue defers, measured on a real association with a draining
 // peer, so the added cost above can be read as a fraction of it.
 func BenchmarkWriteMsgSyncSyscall(b *testing.B) {
-	const port = 29441
-
 	netAddr, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	if err != nil {
 		b.Fatal(err)
@@ -90,7 +88,7 @@ func BenchmarkWriteMsgSyncSyscall(b *testing.B) {
 		},
 	}
 
-	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port})
+	ln, err := cfg.Listen("sctp", &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: 0})
 	if err != nil {
 		b.Skipf("listen: %v", err)
 	}
@@ -109,7 +107,7 @@ func BenchmarkWriteMsgSyncSyscall(b *testing.B) {
 		accepts <- conn
 	}()
 
-	clientFd, err := connectLoopback(port)
+	clientFd, err := connectLoopback(ln.laddr.Port)
 	if err != nil {
 		b.Fatalf("connect: %v", err)
 	}

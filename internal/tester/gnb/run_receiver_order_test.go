@@ -136,10 +136,7 @@ func marshalNGSetupRequest(t *testing.T) []byte {
 func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	const (
-		port    = 29421
-		ranUEID = uint64(2)
-	)
+	const ranUEID = uint64(2)
 
 	const (
 		firstNAS  = "service-accept"
@@ -164,9 +161,12 @@ func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := sctp.Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
+
+	srv.Serve(ctx, ln)
 
 	t.Cleanup(func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -177,7 +177,7 @@ func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 
 	loopback := &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}}
 
-	gnbConn, err := sctp.Dial(ctx, "sctp", loopback, &sctp.SCTPAddr{IPAddrs: loopback.IPAddrs, Port: port}, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
+	gnbConn, err := sctp.Dial(ctx, "sctp", loopback, &sctp.SCTPAddr{IPAddrs: loopback.IPAddrs, Port: ln.Addr().(*sctp.SCTPAddr).Port}, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -283,9 +283,8 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 	skipIfNoSCTP(t)
 
 	const (
-		port = 29422
-		ueA  = uint64(10)
-		ueB  = uint64(11)
+		ueA = uint64(10)
+		ueB = uint64(11)
 	)
 
 	acceptedCh := make(chan *sctp.SCTPConn, 1)
@@ -306,9 +305,12 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	if err := srv.ListenAndServe(ctx, "127.0.0.1", port, ""); err != nil {
-		t.Fatalf("ListenAndServe: %v", err)
+	ln, err := sctp.Listen(ctx, "127.0.0.1", 0, "")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
 	}
+
+	srv.Serve(ctx, ln)
 
 	t.Cleanup(func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -319,7 +321,7 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 
 	loopback := &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}}
 
-	gnbConn, err := sctp.Dial(ctx, "sctp", loopback, &sctp.SCTPAddr{IPAddrs: loopback.IPAddrs, Port: port}, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
+	gnbConn, err := sctp.Dial(ctx, "sctp", loopback, &sctp.SCTPAddr{IPAddrs: loopback.IPAddrs, Port: ln.Addr().(*sctp.SCTPAddr).Port}, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
