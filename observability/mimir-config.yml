@@ -45,6 +45,7 @@ blocks_storage:
 
 limits:
   native_histograms_ingestion_enabled: true
+  compactor_blocks_retention_period: 8760h
 
 activity_tracker:
   filepath: /data/mimir/activity.log
