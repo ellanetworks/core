@@ -218,15 +218,11 @@ const BackupRestore = () => {
                 }}
               >
                 <Typography variant="body2" color="textSecondary">
-                  Generate and download a snapshot of your {PRODUCT.name}{" "}
-                  configuration and data. You can then use this file to restore
-                  your system if needed.
+                  Download a snapshot of your {PRODUCT.name} configuration and
+                  data, which you can later use to restore your system. The
+                  archive <strong>contains sensitive secrets</strong>: store and
+                  transfer it encrypted, and treat it as an admin credential.
                 </Typography>
-
-                <Alert severity="warning">
-                  This archive contains sensitive secrets. Store and transfer it
-                  encrypted, and treat it as you would an admin credential.
-                </Alert>
 
                 <Box sx={{ flexGrow: 1 }} />
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
@@ -323,13 +319,10 @@ const BackupRestore = () => {
       >
         <DialogTitle id="restore-confirm-title">Confirm Restore</DialogTitle>
         <DialogContent dividers>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This operation will overwrite all current data and cannot be undone.
-          </Alert>
           <DialogContentText id="restore-confirm-description">
-            Are you sure you want to restore from{" "}
-            <strong>{pendingFile?.name}</strong>? All existing configuration and
-            data will be replaced with the contents of this backup file.
+            Restore from <strong>{pendingFile?.name}</strong>? All existing
+            configuration and data will be replaced with the contents of this
+            backup file. <strong>This cannot be undone.</strong>
           </DialogContentText>
         </DialogContent>
         <DialogActions>
