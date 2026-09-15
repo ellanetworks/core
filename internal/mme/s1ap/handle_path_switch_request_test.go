@@ -126,8 +126,8 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 		t.Fatalf("ModifyEPSSession eNB F-TEID = %+v, want %+v", fsm.modifiedENB, wantFTEID)
 	}
 
-	if ue.Conn().Conn() != target || ue.Conn().ENBUES1APID != 42 || testPDN(ue).EnbFTEID != wantFTEID {
-		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.Conn().Conn() == target, ue.Conn().ENBUES1APID, testPDN(ue).EnbFTEID)
+	if ue.Conn().Conn() != target || ue.Conn().ENBUES1APID() != 42 || testPDN(ue).EnbFTEID != wantFTEID {
+		t.Fatalf("association not switched: conn=%v enb-id=%d fteid=%+v", ue.Conn().Conn() == target, ue.Conn().ENBUES1APID(), testPDN(ue).EnbFTEID)
 	}
 
 	if ue.NCCForTest() != 2 || ue.NHForTest() != wantNH {

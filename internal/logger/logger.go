@@ -47,12 +47,7 @@ var (
 
 // Default: console only, info level.
 func init() {
-	ver := version.GetVersion()
-	build := []zap.Field{zap.String("service.version", ver.Version)}
-
-	if ver.Revision != "" {
-		build = append(build, zap.String("service.revision", ver.Revision))
-	}
+	build := []zap.Field{zap.String("service.version", version.GetVersion().Version)}
 
 	log = zap.New(&followingCore{sink: systemSink}, zap.AddCaller()).With(build...)
 	auditRoot := zap.New(&followingCore{sink: auditSink}, zap.AddCaller()).With(build...)

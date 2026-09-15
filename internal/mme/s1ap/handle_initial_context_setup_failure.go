@@ -27,7 +27,7 @@ func handleInitialContextSetupFailure(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringUnsuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringUnsuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

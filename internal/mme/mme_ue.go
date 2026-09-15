@@ -552,7 +552,8 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 		return nil
 	}
 
-	c := &UeConn{m: m, ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id)}
+	c := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(id)}
+	c.setENBUES1APID(enbUEID)
 	c.setConn(conn)
 	c.bindLog(m.nodeLogLocked(conn))
 	m.conns[id] = c
@@ -927,7 +928,7 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 			}
 		case it.ENBUES1APID != nil:
 			for _, c := range m.conns {
-				if c.Conn() == conn && c.ENBUES1APID == *it.ENBUES1APID {
+				if c.Conn() == conn && c.ENBUES1APID() == *it.ENBUES1APID {
 					out = append(out, c)
 					break
 				}
@@ -948,7 +949,7 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID == enbUEID {
+		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
 			stale = append(stale, c.ue)
 		}
 	}
@@ -972,7 +973,7 @@ func (m *MME) S1Identity(ue *UeContext) (S1APWriter, s1ap.MMEUES1APID, s1ap.ENBU
 		return nil, 0, 0
 	}
 
-	return ue.Conn().Conn(), ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	return ue.Conn().Conn(), ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 }
 
 // LookupUe finds the UE context bound to a connection by its MME-UE-S1AP-ID. A

@@ -105,7 +105,8 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ENBUES1APID: enbUES1APIDUnspecified, ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLog(m.nodeLogLocked(target))
 	m.conns[tid] = targetConn
@@ -236,7 +237,8 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 
 	held.prepared = true
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ENBUES1APID: enbUES1APIDUnspecified, ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLog(m.nodeLogLocked(target))
 	m.conns[tid] = targetConn
@@ -287,7 +289,7 @@ func (ho *handoverContext) targetIs(mmeID s1ap.MMEUES1APID, conn S1APWriter) boo
 }
 
 func (ho *handoverContext) targetNotifiedBy(conn S1APWriter, enbUEID s1ap.ENBUES1APID) bool {
-	return ho.target != nil && ho.target.Conn() == conn && ho.target.ENBUES1APID == enbUEID
+	return ho.target != nil && ho.target.Conn() == conn && ho.target.ENBUES1APID() == enbUEID
 }
 
 func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ackENBID s1ap.ENBUES1APID, conn S1APWriter) bool {
@@ -299,7 +301,7 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 		return false
 	}
 
-	ho.target.ENBUES1APID = ackENBID
+	ho.target.setENBUES1APID(ackENBID)
 	ho.target.refreshLog()
 
 	return true
@@ -353,7 +355,7 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 		return prep, true
 	}
 
-	prep.SourceConn, prep.SourceMMEID, prep.SourceENBID = ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID
+	prep.SourceConn, prep.SourceMMEID, prep.SourceENBID = ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID()
 
 	return prep, true
 }
@@ -380,7 +382,7 @@ func (m *MME) HandoverStatusTarget(ue *UeContext) (targetConn S1APWriter, target
 		return nil, 0, 0, false
 	}
 
-	return ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID, true
+	return ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID(), true
 }
 
 func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (admitted []AdmittedERAB, ok bool) {
@@ -427,7 +429,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	source.ue = nil // its Release Complete removes the connection
 	m.clearHandoverLocked(ue)
 
-	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID, target.MMEUES1APID, true
+	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), target.MMEUES1APID, true
 }
 
 func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget, aborted bool) {
@@ -442,7 +444,7 @@ func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEI
 		// Too late to cancel: acknowledge but let the in-flight move finish.
 	default:
 		if ho.target != nil {
-			releaseConn, releaseMMEID, releaseENBID = ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID
+			releaseConn, releaseMMEID, releaseENBID = ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID()
 			pair = ho.state == hoPrepared
 			hasTarget = true
 		}
@@ -503,7 +505,7 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 	}
 
 	ue.Conn().setConn(conn)
-	ue.Conn().ENBUES1APID = enbUEID
+	ue.Conn().setENBUES1APID(enbUEID)
 	ue.Conn().bindLog(m.nodeLogLocked(conn))
 
 	m.refreshLastSeenLocked(ue, ue.Conn())
@@ -560,7 +562,7 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 
 	sourceConn := ho.source.Conn()
 	sourceMMEID := ho.source.MMEUES1APID
-	sourceENBID := ho.source.ENBUES1APID
+	sourceENBID := ho.source.ENBUES1APID()
 
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
@@ -615,7 +617,7 @@ func (m *MME) unwindHandover(ctx context.Context, ue *UeContext, cause s1ap.Caus
 	logger.From(ctx, logger.MmeLog).Warn("S1 handover abandoned",
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(releaseTarget.MMEUES1APID)))
 
-	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, cause)
+	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID(), releasePair, cause)
 
 	return handoverAbandoned
 }
@@ -624,7 +626,7 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	m.mu.Lock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
-	if !ok || c.ue != nil || c.Conn() != conn || c.ENBUES1APID != enbUEID {
+	if !ok || c.ue != nil || c.Conn() != conn || c.ENBUES1APID() != enbUEID {
 		m.mu.Unlock()
 
 		return false

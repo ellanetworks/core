@@ -53,7 +53,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	fields := []zap.Field{
 		logger.SUPI(ue.Supi().String()),

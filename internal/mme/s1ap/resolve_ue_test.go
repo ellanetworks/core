@@ -88,7 +88,7 @@ func TestResolveUEValidPairResolves(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m)
 
-	got, gotConn, ok := resolveUE(t.Context(), m, conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
+	got, gotConn, ok := resolveUE(t.Context(), m, conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID())
 	if !ok || got != ue {
 		t.Fatalf("expected the valid AP-ID pair to resolve to the UE")
 	}

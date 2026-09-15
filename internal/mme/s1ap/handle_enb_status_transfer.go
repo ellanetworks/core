@@ -27,7 +27,7 @@ func handleENBStatusTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), st.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), st.Diagnostics())
 
 	ue.TouchLastSeen()
 

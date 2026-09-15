@@ -34,7 +34,10 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	ctx = logger.Into(ctx, ue.Conn().Log())
+	ctx = logger.Into(ctx, m.RadioLog(conn).With(
+		logger.SUPI(ue.Supi().String()),
+		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)),
+	))
 	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
@@ -72,6 +75,9 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	// held context, so secure exchange is established on the new connection from the
 	// outset.
 	m.AttachUeConn(ctx, ue, c)
+
+	ctx = logger.Into(ctx, c.Log())
+
 	c.MarkSecureExchangeEstablished()
 	c.MarkCipheringStarted()
 

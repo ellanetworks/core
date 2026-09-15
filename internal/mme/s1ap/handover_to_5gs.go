@@ -50,7 +50,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer could not prepare the handover", zap.Error(err))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(),
 				handoverToFiveGSFailureCause(err))
 		}
 
@@ -62,7 +62,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			logger.MMEUeS1apID(uint32(source.MMEUES1APID)))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(),
 				causeHOFailureInTarget)
 		}
 
@@ -87,7 +87,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	cmd := &s1ap.HandoverCommand{
 		MMEUES1APID:    source.MMEUES1APID,
-		ENBUES1APID:    source.ENBUES1APID,
+		ENBUES1APID:    source.ENBUES1APID(),
 		HandoverType:   s1ap.HandoverTypeEPSToFiveGS,
 		ERABToRelease:  releaseItems(unadmitted, nil),
 		TargetToSource: s1ap.TransparentContainer(resp.TargetToSource),
@@ -98,7 +98,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.From(ctx, logger.MmeLog).Error("failed to marshal the inter-system Handover Command", zap.Error(err))
 
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
-			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID, causeHandoverPrepUnspecific)
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), causeHandoverPrepUnspecific)
 		}
 
 		return

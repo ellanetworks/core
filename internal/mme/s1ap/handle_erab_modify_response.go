@@ -30,7 +30,7 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), resp.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), resp.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, resp.UserLocationInformation)

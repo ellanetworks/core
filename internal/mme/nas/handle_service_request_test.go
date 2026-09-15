@@ -74,8 +74,8 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
 	}
 
-	if ue.Conn().ENBUES1APID != 9 {
-		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.Conn().ENBUES1APID)
+	if ue.Conn().ENBUES1APID() != 9 {
+		t.Fatalf("UE not bound to the new eNB UE id, got %d", ue.Conn().ENBUES1APID())
 	}
 
 	if len(cc.sent) != 2 {

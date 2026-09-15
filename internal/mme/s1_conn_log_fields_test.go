@@ -15,11 +15,12 @@ import (
 func TestUeConnLogCarriesUeAssociationIDs(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 
-	ueConn := &UeConn{MMEUES1APID: 7, ENBUES1APID: enbUES1APIDUnspecified}
+	ueConn := &UeConn{MMEUES1APID: 7}
+	ueConn.setENBUES1APID(enbUES1APIDUnspecified)
 	ueConn.bindLog(zap.New(core))
 	ueConn.Log().Info("handover target prepared")
 
-	ueConn.ENBUES1APID = 42
+	ueConn.setENBUES1APID(42)
 	ueConn.refreshLog()
 	ueConn.Log().Info("handover target assigned")
 
@@ -50,7 +51,8 @@ func TestUeConnLogCarriesUeAssociationIDs(t *testing.T) {
 func TestUeConnLogWithoutBaseKeepsExplicitLogger(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 
-	ueConn := &UeConn{MMEUES1APID: 1, ENBUES1APID: 2}
+	ueConn := &UeConn{MMEUES1APID: 1}
+	ueConn.setENBUES1APID(2)
 	ueConn.setLog(zap.New(core))
 	ueConn.refreshLog()
 	ueConn.Log().Info("still mine")

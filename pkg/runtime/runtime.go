@@ -115,7 +115,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ver := version.GetVersion()
 
-	logger.EllaLog.Info("Starting Ella Core")
+	logger.EllaLog.Info("Starting Ella Core",
+		zap.String("service.version", ver.Version),
+		zap.String("service.revision", ver.Revision),
+	)
 
 	var tp *trace.TracerProvider
 

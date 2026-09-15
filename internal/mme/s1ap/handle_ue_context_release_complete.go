@@ -45,7 +45,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 

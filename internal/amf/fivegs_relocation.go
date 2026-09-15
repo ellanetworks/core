@@ -240,6 +240,8 @@ func (a *AMF) relocateFromEPS(
 }
 
 func (a *AMF) openArrivingSessions(ctx context.Context, ue *UeContext, conns []interworking.PDNConnection) (ngap.PDUSessionResourceSetupListHOReq, []HandoverCandidate, map[uint8]uint8, error) {
+	ctx = logger.Into(ctx, logger.AmfLog.With(logger.SUPI(ue.Supi().String())))
+
 	var (
 		sessions   ngap.PDUSessionResourceSetupListHOReq
 		candidates []HandoverCandidate

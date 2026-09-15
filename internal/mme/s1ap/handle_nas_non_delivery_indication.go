@@ -34,7 +34,7 @@ func handleNASNonDeliveryIndication(ctx context.Context, m *mme.MME, radio *mme.
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcNASNonDeliveryIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcNASNonDeliveryIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	fields := []zap.Field{
 		logger.MMEUeS1apID(uint32(msg.MMEUES1APID)),

@@ -114,6 +114,8 @@ func (m *MME) dropRelocation(ctx context.Context, ue *UeContext) {
 func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, targetID string, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	var none interworking.ForwardRelocationResponse
 
+	ctx = logger.Into(ctx, logger.MmeLog.With(logger.SUPI(ue.Supi().String())))
+
 	accepted, err := m.openRelocatedPDNs(ctx, ue, req.PDNConnections)
 	if err != nil {
 		return none, err

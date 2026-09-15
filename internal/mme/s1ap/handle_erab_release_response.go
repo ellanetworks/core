@@ -26,7 +26,7 @@ func HandleERABReleaseResponse(ctx context.Context, m *mme.MME, radio *mme.Radio
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, msg.UserLocationInformation)

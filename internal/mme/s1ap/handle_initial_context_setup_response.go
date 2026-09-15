@@ -45,7 +45,7 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	mmeUEID := *msg.MMEUES1APID
 

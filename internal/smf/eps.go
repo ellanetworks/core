@@ -55,7 +55,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 
 	defer func() {
-		recordSessionEstablishment(ctx, metrics.RAT4G, err, logger.SUPI(supi.String()), logger.DNN(req.APN))
+		recordSessionEstablishment(ctx, metrics.RAT4G, err, logger.DNN(req.APN))
 	}()
 
 	if err != nil {

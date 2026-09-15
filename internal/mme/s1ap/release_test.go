@@ -118,7 +118,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	req := &s1ap.UEContextReleaseRequest{
-		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID,
+		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(),
 		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}),
 	}
 

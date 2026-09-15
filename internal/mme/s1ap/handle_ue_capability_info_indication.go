@@ -27,7 +27,7 @@ func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mm
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

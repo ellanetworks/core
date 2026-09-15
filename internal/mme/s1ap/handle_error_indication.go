@@ -26,7 +26,7 @@ func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enb
 	}
 
 	ueConn := ue.Conn()
-	if ueConn == nil || ueConn.Conn() != conn || ueConn.ENBUES1APID != enbID {
+	if ueConn == nil || ueConn.Conn() != conn || ueConn.ENBUES1APID() != enbID {
 		return nil, nil, false
 	}
 
@@ -64,10 +64,10 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 		return nil, nil, false
 	}
 
-	if ueConn.ENBUES1APID != enbID {
+	if ueConn.ENBUES1APID() != enbID {
 		logger.From(ctx, logger.MmeLog).Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
 			logger.MMEUeS1apID(uint32(mmeID)),
-			zap.Uint32("stored_enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
+			zap.Uint32("stored_enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID())),
 			zap.Uint32("received_enb_ue_s1ap_id", uint32(enbID)))
 		sendErrorIndication(ctx, m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
 

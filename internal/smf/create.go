@@ -119,7 +119,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() {
 		recordSessionEstablishmentResult(ctx, metrics.RAT5G, establishmentResult,
-			logger.SUPI(supi.String()), logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
+			logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
 	}()
 
 	if isTransferRequest(requestType) {

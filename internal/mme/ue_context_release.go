@@ -27,7 +27,7 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
-	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
+	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, causeSupersededConnection)
 	m.guardDetachedRelease(ctx, c)
 }
 
@@ -40,7 +40,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release (detached)", 0)
 		defer span.End()
 
-		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID) {
+		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
 			logger.From(guardCtx, c.Log()).Info("reaped detached S1 connection after release timeout")
 		}
 	})
@@ -54,7 +54,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) bool {
 	m.mu.RLock()
 	c, ok := m.conns[uint32(mmeUEID)]
-	matched := ok && c.ue == nil && c.Conn() == conn && c.ENBUES1APID == enbUEID
+	matched := ok && c.ue == nil && c.Conn() == conn && c.ENBUES1APID() == enbUEID
 
 	m.mu.RUnlock()
 
@@ -97,7 +97,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 	}
 
 	cmd := &s1ap.UEContextReleaseCommand{
-		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID, Pair: true},
+		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID(), Pair: true},
 		Cause:     s1ap.Ptr(cause),
 	}
 
