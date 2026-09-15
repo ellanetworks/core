@@ -311,23 +311,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if local switch is enabled: %w", err)
 	}
 
-	// Initialize BGP service
-	n6IP, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name, config.IPv4)
-	if err != nil {
-		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
-	}
-
-	n6AddrV4, err := netip.ParseAddr(n6IP)
-	if err != nil {
-		return fmt.Errorf("couldn't parse N6 IP %q: %w", n6IP, err)
-	}
-
-	var n6AddrV6 netip.Addr
-
-	if n6IP6, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name, config.IPv6); err == nil {
-		if parsed, err := netip.ParseAddr(n6IP6); err == nil {
-			n6AddrV6 = parsed
-		}
+	n6AddrV4, n6AddrV6 := lookupN6Addresses(cfg.Interfaces.N6.Name)
+	if !n6AddrV4.IsValid() {
+		logger.EllaLog.Warn("N6 interface has no IPv4 address; starting without it. User-plane and BGP will be degraded until an address is present",
+			zap.String("interface", cfg.Interfaces.N6.Name))
 	}
 
 	realKernel := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
@@ -356,14 +343,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
 
-		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, !isNATEnabled)
-		if err != nil {
+		if err := adoptRouterID(ctx, dbInstance, bgpSettings, n6AddrV4); err != nil {
+			logger.EllaLog.Warn("BGP is enabled but has no router ID and none could be taken from the N6 interface; set one to start BGP",
+				zap.String("interface", cfg.Interfaces.N6.Name), zap.Error(err))
+		}
+
+		if err := bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, !isNATEnabled); err != nil {
 			listenAddr := bgpSettings.ListenAddress
 			if listenAddr == "" {
 				listenAddr = ":179"
 			}
 
-			logger.EllaLog.Error("BGP failed to start: address may be in use. Stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.", zap.String("address", listenAddr), zap.Error(err))
+			logger.EllaLog.Error("BGP failed to start; the BGP settings reconciler will retry. If the listen address is in use, stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.", zap.String("address", listenAddr), zap.Error(err))
 		}
 	}
 
@@ -378,6 +369,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID(), bgpWakeup)
 	bgpReconciler.Start()
+
+	// The N6 address watcher keeps the BGP next-hops aligned with the
+	// interface.
+	n6WatchCtx, stopN6Watch := context.WithCancel(ctx)
+	n6WatchDone := make(chan struct{})
+
+	defer stopN6Watch()
+
+	go func() {
+		defer close(n6WatchDone)
+
+		watchN6Addresses(n6WatchCtx, cfg.Interfaces.N6.Name, bgpService, func(v4 netip.Addr) {
+			adoptRouterIDWhenMissing(n6WatchCtx, dbInstance, v4)
+		})
+	}()
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
@@ -672,9 +678,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmeServer.Shutdown(stepCtx)
 		})
 
-		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
-		// stops first so no more Announce/Withdraw calls land on a
-		// shutting-down service.
+		// 4. Stop everything that writes into the BGP speaker: the N6
+		// address watcher and the lease reconciler.
+		logger.EllaLog.Info("Shutting down N6 address watcher")
+		stopN6Watch()
+		<-n6WatchDone
+
 		logger.EllaLog.Info("Shutting down BGP reconciler")
 		bgpReconciler.Stop()
 

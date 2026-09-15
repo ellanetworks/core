@@ -177,16 +177,6 @@ pyroscope.scrape "ella_core" {
       enabled = true
       path    = "/api/v1/pprof/goroutine"
     }
-    profile.block {
-      enabled = true
-      path    = "/api/v1/pprof/block"
-      delta   = true
-    }
-    profile.mutex {
-      enabled = true
-      path    = "/api/v1/pprof/mutex"
-      delta   = true
-    }
   }
 }
 

@@ -284,7 +284,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	}()
 
 	if opts.BGP != nil {
-		bgpStore := &bgpSettingsStoreAdapter{db: opts.DB, cfg: s.cfg}
+		bgpStore := &bgpSettingsStoreAdapter{db: opts.DB}
 		filterBuilder := func(fbCtx context.Context) (*bgp.RouteFilter, error) {
 			// Advertised prefixes (UE pools and framed routes) join the import
 			// reject set so a reflected prefix is not relearned into the kernel FIB.
@@ -321,8 +321,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 // converting from the DB row types into the BGP service's own types
 // so the bgp package does not depend on db.
 type bgpSettingsStoreAdapter struct {
-	db  *db.Database
-	cfg config.Config
+	db *db.Database
 }
 
 func (a *bgpSettingsStoreAdapter) GetSettings(ctx context.Context) (bgp.BGPSettings, error) {
@@ -331,26 +330,7 @@ func (a *bgpSettingsStoreAdapter) GetSettings(ctx context.Context) (bgp.BGPSetti
 		return bgp.BGPSettings{}, err
 	}
 
-	return a.withLocalBGPDefaults(settings), nil
-}
-
-func (a *bgpSettingsStoreAdapter) withLocalBGPDefaults(settings *db.BGPSettings) bgp.BGPSettings {
-	out := server.DBSettingsToBGPSettings(settings)
-	n3Addr := a.cfg.Interfaces.N3.Address
-
-	if out.RouterID == "" {
-		out.RouterID = n3Addr
-	}
-
-	if out.ListenAddress == "" {
-		if n3Addr == "" {
-			out.ListenAddress = ":179"
-		} else {
-			out.ListenAddress = net.JoinHostPort(n3Addr, "179")
-		}
-	}
-
-	return out
+	return server.DBSettingsToBGPSettings(settings), nil
 }
 
 func (a *bgpSettingsStoreAdapter) ListPeers(ctx context.Context) ([]bgp.BGPPeer, error) {
@@ -382,7 +362,7 @@ func seedReconcilerFromCurrentState(ctx context.Context, r *bgp.SettingsReconcil
 		return
 	}
 
-	r.MarkApplied(store.withLocalBGPDefaults(settings), server.DBPeersToBGPPeers(dbPeers), !natEnabled)
+	r.MarkApplied(server.DBSettingsToBGPSettings(settings), server.DBPeersToBGPPeers(dbPeers), !natEnabled)
 }
 
 // Handler returns the swappable HTTP handler backing the API server.

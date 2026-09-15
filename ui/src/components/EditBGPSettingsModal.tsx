@@ -99,7 +99,11 @@ const EditBGPSettingsModal: React.FC<EditBGPSettingsModalProps> = ({
       fullWidth={false}
     >
       <TextControl<FormValues> name="localAS" label="Local AS" autoFocus />
-      <TextControl<FormValues> name="routerID" label="Router ID" />
+      <TextControl<FormValues>
+        name="routerID"
+        label="Router ID"
+        helperText="Leave empty to adopt the current N6 IPv4 address when BGP is enabled."
+      />
       <TextControl<FormValues> name="listenAddress" label="Listen Address" />
     </FormDialog>
   );

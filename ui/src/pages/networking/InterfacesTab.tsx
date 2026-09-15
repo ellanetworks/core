@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import {
+  Alert,
   Box,
   Typography,
   Chip,
@@ -197,9 +198,10 @@ export default function InterfacesTab() {
                   </Typography>
                 ))
               ) : (
-                <Typography variant="body2" color="textSecondary">
-                  Address: <strong>—</strong>
-                </Typography>
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  No IP address on N6. The user plane and BGP are degraded until
+                  the interface has an address.
+                </Alert>
               )}
               {interfacesInfo.n6?.vlan && (
                 <Typography variant="body2" color="textSecondary">
