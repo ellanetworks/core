@@ -31,12 +31,12 @@ func TestIdentityAttributesAreOmittedWhenUnknown(t *testing.T) {
 	}
 }
 
-func TestMalformedIMSILeavesNoSupiOnTheSpan(t *testing.T) {
+func TestUnknownIdentityLeavesNoAttributeOnTheSpan(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 
-	_, span := tp.Tracer("test").Start(t.Context(), "db/get_session_policy",
-		trace.WithAttributes(attrs.SUPIFromIMSI("not-an-imsi"), attrs.DNN("internet")))
+	_, span := tp.Tracer("test").Start(t.Context(), "nas/receive",
+		trace.WithAttributes(attrs.SUPI(""), attrs.SUCI(""), attrs.DNN("internet")))
 	span.End()
 
 	spans := exp.GetSpans()
@@ -45,8 +45,8 @@ func TestMalformedIMSILeavesNoSupiOnTheSpan(t *testing.T) {
 	}
 
 	for _, a := range spans[0].Attributes {
-		if a.Key == "ue.supi" {
-			t.Errorf("a malformed IMSI stamped ue.supi=%q on the span", a.Value.AsString())
+		if a.Key == "ue.supi" || a.Key == "ue.suci" {
+			t.Errorf("an unknown identity stamped %s=%q on the span", a.Key, a.Value.AsString())
 		}
 	}
 }

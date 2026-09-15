@@ -677,7 +677,12 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 }
 
 func (ue *UeContext) SuspendRegistration(ctx context.Context) {
-	if conn := ue.Conn(); conn != nil {
+	conn := ue.Conn()
+
+	log := logger.WithTrace(ctx, conn.Log())
+	if conn == nil {
+		log = log.With(logger.SUPI(ue.Supi().String()))
+	} else {
 		conn.Release(ctx)
 	}
 
@@ -690,7 +695,7 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 
 	ue.mu.Unlock()
 
-	logger.From(ctx, logger.AmfLog).Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained", logger.SUPI(ue.supi.String()))
+	log.Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained")
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {

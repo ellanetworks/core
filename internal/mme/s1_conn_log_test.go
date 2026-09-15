@@ -129,3 +129,51 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 		t.Fatal("CommitPathSwitch never committed; the logger write was not exercised")
 	}
 }
+
+func countField(e observer.LoggedEntry, key string) int {
+	n := 0
+
+	for _, f := range e.Context {
+		if f.Key == key {
+			n++
+		}
+	}
+
+	return n
+}
+
+func TestReleaseUEContextLocallyNamesTheSubscriberExactlyOnce(t *testing.T) {
+	logs := observeMmeLogAt(t, zapcore.InfoLevel)
+
+	m := New(nil, nil, nil)
+
+	conn := &captureConn{}
+	trackRadioAt(m, conn, "10.0.0.1:36412")
+
+	c := m.NewUeConn(conn, 5)
+
+	ue := &UeContext{}
+	ue.active.Store(c)
+	c.ue = ue
+
+	m.SetIMSI(ue, "001010000000001")
+
+	ctx := logger.Into(t.Context(), c.Log())
+
+	m.ReleaseUEContextLocally(ctx, ue, "test")
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(entries))
+	}
+
+	for _, key := range []string{"supi", "mme_ue_s1ap_id", "enb_ue_s1ap_id"} {
+		if got := countField(entries[0], key); got > 1 {
+			t.Errorf("%q appears %d times in one record", key, got)
+		}
+	}
+
+	if countField(entries[0], "supi") != 1 {
+		t.Error("the release record does not name the subscriber")
+	}
+}

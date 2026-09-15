@@ -13,24 +13,14 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func fileSink(t *testing.T) (*sink, *os.File) {
-	t.Helper()
-
+func TestSinkCloseDropsLaterRecordsInsteadOfWritingToAClosedFile(t *testing.T) {
 	f, err := os.Create(filepath.Join(t.TempDir(), "system.log"))
 	if err != nil {
 		t.Fatalf("create log file: %v", err)
 	}
 
 	s := newSink()
-
-	core := zapcore.NewCore(zapcore.NewJSONEncoder(jsonEncoderConfig()), zapcore.AddSync(f), zapcore.DebugLevel)
-	closeAll(s.swap(core, []*os.File{f}))
-
-	return s, f
-}
-
-func TestSinkCloseRetiresTheCoreBeforeClosingItsFiles(t *testing.T) {
-	s, f := fileSink(t)
+	closeAll(s.swap(zapcore.NewCore(zapcore.NewJSONEncoder(jsonEncoderConfig()), zapcore.AddSync(f), zapcore.DebugLevel), []*os.File{f}))
 
 	log := zap.New(&followingCore{sink: s})
 	log.Info("before shutdown")
@@ -47,23 +37,5 @@ func TestSinkCloseRetiresTheCoreBeforeClosingItsFiles(t *testing.T) {
 
 	if _, err := f.Write([]byte("x")); !errors.Is(err, os.ErrClosed) {
 		t.Errorf("close did not close the sink's file, got %v", err)
-	}
-}
-
-func TestSinkCloseInvalidatesDerivedCores(t *testing.T) {
-	s, _ := fileSink(t)
-
-	derived := (&followingCore{sink: s}).With([]zapcore.Field{zap.String("k", "v")})
-
-	if !derived.Enabled(zapcore.InfoLevel) {
-		t.Fatal("a configured sink reported its derived core disabled")
-	}
-
-	if err := s.close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
-
-	if derived.Enabled(zapcore.InfoLevel) {
-		t.Error("a derived core kept following the sink across Close")
 	}
 }

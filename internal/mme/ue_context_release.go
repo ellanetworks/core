@@ -155,23 +155,28 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
 func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
+	ueConn := ue.Conn()
+	log := logger.WithTrace(ctx, ueConn.Log())
+
 	ue.settleDeliveryOnRelease(ctx)
 
-	registered, imsi, mmeUEID := m.releaseContextLockedPart(ue)
+	registered, imsi := m.releaseContextLockedPart(ue)
+
+	if ueConn == nil {
+		log = log.With(logger.SUPIFromIMSI(imsi))
+	}
 
 	if !registered {
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
-		logger.From(ctx, logger.MmeLog).Info("aborted incomplete UE registration",
-			zap.String("trigger", trigger), logger.MMEUeS1apID(uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
+		log.Info("aborted incomplete UE registration", zap.String("trigger", trigger))
 
 		return
 	}
 
 	m.DeactivateAllSessions(ctx, ue)
 	m.StartMobileReachable(ue)
-	logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger),
-		logger.MMEUeS1apID(uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
+	log.Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }
