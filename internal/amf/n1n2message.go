@@ -69,7 +69,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 			if !n2Setup.ClaimSession(req.PduSessionID) {
 				logger.From(ctx, logger.AmfLog).Debug("delivering N1 without a duplicate PDU session setup",
-					zap.Uint8("pdu_session_id", req.PduSessionID))
+					logger.PDUSessionID(req.PduSessionID))
 
 				return ueConn.SendDownlinkNASTransport(ctx, wire)
 			}
@@ -117,7 +117,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			ueConn.ResetICS()
 
 			logger.From(ctx, logger.AmfLog).Debug("delivering N1 without a duplicate PDU session setup",
-				zap.Uint8("pdu_session_id", req.PduSessionID))
+				logger.PDUSessionID(req.PduSessionID))
 
 			return ueConn.SendDownlinkNASTransport(ctx, wire)
 		}
@@ -388,7 +388,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		n2Setup := ueConn.N2Setup(N2SetupPDUSession)
 		if !n2Setup.ClaimSession(req.PduSessionID) {
 			logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
-				zap.Uint8("pdu_session_id", req.PduSessionID))
+				logger.PDUSessionID(req.PduSessionID))
 
 			return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 		}
@@ -428,7 +428,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		ueConn.ResetICS()
 
 		logger.From(ctx, logger.AmfLog).Warn("PDU session already set up on the NG-RAN node; dropping the duplicate N2 transfer",
-			zap.Uint8("pdu_session_id", req.PduSessionID))
+			logger.PDUSessionID(req.PduSessionID))
 
 		return "", &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectSROngoing}
 	}

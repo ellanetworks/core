@@ -95,7 +95,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return
 		}
 
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		logger.From(ctx, logger.AmfLog).Info("registration rejected: 5G not allowed for subscriber")
 
@@ -113,7 +113,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return
 		}
 
-		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 
@@ -127,13 +127,13 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 
 	if conn.RegistrationRequest.MICOIndication != nil {
-		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("RAAI", conn.RegistrationRequest.MICOIndication.RAAI))
+		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
 	}
 
 	if conn.RegistrationRequest.RequestedDRXParameters != nil {
 		drx := conn.RegistrationRequest.RequestedDRXParameters.Value
 		if drx > fgs.DRXCycleParameterT256 {
-			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drxValue", drx))
+			logger.From(ctx, logger.AmfLog).Warn("UE requested reserved DRX value, treating as not specified", zap.Stringer("drx_value", drx))
 			drx = fgs.DRXValueNotSpecified
 		}
 
@@ -158,7 +158,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	pduSessionStatus := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
 
-	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
 	initialContextSetup := false
 	if ueConn := ue.Conn(); ueConn != nil {

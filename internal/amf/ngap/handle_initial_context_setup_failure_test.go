@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -52,7 +51,7 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
@@ -75,7 +74,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	amfUe := amf.NewUeContext()
 	amfUe.ForceRegStepForTest(amf.RegStepContextSetup)
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	conn := amfUe.Conn()
@@ -109,7 +108,7 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xEE, 0xFF}
@@ -141,7 +140,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateForEverySession(t *t
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-session-1", Snssai: &models.Snssai{Sst: 1}}
 	amfUe.SmContextList[2] = &amf.SmContext{Ref: "ref-session-2", Snssai: &models.Snssai{Sst: 1}}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if got := ueConn.N2Setup(amf.N2SetupInitialContext).Claim([]uint8{1, 2}); len(got) != 2 {
@@ -180,7 +179,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateWithoutAFailedList(t
 	amfUe := amf.NewUeContext()
 	amfUe.SmContextList[1] = &amf.SmContext{Ref: "ref-session-1", Snssai: &models.Snssai{Sst: 1}}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	if !ueConn.N2Setup(amf.N2SetupInitialContext).ClaimSession(1) {

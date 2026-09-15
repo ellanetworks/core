@@ -28,7 +28,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *fgs.S
 		ue.EndKeyChainProc(procedure.SecurityMode)
 	}
 
-	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(msg.Cause.String()), logger.SUPI(ue.Supi().String()))
+	logger.From(ctx, logger.AmfLog).Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(msg.Cause.String()))
 
 	ue.ClearSecured()
 

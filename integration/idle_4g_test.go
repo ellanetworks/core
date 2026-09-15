@@ -38,14 +38,14 @@ func TestIntegration4GIdle(t *testing.T) {
 	}
 
 	// With no traffic, srsenb's inactivity timer fires and releases the UE.
-	if !waitForLog(ctx, t, dockerClient, "UE moved to ECM-IDLE") {
+	if !waitForLog(ctx, t, dockerClient, "UE idle") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
 		t.Fatal("MME did not move the UE to ECM-IDLE on the inactivity release")
 	}
 
 	// The EMM context must be retained, not deleted.
 	logs, err := dockerClient.ComposeLogs(ctx, "compose/srsenb/", "ella-core")
-	if err == nil && strings.Contains(logs, "UE context released") {
+	if err == nil && strings.Contains(logs, "UE context removed") {
 		t.Fatal("EMM context deleted on inactivity release; expected ECM-IDLE retention")
 	}
 

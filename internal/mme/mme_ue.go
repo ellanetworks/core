@@ -235,13 +235,15 @@ func (ue *UeContext) lastSeenTime() time.Time {
 func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
-		logger.MmeLog.Warn("rejecting malformed IMSI", zap.String("imsi", imsi), zap.Error(err))
+		logger.MmeLog.Warn("rejecting malformed IMSI", zap.String("rejected_imsi", imsi), zap.Error(err))
 		return
 	}
 
 	ue.mu.Lock()
 	ue.supi = supi
 	ue.mu.Unlock()
+
+	ue.active.Load().bindSupi(supi)
 }
 
 // TS 24.301 §5.5.1.2.7 f
@@ -272,7 +274,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	// m.mu, since external calls cannot run under it.
 	if superseded {
 		logger.MmeLog.Info("CommitUEIdentity superseding prior UE context; releasing its EPS sessions",
-			zap.String("imsi", supi.IMSI()))
+			logger.SUPI(supi.String()))
 		m.ReleaseAllSessions(ctx, old)
 	}
 
@@ -550,9 +552,10 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 		return nil
 	}
 
-	c := &UeConn{m: m, ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id)}
+	c := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(id)}
+	c.setENBUES1APID(enbUEID)
 	c.setConn(conn)
-	c.bindLog(m.nodeLogLocked(conn))
+	c.bindLogFields(m.nodeLogFieldsLocked(conn))
 	m.conns[id] = c
 
 	return c
@@ -648,6 +651,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 
 	ue.active.Store(c)
 	c.ue = ue
+	c.bindSupi(ue.Supi())
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
@@ -699,7 +703,7 @@ func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.ClearEPSPagingSuppression(ctx, imsi, p.Ebi); err != nil {
 			logger.MmeLog.Warn("failed to clear paging suppression on reconnect",
-				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+				logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
 }
@@ -869,17 +873,13 @@ func (m *MME) claimRelease(ue *UeContext) bool {
 // releaseContextLockedPart performs, under the registry lock, the registry side
 // of a local release: a registered UE keeps its context and is moved to ECM-IDLE
 // (its S1 connection freed), an unregistered one is removed. It returns whether
-// the UE was registered, plus its IMSI and MME-UE-S1AP-ID for post-release logging.
-func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi string, mmeUEID s1ap.MMEUES1APID) {
+// the UE was registered, plus its IMSI for post-release logging.
+func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	registered = ue.EMMState() == EMMRegistered
 	imsi = ue.imsiOrEmpty()
-
-	if ue.Conn() != nil {
-		mmeUEID = ue.Conn().MMEUES1APID
-	}
 
 	if registered {
 		m.freeUeConnLocked(ue)
@@ -887,7 +887,7 @@ func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi str
 		m.removeContextLocked(ue)
 	}
 
-	return registered, imsi, mmeUEID
+	return registered, imsi
 }
 
 // ConnsOnConn returns every UE-associated connection on the given eNB association.
@@ -924,7 +924,7 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 			}
 		case it.ENBUES1APID != nil:
 			for _, c := range m.conns {
-				if c.Conn() == conn && c.ENBUES1APID == *it.ENBUES1APID {
+				if c.Conn() == conn && c.ENBUES1APID() == *it.ENBUES1APID {
 					out = append(out, c)
 					break
 				}
@@ -945,7 +945,7 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID == enbUEID {
+		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
 			stale = append(stale, c.ue)
 		}
 	}
@@ -969,7 +969,7 @@ func (m *MME) S1Identity(ue *UeContext) (S1APWriter, s1ap.MMEUES1APID, s1ap.ENBU
 		return nil, 0, 0
 	}
 
-	return ue.Conn().Conn(), ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	return ue.Conn().Conn(), ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 }
 
 // LookupUe finds the UE context bound to a connection by its MME-UE-S1AP-ID. A

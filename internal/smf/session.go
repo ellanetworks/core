@@ -161,7 +161,7 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 		if err := s.releaseTunnel(ctx, sc); err != nil {
 			// Keep the lease so the address is not reused before its NAT conntrack is
 			// purged (see releaseUserPlaneThenAddresses).
-			logger.SmfLog.Warn("failed to release tunnel for aborted session; keeping IP lease", zap.String("imsi", imsi), zap.Error(err))
+			logger.SmfLog.Warn("failed to release tunnel for aborted session; keeping IP lease", logger.SUPIFromIMSI(imsi), zap.Error(err))
 			s.dropFromPool(sc)
 
 			return
@@ -173,7 +173,7 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 	if sc.PDUIPV4Address != nil || sc.PDUIPV6Prefix != nil {
 		dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
 		if err != nil {
-			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
+			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", logger.SUPIFromIMSI(imsi), zap.Error(err))
 		} else {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
 		}
@@ -333,7 +333,7 @@ func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *dropped
 			s.reportSessionNotMovedTo5GS(ctx, sc)
 
 			if releaseErr := s.releaseSession(ctx, sc.Ref); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
+				logger.From(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
 					zap.Error(releaseErr), zap.String("ref", sc.Ref))
 			}
 		}

@@ -102,7 +102,7 @@ func (s *smfDNNStore) pool(ipv6 bool) (ipam.Pool, error) {
 func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ip",
 		trace.WithAttributes(
-			attrs.IMSI(imsi),
+			attrs.SUPIFromIMSI(imsi),
 			attrs.DNN(s.dnn),
 			attrs.PDUSessionID(pduSessionID),
 		),
@@ -137,7 +137,7 @@ func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID 
 func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ip",
 		trace.WithAttributes(
-			attrs.IMSI(imsi),
+			attrs.SUPIFromIMSI(imsi),
 			attrs.DNN(s.dnn),
 			attrs.PDUSessionID(pduSessionID),
 		),
@@ -166,7 +166,7 @@ func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID u
 func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ipv6",
 		trace.WithAttributes(
-			attrs.IMSI(imsi),
+			attrs.SUPIFromIMSI(imsi),
 			attrs.DNN(s.dnn),
 			attrs.PDUSessionID(pduSessionID),
 		),
@@ -197,7 +197,7 @@ func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionI
 func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/release_ipv6",
 		trace.WithAttributes(
-			attrs.IMSI(imsi),
+			attrs.SUPIFromIMSI(imsi),
 			attrs.DNN(s.dnn),
 			attrs.PDUSessionID(pduSessionID),
 		),

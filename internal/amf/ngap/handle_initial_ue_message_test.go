@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -103,7 +102,7 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
-	amf.NewUeConnForTest(ran, 1, 99, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 99)
 
 	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,

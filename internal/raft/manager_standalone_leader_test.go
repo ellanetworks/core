@@ -27,7 +27,7 @@ func seedMultiServerRaftState(t testing.TB, dataDir string) {
 		t.Fatalf("create bolt store: %v", err)
 	}
 
-	snaps, err := raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snaps, err := raft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 	if err != nil {
 		_ = boltStore.Close()
 

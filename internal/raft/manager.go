@@ -302,7 +302,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 
 		var ssErr error
 
-		snapshotStore, ssErr = raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+		snapshotStore, ssErr = raft.NewFileSnapshotStoreWithLogger(raftDir, 3, newZapRaftSubLogger("snapshot"))
 		if ssErr != nil {
 			_ = boltStore.Close()
 			return fmt.Errorf("create snapshot store: %w", ssErr)

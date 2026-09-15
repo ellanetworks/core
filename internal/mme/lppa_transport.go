@@ -21,7 +21,7 @@ func (c *UeConn) SendDownlinkLPPaTransport(ctx context.Context, routingID uint8,
 
 	msg := &s1ap.DownlinkUEAssociatedLPPaTransport{
 		MMEUES1APID: c.MMEUES1APID,
-		ENBUES1APID: c.ENBUES1APID,
+		ENBUES1APID: c.ENBUES1APID(),
 		RoutingID:   s1ap.RoutingID(routingID),
 		LPPaPDU:     pdu,
 	}

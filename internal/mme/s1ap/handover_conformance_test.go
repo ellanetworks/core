@@ -108,7 +108,7 @@ func TestS1HandoverCommandCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
 	driveToPrepared(t, m, ue, source, target)
 
@@ -234,7 +234,7 @@ func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
 
-	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
 	req := sampleHandoverRequired(ue)
 	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x99}
@@ -457,7 +457,7 @@ func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
@@ -552,7 +552,7 @@ func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
-	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
@@ -610,7 +610,7 @@ func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 	body := dropIEs(t, initiatingValue(t, mustMarshal(t,
 		(&s1ap.HandoverCancel{
 			MMEUES1APID: ue.Conn().MMEUES1APID,
-			ENBUES1APID: ue.Conn().ENBUES1APID,
+			ENBUES1APID: ue.Conn().ENBUES1APID(),
 			Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}),
 		}).Marshal)), ieIDHandoverCause)
 
@@ -637,7 +637,7 @@ func TestS1MMEStatusTransferAddressesTheTargetWithTheSameContainer(t *testing.T)
 
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: ue.Conn().ENBUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID(),
 		Container:   container,
 	}
 
@@ -690,7 +690,7 @@ func TestS1StatusTransferWithNoHandoverIsNotRelayed(t *testing.T) {
 
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: ue.Conn().ENBUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID(),
 		Container:   s1ap.StatusTransferContainer{0x01},
 	}
 

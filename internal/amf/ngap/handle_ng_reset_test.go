@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -22,13 +21,12 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)
 	ran.BindAMFForTest(amfInstance)
-	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 0, 0)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	msg := &ngap.NGReset{
 		Cause:     miscCause(),
@@ -54,13 +52,12 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)
 	ran.BindAMFForTest(amfInstance)
-	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
-	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 0, 0)
+	amf.NewUeConnForTest(ran, 1, 1)
 
 	partOfNG := ngap.UEAssociatedLogicalNGConnectionList{{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(0)),
@@ -99,7 +96,6 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)

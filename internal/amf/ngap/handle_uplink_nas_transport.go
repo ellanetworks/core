@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -27,10 +26,10 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := amfInstance.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("error removing ran ue context", zap.Error(err))
+			ueConn.Log(ctx).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Error("No UE Context of UeConn")
+		ueConn.Log(ctx).Error("No UE Context of UeConn")
 
 		return
 	}
@@ -43,7 +42,7 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	}
 
 	if amfInstance.NAS == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("NAS handler not set")
+		ueConn.Log(ctx).Error("NAS handler not set")
 		return
 	}
 

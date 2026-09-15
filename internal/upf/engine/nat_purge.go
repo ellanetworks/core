@@ -72,7 +72,7 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 			}
 
 			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
-				zap.String("ueIP", ueIP.String()), zap.Int("count", count))
+				zap.String("ue_ip", ueIP.String()), zap.Int("count", count))
 
 			// A complete scan whose every match was deleted needs
 			// no confirming pass.
@@ -84,7 +84,7 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 		if attempt == natPurgeAttempts {
 			if scanErr != nil || len(matched) > 0 {
 				logger.UpfLog.Error("NAT conntrack purge unconfirmed; a reallocation of this address may inherit its flows",
-					zap.String("ueIP", ueIP.String()), zap.Int("lastRound", len(matched)), zap.Error(scanErr))
+					zap.String("ue_ip", ueIP.String()), zap.Int("last_round", len(matched)), zap.Error(scanErr))
 			}
 
 			return

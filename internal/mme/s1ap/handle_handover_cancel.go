@@ -28,7 +28,7 @@ func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		return
 	}
 
-	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), cancel.Diagnostics())
+	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID()), cancel.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -65,7 +65,7 @@ func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, releaseCause)
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", zap.Uint32("mme_ue_s1ap_id", uint32(cancel.MMEUES1APID)))
+	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", logger.MMEUeS1apID(uint32(cancel.MMEUES1APID)))
 	sendHandoverCancelAcknowledge(ctx, m, radio, cancel)
 }
 

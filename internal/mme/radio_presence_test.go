@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ func connectENB(t *testing.T, m *MME, name string, id uint32) *sctp.SCTPConn {
 	t.Helper()
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: name})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: name})
 	claimENBID(t, m, m.RadioForConn(conn), testENBID(id))
 
 	return conn
@@ -95,7 +96,7 @@ func TestMMEDisconnectRadioWithoutENBIDIsNotRetained(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-unclaimed"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-unclaimed"})
 
 	m.DisconnectRadio(conn)
 

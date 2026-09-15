@@ -16,7 +16,6 @@ import (
 	coremodels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	ngaplib "github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 // locationReportingControlProcCode is the NGAP procedure code for
@@ -86,7 +85,7 @@ func TestDetermineLocation_NR_StaleTriggersRefresh(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
@@ -187,7 +186,7 @@ func TestDetermineLocation_NR_FreshNoRefresh(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
@@ -252,7 +251,7 @@ func TestDetermineLocation_EUTRA_StaleTriggersRefresh(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
@@ -584,7 +583,7 @@ func TestRefreshLocation_Success(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	// Send a LocationReport message with EventType=Direct and NR user location.
@@ -693,7 +692,7 @@ func TestRefreshLocation_Timeout(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)

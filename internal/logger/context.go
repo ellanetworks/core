@@ -6,28 +6,76 @@ package logger
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-type loggerCtxKey struct{}
+type fieldsCtxKey struct{}
 
-// Into carries a connection-scoped logger for From to read back. Inject it at
-// message ingress keyed by the connection's temporary identity (AMF-UE-NGAP-ID /
-// MME-UE-S1AP-ID) so logs correlate by temporary identity rather than SUPI/IMSI
-// (TS 33.501 §6.12.3, TS 33.401 §7.1).
-func Into(ctx context.Context, l *zap.Logger) context.Context {
-	return context.WithValue(ctx, loggerCtxKey{}, l)
-}
+// Into carries request-scoped fields for From to read back. Inject it at
+// message ingress.
+func Into(ctx context.Context, fields ...zap.Field) context.Context {
+	kept := fields[:0:0]
 
-// From returns the logger stored by Into (or base when none is set), enriched
-// with the trace and span IDs from ctx. Handlers log through this instead of a
-// per-UE logger field, which would go stale when the UE context outlives the
-// connection whose identity it captured.
-func From(ctx context.Context, base *zap.Logger) *zap.Logger {
-	l := base
-	if v, ok := ctx.Value(loggerCtxKey{}).(*zap.Logger); ok && v != nil {
-		l = v
+	for _, f := range fields {
+		if f.Type == zapcore.SkipType || f.Key == "" {
+			continue
+		}
+
+		kept = append(kept, f)
 	}
 
-	return WithTrace(ctx, l)
+	if len(kept) == 0 {
+		return ctx
+	}
+
+	prev := Fields(ctx)
+
+	merged := make([]zap.Field, 0, len(prev)+len(kept))
+	merged = append(merged, prev...)
+	merged = append(merged, kept...)
+
+	return context.WithValue(ctx, fieldsCtxKey{}, merged)
+}
+
+func Fields(ctx context.Context) []zap.Field {
+	f, _ := ctx.Value(fieldsCtxKey{}).([]zap.Field)
+
+	return f
+}
+
+// From returns base enriched with the fields carried by ctx, any extra fields
+// the call site adds, and the trace and span IDs from ctx. base is never
+// substituted, so a helper keeps the destination and component it named.
+func From(ctx context.Context, base *zap.Logger, extra ...zap.Field) *zap.Logger {
+	fields := Fields(ctx)
+
+	sc := trace.SpanFromContext(ctx).SpanContext()
+
+	n := len(fields) + len(extra)
+	if sc.IsValid() {
+		n += 2
+	}
+
+	if n == 0 {
+		return base
+	}
+
+	out := make([]zap.Field, 0, n)
+	out = append(out, fields...)
+	out = append(out, extra...)
+
+	if sc.IsValid() {
+		out = append(out,
+			zap.String("trace_id", sc.TraceID().String()),
+			zap.String("span_id", sc.SpanID().String()),
+		)
+	}
+
+	return base.With(out...)
+}
+
+func Enabled(lvl zapcore.Level) bool {
+	return atomicLevel.Enabled(lvl)
 }

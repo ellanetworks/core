@@ -7,7 +7,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
@@ -79,14 +78,14 @@ var validEMMTransitions = map[EMMState][]EMMState{
 // transitionEMMLocked applies a validated EMM state change: an unexpected
 // transition resets the UE to EMM-DEREGISTERED as a fail-safe, never advancing
 // in a corrupt state. The caller holds ue.mu.
-func (ue *UeContext) transitionEMMLocked(target EMMState) {
+func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 	from := ue.emmState
 	if from == target {
 		return
 	}
 
 	if slices.Contains(validEMMTransitions[from], target) {
-		logger.MmeLog.Debug("state transition",
+		ue.active.Load().Log(ctx).Debug("state transition",
 			zap.String("from", from.String()), zap.String("to", target.String()))
 
 		ue.setEMMStateLocked(target)
@@ -94,7 +93,7 @@ func (ue *UeContext) transitionEMMLocked(target EMMState) {
 		return
 	}
 
-	logger.MmeLog.Error("invalid EMM state transition",
+	ue.active.Load().Log(ctx).Error("invalid EMM state transition",
 		zap.String("from", from.String()), zap.String("to", target.String()))
 
 	ue.setEMMStateLocked(EMMDeregistered)
@@ -156,5 +155,5 @@ func (ue *UeContext) TransitionTo(ctx context.Context, s EMMState) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.transitionEMMLocked(s)
+	ue.transitionEMMLocked(ctx, s)
 }

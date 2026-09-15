@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -45,7 +44,7 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	targetRan := newTestRadio(amfInstance)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(sourceRan, 1, 10)
 
 	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 999,
@@ -75,8 +74,8 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	targetRan := newTestRadio(amfInstance)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 20)
 
 	amfUe := amf.NewUeContext()
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
@@ -123,8 +122,8 @@ func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 	targetRan := newTestRadio(amfInstance)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
-	targetUe := amf.NewUeConnForTest(targetRan, 2, 20, logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 10)
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 20)
 
 	amfUe := amf.NewUeContext()
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)

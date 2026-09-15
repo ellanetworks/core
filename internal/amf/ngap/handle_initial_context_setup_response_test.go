@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -32,7 +31,7 @@ func TestInitialContextSetupResponse_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
-	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(ran, 1, 10)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
@@ -64,7 +63,7 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
@@ -99,7 +98,7 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
@@ -126,7 +125,7 @@ func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
 
 	amfUe := amf.NewUeContext()
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
@@ -151,7 +150,7 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{
@@ -180,7 +179,7 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &ngap.InitialContextSetupResponse{

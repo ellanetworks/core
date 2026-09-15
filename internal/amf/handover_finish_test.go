@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, *amf.UeConn) {
@@ -21,8 +20,8 @@ func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, 
 	ue.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
 	ue.SetNHForTest(make([]uint8, 32))
 
-	source := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
-	target := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
+	source := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1)
+	target := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2)
 
 	source.AMFForTest().AttachUeConn(t.Context(), ue, source)
 
@@ -175,7 +174,7 @@ func TestHandoverGuardDoesNotAbandonCommitting(t *testing.T) {
 			t.Fatal("the guard cleared a committing handover")
 		}
 
-		if !a.FinishHandoverCommit(ue, target) {
+		if !a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("a committing handover must still finalize after the guard fires")
 		}
 
@@ -202,7 +201,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 		commit(t, a, ue, target)
 
-		if !a.FinishHandoverCommit(ue, target) {
+		if !a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("FinishHandoverCommit must succeed for a present target")
 		}
 
@@ -222,7 +221,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 
 		commit(t, a, ue, target)
 
-		if !a.FinishHandoverCommit(ue, target) {
+		if !a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("FinishHandoverCommit")
 		}
 
@@ -242,7 +241,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 			t.Fatalf("RemoveUeConn: %v", err)
 		}
 
-		if a.FinishHandoverCommit(ue, target) {
+		if a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("FinishHandoverCommit must fail for a released target")
 		}
 
@@ -258,7 +257,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
-		if a.FinishHandoverCommit(ue, target) {
+		if a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("FinishHandoverCommit must fail before the committing stage")
 		}
 
@@ -275,7 +274,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 			t.Fatalf("Remove: %v", err)
 		}
 
-		if a.FinishHandoverCommit(ue, target) {
+		if a.FinishHandoverCommit(context.Background(), ue, target) {
 			t.Fatal("FinishHandoverCommit must fail for a target released during the switch")
 		}
 

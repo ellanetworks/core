@@ -29,7 +29,7 @@ func decoded(ctx context.Context, message string, err error) bool {
 	}
 
 	logger.From(ctx, logger.AmfLog).Warn("ignoring syntactically incorrect optional IEs (TS 24.501 §7.7.1)",
-		zap.String("message", message), zap.Error(err))
+		logger.MessageType(message), zap.Error(err))
 
 	return true
 }

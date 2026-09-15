@@ -43,7 +43,7 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		p := m.LookupPDN(ue, b.Ebi)
 		if p == nil {
 			logger.From(ctx, logger.MmeLog).Warn("RAN reports an E-RAB the core does not know; not switched",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", b.Ebi))
+				logger.SUPI(ue.Supi().String()), logger.ERABID(b.Ebi))
 
 			result.Failed = append(result.Failed, b.Ebi)
 
@@ -52,7 +52,7 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 
 		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, b.Ebi, b.EnbFTEID); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the RAN endpoint",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", b.Ebi), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), logger.ERABID(b.Ebi), zap.Error(err))
 
 			m.ReleasePDN(ctx, ue, p)
 
@@ -84,7 +84,7 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 			}
 
 			logger.From(ctx, logger.MmeLog).Info("releasing an E-RAB the RAN did not report; implicitly released",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", p.Ebi))
+				logger.SUPI(ue.Supi().String()), logger.ERABID(p.Ebi))
 
 			m.ReleasePDN(ctx, ue, p)
 			result.Released = append(result.Released, p.Ebi)

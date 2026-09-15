@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func TestHandoverFSM_Lifecycle(t *testing.T) {
@@ -17,8 +16,8 @@ func TestHandoverFSM_Lifecycle(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
-	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
+	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1)
+	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2)
 
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
@@ -54,8 +53,8 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1, zap.NewNop())
-	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2, zap.NewNop())
+	sourceUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-source"), 1, 1)
+	targetUe := amf.NewUeConnForTest(newRadioForTest(amfInstance, &sctp.SCTPConn{}, "gNB-target"), 2, 2)
 
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 

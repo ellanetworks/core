@@ -76,14 +76,14 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 	defer span.End()
 
 	if conn == nil {
-		logger.From(ctx, logger.MmeLog).Error("cannot send S1AP message: eNB connection is nil", zap.String("message-type", string(messageType)))
+		logger.From(ctx, logger.MmeLog).Error("cannot send S1AP message: eNB connection is nil", logger.MessageType(string(messageType)))
 		return
 	}
 
 	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: s1apStreamForProcedure(messageType)}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
-		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))
 
 		return
 	}

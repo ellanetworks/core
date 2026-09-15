@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -25,7 +24,7 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 
 	ue := ueConn.UeContext()
 	if ue == nil {
-		logger.From(ctx, ran.Log).Warn("no AMF UE context for NRPPa transport",
+		ran.Log(ctx).Warn("no AMF UE context for NRPPa transport",
 			zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)))
 
 		return
@@ -36,17 +35,17 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 	// message." Without this an unsolicited PDU reaches the ring the LMF
 	// correlates a pending measurement against.
 	if !ue.KnownNRPPaRoutingID(msg.RoutingID) {
-		logger.From(ctx, ran.Log).Warn("ignoring uplink NRPPa transport with an unknown Routing ID",
+		ran.Log(ctx).Warn("ignoring uplink NRPPa transport with an unknown Routing ID",
 			zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
-			zap.Binary("routing-id", msg.RoutingID))
+			zap.Binary("routing_id", msg.RoutingID))
 
 		return
 	}
 
 	ue.SetNRPPaMessage(msg.NRPPaPDU)
 
-	logger.From(ctx, ran.Log).Debug("stored uplink NRPPa PDU",
+	ran.Log(ctx).Debug("stored uplink NRPPa PDU",
 		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
-		zap.Int("payload-len", len(msg.NRPPaPDU)),
+		zap.Int("payload_len", len(msg.NRPPaPDU)),
 	)
 }

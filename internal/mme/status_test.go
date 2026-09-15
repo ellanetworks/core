@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestConnectedSubscribers(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	registered := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, registered, "001010000000001")
@@ -121,7 +122,7 @@ func TestLookupSubscriber(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, "001010000000001")
@@ -155,8 +156,8 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 
 func TestHasENBAndCount(t *testing.T) {
 	m := newTestMME(t)
-	m.trackRadio(new(sctp.SCTPConn), RadioInfo{Name: "enb-a", ID: "00f110-1"})
-	m.trackRadio(new(sctp.SCTPConn), RadioInfo{Name: "enb-b", ID: "00f110-2"})
+	m.trackRadio(context.Background(), new(sctp.SCTPConn), RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), new(sctp.SCTPConn), RadioInfo{Name: "enb-b", ID: "00f110-2"})
 
 	if !m.HasRadio("enb-a") {
 		t.Fatal("HasRadio(enb-a) = false, want true")
@@ -175,7 +176,7 @@ func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-a", ID: "00f110-1"})
 
 	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, "001010000000001")
@@ -255,7 +256,7 @@ func TestLastSeenRadioFallsBackToTheCapturedName(t *testing.T) {
 
 	m := newTestMME(t)
 	conn := new(sctp.SCTPConn)
-	m.trackRadio(conn, RadioInfo{Name: "enb-unclaimed"})
+	m.trackRadio(context.Background(), conn, RadioInfo{Name: "enb-unclaimed"})
 
 	ue := m.NewUe(t.Context(), conn, 7)
 	registerTestUE(m, ue, imsi)

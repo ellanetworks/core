@@ -4,11 +4,9 @@
 package raft
 
 import (
-	"bytes"
+	"fmt"
 	"io"
 	"log"
-	"strings"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/go-hclog"
@@ -78,49 +76,12 @@ func (l *zapRaftLogger) GetLevel() hclog.Level                                  
 func (l *zapRaftLogger) StandardLogger(*hclog.StandardLoggerOptions) *log.Logger { return nil }
 func (l *zapRaftLogger) StandardWriter(*hclog.StandardLoggerOptions) io.Writer   { return io.Discard }
 
-// zapIOWriter adapts an io.Writer to zap. hashicorp/raft's file snapshot
-// store and TCP transport build a stdlib *log.Logger over the writer
-// supplied at construction time; without this adapter their output bypasses
-// the structured logger and goes to bare stderr. Lines are buffered until a
-// newline and then forwarded to DBLog at Info level with a subsystem field,
-// so operators can grep one stream instead of three.
-type zapIOWriter struct {
-	mu        sync.Mutex
-	buf       []byte
-	zap       *zap.Logger
-	subsystem string
-}
-
-func newZapIOWriter(subsystem string) io.Writer {
-	return &zapIOWriter{
-		zap:       logger.RaftLog,
-		subsystem: subsystem,
-	}
-}
-
-func (w *zapIOWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.buf = append(w.buf, p...)
-
-	for {
-		i := bytes.IndexByte(w.buf, '\n')
-		if i < 0 {
-			break
-		}
-
-		line := strings.TrimRight(string(w.buf[:i]), "\r")
-		w.buf = w.buf[i+1:]
-
-		if line == "" {
-			continue
-		}
-
-		w.zap.Info(line, zap.String("subsystem", w.subsystem))
-	}
-
-	return len(p), nil
+// newZapRaftSubLogger returns the raft logger tagged with a subsystem
+// field. hashicorp/raft's file snapshot store and TCP transport accept an
+// hclog.Logger directly, so their output reaches zap with the level and
+// key/value pairs intact instead of being rendered to text first.
+func newZapRaftSubLogger(subsystem string) hclog.Logger {
+	return newZapRaftLogger().With("subsystem", subsystem)
 }
 
 func argsToFields(args []interface{}) []zap.Field {
@@ -132,8 +93,29 @@ func argsToFields(args []interface{}) []zap.Field {
 			continue
 		}
 
+		if f, ok := args[i+1].(hclog.Format); ok {
+			fields = append(fields, zap.String(key, formatValue(f)))
+			continue
+		}
+
 		fields = append(fields, zap.Any(key, args[i+1]))
 	}
 
 	return fields
+}
+
+// formatValue renders an hclog.Format, whose first element is a Printf
+// format string for the remaining elements. Without this the whole slice
+// is marshalled verbatim and the format verbs end up in the log output.
+func formatValue(f hclog.Format) string {
+	if len(f) == 0 {
+		return ""
+	}
+
+	format, ok := f[0].(string)
+	if !ok {
+		return fmt.Sprintf("%v", []interface{}(f))
+	}
+
+	return fmt.Sprintf(format, f[1:]...)
 }

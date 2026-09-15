@@ -4,8 +4,10 @@
 package mme
 
 import (
+	"context"
 	"sync/atomic"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -37,11 +39,12 @@ const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
 type UeConn struct {
-	ENBUES1APID               s1ap.ENBUES1APID
+	enbUES1APID               atomic.Uint32
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
-	log                       atomic.Pointer[zap.Logger]
-	baseLog                   atomic.Pointer[zap.Logger]
+	logFields                 atomic.Pointer[[]zap.Field]
+	baseLogFields             atomic.Pointer[[]zap.Field]
+	supi                      atomic.Pointer[string]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
@@ -73,39 +76,69 @@ type FiveGSArrival struct {
 	RemappedHeldContext bool
 }
 
-func (c *UeConn) Log() *zap.Logger {
+func (c *UeConn) ENBUES1APID() s1ap.ENBUES1APID {
+	return s1ap.ENBUES1APID(c.enbUES1APID.Load())
+}
+
+func (c *UeConn) setENBUES1APID(enbUEID s1ap.ENBUES1APID) {
+	c.enbUES1APID.Store(uint32(enbUEID))
+}
+
+func (c *UeConn) LogFields() []zap.Field {
 	if c == nil {
-		return logger.MmeLog
+		return nil
 	}
 
-	if l := c.log.Load(); l != nil {
-		return l
+	if f := c.logFields.Load(); f != nil {
+		return *f
 	}
 
-	return logger.MmeLog
+	return nil
 }
 
-func (c *UeConn) setLog(l *zap.Logger) {
-	c.log.Store(l)
+func (c *UeConn) Log(ctx context.Context) *zap.Logger {
+	return logger.From(ctx, logger.MmeLog, c.LogFields()...)
 }
 
-func (c *UeConn) bindLog(base *zap.Logger) {
-	c.baseLog.Store(base)
+func (c *UeConn) setLogFields(fields []zap.Field) {
+	c.logFields.Store(&fields)
+}
+
+func (c *UeConn) bindLogFields(base []zap.Field) {
+	c.baseLogFields.Store(&base)
+	c.refreshLog()
+}
+
+func (c *UeConn) bindSupi(supi etsi.SUPI) {
+	if c == nil || !supi.IsValid() {
+		return
+	}
+
+	s := supi.String()
+	c.supi.Store(&s)
 	c.refreshLog()
 }
 
 func (c *UeConn) refreshLog() {
-	base := c.baseLog.Load()
+	base := c.baseLogFields.Load()
 	if base == nil {
 		return
 	}
 
-	fields := []zap.Field{logger.MMEUeS1apID(uint32(c.MMEUES1APID))}
-	if c.ENBUES1APID != enbUES1APIDUnspecified {
-		fields = append(fields, logger.ENBUeS1apID(uint32(c.ENBUES1APID)))
+	fields := make([]zap.Field, 0, len(*base)+3)
+	fields = append(fields, *base...)
+
+	if supi := c.supi.Load(); supi != nil {
+		fields = append(fields, logger.SUPI(*supi))
 	}
 
-	c.setLog(base.With(fields...))
+	fields = append(fields, logger.MMEUeS1apID(uint32(c.MMEUES1APID)))
+
+	if enbUEID := c.ENBUES1APID(); enbUEID != enbUES1APIDUnspecified {
+		fields = append(fields, logger.ENBUeS1apID(uint32(enbUEID)))
+	}
+
+	c.setLogFields(fields)
 }
 
 func (c *UeConn) ArrivedFrom5GS() bool {

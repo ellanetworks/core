@@ -27,7 +27,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 	}
 
 	tmsi := ue.Tmsi()
-	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g-tmsi", tmsi.Uint32()))
+	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g_tmsi", tmsi.Uint32()))
 
 	amf.pageRadios(ctx, ue, ngapBuf)
 	amf.armPaging(ctx, ue, ngapBuf)

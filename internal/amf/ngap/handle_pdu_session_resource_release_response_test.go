@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -36,7 +35,7 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 
@@ -76,7 +75,7 @@ func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedBeforeSMFNotifi
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 
@@ -113,7 +112,7 @@ func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedWhenSMFRemovesS
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 	ueConn.SetN2SessionActive(1)
 

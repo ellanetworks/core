@@ -29,7 +29,7 @@ func handleConfigurationUpdateComplete(ctx context.Context, amfInstance *amf.AMF
 		ue.PagingDelivered(ctx)
 
 		if err := amf.DeliverStandaloneN1N2(ctx, ue, conn, req); err != nil {
-			logger.WithTrace(ctx, logger.AmfLog).Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
+			logger.From(ctx, logger.AmfLog).Warn("failed to deliver buffered standalone N1N2 message", zap.Error(err))
 		}
 	}
 

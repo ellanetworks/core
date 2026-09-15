@@ -113,7 +113,7 @@ func (c *UeConn) SendDownlinkNASTransport(ctx context.Context, nas []byte) {
 		return
 	}
 
-	b, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID, nas)
+	b, err := downlinkNASTransportBytes(c.MMEUES1APID, c.ENBUES1APID(), nas)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Downlink NAS Transport", zap.Error(err))
 		return
@@ -153,7 +153,7 @@ func (c *UeConn) SendInitialContextSetup(ctx context.Context, req *s1ap.InitialC
 		return nil
 	}
 
-	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID
+	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID()
 
 	b, err := req.Marshal()
 	if err != nil {
@@ -171,7 +171,7 @@ func (c *UeConn) SendERABSetup(ctx context.Context, req *s1ap.ERABSetupRequest) 
 		return nil
 	}
 
-	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID
+	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID()
 
 	b, err := req.Marshal()
 	if err != nil {
@@ -189,7 +189,7 @@ func (c *UeConn) SendERABModify(ctx context.Context, req *s1ap.ERABModifyRequest
 		return nil
 	}
 
-	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID
+	req.MMEUES1APID, req.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID()
 
 	b, err := req.Marshal()
 	if err != nil {
@@ -207,7 +207,7 @@ func (c *UeConn) SendERABRelease(ctx context.Context, cmd *s1ap.ERABReleaseComma
 		return nil
 	}
 
-	cmd.MMEUES1APID, cmd.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID
+	cmd.MMEUES1APID, cmd.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID()
 
 	b, err := cmd.Marshal()
 	if err != nil {
@@ -227,7 +227,7 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 		return nil
 	}
 
-	ack.MMEUES1APID, ack.ENBUES1APID = s1ap.Ptr(c.MMEUES1APID), s1ap.Ptr(c.ENBUES1APID)
+	ack.MMEUES1APID, ack.ENBUES1APID = s1ap.Ptr(c.MMEUES1APID), s1ap.Ptr(c.ENBUES1APID())
 
 	b, err := ack.Marshal()
 	if err != nil {
@@ -259,9 +259,9 @@ func ReportProtectFailure(ctx context.Context, c *UeConn, what string, err error
 		return
 	}
 
-	log.Error("downlink NAS COUNT exhausted, releasing the connection", zap.String("message", what), zap.Error(err))
+	log.Error("downlink NAS COUNT exhausted, releasing the connection", zap.String("procedure", what), zap.Error(err))
 
 	if c != nil && c.m != nil {
-		SendUEContextRelease(ctx, c.m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID, true, CauseNASNormalRelease)
+		SendUEContextRelease(ctx, c.m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID(), true, CauseNASNormalRelease)
 	}
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
@@ -1205,12 +1204,12 @@ func buildUeAndRadio() (*amf.UeContext, *fakeNGAPSender, error) {
 
 	ngapSender := fakeNGAPSender{}
 	radio := amf.Radio{
-		Log:  logger.AmfLog.With(logger.RanAddr("test_localhost")),
 		Conn: &ngapSender,
 	}
 
 	amfInstance := amf.New(nil, nil, nil)
 	radio.BindAMFForTest(amfInstance)
+	amf.BindRadioLogForTest(&radio, "test_localhost")
 
 	ueConn, err := amfInstance.NewUeConn(&radio, 0)
 	if err != nil {

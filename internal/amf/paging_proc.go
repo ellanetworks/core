@@ -252,10 +252,10 @@ func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest
 	}
 
 	if err := ue.smf.HandleN1N2TransferFailure(ctx, ue.Supi(), req.Req.PduSessionID, cause); err != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("could not report an N1N2 transfer failure",
+		logger.From(ctx, logger.AmfLog).Warn("could not report an N1N2 transfer failure",
 			logger.SUPI(ue.Supi().String()),
-			zap.Uint8("pdu_session_id", req.Req.PduSessionID),
-			zap.String("cause", cause.String()),
+			logger.PDUSessionID(req.Req.PduSessionID),
+			logger.Cause(cause.String()),
 			zap.Error(err))
 	}
 }

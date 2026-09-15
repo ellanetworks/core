@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
@@ -83,8 +84,9 @@ type UeConn struct {
 
 	deferredCause atomic.Pointer[ngap.Cause]
 	deferGuard    guard.Guard
-	log           atomic.Pointer[zap.Logger]
-	baseLog       atomic.Pointer[zap.Logger]
+	logFields     atomic.Pointer[[]zap.Field]
+	baseLogFields atomic.Pointer[[]zap.Field]
+	supi          atomic.Pointer[string]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -175,35 +177,61 @@ func (ueConn *UeConn) radioName() string {
 	return name
 }
 
-func (ueConn *UeConn) Log() *zap.Logger {
-	if l := ueConn.log.Load(); l != nil {
-		return l
+func (ueConn *UeConn) LogFields() []zap.Field {
+	if ueConn == nil {
+		return nil
 	}
 
-	return logger.AmfLog
+	if f := ueConn.logFields.Load(); f != nil {
+		return *f
+	}
+
+	return nil
 }
 
-func (ueConn *UeConn) setLog(l *zap.Logger) {
-	ueConn.log.Store(l)
+func (ueConn *UeConn) Log(ctx context.Context) *zap.Logger {
+	return logger.From(ctx, logger.AmfLog, ueConn.LogFields()...)
 }
 
-func (ueConn *UeConn) bindLog(base *zap.Logger) {
-	ueConn.baseLog.Store(base)
+func (ueConn *UeConn) setLogFields(fields []zap.Field) {
+	ueConn.logFields.Store(&fields)
+}
+
+func (ueConn *UeConn) bindLogFields(base []zap.Field) {
+	ueConn.baseLogFields.Store(&base)
+	ueConn.refreshLog()
+}
+
+func (ueConn *UeConn) bindSupi(supi etsi.SUPI) {
+	if ueConn == nil || !supi.IsValid() {
+		return
+	}
+
+	s := supi.String()
+	ueConn.supi.Store(&s)
 	ueConn.refreshLog()
 }
 
 func (ueConn *UeConn) refreshLog() {
-	base := ueConn.baseLog.Load()
+	base := ueConn.baseLogFields.Load()
 	if base == nil {
 		return
 	}
 
-	fields := []zap.Field{logger.AmfUeNgapID(ueConn.AmfUeNgapID)}
+	fields := make([]zap.Field, 0, len(*base)+3)
+	fields = append(fields, *base...)
+
+	if supi := ueConn.supi.Load(); supi != nil {
+		fields = append(fields, logger.SUPI(*supi))
+	}
+
+	fields = append(fields, logger.AmfUeNgapID(ueConn.AmfUeNgapID))
+
 	if ranUeNgapID := ueConn.RanUeNgapID(); ranUeNgapID != models.RanUeNgapIDUnspecified {
 		fields = append(fields, logger.RanUeNgapID(ranUeNgapID))
 	}
 
-	ueConn.setLog(base.With(fields...))
+	ueConn.setLogFields(fields)
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
@@ -563,7 +591,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 	amfUe := ueConn.UeContext()
 
 	if amfUe != nil && amfUe.State() != Registered {
-		logger.From(ctx, ueConn.Log()).Info("Ue Context in Non GMM-Registered")
+		ueConn.Log(ctx).Info("Ue Context in Non GMM-Registered")
 
 		ueConn.ReleaseAction = UeContextReleaseUeContext
 
@@ -571,7 +599,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 
 		for _, sr := range amfUe.SmContextRefs() {
 			if err := a.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				ueConn.Log(ctx).Error("error sending release sm context request", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 
@@ -579,7 +607,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 	}
 
 	if amfUe != nil {
-		logger.From(ctx, ueConn.Log()).Info("Ue Context in GMM-Registered")
+		ueConn.Log(ctx).Debug("Ue Context in GMM-Registered")
 
 		a.deactivateReleasedSessions(ctx, ueConn, amfUe, reported)
 	}
@@ -591,17 +619,17 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 
 func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, amfUe *UeContext, reported []uint8) {
 	if reported == nil {
-		logger.From(ctx, ueConn.Log()).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
+		ueConn.Log(ctx).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
 		for _, sr := range amfUe.SmContextRefs() {
 			if ueConn.N2SessionInactive(sr.PduSessionID) {
-				logger.From(ctx, ueConn.Log()).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
+				ueConn.Log(ctx).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
 
 				continue
 			}
 
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				ueConn.Log(ctx).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 
@@ -611,14 +639,14 @@ func (a *AMF) deactivateReleasedSessions(ctx context.Context, ueConn *UeConn, am
 	for _, pduSessionID := range reported {
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.From(ctx, ueConn.Log()).Warn("no SM context for a PDU session the NG-RAN node reported as established",
-				zap.Uint8("PduSessionID", pduSessionID))
+			ueConn.Log(ctx).Warn("no SM context for a PDU session the NG-RAN node reported as established",
+				logger.PDUSessionID(pduSessionID))
 
 			continue
 		}
 
 		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
-			logger.From(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			ueConn.Log(ctx).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 }
@@ -627,24 +655,25 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	a.ReleaseUeConnServedBy(ctx, ueConn, nil)
 }
 
-func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) {
+func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) (wentIdle bool) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
-		return
+		return false
 	}
 
-	if amfUe.State() == Registered {
+	registered := amfUe.State() == Registered
+	if registered {
 		for _, sr := range amfUe.SmContextRefs() {
 			if len(served) > 0 && !slices.Contains(served, sr.PduSessionID) && ueConn.N2SessionInactive(sr.PduSessionID) {
 				continue
 			}
 
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				ueConn.Log(ctx).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(sr.PduSessionID))
 			}
 		}
 
@@ -654,21 +683,27 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 	switch ueConn.ReleaseAction {
 	case UeContextN2NormalRelease:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
+
+		return registered
 	case UeContextReleaseUeContext:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
 		// A UE without a valid security context (never fully registered) has its AMF UE
 		// context deleted; a registered UE is kept.
 		if !amfUe.Secured() {
 			a.DeregisterAndRemoveUeContext(ctx, amfUe)
+
+			return false
 		}
+
+		return registered
 	case UeContextReleaseDueToNwInitiatedDeregistraion:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
 		a.DeregisterAndRemoveUeContext(ctx, amfUe)
@@ -676,7 +711,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		// A mid-registration UE is never "keep-context, go idle": delete unconditionally,
 		// even if it is Secured (a post-SMC registration failure).
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 
 		a.DeregisterAndRemoveUeContext(ctx, amfUe)
@@ -684,15 +719,17 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		a.ClearHandover(amfUe)
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 	case UeContextReleaseToEPS:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 	default:
-		logger.From(ctx, ueConn.Log()).Error("Invalid Release Action", zap.Any("ReleaseAction", ueConn.ReleaseAction))
+		ueConn.Log(ctx).Error("Invalid Release Action", zap.Any("release_action", ueConn.ReleaseAction))
 	}
+
+	return false
 }
 
 // abortHandoverOnRemoval ends an in-flight N2 handover when this UeConn — being removed —
@@ -721,7 +758,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 			a.dropRelocationFromEPS(ctx, ue)
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Info("aborted in-flight N2 handover: target association removed")
+		ueConn.Log(ctx).Info("aborted in-flight N2 handover: target association removed")
 	case source:
 		a.ClearHandover(ue)
 		a.UnbindHandoverTarget(ctx, ue)
@@ -733,7 +770,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Info("released prepared N2 handover target: source association removed")
+		ueConn.Log(ctx).Info("released prepared N2 handover target: source association removed")
 	}
 }
 
@@ -756,10 +793,10 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	a.mu.Unlock()
 
 	for _, ueConn := range stale {
-		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
+		ueConn.Log(ctx).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn")
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error(err.Error())
+			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 	}
 }
@@ -781,10 +818,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
-	logger.AmfLog.Info("ran ue removed",
-		zap.Uint64("amf_ue_ngap_id", uint64(ueConn.AmfUeNgapID)),
-		zap.Uint32("ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
-	)
+	ueConn.Log(ctx).Debug("ran ue removed")
 
 	return nil
 }
@@ -795,7 +829,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 // chain unadvanced so the source context stays consistent. The global conns
 // index is keyed by the unchanged AMF UE NGAP ID, so the switch only re-points
 // the UE at its new radio and RAN UE NGAP ID.
-func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID models.RanUeNgapID, nh [32]uint8, ncc uint8) bool {
+func (a *AMF) CommitPathSwitch(ctx context.Context, ue *UeContext, ueConn *UeConn, ran *Radio, ranUeNgapID models.RanUeNgapID, nh [32]uint8, ncc uint8) bool {
 	a.mu.Lock()
 
 	if ueConn == nil || ran == nil || a.conns[int64(ueConn.AmfUeNgapID)] != ueConn {
@@ -817,11 +851,11 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	ue.ncc = ncc
 	ue.mu.Unlock()
 
-	ueConn.bindLog(ran.Log)
+	ueConn.bindLogFields(ran.LogFields())
 
 	a.mu.Unlock()
 
-	ueConn.Log().Info("ran ue switched to new Ran")
+	ueConn.Log(ctx).Info("ran ue switched to new Ran")
 
 	return true
 }
@@ -830,7 +864,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 // It is intended for use in external test packages only. If the radio is not yet
 // bound to an AMF, a throwaway one is created so a handler invoked with this same
 // radio resolves the UE; tests that share a specific AMF must BindAMFForTest first.
-func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID models.AmfUeNgapID, log *zap.Logger) *UeConn {
+func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID models.AmfUeNgapID) *UeConn {
 	if radio.amf == nil {
 		radio.amf = New(nil, nil, nil)
 	}
@@ -841,7 +875,6 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 		amf:         radio.amf,
 	}
 	ueConn.setRanUeNgapID(ranUeNgapID)
-	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()
 
