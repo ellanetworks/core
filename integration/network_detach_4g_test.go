@@ -41,7 +41,7 @@ func TestIntegration4GNetworkDetach(t *testing.T) {
 		t.Fatalf("failed to delete subscriber: %v", err)
 	}
 
-	if !waitForLog(ctx, t, dockerClient, "network-initiated detach") {
+	if !waitForLog(ctx, t, dockerClient, "UE deregistered") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
 		t.Fatal("MME did not send a network-initiated detach on subscriber deletion")
 	}

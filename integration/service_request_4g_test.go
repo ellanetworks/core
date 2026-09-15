@@ -40,7 +40,7 @@ func TestIntegration4GServiceRequest(t *testing.T) {
 		t.Fatal("UE did not reach EMM-REGISTERED")
 	}
 
-	if !waitForLog(ctx, t, dockerClient, "UE moved to ECM-IDLE") {
+	if !waitForLog(ctx, t, dockerClient, "UE idle") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
 		t.Fatal("UE did not move to ECM-IDLE")
 	}
