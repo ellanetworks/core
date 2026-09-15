@@ -959,11 +959,23 @@ func (m *Manager) AddNonvoter(nodeID int, address string) error {
 	return nil
 }
 
+const incompleteSnapshotSuffix = ".tmp"
+
 func cleanSnapshotStaging(dataDir, raftDir string) {
+	snapshotDir := filepath.Join(raftDir, "snapshots")
+
 	dirs := []string{
 		snapshotStagingDir(dataDir),
-		filepath.Join(raftDir, "snapshots", "tmp"),
+		filepath.Join(snapshotDir, "tmp"),
 	}
+
+	incomplete, err := filepath.Glob(filepath.Join(snapshotDir, "*"+incompleteSnapshotSuffix))
+	if err != nil {
+		logger.RaftLog.Warn("Could not scan for incomplete raft snapshots",
+			zap.String("path", snapshotDir), zap.Error(err))
+	}
+
+	dirs = append(dirs, incomplete...)
 
 	for _, dir := range dirs {
 		switch _, err := os.Stat(dir); {
