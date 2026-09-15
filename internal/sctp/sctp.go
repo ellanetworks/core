@@ -647,10 +647,17 @@ func (c *SCTPConn) setReadDeadline(t time.Time) error {
 	return c.file.SetReadDeadline(t)
 }
 
-type sctpListener struct {
-	file   *os.File
-	rc     syscall.RawConn
-	closed atomic.Bool
+type Listener struct {
+	file      *os.File
+	rc        syscall.RawConn
+	laddr     *SCTPAddr
+	reqAddr   *SCTPAddr
+	ifaceName string
+	closed    atomic.Bool
+}
+
+func (ln *Listener) Addr() net.Addr {
+	return ln.laddr
 }
 
 // socketConfig contains options for the SCTP socket.
@@ -669,6 +676,6 @@ type socketConfig struct {
 	assocInfo *assocInfo
 }
 
-func (cfg *socketConfig) Listen(net string, laddr *SCTPAddr) (*sctpListener, error) {
+func (cfg *socketConfig) Listen(net string, laddr *SCTPAddr) (*Listener, error) {
 	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.rtoInfo, cfg.assocInfo, cfg.Control)
 }
