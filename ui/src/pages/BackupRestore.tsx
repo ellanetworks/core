@@ -30,6 +30,8 @@ import type { Theme } from "@mui/material/styles";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { PRODUCT } from "@/utils/product";
 
+const CARDS_MAX_WIDTH = 900;
+
 const headerStyles = {
   backgroundColor: (theme: Theme) => theme.palette.backgroundSubtle,
   color: "text.primary",
@@ -54,7 +56,7 @@ const BackupRestore = () => {
     enabled: authReady && !!accessToken,
   });
 
-  const pageDescription = `Create and download a full backup of ${PRODUCT.name}, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.`;
+  const pageDescription = `Take regular backups of ${PRODUCT.name} so you can recover your data after a hardware failure or data loss.`;
 
   const handleCreate = async () => {
     if (!authReady || !accessToken) {
@@ -197,8 +199,8 @@ const BackupRestore = () => {
           </Typography>
         </Box>
 
-        <Grid container spacing={4} sx={{ justifyContent: "flex-start" }}>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Grid container spacing={3} sx={{ maxWidth: CARDS_MAX_WIDTH }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Card
               sx={{
                 height: "100%",
@@ -239,7 +241,7 @@ const BackupRestore = () => {
             </Card>
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Card
               sx={{
                 height: "100%",
@@ -278,8 +280,10 @@ const BackupRestore = () => {
                       <>
                         <Typography variant="body2" color="textSecondary">
                           Upload a previously created backup file to restore{" "}
-                          {PRODUCT.name} to a previous state. This will
-                          overwrite your current configuration and data.
+                          {PRODUCT.name} to a previous state.{" "}
+                          <strong>
+                            This overwrites your current configuration and data.
+                          </strong>
                         </Typography>
 
                         <Box sx={{ flexGrow: 1 }} />
