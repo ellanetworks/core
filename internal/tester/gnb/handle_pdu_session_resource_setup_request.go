@@ -67,7 +67,12 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		}
 
 		pduSessionInfo.PDUSessionID = pduSessionID
-		pduSessionInfo.DLTEID = gnb.allocTEID()
+
+		if reused := gnb.reusableDLTEID(ranUeNgapID, pduSessionID); reused != 0 {
+			pduSessionInfo.DLTEID = reused
+		} else {
+			pduSessionInfo.DLTEID = gnb.allocTEID()
+		}
 
 		logger.GnbLogger.Debug(
 			"Parsed PDU Session Resource Setup Request Transfer",
