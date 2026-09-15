@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -96,7 +95,7 @@ func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
-	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	conn := NewUeConnForTest(radio, 1, 10)
 	a.AttachUeConn(t.Context(), ue, conn)
 
 	ue.PagingAnswered()
@@ -163,7 +162,7 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
-	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	conn := NewUeConnForTest(radio, 1, 10)
 	a.AttachUeConn(t.Context(), ue, conn)
 
 	ue.PagingAnswered()
@@ -276,7 +275,7 @@ func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
-	a.AttachUeConn(t.Context(), ue, NewUeConnForTest(radio, 1, 10, logger.AmfLog))
+	a.AttachUeConn(t.Context(), ue, NewUeConnForTest(radio, 1, 10))
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Errorf("paging state = %s after the UE re-established its connection, want Delivering", state)

@@ -40,6 +40,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	if amfInstance.ReleaseUeConnServedBy(ctx, ueConn, served) {
-		logger.From(ctx, ueConn.Log()).Info("UE idle", logger.RAT(metrics.RAT5G))
+		ueConn.Log(ctx).Info("UE idle", logger.RAT(metrics.RAT5G))
 	}
 }

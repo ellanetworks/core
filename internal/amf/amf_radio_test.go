@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -131,8 +130,8 @@ func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	radio.BindAMFForTest(amfInstance)
 
-	target1 := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
-	target2 := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 501, logger.AmfLog)
+	target1 := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500)
+	target2 := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 501)
 
 	if got := amfInstance.FindUEByAmfUeNgapID(radio, 500); got != target1 {
 		t.Errorf("FindUEByAmfUeNgapID(500) = %v, want first target", got)

@@ -41,7 +41,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode S1AP PDU")
-		logger.From(ctx, m.RadioLog(conn)).Warn("failed to decode S1AP PDU", zap.Error(err))
+		m.RadioLog(ctx, conn).Warn("failed to decode S1AP PDU", zap.Error(err))
 
 		if conn != nil {
 			sendProtocolErrorIndication(ctx, m, conn, s1ap.CauseProtocolTransferSyntaxError)
@@ -58,7 +58,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
 		isSetup = true
 
-		m.TrackRadioFromSetup(conn, im.Value)
+		m.TrackRadioFromSetup(ctx, conn, im.Value)
 	}
 
 	// radio is nil until S1 Setup records the eNB.
@@ -73,7 +73,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	// completes, drop every other message, including UE signalling from an eNB
 	// whose S1 Setup was rejected.
 	if !isSetup && (radio == nil || !radio.SetupComplete()) {
-		logger.From(ctx, m.RadioLog(conn)).Warn("S1AP message before S1 Setup, dropping",
+		m.RadioLog(ctx, conn).Warn("S1AP message before S1 Setup, dropping",
 			logger.MessageType(string(messageType)))
 
 		return

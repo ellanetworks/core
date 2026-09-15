@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -1001,10 +1000,7 @@ func observeDBLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(zapcore.ErrorLevel)
-	saved := logger.DBLog
-	logger.DBLog = zap.New(core)
-
-	t.Cleanup(func() { logger.DBLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }

@@ -41,7 +41,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
-	ctx = logger.Into(ctx, ueConn.Log())
+	ctx = logger.Into(ctx, ueConn.LogFields()...)
 
 	if !ue.Secured() {
 		logger.From(ctx, logger.MmeLog).Info("local detach of connected-but-unsecured UE on subscriber deletion")
@@ -52,7 +52,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 
-	logger.From(ctx, ueConn.Log()).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))
+	ueConn.Log(ctx).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))
 
 	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired}).MarshalBinary()
 	if err != nil {

@@ -34,10 +34,11 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	ctx = logger.Into(ctx, m.RadioLog(conn).With(
+	ctx = logger.Into(ctx, m.RadioLogFields(conn)...)
+	ctx = logger.Into(ctx,
 		logger.SUPI(ue.Supi().String()),
 		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)),
-	))
+	)
 	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
@@ -76,7 +77,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	// outset.
 	m.AttachUeConn(ctx, ue, c)
 
-	ctx = logger.Into(ctx, c.Log())
+	ctx = logger.Into(ctx, c.LogFields()...)
 
 	c.MarkSecureExchangeEstablished()
 	c.MarkCipheringStarted()

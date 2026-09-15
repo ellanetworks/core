@@ -67,7 +67,7 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
+		logger.From(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
 			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
 
 		return err
@@ -79,7 +79,7 @@ func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) 
 
 	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
+		logger.From(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
 			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
 
 		return fmt.Errorf("resolve data network for address release: %w", err)

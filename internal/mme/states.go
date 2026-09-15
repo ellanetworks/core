@@ -7,7 +7,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
@@ -86,7 +85,7 @@ func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 	}
 
 	if slices.Contains(validEMMTransitions[from], target) {
-		logger.From(ctx, ue.active.Load().Log()).Debug("state transition",
+		ue.active.Load().Log(ctx).Debug("state transition",
 			zap.String("from", from.String()), zap.String("to", target.String()))
 
 		ue.setEMMStateLocked(target)
@@ -94,7 +93,7 @@ func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 		return
 	}
 
-	logger.From(ctx, ue.active.Load().Log()).Error("invalid EMM state transition",
+	ue.active.Load().Log(ctx).Error("invalid EMM state transition",
 		zap.String("from", from.String()), zap.String("to", target.String()))
 
 	ue.setEMMStateLocked(EMMDeregistered)

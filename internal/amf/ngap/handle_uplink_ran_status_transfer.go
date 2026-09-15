@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -25,7 +24,7 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 
 	target := amfInstance.HandoverTarget(ueConn.UeContext())
 	if target == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("RAN Status Transfer with no handover in progress")
+		ueConn.Log(ctx).Warn("RAN Status Transfer with no handover in progress")
 		return
 	}
 

@@ -65,7 +65,7 @@ func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NGAP message")
-		logger.From(ctx, ran.Log()).Error("NGAP decode error", zap.Error(err))
+		ran.Log(ctx).Error("NGAP decode error", zap.Error(err))
 		sendProtocolErrorIndication(ctx, ran, ngap.CauseProtocolTransferSyntaxError)
 
 		return
@@ -215,7 +215,7 @@ func receiveErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if err != nil {
 		// TS 38.413 §10.5 forbids answering an Error Indication with another,
 		// so a failed parse is logged and dropped.
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Error Indication", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Error Indication", zap.Error(err))
 
 		return
 	}
@@ -249,7 +249,7 @@ func receiveNGSetup(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		// Octets that decoded as an NG Setup envelope but not as its body. The
 		// procedure is known even though no IE is, so the Error Indication
 		// cites it (§10.2, §9.3.1.3).
-		logger.From(ctx, ran.Log()).Error("NG Setup Request decode error", zap.Error(parseErr))
+		ran.Log(ctx).Error("NG Setup Request decode error", zap.Error(parseErr))
 		sendParseErrorIndication(ctx, ran, ngap.ProcNGSetup, parseErr)
 
 		return
@@ -266,7 +266,7 @@ func receiveNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 
 	req, err := ngap.ParseNGReset(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode NG Reset", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode NG Reset", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcNGReset, err)
 
 		return
@@ -296,7 +296,7 @@ func receiveRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ra
 		// Octets that decoded as the envelope but not as its body. The
 		// procedure is known even though no IE is, so the Error Indication
 		// cites it (§10.2, §9.3.1.3).
-		logger.From(ctx, ran.Log()).Error("RAN Configuration Update decode error", zap.Error(err))
+		ran.Log(ctx).Error("RAN Configuration Update decode error", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcRANConfigurationUpdate, err)
 
 		return
@@ -313,7 +313,7 @@ func receiveUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf
 
 	req, err := ngap.ParseUplinkRANConfigurationTransfer(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Uplink RAN Configuration Transfer", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Uplink RAN Configuration Transfer", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkRANConfigurationTransfer, err)
 
 		return
@@ -330,7 +330,7 @@ func receiveNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, 
 
 	ind, err := ngap.ParseNASNonDeliveryIndication(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode NAS Non Delivery Indication", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode NAS Non Delivery Indication", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcNASNonDeliveryIndication, err)
 
 		return
@@ -347,7 +347,7 @@ func receiveUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *a
 
 	req, err := ngap.ParseUplinkNASTransport(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Uplink NAS Transport", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Uplink NAS Transport", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkNASTransport, err)
 
 		return
@@ -364,7 +364,7 @@ func receiveInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	req, err := ngap.ParseInitialUEMessage(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Initial UE Message", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Initial UE Message", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcInitialUEMessage, err)
 
 		return
@@ -379,7 +379,7 @@ func setupComplete(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode)
 		return true
 	}
 
-	logger.From(ctx, ran.Log()).Warn("NGAP message before NG Setup, dropping",
+	ran.Log(ctx).Warn("NGAP message before NG Setup, dropping",
 		zap.String("procedure", proc.String()))
 
 	return false
@@ -393,7 +393,7 @@ func receiveUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, r
 
 	req, err := ngap.ParseUEContextReleaseRequest(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode UE Context Release Request", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode UE Context Release Request", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUEContextReleaseRequest, err)
 
 		return
@@ -410,7 +410,7 @@ func receiveUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, 
 
 	cpl, err := ngap.ParseUEContextReleaseComplete(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode UE Context Release Complete", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode UE Context Release Complete", zap.Error(err))
 
 		return
 	}
@@ -426,7 +426,7 @@ func receiveInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AM
 
 	resp, err := ngap.ParseInitialContextSetupResponse(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Initial Context Setup Response", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Initial Context Setup Response", zap.Error(err))
 
 		return
 	}
@@ -442,7 +442,7 @@ func receiveInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF
 
 	fail, err := ngap.ParseInitialContextSetupFailure(uo.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
 
 		return
 	}
@@ -458,7 +458,7 @@ func receiveUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *am
 
 	ind, err := ngap.ParseUERadioCapabilityInfoIndication(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode UE Radio Capability Info Indication", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode UE Radio Capability Info Indication", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUERadioCapabilityInfoIndication, err)
 
 		return
@@ -476,7 +476,7 @@ func receivePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *am
 
 	resp, err := ngap.ParsePDUSessionResourceSetupResponse(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode PDU Session Resource Setup Response", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode PDU Session Resource Setup Response", zap.Error(err))
 
 		return
 	}
@@ -491,7 +491,7 @@ func receivePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *
 
 	resp, err := ngap.ParsePDUSessionResourceReleaseResponse(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode PDU Session Resource Release Response", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode PDU Session Resource Release Response", zap.Error(err))
 
 		return
 	}
@@ -506,7 +506,7 @@ func receivePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *a
 
 	resp, err := ngap.ParsePDUSessionResourceModifyResponse(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode PDU Session Resource Modify Response", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode PDU Session Resource Modify Response", zap.Error(err))
 
 		return
 	}
@@ -521,7 +521,7 @@ func receivePDUSessionResourceModifyIndication(ctx context.Context, amfInstance 
 
 	ind, err := ngap.ParsePDUSessionResourceModifyIndication(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode PDU Session Resource Modify Indication", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode PDU Session Resource Modify Indication", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceModifyIndication, err)
 
 		return
@@ -537,7 +537,7 @@ func receiveHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	cancel, err := ngap.ParseHandoverCancel(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Handover Cancel", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Handover Cancel", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcHandoverCancel, err)
 
 		return
@@ -551,7 +551,7 @@ func receiveHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	notify, err := ngap.ParseHandoverNotify(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Handover Notify", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Handover Notify", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcHandoverNotification, err)
 
 		return
@@ -570,7 +570,7 @@ func receiveHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	required, err := ngap.ParseHandoverRequired(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Handover Required", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Handover Required", zap.Error(err))
 
 		var ase *ngap.AbstractSyntaxError
 		if errors.As(err, &ase) {
@@ -597,7 +597,7 @@ func receiveUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *a
 
 	transport, err := ngap.ParseUplinkUEAssociatedNRPPaTransport(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Uplink UE-associated NRPPa Transport", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Uplink UE-associated NRPPa Transport", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkUEAssociatedNRPPaTransport, err)
 
 		return
@@ -614,7 +614,7 @@ func receiveLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	report, err := ngap.ParseLocationReport(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Location Report", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Location Report", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcLocationReport, err)
 
 		return
@@ -632,7 +632,7 @@ func receivePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	req, err := ngap.ParsePathSwitchRequest(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Path Switch Request", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Path Switch Request", zap.Error(err))
 
 		var ase *ngap.AbstractSyntaxError
 		if errors.As(err, &ase) {
@@ -659,7 +659,7 @@ func receiveUplinkRANStatusTransfer(ctx context.Context, amfInstance *amf.AMF, r
 
 	transfer, err := ngap.ParseUplinkRANStatusTransfer(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Uplink RAN Status Transfer", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Uplink RAN Status Transfer", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkRANStatusTransfer, err)
 
 		return
@@ -676,7 +676,7 @@ func receiveHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF
 
 	ack, err := ngap.ParseHandoverRequestAcknowledge(so.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Handover Request Acknowledge", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Handover Request Acknowledge", zap.Error(err))
 		return
 	}
 
@@ -691,7 +691,7 @@ func receiveHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	failure, err := ngap.ParseHandoverFailure(uo.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode Handover Failure", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode Handover Failure", zap.Error(err))
 		return
 	}
 
@@ -703,7 +703,7 @@ func receivePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, 
 
 	notify, err := ngap.ParsePDUSessionResourceNotify(im.Value)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("failed to decode PDU Session Resource Notify", zap.Error(err))
+		ran.Log(ctx).Warn("failed to decode PDU Session Resource Notify", zap.Error(err))
 		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceNotify, err)
 
 		return

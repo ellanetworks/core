@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -18,10 +17,8 @@ func observeMmeLogAt(t *testing.T, lvl zapcore.Level) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(lvl)
-	saved := logger.MmeLog
-	logger.MmeLog = zap.New(core)
 
-	t.Cleanup(func() { logger.MmeLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }
@@ -64,13 +61,13 @@ func TestCommitPathSwitchRebindsConnLoggerToTargetENB(t *testing.T) {
 	ue.active.Store(c)
 	c.ue = ue
 
-	c.Log().Info("before")
+	c.Log(t.Context()).Info("before")
 
 	if _, ok := m.CommitPathSwitch(ue, target, 7, [32]byte{}, 0); !ok {
 		t.Fatal("CommitPathSwitch did not commit")
 	}
 
-	c.Log().Info("after")
+	c.Log(t.Context()).Info("after")
 
 	entries := logs.All()
 	if len(entries) != 2 {
@@ -110,7 +107,7 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 				commits.Add(1)
 			}
 		},
-		func() { _ = c.Log() },
+		func() { _ = c.Log(t.Context()) },
 	} {
 		wg.Add(1)
 
@@ -127,53 +124,5 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 
 	if commits.Load() == 0 {
 		t.Fatal("CommitPathSwitch never committed; the logger write was not exercised")
-	}
-}
-
-func countField(e observer.LoggedEntry, key string) int {
-	n := 0
-
-	for _, f := range e.Context {
-		if f.Key == key {
-			n++
-		}
-	}
-
-	return n
-}
-
-func TestReleaseUEContextLocallyNamesTheSubscriberExactlyOnce(t *testing.T) {
-	logs := observeMmeLogAt(t, zapcore.InfoLevel)
-
-	m := New(nil, nil, nil)
-
-	conn := &captureConn{}
-	trackRadioAt(m, conn, "10.0.0.1:36412")
-
-	c := m.NewUeConn(conn, 5)
-
-	ue := &UeContext{}
-	ue.active.Store(c)
-	c.ue = ue
-
-	m.SetIMSI(ue, "001010000000001")
-
-	ctx := logger.Into(t.Context(), c.Log())
-
-	m.ReleaseUEContextLocally(ctx, ue, "test")
-
-	entries := logs.All()
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 log entry, got %d", len(entries))
-	}
-
-	for _, key := range []string{"supi", "mme_ue_s1ap_id", "enb_ue_s1ap_id"} {
-		if got := countField(entries[0], key); got > 1 {
-			t.Errorf("%q appears %d times in one record", key, got)
-		}
-	}
-
-	if countField(entries[0], "supi") != 1 {
-		t.Error("the release record does not name the subscriber")
 	}
 }

@@ -70,16 +70,16 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 			icsReceived = p.EnbFTEID.TEID != 0
 		}
 
-		logger.From(ctx, ueConn.Log()).Warn("UE Context Release Request aborted an in-progress attach",
+		ueConn.Log(ctx).Warn("UE Context Release Request aborted an in-progress attach",
 			append(fields, zap.Bool("ics_response_received", icsReceived))...)
 	} else {
-		logger.From(ctx, ueConn.Log()).Debug("UE Context Release Request", fields...)
+		ueConn.Log(ctx).Debug("UE Context Release Request", fields...)
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {
 		ueConn.DeferRelease(ctx, cause)
 
-		logger.From(ctx, ueConn.Log()).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
+		ueConn.Log(ctx).Info("keeping the S1 connection: user inactivity reported while downlink traffic or signalling is pending")
 
 		return
 	}

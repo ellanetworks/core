@@ -6,63 +6,61 @@ package mme
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/per"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestUeConnLogCarriesUeAssociationIDs(t *testing.T) {
-	core, logs := observer.New(zapcore.DebugLevel)
+func fieldByKey(fields []zap.Field, key string) (zap.Field, bool) {
+	for _, f := range fields {
+		if f.Key == key {
+			return f, true
+		}
+	}
 
+	return zap.Field{}, false
+}
+
+func TestUeConnLogFieldsCarryUeAssociationIDs(t *testing.T) {
 	ueConn := &UeConn{MMEUES1APID: 7}
 	ueConn.setENBUES1APID(enbUES1APIDUnspecified)
-	ueConn.bindLog(zap.New(core))
-	ueConn.Log().Info("handover target prepared")
+	ueConn.bindLogFields([]zap.Field{logger.RanAddr("10.0.0.1")})
+
+	prepared := ueConn.LogFields()
+
+	if f, ok := fieldByKey(prepared, "mme_ue_s1ap_id"); !ok || f.Integer != 7 {
+		t.Errorf("expected mme_ue_s1ap_id 7, got %v", prepared)
+	}
+
+	if _, ok := fieldByKey(prepared, "enb_ue_s1ap_id"); ok {
+		t.Errorf("expected enb_ue_s1ap_id to be omitted while unspecified, got %v", prepared)
+	}
+
+	if f, ok := fieldByKey(prepared, "ran_addr"); !ok || f.String != "10.0.0.1" {
+		t.Errorf("expected the eNB fields to be carried through, got %v", prepared)
+	}
 
 	ueConn.setENBUES1APID(42)
 	ueConn.refreshLog()
-	ueConn.Log().Info("handover target assigned")
 
-	entries := logs.All()
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 log entries, got %d", len(entries))
+	assigned := ueConn.LogFields()
+
+	if f, ok := fieldByKey(assigned, "mme_ue_s1ap_id"); !ok || f.Integer != 7 {
+		t.Errorf("expected mme_ue_s1ap_id 7, got %v", assigned)
 	}
 
-	prepared := entries[0].ContextMap()
-	if prepared["mme_ue_s1ap_id"] != uint32(7) {
-		t.Errorf("expected mme_ue_s1ap_id 7, got %v", prepared["mme_ue_s1ap_id"])
-	}
-
-	if _, ok := prepared["enb_ue_s1ap_id"]; ok {
-		t.Errorf("expected enb_ue_s1ap_id to be omitted while unspecified, got %v", prepared["enb_ue_s1ap_id"])
-	}
-
-	assigned := entries[1].ContextMap()
-	if assigned["mme_ue_s1ap_id"] != uint32(7) {
-		t.Errorf("expected mme_ue_s1ap_id 7, got %v", assigned["mme_ue_s1ap_id"])
-	}
-
-	if assigned["enb_ue_s1ap_id"] != uint32(42) {
-		t.Errorf("expected enb_ue_s1ap_id 42, got %v", assigned["enb_ue_s1ap_id"])
+	if f, ok := fieldByKey(assigned, "enb_ue_s1ap_id"); !ok || f.Integer != 42 {
+		t.Errorf("expected enb_ue_s1ap_id 42, got %v", assigned)
 	}
 }
 
-func TestUeConnLogWithoutBaseKeepsExplicitLogger(t *testing.T) {
-	core, logs := observer.New(zapcore.DebugLevel)
-
+func TestUeConnWithoutABoundRadioCarriesNoFields(t *testing.T) {
 	ueConn := &UeConn{MMEUES1APID: 1}
 	ueConn.setENBUES1APID(2)
-	ueConn.setLog(zap.New(core))
 	ueConn.refreshLog()
-	ueConn.Log().Info("still mine")
 
-	if logs.Len() != 1 {
-		t.Fatalf("expected 1 log entry, got %d", logs.Len())
-	}
-
-	if got := logs.All()[0].ContextMap(); len(got) != 0 {
-		t.Errorf("expected no injected fields, got %v", got)
+	if got := ueConn.LogFields(); len(got) != 0 {
+		t.Errorf("expected no fields before the radio is bound, got %v", got)
 	}
 }
 

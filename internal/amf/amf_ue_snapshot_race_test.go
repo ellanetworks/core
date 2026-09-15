@@ -4,6 +4,7 @@
 package amf
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestSnapshotConnectedAgreesWithConnection(t *testing.T) {
 
 		for range 20000 {
 			a.mu.Lock()
-			a.attachUeConnLocked(ue, ueConn)
+			a.attachUeConnLocked(context.Background(), ue, ueConn)
 			a.mu.Unlock()
 
 			ueConn.Release(t.Context())

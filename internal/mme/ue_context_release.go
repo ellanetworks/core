@@ -41,7 +41,7 @@ func (m *MME) guardDetachedRelease(ctx context.Context, c *UeConn) {
 		defer span.End()
 
 		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID()) {
-			logger.From(guardCtx, c.Log()).Info("reaped detached S1 connection after release timeout")
+			c.Log(guardCtx).Info("reaped detached S1 connection after release timeout")
 		}
 	})
 }
@@ -107,7 +107,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 		return
 	}
 
-	logger.From(ctx, c.Log()).Debug("UE Context Release Command")
+	c.Log(ctx).Debug("UE Context Release Command")
 	c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
 }
 
@@ -156,7 +156,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // registered UE drops to ECM-IDLE.
 func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
 	ueConn := ue.Conn()
-	log := logger.WithTrace(ctx, ueConn.Log())
+	log := ueConn.Log(ctx)
 
 	ue.settleDeliveryOnRelease(ctx)
 

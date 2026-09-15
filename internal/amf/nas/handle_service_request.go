@@ -316,7 +316,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	serviceType := msg.ServiceType
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("service_type", serviceType.String()))
+	logger.From(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("service_type", serviceType.String()))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool

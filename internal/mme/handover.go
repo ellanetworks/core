@@ -108,7 +108,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
-	targetConn.bindLog(m.nodeLogLocked(target))
+	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	m.conns[tid] = targetConn
 
 	ho := &handoverContext{
@@ -240,7 +240,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
-	targetConn.bindLog(m.nodeLogLocked(target))
+	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
 	m.conns[tid] = targetConn
 
 	delivery := make(chan relocationOutcome, 1)
@@ -506,7 +506,7 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 
 	ue.Conn().setConn(conn)
 	ue.Conn().setENBUES1APID(enbUEID)
-	ue.Conn().bindLog(m.nodeLogLocked(conn))
+	ue.Conn().bindLogFields(m.nodeLogFieldsLocked(conn))
 
 	m.refreshLastSeenLocked(ue, ue.Conn())
 

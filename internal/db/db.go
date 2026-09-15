@@ -514,7 +514,7 @@ func (db *Database) runMigrationCheckWorker(ctx context.Context) {
 		checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
 		if err := db.CheckPendingMigrations(checkCtx); err != nil {
-			logger.WithTrace(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
+			logger.From(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
 				zap.Error(err))
 		}
 
@@ -843,7 +843,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	if current >= target {
-		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on cluster member upgrades",
+		logger.From(ctx, logger.DBLog).Info("Migration deferred: waiting on cluster member upgrades",
 			zap.Int("current", current),
 			zap.Int("binary_max", binaryMax),
 			zap.Int("member_floor", floor),
@@ -854,7 +854,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	for v := current + 1; v <= target; v++ {
-		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
+		logger.From(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("target_version", v))
 
 		if _, err := opMigrateShared.Invoke(ctx, db, migrateSharedPayload{TargetVersion: v}); err != nil {
@@ -942,7 +942,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 	}
 
 	if len(configuration) == 0 {
-		logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
+		logger.From(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
 
 		return 0, 0, nil
 	}
@@ -971,7 +971,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 
 		m, ok := rows[nodeID]
 		if !ok {
-			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
+			logger.From(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
 				zap.Int("node_id", nodeID),
 			)
 
@@ -980,7 +980,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 
 		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
+			logger.From(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
 				zap.Int("node_id", nodeID),
 				zap.String("raft_address", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
@@ -1056,7 +1056,7 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 			c.db.signalMigrationCheck()
 
 			if err := c.db.reconcileClusterMembers(ctx); err != nil {
-				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
+				logger.From(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
 			}
 		}
 	}
@@ -1106,7 +1106,7 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 			continue
 		}
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
+		logger.From(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
 			zap.Int("node_id", nodeID),
 		)
 
@@ -1152,12 +1152,12 @@ func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
 
 func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID int) {
 	if err := db.DeleteDynamicLeasesByNode(ctx, nodeID); err != nil {
-		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
+		logger.From(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
 			zap.Int("node_id", nodeID), zap.Error(err))
 	}
 
 	if err := db.DeleteClusterNodeCert(ctx, nodeID); err != nil {
-		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
+		logger.From(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
 			zap.Int("node_id", nodeID), zap.Error(err))
 	}
 }
@@ -1200,7 +1200,7 @@ func (db *Database) ensureClusterID(ctx context.Context) error {
 		return fmt.Errorf("set cluster ID: %w", err)
 	}
 
-	logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
+	logger.From(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
 
 	return nil
 }
@@ -1213,7 +1213,7 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 	}
 
 	if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
-		logger.WithTrace(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
+		logger.From(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
 	}
 
 	return nil
@@ -1348,7 +1348,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		}
 	}
 
-	logger.WithTrace(ctx, logger.DBLog).Debug("Database Initialized")
+	logger.From(ctx, logger.DBLog).Debug("Database Initialized")
 
 	return db, nil
 }
@@ -1830,7 +1830,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.From(ctx, logger.DBLog).Info("Initialized audit log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(ctx, CategoryRadioLogs) {
@@ -1843,7 +1843,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize radio event retention policy: %v", err)
 		}
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
+		logger.From(ctx, logger.DBLog).Info("Initialized radio event retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(ctx, CategorySubscriberUsage) {
@@ -1856,7 +1856,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize subscriber usage retention policy: %v", err)
 		}
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
+		logger.From(ctx, logger.DBLog).Info("Initialized subscriber usage retention policy", zap.Int("days", DefaultSubscriberUsageRetentionDays))
 	}
 
 	if !db.IsRetentionPolicyInitialized(ctx, CategoryFlowReports) {
@@ -1869,7 +1869,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize flow reports retention policy: %v", err)
 		}
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
+		logger.From(ctx, logger.DBLog).Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(ctx)

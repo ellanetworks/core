@@ -163,7 +163,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 // clears them, so a later rollback does not double-release.
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smContext *SMContext) {
 	if held := s.currentSession(smContext.Supi, smContext.sessionKey()); held != nil && held != smContext {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("skipping UE address release for a superseded session",
+		logger.From(ctx, logger.SmfLog).Warn("skipping UE address release for a superseded session",
 			logger.SUPI(smContext.Supi.String()), zap.String("held_by", held.Ref))
 
 		smContext.PDUIPV4Address = nil
@@ -174,7 +174,7 @@ func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smCont
 
 	if smContext.PDUIPV4Address != nil {
 		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
+			logger.From(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
 		}
 
 		smContext.PDUIPV4Address = nil
@@ -182,7 +182,7 @@ func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smCont
 
 	if smContext.PDUIPV6Prefix != nil {
 		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
+			logger.From(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
 		}
 
 		smContext.PDUIPV6Prefix = nil

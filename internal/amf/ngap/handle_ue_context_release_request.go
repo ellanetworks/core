@@ -35,7 +35,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	reportDiagnostics(ctx, ran, ngap.ProcUEContextReleaseRequest, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle UE Context Release Request")
+	ueConn.Log(ctx).Debug("Handle UE Context Release Request")
 
 	// An omitted Cause is an ignore-criticality absence: the NG-RAN node has
 	// dropped the radio connection either way, so the release proceeds under a
@@ -50,13 +50,13 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			fields = append(fields, logger.SUPI(ueConn.UeContext().Supi().String()))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context Release Cause", fields...)
+		ueConn.Log(ctx).Debug("UE Context Release Cause", fields...)
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {
 		ueConn.DeferRelease(ctx, cause)
 
-		logger.WithTrace(ctx, ueConn.Log()).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
+		ueConn.Log(ctx).Info("keeping the NG connection: user inactivity reported while downlink traffic or signalling is pending")
 
 		return
 	}

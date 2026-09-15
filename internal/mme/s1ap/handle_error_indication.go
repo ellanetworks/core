@@ -296,7 +296,7 @@ func emitErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, i
 func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseErrorIndication(value)
 	if err != nil {
-		logger.From(ctx, m.RadioLog(radio.Conn)).Warn("failed to decode Error Indication", zap.Error(err))
+		m.RadioLog(ctx, radio.Conn).Warn("failed to decode Error Indication", zap.Error(err))
 		return
 	}
 
@@ -322,7 +322,7 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 		fields = append(fields, logger.Cause(mme.S1apCauseName(msg.Cause)))
 	}
 
-	logger.From(ctx, m.RadioLog(radio.Conn)).Warn("Error Indication", fields...)
+	m.RadioLog(ctx, radio.Conn).Warn("Error Indication", fields...)
 
 	if msg.MMEUES1APID == nil {
 		return

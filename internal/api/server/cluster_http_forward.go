@@ -172,6 +172,6 @@ func writeProposeForwardCodedError(ctx context.Context, w http.ResponseWriter, s
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		logger.WithTrace(ctx, logger.APILog).Warn("cluster propose: failed to encode error body", zap.Error(err))
+		logger.From(ctx, logger.APILog).Warn("cluster propose: failed to encode error body", zap.Error(err))
 	}
 }

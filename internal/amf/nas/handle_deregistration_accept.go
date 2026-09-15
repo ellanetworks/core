@@ -22,7 +22,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command")
+		logger.From(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command")
 		return nasreply.Handled()
 	}
 

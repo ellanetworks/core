@@ -333,7 +333,7 @@ func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *dropped
 			s.reportSessionNotMovedTo5GS(ctx, sc)
 
 			if releaseErr := s.releaseSession(ctx, sc.Ref); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
+				logger.From(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
 					zap.Error(releaseErr), zap.String("ref", sc.Ref))
 			}
 		}

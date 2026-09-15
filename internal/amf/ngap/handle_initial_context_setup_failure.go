@@ -21,7 +21,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		cause = msg.Cause.String()
 	}
 
-	logger.WithTrace(ctx, ran.Log()).Warn("Initial Context Setup Failure received", logger.Cause(cause))
+	ran.Log(ctx).Warn("Initial Context Setup Failure received", logger.Cause(cause))
 
 	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
@@ -34,7 +34,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("amfUe is nil")
+		ueConn.Log(ctx).Error("amfUe is nil")
 		return
 	}
 
@@ -51,7 +51,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
+	ueConn.Log(ctx).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
 	for _, item := range msg.PDUSessionResourceFailed {
 		pduSessionID := uint8(item.PDUSessionID)
@@ -59,13 +59,13 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
+			ueConn.Log(ctx).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
 		err := amfInstance.Session.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
+			ueConn.Log(ctx).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -21,7 +20,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 		// A successful or unsuccessful outcome answers a procedure the AMF never
 		// initiated, so there is nothing to reject: it is left to local error
 		// handling.
-		logger.From(ctx, ran.Log()).Warn("ignoring unsupported procedure outcome")
+		ran.Log(ctx).Warn("ignoring unsupported procedure outcome")
 
 		return
 	}
@@ -37,7 +36,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 		return
 	}
 
-	logger.From(ctx, ran.Log()).Warn("unsupported initiating procedure",
+	ran.Log(ctx).Warn("unsupported initiating procedure",
 		zap.String("procedure", im.ProcedureCode.String()))
 
 	proc := im.ProcedureCode

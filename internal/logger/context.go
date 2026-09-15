@@ -6,26 +6,69 @@ package logger
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-type loggerCtxKey struct{}
+type fieldsCtxKey struct{}
 
-// Into carries a connection-scoped logger for From to read back. Inject it at
-// message ingress.
-func Into(ctx context.Context, l *zap.Logger) context.Context {
-	return context.WithValue(ctx, loggerCtxKey{}, l)
-}
+// Into carries request-scoped fields for From to read back. Inject it at
+// message ingress. Fields accumulate in call order, and a record keeps only the
+// last field named for a key, so a nested Into refines what an outer one set.
+func Into(ctx context.Context, fields ...zap.Field) context.Context {
+	kept := fields[:0:0]
 
-// From returns the logger stored by Into (or base when none is set), enriched
-// with the trace and span IDs from ctx. Handlers log through this instead of a
-// per-UE logger field, which would go stale when the UE context outlives the
-// connection whose identity it captured.
-func From(ctx context.Context, base *zap.Logger) *zap.Logger {
-	l := base
-	if v, ok := ctx.Value(loggerCtxKey{}).(*zap.Logger); ok && v != nil {
-		l = v
+	for _, f := range fields {
+		if f.Type == zapcore.SkipType || f.Key == "" {
+			continue
+		}
+
+		kept = append(kept, f)
 	}
 
-	return WithTrace(ctx, l)
+	if len(kept) == 0 {
+		return ctx
+	}
+
+	prev := Fields(ctx)
+
+	merged := make([]zap.Field, 0, len(prev)+len(kept))
+	merged = append(merged, prev...)
+	merged = append(merged, kept...)
+
+	return context.WithValue(ctx, fieldsCtxKey{}, merged)
+}
+
+// Fields returns the request-scoped fields carried by ctx, or nil.
+func Fields(ctx context.Context) []zap.Field {
+	f, _ := ctx.Value(fieldsCtxKey{}).([]zap.Field)
+
+	return f
+}
+
+// From returns base enriched with the request-scoped fields carried by ctx and
+// with the trace and span IDs of the active span. base itself — its sink and
+// its component name — is never substituted, so a helper that names its own
+// destination keeps it whatever the caller put in the context.
+func From(ctx context.Context, base *zap.Logger) *zap.Logger {
+	fields := Fields(ctx)
+
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		if len(fields) == 0 {
+			return base
+		}
+
+		return base.With(fields...)
+	}
+
+	out := make([]zap.Field, 0, len(fields)+2)
+	out = append(out, fields...)
+	out = append(out,
+		zap.String("trace_id", sc.TraceID().String()),
+		zap.String("span_id", sc.SpanID().String()),
+	)
+
+	return base.With(out...)
 }

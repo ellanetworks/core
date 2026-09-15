@@ -56,7 +56,7 @@ func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureC
 func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {
-		logger.From(ctx, ran.Log()).Error("failed to marshal Error Indication", zap.Error(err))
+		ran.Log(ctx).Error("failed to marshal Error Indication", zap.Error(err))
 
 		return
 	}
@@ -138,7 +138,7 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		fields = append(fields, logger.Cause(msg.Cause.String()))
 	}
 
-	logger.From(ctx, ran.Log()).Warn("Error Indication", fields...)
+	ran.Log(ctx).Warn("Error Indication", fields...)
 
 	if msg.AMFUENGAPID == nil {
 		return

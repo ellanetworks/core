@@ -41,7 +41,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Access != by {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("skipping deactivation for an access that no longer serves the session",
+		logger.From(ctx, logger.SmfLog).Debug("skipping deactivation for an access that no longer serves the session",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		return nil
@@ -52,7 +52,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 
 	// Session already torn down; nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
+		logger.From(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		return nil
@@ -73,7 +73,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		// and its UE-IP map entries; nothing sweeps orphaned SEIDs, so dropping the
 		// SEID there strands all of them.
 		if errors.Is(err, models.ErrSessionNotFound) {
-			logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session is gone on the UPF, clearing stale tunnel",
+			logger.From(ctx, logger.SmfLog).Warn("PFCP session is gone on the UPF, clearing stale tunnel",
 				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 				logger.SEID(seid))
 			// The responder is keyed by uplink TEID with no owner check, so an entry
@@ -82,7 +82,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 			smContext.Tunnel = nil
 			smContext.PFCPContext = nil
 		} else {
-			logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed; keeping the SEID so the session can still be deleted",
+			logger.From(ctx, logger.SmfLog).Warn("PFCP session modification failed; keeping the SEID so the session can still be deleted",
 				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 				logger.SEID(seid))
 		}
@@ -90,7 +90,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return fmt.Errorf("deactivate the user plane of session %d: %w", seid, err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.From(ctx, logger.SmfLog).Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }

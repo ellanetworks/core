@@ -52,7 +52,7 @@ func (smContext *SMContext) dnsForModification(req *fgs.PDUSessionModificationRe
 
 func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMContext, req *fgs.PDUSessionModificationRequest, pti uint8) (*UpdateResult, error) {
 	if smContext.networkProcedureOutstanding() {
-		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring a UE-requested PDU session modification that collided with an outstanding network-requested procedure",
+		logger.From(ctx, logger.SmfLog).Info("ignoring a UE-requested PDU session modification that collided with an outstanding network-requested procedure",
 			zap.Bool("releasing", smContext.releasing),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -60,7 +60,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 	}
 
 	if req.Cause != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Info("the UE reported an error against its own QoS state",
+		logger.From(ctx, logger.SmfLog).Info("the UE reported an error against its own QoS state",
 			logger.Cause(req.Cause.String()),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 	}
@@ -68,7 +68,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 	if requestsQoSChange(req) {
 		cause := qoSChangeRejectCause(req)
 
-		logger.WithTrace(ctx, logger.SmfLog).Info("rejecting a UE request to change the session's QoS",
+		logger.From(ctx, logger.SmfLog).Info("rejecting a UE request to change the session's QoS",
 			logger.Cause(cause.String()),
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -103,7 +103,7 @@ func (s *SMF) handleUERequestedModification(ctx context.Context, smContext *SMCo
 				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 		})
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("accepted a UE-requested PDU session modification",
+	logger.From(ctx, logger.SmfLog).Info("accepted a UE-requested PDU session modification",
 		zap.Bool("always_on_answered", alwaysOn != nil), zap.Bool("dns_answered", dns != nil),
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 

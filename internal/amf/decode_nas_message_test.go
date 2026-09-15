@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"go.uber.org/zap"
 )
 
 func newDecoderTestUE(t *testing.T) *UeContext {
@@ -31,7 +30,6 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 	}
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
-	ueConn.setLog(zap.NewNop())
 	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue

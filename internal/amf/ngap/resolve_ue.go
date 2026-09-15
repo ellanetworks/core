@@ -32,7 +32,7 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID 
 // message is dropped where it stands.
 func resolveUEIDs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID) (*amf.UeConn, bool) {
 	if amfID == nil || ranID == nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("UE-associated NGAP message without both UE NGAP IDs")
+		ran.Log(ctx).Warn("UE-associated NGAP message without both UE NGAP IDs")
 
 		return nil, false
 	}
@@ -55,7 +55,7 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 	if amfID != nil {
 		ueConn := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*amfID))
 		if ueConn == nil {
-			logger.WithTrace(ctx, ran.Log()).Warn("Unknown local AMF-UE-NGAP-ID on this radio",
+			ran.Log(ctx).Warn("Unknown local AMF-UE-NGAP-ID on this radio",
 				zap.Uint64("amf_ue_ngap_id", uint64(*amfID)))
 			sendUnknownLocalUEError(ctx, ran, amfID, ranID)
 
@@ -63,7 +63,7 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 		}
 
 		if ranID != nil && ueConn.RanUeNgapID() != models.RanUeNgapID(*ranID) {
-			logger.WithTrace(ctx, ran.Log()).Warn("Inconsistent remote RAN-UE-NGAP-ID",
+			ran.Log(ctx).Warn("Inconsistent remote RAN-UE-NGAP-ID",
 				zap.Uint64("amf_ue_ngap_id", uint64(*amfID)),
 				zap.Uint32("stored_ran_ue_ngap_id", uint32(ueConn.RanUeNgapID())),
 				zap.Uint32("received_ran_ue_ngap_id", uint32(*ranID)))
@@ -80,7 +80,7 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 	if ranID != nil {
 		ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*ranID))
 		if ueConn == nil {
-			logger.WithTrace(ctx, ran.Log()).Warn("Unknown remote RAN-UE-NGAP-ID on this radio",
+			ran.Log(ctx).Warn("Unknown remote RAN-UE-NGAP-ID on this radio",
 				logger.RanUeNgapID(models.RanUeNgapID(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 

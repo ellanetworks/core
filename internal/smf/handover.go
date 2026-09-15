@@ -74,7 +74,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("build Handover Request Transfer Error: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Request transfer",
+	logger.From(ctx, logger.SmfLog).Info("Handover Request transfer",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 		zap.Bool("direct_forwarding", direct))
 
@@ -129,7 +129,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to open the indirect data forwarding tunnel")
 
-		logger.WithTrace(ctx, logger.SmfLog).Warn("could not open an indirect data forwarding tunnel; the handover proceeds without forwarding",
+		logger.From(ctx, logger.SmfLog).Warn("could not open an indirect data forwarding tunnel; the handover proceeds without forwarding",
 			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), zap.Error(err))
 
 		smContext.handoverForwardingPlan = nil
@@ -143,7 +143,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("build Handover Command Transfer Error: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Handover Command transfer",
+	logger.From(ctx, logger.SmfLog).Info("Handover Command transfer",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 		zap.Bool("data_forwarding", smContext.handoverForwardingPlan.Forwards()))
 
@@ -171,7 +171,7 @@ func (s *SMF) openN2ForwardingTunnel(ctx context.Context, sc *SMContext) error {
 
 	plan.RelayThrough(sc.Tunnel.ForwardingTEID, addr)
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
+	logger.From(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
 		logger.TEID(sc.Tunnel.ForwardingTEID))
 
@@ -293,7 +293,7 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 	smContext.forwardingRelease.Stop()
 
 	if err := s.closeForwardingTunnel(ctx, smContext); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release the forwarding tunnel of a refused handover",
+		logger.From(ctx, logger.SmfLog).Warn("failed to release the forwarding tunnel of a refused handover",
 			logger.SUPI(smContext.Supi.String()), zap.Error(err))
 	}
 
@@ -307,7 +307,7 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 		return fmt.Errorf("failed to unmarshall handover resource allocation unsuccessful transfer: %w", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("target NG-RAN node refused a PDU session at handover",
+	logger.From(ctx, logger.SmfLog).Info("target NG-RAN node refused a PDU session at handover",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
 		logger.Cause(transfer.Cause.String()))
 
@@ -346,11 +346,11 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 	smContext.forwardingRelease.Stop()
 
 	if err := s.closeForwardingTunnel(ctx, smContext); err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release the forwarding tunnel of a cancelled handover",
+		logger.From(ctx, logger.SmfLog).Warn("failed to release the forwarding tunnel of a cancelled handover",
 			logger.SUPI(smContext.Supi.String()), zap.Error(err))
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("dropped the target endpoint of an abandoned N2 handover",
+	logger.From(ctx, logger.SmfLog).Info("dropped the target endpoint of an abandoned N2 handover",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil

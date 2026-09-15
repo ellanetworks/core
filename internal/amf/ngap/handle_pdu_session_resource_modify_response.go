@@ -33,13 +33,13 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *am
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle PDUSessionResourceModifyResponse")
+	ueConn.Log(ctx).Debug("Handle PDUSessionResourceModifyResponse")
 
 	// The transfer carries the NG-RAN node's cause but is opaque here, so the
 	// rejection is surfaced by session id: without it a modification the RAN
 	// refused is indistinguishable from one it applied.
 	for _, item := range msg.PDUSessionResourceFailed {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("NG-RAN node did not modify a PDU session",
+		ueConn.Log(ctx).Warn("NG-RAN node did not modify a PDU session",
 			logger.PDUSessionID(uint8(item.PDUSessionID)))
 	}
 }

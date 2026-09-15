@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"go.uber.org/zap"
 )
 
 func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf) {
@@ -188,10 +187,10 @@ func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	a.reg.Track(radio.Conn, radio)
 	a.mu.Unlock()
 
-	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7), zap.NewNop())
+	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7))
 
 	a.mu.Lock()
-	a.attachUeConnLocked(ue, ueConn)
+	a.attachUeConnLocked(context.Background(), ue, ueConn)
 	a.mu.Unlock()
 
 	a.CancelRegistration(context.Background(), supi)

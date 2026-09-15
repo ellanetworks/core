@@ -46,7 +46,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{}, err
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("moving a PDU session to EPS",
+	logger.From(ctx, logger.SmfLog).Info("moving a PDU session to EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(req.PDUSessionID),
 		zap.Uint8("ebi", req.EPSBearerIdentity), zap.String("apn", req.APN))
 

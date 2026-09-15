@@ -37,23 +37,29 @@ type Radio struct {
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
 	address        string
-	log            atomic.Pointer[zap.Logger]
+	logFields      atomic.Pointer[[]zap.Field]
 
 	advertisedCapacity   *uint8
 	retryNotBefore       time.Time
 	guamiUnavailableSent bool
 }
 
-func (r *Radio) Log() *zap.Logger {
+// LogFields returns the gNB's identity: its RAN address, and its name and
+// Global RAN Node ID once NG Setup has supplied them.
+func (r *Radio) LogFields() []zap.Field {
 	if r == nil {
-		return logger.AmfLog
+		return nil
 	}
 
-	if l := r.log.Load(); l != nil {
-		return l
+	if f := r.logFields.Load(); f != nil {
+		return *f
 	}
 
-	return logger.AmfLog
+	return nil
+}
+
+func (r *Radio) Log(ctx context.Context) *zap.Logger {
+	return logger.From(logger.Into(ctx, r.LogFields()...), logger.AmfLog)
 }
 
 func (r *Radio) refreshLogLocked() {
@@ -66,8 +72,7 @@ func (r *Radio) refreshLogLocked() {
 		fields = append(fields, logger.RadioID(id))
 	}
 
-	l := logger.AmfLog.With(fields...)
-	r.log.Store(l)
+	r.logFields.Store(&fields)
 
 	if r.amf == nil {
 		return
@@ -75,7 +80,7 @@ func (r *Radio) refreshLogLocked() {
 
 	for _, ueConn := range r.amf.conns {
 		if ueConn.conn == r.Conn {
-			ueConn.bindLog(l)
+			ueConn.bindLogFields(fields)
 		}
 	}
 }

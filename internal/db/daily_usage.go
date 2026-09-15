@@ -183,7 +183,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 	}
 
 	if dropped.Rows > 0 {
-		logger.WithTrace(ctx, logger.DBLog).Error("usage bytes lost: no subscriber row to charge",
+		logger.From(ctx, logger.DBLog).Error("usage bytes lost: no subscriber row to charge",
 			zap.Int("rows", dropped.Rows),
 			logger.UplinkVolume(uint64(dropped.BytesUplink)),
 			logger.DownlinkVolume(uint64(dropped.BytesDownlink)))

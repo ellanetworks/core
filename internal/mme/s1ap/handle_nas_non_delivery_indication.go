@@ -23,7 +23,7 @@ func handleNASNonDeliveryIndication(ctx context.Context, m *mme.MME, radio *mme.
 		// §10.3.5: the procedure has no message to report an unsuccessful
 		// outcome, so the receiver "shall terminate the procedure and initiate
 		// the Error Indication procedure".
-		logger.From(ctx, radio.Log()).Warn("failed to decode NAS Non Delivery Indication", zap.Error(err))
+		radio.Log(ctx).Warn("failed to decode NAS Non Delivery Indication", zap.Error(err))
 		sendParseErrorIndication(ctx, m, radio.Conn, s1ap.ProcNASNonDeliveryIndication, err)
 
 		return

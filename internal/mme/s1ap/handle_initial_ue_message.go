@@ -53,7 +53,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
 	}
 
-	logger.From(ctx, c.Log()).Info("Initial UE Message")
+	c.Log(ctx).Info("Initial UE Message")
 
 	// Optimistic S-TMSI resume: a security-protected message whose S-TMSI resolves a
 	// held, secured context is bound to that context only after the message verifies
@@ -63,7 +63,7 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
-				logger.From(ctx, c.Log()).Debug("Initial UE Message: resuming held context",
+				c.Log(ctx).Debug("Initial UE Message: resuming held context",
 					zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)))
 				m.AttachUeConn(ctx, ue, c)
 			}

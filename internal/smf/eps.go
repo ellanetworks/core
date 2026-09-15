@@ -315,7 +315,7 @@ func (s *SMF) OpenEPSForwardingTunnel(ctx context.Context, ref string, target mo
 		IPv6: smContext.Tunnel.N3IPv6,
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
+	logger.From(ctx, logger.SmfLog).Info("Opened an indirect data forwarding tunnel",
 		logger.SUPI(smContext.Supi.String()), logger.TEID(local.TEID))
 
 	return local, nil

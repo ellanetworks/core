@@ -183,7 +183,7 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
+func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
@@ -193,7 +193,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 
 	if oldUeConn != nil && oldUeConn != ueConn {
 		if oldUeConn.ue.Load() == ue {
-			oldUeConn.Log().Info("Detached UeContext from previous UeConn")
+			oldUeConn.Log(ctx).Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
 			displaced = oldUeConn
 		}
@@ -221,7 +221,7 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 	}
 
 	a.mu.Lock()
-	displaced := a.attachUeConnLocked(ue, ueConn)
+	displaced := a.attachUeConnLocked(ctx, ue, ueConn)
 	a.mu.Unlock()
 
 	if displaced != nil {
@@ -253,7 +253,7 @@ func (a *AMF) deactivateDisplacedUserPlane(ctx context.Context, ue *UeContext, d
 		displaced.SetN2SessionInactive(pduSessionID)
 
 		if err := a.Session.DeactivateSmContext(ctx, smContext.Ref); err != nil {
-			logger.From(ctx, displaced.Log()).Warn("could not deactivate the user plane of a displaced connection",
+			displaced.Log(ctx).Warn("could not deactivate the user plane of a displaced connection",
 				zap.Error(err), logger.PDUSessionID(pduSessionID))
 		}
 	}
@@ -679,7 +679,7 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 	conn := ue.Conn()
 
-	log := logger.WithTrace(ctx, conn.Log())
+	log := conn.Log(ctx)
 	if conn == nil {
 		log = log.With(logger.SUPI(ue.Supi().String()))
 	} else {

@@ -185,7 +185,7 @@ func (c *UeConn) retransmitNASGuard(link trace.SpanContext, ue *UeContext, name 
 	ctx, span := guardSpan(link, "mme/nas_guard_retransmit", name, attempt)
 	defer span.End()
 
-	logger.From(ctx, c.Log()).Info("retransmitting NAS message",
+	c.Log(ctx).Info("retransmitting NAS message",
 		zap.String("procedure", name), zap.Int("attempt", int(attempt)))
 
 	if sht == eps.SHTPlain {
@@ -215,7 +215,7 @@ func (c *UeConn) expireNASGuard(link trace.SpanContext, ue *UeContext, name stri
 	defer span.End()
 
 	if onAbort != nil {
-		logger.From(ctx, c.Log()).Info("NAS procedure timed out, aborting (UE stays connected)",
+		c.Log(ctx).Info("NAS procedure timed out, aborting (UE stays connected)",
 			zap.String("procedure", name))
 
 		onAbort(ctx)
@@ -223,7 +223,7 @@ func (c *UeConn) expireNASGuard(link trace.SpanContext, ue *UeContext, name stri
 		return
 	}
 
-	logger.From(ctx, c.Log()).Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
+	c.Log(ctx).Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
 	m.ReleaseUEContext(ctx, ue, CauseNASUnspecified)
 }
 

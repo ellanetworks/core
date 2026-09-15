@@ -132,7 +132,7 @@ func (pc *SessionEngine) SetBPFObjects(ctx context.Context, bpfObjects *ebpf.Bpf
 
 	if dbInstance != nil {
 		if err := pc.InitializeFiltersFromDB(ctx, dbInstance); err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Warn(
+			logger.From(ctx, logger.DBLog).Warn(
 				"failed to initialize filters from DB",
 				zap.Error(err),
 			)
@@ -143,14 +143,14 @@ func (pc *SessionEngine) SetBPFObjects(ctx context.Context, bpfObjects *ebpf.Bpf
 func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance *db.Database) error {
 	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
 	if err != nil {
-		logger.WithTrace(ctx, logger.DBLog).Error("failed to list policies", zap.Error(err))
+		logger.From(ctx, logger.DBLog).Error("failed to list policies", zap.Error(err))
 		return nil
 	}
 
 	for _, policy := range policies {
 		rules, err := dbInstance.ListRulesForPolicy(ctx, policy.ID)
 		if err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error(
+			logger.From(ctx, logger.DBLog).Error(
 				"failed to list rules for policy",
 				zap.String("policy_id", policy.ID),
 				zap.Error(err),
@@ -185,7 +185,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 
 		if len(uplinkRules) > 0 {
 			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionUplink, uplinkRules); err != nil {
-				logger.WithTrace(ctx, logger.DBLog).Error(
+				logger.From(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
 					zap.String("policy_id", policy.ID),
 					zap.Error(err),
@@ -195,7 +195,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 
 		if len(downlinkRules) > 0 {
 			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionDownlink, downlinkRules); err != nil {
-				logger.WithTrace(ctx, logger.DBLog).Error(
+				logger.From(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
 					zap.String("policy_id", policy.ID),
 					zap.Error(err),

@@ -21,7 +21,6 @@ import (
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -2447,10 +2446,7 @@ func observeSMFLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(zapcore.ErrorLevel)
-	saved := logger.SmfLog
-	logger.SmfLog = zap.New(core)
-
-	t.Cleanup(func() { logger.SmfLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }

@@ -142,19 +142,14 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// WithTrace returns a logger enriched with trace_id and span_id fields
-// extracted from the given context. If the context has no active span,
-// the original logger is returned unchanged.
-func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
-	sc := trace.SpanFromContext(ctx).SpanContext()
-	if !sc.IsValid() {
-		return l
-	}
+// SwapSystemCore redirects every system-sink logger at core and returns a
+// function restoring the previous one. Tests use it to observe records through
+// the same pipeline production writes through, rather than around it.
+func SwapSystemCore(core zapcore.Core) func() {
+	prev, _ := systemSink.load()
+	files := systemSink.swap(core, nil)
 
-	return l.With(
-		zap.String("trace_id", sc.TraceID().String()),
-		zap.String("span_id", sc.SpanID().String()),
-	)
+	return func() { systemSink.swap(prev, files) }
 }
 
 // makeCores returns JSON cores for stdout and optional file output.
@@ -211,7 +206,7 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
-	log := WithTrace(ctx, AuditLog)
+	log := From(ctx, AuditLog)
 
 	log.Info("Audit event",
 		zap.String("action", action),
@@ -305,7 +300,7 @@ func LogNetworkEvent(
 	rawBytes []byte,
 ) {
 	if messageType == "" {
-		WithTrace(ctx, NetworkLog).Warn("attempted to log empty network message type",
+		From(ctx, NetworkLog).Warn("attempted to log empty network message type",
 			zap.String("protocol", string(protocol)),
 			zap.String("dir", string(dir)),
 			zap.String("local_address", localAddress),
@@ -328,7 +323,7 @@ func LogNetworkEvent(
 		return
 	}
 
-	log := WithTrace(ctx, NetworkLog)
+	log := From(ctx, NetworkLog)
 
 	log.Info("network_event",
 		zap.String("protocol", string(protocol)),

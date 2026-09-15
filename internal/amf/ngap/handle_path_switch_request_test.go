@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -128,7 +127,7 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 		Conn: sourceNGAPSender,
 	}
 
-	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(sourceRan, 1, 10)
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -172,7 +171,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	amfUe.SetSecuredForTest(false)
 	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 7})
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -215,7 +214,7 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 	amfUe := newValidUeContext()
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -276,7 +275,7 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -347,7 +346,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID))
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -449,7 +448,7 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID))
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -519,7 +518,7 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID))
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -592,7 +591,7 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -667,7 +666,7 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -740,7 +739,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -829,7 +828,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(sourceRan, 1, 10)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	targetNGAPSender := &fakeNGAPSender{}
@@ -911,7 +910,7 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SmContextList[switchedID] = &amf.SmContext{Ref: "imsi-001010000000001-1", Snssai: &models.Snssai{Sst: 1}}
 
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID), logger.AmfLog)
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, models.AmfUeNgapID(sourceAmfUeNgapID))
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetNGAPSender := &fakeNGAPSender{}

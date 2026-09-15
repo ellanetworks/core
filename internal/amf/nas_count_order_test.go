@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 type downlinkOrderConn struct {
@@ -109,7 +108,6 @@ func newDownlinkOrderUE(t *testing.T) (*UeContext, *downlinkOrderConn) {
 	}
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
-	ueConn.setLog(zap.NewNop())
 	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue, sender

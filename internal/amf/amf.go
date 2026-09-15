@@ -630,7 +630,7 @@ func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 
 	amf.reg.Disconnect(ran.Conn, ran)
 
-	ran.Log().Info("Radio disconnected", logger.RAT(metrics.RAT5G))
+	ran.Log(ctx).Info("Radio disconnected", logger.RAT(metrics.RAT5G))
 }
 
 func (amf *AMF) FindRadioInfoByRanID(ranNodeID models.GlobalRanNodeID) (RadioInfo, bool) {
@@ -783,7 +783,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		amf:         a,
 	}
 	ueConn.setRanUeNgapID(ranUeNgapID)
-	ueConn.bindLog(radio.Log())
+	ueConn.bindLogFields(radio.LogFields())
 
 	a.mu.Lock()
 	ueConn.setRadio(radioIDOf(radio), radio.name)

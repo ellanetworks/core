@@ -28,11 +28,11 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceNotify, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle PDUSessionResourceNotify")
+	ueConn.Log(ctx).Debug("Handle PDUSessionResourceNotify")
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("amfUe is nil")
+		ueConn.Log(ctx).Error("amfUe is nil")
 		return
 	}
 
@@ -41,7 +41,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	for _, item := range msg.PDUSessionResourceNotify {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
+		ueConn.Log(ctx).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
 			logger.PDUSessionID(uint8(item.PDUSessionID)))
 	}
 
@@ -50,18 +50,18 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
+			ueConn.Log(ctx).Error("SmContext not found", logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
 		err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
 		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("DeactivateSmContext failed", zap.Error(err), logger.PDUSessionID(pduSessionID))
+			ueConn.Log(ctx).Error("DeactivateSmContext failed", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			continue
 		}
 
 		ueConn.SetN2SessionInactive(pduSessionID)
 
-		logger.WithTrace(ctx, ueConn.Log()).Info("deactivated PDU session released by gNB", logger.PDUSessionID(pduSessionID))
+		ueConn.Log(ctx).Info("deactivated PDU session released by gNB", logger.PDUSessionID(pduSessionID))
 	}
 }

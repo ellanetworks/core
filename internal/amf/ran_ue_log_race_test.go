@@ -4,11 +4,11 @@
 package amf
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -17,7 +17,7 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 	target := &Radio{amf: a, name: "target"}
 
 	ueConn := &UeConn{AmfUeNgapID: 1, amf: a}
-	ueConn.setLog(logger.AmfLog)
+	ueConn.bindLogFields(nil)
 
 	ue := NewUeContext()
 	ueConn.ue.Store(ue)
@@ -33,11 +33,11 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 
 	for _, op := range []func(){
 		func() {
-			if a.CommitPathSwitch(ue, ueConn, target, models.RanUeNgapID(7), [32]uint8{}, 0) {
+			if a.CommitPathSwitch(context.Background(), ue, ueConn, target, models.RanUeNgapID(7), [32]uint8{}, 0) {
 				commits.Add(1)
 			}
 		},
-		func() { _ = ueConn.Log() },
+		func() { _ = ueConn.LogFields() },
 	} {
 		wg.Add(1)
 

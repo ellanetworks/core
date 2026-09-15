@@ -77,7 +77,7 @@ func (s *SMF) transferTo5GS(
 	}
 	sc.Mutex.Unlock()
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
+	logger.From(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), logger.DNN(dnn))
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
@@ -127,7 +127,7 @@ func (s *SMF) PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSe
 		return "", nil, err
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("admitting a PDN connection handed over from EPS",
+	logger.From(ctx, logger.SmfLog).Info("admitting a PDN connection handed over from EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID),
 		zap.Uint8("ebi", epsBearerIdentity), logger.DNN(dnn))
 

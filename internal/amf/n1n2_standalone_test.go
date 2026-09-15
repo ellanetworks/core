@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 func connectedUE(t *testing.T, imsi string) (*amf.UeContext, *amf.UeConn, *fakeNGAPSender) {
@@ -25,7 +24,7 @@ func connectedUE(t *testing.T, imsi string) (*amf.UeContext, *amf.UeConn, *fakeN
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
 	return ue, ueConn, sender

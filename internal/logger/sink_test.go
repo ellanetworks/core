@@ -41,27 +41,38 @@ func TestSinkCloseDropsLaterRecordsInsteadOfWritingToAClosedFile(t *testing.T) {
 	}
 }
 
-func TestNetworkEventKeepsItsComponentUnderAnAmbientLogger(t *testing.T) {
+func TestRecordNamesAKeyOnlyOnce(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 
-	saved := systemSink
-	systemSink = newSink()
+	t.Cleanup(SwapSystemCore(core))
 
-	t.Cleanup(func() { systemSink = saved })
+	ctx := Into(t.Context(), SUPI("imsi-ambient"), MMEUeS1apID(7))
 
-	systemSink.swap(core, nil)
+	From(ctx, MmeLog).With(SUPI("imsi-connection")).Info("UE idle", SUPI("imsi-statement"))
 
-	root := zap.New(&followingCore{sink: systemSink})
-	NetworkLog = root.Named("Network")
-	MmeLog = root.Named("MME")
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(entries))
+	}
 
-	ctx := Into(t.Context(), MmeLog)
+	var supis int
 
-	LogNetworkEvent(ctx, S1APNetworkProtocol, "DownlinkNASTransport", DirectionOutbound, "", "", "enb-a", nil)
-
-	for _, e := range logs.All() {
-		if e.Message == "network_event" && e.LoggerName != "Network" {
-			t.Errorf("network event logged as component %q, want Network", e.LoggerName)
+	for _, f := range entries[0].Context {
+		if f.Key == "supi" {
+			supis++
 		}
+	}
+
+	if supis != 1 {
+		t.Fatalf("supi appears %d times in one record, want 1", supis)
+	}
+
+	ctxMap := entries[0].ContextMap()
+	if ctxMap["supi"] != "imsi-statement" {
+		t.Errorf("expected the log statement's subscriber to win, got %v", ctxMap["supi"])
+	}
+
+	if ctxMap["mme_ue_s1ap_id"] != uint32(7) {
+		t.Errorf("expected the ambient MME-UE-S1AP-ID to survive, got %v", ctxMap["mme_ue_s1ap_id"])
 	}
 }

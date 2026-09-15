@@ -50,7 +50,7 @@ func (s *SMF) closeForwardingTunnel(ctx context.Context, sc *SMContext) error {
 
 	sc.Tunnel.ForwardingTEID = 0
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Released an indirect data forwarding tunnel",
+	logger.From(ctx, logger.SmfLog).Info("Released an indirect data forwarding tunnel",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID))
 
 	return nil

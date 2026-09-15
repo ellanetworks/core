@@ -49,7 +49,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 			return
 		}
 
-		logger.From(ctx, ran.Log()).Info("Radio connected", logger.RAT(metrics.RAT5G))
+		ran.Log(ctx).Info("Radio connected", logger.RAT(metrics.RAT5G))
 	}
 
 	if len(msg) == 0 {

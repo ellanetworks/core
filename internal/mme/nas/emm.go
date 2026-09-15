@@ -64,7 +64,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	ctx = logger.Into(ctx, ueConn.Log())
+	ctx = logger.Into(ctx, ueConn.LogFields()...)
 	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	pd, err := eps.PeekProtocolDiscriminator(pdu)

@@ -7,7 +7,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +76,7 @@ func (ue *UeContext) transitionToLocked(ctx context.Context, target StateType) {
 		return
 	}
 
-	log := logger.From(ctx, ue.active.Load().Log())
+	log := ue.active.Load().Log(ctx)
 
 	if slices.Contains(validTransitions[ue.state], target) {
 		log.Debug("state transition",

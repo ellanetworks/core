@@ -28,7 +28,7 @@ func abortSecurityMode(ctx context.Context, ue *amf.UeContext, ueConn *amf.UeCon
 }
 
 func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure")
+	logger.From(ctx, logger.AmfLog).Debug("Security Mode Procedure")
 
 	ctx, span := gmmTracer.Start(ctx, "nas/security_mode")
 	defer span.End()

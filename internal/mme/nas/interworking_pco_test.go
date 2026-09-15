@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -319,10 +318,7 @@ func observeMmeLog(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
 	core, logs := observer.New(zapcore.WarnLevel)
-	saved := logger.MmeLog
-	logger.MmeLog = zap.New(core)
-
-	t.Cleanup(func() { logger.MmeLog = saved })
+	t.Cleanup(logger.SwapSystemCore(core))
 
 	return logs
 }

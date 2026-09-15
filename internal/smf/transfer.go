@@ -275,7 +275,7 @@ func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppe
 		if dropped.upActive {
 			built, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 			if err != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
+				logger.From(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
 					zap.Error(err), logger.SUPI(dropped.supi.String()), logger.PDUSessionID(dropped.id.PDUSessionID))
 			} else {
 				n2Release = built

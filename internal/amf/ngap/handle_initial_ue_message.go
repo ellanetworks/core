@@ -27,11 +27,11 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	ueConn, err := amfInstance.NewUeConn(ran, models.RanUeNgapID(msg.RANUENGAPID))
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Error("Failed to add Ran UE to the pool", zap.Error(err))
+		ran.Log(ctx).Error("Failed to add Ran UE to the pool", zap.Error(err))
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Added Ran UE to the pool")
+	ueConn.Log(ctx).Debug("Added Ran UE to the pool")
 
 	reportDiagnostics(ctx, ran, ngap.ProcInitialUEMessage, ngap.TriggeringInitiatingMessage,
 		ueAssociated(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), msg.RANUENGAPID), msg.Diagnostics())
@@ -41,7 +41,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	ueConn.UeContextRequest = msg.UEContextRequest != nil
 
 	if amfInstance.NAS == nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("NAS handler not set")
+		ueConn.Log(ctx).Error("NAS handler not set")
 		return
 	}
 
@@ -56,7 +56,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// registration path.
 	if ueConn.UeContext() == nil {
 		if rerr := amfInstance.RemoveUeConn(ctx, ueConn); rerr != nil {
-			logger.WithTrace(ctx, ueConn.Log()).Error("failed to release bare RAN UE", zap.Error(rerr))
+			ueConn.Log(ctx).Error("failed to release bare RAN UE", zap.Error(rerr))
 		}
 	}
 }
@@ -71,11 +71,11 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("Receive 5G-S-TMSI")
+	ueConn.Log(ctx).Debug("Receive 5G-S-TMSI")
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("Could not get operator info", zap.Error(err))
+		ueConn.Log(ctx).Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
@@ -84,7 +84,7 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	// 5G-GUTI := <GUAMI><5G-TMSI>
 	region, _, _, err := util.AMFIDToNGAP(operatorInfo.Guami.AmfID)
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Error("invalid operator AMF id", zap.Error(err))
+		ueConn.Log(ctx).Error("invalid operator AMF id", zap.Error(err))
 		return
 	}
 
@@ -92,17 +92,17 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 
 	tmsi, err := etsi.NewTMSI(uint32(msg.FiveGSTMSI.FiveGTMSI))
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("invalid tmsi", zap.Error(err))
+		ueConn.Log(ctx).Warn("invalid tmsi", zap.Error(err))
 	}
 
 	guti, err := etsi.NewGUTI5G(operatorInfo.Guami.PlmnID.Mcc, operatorInfo.Guami.PlmnID.Mnc, amfID, tmsi)
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("invalid guti", zap.Error(err))
+		ueConn.Log(ctx).Warn("invalid guti", zap.Error(err))
 	}
 
 	amfUe, ok := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
 	if !ok {
-		logger.WithTrace(ctx, ueConn.Log()).Warn("Unknown UE", logger.GUTI(guti.String()))
+		ueConn.Log(ctx).Warn("Unknown UE", logger.GUTI(guti.String()))
 		return
 	}
 
@@ -110,14 +110,14 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 		// The message cites an existing context but is not authenticated for it. Do not
 		// bind to or mutate the live context; the NAS layer registers it on a fresh
 		// context pending authentication.
-		logger.WithTrace(ctx, ueConn.Log()).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
+		ueConn.Log(ctx).Info("Initial UE Message cites a known GUTI but is not authenticated for that context; registering on a fresh context", logger.GUTI(guti.String()))
 		return
 	}
 
 	if amfUe.Conn() != nil {
-		logger.WithTrace(ctx, ueConn.Log()).Debug("Implicit Deregistration")
+		ueConn.Log(ctx).Debug("Implicit Deregistration")
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Debug("UeContext Attach UeConn")
+	ueConn.Log(ctx).Debug("UeContext Attach UeConn")
 	amfInstance.AttachUeConn(ctx, amfUe, ueConn)
 }

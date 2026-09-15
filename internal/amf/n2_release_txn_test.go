@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -32,7 +31,7 @@ func releaseGuardFixture(t *testing.T) (*UeConn, *releaseGuardTestSmf) {
 	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
-	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := NewUeConnForTest(radio, 1, 10)
 
 	ue := NewUeContext()
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}

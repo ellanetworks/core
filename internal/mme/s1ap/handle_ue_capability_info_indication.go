@@ -40,7 +40,7 @@ func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mm
 		ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
 	}
 
-	ueConn.Log().Debug("stored UE Radio Capability",
+	ueConn.Log(ctx).Debug("stored UE Radio Capability",
 		logger.Bytes(uint64(len(ue.RadioCapability))),
 		zap.Int("paging_bytes", len(ue.RadioCapabilityForPaging)))
 }

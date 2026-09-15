@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 func newTestRadioForUeConn() *amf.Radio {
@@ -25,7 +24,7 @@ func newTestRadioForUeConn() *amf.Radio {
 func newBoundUeContext(t *testing.T, radio *amf.Radio) (*amf.UeContext, *amf.UeConn) {
 	t.Helper()
 
-	ueConn := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	ueConn := amf.NewUeConnForTest(radio, 1, 10)
 
 	ue := amf.NewUeContext()
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
@@ -38,11 +37,11 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 
 	ue := amf.NewUeContext()
 
-	first := amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	first := amf.NewUeConnForTest(radio, 1, 10)
 	amfInstance := first.AMFForTest()
 	amfInstance.AttachUeConn(t.Context(), ue, first)
 
-	second := amf.NewUeConnForTest(radio, 2, 11, logger.AmfLog)
+	second := amf.NewUeConnForTest(radio, 2, 11)
 	amfInstance.AttachUeConn(t.Context(), ue, second)
 
 	if first.UeContext() != nil {
@@ -120,7 +119,7 @@ func TestReleaseNasConnection_AfterRebind_IsNoop(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, sourceUeConn := newBoundUeContext(t, radio)
 
-	targetUeConn := amf.NewUeConnForTest(radio, 2, 20, logger.AmfLog)
+	targetUeConn := amf.NewUeConnForTest(radio, 2, 20)
 
 	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
 		t.Fatalf("begin N2Handover: %v", err)
@@ -143,7 +142,7 @@ func TestReleaseNasConnection_StaleTarget_NoDetach(t *testing.T) {
 	radio := newTestRadioForUeConn()
 	ue, _ := newBoundUeContext(t, radio)
 
-	staleUeConn := amf.NewUeConnForTest(radio, 99, 990, logger.AmfLog)
+	staleUeConn := amf.NewUeConnForTest(radio, 99, 990)
 
 	staleUeConn.AMFForTest().ReleaseNasConnection(t.Context(), ue, staleUeConn)
 
@@ -228,7 +227,7 @@ func TestRemoveAllUeInRan_Deregistered_NoAction(t *testing.T) {
 
 func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
 	radio := newTestRadioForUeConn()
-	amf.NewUeConnForTest(radio, 1, 10, logger.AmfLog)
+	amf.NewUeConnForTest(radio, 1, 10)
 
 	radio.AMFForTest().RemoveAllUeInRan(context.Background(), radio)
 

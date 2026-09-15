@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 func gnbGlobalRANNodeID(t *testing.T, hexID string) ngap.GlobalRANNodeID {
@@ -184,7 +183,7 @@ func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 		t.Fatalf("setup: unexpected eviction of %q", amfInstance.RadioNameForTest(evicted))
 	}
 
-	ueConn := amf.NewUeConnForTest(radio, 1, 10, zap.NewNop())
+	ueConn := amf.NewUeConnForTest(radio, 1, 10)
 	ue := amf.NewUeContext()
 	amfInstance.AttachUeConn(t.Context(), ue, ueConn)
 

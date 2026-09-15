@@ -35,16 +35,16 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 
 	conn.armNASGuardWith(ctx, cfg, name,
 		func(ctx context.Context, attempt int32) {
-			logger.From(ctx, conn.Log()).Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
+			conn.Log(ctx).Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				return ueConn.SendDownlinkNASTransport(ctx, wire)
 			}); err != nil {
-				logger.From(ctx, ueConn.Log()).Error("failed to retransmit NAS request", zap.String("timer", name), zap.Error(err))
+				ueConn.Log(ctx).Error("failed to retransmit NAS request", zap.String("timer", name), zap.Error(err))
 			}
 		},
 		func(ctx context.Context) {
-			logger.From(ctx, conn.Log()).Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
+			conn.Log(ctx).Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
 			onExhausted(ctx)
 		},
 	)
@@ -388,13 +388,13 @@ func SendRegistrationAccept(
 		ueConn.armNASGuardWith(ctx, cfg, "T3550 (Registration Accept)", func(ctx context.Context, expireTimes int32) {
 			retryUeConn := ue.Conn()
 			if retryUeConn == nil {
-				logger.From(ctx, ueConn.Log()).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
+				ueConn.Log(ctx).Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 
 				return
 			}
 
 			if retryUeConn != ueConn {
-				logger.From(ctx, ueConn.Log()).Warn("[NAS] NAS signalling connection replaced, abort retransmission of Registration Accept")
+				ueConn.Log(ctx).Warn("[NAS] NAS signalling connection replaced, abort retransmission of Registration Accept")
 				ueConn.StopNASGuard(ctx)
 
 				return
@@ -415,32 +415,32 @@ func SendRegistrationAccept(
 						pduSessionResourceSetupList,
 						supportedGUAMI,
 					); err != nil {
-						logger.From(ctx, ueConn.Log()).Error("could not send initial context setup request", zap.Error(err))
+						ueConn.Log(ctx).Error("could not send initial context setup request", zap.Error(err))
 
 						return nil
 					}
 
 					ueConn.MarkICSPending()
 
-					logger.From(ctx, ueConn.Log()).Info("Sent NGAP initial context setup request")
+					ueConn.Log(ctx).Info("Sent NGAP initial context setup request")
 
 					return nil
 				}
 
-				logger.From(ctx, ueConn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
+				ueConn.Log(ctx).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
 
 				if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
-					logger.From(ctx, ueConn.Log()).Error("could not send downlink NAS transport message", zap.Error(err))
+					ueConn.Log(ctx).Error("could not send downlink NAS transport message", zap.Error(err))
 				}
 
-				logger.From(ctx, ueConn.Log()).Info("Sent GMM registration accept")
+				ueConn.Log(ctx).Info("Sent GMM registration accept")
 
 				return nil
 			}); err != nil {
-				logger.From(ctx, ueConn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
+				ueConn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
-			logger.From(ctx, ueConn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
+			ueConn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 			amfInstance.MarkRegistered(ctx, ue)
 			ue.ClearRegistrationRequestData()
@@ -464,26 +464,26 @@ func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeCon
 	conn.armNASGuardWith(ctx, cfg, "T3550 (Registration Accept)", func(ctx context.Context, expireTimes int32) {
 		retryUeConn := ue.Conn()
 		if retryUeConn == nil {
-			logger.From(ctx, conn.Log()).Warn("UE context released, abort retransmission of Registration Accept")
+			conn.Log(ctx).Warn("UE context released, abort retransmission of Registration Accept")
 			return
 		}
 
 		if retryUeConn != conn {
-			logger.From(ctx, conn.Log()).Warn("NAS signalling connection replaced, abort retransmission of Registration Accept")
+			conn.Log(ctx).Warn("NAS signalling connection replaced, abort retransmission of Registration Accept")
 			conn.StopNASGuard(ctx)
 
 			return
 		}
 
-		logger.From(ctx, conn.Log()).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
+		conn.Log(ctx).Warn("T3550 expires, retransmit Registration Accept", zap.Any("expire_times", expireTimes))
 
 		if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 			return conn.SendDownlinkNASTransport(ctx, wire)
 		}); err != nil {
-			logger.From(ctx, conn.Log()).Error("could not retransmit Registration Accept", zap.Error(err))
+			conn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func(ctx context.Context) {
-		logger.From(ctx, conn.Log()).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
+		conn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 		amfInstance.MarkRegistered(ctx, ue)
 		ue.ClearRegistrationRequestData()
@@ -570,27 +570,27 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		}
 
 		conn.armNASGuardWith(ctx, cfg, "T3555 (Configuration Update)", func(ctx context.Context, expireTimes int32) {
-			logger.From(ctx, conn.Log()).Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
+			conn.Log(ctx).Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			retryUeConn := amfUe.Conn()
 			if retryUeConn == nil {
-				logger.From(ctx, conn.Log()).Warn("UE Context released, abort retransmission of Configuration Update Command")
+				conn.Log(ctx).Warn("UE Context released, abort retransmission of Configuration Update Command")
 
 				return
 			}
 
 			if retryUeConn.Radio() == nil {
-				logger.From(ctx, retryUeConn.Log()).Warn("Radio is nil, abort retransmission of Configuration Update Command")
+				retryUeConn.Log(ctx).Warn("Radio is nil, abort retransmission of Configuration Update Command")
 				return
 			}
 
 			if err := amfUe.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				return retryUeConn.SendDownlinkNASTransport(ctx, wire)
 			}); err != nil {
-				logger.From(ctx, retryUeConn.Log()).Error("could not send configuration update command", zap.Error(err))
+				retryUeConn.Log(ctx).Error("could not send configuration update command", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
-			logger.From(ctx, conn.Log()).Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum_retries", cfg.MaxRetryTimes))
+			conn.Log(ctx).Warn("timer T3555 expired too many times, aborting configuration update procedure", zap.Int32("maximum_retries", cfg.MaxRetryTimes))
 		},
 		)
 	}
@@ -600,7 +600,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType NGAPProcedure, pkt []byte) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to resolve NGAP send target", zap.String("procedure", string(msgType)), zap.Error(err))
+		ueConn.Log(ctx).Error("failed to resolve NGAP send target", zap.String("procedure", string(msgType)), zap.Error(err))
 		return
 	}
 
@@ -681,7 +681,7 @@ func ueContextReleaseCommandBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID
 func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause ngap.Cause) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to resolve send target for UE Context Release Command", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to resolve send target for UE Context Release Command", zap.Error(err))
 		return
 	}
 
@@ -689,7 +689,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 	// racing a NAS-guard timeout, or two handover-abort paths) must not send a second
 	// UE Context Release Command.
 	if !amfInstance.claimRelease(ueConn) {
-		logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context Release already in progress; suppressing duplicate")
+		ueConn.Log(ctx).Debug("UE Context Release already in progress; suppressing duplicate")
 		return
 	}
 
@@ -697,7 +697,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
-		logger.From(ctx, ueConn.Log()).Error("failed to build UE Context Release Command", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build UE Context Release Command", zap.Error(err))
 		amfInstance.ReleaseUeConn(ctx, ueConn)
 
 		return
@@ -999,7 +999,7 @@ func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGA
 func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) {
 	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause, criticalityDiagnostics, targetFailure)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Preparation Failure", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Handover Preparation Failure", zap.Error(err))
 		return
 	}
 
@@ -1020,7 +1020,7 @@ func handoverCancelAcknowledgeBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 	pkt, err := handoverCancelAcknowledgeBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()))
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
 		return
 	}
 
@@ -1170,7 +1170,7 @@ func (ueConn *UeConn) SendHandoverCommand(
 		ueConn.HandOverType, admitted, toRelease, targetToSource, nil,
 	)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Command", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Handover Command", zap.Error(err))
 		return
 	}
 
@@ -1188,7 +1188,7 @@ func (ueConn *UeConn) SendHandoverCommandToEPS(
 		ngap.HandoverTypeFiveGSToEPS, nil, toRelease, targetToSource, nasSecurityParameters,
 	)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Handover Command to EPS", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Handover Command to EPS", zap.Error(err))
 		return
 	}
 
@@ -1228,7 +1228,7 @@ func downlinkRANStatusTransferBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, container ngap.StatusTransferContainer) {
 	pkt, err := downlinkRANStatusTransferBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), container)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
 		return
 	}
 
@@ -1283,7 +1283,7 @@ func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
 ) {
 	allowed, err := util.AllowedNSSAIToNGAP(snssaiList)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("could not convert Allowed NSSAI", zap.Error(err))
+		ueConn.Log(ctx).Error("could not convert Allowed NSSAI", zap.Error(err))
 		return
 	}
 
@@ -1292,7 +1292,7 @@ func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
 		ueSecurityCapability, ncc, nh, switched, released, allowed,
 	)
 	if err != nil {
-		logger.From(ctx, ueConn.Log()).Error("failed to build Path Switch Request Acknowledge", zap.Error(err))
+		ueConn.Log(ctx).Error("failed to build Path Switch Request Acknowledge", zap.Error(err))
 		return
 	}
 

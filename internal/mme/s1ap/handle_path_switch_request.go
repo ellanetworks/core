@@ -63,13 +63,12 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 	ue.TouchLastSeen()
 
 	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.
-	ueLog := logger.MmeLog
 	if c := ue.Conn(); c != nil {
-		ueLog = c.Log()
+		ctx = logger.Into(ctx, c.LogFields()...)
 	}
 
 	if !ue.Secured() || !ue.HasKASME() {
-		logger.From(ctx, ueLog).Warn("Path Switch Request for a UE without a security context")
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request for a UE without a security context")
 		sendPathSwitchFailure(ctx, m, radio.Conn, req, causePathSwitchNoSecurity)
 
 		return
@@ -121,7 +120,7 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	replayCaps := pathSwitchSecurityCapabilities(ue, ueLog, req.UESecurityCapabilities)
+	replayCaps := pathSwitchSecurityCapabilities(ctx, ue, req.UESecurityCapabilities)
 
 	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
@@ -230,7 +229,7 @@ func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter,
 // replay in the Acknowledge on a mismatch so the eNB corrects its context, or nil
 // (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
 // overwritten with the received ones.
-func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
+func pathSwitchSecurityCapabilities(ctx context.Context, ue *mme.UeContext, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap := ue.UeNetCap()
 
 	stored := mme.S1apSecurityCapabilities(uecap)
@@ -239,7 +238,7 @@ func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, receiv
 		return nil
 	}
 
-	ueLog.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
+	logger.From(ctx, logger.MmeLog).Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
 		zap.Uint16("received_eea", received.EncryptionAlgorithms),
 		zap.Uint16("received_eia", received.IntegrityProtectionAlgorithms),
 		zap.Uint16("stored_eea", stored.EncryptionAlgorithms),

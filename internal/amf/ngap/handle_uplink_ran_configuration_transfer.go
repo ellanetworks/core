@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -25,19 +24,19 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 
 	target, err := msg.SONConfigurationTransfer.TargetRANNodeID()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("could not decode Target RAN Node ID from SON Configuration Transfer", zap.Error(err))
+		ran.Log(ctx).Warn("could not decode Target RAN Node ID from SON Configuration Transfer", zap.Error(err))
 		return
 	}
 
 	targetID, err := util.RANNodeIDToModels(target.GlobalRANNodeID)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Warn("could not decode the Target RAN Node ID of a SON Configuration Transfer", zap.Error(err))
+		ran.Log(ctx).Warn("could not decode the Target RAN Node ID of a SON Configuration Transfer", zap.Error(err))
 		return
 	}
 
 	targetRadio, ok := amfInstance.FindConnectedRadioByRanID(targetID)
 	if !ok {
-		logger.WithTrace(ctx, ran.Log()).Warn("SON Configuration Transfer target NG-RAN node not connected",
+		ran.Log(ctx).Warn("SON Configuration Transfer target NG-RAN node not connected",
 			zap.Stringer("target_ran_node_id", targetID))
 
 		return
@@ -47,7 +46,7 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 
 	b, err := dl.Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log()).Error("failed to marshal Downlink RAN Configuration Transfer", zap.Error(err))
+		ran.Log(ctx).Error("failed to marshal Downlink RAN Configuration Transfer", zap.Error(err))
 		return
 	}
 

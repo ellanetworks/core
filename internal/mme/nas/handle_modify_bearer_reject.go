@@ -4,6 +4,8 @@
 package nas
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
@@ -11,7 +13,7 @@ import (
 
 // handleModifyBearerReject abandons the modification when the UE rejects it
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
-func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, rej *eps.ModifyEPSBearerContextReject) nasreply.Disposition {
+func handleModifyBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, rej *eps.ModifyEPSBearerContextReject) nasreply.Disposition {
 	p := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity))
 
 	if p != nil {
@@ -19,7 +21,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 		ue.ClearPendingModify(p)
 	}
 
-	ueConn.Log().Warn("UE rejected EPS bearer modification")
+	ueConn.Log(ctx).Warn("UE rejected EPS bearer modification")
 
 	return nasreply.Handled()
 }

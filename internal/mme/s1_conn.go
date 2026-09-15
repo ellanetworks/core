@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/etsi"
@@ -44,8 +45,8 @@ type UeConn struct {
 	enbUES1APID               atomic.Uint32
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
-	log                       atomic.Pointer[zap.Logger]
-	baseLog                   atomic.Pointer[zap.Logger]
+	logFields                 atomic.Pointer[[]zap.Field]
+	baseLogFields             atomic.Pointer[[]zap.Field]
 	supi                      atomic.Pointer[string]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
@@ -86,24 +87,30 @@ func (c *UeConn) setENBUES1APID(enbUEID s1ap.ENBUES1APID) {
 	c.enbUES1APID.Store(uint32(enbUEID))
 }
 
-func (c *UeConn) Log() *zap.Logger {
+// LogFields returns the connection's identity: the serving eNB's fields plus
+// the subscriber and the S1AP identities, as they stand now.
+func (c *UeConn) LogFields() []zap.Field {
 	if c == nil {
-		return logger.MmeLog
+		return nil
 	}
 
-	if l := c.log.Load(); l != nil {
-		return l
+	if f := c.logFields.Load(); f != nil {
+		return *f
 	}
 
-	return logger.MmeLog
+	return nil
 }
 
-func (c *UeConn) setLog(l *zap.Logger) {
-	c.log.Store(l)
+func (c *UeConn) Log(ctx context.Context) *zap.Logger {
+	return logger.From(logger.Into(ctx, c.LogFields()...), logger.MmeLog)
 }
 
-func (c *UeConn) bindLog(base *zap.Logger) {
-	c.baseLog.Store(base)
+func (c *UeConn) setLogFields(fields []zap.Field) {
+	c.logFields.Store(&fields)
+}
+
+func (c *UeConn) bindLogFields(base []zap.Field) {
+	c.baseLogFields.Store(&base)
 	c.refreshLog()
 }
 
@@ -118,12 +125,14 @@ func (c *UeConn) bindSupi(supi etsi.SUPI) {
 }
 
 func (c *UeConn) refreshLog() {
-	base := c.baseLog.Load()
+	base := c.baseLogFields.Load()
 	if base == nil {
 		return
 	}
 
-	fields := make([]zap.Field, 0, 3)
+	fields := make([]zap.Field, 0, len(*base)+3)
+	fields = append(fields, *base...)
+
 	if supi := c.supi.Load(); supi != nil {
 		fields = append(fields, logger.SUPI(*supi))
 	}
@@ -134,7 +143,7 @@ func (c *UeConn) refreshLog() {
 		fields = append(fields, logger.ENBUeS1apID(uint32(enbUEID)))
 	}
 
-	c.setLog(base.With(fields...))
+	c.setLogFields(fields)
 }
 
 func (c *UeConn) ArrivedFrom5GS() bool {
