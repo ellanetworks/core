@@ -62,13 +62,11 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: targetNGAPSender,
 	}
 
@@ -117,7 +115,6 @@ func TestHandoverRequestAcknowledge_NotFromPreparedTarget(t *testing.T) {
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := newTestAMF()
@@ -146,7 +143,6 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := newTestAMF()

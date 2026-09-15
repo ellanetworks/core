@@ -33,7 +33,7 @@ func HandleERABReleaseResponse(ctx context.Context, m *mme.MME, radio *mme.Radio
 
 	for _, erab := range msg.ERABReleased {
 		ueConn.Log().Info("E-RAB released at eNB",
-			zap.String("imsi", ue.IMSI()),
+			logger.SUPI(ue.Supi().String()),
 			zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 	}
 }

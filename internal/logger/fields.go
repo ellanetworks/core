@@ -4,16 +4,33 @@
 package logger
 
 import (
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
 // UE Identity
-func SUPI(val string) zap.Field { return zap.String("supi", val) }
-func IMSI(val string) zap.Field { return zap.String("imsi", val) }
-func GUTI(val string) zap.Field { return zap.String("guti", val) }
-func PEI(val string) zap.Field  { return zap.String("pei", val) }
-func TMSI(val string) zap.Field { return zap.String("tmsi", val) }
+func SUPI(val string) zap.Field { return identity("supi", val) }
+func GUTI(val string) zap.Field { return identity("guti", val) }
+func PEI(val string) zap.Field  { return identity("pei", val) }
+func TMSI(val string) zap.Field { return identity("tmsi", val) }
+
+func SUPIFromIMSI(imsi string) zap.Field {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return zap.Skip()
+	}
+
+	return SUPI(supi.String())
+}
+
+func identity(key, val string) zap.Field {
+	if val == "" {
+		return zap.Skip()
+	}
+
+	return zap.String(key, val)
+}
 
 // Session, NGAP & S1AP
 func AmfUeNgapID(val models.AmfUeNgapID) zap.Field { return zap.Int64("amf_ue_ngap_id", int64(val)) }
@@ -38,6 +55,8 @@ func QFI(val uint8) zap.Field    { return zap.Uint8("qfi", val) }
 
 // Network & Transport
 func RanAddr(val string) zap.Field         { return zap.String("ran_addr", val) }
+func RadioName(val string) zap.Field       { return identity("radio_name", val) }
+func RadioID(val string) zap.Field         { return identity("radio_id", val) }
 func SourceIP(val string) zap.Field        { return zap.String("source_ip", val) }
 func DestinationIP(val string) zap.Field   { return zap.String("destination_ip", val) }
 func SourcePort(val uint16) zap.Field      { return zap.Uint16("source_port", val) }

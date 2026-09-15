@@ -99,7 +99,7 @@ func newDownlinkOrderUE(t *testing.T) (*UeContext, *downlinkOrderConn) {
 		t.Fatal("install security context")
 	}
 
-	radio := &Radio{name: "test-gNB", Log: zap.NewNop()}
+	radio := &Radio{name: "test-gNB"}
 	radio.BindAMFForTest(New(nil, nil, nil))
 
 	ueConn := &UeConn{

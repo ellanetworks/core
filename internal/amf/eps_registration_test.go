@@ -182,7 +182,7 @@ func TestSupersedeEPSRegistrationDefersToARelocationArrivingFromEPS(t *testing.T
 func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
-	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a, Log: zap.NewNop()}
+	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a}
 
 	a.mu.Lock()
 	a.reg.Track(radio.Conn, radio)

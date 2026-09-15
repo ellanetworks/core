@@ -162,9 +162,10 @@ func (ue *UeContext) Kgnb() []uint8 {
 
 func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
 	ue.supi = supi
+	ue.mu.Unlock()
+
+	ue.active.Load().bindSupi(supi)
 }
 
 func (ue *UeContext) SetNgKsi(ngKsi models.NgKsi) {

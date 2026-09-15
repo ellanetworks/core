@@ -31,7 +31,7 @@ func handleUplinkLPPaTransport(ctx context.Context, m *mme.MME, radio *mme.Radio
 
 	ue.SetLPPaMessage([]byte(msg.LPPaPDU))
 
-	logger.From(ctx, radio.Log).Debug("stored uplink LPPa PDU",
+	logger.From(ctx, radio.Log()).Debug("stored uplink LPPa PDU",
 		zap.Uint32("mme_ue_s1ap_id", uint32(msg.MMEUES1APID)),
 		zap.Int("payload-len", len(msg.LPPaPDU)),
 	)

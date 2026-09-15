@@ -293,7 +293,7 @@ func emitErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, i
 func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseErrorIndication(value)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Error Indication", zap.Error(err))
+		logger.From(ctx, m.RadioLog(radio.Conn)).Warn("failed to decode Error Indication", zap.Error(err))
 		return
 	}
 
@@ -304,24 +304,22 @@ func handleErrorIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 	// indication naming a UE still says its S1 connection is inconsistent, so
 	// dropping it here would strand the UE that the release below exists to
 	// clean up.
-	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
-		logger.From(ctx, logger.MmeLog).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
-	}
-
 	fields := make([]zap.Field, 0, 4)
+	fields = append(fields, zap.Bool("cause_or_diagnostics_present", msg.Cause != nil || msg.CriticalityDiagnostics != nil))
+
 	if msg.MMEUES1APID != nil {
-		fields = append(fields, zap.Uint32("mme_ue_s1ap_id", uint32(*msg.MMEUES1APID)))
+		fields = append(fields, logger.MMEUeS1apID(uint32(*msg.MMEUES1APID)))
 	}
 
 	if msg.ENBUES1APID != nil {
-		fields = append(fields, zap.Uint32("enb_ue_s1ap_id", uint32(*msg.ENBUES1APID)))
+		fields = append(fields, logger.ENBUeS1apID(uint32(*msg.ENBUES1APID)))
 	}
 
 	if msg.Cause != nil {
-		fields = append(fields, zap.String("cause", mme.S1apCauseName(msg.Cause)))
+		fields = append(fields, logger.Cause(mme.S1apCauseName(msg.Cause)))
 	}
 
-	logger.From(ctx, logger.MmeLog).Warn("Error Indication", fields...)
+	logger.From(ctx, m.RadioLog(radio.Conn)).Warn("Error Indication", fields...)
 
 	if msg.MMEUES1APID == nil {
 		return

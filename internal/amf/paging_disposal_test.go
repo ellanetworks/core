@@ -93,7 +93,7 @@ func TestSuspendRegistrationFailsThePendingTransfer(t *testing.T) {
 func TestConnectionReleaseFailsADeliveringTransfer(t *testing.T) {
 	a, ue, fakeSmf := pagedUE(t)
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -160,7 +160,7 @@ func TestHigherPriorityTransferReplacesThePendingOne(t *testing.T) {
 func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *testing.T) {
 	a, ue, fakeSmf := pagedUE(t)
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	conn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -273,7 +273,7 @@ func asTransferError(err error, target **models.N1N2MessageTransferError) bool {
 func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 	a, ue, _ := pagedUE(t)
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	a.AttachUeConn(t.Context(), ue, NewUeConnForTest(radio, 1, 10, logger.AmfLog))

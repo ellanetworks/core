@@ -27,7 +27,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	ueConn, err := amfInstance.NewUeConn(ran, models.RanUeNgapID(msg.RANUENGAPID))
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("Failed to add Ran UE to the pool", zap.Error(err))
 		return
 	}
 

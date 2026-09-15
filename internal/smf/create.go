@@ -117,7 +117,10 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// not establishment attempts, so they precede this defer.
 	var establishmentResult string
 
-	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
+	defer func() {
+		recordSessionEstablishmentResult(ctx, metrics.RAT5G, establishmentResult,
+			logger.SUPI(supi.String()), logger.DNN(dnn), logger.PDUSessionID(pduSessionID))
+	}()
 
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept

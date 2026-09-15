@@ -54,7 +54,7 @@ func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, ca
 
 func (m *MME) releaseForErrorIndication(ctx context.Context, ue *UeContext, req *MTRequest) {
 	logger.From(ctx, logger.MmeLog).Info("Releasing S1 after a GTP-U Error Indication",
-		zap.String("imsi", ue.imsiOrEmpty()))
+		logger.SUPI(ue.Supi().String()))
 
 	ue.deferServiceRequest(req)
 
@@ -71,7 +71,7 @@ func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		logger.From(ctx, logger.MmeLog).Warn("could not page the UE after releasing S1 for a GTP-U Error Indication",
-			zap.String("imsi", ue.imsiOrEmpty()), zap.Error(err))
+			logger.SUPI(ue.Supi().String()), zap.Error(err))
 	}
 }
 
@@ -85,7 +85,7 @@ func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 
 	if err := m.Session.HandleEPSPagingFailure(ctx, imsi, req.Ebi, models.EPSPagingUENotResponding); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("could not report a downlink delivery failure for a UE released before it could be paged",
-			zap.String("imsi", imsi), zap.Uint8("ebi", req.Ebi), zap.Error(err))
+			logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", req.Ebi), zap.Error(err))
 	}
 }
 
@@ -120,7 +120,7 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 
 	m.pageRadios(ctx, ue, b)
 
-	logger.From(ctx, logger.MmeLog).Info("Paging", zap.String("imsi", imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
+	logger.From(ctx, logger.MmeLog).Info("Paging", logger.SUPIFromIMSI(imsi), zap.Uint32("m-tmsi", ue.Tmsi().Uint32()))
 
 	m.armPaging(ctx, ue, b)
 
@@ -174,7 +174,7 @@ func (m *MME) retransmitPaging(link trace.SpanContext, ue *UeContext, pdu []byte
 	defer span.End()
 
 	logger.From(ctx, logger.MmeLog).Info("paging unanswered, retransmitting",
-		zap.String("imsi", imsi), zap.Int32("attempt", attempt))
+		logger.SUPIFromIMSI(imsi), zap.Int32("attempt", attempt))
 	m.pageRadios(ctx, ue, pdu)
 }
 
@@ -196,7 +196,7 @@ func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext) {
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
+	logger.From(ctx, logger.MmeLog).Info("paging unanswered, abandoning procedure", logger.SUPIFromIMSI(imsi))
 
 	if m.Session == nil {
 		return
@@ -209,7 +209,7 @@ func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext) {
 
 		if err := m.Session.HandleEPSPagingFailure(ctx, imsi, p.Ebi, models.EPSPagingUENotResponding); err != nil {
 			logger.MmeLog.Warn("failed to suppress downlink notification after paging failure",
-				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+				logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
 }
@@ -363,7 +363,7 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 	}
 
 	logger.MmeLog.Info("LPPa message buffered, paging ECM-IDLE UE",
-		zap.String("imsi", ue.imsiOrEmpty()),
+		logger.SUPI(ue.Supi().String()),
 		zap.Int64("measurement_id", measID),
 		zap.Int("lppa_len", len(lppaPayload)),
 	)

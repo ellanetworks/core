@@ -60,7 +60,7 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 
 	setup := len(result.Applied)
 
-	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",
+	logger.From(ctx, logger.MmeLog).Debug("Initial Context Setup Response",
 		zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)),
 		zap.Int("e-rabs-setup", setup),
 		zap.Int("e-rabs-released", len(result.Released)))

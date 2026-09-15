@@ -98,13 +98,13 @@ func releaseItems(ctx context.Context, targetUe *amf.UeConn, unadmitted []amf.Ha
 
 func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverRequestAcknowledge) {
 	if msg.AMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMF UE NGAP ID is nil")
+		logger.WithTrace(ctx, ran.Log()).Error("AMF UE NGAP ID is nil")
 		return
 	}
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
+		logger.WithTrace(ctx, ran.Log()).Error("No UE Context on this radio", zap.Uint64("amf_ue_ngap_id", uint64(*msg.AMFUENGAPID)))
 		sendErrorIndication(ctx, ran, msg.AMFUENGAPID, msg.RANUENGAPID, causeUnknownLocalUEID)
 
 		return

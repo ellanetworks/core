@@ -661,7 +661,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("UE Context Release Command", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
+	logger.From(ctx, logger.MmeLog).Debug("UE Context Release Command", zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)))
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 

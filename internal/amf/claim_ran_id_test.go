@@ -56,7 +56,6 @@ func claimRanID(t *testing.T, a *amf.AMF, radio *amf.Radio, id ngap.GlobalRANNod
 func newRadioForTest(a *amf.AMF, conn *sctp.SCTPConn, name string) *amf.Radio {
 	ran := &amf.Radio{
 		Conn: conn,
-		Log:  zap.NewNop(),
 	}
 	ran.BindAMFForTest(a)
 	a.UpdateRadioName(ran, name)

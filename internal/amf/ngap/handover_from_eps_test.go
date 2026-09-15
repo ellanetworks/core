@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas"
@@ -136,7 +135,7 @@ func arrivingAMF(t *testing.T, peer *epsPeerStub) (*amf.AMF, *amf.Radio, *arriva
 	}, nil, smfSbi)
 	amfInstance.EPS = peer
 
-	radio := &amf.Radio{Log: logger.AmfLog, Conn: sender}
+	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 
 	target, err := amf.NGRANIdentityToNGAP(arrivingTarget())
@@ -486,7 +485,7 @@ func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{Operator: arrivingOperator(), BarFrom5G: true}, nil, smfSbi)
 	amfInstance.EPS = &epsPeerStub{}
 
-	radio := &amf.Radio{Log: logger.AmfLog, Conn: sender}
+	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 
 	target, err := amf.NGRANIdentityToNGAP(arrivingTarget())

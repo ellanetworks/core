@@ -21,7 +21,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		cause = msg.Cause.String()
 	}
 
-	logger.WithTrace(ctx, ran.Log).Warn("Initial Context Setup Failure received", logger.Cause(cause))
+	logger.WithTrace(ctx, ran.Log()).Warn("Initial Context Setup Failure received", logger.Cause(cause))
 
 	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {

@@ -16,7 +16,6 @@ import (
 func newTestRadioForUeConn() *amf.Radio {
 	ran := &amf.Radio{
 		Conn: &fakeNGAPSender{},
-		Log:  logger.AmfLog,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
 

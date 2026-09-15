@@ -87,7 +87,7 @@ func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, i
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication has an invalid eNB transport address; skipped",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+				logger.SUPI(ue.Supi().String()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue
 		}

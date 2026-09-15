@@ -43,7 +43,7 @@ func NewSessionReconciler(amf *AMF, wakeup <-chan struct{}) *SessionReconciler {
 		amf:      amf,
 		wakeup:   wakeup,
 		backstop: sessionReconcileBackstop,
-		log:      logger.AmfLog.With(zap.String("component", "SessionReconciler")),
+		log:      logger.Scope("AMF/session-reconciler"),
 	}
 }
 

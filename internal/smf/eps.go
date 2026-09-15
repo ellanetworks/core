@@ -45,16 +45,19 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
-			attrs.IMSI(req.IMSI),
+			attrs.SUPIFromIMSI(req.IMSI),
 			attribute.Int("eps.bearer_id", int(req.EPSBearerIdentity)),
 			attribute.String("eps.apn", req.APN),
 		),
 	)
 	defer span.End()
 
-	defer func() { recordSessionEstablishment(metrics.RAT4G, err) }()
-
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
+
+	defer func() {
+		recordSessionEstablishment(ctx, metrics.RAT4G, err, logger.SUPI(supi.String()), logger.DNN(req.APN))
+	}()
+
 	if err != nil {
 		return models.EPSBearer{}, fmt.Errorf("invalid imsi %q: %w", req.IMSI, err)
 	}

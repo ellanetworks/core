@@ -140,7 +140,7 @@ func sendServiceAccept(
 
 		ueConn.N2Setup(amf.N2SetupInitialContext).Arm(ctx, guardCfg)
 
-		logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
+		logger.From(ctx, logger.AmfLog).Debug("sent service accept with initial context setup request")
 	case len(suList) != 0:
 		if err := ueConn.SendPDUSessionResourceSetupRequest(
 			ctx,
@@ -307,7 +307,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// #9 and the 5GMM-context and 5G NAS security context are left unchanged, so
 	// an unauthenticated message cannot tear down a genuine UE's security state.
 	if !ue.SecurityContextIsValid() || !integrityVerified {
-		logger.From(ctx, logger.AmfLog).Warn("No valid security context for service request", logger.SUPI(ue.Supi().String()))
+		logger.From(ctx, logger.AmfLog).Warn("No valid security context for service request")
 
 		rejectService(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
 
@@ -316,7 +316,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	serviceType := msg.ServiceType
 
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", logger.SUPI(ue.Supi().String()), zap.String("service_type", serviceType.String()))
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Handle Service Request", zap.String("service_type", serviceType.String()))
 
 	var (
 		reactivationResult, acceptPduSessionPsi *[16]bool
@@ -514,8 +514,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 
 		if len(unestablished) != 0 {
-			logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them",
-				logger.SUPI(ue.Supi().String()), zap.Uint8s("pdu_session_ids", unestablished))
+			logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them", zap.Uint8s("pdu_session_ids", unestablished))
 		}
 	}
 

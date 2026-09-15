@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
@@ -60,7 +59,7 @@ func trackDrainTestRadio(a *AMF, conn NGAPWriter) *Radio {
 }
 
 func trackPreSetupDrainTestRadio(a *AMF, conn NGAPWriter) *Radio {
-	r := &Radio{Conn: conn, amf: a, Log: logger.AmfLog}
+	r := &Radio{Conn: conn, amf: a}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()

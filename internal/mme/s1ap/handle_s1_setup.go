@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -85,7 +86,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 	if !accepted {
 		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
-		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected",
+		logger.From(ctx, m.RadioLog(conn)).Warn("Radio setup rejected",
 			zap.String("enb-name", enbName(req.ENBName)),
 			zap.String("reason", reason),
 			zap.String("served-plmn", plmn.Mcc+"/"+plmn.Mnc))
@@ -95,7 +96,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 	tais, err := mme.EnbSupportedTAIs(req.SupportedTAs)
 	if err != nil {
-		logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+		logger.From(ctx, m.RadioLog(conn)).Warn("Radio setup rejected", zap.Error(err))
 		sendS1SetupFailure(ctx, m, conn, causeSemanticError, nil)
 
 		return
@@ -107,7 +108,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 		m.UpdateRadioSupportedTAs(radio, tais)
 
 		if err := m.ClaimENBID(ctx, radio, req.GlobalENBID, advertisedCapacity); err != nil {
-			logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(err))
+			logger.From(ctx, m.RadioLog(conn)).Warn("Radio setup rejected", zap.Error(err))
 			sendS1SetupFailure(ctx, m, conn, causeSemanticError, nil)
 
 			return
@@ -116,7 +117,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
-	logger.From(ctx, m.RadioLog(conn)).Info("S1 Setup Response sent", zap.String("enb-name", enbName(req.ENBName)))
+	logger.From(ctx, m.RadioLog(conn)).Info("Radio setup complete", logger.RAT(metrics.RAT4G))
 }
 
 // buildS1SetupFailure carries the cause and per-IE diagnostics the rejection
@@ -152,7 +153,7 @@ func sendS1SetupProtocolFailure(ctx context.Context, m *mme.MME, conn *sctp.SCTP
 
 	sendS1SetupFailure(ctx, m, conn, ase.Cause, &diag)
 
-	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(ase))
+	logger.From(ctx, m.RadioLog(conn)).Warn("Radio setup rejected", zap.Error(ase))
 }
 
 // s1SetupOutcomeFor returns an S1 Setup Response when the eNB broadcasts a served

@@ -44,7 +44,7 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 		qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), c.APN)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("arriving PDU session has no QoS in the subscriber profile; leaving it behind",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), zap.String("apn", c.APN), zap.Error(err))
 
 			continue
 		}

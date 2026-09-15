@@ -59,6 +59,9 @@ func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	// Remove from pool after all network I/O is complete.
 	s.dropFromPool(smContext)
 
+	logger.From(ctx, logger.SmfLog).Info("PDU session released",
+		logger.RAT(smContext.Access.rat()), logger.SUPI(smContext.Supi.String()), logger.DNN(smContext.Dnn))
+
 	return err
 }
 

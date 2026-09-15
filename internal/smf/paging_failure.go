@@ -41,7 +41,7 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 	}
 
 	logger.SmfLog.Info("EPS downlink data notification failed",
-		zap.String("imsi", imsi),
+		logger.SUPIFromIMSI(imsi),
 		zap.Uint8("ebi", ebi),
 		zap.String("cause", cause.String()))
 

@@ -34,7 +34,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		trace.WithAttributes(
 			attrs.SessionOperation("establish"),
 			attrs.SEID(req.SEID),
-			attrs.IMSI(req.IMSI),
+			attrs.SUPIFromIMSI(req.IMSI),
 		),
 	)
 	defer span.End()
@@ -75,7 +75,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		sess.PutFar(far.FARID, farInfo)
 		farMap[far.FARID] = farInfo
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule",
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Created Forwarding Action Rule",
 			logger.FARID(far.FARID), zap.Any("farInfo", farInfo))
 	}
 
@@ -85,7 +85,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		sess.PutQer(qer.QERID, qerInfo)
 		qerMap[qer.QERID] = qerInfo
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule",
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Created QoS Enforcement Rule",
 			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
 	}
 
@@ -174,7 +174,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Applied packet detection rule",
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Applied packet detection rule",
 			logger.PDRID(spdrInfo.PdrID))
 
 		createdPDRs = append(createdPDRs, spdrInfo)

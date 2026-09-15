@@ -21,7 +21,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 		// A successful or unsuccessful outcome answers a procedure the AMF never
 		// initiated, so there is nothing to reject: it is left to local error
 		// handling.
-		logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure outcome")
+		logger.From(ctx, ran.Log()).Warn("ignoring unsupported procedure outcome")
 
 		return
 	}
@@ -37,7 +37,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 		return
 	}
 
-	logger.From(ctx, ran.Log).Warn("unsupported initiating procedure",
+	logger.From(ctx, ran.Log()).Warn("unsupported initiating procedure",
 		zap.String("procedure", im.ProcedureCode.String()))
 
 	proc := im.ProcedureCode

@@ -29,7 +29,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 
 		operatorInfo, err = amfInstance.OperatorInfo(ctx)
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log()).Error("Could not get operator info", zap.Error(err))
 			sendRANConfigurationUpdateFailure(ctx, ran, causeUnspecified, nil)
 
 			return
@@ -40,7 +40,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	if err != nil {
 		// §8.7.2.3 obliges an answer whenever the AMF cannot accept the update,
 		// which includes being unable to build its own response.
-		logger.WithTrace(ctx, ran.Log).Error("failed to handle RAN Configuration Update", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("failed to handle RAN Configuration Update", zap.Error(err))
 		sendRANConfigurationUpdateFailure(ctx, ran, causeUnspecified, nil)
 
 		return
@@ -49,7 +49,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	if !accepted {
 		ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateFailure, outBytes)
 
-		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected",
+		logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update rejected",
 			zap.String("reason", reason),
 			zap.Any("gnb_tai_list", tais),
 			zap.Any("core_tai_list", operatorInfo.Tais))
@@ -73,16 +73,16 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	if req.GlobalRANNodeID != nil {
 		switch rebound, err := amfInstance.RebindRanID(ran, *req.GlobalRANNodeID); {
 		case err != nil:
-			logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID that cannot be decoded", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update names a Global RAN Node ID that cannot be decoded", zap.Error(err))
 		case !rebound:
-			logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
+			logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
 				zap.String("global-ran-node-id", req.GlobalRANNodeID.Hex()))
 		}
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
 
-	logger.WithTrace(ctx, ran.Log).Info("RAN Configuration Update acknowledged",
+	logger.WithTrace(ctx, ran.Log()).Info("RAN Configuration Update acknowledged",
 		zap.String("gnb-name", ran.NodeName()))
 }
 
@@ -144,7 +144,7 @@ func ranConfigUpdateOutcomeFor(req *ngap.RANConfigurationUpdate, operatorInfo *a
 func sendRANConfigurationUpdateFailure(ctx context.Context, ran *amf.Radio, cause ngap.Cause, diag *ngap.CriticalityDiagnostics) {
 	pkt, err := (&ngap.RANConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building RAN Configuration Update Failure", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("error building RAN Configuration Update Failure", zap.Error(err))
 		return
 	}
 
@@ -160,5 +160,5 @@ func sendRANConfigurationUpdateProtocolFailure(ctx context.Context, ran *amf.Rad
 
 	sendRANConfigurationUpdateFailure(ctx, ran, ase.Cause, &diag)
 
-	logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected", zap.Error(ase))
+	logger.WithTrace(ctx, ran.Log()).Warn("RAN Configuration Update rejected", zap.Error(ase))
 }

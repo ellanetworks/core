@@ -144,7 +144,6 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 	amfInstance := amf.New(&fakeDBInstance{
@@ -159,7 +158,6 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: targetNGAPSender,
 		RanID: &models.GlobalRanNodeID{
 			PlmnID: operatorPlmnID(),
@@ -188,7 +186,6 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -224,7 +221,6 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 	amfInstance := amf.New(nil, nil, nil)
@@ -281,7 +277,6 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 	amfInstance := amf.New(&fakeDBInstance{
@@ -344,7 +339,6 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	}
 
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: &fakeNGAPSender{},
 	}
 
@@ -358,7 +352,6 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	targetNGAPSender := &fakeNGAPSender{}
 	targetSender := &releaseSignalSender{fakeNGAPSender: targetNGAPSender, released: make(chan struct{})}
 	targetRan := &amf.Radio{
-		Log:   logger.AmfLog,
 		Conn:  targetSender,
 		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
@@ -430,7 +423,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	smfSbi := &fakeSmfSbi{SMF: smfInstance}
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
@@ -440,7 +433,6 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:   logger.AmfLog,
 		Conn:  targetNGAPSender,
 		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
@@ -510,7 +502,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 			}
 
 			sourceNGAPSender := &fakeNGAPSender{}
-			sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+			sourceRan := &amf.Radio{Conn: sourceNGAPSender}
 			amfInstance := amf.New(&fakeDBInstance{
 				Operator: &db.Operator{Mcc: "001", Mnc: "01"},
 			}, nil, &fakeSmfSbi{SMF: smfInstance})
@@ -571,7 +563,7 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	amfUe.TransitionTo(amf.RegistrationInitiated)
 	amfUe.TransitionTo(amf.Registered)
 
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	smfSbi := &fakeSmfSbi{SMF: smfInstance}
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
@@ -580,7 +572,6 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 
 	targetRan := &amf.Radio{
-		Log:   logger.AmfLog,
 		Conn:  &fakeNGAPSender{},
 		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}

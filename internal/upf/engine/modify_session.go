@@ -116,7 +116,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return p.PdrInfo.FarID == far.FARID },
 			func(p *SPDRInfo) { p.PdrInfo.Far = sFarInfo })
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule",
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Updated Forwarding Action Rule",
 			logger.FARID(far.FARID), zap.Any("farInfo", sFarInfo))
 	}
 
@@ -128,7 +128,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return p.PdrInfo.QerID == qer.QERID },
 			func(p *SPDRInfo) { p.PdrInfo.Qer = qerInfo })
 
-		logger.WithTrace(ctx, logger.UpfLog).Info("Updated QoS Enforcement Rule",
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Updated QoS Enforcement Rule",
 			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
 	}
 

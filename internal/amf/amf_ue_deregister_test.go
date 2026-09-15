@@ -200,7 +200,7 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 
 // TS 23.501 §5.3.3.2.4
 func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(New(nil, nil, nil))
 
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -236,7 +236,7 @@ func TestRemoveAllUeInRan_Registered_DeactivatesUserPlane(t *testing.T) {
 }
 
 func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(New(nil, nil, nil))
 
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -311,7 +311,7 @@ func TestAttachUeConn_ClearsPagingSuppression(t *testing.T) {
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)
@@ -350,7 +350,7 @@ func TestAttachUeConn_DeactivatesTheDisplacedConnectionsUserPlane(t *testing.T) 
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ue := NewUeContext()
@@ -379,7 +379,7 @@ func TestAttachUeConn_DoesNotDeactivateASessionTheDisplacedConnectionNeverServed
 	a := New(nil, nil, nil)
 	a.Session = fake
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ue := NewUeContext()

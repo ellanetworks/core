@@ -38,15 +38,13 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
 	// depth). A UE that lost its keys can recover via a fresh Attach.
 	if !integrityVerified && ue.Secured() {
-		logger.From(ctx, logger.MmeLog).Warn("rejecting unauthenticated Detach Request from UE with valid security context",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Warn("rejecting unauthenticated Detach Request from UE with valid security context")
 
 		return nasreply.Silent(nasreply.ReasonIntegrityFail)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Request",
 		zap.Bool("switch-off", req.SwitchOff),
-		zap.String("imsi", ue.IMSI()),
 	)
 
 	ue.TransitionTo(ctx, mme.EMMDeregistered)

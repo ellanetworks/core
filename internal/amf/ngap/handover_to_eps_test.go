@@ -189,7 +189,7 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	}
 
 	sender := newRelocationSender()
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sender}
+	sourceRan := &amf.Radio{Conn: sender}
 
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
 	amfInstance.EPS = peer

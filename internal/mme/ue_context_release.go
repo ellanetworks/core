@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -106,7 +107,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 		return
 	}
 
-	logger.From(ctx, c.Log()).Info("UE Context Release Command")
+	logger.From(ctx, c.Log()).Debug("UE Context Release Command")
 	c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
 }
 
@@ -162,15 +163,14 @@ func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigge
 		m.DropDeferredServiceRequest(ctx, ue)
 		m.ReleaseAllSessions(ctx, ue)
 		logger.From(ctx, logger.MmeLog).Info("aborted incomplete UE registration",
-			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
+			zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), logger.SUPIFromIMSI(imsi))
 
 		return
 	}
 
 	m.DeactivateAllSessions(ctx, ue)
 	m.StartMobileReachable(ue)
-	logger.From(ctx, logger.MmeLog).Info("UE moved to ECM-IDLE",
-		zap.String("trigger", trigger), zap.Uint32("mme_ue_s1ap_id", uint32(mmeUEID)), zap.String("imsi", imsi))
+	logger.From(ctx, logger.MmeLog).Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
 }

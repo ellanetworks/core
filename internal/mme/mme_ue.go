@@ -235,13 +235,15 @@ func (ue *UeContext) lastSeenTime() time.Time {
 func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
-		logger.MmeLog.Warn("rejecting malformed IMSI", zap.String("imsi", imsi), zap.Error(err))
+		logger.MmeLog.Warn("rejecting malformed IMSI", zap.String("rejected_imsi", imsi), zap.Error(err))
 		return
 	}
 
 	ue.mu.Lock()
 	ue.supi = supi
 	ue.mu.Unlock()
+
+	ue.active.Load().bindSupi(supi)
 }
 
 // TS 24.301 §5.5.1.2.7 f
@@ -272,7 +274,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	// m.mu, since external calls cannot run under it.
 	if superseded {
 		logger.MmeLog.Info("CommitUEIdentity superseding prior UE context; releasing its EPS sessions",
-			zap.String("imsi", supi.IMSI()))
+			logger.SUPI(supi.String()))
 		m.ReleaseAllSessions(ctx, old)
 	}
 
@@ -648,6 +650,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 
 	ue.active.Store(c)
 	c.ue = ue
+	c.bindSupi(ue.Supi())
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
@@ -699,7 +702,7 @@ func (m *MME) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.ClearEPSPagingSuppression(ctx, imsi, p.Ebi); err != nil {
 			logger.MmeLog.Warn("failed to clear paging suppression on reconnect",
-				zap.String("imsi", imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+				logger.SUPIFromIMSI(imsi), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
 }

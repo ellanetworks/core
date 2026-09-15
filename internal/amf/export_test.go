@@ -211,7 +211,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
-		radio := &amf.Radio{Log: zap.NewNop()}
+		radio := &amf.Radio{}
 		radioAMF := amf.New(nil, nil, nil)
 		radio.BindAMFForTest(radioAMF)
 		radioAMF.UpdateRadioName(radio, "gNB-001")

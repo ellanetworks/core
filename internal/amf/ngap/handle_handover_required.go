@@ -210,11 +210,11 @@ func sendHandoverPreparationProtocolFailure(ctx context.Context, ran *amf.Radio,
 		CriticalityDiagnostics: &diagnostics,
 	}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Handover Preparation Failure", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("failed to marshal Handover Preparation Failure", zap.Error(err))
 		return
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureHandoverPreparationFailure, b)
 
-	logger.WithTrace(ctx, ran.Log).Warn("Handover Preparation rejected", zap.Error(ase))
+	logger.WithTrace(ctx, ran.Log()).Warn("Handover Preparation rejected", zap.Error(ase))
 }

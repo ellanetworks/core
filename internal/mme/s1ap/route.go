@@ -53,7 +53,7 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 		case s1ap.ProcLocationReport:
 			handleLocationReport(ctx, m, radio, p.Value)
 		default:
-			logger.From(ctx, radio.Log).Warn("unsupported initiating procedure", zap.Int64("procedureCode", int64(p.ProcedureCode)))
+			logger.From(ctx, radio.Log()).Warn("unsupported initiating procedure", zap.Int64("procedureCode", int64(p.ProcedureCode)))
 			respondToUnknownProcedure(ctx, m, radio.Conn, p)
 		}
 	case *s1ap.SuccessfulOutcome:
@@ -73,7 +73,7 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 		case s1ap.ProcMMEConfigurationUpdate:
 			handleMMEConfigurationUpdateAcknowledge(ctx, m, radio, p.Value)
 		default:
-			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
+			logger.From(ctx, radio.Log()).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
 	case *s1ap.UnsuccessfulOutcome:
 		switch p.ProcedureCode {
@@ -84,9 +84,9 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 		case s1ap.ProcMMEConfigurationUpdate:
 			handleMMEConfigurationUpdateFailure(ctx, m, radio, p.Value)
 		default:
-			logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
+			logger.From(ctx, radio.Log()).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", int64(p.ProcedureCode)))
 		}
 	default:
-		logger.From(ctx, radio.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unknown-pdu"))
+		logger.From(ctx, radio.Log()).Warn("ignoring unsupported procedure", zap.String("kind", "unknown-pdu"))
 	}
 }

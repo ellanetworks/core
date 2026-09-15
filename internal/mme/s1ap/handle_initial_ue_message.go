@@ -87,9 +87,8 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 			cause = *c.TauRejectCause
 		}
 
-		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
-			zap.Uint32("enb_ue_s1ap_id", uint32(msg.ENBUES1APID)), zap.Stringer("cause", cause))
+		logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultReject,
+			logger.ENBUeS1apID(uint32(msg.ENBUES1APID)), logger.Cause(cause.String()))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
 
 		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)

@@ -127,7 +127,7 @@ func TestRadioNodeID(t *testing.T) {
 }
 
 func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
-	radio := &amf.Radio{Log: logger.AmfLog}
+	radio := &amf.Radio{}
 	amfInstance := amf.New(nil, nil, nil)
 	radio.BindAMFForTest(amfInstance)
 

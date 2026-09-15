@@ -21,7 +21,6 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 
 	radio := &Radio{
 		name: "test-gNB",
-		Log:  zap.NewNop(),
 	}
 	radio.BindAMFForTest(New(nil, nil, nil))
 

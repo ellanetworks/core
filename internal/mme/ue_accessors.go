@@ -43,9 +43,10 @@ func (ue *UeContext) Supi() etsi.SUPI {
 
 func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
 	ue.supi = supi
+	ue.mu.Unlock()
+
+	ue.active.Load().bindSupi(supi)
 }
 
 // IMSI returns the UE's IMSI, or "" when the identity is unset.

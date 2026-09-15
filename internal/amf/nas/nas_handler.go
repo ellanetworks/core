@@ -118,10 +118,9 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 
 	ctx = logger.Into(ctx, ue.Log())
 
-	logger.From(ctx, logger.AmfLog).Info(
+	logger.From(ctx, logger.AmfLog).Debug(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
-		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
 	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)

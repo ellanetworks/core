@@ -23,8 +23,8 @@ func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8)
 
 	const sourceAmfUeNgapID = int64(10)
 
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
-	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
+	targetRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 
 	amfUe := newValidUeContext()
 

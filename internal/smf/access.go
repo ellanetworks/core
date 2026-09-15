@@ -3,6 +3,8 @@
 
 package smf
 
+import "github.com/ellanetworks/core/internal/metrics"
+
 // AccessType is the radio access a session is established over. As the combined
 // SMF+PGW-C (TS 23.501), the SMF keys its 4G/5G differences off it.
 type AccessType uint8
@@ -15,6 +17,14 @@ const (
 // usesPSC reports whether the user-plane GTP-U carries the PDU Session Container
 // (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
 func (a AccessType) usesPSC() bool { return a == Access5G }
+
+func (a AccessType) rat() string {
+	if a == Access4G {
+		return metrics.RAT4G
+	}
+
+	return metrics.RAT5G
+}
 
 func (a AccessType) String() string {
 	if a == Access4G {

@@ -14,7 +14,7 @@ import (
 
 func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 	a := New(nil, nil, nil)
-	target := &Radio{amf: a, name: "target", Log: logger.AmfLog}
+	target := &Radio{amf: a, name: "target"}
 
 	ueConn := &UeConn{AmfUeNgapID: 1, amf: a}
 	ueConn.setLog(logger.AmfLog)

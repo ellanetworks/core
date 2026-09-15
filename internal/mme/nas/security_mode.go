@@ -32,8 +32,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
 	if !m.TryClaimKeyChain(ue) {
-		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)")
 
 		return securityModeNotSent
 	}

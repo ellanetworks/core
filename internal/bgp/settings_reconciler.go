@@ -94,7 +94,7 @@ func NewSettingsReconciler(service SettingsService, store SettingsStore, filterB
 		filterBuilder: filterBuilder,
 		wakeup:        wakeup,
 		backstop:      defaultSettingsReconcileBackstop,
-		log:           logger.EllaLog.With(zap.String("component", "BGPSettingsReconciler")),
+		log:           logger.Scope("BGP/settings-reconciler"),
 	}
 }
 

@@ -145,7 +145,7 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID
 			}
 
 			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
-				zap.String("imsi", ue.Supi().IMSI()))
+				logger.SUPI(ue.Supi().String()))
 
 			if err := a.CancelRelocationToEPS(cctx, ue, id); err != nil {
 				logger.From(cctx, logger.AmfLog).Info("the peer had no handover to cancel", zap.Error(err))

@@ -74,7 +74,7 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	logger.From(ctx, logger.MmeLog).Info("handing the UE's EPS context to 5GS for an idle-mode change",
-		zap.String("imsi", ue.IMSI()), zap.Int("pdn-connections", len(connections)))
+		logger.SUPI(ue.Supi().String()), zap.Int("pdn-connections", len(connections)))
 
 	return interworking.MMContextResponse{
 		SUPI:                ue.Supi(),
@@ -100,7 +100,7 @@ func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []ui
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("releasing a PDN connection 5GS did not adopt",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.String("apn", p.Apn))
+			logger.SUPI(ue.Supi().String()), zap.Uint8("ebi", p.Ebi), zap.String("apn", p.Apn))
 		m.ReleasePDN(ctx, ue, p)
 	}
 

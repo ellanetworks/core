@@ -7,7 +7,6 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
-	"go.uber.org/zap"
 )
 
 // handleModifyBearerReject abandons the modification when the UE rejects it
@@ -20,7 +19,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 		ue.ClearPendingModify(p)
 	}
 
-	ueConn.Log().Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
+	ueConn.Log().Warn("UE rejected EPS bearer modification")
 
 	return nasreply.Handled()
 }

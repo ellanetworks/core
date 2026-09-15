@@ -51,14 +51,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access", zap.Error(err))
 
 		return
 	}
 
 	if !access.Allow4G {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber")
 		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
 
 		return
@@ -70,21 +69,19 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile", zap.String("apn", ue.RequestedAPN))
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
 
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
 		return
 	}
 
 	if cause, refused := requestTypeRefusal(ue.RequestedType); refused {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served",
-			zap.String("imsi", ue.IMSI()), zap.Stringer("request-type", ue.RequestedType))
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served", zap.Stringer("request-type", ue.RequestedType))
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), cause)
 
 		return
@@ -107,8 +104,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		RequestType:       ue.RequestedType,
 	})
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), attachBearerRejectCause(ue.RequestedType, err))
 
 		return
@@ -117,7 +113,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
-		zap.String("imsi", ue.IMSI()),
 		zap.Uint8("pdn-type", pdnType),
 		zap.String("dns", dns),
 		zap.Stringer("esm-cause", esmCause),
@@ -196,8 +191,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		// (TS 36.413).
 		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
 
 			continue
 		}
@@ -214,7 +208,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	if len(erabs) == 0 {
-		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no encodable E-RAB", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no encodable E-RAB")
 		return nil, 0, false
 	}
 
@@ -228,7 +222,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
-	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
+	logger.From(ctx, logger.MmeLog).Debug("Initial Context Setup Request",
 		zap.Uint32("enb_ue_s1ap_id", uint32(ueConn.ENBUES1APID)),
 		zap.Uint8("nas-pdu-bearer", carrier),
 		zap.Int("bearers", len(erabs)),
@@ -343,11 +337,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	m.SupersedeFiveGSRegistration(ctx, ue)
 
-	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
-
-	logger.From(ctx, logger.MmeLog).Info("UE attached (EMM-REGISTERED)",
-		zap.String("imsi", ue.IMSI()),
-	)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 
@@ -359,8 +349,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 func acceptDefaultBearerFromAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, container []byte) {
 	accept, err := eps.ParseActivateDefaultEPSBearerContextAccept(container)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("ignoring the ESM message container of the Attach Complete",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("ignoring the ESM message container of the Attach Complete", zap.Error(err))
 
 		return
 	}
@@ -368,12 +357,12 @@ func acceptDefaultBearerFromAttach(ctx context.Context, m *mme.MME, ue *mme.UeCo
 	handleActivateDefaultBearerAccept(ctx, m, ue, accept)
 }
 
-func sendNITZ(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+func sendNITZ(ctx context.Context, m *mme.MME, _ *mme.UeContext, ueConn *mme.UeConn) {
 	info := &eps.EMMInformation{}
 
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.Error(err))
 	}
 
 	if op != nil {
@@ -387,7 +376,7 @@ func sendNITZ(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.Ue
 	}
 
 	if networkTime, err := nas.NewNetworkTime(time.Now()); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("omitting the time from EMM INFORMATION", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("omitting the time from EMM INFORMATION", zap.Error(err))
 	} else {
 		info.LocalTimeZone = &networkTime.LocalTimeZone
 		info.UniversalTime = &networkTime.UniversalTime

@@ -90,7 +90,7 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return fmt.Errorf("deactivate the user plane of session %d: %w", seid, err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }

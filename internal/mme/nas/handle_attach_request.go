@@ -199,8 +199,7 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 	// A native-GUTI re-attach for a UE being network-detached is ignored, not reused
 	// (TS 24.301 §5.5.2.3.4 case d).
 	if existing.EMMState() == mme.EMMDeregistrationInitiated {
-		logger.From(ctx, logger.MmeLog).Info("ignoring native-GUTI Attach during network-initiated detach",
-			zap.String("imsi", existing.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("ignoring native-GUTI Attach during network-initiated detach")
 
 		return nil, true
 	}
@@ -218,8 +217,7 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 	// decode against this context, not here (TS 24.301 §4.4.3, §5.4.3.3).
 	m.AttachUeConn(ctx, existing, ueConn)
 
-	logger.From(ctx, logger.MmeLog).Info("Attach with valid native GUTI: reusing security context, skipping authentication",
-		zap.String("imsi", existing.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("Attach with valid native GUTI: reusing security context, skipping authentication")
 
 	return existing, false
 }
@@ -233,8 +231,7 @@ func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mm
 func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, pti uint8, esmCause eps.ESMCause) {
 	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject", zap.Error(err))
 
 		esm = nil
 	}
@@ -243,7 +240,8 @@ func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 }
 
 func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause, esm []byte) {
-	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), metrics.ResultReject,
+		logger.Cause(cause.String()))
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}

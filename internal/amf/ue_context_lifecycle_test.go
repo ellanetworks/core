@@ -14,7 +14,7 @@ import (
 
 func TestDeregisterAndRemoveUeContext_KeepsTransferredUeConn(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
-	radio := &amf.Radio{Log: logger.AmfLog}
+	radio := &amf.Radio{}
 	radio.BindAMFForTest(amfInstance)
 
 	ueConn := amf.NewUeConnForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)

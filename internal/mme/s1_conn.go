@@ -6,6 +6,7 @@ package mme
 import (
 	"sync/atomic"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -42,6 +43,7 @@ type UeConn struct {
 	conn                      atomic.Pointer[S1APWriter]
 	log                       atomic.Pointer[zap.Logger]
 	baseLog                   atomic.Pointer[zap.Logger]
+	supi                      atomic.Pointer[string]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
@@ -94,13 +96,29 @@ func (c *UeConn) bindLog(base *zap.Logger) {
 	c.refreshLog()
 }
 
+func (c *UeConn) bindSupi(supi etsi.SUPI) {
+	if c == nil || !supi.IsValid() {
+		return
+	}
+
+	s := supi.String()
+	c.supi.Store(&s)
+	c.refreshLog()
+}
+
 func (c *UeConn) refreshLog() {
 	base := c.baseLog.Load()
 	if base == nil {
 		return
 	}
 
-	fields := []zap.Field{logger.MMEUeS1apID(uint32(c.MMEUES1APID))}
+	fields := make([]zap.Field, 0, 3)
+	if supi := c.supi.Load(); supi != nil {
+		fields = append(fields, logger.SUPI(*supi))
+	}
+
+	fields = append(fields, logger.MMEUeS1apID(uint32(c.MMEUES1APID)))
+
 	if c.ENBUES1APID != enbUES1APIDUnspecified {
 		fields = append(fields, logger.ENBUeS1apID(uint32(c.ENBUES1APID)))
 	}

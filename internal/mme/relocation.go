@@ -160,7 +160,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Request (5GS to EPS)",
-		zap.String("imsi", ue.IMSI()),
+		logger.SUPI(ue.Supi().String()),
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
 		zap.String("target-enb", targetID),
 		zap.Int("e-rabs", len(bearers)))
@@ -193,7 +193,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 		qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), c.APN)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("relocated PDN connection has no QoS in the subscriber profile; leaving it behind",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), zap.String("apn", c.APN), zap.Error(err))
 
 			continue
 		}
@@ -215,7 +215,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 		})
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("failed to take over a PDU session as a PDN connection; leaving it behind",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN),
+				logger.SUPI(ue.Supi().String()), zap.String("apn", c.APN),
 				zap.Uint8("ebi", c.EPSBearerIdentity), zap.Error(err))
 
 			continue

@@ -32,7 +32,7 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 		affected := m.ConnsOnConn(radio.Conn)
 		m.ReclaimConns(ctx, affected, "S1 reset")
 
-		logger.From(ctx, radio.Log).Info("S1 Reset (whole interface)",
+		logger.From(ctx, radio.Log()).Info("S1 Reset (whole interface)",
 			zap.String("cause", cause), zap.Int("connections", len(affected)))
 		sendResetAcknowledge(ctx, m, radio.Conn, nil, req.Diagnostics())
 
@@ -42,7 +42,7 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 	affected := m.ConnsForConnectionList(radio.Conn, req.ResetType.Part)
 	m.ReclaimConns(ctx, affected, "S1 reset")
 
-	logger.From(ctx, radio.Log).Info("S1 Reset (part of interface)",
+	logger.From(ctx, radio.Log()).Info("S1 Reset (part of interface)",
 		zap.String("cause", cause),
 		zap.Int("requested", len(req.ResetType.Part)),
 		zap.Int("connections", len(affected)))

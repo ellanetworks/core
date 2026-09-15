@@ -16,7 +16,6 @@ import (
 func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -48,7 +47,6 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 func TestHandoverNotify_NilUeContext(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -69,7 +67,6 @@ func TestHandoverNotify_NilUeContext(t *testing.T) {
 func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
@@ -95,7 +92,6 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 	sourceRan.BindAMFForTest(amfInstance)
@@ -107,7 +103,6 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: targetNGAPSender,
 	}
 	targetRan.BindAMFForTest(amfInstance)
@@ -163,7 +158,7 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{}
 	amfInstance.Session = fakeSmf
 
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	sourceRan.BindAMFForTest(amfInstance)
 
 	amfUe := amf.NewUeContext()
@@ -175,7 +170,7 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	sourceUe.SetN2SessionActive(1)
 	sourceUe.SetN2SessionActive(2)
 
-	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	targetRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	targetRan.BindAMFForTest(amfInstance)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
@@ -218,7 +213,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	amfInstance.Session = fakeSmf
 
 	sourceNGAPSender := &fakeNGAPSender{}
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+	sourceRan := &amf.Radio{Conn: sourceNGAPSender}
 	sourceRan.BindAMFForTest(amfInstance)
 
 	amfUe := amf.NewUeContext()
@@ -228,7 +223,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
 	sourceUe.SetN2SessionActive(1)
 
-	targetRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	targetRan := &amf.Radio{Conn: &fakeNGAPSender{}}
 	targetRan.BindAMFForTest(amfInstance)
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
@@ -265,7 +260,6 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 
 	sourceNGAPSender := &fakeNGAPSender{}
 	sourceRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sourceNGAPSender,
 	}
 	sourceRan.BindAMFForTest(amfInstance)
@@ -279,7 +273,6 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 
 	targetNGAPSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: targetNGAPSender,
 	}
 	targetRan.BindAMFForTest(amfInstance)

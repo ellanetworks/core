@@ -55,6 +55,6 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 		amfUe.RadioCapabilityForPaging = stored
 	}
 
-	logger.WithTrace(ctx, ueConn.Log()).Info("stored UE Radio Capability",
+	logger.WithTrace(ctx, ueConn.Log()).Debug("stored UE Radio Capability",
 		zap.Int("bytes", len(amfUe.RadioCapability)))
 }

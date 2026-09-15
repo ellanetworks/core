@@ -23,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -360,7 +361,7 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	}
 
 	amf.DeregisterAndRemoveUeContext(ctx, ue)
-	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
+	logger.AmfLog.Debug("removed ue context", logger.SUPI(supi.String()))
 }
 
 func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
@@ -392,7 +393,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		supportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
 		connectedAt:   now,
-		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
+		address:       remoteAddr.String(),
 	}
 
 	radio.SetLastSeenAt(now)
@@ -400,6 +401,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
+	radio.refreshLogLocked()
 	amf.reg.Track(conn, &radio)
 
 	return &radio, nil
@@ -468,6 +470,7 @@ func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.Glo
 	}
 
 	radio.RanID = &newID
+	radio.refreshLogLocked()
 	radio.advertisedCapacity = &advertisedCapacity
 	radio.guamiUnavailableSent = false
 	amf.reg.Claim(key, radio)
@@ -522,6 +525,7 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) (bool,
 	}
 
 	radio.RanID = &newID
+	radio.refreshLogLocked()
 	amf.reg.Claim(key, radio)
 
 	return true, nil
@@ -625,6 +629,8 @@ func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 	ran.guamiUnavailableSent = false
 
 	amf.reg.Disconnect(ran.Conn, ran)
+
+	ran.Log().Info("Radio disconnected", logger.RAT(metrics.RAT5G))
 }
 
 func (amf *AMF) FindRadioInfoByRanID(ranNodeID models.GlobalRanNodeID) (RadioInfo, bool) {
@@ -777,7 +783,7 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 		amf:         a,
 	}
 	ueConn.setRanUeNgapID(ranUeNgapID)
-	ueConn.bindLog(radio.Log)
+	ueConn.bindLog(radio.Log())
 
 	a.mu.Lock()
 	ueConn.setRadio(radioIDOf(radio), radio.name)

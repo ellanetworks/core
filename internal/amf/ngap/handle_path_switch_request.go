@@ -42,7 +42,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// TS 38.413: a to-be-switched downlink list that repeats a PDU Session ID is an
 	// abnormal condition the AMF rejects with a Path Switch Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceToBeSwitchedDLList); dup {
-		logger.WithTrace(ctx, ran.Log).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
+		logger.WithTrace(ctx, ran.Log()).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkMultiplePDUSessionIDs)
 
 		return
@@ -50,7 +50,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn := amfInstance.LookupUeConn(models.AmfUeNgapID(msg.SourceAMFUENGAPID))
 	if ueConn == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source_amf_ue_ngap_id", uint64(msg.SourceAMFUENGAPID)))
+		logger.WithTrace(ctx, ran.Log()).Error("Cannot find UE from sourceAMfUeNgapID", zap.Uint64("source_amf_ue_ngap_id", uint64(msg.SourceAMFUENGAPID)))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 
 		return
@@ -68,7 +68,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, ueConn.Log()).Error("No Security Context", logger.SUPI(amfUe.Supi().String()))
+		logger.From(ctx, ueConn.Log()).Error("No Security Context")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
 
 		return

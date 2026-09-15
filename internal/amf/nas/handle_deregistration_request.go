@@ -31,7 +31,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi().String()))
+		logger.WithTrace(ctx, logger.AmfLog).Warn("amf.UeConn is nil, cannot send UE Context Release Command")
 		return nasreply.Handled()
 	}
 

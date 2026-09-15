@@ -29,7 +29,7 @@ func releaseGuardFixture(t *testing.T) (*UeConn, *releaseGuardTestSmf) {
 
 	a := New(nil, nil, smf)
 
-	radio := &Radio{Log: logger.AmfLog}
+	radio := &Radio{}
 	radio.BindAMFForTest(a)
 
 	ueConn := NewUeConnForTest(radio, 1, 10, logger.AmfLog)

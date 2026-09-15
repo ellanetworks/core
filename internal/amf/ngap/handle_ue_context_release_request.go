@@ -50,7 +50,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			fields = append(fields, logger.SUPI(ueConn.UeContext().Supi().String()))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log()).Info("UE Context Release Cause", fields...)
+		logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context Release Cause", fields...)
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {

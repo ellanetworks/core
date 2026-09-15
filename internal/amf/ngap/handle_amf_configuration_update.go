@@ -33,21 +33,21 @@ func timeToWaitDuration(t ngap.TimeToWait) time.Duration {
 func handleAMFConfigurationUpdateAcknowledge(ctx context.Context, radio *amf.Radio, value []byte) {
 	ack, err := ngap.ParseAMFConfigurationUpdateAcknowledge(value)
 	if err != nil {
-		logger.From(ctx, radio.Log).Warn("failed to decode AMF Configuration Update Acknowledge", zap.Error(err))
+		logger.From(ctx, radio.Log()).Warn("failed to decode AMF Configuration Update Acknowledge", zap.Error(err))
 		return
 	}
 
 	if ack.CriticalityDiagnostics != nil {
-		logger.From(ctx, radio.Log).Warn("gNB reported criticality diagnostics for AMF Configuration Update")
+		logger.From(ctx, radio.Log()).Warn("gNB reported criticality diagnostics for AMF Configuration Update")
 	}
 
-	logger.From(ctx, radio.Log).Info("AMF Configuration Update acknowledged")
+	logger.From(ctx, radio.Log()).Info("AMF Configuration Update acknowledged")
 }
 
 func handleAMFConfigurationUpdateFailure(amfInstance *amf.AMF, ctx context.Context, radio *amf.Radio, value []byte) {
 	fail, err := ngap.ParseAMFConfigurationUpdateFailure(value)
 	if err != nil {
-		logger.From(ctx, radio.Log).Warn("failed to decode AMF Configuration Update Failure", zap.Error(err))
+		logger.From(ctx, radio.Log()).Warn("failed to decode AMF Configuration Update Failure", zap.Error(err))
 		return
 	}
 
@@ -63,7 +63,7 @@ func handleAMFConfigurationUpdateFailure(amfInstance *amf.AMF, ctx context.Conte
 		fields = append(fields, zap.Duration("time-to-wait", wait))
 	}
 
-	logger.From(ctx, radio.Log).Warn("gNB rejected AMF Configuration Update", fields...)
+	logger.From(ctx, radio.Log()).Warn("gNB rejected AMF Configuration Update", fields...)
 
 	amfInstance.ConfigUpdateFailed(ctx, radio, wait)
 }

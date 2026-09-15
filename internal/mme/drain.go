@@ -108,7 +108,7 @@ func (m *MME) emitConfigUpdate(ctx context.Context, radio *Radio, capacity uint8
 	guarded := context.WithoutCancel(ctx)
 
 	radio.configUpdateGuard.ArmOnce(configUpdateGuardTimeout, func() {
-		logger.From(guarded, radio.Log).Warn("MME Configuration Update went unanswered")
+		logger.From(guarded, radio.Log()).Warn("MME Configuration Update went unanswered")
 		m.forgetAdvertisedCapacity(radio)
 		m.finishConfigUpdate(guarded, radio)
 	})

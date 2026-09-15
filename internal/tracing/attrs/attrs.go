@@ -3,11 +3,21 @@
 
 package attrs
 
-import "go.opentelemetry.io/otel/attribute"
+import (
+	"github.com/ellanetworks/core/etsi"
+	"go.opentelemetry.io/otel/attribute"
+)
 
 func SUPI(val string) attribute.KeyValue { return attribute.String("ue.supi", val) }
 
-func IMSI(val string) attribute.KeyValue { return attribute.String("ue.imsi", val) }
+func SUPIFromIMSI(imsi string) attribute.KeyValue {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return attribute.String("ue.supi", "")
+	}
+
+	return SUPI(supi.String())
+}
 
 func SUCI(val string) attribute.KeyValue { return attribute.String("ue.suci", val) }
 

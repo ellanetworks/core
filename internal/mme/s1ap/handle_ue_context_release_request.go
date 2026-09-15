@@ -56,7 +56,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 	reportDiagnostics(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	fields := []zap.Field{
-		zap.String("imsi", ue.IMSI()),
+		logger.SUPI(ue.Supi().String()),
 		zap.String("cause", mme.S1apCauseName(&cause)),
 	}
 
@@ -73,7 +73,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 		logger.From(ctx, ueConn.Log()).Warn("UE Context Release Request aborted an in-progress attach",
 			append(fields, zap.Bool("ics-response-received", icsReceived))...)
 	} else {
-		logger.From(ctx, ueConn.Log()).Info("UE Context Release Request", fields...)
+		logger.From(ctx, ueConn.Log()).Debug("UE Context Release Request", fields...)
 	}
 
 	if keepsConnectionForPendingDownlink(cause, ueConn) {

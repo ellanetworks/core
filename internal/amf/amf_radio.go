@@ -36,11 +36,48 @@ type Radio struct {
 	disconnectedAt time.Time
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
 	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
-	Log            *zap.Logger
+	address        string
+	log            atomic.Pointer[zap.Logger]
 
 	advertisedCapacity   *uint8
 	retryNotBefore       time.Time
 	guamiUnavailableSent bool
+}
+
+func (r *Radio) Log() *zap.Logger {
+	if r == nil {
+		return logger.AmfLog
+	}
+
+	if l := r.log.Load(); l != nil {
+		return l
+	}
+
+	return logger.AmfLog
+}
+
+func (r *Radio) refreshLogLocked() {
+	fields := []zap.Field{logger.RanAddr(r.address)}
+	if r.name != "" {
+		fields = append(fields, logger.RadioName(r.name))
+	}
+
+	if id := radioIDOf(r); id != "" {
+		fields = append(fields, logger.RadioID(id))
+	}
+
+	l := logger.AmfLog.With(fields...)
+	r.log.Store(l)
+
+	if r.amf == nil {
+		return
+	}
+
+	for _, ueConn := range r.amf.conns {
+		if ueConn.conn == r.Conn {
+			ueConn.bindLog(l)
+		}
+	}
 }
 
 // UpdateRadioName sets a radio's RAN node name under the registry lock, so a
@@ -50,6 +87,7 @@ func (a *AMF) UpdateRadioName(radio *Radio, name string) {
 	defer a.mu.Unlock()
 
 	radio.name = name
+	radio.refreshLogLocked()
 }
 
 // UpdateRadioSupportedTAIs replaces a radio's broadcast TAI list under the registry lock.

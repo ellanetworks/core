@@ -48,5 +48,5 @@ func handleLocationReport(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 		fields = append(fields, zap.Int("event-type", int(msg.RequestType.EventType)))
 	}
 
-	logger.From(ctx, radio.Log).Debug("Location Report", fields...)
+	logger.From(ctx, radio.Log()).Debug("Location Report", fields...)
 }

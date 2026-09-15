@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/sctp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,37 +27,38 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	remoteAddress := conn.RemoteAddr()
 	localAddress := conn.LocalAddr()
 
-	ran, ok := amfInstance.FindRadioByConn(conn)
-	if !ok {
-		var err error
-
-		ran, err = amfInstance.NewRadio(conn)
-		if err != nil {
-			logger.WithTrace(ctx, logger.AmfLog).Error("Failed to add a new radio", zap.Error(err))
-			return
-		}
-
-		logger.WithTrace(ctx, logger.AmfLog).Info("Added a new radio", zap.String("address", amf.AddrString(remoteAddress)))
-	}
-
-	if len(msg) == 0 {
-		logger.From(ctx, ran.Log).Info("RAN close the connection.")
-		amfInstance.DisconnectRadio(ctx, ran)
-
-		return
-	}
-
-	ran.TouchLastSeen()
-
 	ctx, span := tracer.Start(ctx, "ngap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
 			attribute.Int("ngap.message_size", len(msg)),
 			attribute.String("network.protocol.name", "ngap"),
 			attribute.String("network.transport", "sctp"),
+			attribute.String("network.peer.address", amf.AddrString(remoteAddress)),
+			attribute.String("network.local.address", amf.AddrString(localAddress)),
 		),
 	)
 	defer span.End()
+
+	ran, ok := amfInstance.FindRadioByConn(conn)
+	if !ok {
+		var err error
+
+		ran, err = amfInstance.NewRadio(conn)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Error("Failed to add a new radio", zap.Error(err))
+			return
+		}
+
+		logger.From(ctx, ran.Log()).Info("Radio connected", logger.RAT(metrics.RAT5G))
+	}
+
+	if len(msg) == 0 {
+		amfInstance.DisconnectRadio(ctx, ran)
+
+		return
+	}
+
+	ran.TouchLastSeen()
 
 	// Every NGAP procedure this AMF supports is decoded by the in-house library.
 	// A message it does not consume either failed to decode or names a procedure

@@ -290,3 +290,8 @@ func (ue *UeContext) SetPagedRequestForTest(req *models.N1N2MessageTransferReque
 
 	ue.forcePagingStateForTest(&MTRequest{Req: *req})
 }
+
+func BindRadioLogForTest(r *Radio, address string) {
+	r.address = address
+	r.refreshLogLocked()
+}

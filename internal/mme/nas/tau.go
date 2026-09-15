@@ -19,13 +19,11 @@ import (
 
 func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.TrackingAreaUpdateRequest, plain []byte) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
-		zap.String("imsi", ue.IMSI()),
 		zap.String("update-type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active-flag", req.ActiveFlag))
 
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
-		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept")
 		ueConn.ResendTauAccept(ctx)
 
 		return nasreply.Handled()
@@ -41,7 +39,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
 		return nasreply.Handled()
 	} else if !served {
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected [Tracking area not allowed]", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected [Tracking area not allowed]")
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseTrackingAreaNotAllowed)
 
 		return nasreply.Handled()
@@ -49,15 +47,13 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access for Tracking Area Update",
-			zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access for Tracking Area Update", zap.Error(err))
 
 		return nasreply.Handled()
 	}
 
 	if !access.Allow4G {
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected: 4G not allowed for subscriber",
-			zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected: 4G not allowed for subscriber")
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
 
 		return nasreply.Handled()
@@ -95,7 +91,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			len(m.SnapshotPDNs(ue)) > 0,
 	})
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.Error(err))
 		return nasreply.Handled()
 	}
 
@@ -108,14 +104,14 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 		qos, err = mme.ResolveQoS(ctx, m, ue.IMSI())
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
 			return nasreply.Handled()
 		}
 	}
 
 	acceptPlain, err := accept.MarshalBinary()
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to encode Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to encode Tracking Area Update Accept", zap.Error(err))
 		return nasreply.Handled()
 	}
 
@@ -129,7 +125,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	switch {
 	case ueConn.ICS() == mme.ICSCompleted:
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted")
 	case reestablish:
 		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)
 		if !ok {
@@ -140,11 +136,11 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			return sendInitialContextSetup(ctx, ueConn, ics, carrier, wire)
 		}
 
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)")
 	default:
 		releaseOnComplete = true
 
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)")
 	}
 
 	if err := ueConn.SendProtected(acceptPlain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
@@ -153,7 +149,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
 	if ue.IdleMobilityFrom5GSPending() {
 		ue.TransitionTo(ctx, mme.EMMRegistered)
@@ -174,7 +170,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // rejectTrackingAreaUpdate sends a TAU REJECT and releases the UE's S1 context
 // (TS 24.301 §5.5.3.2.5).
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
-	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
@@ -199,7 +195,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 	ueConn.TauAcceptPlain = nil
 	ueConn.FiveGSArrival = nil
 
-	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
+	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete")
 
 	if ueConn.TauReleaseOnComplete {
 		ueConn.TauReleaseOnComplete = false
@@ -298,14 +294,12 @@ func reconcileBearerContextStatus(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		}
 
 		if remaining == 1 {
-			logger.MmeLog.Info("keeping the last PDN connection the UE reported inactive",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+			logger.MmeLog.Info("keeping the last PDN connection the UE reported inactive", zap.Uint8("ebi", p.Ebi))
 
 			continue
 		}
 
-		logger.MmeLog.Info("releasing EPS bearer reported inactive by the UE",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+		logger.MmeLog.Info("releasing EPS bearer reported inactive by the UE", zap.Uint8("ebi", p.Ebi))
 		m.ReleasePDN(ctx, ue, p)
 
 		remaining--

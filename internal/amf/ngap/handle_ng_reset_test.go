@@ -22,7 +22,6 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)
@@ -54,7 +53,6 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)
@@ -99,7 +97,6 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	amfInstance := amf.New(nil, nil, nil)

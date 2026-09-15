@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -44,7 +45,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("Could not get operator info", zap.Error(err))
 		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
@@ -52,7 +53,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("Could not list operator SNSSAI", zap.Error(err))
 		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
@@ -64,7 +65,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if err != nil {
 		// §8.7.1.3 obliges an answer whenever the AMF cannot accept the setup,
 		// which includes being unable to build its own response.
-		logger.WithTrace(ctx, ran.Log).Error("failed to handle NG Setup Request", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("failed to handle NG Setup Request", zap.Error(err))
 		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
@@ -73,7 +74,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if !accepted {
 		ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupFailure, outBytes)
 
-		logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected",
+		logger.WithTrace(ctx, ran.Log()).Warn("Radio setup rejected",
 			zap.String("gnb-name", name),
 			zap.String("reason", reason),
 			zap.Any("gnb_tai_list", tais),
@@ -86,7 +87,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// just cannot carry any PDU session, so this is a warning rather than a
 	// rejection (TS 38.413 §8.7.1 lists no cause for it).
 	if !anySliceOverlap(tais, snssaiList) {
-		logger.WithTrace(ctx, ran.Log).Warn("gNB advertises no S-NSSAIs overlapping with operator",
+		logger.WithTrace(ctx, ran.Log()).Warn("gNB advertises no S-NSSAIs overlapping with operator",
 			zap.Any("gnb_tai_list", tais), zap.Any("core_slices", snssaiList))
 	}
 
@@ -102,14 +103,14 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	// answer must not go out while the superseded one is still live.
 	evicted, err := amfInstance.ClaimRanID(ctx, ran, req.GlobalRANNodeID, advertisedCapacity)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Warn("Radio setup rejected", zap.Error(err))
 		sendNGSetupFailure(ctx, ran, causeSemanticError, nil)
 
 		return
 	}
 
 	if evicted != nil {
-		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
+		logger.WithTrace(ctx, ran.Log()).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
 			zap.String("evicted_remote", amf.AddrString(evicted.RemoteAddr())),
 			zap.String("evicted_name", evicted.NodeName()),
 		)
@@ -117,7 +118,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupResponse, outBytes)
 
-	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", name))
+	logger.From(ctx, ran.Log()).Info("Radio setup complete", logger.RAT(metrics.RAT5G))
 }
 
 // sendNGSetupFailure answers with an NG SETUP FAILURE carrying cause and, where
@@ -125,7 +126,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause ngap.Cause, diag *ngap.CriticalityDiagnostics) {
 	pkt, err := (&ngap.NGSetupFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building NG Setup Failure", zap.Error(err))
+		logger.WithTrace(ctx, ran.Log()).Error("error building NG Setup Failure", zap.Error(err))
 		return
 	}
 
@@ -140,7 +141,7 @@ func sendNGSetupProtocolFailure(ctx context.Context, ran *amf.Radio, ase *ngap.A
 
 	sendNGSetupFailure(ctx, ran, ase.Cause, &diag)
 
-	logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected", zap.Error(ase))
+	logger.WithTrace(ctx, ran.Log()).Warn("Radio setup rejected", zap.Error(ase))
 }
 
 // ngSetupOutcomeFor returns an NG Setup Response when the gNB broadcasts a

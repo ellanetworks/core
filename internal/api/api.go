@@ -128,6 +128,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 
 	srv := &http.Server{
 		Addr:              httpAddr,
+		ErrorLog:          logger.StdLogger(logger.APILog),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,

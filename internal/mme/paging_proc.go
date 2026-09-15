@@ -206,7 +206,7 @@ func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest
 
 	if err := ue.session.HandleEPSPagingFailure(ctx, imsi, req.Ebi, cause); err != nil {
 		logger.MmeLog.Warn("could not report an EPS downlink data notification failure",
-			zap.String("imsi", imsi),
+			logger.SUPIFromIMSI(imsi),
 			zap.Uint8("ebi", req.Ebi),
 			zap.String("cause", cause.String()),
 			zap.Error(err))

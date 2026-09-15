@@ -74,7 +74,7 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 	// whose S1 Setup was rejected.
 	if !isSetup && (radio == nil || !radio.SetupComplete()) {
 		logger.From(ctx, m.RadioLog(conn)).Warn("S1AP message before S1 Setup, dropping",
-			zap.String("message-type", string(messageType)))
+			logger.MessageType(string(messageType)))
 
 		return
 	}

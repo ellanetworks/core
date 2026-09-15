@@ -12,9 +12,7 @@ import (
 type loggerCtxKey struct{}
 
 // Into carries a connection-scoped logger for From to read back. Inject it at
-// message ingress keyed by the connection's temporary identity (AMF-UE-NGAP-ID /
-// MME-UE-S1AP-ID) so logs correlate by temporary identity rather than SUPI/IMSI
-// (TS 33.501 §6.12.3, TS 33.401 §7.1).
+// message ingress.
 func Into(ctx context.Context, l *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerCtxKey{}, l)
 }

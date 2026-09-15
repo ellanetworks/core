@@ -115,10 +115,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ver := version.GetVersion()
 
-	logger.EllaLog.Info("Starting Ella Core",
-		zap.String("version", ver.Version),
-		zap.String("revision", ver.Revision),
-	)
+	logger.EllaLog.Info("Starting Ella Core")
 
 	var tp *trace.TracerProvider
 
@@ -578,7 +575,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
 				amfInstance.DisconnectRadioOnConnLoss(ran)
-				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
 	})
@@ -723,6 +719,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 					logger.EllaLog.Warn("could not shutdown tracer", zap.Error(err))
 				}
 			})
+		}
+
+		if err := logger.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "could not flush logs: %v\n", err)
 		}
 	}()
 

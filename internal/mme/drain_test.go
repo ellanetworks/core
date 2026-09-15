@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 func trackTestRadio(m *MME, conn S1APWriter, id string) *Radio {
-	r := &Radio{Conn: conn, m: m, Log: logger.MmeLog}
+	r := &Radio{Conn: conn, m: m}
 	if id != "" {
 		r.ranID = &models.GlobalRanNodeID{ENbID: id}
 	}

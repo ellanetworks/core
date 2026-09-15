@@ -162,7 +162,7 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 	s.listener = listener
 	s.acceptDone = make(chan struct{})
 
-	logFields := []zap.Field{zap.String("interface", s.cfg.Name), zap.String("address", addrStr)}
+	logFields := []zap.Field{zap.String("listener", s.cfg.Name), zap.String("address", addrStr)}
 	if interfaceName != "" {
 		logFields = append(logFields, zap.String("interface_name", interfaceName))
 	}

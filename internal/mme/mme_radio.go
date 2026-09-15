@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
@@ -39,9 +40,7 @@ type Radio struct {
 	// accept and replaced wholesale on an eNB Configuration Update (TS 36.413
 	// §8.7.3.2, §8.7.4). Guarded by MME.mu.
 	supportedTAIs []SupportedTAI
-	// Log carries the eNB's RAN address for node-level correlation. Keyed by the
-	// immutable SCTP address, so it never goes stale.
-	Log *zap.Logger
+	log           atomic.Pointer[zap.Logger]
 
 	advertisedCapacity      *uint8
 	retryNotBefore          time.Time
@@ -186,12 +185,14 @@ func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 	}
 
 	s.lastSeen.Store(info.LastSeenAt.UnixNano())
-	s.Log = logger.MmeLog.With(logger.RanAddr(info.Address))
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	s.refreshLogLocked()
 	m.reg.Track(key, s)
+
+	s.Log().Info("Radio connected", logger.RAT(metrics.RAT4G))
 }
 
 // addRadio records a connected eNB from its S1 Setup Request, carrying only the
@@ -251,9 +252,47 @@ func (m *MME) nodeLogLocked(conn S1APWriter) *zap.Logger {
 	return nodeLog(radio, sc)
 }
 
+func (r *Radio) Log() *zap.Logger {
+	if r == nil {
+		return logger.MmeLog
+	}
+
+	if l := r.log.Load(); l != nil {
+		return l
+	}
+
+	return logger.MmeLog
+}
+
+func (r *Radio) refreshLogLocked() {
+	fields := []zap.Field{logger.RanAddr(r.address)}
+	if r.name != "" {
+		fields = append(fields, logger.RadioName(r.name))
+	}
+
+	if r.ranID != nil {
+		if id := r.ranID.NodeID(); id != "" {
+			fields = append(fields, logger.RadioID(id))
+		}
+	}
+
+	l := logger.MmeLog.With(fields...)
+	r.log.Store(l)
+
+	if r.m == nil {
+		return
+	}
+
+	for _, c := range r.m.conns {
+		if c.Conn() == r.Conn {
+			c.bindLog(l)
+		}
+	}
+}
+
 func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
-	if s != nil && s.Log != nil {
-		return s.Log
+	if s != nil {
+		return s.Log()
 	}
 
 	if conn != nil {
@@ -288,6 +327,7 @@ func (m *MME) ClaimENBID(ctx context.Context, radio *Radio, g s1ap.GlobalENBID, 
 	m.mu.Lock()
 
 	radio.ranID = &ranID
+	radio.refreshLogLocked()
 	radio.advertisedCapacity = &advertisedCapacity
 
 	var stale S1APWriter
@@ -344,6 +384,7 @@ func (m *MME) UpdateRadioName(radio *Radio, name string) {
 	defer m.mu.Unlock()
 
 	radio.name = name
+	radio.refreshLogLocked()
 }
 
 // UpdateRadioSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
@@ -385,7 +426,7 @@ func (r *Radio) TouchLastSeen() {
 // S1AP handlers directly (which the dispatcher hands a resolved *Radio). It is not
 // registered in the MME, so node-registry methods (SetupComplete) are not usable on it.
 func NewRadioForTest(conn S1APWriter) *Radio {
-	return &Radio{Conn: conn, Log: logger.MmeLog}
+	return &Radio{Conn: conn}
 }
 
 // RadioSupportedTAsForTest reads the encapsulated Radio field under the registry
@@ -434,6 +475,7 @@ func (m *MME) DisconnectRadio(conn *sctp.SCTPConn) {
 
 	if dropped != nil {
 		dropped.configUpdateGuard.Stop()
+		dropped.Log().Info("Radio disconnected", logger.RAT(metrics.RAT4G))
 	}
 
 	m.reclaimUEsOnConnLoss(conn)

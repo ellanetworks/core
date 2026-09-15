@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
@@ -186,6 +187,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
 	ueConn.ue.Store(ue)
+	ueConn.bindSupi(ue.Supi())
 
 	var displaced *UeConn
 
@@ -723,7 +725,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 		}
 	}
 
-	logger.From(ctx, logger.AmfLog).Debug("ue deregistered", logger.SUPI(ue.supi.String()))
+	logger.From(ctx, logger.AmfLog).Info("UE deregistered", logger.RAT(metrics.RAT5G))
 }
 
 func (ue *UeContext) deactivateSmContexts(ctx context.Context) {

@@ -21,7 +21,7 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
 			logger.MmeLog.Error("failed to encode S-GW transport layer address for handover",
-				zap.String("imsi", ue.imsiOrEmpty()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+				logger.SUPI(ue.Supi().String()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
 
 			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverUnspecified})
 

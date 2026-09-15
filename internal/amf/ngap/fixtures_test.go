@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
@@ -387,7 +386,6 @@ func (fng *fakeNGAPSender) captureUnsuccessful(m *ngap.UnsuccessfulOutcome) {
 func newTestRadio(a *amf.AMF) *amf.Radio {
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
-		Log:  logger.AmfLog,
 		Conn: sender,
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))

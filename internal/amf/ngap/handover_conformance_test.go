@@ -44,12 +44,11 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 
 	sourceSender := &fakeNGAPSender{}
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceSender}
+	sourceRan := &amf.Radio{Conn: sourceSender}
 	sourceRan.BindAMFForTest(amfInstance)
 
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
-		Log:   logger.AmfLog,
 		Conn:  targetSender,
 		RanID: &models.GlobalRanNodeID{PlmnID: operatorPlmnID(), GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
