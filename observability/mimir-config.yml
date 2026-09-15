@@ -46,6 +46,10 @@ blocks_storage:
 limits:
   native_histograms_ingestion_enabled: true
   compactor_blocks_retention_period: 8760h
+  query_sharding_total_shards: 4
+
+query_scheduler:
+  max_outstanding_requests_per_tenant: 1000
 
 activity_tracker:
   filepath: /data/mimir/activity.log
