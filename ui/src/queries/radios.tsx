@@ -37,7 +37,6 @@ export type APIRadio = {
   connected_at: string;
   last_seen_at: string;
   disconnected_at: string;
-  supported_tais: SupportedTAI[];
 };
 
 export type ListRadiosResponse = {

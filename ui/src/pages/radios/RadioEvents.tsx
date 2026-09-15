@@ -321,7 +321,6 @@ export default function RadioEvents() {
             connected_at: "",
             last_seen_at: "",
             disconnected_at: "",
-            supported_tais: [],
           },
           ...radios,
         ]

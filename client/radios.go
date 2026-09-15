@@ -47,8 +47,6 @@ type Radio struct {
 	ConnectedAt    string  `json:"connected_at"`
 	LastSeenAt     string  `json:"last_seen_at"`
 	DisconnectedAt string  `json:"disconnected_at"`
-	// Deprecated: Use GetRadio (GET /api/v1/ran/radios/{ref}) for supported TAIs.
-	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
 type RadioDetail struct {
