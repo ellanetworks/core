@@ -42,11 +42,14 @@ type DataNetwork struct {
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", DataNetworksTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -100,11 +103,14 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 }
 
 func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -139,11 +145,14 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 }
 
 func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -179,11 +188,14 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 }
 
 func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNetwork, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -219,11 +231,14 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 }
 
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -259,11 +274,14 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -290,11 +308,14 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", DataNetworksTableName),
@@ -321,11 +342,14 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DataNetworksTableName),

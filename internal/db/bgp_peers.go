@@ -38,11 +38,14 @@ type BGPPeer struct {
 }
 
 func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", BGPPeersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -96,11 +99,14 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 }
 
 func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -135,11 +141,14 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 }
 
 func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -175,11 +184,14 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 }
 
 func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -209,11 +221,14 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -241,11 +256,14 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", BGPPeersTableName),
@@ -273,11 +291,14 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 }
 
 func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPPeersTableName),

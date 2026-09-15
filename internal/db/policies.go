@@ -60,11 +60,14 @@ type Policy struct {
 }
 
 func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -118,11 +121,14 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 }
 
 func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID string, page int, perPage int) ([]Policy, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged by profile)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged by profile)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -174,11 +180,14 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 }
 
 func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string) ([]Policy, error) {
+	querySummary := fmt.Sprintf("%s %s (all by profile)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (all by profile)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -216,11 +225,14 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 }
 
 func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -255,11 +267,14 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 // GetPolicyByLookup finds a policy by its profileID, sliceID, and dataNetworkID.
 func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID string) (*Policy, error) {
+	querySummary := fmt.Sprintf("%s %s (lookup)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (lookup)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -301,11 +316,14 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 // GetDefaultPolicyByProfile returns the profile's default data-network binding
 // (the default APN/DNN). Returns ErrNotFound when the profile has no default.
 func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*Policy, error) {
+	querySummary := fmt.Sprintf("%s %s (default by profile)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (default by profile)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -343,11 +361,14 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 // SetDefaultPolicy makes the named policy the sole default binding of the given
 // profile (the default APN/DNN), clearing any previous default in one atomic op.
 func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) error {
+	querySummary := fmt.Sprintf("%s %s (set default)", "UPDATE", PoliciesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (set default)", "UPDATE", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -374,11 +395,14 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 }
 
 func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*Policy, error) {
+	querySummary := fmt.Sprintf("%s %s (by profile+slice)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by profile+slice)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -417,11 +441,14 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 // GetSessionPolicy resolves a subscriber's policy for a given slice (sst+sd) and DNN.
 // It follows the chain: subscriber → profileID → policy (by profile, slice, DNN) → network rules.
 func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, []*NetworkRule, *DataNetwork, error) {
+	querySummary := "GetSessionPolicy"
+
 	ctx, span := tracer.Start(
 		ctx,
-		"GetSessionPolicy",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			attribute.String("imsi", imsi),
 			attribute.Int("sst", int(sst)),
@@ -527,11 +554,14 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", PoliciesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -567,11 +597,14 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -598,11 +631,14 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", PoliciesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -630,11 +666,14 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 // CountPolicies returns policy count
 func (db *Database) CountPolicies(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -663,11 +702,14 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 }
 
 func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (by profile)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by profile)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -699,11 +741,14 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 }
 
 func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (by slice)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by slice)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -735,11 +780,14 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 }
 
 func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (by data network)", "SELECT", PoliciesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by data network)", "SELECT", PoliciesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", PoliciesTableName),
@@ -771,11 +819,14 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 }
 
 func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {
+	querySummary := "PoliciesInDataNetwork"
+
 	ctx, span := tracer.Start(
 		ctx,
-		"PoliciesInDataNetwork",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 		),
 	)
@@ -803,11 +854,14 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 }
 
 func (db *Database) PoliciesInSlice(ctx context.Context, name string) (bool, error) {
+	querySummary := "PoliciesInSlice"
+
 	ctx, span := tracer.Start(
 		ctx,
-		"PoliciesInSlice",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 		),
 	)

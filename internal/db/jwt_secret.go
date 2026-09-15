@@ -49,11 +49,14 @@ func (db *Database) InitializeJWTSecret(ctx context.Context) error {
 }
 
 func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", JWTSecretTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", JWTSecretTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", JWTSecretTableName),
@@ -87,11 +90,14 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 }
 
 func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", JWTSecretTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", JWTSecretTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection.name", JWTSecretTableName),
@@ -120,11 +126,14 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 // RotateJWTSecret atomically updates the JWT secret and deletes all sessions
 // within a single transaction. If either operation fails, both are rolled back.
 func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error {
+	querySummary := fmt.Sprintf("%s %s", "ROTATE", JWTSecretTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "ROTATE", JWTSecretTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("ROTATE"),
 			attribute.String("db.collection.name", JWTSecretTableName),

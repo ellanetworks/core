@@ -64,11 +64,14 @@ type RadioEventFilters struct {
 }
 
 func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", RadioEventsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", RadioEventsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", RadioEventsTableName),
@@ -95,11 +98,14 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 }
 
 func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]dbwriter.RadioEvent, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged+filtered)", "SELECT", RadioEventsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged+filtered)", "SELECT", RadioEventsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", RadioEventsTableName),
@@ -160,11 +166,14 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 // DeleteOldRadioEvents removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
+	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", RadioEventsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (retention)", "DELETE", RadioEventsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", RadioEventsTableName),
@@ -197,11 +206,14 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 }
 
 func (db *Database) ClearRadioEvents(ctx context.Context) error {
+	querySummary := fmt.Sprintf("%s %s (all)", "DELETE", RadioEventsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (all)", "DELETE", RadioEventsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", RadioEventsTableName),
@@ -228,11 +240,14 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 }
 
 func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.RadioEvent, error) {
+	querySummary := fmt.Sprintf("%s %s (by ID)", "SELECT", RadioEventsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by ID)", "SELECT", RadioEventsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", RadioEventsTableName),

@@ -32,11 +32,14 @@ type BGPImportPrefix struct {
 }
 
 func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([]BGPImportPrefix, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPImportPrefixesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", BGPImportPrefixesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", BGPImportPrefixesTableName),
@@ -72,11 +75,14 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 }
 
 func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
+	querySummary := fmt.Sprintf("%s %s", "REPLACE", BGPImportPrefixesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "REPLACE", BGPImportPrefixesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("REPLACE"),
 			attribute.String("db.collection.name", BGPImportPrefixesTableName),

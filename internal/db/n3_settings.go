@@ -49,11 +49,14 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 }
 
 func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection.name", N3SettingsTableName),
@@ -81,11 +84,14 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 }
 
 func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", N3SettingsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", N3SettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", N3SettingsTableName),

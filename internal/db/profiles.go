@@ -40,11 +40,14 @@ type Profile struct {
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -98,11 +101,14 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 }
 
 func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -136,11 +142,14 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 }
 
 func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -174,11 +183,14 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 }
 
 func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -214,11 +226,14 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -245,11 +260,14 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", ProfilesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -276,11 +294,14 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountProfiles(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", ProfilesTableName),
@@ -309,11 +330,14 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 }
 
 func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", SubscribersTableName),
@@ -345,11 +369,14 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 }
 
 func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {
+	querySummary := "SubscribersInProfile"
+
 	ctx, span := tracer.Start(
 		ctx,
-		"SubscribersInProfile",
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 		),
 	)

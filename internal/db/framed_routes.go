@@ -45,11 +45,14 @@ type framedRoutesPayload struct {
 // framed-route set (delete-then-insert); an empty set clears it. Prefixes are
 // normalized so the UNIQUE(prefix) constraint and overlap checks see one form.
 func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID string, prefixes []netip.Prefix) error {
+	querySummary := fmt.Sprintf("%s %s", "REPLACE", FramedRoutesTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "REPLACE", FramedRoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("REPLACE"),
 			attribute.String("db.collection.name", FramedRoutesTableName),
@@ -120,11 +123,14 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 }
 
 func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context, imsi, dataNetworkID string) ([]SubscriberFramedRoute, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", FramedRoutesTableName),
@@ -160,11 +166,14 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 }
 
 func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetworkID string) ([]SubscriberFramedRoute, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", FramedRoutesTableName),
@@ -200,11 +209,14 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 }
 
 func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramedRoute, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", FramedRoutesTableName),

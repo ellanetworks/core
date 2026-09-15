@@ -38,11 +38,14 @@ const (
 )
 
 func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) ([]APIToken, int, error) {
+	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", APITokensTableName),
@@ -99,11 +102,14 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
 func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", APITokensTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", APITokensTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", APITokensTableName),
@@ -139,11 +145,14 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 }
 
 func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*APIToken, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", APITokensTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", APITokensTableName),
@@ -177,11 +186,14 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 }
 
 func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", APITokensTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", APITokensTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", APITokensTableName),
@@ -208,11 +220,14 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 }
 
 func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", APITokensTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", APITokensTableName),

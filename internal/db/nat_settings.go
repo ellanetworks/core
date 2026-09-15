@@ -50,11 +50,14 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 }
 
 func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", NATSettingsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NATSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", NATSettingsTableName),
@@ -83,11 +86,14 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection.name", NATSettingsTableName),

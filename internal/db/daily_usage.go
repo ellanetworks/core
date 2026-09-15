@@ -105,11 +105,14 @@ func (d *UsagePerDay) GetDay() time.Time {
 }
 
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", DailyUsageTableName),
@@ -150,11 +153,14 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 		return nil
 	}
 
+	querySummary := fmt.Sprintf("%s %s (batch)", "INSERT", DailyUsageTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (batch)", "INSERT", DailyUsageTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", DailyUsageTableName),
@@ -189,11 +195,14 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 }
 
 func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerDay, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DailyUsageTableName),
@@ -237,11 +246,14 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 }
 
 func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time, limit int64) ([]UsagePerSub, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", DailyUsageTableName),
@@ -285,11 +297,14 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 }
 
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", DailyUsageTableName),
@@ -316,11 +331,14 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
+	querySummary := fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", DailyUsageTableName),

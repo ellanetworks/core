@@ -86,11 +86,14 @@ func deriveHomeNetworkPublicKeyProfileB(privateKeyHex string) (string, error) {
 
 // ListHomeNetworkKeys returns all home network keys ordered by scheme and key identifier.
 func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),
@@ -125,11 +128,14 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 
 // GetHomeNetworkKey retrieves a home network key by its UUID.
 func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetworkKey, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),
@@ -164,11 +170,14 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 
 // GetHomeNetworkKeyBySchemeAndIdentifier retrieves a home network key by its (scheme, keyIdentifier) pair.
 func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, scheme string, keyIdentifier int) (*HomeNetworkKey, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),
@@ -203,11 +212,14 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 // CreateHomeNetworkKey inserts a new home network key.
 func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
+	querySummary := fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),
@@ -239,11 +251,14 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 // DeleteHomeNetworkKey removes a home network key by its UUID.
 func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
+	querySummary := fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),
@@ -271,11 +286,14 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 
 // CountHomeNetworkKeys returns the number of home network keys.
 func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", HomeNetworkKeysTableName),

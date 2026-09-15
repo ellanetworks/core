@@ -47,11 +47,14 @@ func (db *Database) InitializeLocalSwitchSettings(ctx context.Context) error {
 }
 
 func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
+	querySummary := fmt.Sprintf("%s %s", "SELECT", LocalSwitchSettingsTableName)
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "SELECT", LocalSwitchSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
@@ -80,11 +83,14 @@ func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool) error {
+	querySummary := fmt.Sprintf("%s %s", "UPSERT", LocalSwitchSettingsTableName)
+
 	_, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "UPSERT", LocalSwitchSettingsTableName),
+		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
