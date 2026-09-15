@@ -144,6 +144,23 @@ export const resolveTimeRangeFilter = (
   return resolved;
 };
 
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const formatDateOnly = (value: string): string => {
+  const match = DATE_ONLY.exec(value);
+  if (!match) return formatDate(value);
+  const [, year, month, day] = match;
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+  ).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 export const timeRangeLabel = (
   value: TimeRangeValue,
   options?: {
@@ -157,12 +174,13 @@ export const timeRangeLabel = (
       ranges.find((range) => range.value === value.preset)?.label ?? "Any time"
     );
   }
-  const format = options?.granularity === "date" ? formatDate : formatDateTime;
-  const fromIso = toIsoInstant(value.from);
-  const toIso = toIsoInstant(value.to);
-  if (fromIso && toIso) return `${format(fromIso)} \u2192 ${format(toIso)}`;
-  if (fromIso) return `After ${format(fromIso)}`;
-  if (toIso) return `Before ${format(toIso)}`;
+  const isDateOnly = options?.granularity === "date";
+  const format = isDateOnly ? formatDateOnly : formatDateTime;
+  const from = isDateOnly ? value.from : toIsoInstant(value.from);
+  const to = isDateOnly ? value.to : toIsoInstant(value.to);
+  if (from && to) return `${format(from)} \u2192 ${format(to)}`;
+  if (from) return `After ${format(from)}`;
+  if (to) return `Before ${format(to)}`;
   return "Custom range";
 };
 
