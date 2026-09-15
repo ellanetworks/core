@@ -66,7 +66,6 @@ type BGPService struct {
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
 	n6AddrV4    netip.Addr           // IPv4 address of N6 interface
 	n6AddrV6    netip.Addr           // IPv6 address of N6 interface
-	n6IfName    string               // N6 interface the listener is bound to; empty means every interface
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -98,11 +97,6 @@ func WithImportPrefixStore(s ImportPrefixStore) Option {
 // WithRouteFilter sets the safety rejection filter for learned routes.
 func WithRouteFilter(f *RouteFilter) Option {
 	return func(b *BGPService) { b.filter = f }
-}
-
-// WithN6Interface confines the BGP listener to the named interface.
-func WithN6Interface(name string) Option {
-	return func(b *BGPService) { b.n6IfName = name }
 }
 
 // UpdateFilter replaces the safety rejection filter and re-evaluates all
@@ -222,6 +216,27 @@ func (b *BGPService) resolveListenPort(settings BGPSettings) int32 {
 	return defaultListenPort
 }
 
+// resolveListenAddresses returns the local addresses the speaker accepts
+// sessions on, taken from the host part of settings.ListenAddress. A nil result
+// means every address, which is what GoBGP defaults to.
+func resolveListenAddresses(settings BGPSettings) []string {
+	if settings.ListenAddress == "" {
+		return nil
+	}
+
+	host, _, err := net.SplitHostPort(settings.ListenAddress)
+	if err != nil || host == "" {
+		return nil
+	}
+
+	addr, err := netip.ParseAddr(host)
+	if err != nil || addr.IsUnspecified() {
+		return nil
+	}
+
+	return []string{addr.String()}
+}
+
 // routeLearningEnabled returns true if the service has all dependencies
 // needed to learn routes from peers and install them in the kernel.
 func (b *BGPService) routeLearningEnabled() bool {
@@ -238,6 +253,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	}
 
 	listenPort := b.resolveListenPort(settings)
+	listenAddresses := resolveListenAddresses(settings)
 
 	// Clean stale BGP routes from a prior crash before starting the speaker.
 	if b.routeLearningEnabled() {
@@ -256,11 +272,11 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
-			Asn:          uint32(settings.LocalAS),
-			RouterId:     routerID,
-			ListenPort:   listenPort,
-			Families:     families,
-			BindToDevice: b.n6IfName,
+			Asn:             uint32(settings.LocalAS),
+			RouterId:        routerID,
+			ListenPort:      listenPort,
+			ListenAddresses: listenAddresses,
+			Families:        families,
 		},
 	})
 	if err != nil {
@@ -318,10 +334,15 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		}()
 	}
 
+	listen := "all addresses"
+	if len(listenAddresses) == 1 {
+		listen = listenAddresses[0]
+	}
+
 	b.logger.Info("BGP service started",
 		zap.Int("localAS", settings.LocalAS),
 		zap.String("routerID", routerID),
-		zap.String("interface", b.n6IfName),
+		zap.String("listening", listen),
 		zap.Int("peers", len(peers)),
 		zap.Int("routes", len(b.paths)),
 	)

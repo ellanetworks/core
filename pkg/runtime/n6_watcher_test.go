@@ -12,13 +12,16 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
 
 // stubInterfaceIPs replaces the host lookup with a fixed set of addresses for
-// the duration of the test.
+// the duration of the test, on an interface that is up.
 func stubInterfaceIPs(t *testing.T, v4, v6 string) {
 	t.Helper()
+
+	stubLinkIsUp(t, true)
 
 	original := config.GetInterfaceIPFunc
 
@@ -36,6 +39,20 @@ func stubInterfaceIPs(t *testing.T, v4, v6 string) {
 
 		return "", config.ErrNoInterfaceIP
 	}
+}
+
+// stubLinkIsUp fixes the administrative state of the interface for the duration
+// of the test.
+func stubLinkIsUp(t *testing.T, up bool) {
+	t.Helper()
+
+	original := linkIsUp
+
+	t.Cleanup(func() {
+		linkIsUp = original
+	})
+
+	linkIsUp = func(string) bool { return up }
 }
 
 func TestLookupN6Addresses(t *testing.T) {
@@ -70,6 +87,17 @@ func addrString(addr netip.Addr) string {
 	}
 
 	return addr.String()
+}
+
+func TestLookupN6AddressesTreatsADownedLinkAsAddressless(t *testing.T) {
+	stubInterfaceIPs(t, "192.0.2.10", "2001:db8::10")
+	stubLinkIsUp(t, false)
+
+	v4, v6 := lookupN6Addresses("n6eth0")
+
+	if v4.IsValid() || v6.IsValid() {
+		t.Fatalf("addresses = %v, %v; want both empty while the link is down", v4, v6)
+	}
 }
 
 func TestReconcileN6AddressesAppliesAcquiredAddresses(t *testing.T) {
@@ -111,6 +139,28 @@ func TestReconcileN6AddressesAppliesLostAddresses(t *testing.T) {
 
 	if v6.IsValid() {
 		t.Fatalf("IPv6 = %v, want empty", v6)
+	}
+}
+
+func TestWatchN6StreamReadsTheInterfaceOnEntry(t *testing.T) {
+	svc := bgp.New(netip.Addr{}, netip.Addr{}, zap.NewNop())
+	svc.SetListenPort(-1)
+
+	stubInterfaceIPs(t, "192.0.2.10", "2001:db8::10")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// No update is ever sent and the backstop is a minute away, so only an
+	// entry reconcile can populate the addresses.
+	stopped := watchN6Stream(ctx, make(chan struct{}), make(chan netlink.AddrUpdate), "n6eth0", svc, nil)
+	if !stopped {
+		t.Fatal("watchN6Stream should report a clean stop when the context is cancelled")
+	}
+
+	v4, v6 := svc.N6Addresses()
+	if v4.String() != "192.0.2.10" || v6.String() != "2001:db8::10" {
+		t.Fatalf("N6Addresses = %v, %v; want 192.0.2.10, 2001:db8::10", v4, v6)
 	}
 }
 

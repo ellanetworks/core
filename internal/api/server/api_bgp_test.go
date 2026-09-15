@@ -509,6 +509,37 @@ func TestApiBGPSettingsValidation(t *testing.T) {
 	})
 }
 
+func TestApiBGPSettingsListenAddressHost(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+
+	for _, tc := range []struct {
+		listenAddress string
+		want          int
+	}{
+		{listenAddress: ":179", want: http.StatusOK},
+		{listenAddress: "0.0.0.0:179", want: http.StatusOK},
+		{listenAddress: "127.0.0.1:179", want: http.StatusOK},
+		{listenAddress: "192.0.2.99:179", want: http.StatusBadRequest},
+		{listenAddress: "not-an-ip:179", want: http.StatusBadRequest},
+	} {
+		params := &UpdateBGPSettingsParams{
+			Enabled:       false,
+			LocalAS:       64513,
+			RouterID:      "10.0.0.1",
+			ListenAddress: tc.listenAddress,
+		}
+
+		statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't update BGP settings: %s", err)
+		}
+
+		if statusCode != tc.want {
+			t.Fatalf("listenAddress %q: expected status %d, got %d", tc.listenAddress, tc.want, statusCode)
+		}
+	}
+}
+
 func TestApiBGPPeersEndToEnd(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 

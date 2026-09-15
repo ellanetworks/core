@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"time"
 
@@ -22,7 +23,21 @@ const (
 	n6WatchRetryMaxInterval = time.Minute
 )
 
+// linkIsUp reports whether an interface is administratively up.
+var linkIsUp = func(name string) bool {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return false
+	}
+
+	return link.Attrs().Flags&net.FlagUp != 0
+}
+
 func lookupN6Addresses(n6IfName string) (netip.Addr, netip.Addr) {
+	if !linkIsUp(n6IfName) {
+		return netip.Addr{}, netip.Addr{}
+	}
+
 	var v4, v6 netip.Addr
 
 	if ip, err := config.GetInterfaceIPFunc(n6IfName, config.IPv4); err == nil {
@@ -77,6 +92,8 @@ func watchN6Stream(ctx context.Context, done chan struct{}, updates chan netlink
 
 	backstop := time.NewTicker(n6WatchBackstopInterval)
 	defer backstop.Stop()
+
+	reconcileN6Addresses(n6IfName, bgpService, onIPv4Available)
 
 	drain := func() bool {
 		for {

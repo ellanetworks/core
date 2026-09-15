@@ -130,6 +130,32 @@ func resolveRouterIDFromN6(cfg config.Config) (string, error) {
 	return parsed.String(), nil
 }
 
+func validateListenHost(host string) error {
+	if host == "" {
+		return nil
+	}
+
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return fmt.Errorf("%q is not a valid IP address", host)
+	}
+
+	if addr.IsUnspecified() {
+		return nil
+	}
+
+	name, err := config.GetInterfaceName(addr.String())
+	if err != nil {
+		return fmt.Errorf("could not look up the interfaces of this node: %w", err)
+	}
+
+	if name == "" {
+		return fmt.Errorf("%q is not configured on any interface of this node", host)
+	}
+
+	return nil
+}
+
 // BGP Settings handlers
 
 func GetBGPSettings(dbInstance *db.Database, cfg config.Config) http.Handler {
@@ -191,8 +217,14 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg 
 			params.ListenAddress = ":179"
 		}
 
-		if _, _, err := net.SplitHostPort(params.ListenAddress); err != nil {
+		host, _, err := net.SplitHostPort(params.ListenAddress)
+		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "listenAddress must be a valid host:port or :port string", nil, logger.APILog)
+			return
+		}
+
+		if err := validateListenHost(host); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "listenAddress host must be an address configured on this node, or empty to accept sessions on every address", err, logger.APILog)
 			return
 		}
 
