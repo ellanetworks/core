@@ -548,11 +548,6 @@ func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil
 }
 
-// snapshotStagingDir is where a snapshot stages its SQLite copy. It sits beside
-// the raft snapshot store rather than inside it: hashicorp/raft scans
-// raft/snapshots on every List and warns about any directory it cannot parse as
-// a snapshot. Staging on the data volume rather than in os.TempDir keeps the
-// copy off a possibly tmpfs-backed /tmp.
 func snapshotStagingDir(dataDir string) string {
 	return filepath.Join(dataDir, "raft", "snapshot-staging")
 }

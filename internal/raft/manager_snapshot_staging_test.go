@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-// A process killed mid-snapshot leaves a full database copy behind. Startup must
-// remove it, from the current staging directory and from the legacy one inside
-// the raft snapshot store.
 func TestCleanSnapshotStaging(t *testing.T) {
 	t.Parallel()
 
@@ -20,7 +17,6 @@ func TestCleanSnapshotStaging(t *testing.T) {
 	legacyDir := filepath.Join(raftDir, "snapshots", "tmp")
 	stagingDir := snapshotStagingDir(dataDir)
 
-	// A real snapshot the sweep must not touch.
 	keepDir := filepath.Join(raftDir, "snapshots", "2-8-1700000000000")
 
 	for _, dir := range []string{legacyDir, stagingDir, keepDir} {
@@ -46,8 +42,6 @@ func TestCleanSnapshotStaging(t *testing.T) {
 	}
 }
 
-// The sweep runs on every startup, including the first one, when neither
-// directory exists yet.
 func TestCleanSnapshotStagingNoDirs(t *testing.T) {
 	t.Parallel()
 
