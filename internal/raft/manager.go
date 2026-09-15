@@ -314,6 +314,8 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
+	cleanSnapshotStaging(dataDir, raftDir)
+
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
 		_ = boltStore.Close()
@@ -955,6 +957,46 @@ func (m *Manager) AddNonvoter(nodeID int, address string) error {
 	}
 
 	return nil
+}
+
+const incompleteSnapshotSuffix = ".tmp"
+
+func cleanSnapshotStaging(dataDir, raftDir string) {
+	snapshotDir := filepath.Join(raftDir, "snapshots")
+
+	dirs := []string{
+		snapshotStagingDir(dataDir),
+		filepath.Join(snapshotDir, "tmp"),
+	}
+
+	incomplete, err := filepath.Glob(filepath.Join(snapshotDir, "*"+incompleteSnapshotSuffix))
+	if err != nil {
+		logger.RaftLog.Warn("Could not scan for incomplete raft snapshots",
+			zap.String("path", snapshotDir), zap.Error(err))
+	}
+
+	dirs = append(dirs, incomplete...)
+
+	for _, dir := range dirs {
+		switch _, err := os.Stat(dir); {
+		case os.IsNotExist(err):
+			continue
+		case err != nil:
+			logger.RaftLog.Warn("Could not inspect snapshot staging directory",
+				zap.String("path", dir), zap.Error(err))
+
+			continue
+		}
+
+		if err := os.RemoveAll(dir); err != nil {
+			logger.RaftLog.Warn("Could not remove leftover snapshot staging directory",
+				zap.String("path", dir), zap.Error(err))
+
+			continue
+		}
+
+		logger.RaftLog.Info("Removed leftover snapshot staging directory", zap.String("path", dir))
+	}
 }
 
 func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.SnapshotStore, raftDir string) error {
