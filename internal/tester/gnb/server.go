@@ -133,6 +133,7 @@ type GnodeB struct {
 	OmitUEContextRequest bool
 	radioCapReported     map[int64]bool
 	ueContexts           map[int64]bool
+	advertisedDLTEIDs    map[int64]map[int64]uint32
 	dispatcher           *dispatcher // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
@@ -176,6 +177,16 @@ func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	if g.pduSessions[ranUeID] == nil {
 		g.pduSessions[ranUeID] = make(map[int64]*PDUSessionInformation)
 	}
+
+	if g.advertisedDLTEIDs == nil {
+		g.advertisedDLTEIDs = make(map[int64]map[int64]uint32)
+	}
+
+	if g.advertisedDLTEIDs[ranUeID] == nil {
+		g.advertisedDLTEIDs[ranUeID] = make(map[int64]uint32)
+	}
+
+	g.advertisedDLTEIDs[ranUeID][info.PDUSessionID] = info.DLTEID
 
 	g.sessionGen++
 	info.generation = g.sessionGen
@@ -983,6 +994,22 @@ func (g *GnodeB) AllocateForwardingTEID() uint32 {
 	g.nextFwdTEID++
 
 	return t
+}
+
+func (g *GnodeB) reusableDLTEID(ranUeID, pduSessionID int64) uint32 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	teid := g.advertisedDLTEIDs[ranUeID][pduSessionID]
+	if teid == 0 {
+		return 0
+	}
+
+	if _, ok := g.tunnels[teid]; !ok {
+		return 0
+	}
+
+	return teid
 }
 
 // PinDLTEID pins the downlink TEID reported at the next re-establishment of
