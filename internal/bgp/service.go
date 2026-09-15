@@ -343,7 +343,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		zap.Int("local_as", settings.LocalAS),
 		zap.String("router_id", routerID),
 		zap.Int("peer_count", len(peers)),
-    zap.String("listening", listen),
+		zap.String("listening", listen),
 		zap.Int("routes", len(b.paths)),
 	)
 

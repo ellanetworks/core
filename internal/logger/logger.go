@@ -147,7 +147,7 @@ func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
 }
 
-// WithTrace returns a logger enriched with traceID and spanID fields
+// WithTrace returns a logger enriched with trace_id and span_id fields
 // extracted from the given context. If the context has no active span,
 // the original logger is returned unchanged.
 func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
@@ -157,8 +157,8 @@ func WithTrace(ctx context.Context, l *zap.Logger) *zap.Logger {
 	}
 
 	return l.With(
-		zap.String("traceID", sc.TraceID().String()),
-		zap.String("spanID", sc.SpanID().String()),
+		zap.String("trace_id", sc.TraceID().String()),
+		zap.String("span_id", sc.SpanID().String()),
 	)
 }
 
