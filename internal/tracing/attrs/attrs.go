@@ -4,8 +4,11 @@
 package attrs
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/etsi"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func SUPI(val string) attribute.KeyValue { return attribute.String("ue.supi", val) }
@@ -54,3 +57,11 @@ func NodeID(val int) attribute.KeyValue { return attribute.Int("cluster.node_id"
 func LeaseIPv4(val string) attribute.KeyValue { return attribute.String("ip_lease.ipv4", val) }
 
 func LeaseIPv6(val string) attribute.KeyValue { return attribute.String("ip_lease.ipv6", val) }
+
+func IdentifyUE(ctx context.Context, supi string) {
+	if supi == "" {
+		return
+	}
+
+	trace.SpanFromContext(ctx).SetAttributes(SUPI(supi))
+}

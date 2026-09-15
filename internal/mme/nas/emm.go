@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
@@ -64,6 +65,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 	}
 
 	ctx = logger.Into(ctx, ueConn.Log())
+	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil {

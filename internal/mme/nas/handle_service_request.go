@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -32,6 +33,9 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 		return
 	}
+
+	ctx = logger.Into(ctx, ue.Conn().Log())
+	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	sr, err := eps.ParseServiceRequest([]byte(msg.NASPDU))
 	if !decoded(ctx, "ServiceRequest", err) {

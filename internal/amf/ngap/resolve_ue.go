@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -71,6 +72,8 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 			return nil, false
 		}
 
+		attrs.IdentifyUE(ctx, ueConn.UeContext().Supi().String())
+
 		return ueConn, true
 	}
 
@@ -83,6 +86,8 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 
 			return nil, false
 		}
+
+		attrs.IdentifyUE(ctx, ueConn.UeContext().Supi().String())
 
 		return ueConn, true
 	}

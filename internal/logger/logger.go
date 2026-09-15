@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/version"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -261,6 +262,8 @@ func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType,
 	msg := "UE registration accepted"
 	if result != metrics.ResultAccept {
 		msg = "UE registration rejected"
+
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, msg)
 	}
 
 	From(ctx, base).WithOptions(zap.AddCallerSkip(1)).Info(msg,

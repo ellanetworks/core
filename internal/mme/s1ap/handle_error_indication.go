@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -41,6 +42,8 @@ func resolveUE(ctx context.Context, m *mme.MME, conn mme.S1APWriter, mmeID s1ap.
 
 		return nil, nil, false
 	}
+
+	attrs.IdentifyUE(ctx, ue.Supi().String())
 
 	// Before the checks, so they and the handler see one connection rather than
 	// whatever ue.active holds at each read.

@@ -9,6 +9,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -82,6 +84,8 @@ func recordSessionEstablishmentResult(ctx context.Context, rat, result string, f
 	msg := "PDU session established"
 	if result != metrics.ResultAccept {
 		msg = "PDU session establishment rejected"
+
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, msg)
 	}
 
 	logger.From(ctx, logger.SmfLog).WithOptions(zap.AddCallerSkip(2)).Info(msg,
