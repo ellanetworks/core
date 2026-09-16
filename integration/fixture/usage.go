@@ -47,20 +47,19 @@ func AssertUsagePositive(ctx context.Context, t *testing.T, c *client.Client, im
 }
 
 func subscriberBytesToday(ctx context.Context, c *client.Client, imsi string) (int64, int64, error) {
-	usage, err := c.ListUsage(ctx, &client.ListUsageParams{
-		GroupBy:    "day",
+	usage, err := c.ListUsagePerDay(ctx, &client.ListUsageParams{
 		Subscriber: imsi,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("list usage: %w", err)
 	}
 
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().UTC().Format("2006-01-02")
 
 	var up, down int64
 
-	for _, perSub := range *usage {
-		if u, ok := perSub[today]; ok {
+	for _, u := range usage {
+		if u.Date == today {
 			up += u.UplinkBytes
 			down += u.DownlinkBytes
 		}
