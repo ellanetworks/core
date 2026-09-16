@@ -6,6 +6,7 @@ package raft
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,35 +14,39 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-type slowApplier struct {
+type gatedApplier struct {
 	*testApplier
 
-	delayNanos atomic.Int64
+	gate <-chan struct{}
 }
 
-func (a *slowApplier) ApplyCommand(ctx context.Context, cmd *Command, idx uint64) (any, error) {
-	if d := a.delayNanos.Load(); d > 0 {
-		time.Sleep(time.Duration(d))
+func (a *gatedApplier) ApplyCommand(ctx context.Context, cmd *Command, idx uint64) (any, error) {
+	if a.gate != nil {
+		<-a.gate
 	}
 
 	return a.testApplier.ApplyCommand(ctx, cmd, idx)
 }
 
-func newLaggingCluster(t *testing.T, delay time.Duration) (*TestCluster, []*slowApplier) {
+func newGatedCluster(t *testing.T) (*TestCluster, []*gatedApplier, func()) {
 	t.Helper()
 
-	var next atomic.Int32
+	var (
+		next    atomic.Int32
+		once    sync.Once
+		release = make(chan struct{})
+	)
 
 	next.Store(-1)
 
-	appliers := make([]*slowApplier, 3)
+	appliers := make([]*gatedApplier, 3)
 
 	tc := SetupTestClusterWithAppliers(t, 3, func() Applier {
 		i := int(next.Add(1))
-		a := &slowApplier{testApplier: newTestApplier(t)}
+		a := &gatedApplier{testApplier: newTestApplier(t)}
 
 		if i > 0 {
-			a.delayNanos.Store(int64(delay))
+			a.gate = release
 		}
 
 		appliers[i] = a
@@ -49,7 +54,11 @@ func newLaggingCluster(t *testing.T, delay time.Duration) (*TestCluster, []*slow
 		return a
 	})
 
-	return tc, appliers
+	unblock := func() { once.Do(func() { close(release) }) }
+
+	t.Cleanup(unblock)
+
+	return tc, appliers, unblock
 }
 
 func proposeN(t *testing.T, leader *Manager, n int) {
@@ -67,22 +76,53 @@ func proposeN(t *testing.T, leader *Manager, n int) {
 	}
 }
 
-func awaitLeader(t *testing.T, tc *TestCluster, survivors []int, appliers []*slowApplier) (*Manager, int) {
+func isElectionChurn(err error) bool {
+	return errors.Is(err, hraft.ErrLeadershipLost) || errors.Is(err, hraft.ErrNotLeader)
+}
+
+func awaitStableLeader(t *testing.T, tc *TestCluster, survivors []int) (*Manager, int) {
 	t.Helper()
 
-	deadline := time.After(10 * time.Second)
+	const (
+		tick       = 5 * time.Millisecond
+		stableHold = 40
+	)
+
+	deadline := time.After(20 * time.Second)
+
+	var (
+		current *Manager
+		idx     int
+		held    int
+	)
 
 	for {
 		select {
 		case <-deadline:
-			t.Fatal("no new leader elected")
-		case <-time.After(2 * time.Millisecond):
+			t.Fatal("no stable leader elected")
+		case <-time.After(tick):
 		}
+
+		var (
+			leader   *Manager
+			leaderAt int
+		)
 
 		for _, i := range survivors {
 			if tc.Nodes[i].IsLeader() {
-				return tc.Nodes[i], len(appliers[i].seen())
+				leader, leaderAt = tc.Nodes[i], i
 			}
+		}
+
+		if leader == nil || leader != current {
+			current, idx, held = leader, leaderAt, 0
+
+			continue
+		}
+
+		held++
+		if held == stableHold {
+			return current, idx
 		}
 	}
 }
@@ -122,9 +162,12 @@ func awaitStableLastIndex(t *testing.T, m *Manager) uint64 {
 }
 
 func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
-	const proposals = 30
+	const (
+		proposals = 30
+		attempts  = 5
+	)
 
-	tc, appliers := newLaggingCluster(t, 150*time.Millisecond)
+	tc, appliers, unblock := newGatedCluster(t)
 
 	leader := tc.Nodes[0]
 	if !leader.IsLeader() {
@@ -139,34 +182,91 @@ func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 
 	tc.Listeners[0].Stop()
 
-	newLeader, appliedAtElection := awaitLeader(t, tc, []int{1, 2}, appliers)
+	for range attempts {
+		newLeader, idx := awaitStableLeader(t, tc, []int{1, 2})
+		applier := appliers[idx]
 
-	if appliedAtElection >= proposals {
-		t.Fatalf("FSM already caught up at election (%d of %d commands applied): the lag this test needs did not occur",
-			appliedAtElection, proposals)
+		if got := len(applier.seen()); got != 0 {
+			t.Fatalf("commands applied before the barrier: want 0 (the FSM backlog is held), got %d", got)
+		}
+
+		done := make(chan error, 1)
+
+		go func() { done <- newLeader.WriteBarrier(30 * time.Second) }()
+
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("write barrier returned while the prior-term backlog was still unapplied")
+			}
+
+			if isElectionChurn(err) {
+				continue
+			}
+
+			t.Fatalf("write barrier: %v", err)
+		case <-time.After(250 * time.Millisecond):
+		}
+
+		unblock()
+
+		if err := <-done; err != nil {
+			t.Fatalf("write barrier: %v", err)
+		}
+
+		if got := len(applier.seen()); got < proposals {
+			t.Fatalf("commands applied after barrier: want at least %d, got %d", proposals, got)
+		}
+
+		return
 	}
 
-	if err := newLeader.WriteBarrier(10 * time.Second); err != nil {
-		t.Fatalf("write barrier: %v", err)
+	t.Fatalf("no barrier attempt held leadership across %d elections", attempts)
+}
+
+func backlogTimeoutAttempt(t *testing.T, tc *TestCluster, appliers []*gatedApplier) (*Manager, bool) {
+	t.Helper()
+
+	newLeader, idx := awaitStableLeader(t, tc, []int{1, 2})
+
+	if got := len(appliers[idx].seen()); got != 0 {
+		t.Fatalf("commands applied before the barrier: want 0 (the FSM backlog is held), got %d", got)
 	}
 
-	var applier *slowApplier
+	switch err := newLeader.WriteBarrier(10 * time.Millisecond); {
+	case errors.Is(err, ErrBarrierTimeout):
+	case isElectionChurn(err):
+		return nil, false
+	default:
+		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
+	}
 
-	for i, n := range tc.Nodes {
-		if n == newLeader {
-			applier = appliers[i]
+	beforeRetries := awaitStableLastIndex(t, newLeader)
+
+	for range 5 {
+		switch err := newLeader.WriteBarrier(10 * time.Millisecond); {
+		case errors.Is(err, ErrBarrierTimeout):
+		case isElectionChurn(err):
+			return nil, false
+		default:
+			t.Fatalf("write barrier retry: want ErrBarrierTimeout, got %v", err)
 		}
 	}
 
-	if got := len(applier.seen()); got < proposals {
-		t.Fatalf("commands applied after barrier: want at least %d, got %d", proposals, got)
+	if got := awaitStableLastIndex(t, newLeader); got != beforeRetries {
+		t.Fatalf("last index after 5 timed-out retries: want %d (one barrier in flight), got %d", beforeRetries, got)
 	}
+
+	return newLeader, true
 }
 
 func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
-	const proposals = 30
+	const (
+		proposals = 30
+		attempts  = 5
+	)
 
-	tc, appliers := newLaggingCluster(t, 150*time.Millisecond)
+	tc, appliers, unblock := newGatedCluster(t)
 
 	proposeN(t, tc.Nodes[0], proposals)
 
@@ -176,32 +276,22 @@ func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
 
 	tc.Listeners[0].Stop()
 
-	newLeader, appliedAtElection := awaitLeader(t, tc, []int{1, 2}, appliers)
-
-	if appliedAtElection >= proposals {
-		t.Fatalf("FSM already caught up at election (%d of %d commands applied): the lag this test needs did not occur",
-			appliedAtElection, proposals)
-	}
-
-	if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
-		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
-	}
-
-	beforeRetries := awaitStableLastIndex(t, newLeader)
-
-	for range 5 {
-		if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
-			t.Fatalf("write barrier retry: want ErrBarrierTimeout, got %v", err)
+	for range attempts {
+		newLeader, ok := backlogTimeoutAttempt(t, tc, appliers)
+		if !ok {
+			continue
 		}
+
+		unblock()
+
+		if err := newLeader.WriteBarrier(30 * time.Second); err != nil {
+			t.Fatalf("write barrier after backlog drains: %v", err)
+		}
+
+		return
 	}
 
-	if got := awaitStableLastIndex(t, newLeader); got != beforeRetries {
-		t.Fatalf("last index after 5 timed-out retries: want %d (one barrier in flight), got %d", beforeRetries, got)
-	}
-
-	if err := newLeader.WriteBarrier(30 * time.Second); err != nil {
-		t.Fatalf("write barrier after backlog drains: %v", err)
-	}
+	t.Fatalf("no barrier attempt held leadership across %d elections", attempts)
 }
 
 func TestWriteBarrier_OncePerTerm(t *testing.T) {
