@@ -224,6 +224,11 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		se.SetDownlinkBuffer(bufferResponder)
 	}
 
+	if err := enslaveVethPairsToReferenceVRF(n3Interface.Name); err != nil {
+		logger.UpfLog.Warn("failed to enslave veth pairs to N3 VRF, RA injection and downlink buffering may be unavailable",
+			zap.String("n3_interface", n3Interface.Name), zap.Error(err))
+	}
+
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	upf.startUsageMonitor(ctx, 30*time.Second)

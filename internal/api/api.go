@@ -139,12 +139,18 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 
 	go func() {
 		lc := net.ListenConfig{}
-		if cfg.Interfaces.API.Name != "" {
+
+		bindDevice := cfg.Interfaces.API.Name
+		if bindDevice == "" {
+			bindDevice = vrfDeviceForAPIAddress(cfg.Interfaces.API.Address)
+		}
+
+		if bindDevice != "" {
 			lc.Control = func(network, address string, c syscall.RawConn) error {
 				var setSockOptErr error
 
 				if err := c.Control(func(fd uintptr) {
-					setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, cfg.Interfaces.API.Name)
+					setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, bindDevice)
 				}); err != nil {
 					return err
 				}
@@ -177,6 +183,10 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		}
 		if cfg.Interfaces.API.Name != "" {
 			logFields = append(logFields, zap.String("interface", cfg.Interfaces.API.Name))
+		}
+
+		if bindDevice != "" && bindDevice != cfg.Interfaces.API.Name {
+			logFields = append(logFields, zap.String("vrf", bindDevice))
 		}
 
 		logger.APILog.Info("API server started", logFields...)

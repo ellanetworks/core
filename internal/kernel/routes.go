@@ -35,6 +35,11 @@ const (
 // with kernel-defined RTPROT_* constants.
 const rtProtoElla netlink.RouteProtocol = 0xEC
 
+var (
+	kernelLinkByName  = netlink.LinkByName
+	kernelLinkByIndex = netlink.LinkByIndex
+)
+
 // ManagedRoute describes one Ella-owned kernel route.
 type ManagedRoute struct {
 	Destination netip.Prefix
@@ -184,9 +189,14 @@ func (rk *RealKernel) CreateRoute(ctx context.Context, destination netip.Prefix,
 		return fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
 	}
 
 	gw, via := gwOrVia(destination, gateway)
@@ -196,7 +206,7 @@ func (rk *RealKernel) CreateRoute(ctx context.Context, destination netip.Prefix,
 		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Table:     unix.RT_TABLE_MAIN,
+		Table:     table,
 		Protocol:  rtProtoElla,
 	}
 	if via != nil {
@@ -237,9 +247,14 @@ func (rk *RealKernel) DeleteRoute(ctx context.Context, destination netip.Prefix,
 		return fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
 	}
 
 	gw, via := gwOrVia(destination, gateway)
@@ -249,7 +264,7 @@ func (rk *RealKernel) DeleteRoute(ctx context.Context, destination netip.Prefix,
 		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Table:     unix.RT_TABLE_MAIN,
+		Table:     table,
 		Protocol:  rtProtoElla,
 	}
 	if via != nil {
@@ -278,9 +293,14 @@ func (rk *RealKernel) ReplaceRoute(ctx context.Context, destination netip.Prefix
 		return fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
 	}
 
 	gw, via := gwOrVia(destination, gateway)
@@ -290,7 +310,7 @@ func (rk *RealKernel) ReplaceRoute(ctx context.Context, destination netip.Prefix
 		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Table:     unix.RT_TABLE_MAIN,
+		Table:     table,
 		Protocol:  rtProtoElla,
 	}
 	if via != nil {
@@ -330,14 +350,19 @@ func (rk *RealKernel) ListManagedRoutes(ctx context.Context, ifKey NetworkInterf
 		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
+	}
+
 	nlRoute := netlink.Route{
 		LinkIndex: link.Attrs().Index,
-		Table:     unix.RT_TABLE_MAIN,
+		Table:     table,
 		Protocol:  rtProtoElla,
 	}
 
@@ -398,7 +423,7 @@ func (rk *RealKernel) InterfaceExists(ctx context.Context, ifKey NetworkInterfac
 		return false, fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	_, err := netlink.LinkByName(interfaceName)
+	_, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		if _, ok := err.(netlink.LinkNotFoundError); ok {
 			return false, nil
@@ -425,16 +450,21 @@ func (rk *RealKernel) RouteExists(ctx context.Context, destination netip.Prefix,
 		return false, fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return false, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
 	}
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
-		Table:     unix.RT_TABLE_MAIN,
+		Table:     table,
 		Protocol:  rtProtoElla,
 	}
 
@@ -577,7 +607,7 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ctx context.Context,
 		return fmt.Errorf("invalid interface key: %v", ifKey)
 	}
 
-	link, err := netlink.LinkByName(interfaceName)
+	link, err := kernelLinkByName(interfaceName)
 	if err != nil {
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}

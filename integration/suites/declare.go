@@ -106,6 +106,29 @@ func Require(t *testing.T, suite Name) {
 	}
 }
 
+func RequireAll(t *testing.T, suites ...Name) {
+	t.Helper()
+
+	for _, suite := range suites {
+		if _, ok := Definitions[suite]; !ok {
+			t.Fatalf("%s declares unknown suite %q", t.Name(), suite)
+		}
+
+		mu.Lock()
+
+		declarations = append(declarations, Declaration{Test: t.Name(), Suite: string(suite)})
+		mu.Unlock()
+	}
+
+	if listing() {
+		t.Skip("listing suite declarations")
+	}
+
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+}
+
 func RequireSplit(t *testing.T, prefix string, matching, rest Name) {
 	t.Helper()
 	DeclareSplit(t, prefix, matching, rest)
