@@ -15,3 +15,15 @@ export const TABLE_CONTAINER_SX = {
   borderRadius: 1,
   bgcolor: "background.paper",
 } as const;
+
+export const MIN_PANEL_WIDTH = 440;
+
+type MeasurableColumn = { width?: number; minWidth?: number };
+
+export const columnsMinWidth = (columns: MeasurableColumn[]) =>
+  columns.reduce((total, col) => total + (col.minWidth ?? col.width ?? 100), 0);
+
+export const splitGridColumns = (...panelMinWidths: number[]) => {
+  const min = Math.max(MIN_PANEL_WIDTH, ...panelMinWidths);
+  return `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))`;
+};

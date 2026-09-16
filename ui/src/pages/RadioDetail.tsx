@@ -46,7 +46,13 @@ import { formatDateTime } from "@/utils/formatters";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import { Tooltip } from "@mui/material";
-import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
+import {
+  MAX_WIDTH,
+  PAGE_PADDING_X,
+  TABLE_CONTAINER_SX,
+  columnsMinWidth,
+  splitGridColumns,
+} from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
@@ -284,12 +290,17 @@ const RadioDetail: React.FC = () => {
     [theme],
   );
 
+  const infoGridTemplateColumns = useMemo(
+    () => splitGridColumns(columnsMinWidth(subscriberColumns)),
+    [subscriberColumns],
+  );
+
   const loadingBody = (
     <>
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gridTemplateColumns: infoGridTemplateColumns,
           gap: 3,
         }}
       >
@@ -355,7 +366,7 @@ const RadioDetail: React.FC = () => {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gridTemplateColumns: infoGridTemplateColumns,
                   gap: 3,
                   alignItems: "start",
                 }}
