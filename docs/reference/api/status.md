@@ -25,7 +25,7 @@ When clustering is enabled, the response includes an `X-Ella-Role` header with t
 ```json
 {
     "result": {
-        "version": "v1.17.0",
+        "version": "v1.18.0",
         "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
         "initialized": true,
         "ready": true,
@@ -40,7 +40,7 @@ When clustering is enabled, the response includes a `cluster` object:
 ```json
 {
     "result": {
-        "version": "v1.17.0",
+        "version": "v1.18.0",
         "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
         "initialized": true,
         "ready": true,
