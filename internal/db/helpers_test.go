@@ -7,6 +7,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 )
@@ -26,4 +27,8 @@ func setupTestDB(t *testing.T) *db.Database {
 	})
 
 	return dbInstance
+}
+
+func dayRange(start time.Time, end time.Time) db.DayRange {
+	return db.DayRange{First: db.DaysSinceEpoch(start), Last: db.DaysSinceEpoch(end)}
 }

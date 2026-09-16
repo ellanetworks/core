@@ -42,7 +42,11 @@ import {
   getFlowReportStats,
   type FlowReportStatsResponse,
 } from "@/queries/flow_reports";
-import { getUsage, type UsageResult } from "@/queries/usage";
+import {
+  getUsage,
+  type PerSubscriberUsage,
+  type UsageResult,
+} from "@/queries/usage";
 import {
   formatBytesAutoUnit,
   formatCountShare,
@@ -52,7 +56,12 @@ import {
   buildProtocolColorMap,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-import { defaultDateRange } from "@/utils/dates";
+import {
+  DAILY_RANGES,
+  RELATIVE_RANGES,
+  resolveTimeRangeFilter,
+  type TimeRangeFilter,
+} from "@/components/TimeRangePicker";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
 
@@ -195,11 +204,12 @@ function KpiCard({
 
 const TOP_USERS = 10;
 
+const DEFAULT_RANGE: TimeRangeFilter = { relative: "7d" };
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const { accessToken, authReady } = useAuth();
-  const { startDate, endDate } = defaultDateRange();
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],
@@ -246,13 +256,15 @@ const Dashboard = () => {
   });
 
   const flowStatsQuery = useQuery<FlowReportStatsResponse>({
-    queryKey: ["dashboardFlowStats", startDate, endDate],
-    queryFn: () =>
+    queryKey: ["dashboardFlowStats", DEFAULT_RANGE],
+    queryFn: () => {
+      const { from, to } = resolveTimeRangeFilter(DEFAULT_RANGE, {
+        ranges: RELATIVE_RANGES,
+      });
+
       // Omitting action counts both allowed and dropped flows.
-      getFlowReportStats(accessToken!, {
-        start: startDate,
-        end: endDate,
-      }),
+      return getFlowReportStats(accessToken!, { start: from, end: to });
+    },
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
@@ -260,9 +272,14 @@ const Dashboard = () => {
   });
 
   const usageQuery = useQuery<UsageResult>({
-    queryKey: ["dashboardUsage", startDate, endDate],
-    queryFn: () =>
-      getUsage(accessToken!, startDate, endDate, "", "subscriber", TOP_USERS),
+    queryKey: ["dashboardUsage", DEFAULT_RANGE],
+    queryFn: () => {
+      const { from = "", to = "" } = resolveTimeRangeFilter(DEFAULT_RANGE, {
+        ranges: DAILY_RANGES,
+      });
+
+      return getUsage(accessToken!, from, to, "", "subscriber", TOP_USERS);
+    },
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
@@ -321,19 +338,15 @@ const Dashboard = () => {
   const topUsers: TopUser[] = useMemo(() => {
     if (!usageQuery.data) return [];
     const items: TopUser[] = [];
-    for (const entry of usageQuery.data) {
-      const subscriber = Object.keys(entry)[0];
-      const usage = entry[subscriber];
-      if (!subscriber || !usage) continue;
+    for (const usage of usageQuery.data as PerSubscriberUsage[]) {
       items.push({
-        id: subscriber,
-        subscriber,
+        id: usage.imsi,
+        subscriber: usage.imsi,
         total_bytes: usage.total_bytes,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
       });
     }
-    items.sort((a, b) => b.total_bytes - a.total_bytes);
     return items.slice(0, TOP_USERS);
   }, [usageQuery.data]);
 

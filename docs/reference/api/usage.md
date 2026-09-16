@@ -18,7 +18,7 @@ This path retrieves usage data for network subscribers.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `start`      | query | string  | `now-7d` |         | Inclusive lower bound, RFC3339 (e.g. `2006-01-02T15:04:05Z`). |
 | `end`        | query | string  | `now`    |         | Exclusive upper bound, RFC3339. |
-| `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. Required — omitting it returns `400`. |
+| `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. |
 | `subscriber` | query | string  | ``     |          | Filter usage data for a specific subscriber.     |
 
 ### Sample Response
@@ -27,18 +27,16 @@ This path retrieves usage data for network subscribers.
 {
   "result": [
     {
-      "2025-02-22": {
-        "uplink_bytes": 1048576,
-        "downlink_bytes": 2097152,
-        "total_bytes": 3145728
-      }
+      "date": "2025-02-22",
+      "uplink_bytes": 1048576,
+      "downlink_bytes": 2097152,
+      "total_bytes": 3145728
     },
     {
-      "2025-02-23": {
-        "uplink_bytes": 524288,
-        "downlink_bytes": 1048576,
-        "total_bytes": 1572864
-      }
+      "date": "2025-02-23",
+      "uplink_bytes": 524288,
+      "downlink_bytes": 1048576,
+      "total_bytes": 1572864
     }
   ]
 }

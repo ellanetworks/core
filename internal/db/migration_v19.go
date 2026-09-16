@@ -7,6 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const unparseableTimestampFallback = 0
@@ -15,24 +18,31 @@ const toEpochMillis = `CASE
 	WHEN typeof(%[1]s) IN ('integer', 'real') THEN CAST(%[1]s AS INTEGER)
 	WHEN %[1]s GLOB '[0-9]*' AND %[1]s NOT GLOB '*[^0-9]*' THEN CAST(%[1]s AS INTEGER)
 	WHEN unixepoch(%[1]s, 'subsec') IS NOT NULL THEN CAST(round(unixepoch(%[1]s, 'subsec') * 1000) AS INTEGER)
+	WHEN %[1]s GLOB '*[+-][0-9][0-9][0-9][0-9]' AND unixepoch(%[3]s, 'subsec') IS NOT NULL THEN CAST(round(unixepoch(%[3]s, 'subsec') * 1000) AS INTEGER)
 	ELSE %[2]d
 END`
 
+func colonSeparatedOffset(column string) string {
+	return fmt.Sprintf("substr(%[1]s, 1, length(%[1]s) - 5) || substr(%[1]s, -5, 3) || ':' || substr(%[1]s, -2)", column)
+}
+
 func epochMillisExpr(column string) string {
-	return fmt.Sprintf(toEpochMillis, column, unparseableTimestampFallback)
+	return fmt.Sprintf(toEpochMillis, column, unparseableTimestampFallback, colonSeparatedOffset(column))
 }
 
 type timestampTableRebuild struct {
-	table      string
-	newSchema  string
-	selectCols string
-	indices    []string
+	table        string
+	timestampCol string
+	newSchema    string
+	selectCols   string
+	indices      []string
 }
 
 func migrateV19(ctx context.Context, tx *sql.Tx) error {
 	rebuilds := []timestampTableRebuild{
 		{
-			table: AuditLogsTableName,
+			table:        AuditLogsTableName,
+			timestampCol: "timestamp",
 			newSchema: `CREATE TABLE %s_new (
 				id         TEXT PRIMARY KEY,
 				timestamp  INTEGER NOT NULL,
@@ -48,7 +58,8 @@ func migrateV19(ctx context.Context, tx *sql.Tx) error {
 			},
 		},
 		{
-			table: RadioEventsTableName,
+			table:        RadioEventsTableName,
+			timestampCol: "timestamp",
 			newSchema: `CREATE TABLE %s_new (
 				id             INTEGER PRIMARY KEY AUTOINCREMENT,
 				timestamp      INTEGER NOT NULL,
@@ -73,7 +84,8 @@ func migrateV19(ctx context.Context, tx *sql.Tx) error {
 			},
 		},
 		{
-			table: FlowReportsTableName,
+			table:        FlowReportsTableName,
+			timestampCol: "end_time",
 			newSchema: `CREATE TABLE %s_new (
 				id               INTEGER PRIMARY KEY AUTOINCREMENT,
 				subscriber_id    TEXT NOT NULL,
@@ -121,6 +133,20 @@ func rebuildTimestampTable(ctx context.Context, tx *sql.Tx, r timestampTableRebu
 	copyStmt := fmt.Sprintf("INSERT INTO %s_new SELECT %s FROM %s", r.table, r.selectCols, r.table)
 	if _, err := tx.ExecContext(ctx, copyStmt); err != nil {
 		return fmt.Errorf("failed to copy rows into %s_new: %w", r.table, err)
+	}
+
+	var unparseable int64
+	if err := tx.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s_new WHERE %s = %d", r.table, r.timestampCol, unparseableTimestampFallback)).Scan(&unparseable); err != nil {
+		return fmt.Errorf("failed to count unparseable timestamps in %s_new: %w", r.table, err)
+	}
+
+	if unparseable > 0 {
+		logger.From(ctx, logger.DBLog).Warn(
+			"Migration v19: rows had an unreadable timestamp and were dated 1970-01-01",
+			zap.String("table", r.table),
+			zap.String("column", r.timestampCol),
+			zap.Int64("rows", unparseable),
+		)
 	}
 
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", r.table)); err != nil {

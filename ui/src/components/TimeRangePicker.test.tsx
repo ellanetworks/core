@@ -3,6 +3,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
+  ANY_RANGE,
   browserTimeZone,
   CUSTOM_RANGE,
   DAILY_RANGES,
@@ -12,6 +13,7 @@ import {
   timeRangeFieldErrors,
   timeRangeFilter,
   timeRangeLabel,
+  timeRangeParams,
   toInputValue,
 } from "./TimeRangePicker";
 
@@ -92,6 +94,12 @@ describe("timeRangeFilter", () => {
       relative: "7d",
     });
   });
+
+  it("filters on nothing for any time", () => {
+    expect(timeRangeFilter({ preset: ANY_RANGE, from: "", to: "" })).toEqual(
+      {},
+    );
+  });
 });
 
 describe("resolveTimeRangeFilter", () => {
@@ -152,6 +160,28 @@ describe("resolveTimeRangeFilter", () => {
     expect(elapsed).toBeGreaterThan(14 * 60_000);
     expect(elapsed).toBeLessThan(16 * 60_000);
     expect(resolved.to).toBeUndefined();
+  });
+});
+
+describe("timeRangeParams", () => {
+  it("names the bounds as the API expects them", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 15, 13, 45));
+    try {
+      expect(
+        timeRangeParams({ relative: "yesterday" }, { ranges: DAILY_RANGES }),
+      ).toEqual({
+        start: new Date(2026, 8, 14).toISOString(),
+        end: new Date(2026, 8, 15).toISOString(),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves an open bound out rather than sending it empty", () => {
+    expect(timeRangeParams({ relative: "15m" })).not.toHaveProperty("end");
+    expect(timeRangeParams({})).toEqual({});
   });
 });
 

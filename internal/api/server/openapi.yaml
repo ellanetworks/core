@@ -1009,7 +1009,7 @@ paths:
           schema:
             type: string
             format: date-time
-          description: Exclusive upper bound (RFC 3339). Defaults to now.
+          description: Exclusive upper bound (RFC 3339). Defaults to now. With group_by=day, spans longer than 11000 days return 400.
         - name: subscriber
           in: query
           schema:
@@ -4092,9 +4092,13 @@ components:
           description: "Free-text operator note. Surrounding whitespace is trimmed; the update is a full replace, so omitting it clears the stored value."
 
     # -- Subscriber Usage ------------------------------------------------
-    SubscriberUsage:
+    DailySubscriberUsage:
       type: object
       properties:
+        date:
+          type: string
+          format: date
+          description: UTC day, YYYY-MM-DD.
         uplink_bytes:
           type: integer
           format: int64
@@ -4104,18 +4108,34 @@ components:
         total_bytes:
           type: integer
           format: int64
-      required: [uplink_bytes, downlink_bytes, total_bytes]
+      required: [date, uplink_bytes, downlink_bytes, total_bytes]
+
+    PerSubscriberUsage:
+      type: object
+      properties:
+        imsi:
+          type: string
+        uplink_bytes:
+          type: integer
+          format: int64
+        downlink_bytes:
+          type: integer
+          format: int64
+        total_bytes:
+          type: integer
+          format: int64
+      required: [imsi, uplink_bytes, downlink_bytes, total_bytes]
 
     SubscriberUsageResponseEnvelope:
       type: object
       properties:
         result:
           type: array
-          description: "Array of single-key objects. Each key is a date (YYYY-MM-DD) when group_by=day, or an IMSI string when group_by=subscriber. The value is a usage summary."
+          description: "With group_by=day, DailySubscriberUsage ordered oldest first. With group_by=subscriber, PerSubscriberUsage ordered by total bytes descending."
           items:
-            type: object
-            additionalProperties:
-              $ref: "#/components/schemas/SubscriberUsage"
+            oneOf:
+              - $ref: "#/components/schemas/DailySubscriberUsage"
+              - $ref: "#/components/schemas/PerSubscriberUsage"
 
     # -- Policies --------------------------------------------------------
     PolicyRule:

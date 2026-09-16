@@ -97,6 +97,33 @@ func DaysSinceEpoch(t time.Time) int64 {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400
 }
 
+type DayRange struct {
+	First int64
+	Last  int64
+}
+
+func NewDayRange(start time.Time, end time.Time) DayRange {
+	first := DaysSinceEpoch(start)
+
+	if !end.After(start) {
+		return DayRange{First: first, Last: first - 1}
+	}
+
+	return DayRange{First: first, Last: DaysSinceEpoch(end.Add(-time.Nanosecond))}
+}
+
+func (r DayRange) Len() int64 {
+	if r.Last < r.First {
+		return 0
+	}
+
+	return r.Last - r.First + 1
+}
+
+func (r DayRange) Day(offset int64) time.Time {
+	return time.Unix((r.First+offset)*86400, 0).UTC()
+}
+
 func (d *DailyUsage) GetDay() time.Time {
 	return time.Unix(d.EpochDay*86400, 0).UTC()
 }
@@ -195,7 +222,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 	return nil
 }
 
-func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerDay, error) {
+func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange) ([]UsagePerDay, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -217,8 +244,8 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
-		StartDate: DaysSinceEpoch(startDate),
-		EndDate:   DaysSinceEpoch(endDate),
+		StartDate: days.First,
+		EndDate:   days.Last,
 		Limit:     NoUsageLimit,
 	}
 
@@ -246,7 +273,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	return dailyUsage, nil
 }
 
-func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time, limit int64) ([]UsagePerSub, error) {
+func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, limit int64) ([]UsagePerSub, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -268,8 +295,8 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
-		StartDate: DaysSinceEpoch(startDate),
-		EndDate:   DaysSinceEpoch(endDate),
+		StartDate: days.First,
+		EndDate:   days.Last,
 		Limit:     limit,
 	}
 

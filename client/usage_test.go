@@ -11,12 +11,12 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func TestListUsage_Success(t *testing.T) {
+func TestListUsagePerDay_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"2022-01-02": {"uplink_bytes": 1000, "downlink_bytes": 2000, "total_bytes": 3000}}, {"2022-01-03": {"uplink_bytes": 1500, "downlink_bytes": 2500, "total_bytes": 4000}}]`),
+			Result:     []byte(`[{"date": "2022-01-02", "uplink_bytes": 1000, "downlink_bytes": 2000, "total_bytes": 3000}, {"date": "2022-01-03", "uplink_bytes": 1500, "downlink_bytes": 2500, "total_bytes": 4000}]`),
 		},
 		err: nil,
 	}
@@ -24,57 +24,40 @@ func TestListUsage_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	ctx := context.Background()
-
-	params := &client.ListUsageParams{
-		Start:      "2023-10-01",
-		End:        "2023-10-02",
-		GroupBy:    "day",
-		Subscriber: "",
-	}
-
-	resp, err := clientObj.ListUsage(ctx, params)
+	resp, err := clientObj.ListUsagePerDay(context.Background(), &client.ListUsageParams{
+		Start: "2023-10-01T00:00:00Z",
+		End:   "2023-10-02T00:00:00Z",
+	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(*resp) != 2 {
-		t.Fatalf("expected 2 usage records, got %d", len(*resp))
+	if fake.lastOpts.Query.Get("group_by") != "day" {
+		t.Fatalf("expected group_by=day, got %q", fake.lastOpts.Query.Get("group_by"))
 	}
 
-	if (*resp)[0]["2022-01-02"].UplinkBytes != 1000 {
-		t.Fatalf("expected uplink bytes 1000, got %d", (*resp)[0]["2022-01-02"].UplinkBytes)
+	want := []client.DailySubscriberUsage{
+		{Date: "2022-01-02", UplinkBytes: 1000, DownlinkBytes: 2000, TotalBytes: 3000},
+		{Date: "2022-01-03", UplinkBytes: 1500, DownlinkBytes: 2500, TotalBytes: 4000},
 	}
 
-	if (*resp)[0]["2022-01-02"].DownlinkBytes != 2000 {
-		t.Fatalf("expected downlink bytes 2000, got %d", (*resp)[0]["2022-01-02"].DownlinkBytes)
+	if len(resp) != len(want) {
+		t.Fatalf("expected %d usage records, got %d", len(want), len(resp))
 	}
 
-	if (*resp)[0]["2022-01-02"].TotalBytes != 3000 {
-		t.Fatalf("expected total bytes 3000, got %d", (*resp)[0]["2022-01-02"].TotalBytes)
-	}
-
-	if (*resp)[1]["2022-01-03"].UplinkBytes != 1500 {
-		t.Fatalf("expected uplink bytes 1500, got %d", (*resp)[1]["2022-01-03"].UplinkBytes)
-	}
-
-	if (*resp)[1]["2022-01-03"].DownlinkBytes != 2500 {
-		t.Fatalf("expected downlink bytes 2500, got %d", (*resp)[1]["2022-01-03"].DownlinkBytes)
-	}
-
-	if (*resp)[1]["2022-01-03"].TotalBytes != 4000 {
-		t.Fatalf("expected total bytes 4000, got %d", (*resp)[1]["2022-01-03"].TotalBytes)
+	for i, w := range want {
+		if resp[i] != w {
+			t.Errorf("record %d: got %+v, want %+v", i, resp[i], w)
+		}
 	}
 }
 
-// TestListUsage_InvalidGroupBy verifies the client rejects an unsupported
-// group_by before issuing a request.
-func TestListUsage_InvalidGroupBy(t *testing.T) {
+func TestListUsagePerSubscriber_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[]`),
+			Result:     []byte(`[{"imsi": "001010000000001", "uplink_bytes": 1000, "downlink_bytes": 2000, "total_bytes": 3000}]`),
 		},
 		err: nil,
 	}
@@ -82,12 +65,19 @@ func TestListUsage_InvalidGroupBy(t *testing.T) {
 		Requester: fake,
 	}
 
-	for _, groupBy := range []string{"", "week"} {
-		params := &client.ListUsageParams{GroupBy: groupBy}
+	resp, err := clientObj.ListUsagePerSubscriber(context.Background(), &client.ListUsageParams{})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
 
-		if _, err := clientObj.ListUsage(context.Background(), params); err == nil {
-			t.Fatalf("group_by %q: expected error, got none", groupBy)
-		}
+	if fake.lastOpts.Query.Get("group_by") != "subscriber" {
+		t.Fatalf("expected group_by=subscriber, got %q", fake.lastOpts.Query.Get("group_by"))
+	}
+
+	want := client.PerSubscriberUsage{IMSI: "001010000000001", UplinkBytes: 1000, DownlinkBytes: 2000, TotalBytes: 3000}
+
+	if len(resp) != 1 || resp[0] != want {
+		t.Fatalf("got %+v, want [%+v]", resp, want)
 	}
 }
 

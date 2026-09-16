@@ -163,6 +163,10 @@ func TestMigrationV19ToleratesAlreadyConvertedValues(t *testing.T) {
 		   VALUES ('a2', '', 'info', 'admin', 'create', '127.0.0.1', '')`,
 		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
 		   VALUES ('a3', 'not-a-timestamp', 'info', 'admin', 'create', '127.0.0.1', '')`,
+		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
+		   VALUES ('a4', '2026-01-01T00:00:00.000-0400', 'info', 'admin', 'create', '127.0.0.1', '')`,
+		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
+		   VALUES ('a5', '2026-01-01T00:00:00-04:00', 'info', 'admin', 'create', '127.0.0.1', '')`,
 		`INSERT INTO flow_reports (id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action)
 		   VALUES (1, '001010000000001', '10.0.0.1', '8.8.8.8', 1, 53, 17, 1, 1, '1767225600000', '1767225602250', 'uplink', 0)`,
 	}
@@ -183,6 +187,8 @@ func TestMigrationV19ToleratesAlreadyConvertedValues(t *testing.T) {
 		"SELECT timestamp FROM audit_logs WHERE id = 'a1'": jan1,
 		"SELECT timestamp FROM audit_logs WHERE id = 'a2'": unparseableTimestampFallback,
 		"SELECT timestamp FROM audit_logs WHERE id = 'a3'": unparseableTimestampFallback,
+		"SELECT timestamp FROM audit_logs WHERE id = 'a4'": jan1 + 4*3600*1000,
+		"SELECT timestamp FROM audit_logs WHERE id = 'a5'": jan1 + 4*3600*1000,
 		"SELECT start_time FROM flow_reports WHERE id = 1": jan1,
 		"SELECT end_time FROM flow_reports WHERE id = 1":   jan1 + 2250,
 	}

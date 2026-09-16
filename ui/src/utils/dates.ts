@@ -7,11 +7,3 @@ export const startOfLocalDay = (daysBack = 0, now: Date = new Date()): Date => {
   at.setHours(0, 0, 0, 0);
   return at;
 };
-
-export const defaultDateRange = (
-  days = 7,
-  now: Date = new Date(),
-): { startDate: string; endDate: string } => ({
-  startDate: startOfLocalDay(days - 1, now).toISOString(),
-  endDate: now.toISOString(),
-});

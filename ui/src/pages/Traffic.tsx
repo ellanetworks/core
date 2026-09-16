@@ -36,6 +36,8 @@ import {
   clearUsageData,
   type UsageResult,
   type UsageRetentionPolicy,
+  type DailySubscriberUsage,
+  type PerSubscriberUsage,
 } from "@/queries/usage";
 import {
   listFlowReports,
@@ -80,8 +82,8 @@ import TimeRangePicker, {
   CUSTOM_RANGE,
   DAILY_RANGES,
   RELATIVE_RANGES,
-  resolveTimeRangeFilter,
   timeRangeFilter,
+  timeRangeParams,
 } from "@/components/TimeRangePicker";
 import { useDebouncedState } from "@/hooks/useDebouncedState";
 
@@ -189,17 +191,18 @@ const Traffic: React.FC = () => {
     setTimeRange({ preset: DEFAULT_RANGE, from: "", to: "" });
   }, [tabRanges, timeRange.preset, setTimeRange]);
 
-  const { from: startDate = "", to: endDate = "" } = useMemo(
-    () =>
-      resolveTimeRangeFilter(timeRangeFilter(timeRange), { ranges: tabRanges }),
-    [timeRange, tabRanges],
+  const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
+
+  const usageRange = useCallback(
+    () => timeRangeParams(timeFilter, { ranges: DAILY_RANGES }),
+    [timeFilter],
   );
   const [selectedSubscriber, setSelectedSubscriber] =
     useSearchParamState("subscriber_id");
   const { showSnackbar } = useSnackbar();
 
   const [usagePaginationModel, setUsagePaginationModel] = useFilteredPagination(
-    { startDate, endDate, selectedSubscriber },
+    { timeFilter, selectedSubscriber },
   );
   const [isEditUsageRetentionOpen, setEditUsageRetentionOpen] = useState(false);
   const [isUsageClearModalOpen, setUsageClearModalOpen] = useState(false);
@@ -229,15 +232,18 @@ const Traffic: React.FC = () => {
     isLoading: isUsagePerSubLoading,
     refetch: refetchUsagePerSub,
   } = useQuery<UsageResult>({
-    queryKey: ["usagePerSubscriber", startDate, endDate, selectedSubscriber],
-    queryFn: () =>
-      getUsage(
+    queryKey: ["usagePerSubscriber", timeFilter, selectedSubscriber],
+    queryFn: () => {
+      const { start = "", end = "" } = usageRange();
+
+      return getUsage(
         accessToken || "",
-        startDate,
-        endDate,
+        start,
+        end,
         selectedSubscriber,
         "subscriber",
-      ),
+      );
+    },
     enabled: !!accessToken,
     placeholderData: (prev) => prev,
   });
@@ -247,24 +253,18 @@ const Traffic: React.FC = () => {
     isLoading: isUsagePerDayLoading,
     refetch: refetchUsagePerDay,
   } = useQuery<UsageResult>({
-    queryKey: ["usagePerDay", startDate, endDate, selectedSubscriber],
-    queryFn: () =>
-      getUsage(
-        accessToken || "",
-        startDate,
-        endDate,
-        selectedSubscriber,
-        "day",
-      ),
+    queryKey: ["usagePerDay", timeFilter, selectedSubscriber],
+    queryFn: () => {
+      const { start = "", end = "" } = usageRange();
+
+      return getUsage(accessToken || "", start, end, selectedSubscriber, "day");
+    },
     enabled: !!accessToken,
     placeholderData: (prev) => prev,
   });
 
-  const activeFlowFilters: FlowReportFilters = useMemo(() => {
-    const f: FlowReportFilters = {
-      start: startDate,
-      end: endDate,
-    };
+  const flowFilterParams: FlowReportFilters = useMemo(() => {
+    const f: FlowReportFilters = {};
     // Omitting action makes the API return both allowed and dropped flows.
     if (actionFilter) f.action = actionFilter;
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
@@ -274,8 +274,6 @@ const Traffic: React.FC = () => {
     if (directionFilter) f.direction = directionFilter;
     return f;
   }, [
-    startDate,
-    endDate,
     selectedSubscriber,
     appliedProtocol,
     appliedSource,
@@ -283,6 +281,23 @@ const Traffic: React.FC = () => {
     directionFilter,
     actionFilter,
   ]);
+
+  const activeFlowFilters = useMemo(
+    () => ({ ...flowFilterParams, ...timeFilter }),
+    [flowFilterParams, timeFilter],
+  );
+
+  const flowRequestFilters = useCallback(
+    (omit?: keyof FlowReportFilters): FlowReportFilters => {
+      const params: FlowReportFilters = {
+        ...flowFilterParams,
+        ...timeRangeParams(timeFilter, { ranges: RELATIVE_RANGES }),
+      };
+      if (omit) delete params[omit];
+      return params;
+    },
+    [flowFilterParams, timeFilter],
+  );
 
   const [flowPaginationModel, setFlowPaginationModel] =
     useFilteredPagination(activeFlowFilters);
@@ -311,7 +326,7 @@ const Traffic: React.FC = () => {
         accessToken || "",
         flowPageOneBased,
         flowPaginationModel.pageSize,
-        activeFlowFilters,
+        flowRequestFilters(),
       ),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
@@ -320,13 +335,13 @@ const Traffic: React.FC = () => {
 
   const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportStats", activeFlowFilters],
-    queryFn: () => getFlowReportStats(accessToken || "", activeFlowFilters),
+    queryFn: () => getFlowReportStats(accessToken || "", flowRequestFilters()),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
 
-  const filtersWithoutProtocol: FlowReportFilters = useMemo(() => {
+  const filtersWithoutProtocol = useMemo(() => {
     const { protocol: _ignored, ...rest } = activeFlowFilters;
     return rest;
   }, [activeFlowFilters]);
@@ -334,7 +349,7 @@ const Traffic: React.FC = () => {
   const { data: protocolOptionsRaw } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
     queryFn: () =>
-      getFlowReportStats(accessToken || "", filtersWithoutProtocol),
+      getFlowReportStats(accessToken || "", flowRequestFilters("protocol")),
     enabled: authReady && !!accessToken && !!appliedProtocol,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
@@ -346,7 +361,7 @@ const Traffic: React.FC = () => {
     ? (protocolOptionsRaw ?? flowStatsData)
     : flowStatsData;
 
-  const filtersWithoutDestination: FlowReportFilters = useMemo(() => {
+  const filtersWithoutDestination = useMemo(() => {
     const { destination: _ignored, ...rest } = activeFlowFilters;
     return rest;
   }, [activeFlowFilters]);
@@ -354,7 +369,7 @@ const Traffic: React.FC = () => {
   const { data: destinationOptionsRaw } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportDestinationOptions", filtersWithoutDestination],
     queryFn: () =>
-      getFlowReportStats(accessToken || "", filtersWithoutDestination),
+      getFlowReportStats(accessToken || "", flowRequestFilters("destination")),
     enabled: authReady && !!accessToken && !!appliedDestination,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
@@ -373,13 +388,10 @@ const Traffic: React.FC = () => {
   const usageRows: UsageRow[] = useMemo(() => {
     if (!usagePerSubscriberData) return [];
     const items: UsageRow[] = [];
-    for (const entry of usagePerSubscriberData) {
-      const subscriber = Object.keys(entry)[0];
-      const usage = entry[subscriber];
-      if (!subscriber || !usage) continue;
+    for (const usage of usagePerSubscriberData as PerSubscriberUsage[]) {
       items.push({
-        id: subscriber,
-        subscriber,
+        id: usage.imsi,
+        subscriber: usage.imsi,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
         total_bytes: usage.total_bytes,
@@ -401,18 +413,14 @@ const Traffic: React.FC = () => {
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usagePerDayData) return [];
     const items: UsagePerDayRow[] = [];
-    for (const entry of usagePerDayData) {
-      const date = Object.keys(entry)[0];
-      const usage = entry[date];
-      if (!date || !usage) continue;
+    for (const usage of usagePerDayData as DailySubscriberUsage[]) {
       items.push({
-        date,
+        date: usage.date,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
         total_bytes: usage.total_bytes,
       });
     }
-    items.sort((a, b) => a.date.localeCompare(b.date));
     return items;
   }, [usagePerDayData]);
 
@@ -951,7 +959,9 @@ const Traffic: React.FC = () => {
                 </Typography>
                 <BarChart
                   dataset={chartDataset}
-                  xAxis={[{ scaleType: "band", dataKey: "date" }]}
+                  xAxis={[
+                    { scaleType: "band", dataKey: "date", label: "Day (UTC)" },
+                  ]}
                   yAxis={[{ label: `Usage (${unit})` }]}
                   series={[
                     {

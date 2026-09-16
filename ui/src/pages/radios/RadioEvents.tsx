@@ -60,8 +60,8 @@ import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import PageTitle from "@/components/PageTitle";
 import TimeRangePicker, {
   EMPTY_TIME_RANGE,
-  resolveTimeRangeFilter,
   timeRangeFilter,
+  timeRangeParams,
   type TimeRangeValue,
 } from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
@@ -261,16 +261,6 @@ function usePageVisible() {
 
 const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
 
-const timestampParams = (range: {
-  from?: string;
-  to?: string;
-}): Record<string, string> => {
-  const params: Record<string, string> = {};
-  if (range.from) params.start = range.from;
-  if (range.to) params.end = range.to;
-  return params;
-};
-
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -383,7 +373,7 @@ export default function RadioEvents() {
     queryFn: () =>
       listRadioEvents(accessToken!, pageOneBased, perPage, {
         ...filterParams,
-        ...timestampParams(resolveTimeRangeFilter(timeFilter)),
+        ...timeRangeParams(timeFilter),
       }),
   });
 

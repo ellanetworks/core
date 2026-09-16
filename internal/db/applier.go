@@ -753,15 +753,14 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 }
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {
-	// Retired op: replayed log entries carry the pre-v19 RFC3339 timestamp.
-	ts, err := time.Parse(time.RFC3339, p.Timestamp)
-	if err != nil {
-		return nil, fmt.Errorf("parse legacy audit log timestamp %q: %w", p.Timestamp, err)
+	timestamp := int64(unparseableTimestampFallback)
+	if ts, err := time.Parse(time.RFC3339, p.Timestamp); err == nil {
+		timestamp = dbwriter.EpochMillis(ts)
 	}
 
 	log := &dbwriter.AuditLog{
 		ID:        p.ID,
-		Timestamp: dbwriter.EpochMillis(ts),
+		Timestamp: timestamp,
 		Level:     p.Level,
 		Actor:     p.Actor,
 		Action:    p.Action,

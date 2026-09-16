@@ -132,8 +132,10 @@ func seedRetentionRows(t *testing.T, database *db.Database) {
 func countUsageDays(t *testing.T, database *db.Database, imsi string) int {
 	t.Helper()
 
-	rows, err := database.GetUsagePerDay(context.Background(), imsi,
-		time.Now().UTC().AddDate(0, 0, -30), time.Now().UTC().AddDate(0, 0, 1))
+	rows, err := database.GetUsagePerDay(context.Background(), imsi, db.DayRange{
+		First: db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, -30)),
+		Last:  db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, 1)),
+	})
 	if err != nil {
 		t.Fatalf("get usage per day: %v", err)
 	}

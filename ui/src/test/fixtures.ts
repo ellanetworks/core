@@ -83,9 +83,8 @@ export const usageBySubscriber = (
   entries: Record<string, number>,
 ): UsageResult =>
   Object.entries(entries).map(([imsi, total]) => ({
-    [imsi]: {
-      uplink_bytes: Math.floor(total / 4),
-      downlink_bytes: total - Math.floor(total / 4),
-      total_bytes: total,
-    },
+    imsi,
+    uplink_bytes: Math.floor(total / 4),
+    downlink_bytes: total - Math.floor(total / 4),
+    total_bytes: total,
   }));

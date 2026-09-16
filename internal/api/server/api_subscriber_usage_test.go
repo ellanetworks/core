@@ -15,15 +15,28 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-type SubscriberUsage struct {
-	UplinkBytes   int64 `json:"uplink_bytes"`
-	DownlinkBytes int64 `json:"downlink_bytes"`
-	TotalBytes    int64 `json:"total_bytes"`
+type DailySubscriberUsage struct {
+	Date          string `json:"date"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
 }
 
-type GetSubscriberUsageResponse struct {
-	Result []map[string]SubscriberUsage `json:"result,omitempty"`
-	Error  string                       `json:"error,omitempty"`
+type PerSubscriberUsage struct {
+	IMSI          string `json:"imsi"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
+}
+
+type GetUsagePerDayResponse struct {
+	Result []DailySubscriberUsage `json:"result,omitempty"`
+	Error  string                 `json:"error,omitempty"`
+}
+
+type GetUsagePerSubscriberResponse struct {
+	Result []PerSubscriberUsage `json:"result,omitempty"`
+	Error  string               `json:"error,omitempty"`
 }
 
 type GetSubscriberUsagesRetentionPolicyResponseResult struct {
@@ -50,17 +63,17 @@ const (
 	GroupBySubscriber GroupBy = "subscriber"
 )
 
-func usageForDate(result []map[string]SubscriberUsage, date string) (SubscriberUsage, bool) {
+func usageForDate(result []DailySubscriberUsage, date string) (DailySubscriberUsage, bool) {
 	for _, entry := range result {
-		if usage, ok := entry[date]; ok {
-			return usage, true
+		if entry.Date == date {
+			return entry, true
 		}
 	}
 
-	return SubscriberUsage{}, false
+	return DailySubscriberUsage{}, false
 }
 
-func getSubscriberUsage(url string, client *http.Client, token string, startDate string, endDate string, subscriber string, groupBy GroupBy) (int, *GetSubscriberUsageResponse, error) {
+func usageQuery(startDate string, endDate string, subscriber string, groupBy GroupBy) string {
 	var queryParams []string
 
 	queryParams = append(queryParams, fmt.Sprintf("start=%s", startDate))
@@ -71,7 +84,15 @@ func getSubscriberUsage(url string, client *http.Client, token string, startDate
 		queryParams = append(queryParams, fmt.Sprintf("subscriber=%s", subscriber))
 	}
 
-	return apiDo[GetSubscriberUsageResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s", url, strings.Join(queryParams, "&")), token, nil)
+	return strings.Join(queryParams, "&")
+}
+
+func getUsagePerDay(url string, client *http.Client, token string, startDate string, endDate string, subscriber string) (int, *GetUsagePerDayResponse, error) {
+	return apiDo[GetUsagePerDayResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s", url, usageQuery(startDate, endDate, subscriber, GroupByDay)), token, nil)
+}
+
+func getUsagePerSubscriber(url string, client *http.Client, token string, startDate string, endDate string, subscriber string) (int, *GetUsagePerSubscriberResponse, error) {
+	return apiDo[GetUsagePerSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscriber-usage?%s", url, usageQuery(startDate, endDate, subscriber, GroupBySubscriber)), token, nil)
 }
 
 func clearSubscriberUsage(url string, client *http.Client, token string) (int, *DeleteSubscriberUsageResponse, error) {
@@ -128,7 +149,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	imsi2 := "001010100007488"
 
 	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupByDay)
+		statusCode, response, err := getUsagePerDay(env.Server.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -142,10 +163,8 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 
 		for _, entry := range response.Result {
-			for date, usage := range entry {
-				if usage.TotalBytes != 0 {
-					t.Fatalf("expected no usage on %s, got %d bytes", date, usage.TotalBytes)
-				}
+			if entry.TotalBytes != 0 {
+				t.Fatalf("expected no usage on %s, got %d bytes", entry.Date, entry.TotalBytes)
 			}
 		}
 	})
@@ -219,7 +238,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-19T00:00:00Z", "", GroupByDay)
+		statusCode, response, err := getUsagePerDay(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-20T00:00:00Z", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -260,7 +279,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per day - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-19T00:00:00Z", imsi2, GroupByDay)
+		statusCode, response, err := getUsagePerDay(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-20T00:00:00Z", imsi2)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -293,7 +312,22 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Clear subscriber usage data", func(t *testing.T) {
+	t.Run("5. Reject an over-long day range", func(t *testing.T) {
+		statusCode, response, err := getUsagePerDay(env.Server.URL, client, token, "0001-01-01T00:00:00Z", "", "")
+		if err != nil {
+			t.Fatalf("couldn't get subscriber usage per day: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error == "" {
+			t.Fatal("expected an error message, got none")
+		}
+	})
+
+	t.Run("6. Clear subscriber usage data", func(t *testing.T) {
 		statusCode, response, err := clearSubscriberUsage(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
@@ -312,8 +346,8 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupByDay)
+	t.Run("7. Verify cleared subscriber usage data", func(t *testing.T) {
+		statusCode, response, err := getUsagePerDay(env.Server.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -327,10 +361,8 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 		}
 
 		for _, entry := range response.Result {
-			for date, usage := range entry {
-				if usage.TotalBytes != 0 {
-					t.Fatalf("expected no usage on %s after clearing, got %d bytes", date, usage.TotalBytes)
-				}
+			if entry.TotalBytes != 0 {
+				t.Fatalf("expected no usage on %s after clearing, got %d bytes", entry.Date, entry.TotalBytes)
 			}
 		}
 	})
@@ -357,7 +389,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	}
 
 	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupBySubscriber)
+		statusCode, response, err := getUsagePerSubscriber(env.Server.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -444,7 +476,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-19T00:00:00Z", "", GroupBySubscriber)
+		statusCode, response, err := getUsagePerSubscriber(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-20T00:00:00Z", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -461,27 +493,20 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("expected 2 usage data entries, got %d entries", len(response.Result))
 		}
 
-		expectedDate1Key := imsi2
-		if _, ok := response.Result[0][expectedDate1Key]; !ok {
-			t.Fatalf("expected first entry to have date key %s, got %v", expectedDate1Key, response.Result[0])
+		want := []PerSubscriberUsage{
+			{IMSI: imsi2, UplinkBytes: 1222, DownlinkBytes: 23222, TotalBytes: 24444},
+			{IMSI: imsi1, UplinkBytes: 1500, DownlinkBytes: 2500, TotalBytes: 4000},
 		}
 
-		expectedDate2Key := imsi1
-		if _, ok := response.Result[1][expectedDate2Key]; !ok {
-			t.Fatalf("expected second entry to have date key %s, got %v", expectedDate2Key, response.Result[1])
-		}
-
-		if response.Result[0][expectedDate1Key].UplinkBytes != 1222 || response.Result[0][expectedDate1Key].DownlinkBytes != 23222 || response.Result[0][expectedDate1Key].TotalBytes != 24444 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate1Key, response.Result[0][expectedDate1Key])
-		}
-
-		if response.Result[1][expectedDate2Key].UplinkBytes != 1500 || response.Result[1][expectedDate2Key].DownlinkBytes != 2500 || response.Result[1][expectedDate2Key].TotalBytes != 4000 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate2Key, response.Result[1][expectedDate2Key])
+		for i, w := range want {
+			if response.Result[i] != w {
+				t.Fatalf("entry %d: got %+v, want %+v", i, response.Result[i], w)
+			}
 		}
 	})
 
 	t.Run("4. Get subscriber usage per subscriber - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-19T00:00:00Z", imsi2, GroupBySubscriber)
+		statusCode, response, err := getUsagePerSubscriber(env.Server.URL, client, token, "2025-11-14T00:00:00Z", "2025-11-20T00:00:00Z", imsi2)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -498,13 +523,10 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("expected 1 usage data entries, got %d entries", len(response.Result))
 		}
 
-		expectedDateKey := imsi2
-		if _, ok := response.Result[0][expectedDateKey]; !ok {
-			t.Fatalf("expected first entry to have date key %s, got %v", expectedDateKey, response.Result[0])
-		}
+		want := PerSubscriberUsage{IMSI: imsi2, UplinkBytes: 1222, DownlinkBytes: 23222, TotalBytes: 24444}
 
-		if response.Result[0][expectedDateKey].UplinkBytes != 1222 || response.Result[0][expectedDateKey].DownlinkBytes != 23222 || response.Result[0][expectedDateKey].TotalBytes != 24444 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDateKey, response.Result[0][expectedDateKey])
+		if response.Result[0] != want {
+			t.Fatalf("got %+v, want %+v", response.Result[0], want)
 		}
 	})
 
@@ -528,7 +550,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupBySubscriber)
+		statusCode, response, err := getUsagePerSubscriber(env.Server.URL, client, token, "", "", "")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -542,10 +564,8 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 		}
 
 		for _, entry := range response.Result {
-			for date, usage := range entry {
-				if usage.TotalBytes != 0 {
-					t.Fatalf("expected no usage on %s after clearing, got %d bytes", date, usage.TotalBytes)
-				}
+			if entry.TotalBytes != 0 {
+				t.Fatalf("expected no usage for %s after clearing, got %d bytes", entry.IMSI, entry.TotalBytes)
 			}
 		}
 	})

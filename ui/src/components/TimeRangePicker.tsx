@@ -18,6 +18,7 @@ import { formatDateTime } from "@/utils/formatters";
 import { startOfLocalDay } from "@/utils/dates";
 
 export const CUSTOM_RANGE = "custom";
+export const ANY_RANGE = "any";
 
 export type TimeRangeValue = {
   preset: string;
@@ -26,7 +27,7 @@ export type TimeRangeValue = {
 };
 
 export const EMPTY_TIME_RANGE: TimeRangeValue = {
-  preset: "",
+  preset: ANY_RANGE,
   from: "",
   to: "",
 };
@@ -158,7 +159,15 @@ export const timeRangeFilter = (value: TimeRangeValue): TimeRangeFilter => {
     if (to) filter.to = to;
     return filter;
   }
-  return value.preset ? { relative: value.preset } : {};
+  if (!value.preset || value.preset === ANY_RANGE) return {};
+  return { relative: value.preset };
+};
+
+export const toDateInputValue = (stampValue: string | undefined): string => {
+  if (!stampValue) return "";
+  const parsed = new Date(stampValue);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 };
 
 export const toInputValue = (stampValue: string | undefined): string => {
@@ -195,6 +204,17 @@ export const resolveTimeRangeFilter = (
     return resolved;
   }
   return { from: new Date(Date.now() - range.ms).toISOString() };
+};
+
+export const timeRangeParams = (
+  filter: TimeRangeFilter,
+  options?: { ranges?: RelativeRange[] },
+): { start?: string; end?: string } => {
+  const { from, to } = resolveTimeRangeFilter(filter, options);
+  const params: { start?: string; end?: string } = {};
+  if (from) params.start = from;
+  if (to) params.end = to;
+  return params;
 };
 
 export const timeRangeLabel = (
@@ -252,9 +272,12 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
     return resolved;
   }, [edited, ranges]);
   const isCustom = edited.preset === CUSTOM_RANGE;
+  const dayGranularity =
+    ranges.length > 0 && ranges.every((range) => range.anchor === "day");
+  const formatBound = dayGranularity ? toDateInputValue : toInputValue;
   const bounds = {
-    from: toInputValue(isCustom ? edited.from : presetBounds.from),
-    to: toInputValue(isCustom ? edited.to : presetBounds.to),
+    from: formatBound(isCustom ? edited.from : presetBounds.from),
+    to: formatBound(isCustom ? edited.to : presetBounds.to),
   };
 
   const editBound = (field: "from" | "to", next: string) => {
@@ -343,7 +366,7 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
               <Typography variant="subtitle2">Custom range</Typography>
               <TextField
                 label="From"
-                type="datetime-local"
+                type={dayGranularity ? "date" : "datetime-local"}
                 value={bounds.from}
                 onChange={(event) => editBound("from", event.target.value)}
                 error={!!errors.from}
@@ -363,7 +386,7 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
               />
               <TextField
                 label="To"
-                type="datetime-local"
+                type={dayGranularity ? "date" : "datetime-local"}
                 value={bounds.to}
                 onChange={(event) => editBound("to", event.target.value)}
                 error={!!errors.to}
@@ -390,8 +413,8 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
               <MenuList>
                 {allowAnyTime && (
                   <MenuItem
-                    selected={value.preset === ""}
-                    onClick={() => applyPreset("")}
+                    selected={value.preset === ANY_RANGE}
+                    onClick={() => applyPreset(ANY_RANGE)}
                   >
                     Any time
                   </MenuItem>

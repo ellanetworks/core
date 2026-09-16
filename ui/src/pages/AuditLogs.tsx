@@ -43,8 +43,8 @@ import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
 import TimeRangePicker, {
   AUDIT_RANGES,
-  resolveTimeRangeFilter,
   timeRangeFilter,
+  timeRangeParams,
 } from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
@@ -65,11 +65,6 @@ const AuditLog: React.FC = () => {
   });
 
   const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
-
-  const { from: startDate = "", to: endDate = "" } = useMemo(
-    () => resolveTimeRangeFilter(timeFilter, { ranges: AUDIT_RANGES }),
-    [timeFilter],
-  );
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
   const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
@@ -96,27 +91,34 @@ const AuditLog: React.FC = () => {
       : emails;
   }, [usersData, selectedUser]);
 
-  const filters: AuditLogFilters = useMemo(() => {
+  const filterParams: AuditLogFilters = useMemo(() => {
     const f: AuditLogFilters = {};
-    if (startDate) f.start = startDate;
-    if (endDate) f.end = endDate;
     if (selectedUser) f.user = selectedUser;
     if (selectedAction) f.action = selectedAction;
     return f;
-  }, [startDate, endDate, selectedUser, selectedAction]);
+  }, [selectedUser, selectedAction]);
 
-  const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
+  const queryFilters = useMemo(
+    () => ({ ...filterParams, ...timeFilter }),
+    [filterParams, timeFilter],
+  );
+
+  const [paginationModel, setPaginationModel] =
+    useFilteredPagination(queryFilters);
   const pageOneBased = paginationModel.page + 1;
 
   const auditLogsQuery = useQuery<ListAuditLogsResponse>({
-    queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],
+    queryKey: [
+      "auditLogs",
+      pageOneBased,
+      paginationModel.pageSize,
+      queryFilters,
+    ],
     queryFn: () =>
-      listAuditLogs(
-        accessToken || "",
-        pageOneBased,
-        paginationModel.pageSize,
-        filters,
-      ),
+      listAuditLogs(accessToken || "", pageOneBased, paginationModel.pageSize, {
+        ...filterParams,
+        ...timeRangeParams(timeFilter, { ranges: AUDIT_RANGES }),
+      }),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
