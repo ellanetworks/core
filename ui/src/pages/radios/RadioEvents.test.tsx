@@ -322,27 +322,51 @@ describe("RadioEvents stale results", () => {
     await screen.findByRole("alert");
   };
 
-  it("stops showing event rows once the range is invalid", async () => {
+  it("keeps showing the rows of the last applied range", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
     await renderEvents();
     await screen.findAllByText("radio-7");
 
     await setInvalidRange();
 
-    expect(screen.queryByText("radio-7")).not.toBeInTheDocument();
+    expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
   });
 
-  it("shows no loading indicator for a request it will never send", async () => {
+  it("leaves no blank page behind when the panel is closed on an invalid range", async () => {
+    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
+    await renderEvents();
+    await screen.findAllByText("radio-7");
+
+    await showCustomRange();
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
+    await screen.findByRole("alert");
+    await closeTimeRange();
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+    expect(timeRangeButton()).toHaveTextContent("After Aug 10, 10:00");
+    expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
+  });
+
+  it("sends no request for the invalid range", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
     await renderEvents();
     await screen.findAllByText("radio-7");
 
     await setInvalidRange();
 
-    expect(screen.queryAllByRole("progressbar")).toEqual([]);
-    expect(document.querySelectorAll(".MuiLinearProgress-root")).toHaveLength(
-      0,
-    );
+    const inverted = eventRequests().filter((r) => {
+      const from = r.params.get("timestamp_from");
+      const to = r.params.get("timestamp_to");
+      return !!from && !!to && from > to;
+    });
+    expect(inverted).toEqual([]);
   });
 
   it("restores the rows once the range is valid again", async () => {

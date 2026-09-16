@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   renderWithProviders,
@@ -269,13 +269,13 @@ describe("Traffic flow pagination", () => {
     await goToNextPage(user);
     await openTimeRange(user);
 
-    const start = screen.getByLabelText("From");
-    await user.clear(start);
-    await user.type(start, "2026-07-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-07-01T10:00" },
+    });
 
     await waitFor(() => {
       const params = lastFlowParams();
-      expect(params.start).toBe("2026-07-01");
+      expect(params.start).toBe("2026-07-01T10:00:00.000Z");
       expect(params.page).toBe("1");
     });
   });
@@ -351,15 +351,15 @@ describe("Traffic date range", () => {
     await waitForFlowRequests(1);
     await openTimeRange(user);
 
-    const start = screen.getByLabelText("From");
-    const end = screen.getByLabelText("To");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /end date must be on or after the start date/i,
+      /must be on or after/i,
     );
   });
 
@@ -369,32 +369,49 @@ describe("Traffic date range", () => {
     await waitForFlowRequests(1);
     await openTimeRange(user);
 
-    const start = screen.getByLabelText("From");
-    const end = screen.getByLabelText("To");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
     await screen.findByRole("alert");
 
     const ranges = flowRequests().map((r) => [
       r.params.get("start"),
       r.params.get("end"),
     ]);
-    expect(ranges.filter(([from, to]) => !from || !to)).toEqual([]);
-    expect(ranges.filter(([from, to]) => from! > to!)).toEqual([]);
+    expect(ranges.filter(([from, to]) => !!from && !!to && from > to)).toEqual(
+      [],
+    );
+  });
+});
+
+describe("Traffic date range from the URL", () => {
+  it("still queries a link that carries only a start date", async () => {
+    await renderTraffic("/traffic/flows?range=custom&start=2026-01-15");
+    await waitForFlowRequests(1);
+
+    expect(lastFlowParams().start).toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("ignores a start param it cannot parse", async () => {
+    await renderTraffic("/traffic/flows?range=custom&start=not-a-date");
+    await waitForFlowRequests(1);
+
+    expect(lastFlowParams().start).not.toBe("not-a-date");
   });
 });
 
 describe("Traffic date range accessibility", () => {
   const invert = async (user: ReturnType<typeof userEvent.setup>) => {
     await openTimeRange(user);
-    const start = screen.getByLabelText("From");
-    const end = screen.getByLabelText("To");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
     await screen.findByRole("alert");
   };
 
@@ -407,7 +424,7 @@ describe("Traffic date range accessibility", () => {
     await invert(user);
 
     expect(screen.getByLabelText("From")).toHaveAccessibleDescription(
-      /end date must be on or after the start date/i,
+      /must be on or after/i,
     );
   });
 
@@ -420,7 +437,7 @@ describe("Traffic date range accessibility", () => {
     await invert(user);
 
     expect(screen.getByLabelText("To")).toHaveAccessibleDescription(
-      /end date must be on or after the start date/i,
+      /must be on or after/i,
     );
   });
 
@@ -431,14 +448,14 @@ describe("Traffic date range accessibility", () => {
     await openTimeRange(user);
     await invert(user);
 
-    const end = screen.getByLabelText("To");
-    await user.clear(end);
-    await user.type(end, "2026-08-20");
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-20T10:00" },
+    });
 
     await waitFor(() =>
       expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
     );
-    expect(end).toHaveAccessibleDescription("");
+    expect(screen.getByLabelText("To")).toHaveAccessibleDescription("");
   });
 
   it("stops the picker offering an end date before the start", async () => {
@@ -447,27 +464,33 @@ describe("Traffic date range accessibility", () => {
     await waitForFlowRequests(1);
     await openTimeRange(user);
 
-    const start = screen.getByLabelText("From");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
 
     await waitFor(() =>
-      expect(screen.getByLabelText("To")).toHaveAttribute("min", "2026-08-10"),
+      expect(screen.getByLabelText("To")).toHaveAttribute(
+        "min",
+        "2026-08-10T10:00",
+      ),
     );
   });
 });
 
 describe("Traffic incomplete date range", () => {
-  it("explains why results stopped updating when a date is cleared", async () => {
+  it("explains why a cleared date was not applied", async () => {
     const user = userEvent.setup();
     await renderTraffic();
     await waitForFlowRequests(1);
     await openTimeRange(user);
 
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /select both a start and an end date/i,
+    expect(await screen.findByRole("alert")).toHaveTextContent(/enter a date/i);
+    expect(screen.getByLabelText("From")).toHaveAccessibleDescription(
+      /enter a date/i,
     );
   });
 
@@ -478,7 +501,9 @@ describe("Traffic incomplete date range", () => {
     await openTimeRange(user);
 
     const before = flowRequests().length;
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
 
     expect(flowRequests().length).toBe(before);
@@ -491,7 +516,9 @@ describe("Traffic incomplete date range", () => {
     await openTimeRange(user);
 
     for (const label of ["From", "To"]) {
-      await user.clear(screen.getByLabelText(label));
+      fireEvent.change(screen.getByLabelText(label), {
+        target: { value: "" },
+      });
       expect(
         screen.queryAllByRole("alert").length,
         `clearing ${label} froze the page with no explanation`,
@@ -509,38 +536,60 @@ describe("Traffic incomplete date range", () => {
     await user.clear(start);
     await screen.findByRole("alert");
 
-    await user.type(start, "2026-07-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-07-01T10:00" },
+    });
 
-    await waitFor(() => expect(lastFlowParams().start).toBe("2026-07-01"));
+    await waitFor(() =>
+      expect(lastFlowParams().start).toBe("2026-07-01T10:00:00.000Z"),
+    );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
 describe("Traffic stale results", () => {
-  it("stops showing flow rows once the range is incomplete", async () => {
+  it("keeps showing the flow rows of the last applied range", async () => {
     const user = userEvent.setup();
     seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
     await renderTraffic();
     await openTimeRange(user);
     await screen.findAllByText("93.184.216.34");
 
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
 
-    expect(screen.queryByText("93.184.216.34")).not.toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("93.184.216.34")).length,
+    ).toBeGreaterThan(0);
   });
 
-  it("does not claim there are no matching flows when it never asked", async () => {
+  it("leaves no blank page behind when the panel is closed on an invalid range", async () => {
     const user = userEvent.setup();
-    seedApi({ flows: [] });
+    seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
     await renderTraffic();
+    await screen.findAllByText("93.184.216.34");
+    const before = screen.getByRole("button", {
+      name: /^Time range:/,
+    }).textContent;
+
     await openTimeRange(user);
-    await screen.findByText("No flow reports found");
-
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
+    await user.keyboard("{Escape}");
 
-    expect(screen.queryByText("No flow reports found")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: /^Time range:/ }).textContent,
+    ).toBe(before);
+    expect(
+      (await screen.findAllByText("93.184.216.34")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows no loading indicator for a request it will never send", async () => {
@@ -549,22 +598,26 @@ describe("Traffic stale results", () => {
     await waitForFlowRequests(1);
     await openTimeRange(user);
 
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
 
     expect(screen.queryAllByRole("progressbar")).toEqual([]);
   });
 
-  it("hides the usage chart while the range is incomplete", async () => {
+  it("keeps the usage chart while a date is cleared", async () => {
     const user = userEvent.setup();
     await renderTraffic("/traffic/usage");
     await openTimeRange(user);
     await screen.findByText(/Daily data usage/);
 
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
 
-    expect(screen.queryByText(/Daily data usage/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Daily data usage/)).toBeInTheDocument();
   });
 });
 
@@ -654,7 +707,9 @@ describe("Traffic usage query", () => {
     await openTimeRange(user);
     await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
 
-    await user.clear(screen.getByLabelText("From"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "" },
+    });
     await screen.findByRole("alert");
 
     const ranges = usageRequests().map((r) => [
@@ -670,12 +725,12 @@ describe("Traffic usage query", () => {
     await openTimeRange(user);
     await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
 
-    const start = screen.getByLabelText("From");
-    const end = screen.getByLabelText("To");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
     await screen.findByRole("alert");
 
     const inverted = usageRequests().filter((r) => {

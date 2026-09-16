@@ -1649,8 +1649,8 @@ func TestSendFlowReports_HappyPath(t *testing.T) {
 		Protocol:        6,
 		Packets:         100,
 		Bytes:           50000,
-		StartTime:       time.Now().Format(time.RFC3339),
-		EndTime:         time.Now().Add(time.Minute).Format(time.RFC3339),
+		StartTime:       time.Now().UnixMilli(),
+		EndTime:         time.Now().Add(time.Minute).UnixMilli(),
 		Direction:       models.DirectionUplink,
 	}
 

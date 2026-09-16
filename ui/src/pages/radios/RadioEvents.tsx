@@ -61,7 +61,6 @@ import PageTitle from "@/components/PageTitle";
 import TimeRangePicker, {
   EMPTY_TIME_RANGE,
   resolveTimeRangeFilter,
-  timeRangeError,
   timeRangeFilter,
   type TimeRangeValue,
 } from "@/components/TimeRangePicker";
@@ -355,7 +354,6 @@ export default function RadioEvents() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
-  const timestampError = timeRangeError(timeRange);
   const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
 
   const filterParams = useMemo(() => {
@@ -379,7 +377,7 @@ export default function RadioEvents() {
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, queryFilters],
-    enabled: authReady && !!accessToken && !timestampError,
+    enabled: authReady && !!accessToken,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
@@ -784,63 +782,59 @@ export default function RadioEvents() {
           </Typography>
         </Box>
 
-        {timestampError ? null : (
-          <QueryState
-            query={networkLogsQuery}
-            resource="radio events"
-            isEmpty={(data) => (data.total_count ?? 0) === 0}
-            filtered={hasActiveFilters}
-            noResults={
-              <EmptyState
-                primaryText="No radio events match the selected filters"
-                secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
-              />
-            }
-            empty={
-              <EmptyState
-                primaryText="No radio events yet"
-                secondaryText="Signalling exchanged with connected radios will appear here."
-              />
-            }
-          >
-            {() => (
-              <EntityGrid<APIRadioEvent>
-                variant="log"
-                rows={networkRows}
-                columns={networkColumns}
-                getRowId={(row) => row.id}
-                loading={
-                  networkLogsQuery.isLoading ||
-                  networkLogsQuery.isPlaceholderData
-                }
-                paginationMode="server"
-                rowCount={subRowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                onRowClick={handleRowClick}
-                rowSelectionModel={selectionModel}
-                onRowSelectionModelChange={handleSelectionChange}
-                sx={{
-                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                  "& .MuiDataGrid-row.Mui-selected": {
+        <QueryState
+          query={networkLogsQuery}
+          resource="radio events"
+          isEmpty={(data) => (data.total_count ?? 0) === 0}
+          filtered={hasActiveFilters}
+          noResults={
+            <EmptyState
+              primaryText="No radio events match the selected filters"
+              secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
+            />
+          }
+          empty={
+            <EmptyState
+              primaryText="No radio events yet"
+              secondaryText="Signalling exchanged with connected radios will appear here."
+            />
+          }
+        >
+          {() => (
+            <EntityGrid<APIRadioEvent>
+              variant="log"
+              rows={networkRows}
+              columns={networkColumns}
+              getRowId={(row) => row.id}
+              loading={
+                networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
+              }
+              paginationMode="server"
+              rowCount={subRowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              onRowClick={handleRowClick}
+              rowSelectionModel={selectionModel}
+              onRowSelectionModelChange={handleSelectionChange}
+              sx={{
+                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                "& .MuiDataGrid-row.Mui-selected": {
+                  backgroundColor: (t) => t.palette.action.selected,
+                  "&:hover": {
                     backgroundColor: (t) => t.palette.action.selected,
-                    "&:hover": {
-                      backgroundColor: (t) => t.palette.action.selected,
-                    },
-                    "& .MuiDataGrid-cell": { fontWeight: 500 },
-                    "&::before": { display: "none" },
                   },
-                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                    {
-                      outline: "none",
-                    },
-                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                    { outline: "none" },
-                }}
-              />
-            )}
-          </QueryState>
-        )}
+                  "& .MuiDataGrid-cell": { fontWeight: 500 },
+                  "&::before": { display: "none" },
+                },
+                "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+                  outline: "none",
+                },
+                "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                  { outline: "none" },
+              }}
+            />
+          )}
+        </QueryState>
       </Box>
 
       <Box

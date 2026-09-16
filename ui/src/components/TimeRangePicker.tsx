@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Box,
   Button,
   MenuItem,
@@ -15,8 +14,8 @@ import {
 } from "@mui/material";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import { formatDate, formatDateTime } from "@/utils/formatters";
-import { localDateString } from "@/utils/dates";
+import { formatDateTime } from "@/utils/formatters";
+import { startOfLocalDay } from "@/utils/dates";
 
 export const CUSTOM_RANGE = "custom";
 
@@ -38,13 +37,12 @@ export type TimeRangeFilter = {
   to?: string;
 };
 
-export type TimeRangeGranularity = "datetime" | "date";
-
 export type RelativeRange = {
   value: string;
   label: string;
   ms: number;
   endMs?: number;
+  anchor?: "day";
 };
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -59,40 +57,93 @@ export const RELATIVE_RANGES: RelativeRange[] = [
 ];
 
 export const DAILY_RANGES: RelativeRange[] = [
-  { value: "today", label: "Today", ms: 0, endMs: 0 },
-  { value: "yesterday", label: "Yesterday", ms: DAY_MS, endMs: DAY_MS },
-  { value: "7d", label: "Last 7 days", ms: 6 * DAY_MS, endMs: 0 },
-  { value: "30d", label: "Last 30 days", ms: 29 * DAY_MS, endMs: 0 },
-  { value: "90d", label: "Last 90 days", ms: 89 * DAY_MS, endMs: 0 },
+  { value: "today", label: "Today", ms: 0, endMs: 0, anchor: "day" },
+  {
+    value: "yesterday",
+    label: "Yesterday",
+    ms: DAY_MS,
+    endMs: DAY_MS,
+    anchor: "day",
+  },
+  {
+    value: "7d",
+    label: "Last 7 days",
+    ms: 6 * DAY_MS,
+    endMs: 0,
+    anchor: "day",
+  },
+  {
+    value: "30d",
+    label: "Last 30 days",
+    ms: 29 * DAY_MS,
+    endMs: 0,
+    anchor: "day",
+  },
+  {
+    value: "90d",
+    label: "Last 90 days",
+    ms: 89 * DAY_MS,
+    endMs: 0,
+    anchor: "day",
+  },
 ];
 
-const toIsoInstant = (value: string): string => {
+const findRange = (
+  value: string,
+  ranges: RelativeRange[] = RELATIVE_RANGES,
+): RelativeRange | undefined =>
+  ranges.find((range) => range.value === value) ??
+  [...RELATIVE_RANGES, ...DAILY_RANGES].find((range) => range.value === value);
+
+export const toInstant = (value: string): string => {
   if (!value) return "";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 };
 
-export const timeRangeError = (value: TimeRangeValue): string => {
-  if (value.preset !== CUSTOM_RANGE) return "";
-  const fromIso = toIsoInstant(value.from);
-  const toIso = toIsoInstant(value.to);
-  if ((value.from && !fromIso) || (value.to && !toIso)) {
-    return "Enter a valid date and time.";
-  }
-  if (fromIso && toIso && fromIso > toIso) {
-    return "The To timestamp must be on or after the From timestamp.";
-  }
-  return "";
+const MESSAGES = {
+  invalid: "Enter a valid date and time.",
+  order: "The To timestamp must be on or after the From timestamp.",
+  required: "Enter a date and time.",
 };
 
-export const timeRangeFilter = (
+export type TimeRangeFieldErrors = { from?: string; to?: string };
+
+export const isValidBound = (value: string): boolean =>
+  Boolean(value) && !Number.isNaN(new Date(value).getTime());
+
+export const timeRangeFieldErrors = (
   value: TimeRangeValue,
-  granularity: TimeRangeGranularity = "datetime",
-): TimeRangeFilter => {
+  required = false,
+): TimeRangeFieldErrors => {
+  if (value.preset !== CUSTOM_RANGE) return {};
+  const errors: TimeRangeFieldErrors = {};
+  if (!isValidBound(value.from) && (value.from || required)) {
+    errors.from = value.from ? MESSAGES.invalid : MESSAGES.required;
+  }
+  if (!isValidBound(value.to) && (value.to || required)) {
+    errors.to = value.to ? MESSAGES.invalid : MESSAGES.required;
+  }
+  if (errors.from || errors.to) return errors;
+  const fromIso = toInstant(value.from);
+  const toIso = toInstant(value.to);
+  if (fromIso && toIso && fromIso > toIso) {
+    errors.from = MESSAGES.order;
+    errors.to = MESSAGES.order;
+  }
+  return errors;
+};
+
+export const timeRangeError = (value: TimeRangeValue): string => {
+  const errors = timeRangeFieldErrors(value);
+  return errors.from ?? errors.to ?? "";
+};
+
+export const timeRangeFilter = (value: TimeRangeValue): TimeRangeFilter => {
   if (value.preset === CUSTOM_RANGE) {
     const filter: TimeRangeFilter = {};
-    const from = granularity === "date" ? value.from : toIsoInstant(value.from);
-    const to = granularity === "date" ? value.to : toIsoInstant(value.to);
+    const from = toInstant(value.from);
+    const to = toInstant(value.to);
     if (from) filter.from = from;
     if (to) filter.to = to;
     return filter;
@@ -100,12 +151,8 @@ export const timeRangeFilter = (
   return value.preset ? { relative: value.preset } : {};
 };
 
-export const toInputValue = (
-  stampValue: string | undefined,
-  granularity: TimeRangeGranularity,
-): string => {
+export const toInputValue = (stampValue: string | undefined): string => {
   if (!stampValue) return "";
-  if (granularity === "date") return stampValue;
   const parsed = new Date(stampValue);
   if (Number.isNaN(parsed.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -114,77 +161,44 @@ export const toInputValue = (
   )}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 };
 
-const stamp = (offsetMs: number, granularity: TimeRangeGranularity): string => {
-  if (granularity !== "date") {
-    return new Date(Date.now() - offsetMs).toISOString();
-  }
-  const at = new Date();
-  at.setDate(at.getDate() - Math.round(offsetMs / DAY_MS));
-  return localDateString(at);
-};
-
 export const resolveTimeRangeFilter = (
   filter: TimeRangeFilter,
-  options?: {
-    ranges?: RelativeRange[];
-    granularity?: TimeRangeGranularity;
-  },
+  options?: { ranges?: RelativeRange[] },
 ): { from?: string; to?: string } => {
-  const granularity = options?.granularity ?? "datetime";
   if (!filter.relative) {
     const resolved: { from?: string; to?: string } = {};
     if (filter.from) resolved.from = filter.from;
     if (filter.to) resolved.to = filter.to;
     return resolved;
   }
-  const range = (options?.ranges ?? RELATIVE_RANGES).find(
-    (candidate) => candidate.value === filter.relative,
-  );
+  const range = findRange(filter.relative, options?.ranges);
   if (!range) return {};
-  const resolved: { from?: string; to?: string } = {
-    from: stamp(range.ms, granularity),
-  };
-  if (range.endMs !== undefined) resolved.to = stamp(range.endMs, granularity);
-  return resolved;
-};
-
-const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-const formatDateOnly = (value: string): string => {
-  const match = DATE_ONLY.exec(value);
-  if (!match) return formatDate(value);
-  const [, year, month, day] = match;
-  return new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-  ).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (range.anchor === "day") {
+    const from = startOfLocalDay(range.ms / DAY_MS);
+    const resolved: { from?: string; to?: string } = {
+      from: from.toISOString(),
+    };
+    if (range.endMs !== undefined) {
+      const to = startOfLocalDay(range.endMs / DAY_MS - 1);
+      resolved.to = to.toISOString();
+    }
+    return resolved;
+  }
+  return { from: new Date(Date.now() - range.ms).toISOString() };
 };
 
 export const timeRangeLabel = (
   value: TimeRangeValue,
-  options?: {
-    ranges?: RelativeRange[];
-    granularity?: TimeRangeGranularity;
-  },
+  options?: { ranges?: RelativeRange[] },
 ): string => {
-  const ranges = options?.ranges ?? RELATIVE_RANGES;
   if (value.preset !== CUSTOM_RANGE) {
-    return (
-      ranges.find((range) => range.value === value.preset)?.label ?? "Any time"
-    );
+    return findRange(value.preset, options?.ranges)?.label ?? "Any time";
   }
-  const isDateOnly = options?.granularity === "date";
-  const format = isDateOnly ? formatDateOnly : formatDateTime;
-  const from = isDateOnly ? value.from : toIsoInstant(value.from);
-  const to = isDateOnly ? value.to : toIsoInstant(value.to);
-  if (from && to) return `${format(from)} \u2192 ${format(to)}`;
-  if (from) return `After ${format(from)}`;
-  if (to) return `Before ${format(to)}`;
+  const from = toInstant(value.from);
+  const to = toInstant(value.to);
+  if (from && to) return `${formatDateTime(from)} \u2192 ${formatDateTime(to)}`;
+  if (from) return `After ${formatDateTime(from)}`;
+  if (to) return `Before ${formatDateTime(to)}`;
   return "Custom range";
 };
 
@@ -194,9 +208,7 @@ type TimeRangePickerProps = {
   errorId: string;
   minWidth?: number;
   ranges?: RelativeRange[];
-  granularity?: TimeRangeGranularity;
   allowAnyTime?: boolean;
-  error?: string;
 };
 
 const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
@@ -205,38 +217,53 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
   errorId,
   minWidth = 230,
   ranges = RELATIVE_RANGES,
-  granularity = "datetime",
   allowAnyTime = true,
-  error: errorOverride,
 }) => {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const error = errorOverride ?? timeRangeError(value);
-  const label = timeRangeLabel(value, { ranges, granularity });
-  const inputType = granularity === "date" ? "date" : "datetime-local";
-  const presetBounds = resolveTimeRangeFilter(
-    timeRangeFilter(value, granularity),
-    { ranges, granularity },
-  );
-  const bounds =
-    value.preset === CUSTOM_RANGE
-      ? { from: value.from, to: value.to }
-      : {
-          from: toInputValue(presetBounds.from, granularity),
-          to: toInputValue(presetBounds.to, granularity),
-        };
+  const [draft, setDraft] = useState<TimeRangeValue | null>(null);
+  const edited = draft ?? value;
+  const errors = timeRangeFieldErrors(edited, !allowAnyTime);
+  const sharedError = Boolean(errors.from) && errors.from === errors.to;
+  const label = timeRangeLabel(value, { ranges });
+  const presetBounds = useMemo(() => {
+    const resolved = resolveTimeRangeFilter(timeRangeFilter(edited), {
+      ranges,
+    });
+    if (resolved.from && !resolved.to) {
+      return { ...resolved, to: new Date().toISOString() };
+    }
+    return resolved;
+  }, [edited, ranges]);
+  const isCustom = edited.preset === CUSTOM_RANGE;
+  const bounds = {
+    from: toInputValue(isCustom ? edited.from : presetBounds.from),
+    to: toInputValue(isCustom ? edited.to : presetBounds.to),
+  };
+
+  const editBound = (field: "from" | "to", next: string) => {
+    const candidate: TimeRangeValue = {
+      preset: CUSTOM_RANGE,
+      from: toInstant(field === "from" ? next : bounds.from),
+      to: toInstant(field === "to" ? next : bounds.to),
+    };
+    const candidateErrors = timeRangeFieldErrors(candidate, !allowAnyTime);
+    if (candidateErrors.from || candidateErrors.to) {
+      setDraft(candidate);
+      return;
+    }
+    setDraft(null);
+    onChange(candidate);
+  };
 
   const applyPreset = (preset: string) => {
+    setDraft(null);
     onChange({ ...value, preset });
     setAnchor(null);
   };
 
   return (
     <>
-      <Tooltip
-        title={
-          anchor ? "" : error || (value.preset === CUSTOM_RANGE ? label : "")
-        }
-      >
+      <Tooltip title={anchor || value.preset !== CUSTOM_RANGE ? "" : label}>
         <Button
           variant="outlined"
           color="inherit"
@@ -253,7 +280,7 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
             justifyContent: "space-between",
             textTransform: "none",
             color: "text.primary",
-            borderColor: error ? "error.main" : "divider",
+            borderColor: errors.from || errors.to ? "error.main" : "divider",
           }}
         >
           <Box
@@ -273,7 +300,10 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
       <Popover
         open={Boolean(anchor)}
         anchorEl={anchor}
-        onClose={() => setAnchor(null)}
+        onClose={() => {
+          setAnchor(null);
+          setDraft(null);
+        }}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         slotProps={{ paper: { sx: { mt: 1 } } }}
       >
@@ -295,50 +325,41 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
             <Typography variant="subtitle2">Custom range</Typography>
             <TextField
               label="From"
-              type={inputType}
+              type="datetime-local"
               value={bounds.from}
-              onChange={(event) =>
-                onChange({
-                  ...bounds,
-                  preset: CUSTOM_RANGE,
-                  from: event.target.value,
-                })
-              }
-              error={!!error}
+              onChange={(event) => editBound("from", event.target.value)}
+              error={!!errors.from}
+              helperText={sharedError ? undefined : errors.from}
               size="small"
               slotProps={{
                 inputLabel: { shrink: true },
+                formHelperText: { id: `${errorId}-from`, role: "alert" },
                 htmlInput: {
-                  "aria-describedby": error ? errorId : undefined,
+                  "aria-describedby": errors.from
+                    ? sharedError
+                      ? errorId
+                      : `${errorId}-from`
+                    : undefined,
                 },
               }}
             />
             <TextField
               label="To"
-              type={inputType}
+              type="datetime-local"
               value={bounds.to}
-              onChange={(event) =>
-                onChange({
-                  ...bounds,
-                  preset: CUSTOM_RANGE,
-                  to: event.target.value,
-                })
-              }
-              error={!!error}
+              onChange={(event) => editBound("to", event.target.value)}
+              error={!!errors.to}
+              helperText={errors.to}
               size="small"
               slotProps={{
                 inputLabel: { shrink: true },
+                formHelperText: { id: errorId, role: "alert" },
                 htmlInput: {
-                  min: bounds.from || undefined,
-                  "aria-describedby": error ? errorId : undefined,
+                  min: (isCustom && bounds.from) || undefined,
+                  "aria-describedby": errors.to ? errorId : undefined,
                 },
               }}
             />
-            {error && (
-              <Alert severity="error" id={errorId}>
-                {error}
-              </Alert>
-            )}
           </Box>
           <Box
             sx={{

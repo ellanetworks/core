@@ -44,7 +44,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 
 	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
-		Timestamp: "2024-10-01T12:00:00Z",
+		Timestamp: tsMillis("2024-10-01T12:00:00Z"),
 		Level:     "info",
 		Actor:     "test_actor",
 		Action:    "test_action",
@@ -57,7 +57,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 
 	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
-		Timestamp: "2024-10-01T13:00:00Z",
+		Timestamp: tsMillis("2024-10-01T13:00:00Z"),
 		Level:     "info",
 		Actor:     "another_actor",
 		Action:    "another_action",
@@ -116,7 +116,7 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 	insert := func(ts time.Time, action string) {
 		if err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
 			ID:        newAuditLogID(t),
-			Timestamp: ts.UTC().Format(time.RFC3339),
+			Timestamp: dbwriter.EpochMillis(ts.UTC()),
 			Level:     "info",
 			Actor:     "tester",
 			Action:    action,
@@ -200,7 +200,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 	// Insert logs from different actors
 	err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
-		Timestamp: "2024-10-01T12:00:00Z",
+		Timestamp: tsMillis("2024-10-01T12:00:00Z"),
 		Level:     "info",
 		Actor:     "admin@example.com",
 		Action:    "create_user",
@@ -213,7 +213,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 
 	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
-		Timestamp: "2024-10-01T13:00:00Z",
+		Timestamp: tsMillis("2024-10-01T13:00:00Z"),
 		Level:     "info",
 		Actor:     "viewer@example.com",
 		Action:    "login",
@@ -226,7 +226,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 
 	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        newAuditLogID(t),
-		Timestamp: "2024-10-01T14:00:00Z",
+		Timestamp: tsMillis("2024-10-01T14:00:00Z"),
 		Level:     "info",
 		Actor:     "admin@example.com",
 		Action:    "delete_user",

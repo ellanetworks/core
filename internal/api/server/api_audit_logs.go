@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -130,20 +131,20 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 			filters.Action = &v
 		}
 
-		if v := q.Get("start"); v != "" {
-			t := stotimeDefault(v, time.Time{})
-			if !t.IsZero() {
-				s := t.UTC().Format(time.RFC3339)
-				filters.TimestampFrom = &s
-			}
+		start, end, err := parseTimeRange(q, time.Time{}, time.Time{})
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
 		}
 
-		if v := q.Get("end"); v != "" {
-			t := stotimeDefault(v, time.Time{})
-			if !t.IsZero() {
-				s := t.AddDate(0, 0, 1).UTC().Format(time.RFC3339)
-				filters.TimestampTo = &s
-			}
+		if !start.IsZero() {
+			s := dbwriter.EpochMillis(start)
+			filters.TimestampFrom = &s
+		}
+
+		if !end.IsZero() {
+			e := dbwriter.EpochMillis(end)
+			filters.TimestampTo = &e
 		}
 
 		logs, total, err := dbInstance.ListAuditLogsPage(ctx, filters, page, perPage)
@@ -156,7 +157,7 @@ func ListAuditLogs(dbInstance *db.Database) http.Handler {
 		for i, log := range logs {
 			items[i] = AuditLog{
 				ID:        log.ID,
-				Timestamp: log.Timestamp,
+				Timestamp: dbwriter.FormatEpochMillis(log.Timestamp),
 				Level:     log.Level,
 				User:      log.Actor,
 				Action:    log.Action,

@@ -287,7 +287,7 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 
 	err = dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
 		ID:        id.String(),
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timestamp: dbwriter.EpochMillis(time.Now()),
 		Level:     "INFO",
 		Actor:     actor,
 		Action:    action,
@@ -399,7 +399,7 @@ func LogNetworkEvent(
 	}
 
 	err := dbInstance.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Timestamp:     dbwriter.EpochMillis(time.Now()),
 		Protocol:      string(protocol),
 		MessageType:   messageType,
 		Direction:     string(dir),

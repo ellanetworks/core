@@ -30,7 +30,7 @@ func TestRadioEventsEndToEnd(t *testing.T) {
 	}
 
 	err = database.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:     "2024-10-01T12:00:00Z",
+		Timestamp:     tsMillis("2024-10-01T12:00:00Z"),
 		Protocol:      "ngap",
 		MessageType:   "test_event",
 		Direction:     "inbound",
@@ -43,7 +43,7 @@ func TestRadioEventsEndToEnd(t *testing.T) {
 	}
 
 	err = database.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:     "2024-10-01T13:00:00Z",
+		Timestamp:     tsMillis("2024-10-01T13:00:00Z"),
 		Protocol:      "another_protocol",
 		MessageType:   "another_event",
 		Direction:     "outbound",
@@ -99,7 +99,7 @@ func TestGetRadioEventByID(t *testing.T) {
 	ctx := context.Background()
 
 	if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
-		Timestamp:     "2024-10-01T12:00:00Z",
+		Timestamp:     tsMillis("2024-10-01T12:00:00Z"),
 		Protocol:      "ngap",
 		MessageType:   "test_event",
 		Direction:     "inbound",
@@ -144,7 +144,7 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 
 	insert := func(ts time.Time, event string) {
 		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
-			Timestamp:   ts.UTC().Format(time.RFC3339),
+			Timestamp:   dbwriter.EpochMillis(ts.UTC()),
 			MessageType: event,
 			Direction:   "inbound",
 			Protocol:    "tester",
@@ -229,7 +229,7 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 			Protocol:    protocol,
 			MessageType: event,
 			Direction:   "inbound",
-			Timestamp:   time.Now().UTC().Format(time.RFC3339),
+			Timestamp:   dbwriter.EpochMillis(time.Now().UTC()),
 			Raw:         []byte("dGVzdA=="),
 		}); err != nil {
 			t.Fatalf("insert failed (%s): %v", event, err)
@@ -269,7 +269,7 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 
 	insert := func(ts time.Time, event string) {
 		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
-			Timestamp:   ts.UTC().Format(time.RFC3339),
+			Timestamp:   dbwriter.EpochMillis(ts.UTC()),
 			MessageType: event,
 			Protocol:    "tester",
 			Direction:   "inbound",
@@ -290,8 +290,8 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 	insert(now, "event-003")
 	insert(future, "event-004")
 
-	from := past2.Format(time.RFC3339)
-	to := veryNearFuture.Format(time.RFC3339)
+	from := dbwriter.EpochMillis(past2)
+	to := dbwriter.EpochMillis(veryNearFuture)
 
 	logs, total, err := database.ListRadioEvents(ctx, 1, 10, &db.RadioEventFilters{
 		TimestampFrom: &from,
@@ -330,7 +330,7 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 
 	insert := func(ts time.Time, protocol, event string) {
 		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
-			Timestamp:   ts.UTC().Format(time.RFC3339),
+			Timestamp:   dbwriter.EpochMillis(ts.UTC()),
 			MessageType: event,
 			Protocol:    protocol,
 			Direction:   "inbound",
@@ -350,8 +350,8 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 	insert(now, "protocol-001", "event-003")
 	insert(future, "protocol-002", "event-004")
 
-	from := past2.Format(time.RFC3339)
-	to := future.Format(time.RFC3339)
+	from := dbwriter.EpochMillis(past2)
+	to := dbwriter.EpochMillis(future)
 	protocol := "protocol-001"
 
 	logs, total, err := database.ListRadioEvents(ctx, 1, 10, &db.RadioEventFilters{

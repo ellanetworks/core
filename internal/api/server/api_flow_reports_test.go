@@ -303,7 +303,7 @@ func TestListFlowReportsPagination(t *testing.T) {
 	createFlowReportTestSubscriber(t, env.DB)
 
 	// Insert test flow reports
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 	for i := range 25 {
 		fr := &dbwriter.FlowReport{
 			SubscriberID:    "001010100000001",
@@ -387,7 +387,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 
 	// Insert test flow reports with different subscribers
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 	for i := range 5 {
 		fr := &dbwriter.FlowReport{
 			SubscriberID:    "001010100000001",
@@ -466,7 +466,7 @@ func TestClearFlowReports(t *testing.T) {
 	createFlowReportTestSubscriber(t, env.DB)
 
 	// Insert test flow reports
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 	for i := range 10 {
 		fr := &dbwriter.FlowReport{
 			SubscriberID:    "001010100000001",
@@ -593,7 +593,7 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 
 	createFlowReportTestSubscriber(t, env.DB)
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 
 	// Insert 3 TCP flows from different sources to different destinations
 	for i := range 3 {
@@ -676,7 +676,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 
 	// 3 TCP flows for subscriber 1
 	for i := range 3 {
@@ -748,7 +748,7 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 
 	createFlowReportTestSubscriber(t, env.DB)
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 
 	// Insert 4 TCP flows
 	for i := range 4 {
@@ -820,7 +820,7 @@ func TestListFlowReportsFilterByAction(t *testing.T) {
 
 	createFlowReportTestSubscriber(t, env.DB)
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute))
 
 	// Insert 3 allowed flows (action=0, default zero value)
 	for i := range 3 {

@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import PageTitle from "@/components/PageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Box,
   Typography,
   TextField,
@@ -14,7 +13,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import { type GridColDef } from "@mui/x-data-grid";
@@ -41,12 +40,11 @@ import {
 } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
 import TimeRangePicker, {
-  CUSTOM_RANGE,
-  DAILY_RANGES,
+  RELATIVE_RANGES,
   resolveTimeRangeFilter,
   timeRangeFilter,
-  type TimeRangeValue,
 } from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
@@ -62,50 +60,14 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [timeRange, setTimeRange] = useTimeRangeSearchParams({
+    defaultPreset: "7d",
+  });
 
-  const timeRange: TimeRangeValue = useMemo(() => {
-    const from = searchParams.get("start") ?? "";
-    const to = searchParams.get("end") ?? "";
-    const preset =
-      searchParams.get("range") ?? (from || to ? CUSTOM_RANGE : "7d");
-    return { preset, from, to };
-  }, [searchParams]);
-
-  const setTimeRange = useCallback(
-    (next: TimeRangeValue) => {
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(prev);
-          params.set("range", next.preset);
-          if (next.preset === CUSTOM_RANGE) {
-            if (next.from) params.set("start", next.from);
-            else params.delete("start");
-            if (next.to) params.set("end", next.to);
-            else params.delete("end");
-          } else {
-            params.delete("start");
-            params.delete("end");
-          }
-          return params;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
-
-  const timeFilter = useMemo(
-    () => timeRangeFilter(timeRange, "date"),
-    [timeRange],
-  );
+  const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
 
   const { from: startDate = "", to: endDate = "" } = useMemo(
-    () =>
-      resolveTimeRangeFilter(timeFilter, {
-        ranges: DAILY_RANGES,
-        granularity: "date",
-      }),
+    () => resolveTimeRangeFilter(timeFilter, { ranges: RELATIVE_RANGES }),
     [timeFilter],
   );
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
@@ -143,11 +105,6 @@ const AuditLog: React.FC = () => {
     return f;
   }, [startDate, endDate, selectedUser, selectedAction]);
 
-  const dateError =
-    startDate && endDate && startDate > endDate
-      ? "End date must be on or after the start date."
-      : "";
-
   const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
   const pageOneBased = paginationModel.page + 1;
 
@@ -160,7 +117,7 @@ const AuditLog: React.FC = () => {
         paginationModel.pageSize,
         filters,
       ),
-    enabled: authReady && !!accessToken && !dateError,
+    enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
   });
 
@@ -289,9 +246,7 @@ const AuditLog: React.FC = () => {
             value={timeRange}
             onChange={setTimeRange}
             errorId={DATE_ERROR_ID}
-            ranges={DAILY_RANGES}
-            granularity="date"
-            error={dateError}
+            ranges={RELATIVE_RANGES}
           />
           <TextField
             select
@@ -342,46 +297,40 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      {dateError ? (
-        <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
-          {dateError}
-        </Alert>
-      ) : (
-        <QueryState
-          query={auditLogsQuery}
-          resource="audit logs"
-          isEmpty={(data) => (data.total_count ?? 0) === 0}
-          filtered={hasActiveFilters}
-          noResults={
-            <EmptyState
-              primaryText="No audit logs match the selected filters"
-              secondaryText="Try widening the date range or clearing the user and action filters."
-            />
-          }
-          empty={
-            <EmptyState
-              primaryText="No audit logs yet"
-              secondaryText={`Actions taken in ${PRODUCT.name} will be recorded here.`}
-            />
-          }
-        >
-          {(data) => (
-            <EntityGrid<APIAuditLog>
-              variant="log"
-              rows={data.items ?? []}
-              columns={columns}
-              getRowId={(row) => row.id}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              density="standard"
-              rowHeight={DENSE_ROW_HEIGHT}
-              columnHeaderHeight={DENSE_HEADER_HEIGHT}
-            />
-          )}
-        </QueryState>
-      )}
+      <QueryState
+        query={auditLogsQuery}
+        resource="audit logs"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        filtered={hasActiveFilters}
+        noResults={
+          <EmptyState
+            primaryText="No audit logs match the selected filters"
+            secondaryText="Try widening the date range or clearing the user and action filters."
+          />
+        }
+        empty={
+          <EmptyState
+            primaryText="No audit logs yet"
+            secondaryText={`Actions taken in ${PRODUCT.name} will be recorded here.`}
+          />
+        }
+      >
+        {(data) => (
+          <EntityGrid<APIAuditLog>
+            variant="log"
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.id}
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            density="standard"
+            rowHeight={DENSE_ROW_HEIGHT}
+            columnHeaderHeight={DENSE_HEADER_HEIGHT}
+          />
+        )}
+      </QueryState>
 
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}

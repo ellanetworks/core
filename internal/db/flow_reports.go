@@ -38,8 +38,8 @@ const listFlowReportsPagedFilteredStmt = `
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
   ORDER BY id DESC
@@ -57,8 +57,8 @@ const countFlowReportsFilteredStmt = `
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 `
@@ -73,8 +73,8 @@ WHERE
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 ORDER BY end_time ASC
@@ -90,8 +90,8 @@ WHERE
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 ORDER BY subscriber_id ASC, end_time ASC
@@ -107,8 +107,8 @@ WHERE
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 GROUP BY protocol
@@ -125,8 +125,8 @@ WHERE
     AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
     AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
     AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
-    AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
+    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
+    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
     AND direction = 'uplink'
     AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 GROUP BY destination_ip
@@ -151,8 +151,8 @@ type FlowReportFilters struct {
 	DestinationIP   *string `db:"destination_ip"`   // exact match
 	SourcePort      *uint16 `db:"source_port"`      // exact match
 	DestinationPort *uint16 `db:"destination_port"` // exact match
-	EndTimeFrom     *string `db:"end_time_from"`    // RFC3339 (UTC)
-	EndTimeTo       *string `db:"end_time_to"`      // RFC3339 (UTC), exclusive upper bound
+	RangeStart      *int64  `db:"range_start"`      // epoch milliseconds, inclusive
+	RangeEnd        *int64  `db:"range_end"`        // epoch milliseconds, exclusive
 	Direction       *string `db:"direction"`        // "uplink" or "downlink"
 	Action          *uint8  `db:"action"`           // 0 = "allow", 1 = "drop"
 }
@@ -322,8 +322,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
 
-	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
-	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
 	args := cutoffArgs{Cutoff: cutoff}
 

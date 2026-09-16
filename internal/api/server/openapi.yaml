@@ -1002,14 +1002,14 @@ paths:
           in: query
           schema:
             type: string
-            format: date
-          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+            format: date-time
+          description: Inclusive lower bound (RFC 3339). Defaults to 7 days ago.
         - name: end
           in: query
           schema:
             type: string
-            format: date
-          description: End date (YYYY-MM-DD). Defaults to today.
+            format: date-time
+          description: Exclusive upper bound (RFC 3339). Defaults to now.
         - name: subscriber
           in: query
           schema:
@@ -2476,18 +2476,18 @@ paths:
           schema:
             type: string
           description: Filter by NGAP message type.
-        - name: timestamp_from
+        - name: start
           in: query
           schema:
             type: string
             format: date-time
-          description: Filter events after this timestamp (RFC 3339).
-        - name: timestamp_to
+          description: Inclusive lower bound (RFC 3339). Unbounded when absent.
+        - name: end
           in: query
           schema:
             type: string
             format: date-time
-          description: Filter events before this timestamp (RFC 3339).
+          description: Exclusive upper bound (RFC 3339). Unbounded when absent.
       responses:
         "200":
           description: Paginated list of radio events.
@@ -2626,14 +2626,14 @@ paths:
           in: query
           schema:
             type: string
-            format: date
-          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+            format: date-time
+          description: Inclusive lower bound (RFC 3339). Defaults to 7 days ago.
         - name: end
           in: query
           schema:
             type: string
-            format: date
-          description: End date (YYYY-MM-DD). Defaults to today.
+            format: date-time
+          description: Exclusive upper bound (RFC 3339). Defaults to now.
       responses:
         "200":
           description: Flow reports (flat list or grouped).
@@ -2730,12 +2730,14 @@ paths:
           in: query
           schema:
             type: string
-            format: date
+            format: date-time
+          description: Inclusive lower bound (RFC 3339). Defaults to 7 days ago.
         - name: end
           in: query
           schema:
             type: string
-            format: date
+            format: date-time
+          description: Exclusive upper bound (RFC 3339). Defaults to now.
       responses:
         "200":
           description: Aggregated flow statistics.
@@ -2772,14 +2774,14 @@ paths:
           in: query
           schema:
             type: string
-            format: date
-          description: Start date (YYYY-MM-DD). Defaults to 7 days ago.
+            format: date-time
+          description: Inclusive lower bound (RFC 3339). Unbounded when absent.
         - name: end
           in: query
           schema:
             type: string
-            format: date
-          description: End date (YYYY-MM-DD). Defaults to today.
+            format: date-time
+          description: Exclusive upper bound (RFC 3339). Unbounded when absent.
       responses:
         "200":
           description: Paginated list of audit log entries.

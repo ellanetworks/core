@@ -35,25 +35,18 @@ type SubscriberUsage struct {
 	TotalBytes    int64 `json:"total_bytes"`
 }
 
-func stotimeDefault(s string, def time.Time) time.Time {
-	if s == "" {
-		return def
-	}
-
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		return def
-	}
-
-	return t
-}
-
 func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 
-		startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
-		endDate := stotimeDefault(q.Get("end"), time.Now())
+		now := time.Now()
+
+		startDate, endDate, err := parseTimeRange(q, now.AddDate(0, 0, -7), now)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		groupBy := q.Get("group_by")
 
 		subscriber := q.Get("subscriber")

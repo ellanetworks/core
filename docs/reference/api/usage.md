@@ -16,8 +16,8 @@ This path retrieves usage data for network subscribers.
 
 | Name       | In    | Type | Default | Allowed | Description                   |
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
-| `start`      | query | string  | `now-7d` |         | Start date for usage data. Format: YYYY-MM-DD.   |
-| `end`        | query | string  | `now`    |         | End date for usage data. Format: YYYY-MM-DD.     |
+| `start`      | query | string  | `now-7d` |         | Inclusive lower bound, RFC3339 (e.g. `2006-01-02T15:04:05Z`). |
+| `end`        | query | string  | `now`    |         | Exclusive upper bound, RFC3339. |
 | `group_by`   | query | string  | _required_ | `day`, `subscriber` | Grouping method for usage data. Required — omitting it returns `400`. |
 | `subscriber` | query | string  | ``     |          | Filter usage data for a specific subscriber.     |
 

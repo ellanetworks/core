@@ -128,14 +128,18 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 		return f, fmt.Errorf("invalid action: must be 'allow' or 'drop'")
 	}
 
-	startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
-	endDate := stotimeDefault(q.Get("end"), time.Now())
+	now := time.Now()
 
-	startRFC := startDate.UTC().Format(time.RFC3339)
-	f.EndTimeFrom = &startRFC
+	start, end, err := parseTimeRange(q, now.AddDate(0, 0, -7), now)
+	if err != nil {
+		return f, err
+	}
 
-	endRFC := endDate.AddDate(0, 0, 1).UTC().Format(time.RFC3339)
-	f.EndTimeTo = &endRFC
+	rangeStart := dbwriter.EpochMillis(start)
+	f.RangeStart = &rangeStart
+
+	rangeEnd := dbwriter.EpochMillis(end)
+	f.RangeEnd = &rangeEnd
 
 	return f, nil
 }
@@ -408,21 +412,21 @@ func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
 		Protocol:        r.Protocol,
 		Packets:         r.Packets,
 		Bytes:           r.Bytes,
-		StartTime:       r.StartTime,
-		EndTime:         r.EndTime,
+		StartTime:       dbwriter.FormatEpochMillis(r.StartTime),
+		EndTime:         dbwriter.FormatEpochMillis(r.EndTime),
 		Direction:       r.Direction,
 		Action:          action,
 	}
 }
 
-// groupFlowReportsByDay groups flow reports by the date portion of end_time.
+// groupFlowReportsByDay groups flow reports by the UTC date of end_time.
 // Returns an array of single-key maps where each key is a YYYY-MM-DD date string.
 func groupFlowReportsByDay(reports []dbwriter.FlowReport) []map[string][]FlowReport {
 	orderKeys := []string{}
 	groups := map[string][]FlowReport{}
 
 	for _, r := range reports {
-		day := r.EndTime[:10] // Extract YYYY-MM-DD from RFC3339
+		day := dbwriter.FromEpochMillis(r.EndTime).Format("2006-01-02")
 
 		if _, exists := groups[day]; !exists {
 			orderKeys = append(orderKeys, day)

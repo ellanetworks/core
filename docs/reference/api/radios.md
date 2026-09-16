@@ -198,8 +198,8 @@ This path returns the list of radio events.
 | `protocol`       | query | str  |         | NGAP, S1AP        | Filter by protocol (`NGAP` for 5G radios, `S1AP` for 4G radios).                                 |
 | `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
 | `message_type`   | query | str  |         |                   | Filter by message type.                                                                          |
-| `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
-| `timestamp_to`   | query | str  |         |                   | Filter logs up to this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00). |
+| `start`          | query | str  |         |                   | Inclusive lower bound, RFC3339 (e.g., 2006-01-02T15:04:05Z07:00). Unbounded when omitted.        |
+| `end`            | query | str  |         |                   | Exclusive upper bound, RFC3339. Unbounded when omitted.                                          |
 
 ### Sample Response
 

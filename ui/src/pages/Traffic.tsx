@@ -55,12 +55,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { listAllSubscriberImsis } from "@/queries/subscribers";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
 import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -80,12 +75,12 @@ import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
 import TimeRangePicker, {
-  CUSTOM_RANGE,
   DAILY_RANGES,
+  RELATIVE_RANGES,
   resolveTimeRangeFilter,
   timeRangeFilter,
-  type TimeRangeValue,
 } from "@/components/TimeRangePicker";
 import { useDebouncedState } from "@/hooks/useDebouncedState";
 
@@ -165,7 +160,6 @@ const Traffic: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const currentTab = TAB_PATHS.includes(
     location.pathname as (typeof TAB_PATHS)[number],
@@ -180,44 +174,17 @@ const Traffic: React.FC = () => {
     [navigate, location.search],
   );
 
-  const timeRange: TimeRangeValue = useMemo(() => {
-    const from = searchParams.get("start") ?? "";
-    const to = searchParams.get("end") ?? "";
-    const preset =
-      searchParams.get("range") ?? (from || to ? CUSTOM_RANGE : "7d");
-    return { preset, from, to };
-  }, [searchParams]);
+  const [timeRange, setTimeRange] = useTimeRangeSearchParams({
+    defaultPreset: "7d",
+  });
 
-  const setTimeRange = useCallback(
-    (next: TimeRangeValue) => {
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(prev);
-          params.set("range", next.preset);
-          if (next.preset === CUSTOM_RANGE) {
-            if (next.from) params.set("start", next.from);
-            else params.delete("start");
-            if (next.to) params.set("end", next.to);
-            else params.delete("end");
-          } else {
-            params.delete("start");
-            params.delete("end");
-          }
-          return params;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
+  const tabRanges =
+    currentTab === TAB_PATHS[1] ? RELATIVE_RANGES : DAILY_RANGES;
 
   const { from: startDate = "", to: endDate = "" } = useMemo(
     () =>
-      resolveTimeRangeFilter(timeRangeFilter(timeRange, "date"), {
-        ranges: DAILY_RANGES,
-        granularity: "date",
-      }),
-    [timeRange],
+      resolveTimeRangeFilter(timeRangeFilter(timeRange), { ranges: tabRanges }),
+    [timeRange, tabRanges],
   );
   const [selectedSubscriber, setSelectedSubscriber] =
     useSearchParamState("subscriber_id");
@@ -242,15 +209,6 @@ const Traffic: React.FC = () => {
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
 
-  const dateRangeError =
-    !startDate || !endDate
-      ? "Select both a start and an end date to load traffic."
-      : startDate > endDate
-        ? "End date must be on or after the start date."
-        : "";
-
-  const dateRangeReady = !dateRangeError;
-
   const { data: usageRetentionPolicy, refetch: refetchUsageRetention } =
     useQuery<UsageRetentionPolicy>({
       queryKey: ["usageRetentionPolicy"],
@@ -272,7 +230,7 @@ const Traffic: React.FC = () => {
         selectedSubscriber,
         "subscriber",
       ),
-    enabled: !!accessToken && dateRangeReady,
+    enabled: !!accessToken,
     placeholderData: (prev) => prev,
   });
 
@@ -290,7 +248,7 @@ const Traffic: React.FC = () => {
         selectedSubscriber,
         "day",
       ),
-    enabled: !!accessToken && dateRangeReady,
+    enabled: !!accessToken,
     placeholderData: (prev) => prev,
   });
 
@@ -347,7 +305,7 @@ const Traffic: React.FC = () => {
         flowPaginationModel.pageSize,
         activeFlowFilters,
       ),
-    enabled: authReady && !!accessToken && dateRangeReady,
+    enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
@@ -355,7 +313,7 @@ const Traffic: React.FC = () => {
   const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
     queryKey: ["flowReportStats", activeFlowFilters],
     queryFn: () => getFlowReportStats(accessToken || "", activeFlowFilters),
-    enabled: authReady && !!accessToken && dateRangeReady,
+    enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
@@ -369,7 +327,7 @@ const Traffic: React.FC = () => {
     queryKey: ["flowReportProtocolOptions", filtersWithoutProtocol],
     queryFn: () =>
       getFlowReportStats(accessToken || "", filtersWithoutProtocol),
-    enabled: authReady && !!accessToken && !!appliedProtocol && dateRangeReady,
+    enabled: authReady && !!accessToken && !!appliedProtocol,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
@@ -389,8 +347,7 @@ const Traffic: React.FC = () => {
     queryKey: ["flowReportDestinationOptions", filtersWithoutDestination],
     queryFn: () =>
       getFlowReportStats(accessToken || "", filtersWithoutDestination),
-    enabled:
-      authReady && !!accessToken && !!appliedDestination && dateRangeReady,
+    enabled: authReady && !!accessToken && !!appliedDestination,
     placeholderData: (prev) => prev,
     refetchInterval: 5000,
   });
@@ -889,45 +846,6 @@ const Traffic: React.FC = () => {
             flow records collected by the user plane.
           </Typography>
 
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              gap: 2,
-              alignItems: { xs: "flex-start", sm: "center" },
-            }}
-          >
-            <TimeRangePicker
-              value={timeRange}
-              onChange={setTimeRange}
-              errorId={DATE_ERROR_ID}
-              ranges={DAILY_RANGES}
-              granularity="date"
-              allowAnyTime={false}
-              error={dateRangeError}
-            />
-            <Autocomplete
-              options={subscriberOptions}
-              value={selectedSubscriber || null}
-              onChange={(_event, value) => setSelectedSubscriber(value ?? "")}
-              size="small"
-              sx={{ minWidth: 240 }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Subscriber"
-                  placeholder="All subscribers"
-                />
-              )}
-            />
-          </Box>
-
-          {dateRangeError && (
-            <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
-              {dateRangeError}
-            </Alert>
-          )}
-
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
@@ -950,7 +868,38 @@ const Traffic: React.FC = () => {
                   gap: 1,
                 }}
               >
-                <Box />
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: 2,
+                    alignItems: { xs: "flex-start", sm: "center" },
+                  }}
+                >
+                  <TimeRangePicker
+                    value={timeRange}
+                    onChange={setTimeRange}
+                    errorId={DATE_ERROR_ID}
+                    ranges={tabRanges}
+                    allowAnyTime={false}
+                  />
+                  <Autocomplete
+                    options={subscriberOptions}
+                    value={selectedSubscriber || null}
+                    onChange={(_event, value) =>
+                      setSelectedSubscriber(value ?? "")
+                    }
+                    size="small"
+                    sx={{ minWidth: 240 }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Subscriber"
+                        placeholder="All subscribers"
+                      />
+                    )}
+                  />
+                </Box>
                 <Box
                   sx={{
                     display: "flex",
@@ -987,52 +936,48 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {dateRangeError ? null : (
-                <>
-                  <Box>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      Daily data usage (
-                      {selectedSubscriber || "all subscribers"}) in {unit}
-                    </Typography>
-                    <BarChart
-                      dataset={chartDataset}
-                      xAxis={[{ scaleType: "band", dataKey: "date" }]}
-                      yAxis={[{ label: `Usage (${unit})` }]}
-                      series={[
-                        {
-                          dataKey: "downlink",
-                          label: `Downlink (${unit})`,
-                          color: theme.palette.chart.downlink,
-                        },
-                        {
-                          dataKey: "uplink",
-                          label: `Uplink (${unit})`,
-                          color: theme.palette.chart.uplink,
-                        },
-                      ]}
-                      height={300}
-                      slotProps={{
-                        legend: {
-                          direction: "horizontal",
-                          position: {
-                            vertical: "bottom",
-                            horizontal: "center",
-                          },
-                        },
-                      }}
-                    />
-                  </Box>
+              <Box>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  Daily data usage ({selectedSubscriber || "all subscribers"})
+                  in {unit}
+                </Typography>
+                <BarChart
+                  dataset={chartDataset}
+                  xAxis={[{ scaleType: "band", dataKey: "date" }]}
+                  yAxis={[{ label: `Usage (${unit})` }]}
+                  series={[
+                    {
+                      dataKey: "downlink",
+                      label: `Downlink (${unit})`,
+                      color: theme.palette.chart.downlink,
+                    },
+                    {
+                      dataKey: "uplink",
+                      label: `Uplink (${unit})`,
+                      color: theme.palette.chart.uplink,
+                    },
+                  ]}
+                  height={300}
+                  slotProps={{
+                    legend: {
+                      direction: "horizontal",
+                      position: {
+                        vertical: "bottom",
+                        horizontal: "center",
+                      },
+                    },
+                  }}
+                />
+              </Box>
 
-                  <EntityGrid<UsageRow>
-                    rows={usageRows}
-                    columns={usageColumns}
-                    getRowId={(row) => row.id}
-                    paginationModel={usagePaginationModel}
-                    onPaginationModelChange={setUsagePaginationModel}
-                    columnVisibilityModel={{ subscriber: !isSmDown }}
-                  />
-                </>
-              )}
+              <EntityGrid<UsageRow>
+                rows={usageRows}
+                columns={usageColumns}
+                getRowId={(row) => row.id}
+                paginationModel={usagePaginationModel}
+                onPaginationModelChange={setUsagePaginationModel}
+                columnVisibilityModel={{ subscriber: !isSmDown }}
+              />
             </Box>
           )}
 
@@ -1096,123 +1041,122 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {!dateRangeError &&
-                (protocolPieData.length > 0 ||
-                  topDestinationsPieData.length > 0) && (
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                      gap: 3,
-                      alignItems: "start",
-                    }}
-                  >
-                    {protocolPieData.length > 0 && (
-                      <Box>
-                        <Typography variant="h6" sx={{ mb: 1 }}>
-                          Protocols (by flow count)
-                        </Typography>
-                        <PieChart
-                          series={[
-                            {
-                              data: protocolPieData,
-                              innerRadius: 30,
-                              outerRadius: 80,
-                              paddingAngle: 2,
-                              cornerRadius: 5,
-                              valueFormatter: (item) =>
-                                formatCountShare(
-                                  item.value,
-                                  protocolPieData.reduce(
-                                    (s, d) => s + d.value,
-                                    0,
-                                  ),
-                                  "flow",
+              {(protocolPieData.length > 0 ||
+                topDestinationsPieData.length > 0) && (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                    gap: 3,
+                    alignItems: "start",
+                  }}
+                >
+                  {protocolPieData.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Protocols (by flow count)
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            data: protocolPieData,
+                            innerRadius: 30,
+                            outerRadius: 80,
+                            paddingAngle: 2,
+                            cornerRadius: 5,
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                protocolPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
                                 ),
+                                "flow",
+                              ),
+                          },
+                        ]}
+                        height={300}
+                        sx={{
+                          [`& .${pieClasses.arc}`]: {
+                            transitionProperty: "opacity, filter",
+                          },
+                        }}
+                        onItemClick={(_event, d) =>
+                          handleProtocolPieClick(d.dataIndex)
+                        }
+                        slotProps={{
+                          legend: {
+                            direction: "horizontal",
+                            position: {
+                              vertical: "bottom",
+                              horizontal: "center",
                             },
-                          ]}
-                          height={300}
-                          sx={{
-                            [`& .${pieClasses.arc}`]: {
-                              transitionProperty: "opacity, filter",
-                            },
-                          }}
-                          onItemClick={(_event, d) =>
-                            handleProtocolPieClick(d.dataIndex)
-                          }
-                          slotProps={{
-                            legend: {
-                              direction: "horizontal",
-                              position: {
-                                vertical: "bottom",
-                                horizontal: "center",
-                              },
-                              onItemClick: (
-                                _event: React.MouseEvent,
-                                legendItem: { dataIndex?: number },
-                              ) =>
-                                handleProtocolPieClick(
-                                  legendItem.dataIndex ?? -1,
+                            onItemClick: (
+                              _event: React.MouseEvent,
+                              legendItem: { dataIndex?: number },
+                            ) =>
+                              handleProtocolPieClick(
+                                legendItem.dataIndex ?? -1,
+                              ),
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
+                  {topDestinationsPieData.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Top 10 Destinations (uplink, by flow count)
+                      </Typography>
+                      <PieChart
+                        series={[
+                          {
+                            data: topDestinationsPieData,
+                            innerRadius: 30,
+                            outerRadius: 80,
+                            paddingAngle: 2,
+                            cornerRadius: 5,
+                            valueFormatter: (item) =>
+                              formatCountShare(
+                                item.value,
+                                topDestinationsPieData.reduce(
+                                  (s, d) => s + d.value,
+                                  0,
                                 ),
+                                "flow",
+                              ),
+                          },
+                        ]}
+                        height={300}
+                        sx={{
+                          [`& .${pieClasses.arc}`]: {
+                            transitionProperty: "opacity, filter",
+                          },
+                        }}
+                        onItemClick={(_event, d) =>
+                          handleDestinationPieClick(d.dataIndex)
+                        }
+                        slotProps={{
+                          legend: {
+                            direction: "horizontal",
+                            position: {
+                              vertical: "bottom",
+                              horizontal: "center",
                             },
-                          }}
-                        />
-                      </Box>
-                    )}
-                    {topDestinationsPieData.length > 0 && (
-                      <Box>
-                        <Typography variant="h6" sx={{ mb: 1 }}>
-                          Top 10 Destinations (uplink, by flow count)
-                        </Typography>
-                        <PieChart
-                          series={[
-                            {
-                              data: topDestinationsPieData,
-                              innerRadius: 30,
-                              outerRadius: 80,
-                              paddingAngle: 2,
-                              cornerRadius: 5,
-                              valueFormatter: (item) =>
-                                formatCountShare(
-                                  item.value,
-                                  topDestinationsPieData.reduce(
-                                    (s, d) => s + d.value,
-                                    0,
-                                  ),
-                                  "flow",
-                                ),
-                            },
-                          ]}
-                          height={300}
-                          sx={{
-                            [`& .${pieClasses.arc}`]: {
-                              transitionProperty: "opacity, filter",
-                            },
-                          }}
-                          onItemClick={(_event, d) =>
-                            handleDestinationPieClick(d.dataIndex)
-                          }
-                          slotProps={{
-                            legend: {
-                              direction: "horizontal",
-                              position: {
-                                vertical: "bottom",
-                                horizontal: "center",
-                              },
-                              onItemClick: (
-                                _event: React.MouseEvent,
-                                legendItem: { dataIndex?: number },
-                              ) =>
-                                handleDestinationPieClick(
-                                  legendItem.dataIndex ?? -1,
-                                ),
-                            },
-                          }}
-                        />
-                      </Box>
-                    )}
-                  </Box>
-                )}
+                            onItemClick: (
+                              _event: React.MouseEvent,
+                              legendItem: { dataIndex?: number },
+                            ) =>
+                              handleDestinationPieClick(
+                                legendItem.dataIndex ?? -1,
+                              ),
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
+                </Box>
+              )}
 
               <Box
                 sx={{
@@ -1223,6 +1167,29 @@ const Traffic: React.FC = () => {
                   flexWrap: "wrap",
                 }}
               >
+                <TimeRangePicker
+                  value={timeRange}
+                  onChange={setTimeRange}
+                  errorId={DATE_ERROR_ID}
+                  ranges={tabRanges}
+                  allowAnyTime={false}
+                />
+                <Autocomplete
+                  options={subscriberOptions}
+                  value={selectedSubscriber || null}
+                  onChange={(_event, value) =>
+                    setSelectedSubscriber(value ?? "")
+                  }
+                  size="small"
+                  sx={{ minWidth: 240 }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Subscriber"
+                      placeholder="All subscribers"
+                    />
+                  )}
+                />
                 <TextField
                   select
                   label="Direction"
@@ -1286,7 +1253,7 @@ const Traffic: React.FC = () => {
                 />
               </Box>
 
-              {dateRangeError ? null : flowRowCount === 0 && !isFlowLoading ? (
+              {flowRowCount === 0 && !isFlowLoading ? (
                 <EmptyState
                   primaryText="No flow reports found"
                   secondaryText="No flows match the current filters, or flow accounting has not recorded any data yet."

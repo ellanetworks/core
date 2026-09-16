@@ -149,7 +149,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 	}
 
 	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:   "2024-10-01T10:00:00Z",
+		Timestamp:   tsMillis("2024-10-01T10:00:00Z"),
 		Protocol:    "NGAP",
 		MessageType: "test_event",
 		Direction:   "inbound",
@@ -161,7 +161,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 	}
 
 	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:   "2024-10-01T11:00:00Z",
+		Timestamp:   tsMillis("2024-10-01T11:00:00Z"),
 		Protocol:    "NGAP",
 		MessageType: "another_event",
 		Direction:   "outbound",
@@ -173,7 +173,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 	}
 
 	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:   "2024-10-01T12:00:00Z",
+		Timestamp:   tsMillis("2024-10-01T12:00:00Z"),
 		Protocol:    "NAS",
 		MessageType: "test_event",
 		Direction:   "inbound",
@@ -207,7 +207,7 @@ func TestGetRadioEvent(t *testing.T) {
 
 	// Insert a test event
 	err := env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-		Timestamp:   "2024-10-01T10:00:00Z",
+		Timestamp:   tsMillis("2024-10-01T10:00:00Z"),
 		Protocol:    "NGAP",
 		MessageType: "test_event",
 		Direction:   "inbound",
@@ -302,7 +302,7 @@ func TestClearRadioEvents(t *testing.T) {
 	// Insert test events
 	for i := 0; i < 5; i++ {
 		err := env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-			Timestamp:   fmt.Sprintf("2024-10-01T%02d:00:00Z", 10+i),
+			Timestamp:   tsMillis(fmt.Sprintf("2024-10-01T%02d:00:00Z", 10+i)),
 			Protocol:    "NGAP",
 			MessageType: "test_event",
 			Direction:   "inbound",
@@ -364,7 +364,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 	// Insert various test events
 	events := []dbwriter.RadioEvent{
 		{
-			Timestamp:     "2024-10-01T10:00:00Z",
+			Timestamp:     tsMillis("2024-10-01T10:00:00Z"),
 			Protocol:      "NGAP",
 			MessageType:   "InitialUEMessage",
 			Direction:     "inbound",
@@ -375,7 +375,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Raw:           []byte("data1"),
 		},
 		{
-			Timestamp:     "2024-10-01T11:00:00Z",
+			Timestamp:     tsMillis("2024-10-01T11:00:00Z"),
 			Protocol:      "NGAP",
 			MessageType:   "UplinkNASTransport",
 			Direction:     "outbound",
@@ -386,7 +386,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Raw:           []byte("data2"),
 		},
 		{
-			Timestamp:     "2024-10-01T12:00:00Z",
+			Timestamp:     tsMillis("2024-10-01T12:00:00Z"),
 			Protocol:      "NAS",
 			MessageType:   "RegistrationRequest",
 			Direction:     "inbound",
@@ -397,7 +397,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			Raw:           []byte("data3"),
 		},
 		{
-			Timestamp:     "2024-10-01T13:00:00Z",
+			Timestamp:     tsMillis("2024-10-01T13:00:00Z"),
 			Protocol:      "NGAP",
 			MessageType:   "InitialUEMessage",
 			Direction:     "inbound",
@@ -448,22 +448,22 @@ func TestListRadioEventsFilters(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "Filter by timestamp_from",
-			filters:        map[string]string{"timestamp_from": "2024-10-01T11:30:00Z"},
+			name:           "Filter by start",
+			filters:        map[string]string{"start": "2024-10-01T11:30:00Z"},
 			expectedCount:  2,
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "Filter by timestamp_to",
-			filters:        map[string]string{"timestamp_to": "2024-10-01T11:30:00Z"},
+			name:           "Filter by end",
+			filters:        map[string]string{"end": "2024-10-01T11:30:00Z"},
 			expectedCount:  2,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name: "Filter by timestamp range",
 			filters: map[string]string{
-				"timestamp_from": "2024-10-01T10:30:00Z",
-				"timestamp_to":   "2024-10-01T12:30:00Z",
+				"start": "2024-10-01T10:30:00Z",
+				"end":   "2024-10-01T12:30:00Z",
 			},
 			expectedCount:  2,
 			expectedStatus: http.StatusOK,
@@ -484,16 +484,16 @@ func TestListRadioEventsFilters(t *testing.T) {
 			expectedError:  "invalid direction",
 		},
 		{
-			name:           "Invalid timestamp_from format",
-			filters:        map[string]string{"timestamp_from": "not-a-timestamp"},
+			name:           "Invalid start format",
+			filters:        map[string]string{"start": "not-a-timestamp"},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "invalid from timestamp",
+			expectedError:  "invalid start timestamp: must be RFC3339, e.g. 2006-01-02T15:04:05Z",
 		},
 		{
-			name:           "Invalid timestamp_to format",
-			filters:        map[string]string{"timestamp_to": "2024-10-01"},
+			name:           "Invalid end format",
+			filters:        map[string]string{"end": "2024-10-01"},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "invalid to timestamp",
+			expectedError:  "invalid end timestamp: must be RFC3339, e.g. 2006-01-02T15:04:05Z",
 		},
 	}
 
@@ -525,9 +525,11 @@ func TestListRadioEventsPagination(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
 	// Insert 15 test events
+	base := tsMillis("2024-10-01T10:00:00Z")
+
 	for i := 0; i < 15; i++ {
 		err := env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
-			Timestamp:   fmt.Sprintf("2024-10-01T%02d:00:00Z", 10+i),
+			Timestamp:   base + int64(i)*3_600_000,
 			Protocol:    "NGAP",
 			MessageType: fmt.Sprintf("event_%d", i+1),
 			Direction:   "inbound",

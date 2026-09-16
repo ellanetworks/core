@@ -3,11 +3,26 @@
 
 package dbwriter
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+func EpochMillis(t time.Time) int64 {
+	return t.UnixMilli()
+}
+
+func FromEpochMillis(ms int64) time.Time {
+	return time.UnixMilli(ms).UTC()
+}
+
+func FormatEpochMillis(ms int64) string {
+	return FromEpochMillis(ms).Format(time.RFC3339Nano)
+}
 
 type RadioEvent struct {
 	ID            int    `db:"id"`
-	Timestamp     string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
+	Timestamp     int64  `db:"timestamp"` // epoch milliseconds (UTC)
 	Protocol      string `db:"protocol"`
 	MessageType   string `db:"message_type"`
 	Direction     string `db:"direction"`
@@ -20,7 +35,7 @@ type RadioEvent struct {
 
 type AuditLog struct {
 	ID        string `db:"id"`        // UUIDv7, generated at the request handler
-	Timestamp string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
+	Timestamp int64  `db:"timestamp"` // epoch milliseconds (UTC)
 	Level     string `db:"level"`
 	Actor     string `db:"actor"`
 	Action    string `db:"action"`
@@ -38,8 +53,8 @@ type FlowReport struct {
 	Protocol        uint8  `db:"protocol"`         // IP protocol number (TCP=6, UDP=17, ICMP=1, etc.)
 	Packets         uint64 `db:"packets"`          // Total packets in flow
 	Bytes           uint64 `db:"bytes"`            // Total bytes in flow
-	StartTime       string `db:"start_time"`       // RFC3339 first packet timestamp
-	EndTime         string `db:"end_time"`         // RFC3339 last packet timestamp
+	StartTime       int64  `db:"start_time"`       // epoch milliseconds, first packet
+	EndTime         int64  `db:"end_time"`         // epoch milliseconds, last packet
 	Direction       string `db:"direction"`        // "uplink" or "downlink"
 	Action          int    `db:"action"`           // 0 = "allow", 1 = "deny"
 }

@@ -24,8 +24,8 @@ This path returns a paginated list of flow reports with optional filtering.
 | `protocol`      | query | int    | ``       | `1…255`                      | Filter by protocol number.                                                                                                    |
 | `source`        | query | string | ``       |                              | Filter by source. Accepts: IP, IP:port, or :port.                                                                            |
 | `destination`   | query | string | ``       |                              | Filter by destination. Accepts: IP, IP:port, or :port.                                                                       |
-| `start`         | query | string | `now-7d` |                              | Start date for flow reports. Format: YYYY-MM-DD.                                                                              |
-| `end`           | query | string | `now`    |                              | End date for flow reports. Format: YYYY-MM-DD.                                                                                |
+| `start`         | query | string | `now-7d` |                              | Inclusive lower bound, RFC3339 (e.g. `2006-01-02T15:04:05Z`). Matches flows overlapping the range.                             |
+| `end`           | query | string | `now`    |                              | Exclusive upper bound, RFC3339. Matches flows overlapping the range.                                                           |
 | `direction`     | query | string | ``       | `uplink`, `downlink`         | Filter by traffic direction.                                                                                                  |
 | `action`        | query | string | ``       | `allow`, `drop`              | Filter by flow action. `allow` returns only accepted flows, `drop` returns only dropped flows. When omitted, all flows are returned. |
 | `group_by`      | query | string | ``       | `day`, `subscriber`          | Grouping method for flow reports. When set, returns aggregated data instead of paginated list.                                |

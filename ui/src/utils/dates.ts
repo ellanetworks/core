@@ -1,16 +1,17 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-export const localDateString = (d: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const startOfLocalDay = (daysBack = 0, now: Date = new Date()): Date => {
+  const at = new Date(now);
+  at.setDate(at.getDate() - Math.round(daysBack));
+  at.setHours(0, 0, 0, 0);
+  return at;
 };
 
 export const defaultDateRange = (
   days = 7,
   now: Date = new Date(),
-): { startDate: string; endDate: string } => {
-  const start = new Date(now);
-  start.setDate(now.getDate() - (days - 1));
-  return { startDate: localDateString(start), endDate: localDateString(now) };
-};
+): { startDate: string; endDate: string } => ({
+  startDate: startOfLocalDay(days - 1, now).toISOString(),
+  endDate: now.toISOString(),
+});
