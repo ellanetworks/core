@@ -1004,7 +1004,38 @@ const Traffic: React.FC = () => {
                   gap: 1,
                 }}
               >
-                <Box />
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: 2,
+                    alignItems: { xs: "flex-start", sm: "center" },
+                  }}
+                >
+                  <TimeRangePicker
+                    value={timeRange}
+                    onChange={setTimeRange}
+                    errorId={DATE_ERROR_ID}
+                    ranges={tabRanges}
+                    allowAnyTime={false}
+                  />
+                  <Autocomplete
+                    options={subscriberOptions}
+                    value={selectedSubscriber || null}
+                    onChange={(_event, value) =>
+                      setSelectedSubscriber(value ?? "")
+                    }
+                    size="small"
+                    sx={{ minWidth: 240 }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Subscriber"
+                        placeholder="All subscribers"
+                      />
+                    )}
+                  />
+                </Box>
                 <Box
                   sx={{
                     display: "flex",
@@ -1039,6 +1070,78 @@ const Traffic: React.FC = () => {
                     </IconButton>
                   )}
                 </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: { xs: "column", sm: "row" },
+                  gap: 2,
+                  alignItems: { xs: "flex-start", sm: "center" },
+                  flexWrap: "wrap",
+                }}
+              >
+                <TextField
+                  select
+                  label="Direction"
+                  value={directionFilter}
+                  onChange={(e) => {
+                    setDirectionFilter(e.target.value);
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  <MenuItem value="uplink">Uplink</MenuItem>
+                  <MenuItem value="downlink">Downlink</MenuItem>
+                </TextField>
+                <TextField
+                  select
+                  label="Protocol"
+                  value={appliedProtocol}
+                  onChange={(e) => {
+                    setAppliedProtocol(e.target.value);
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {(protocolOptionsData?.protocols ?? []).map((p) => (
+                    <MenuItem key={p.protocol} value={String(p.protocol)}>
+                      {formatProtocol(p.protocol)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Action"
+                  value={actionFilter}
+                  onChange={(e) => {
+                    setActionFilter(e.target.value);
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="">Both</MenuItem>
+                  <MenuItem value="allow">Allowed</MenuItem>
+                  <MenuItem value="drop">Dropped</MenuItem>
+                </TextField>
+                <TextField
+                  label="Source"
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                  placeholder="e.g. 1.2.3.4:443"
+                />
+                <TextField
+                  label="Destination"
+                  value={destinationFilter}
+                  onChange={(e) => setDestinationFilter(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                  placeholder="e.g. 1.2.3.4:443"
+                />
               </Box>
 
               {(protocolPieData.length > 0 ||
@@ -1157,101 +1260,6 @@ const Traffic: React.FC = () => {
                   )}
                 </Box>
               )}
-
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: { xs: "column", sm: "row" },
-                  gap: 2,
-                  alignItems: { xs: "flex-start", sm: "center" },
-                  flexWrap: "wrap",
-                }}
-              >
-                <TimeRangePicker
-                  value={timeRange}
-                  onChange={setTimeRange}
-                  errorId={DATE_ERROR_ID}
-                  ranges={tabRanges}
-                  allowAnyTime={false}
-                />
-                <Autocomplete
-                  options={subscriberOptions}
-                  value={selectedSubscriber || null}
-                  onChange={(_event, value) =>
-                    setSelectedSubscriber(value ?? "")
-                  }
-                  size="small"
-                  sx={{ minWidth: 240 }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Subscriber"
-                      placeholder="All subscribers"
-                    />
-                  )}
-                />
-                <TextField
-                  select
-                  label="Direction"
-                  value={directionFilter}
-                  onChange={(e) => {
-                    setDirectionFilter(e.target.value);
-                  }}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="uplink">Uplink</MenuItem>
-                  <MenuItem value="downlink">Downlink</MenuItem>
-                </TextField>
-                <TextField
-                  select
-                  label="Protocol"
-                  value={appliedProtocol}
-                  onChange={(e) => {
-                    setAppliedProtocol(e.target.value);
-                  }}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {(protocolOptionsData?.protocols ?? []).map((p) => (
-                    <MenuItem key={p.protocol} value={String(p.protocol)}>
-                      {formatProtocol(p.protocol)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Action"
-                  value={actionFilter}
-                  onChange={(e) => {
-                    setActionFilter(e.target.value);
-                  }}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                >
-                  <MenuItem value="">Both</MenuItem>
-                  <MenuItem value="allow">Allowed</MenuItem>
-                  <MenuItem value="drop">Dropped</MenuItem>
-                </TextField>
-                <TextField
-                  label="Source"
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                  placeholder="e.g. 1.2.3.4:443"
-                />
-                <TextField
-                  label="Destination"
-                  value={destinationFilter}
-                  onChange={(e) => setDestinationFilter(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 140 }}
-                  placeholder="e.g. 1.2.3.4:443"
-                />
-              </Box>
 
               {flowRowCount === 0 && !isFlowLoading ? (
                 <EmptyState

@@ -117,6 +117,7 @@ func rebuildTimestampTable(ctx context.Context, tx *sql.Tx, r timestampTableRebu
 		return fmt.Errorf("failed to create %s_new: %w", r.table, err)
 	}
 
+	// #nosec: G201 -- table comes from the hardcoded rebuilds list; selectCols is built from constants in this file
 	copyStmt := fmt.Sprintf("INSERT INTO %s_new SELECT %s FROM %s", r.table, r.selectCols, r.table)
 	if _, err := tx.ExecContext(ctx, copyStmt); err != nil {
 		return fmt.Errorf("failed to copy rows into %s_new: %w", r.table, err)

@@ -35,6 +35,35 @@ type SubscriberUsage struct {
 	TotalBytes    int64 `json:"total_bytes"`
 }
 
+func usagePerDayResponse(usage []db.UsagePerDay, start, end time.Time) []map[string]SubscriberUsage {
+	byDay := make(map[int64]db.UsagePerDay, len(usage))
+	for _, u := range usage {
+		byDay[u.EpochDay] = u
+	}
+
+	firstDay := db.DaysSinceEpoch(start)
+
+	lastDay := db.DaysSinceEpoch(end)
+	if today := db.DaysSinceEpoch(time.Now()); lastDay > today {
+		lastDay = today
+	}
+
+	response := make([]map[string]SubscriberUsage, 0, max(lastDay-firstDay+1, 0))
+
+	for day := firstDay; day <= lastDay; day++ {
+		u := byDay[day]
+		response = append(response, map[string]SubscriberUsage{
+			time.Unix(day*86400, 0).UTC().Format("2006-01-02"): {
+				UplinkBytes:   u.BytesUplink,
+				DownlinkBytes: u.BytesDownlink,
+				TotalBytes:    u.BytesUplink + u.BytesDownlink,
+			},
+		})
+	}
+
+	return response
+}
+
 func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -84,17 +113,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 				return
 			}
 
-			response := make([]map[string]SubscriberUsage, len(dailyUsage))
-
-			for i, usage := range dailyUsage {
-				response[i] = map[string]SubscriberUsage{
-					usage.GetDay().Format("2006-01-02"): {
-						UplinkBytes:   usage.BytesUplink,
-						DownlinkBytes: usage.BytesDownlink,
-						TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-					},
-				}
-			}
+			response := usagePerDayResponse(dailyUsage, startDate, endDate)
 
 			writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 

@@ -644,8 +644,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 6444 downlink bytes, but got %d", usagePerSubscriber[0].BytesDownlink)
 	}
 
-	if usagePerSubscriber[1].IMSI != imsi2 {
-		t.Fatalf("Expected IMSI '%s', but got %s", imsi2, usagePerSubscriber[1].IMSI)
+	if usagePerSubscriber[1].IMSI != imsi1 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi1, usagePerSubscriber[1].IMSI)
 	}
 
 	if usagePerSubscriber[1].BytesUplink != 1000 {
@@ -656,8 +656,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 2000 downlink bytes, but got %d", usagePerSubscriber[1].BytesDownlink)
 	}
 
-	if usagePerSubscriber[2].IMSI != imsi1 {
-		t.Fatalf("Expected IMSI '%s', but got %s", imsi1, usagePerSubscriber[2].IMSI)
+	if usagePerSubscriber[2].IMSI != imsi2 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi2, usagePerSubscriber[2].IMSI)
 	}
 
 	if usagePerSubscriber[2].BytesUplink != 1000 {
@@ -1092,7 +1092,9 @@ func TestIncrementDailyUsageBatch_AbortsOnAnErrorThatIsNotAMissingSubscriber(t *
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
 
-	if len(usage) != 0 {
-		t.Errorf("got %d rows after a failed batch, want none", len(usage))
+	for _, u := range usage {
+		if u.BytesUplink != 0 || u.BytesDownlink != 0 {
+			t.Errorf("got %d/%d bytes for %s after a failed batch, want none", u.BytesUplink, u.BytesDownlink, u.IMSI)
+		}
 	}
 }

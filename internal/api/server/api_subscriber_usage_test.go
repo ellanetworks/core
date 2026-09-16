@@ -50,6 +50,16 @@ const (
 	GroupBySubscriber GroupBy = "subscriber"
 )
 
+func usageForDate(result []map[string]SubscriberUsage, date string) (SubscriberUsage, bool) {
+	for _, entry := range result {
+		if usage, ok := entry[date]; ok {
+			return usage, true
+		}
+	}
+
+	return SubscriberUsage{}, false
+}
+
 func getSubscriberUsage(url string, client *http.Client, token string, startDate string, endDate string, subscriber string, groupBy GroupBy) (int, *GetSubscriberUsageResponse, error) {
 	var queryParams []string
 
@@ -131,8 +141,12 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if len(response.Result) != 0 {
-			t.Fatalf("expected no usage data, got %d entries", len(response.Result))
+		for _, entry := range response.Result {
+			for date, usage := range entry {
+				if usage.TotalBytes != 0 {
+					t.Fatalf("expected no usage on %s, got %d bytes", date, usage.TotalBytes)
+				}
+			}
 		}
 	})
 
@@ -218,26 +232,30 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if len(response.Result) != 2 {
-			t.Fatalf("expected 2 usage data entries, got %d entries", len(response.Result))
+		if len(response.Result) != 6 {
+			t.Fatalf("expected 6 usage data entries, got %d entries", len(response.Result))
 		}
 
 		expectedDate1Key := "2025-11-14"
-		if _, ok := response.Result[0][expectedDate1Key]; !ok {
-			t.Fatalf("expected first entry to have date key %s, got %v", expectedDate1Key, response.Result[0])
+		if _, ok := usageForDate(response.Result, expectedDate1Key); !ok {
+			t.Fatalf("expected an entry for date key %s, got %v", expectedDate1Key, response.Result)
 		}
 
 		expectedDate2Key := "2025-11-19"
-		if _, ok := response.Result[1][expectedDate2Key]; !ok {
-			t.Fatalf("expected second entry to have date key %s, got %v", expectedDate2Key, response.Result[1])
+		if _, ok := usageForDate(response.Result, expectedDate2Key); !ok {
+			t.Fatalf("expected an entry for date key %s, got %v", expectedDate2Key, response.Result)
 		}
 
-		if response.Result[0][expectedDate1Key].UplinkBytes != 1500 || response.Result[0][expectedDate1Key].DownlinkBytes != 2500 || response.Result[0][expectedDate1Key].TotalBytes != 4000 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate1Key, response.Result[0][expectedDate1Key])
+		if day1, _ := usageForDate(response.Result, expectedDate1Key); day1.UplinkBytes != 1500 || day1.DownlinkBytes != 2500 || day1.TotalBytes != 4000 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate1Key, day1)
 		}
 
-		if response.Result[1][expectedDate2Key].UplinkBytes != 1222 || response.Result[1][expectedDate2Key].DownlinkBytes != 23222 || response.Result[1][expectedDate2Key].TotalBytes != 24444 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate2Key, response.Result[1][expectedDate2Key])
+		if day2, _ := usageForDate(response.Result, expectedDate2Key); day2.UplinkBytes != 1222 || day2.DownlinkBytes != 23222 || day2.TotalBytes != 24444 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDate2Key, day2)
+		}
+
+		if idle, _ := usageForDate(response.Result, "2025-11-16"); idle.TotalBytes != 0 {
+			t.Fatalf("expected a zero-filled entry for an idle day, got %+v", idle)
 		}
 	})
 
@@ -255,17 +273,23 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 usage data entries, got %d entries", len(response.Result))
+		if len(response.Result) != 6 {
+			t.Fatalf("expected 6 usage data entries, got %d entries", len(response.Result))
 		}
 
 		expectedDateKey := "2025-11-19"
-		if _, ok := response.Result[0][expectedDateKey]; !ok {
-			t.Fatalf("expected first entry to have date key %s, got %v", expectedDateKey, response.Result[0])
+
+		day, ok := usageForDate(response.Result, expectedDateKey)
+		if !ok {
+			t.Fatalf("expected an entry for date key %s, got %v", expectedDateKey, response.Result)
 		}
 
-		if response.Result[0][expectedDateKey].UplinkBytes != 1222 || response.Result[0][expectedDateKey].DownlinkBytes != 23222 || response.Result[0][expectedDateKey].TotalBytes != 24444 {
-			t.Fatalf("unexpected usage data for date %s: %+v", expectedDateKey, response.Result[0][expectedDateKey])
+		if day.UplinkBytes != 1222 || day.DownlinkBytes != 23222 || day.TotalBytes != 24444 {
+			t.Fatalf("unexpected usage data for date %s: %+v", expectedDateKey, day)
+		}
+
+		if other, _ := usageForDate(response.Result, "2025-11-14"); other.TotalBytes != 0 {
+			t.Fatalf("expected no usage for another subscriber's day, got %+v", other)
 		}
 	})
 
@@ -302,8 +326,12 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if len(response.Result) != 0 {
-			t.Fatalf("expected no usage data, got %d entries", len(response.Result))
+		for _, entry := range response.Result {
+			for date, usage := range entry {
+				if usage.TotalBytes != 0 {
+					t.Fatalf("expected no usage on %s after clearing, got %d bytes", date, usage.TotalBytes)
+				}
+			}
 		}
 	})
 }
@@ -513,8 +541,12 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 
-		if len(response.Result) != 0 {
-			t.Fatalf("expected no usage data, got %d entries", len(response.Result))
+		for _, entry := range response.Result {
+			for date, usage := range entry {
+				if usage.TotalBytes != 0 {
+					t.Fatalf("expected no usage on %s after clearing, got %d bytes", date, usage.TotalBytes)
+				}
+			}
 		}
 	})
 }
