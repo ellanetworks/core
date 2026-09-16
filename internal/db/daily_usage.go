@@ -47,16 +47,17 @@ ORDER BY epoch_day ASC`
 const (
 	getUsagePerSubscriberStmt = `
 SELECT
-    imsi AS &UsagePerSub.imsi,
-    COALESCE(SUM(bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
-    COALESCE(SUM(bytes_downlink), 0) AS &UsagePerSub.bytes_downlink
-FROM %s
-WHERE
-    epoch_day >= $UsageFilters.start_date
-		AND epoch_day <= $UsageFilters.end_date
-		AND ($UsageFilters.imsi IS NULL OR imsi = $UsageFilters.imsi)
-GROUP BY imsi
-ORDER BY COALESCE(SUM(bytes_uplink), 0) + COALESCE(SUM(bytes_downlink), 0) DESC
+    s.imsi AS &UsagePerSub.imsi,
+    COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
+    COALESCE(SUM(u.bytes_downlink), 0) AS &UsagePerSub.bytes_downlink
+FROM %s AS s
+LEFT JOIN %s AS u
+    ON u.imsi = s.imsi
+    AND u.epoch_day >= $UsageFilters.start_date
+    AND u.epoch_day <= $UsageFilters.end_date
+WHERE ($UsageFilters.imsi IS NULL OR s.imsi = $UsageFilters.imsi)
+GROUP BY s.imsi
+ORDER BY COALESCE(SUM(u.bytes_uplink), 0) + COALESCE(SUM(u.bytes_downlink), 0) DESC, s.imsi ASC
 LIMIT $UsageFilters.limit`
 )
 
@@ -94,6 +95,33 @@ func DaysSinceEpoch(t time.Time) int64 {
 	y, m, d := t.Date()
 
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400
+}
+
+type DayRange struct {
+	First int64
+	Last  int64
+}
+
+func NewDayRange(start time.Time, end time.Time) DayRange {
+	first := DaysSinceEpoch(start)
+
+	if !end.After(start) {
+		return DayRange{First: first, Last: first - 1}
+	}
+
+	return DayRange{First: first, Last: DaysSinceEpoch(end.Add(-time.Nanosecond))}
+}
+
+func (r DayRange) Len() int64 {
+	if r.Last < r.First {
+		return 0
+	}
+
+	return r.Last - r.First + 1
+}
+
+func (r DayRange) Day(offset int64) time.Time {
+	return time.Unix((r.First+offset)*86400, 0).UTC()
 }
 
 func (d *DailyUsage) GetDay() time.Time {
@@ -194,7 +222,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 	return nil
 }
 
-func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerDay, error) {
+func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange) ([]UsagePerDay, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -216,8 +244,8 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
-		StartDate: DaysSinceEpoch(startDate),
-		EndDate:   DaysSinceEpoch(endDate),
+		StartDate: days.First,
+		EndDate:   days.Last,
 		Limit:     NoUsageLimit,
 	}
 
@@ -245,7 +273,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	return dailyUsage, nil
 }
 
-func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time, limit int64) ([]UsagePerSub, error) {
+func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, limit int64) ([]UsagePerSub, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
 
 	ctx, span := tracer.Start(
@@ -267,8 +295,8 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
-		StartDate: DaysSinceEpoch(startDate),
-		EndDate:   DaysSinceEpoch(endDate),
+		StartDate: days.First,
+		EndDate:   days.Last,
 		Limit:     limit,
 	}
 

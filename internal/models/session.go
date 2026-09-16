@@ -264,8 +264,8 @@ type FlowReportRequest struct {
 	Protocol        uint8
 	Packets         uint64
 	Bytes           uint64
-	StartTime       string // RFC3339
-	EndTime         string // RFC3339
+	StartTime       int64 // epoch milliseconds (UTC)
+	EndTime         int64 // epoch milliseconds (UTC)
 	Direction       Direction
 	Action          Action
 }

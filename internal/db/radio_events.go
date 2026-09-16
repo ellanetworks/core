@@ -59,8 +59,8 @@ type RadioEventFilters struct {
 	Direction     *string `db:"direction"`      // "inbound" | "outbound"
 	RadioName     *string `db:"radio_name"`     // exact match
 	MessageType   *string `db:"message_type"`   // exact match
-	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC)
-	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
+	TimestampFrom *int64  `db:"timestamp_from"` // epoch milliseconds, inclusive lower bound
+	TimestampTo   *int64  `db:"timestamp_to"`   // epoch milliseconds, exclusive upper bound
 }
 
 func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
@@ -187,8 +187,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
 
-	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
-	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
 	args := cutoffArgs{Cutoff: cutoff}
 

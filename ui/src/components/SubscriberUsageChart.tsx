@@ -14,7 +14,11 @@ import SouthIcon from "@mui/icons-material/South";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@mui/material/styles";
-import { getUsage, type UsageResult } from "@/queries/usage";
+import {
+  getUsage,
+  type DailySubscriberUsage,
+  type UsageResult,
+} from "@/queries/usage";
 import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -23,12 +27,18 @@ import {
   chooseUnitFromMax,
   formatBytesAutoUnit,
 } from "@/utils/formatters";
-import { defaultDateRange } from "@/utils/dates";
+import {
+  DAILY_RANGES,
+  resolveTimeRangeFilter,
+  type TimeRangeFilter,
+} from "@/components/TimeRangePicker";
 
 interface SubscriberUsageChartProps {
   imsi: string;
   embedded?: boolean;
 }
+
+const DEFAULT_RANGE: TimeRangeFilter = { relative: "7d" };
 
 type UsagePerDayRow = {
   date: string;
@@ -43,12 +53,15 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
 }) => {
   const { accessToken, authReady } = useAuth();
   const theme = useTheme();
-  // Computed once on mount: past midnight the range holds until a remount.
-  const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
-
   const usageQuery = useQuery<UsageResult>({
-    queryKey: ["subscriber-usage-chart", imsi, startDate, endDate],
-    queryFn: () => getUsage(accessToken || "", startDate, endDate, imsi, "day"),
+    queryKey: ["subscriber-usage-chart", imsi, DEFAULT_RANGE],
+    queryFn: () => {
+      const { from = "", to = "" } = resolveTimeRangeFilter(DEFAULT_RANGE, {
+        ranges: DAILY_RANGES,
+      });
+
+      return getUsage(accessToken || "", from, to, imsi, "day");
+    },
     enabled: authReady && !!accessToken && !!imsi,
     refetchInterval: 30000,
     retry: false,
@@ -60,18 +73,14 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   const dailyRows: UsagePerDayRow[] = useMemo(() => {
     if (!usageData) return [];
     const items: UsagePerDayRow[] = [];
-    for (const entry of usageData) {
-      const date = Object.keys(entry)[0];
-      const usage = entry[date];
-      if (!date || !usage) continue;
+    for (const usage of usageData as DailySubscriberUsage[]) {
       items.push({
-        date,
+        date: usage.date,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
         total_bytes: usage.total_bytes,
       });
     }
-    items.sort((a, b) => a.date.localeCompare(b.date));
     return items;
   }, [usageData]);
 

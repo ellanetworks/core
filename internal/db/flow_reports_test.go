@@ -33,8 +33,8 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 		Protocol:        17, // UDP
 		Packets:         100,
 		Bytes:           50000,
-		StartTime:       time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339),
-		EndTime:         time.Now().UTC().Format(time.RFC3339),
+		StartTime:       dbwriter.EpochMillis(time.Now().UTC().Add(-5 * time.Minute)),
+		EndTime:         dbwriter.EpochMillis(time.Now().UTC()),
 		Direction:       "uplink",
 	}
 
@@ -106,8 +106,8 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 			Protocol:        17,
 			Packets:         uint64(100 * (i + 1)),
 			Bytes:           uint64(50000 * (i + 1)),
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 		}
 
 		err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
@@ -154,8 +154,8 @@ func TestFlowReportsBatchInsert(t *testing.T) {
 			Protocol:        6,
 			Packets:         uint64(50 * (i + 1)),
 			Bytes:           uint64(25000 * (i + 1)),
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 10*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 10*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 			Direction:       "uplink",
 		}
 	}
@@ -220,8 +220,8 @@ func TestFlowReportsBatchInsertSkipsDeletedSubscriber(t *testing.T) {
 			Protocol:        6,
 			Packets:         3,
 			Bytes:           354,
-			StartTime:       now.Add(-time.Minute).Format(time.RFC3339),
-			EndTime:         now.Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(-time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now),
 			Direction:       "downlink",
 		}
 	}
@@ -288,8 +288,8 @@ func TestFlowReportsPagination(t *testing.T) {
 			Protocol:        17,
 			Packets:         100,
 			Bytes:           50000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 		}
 
 		err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
@@ -368,8 +368,8 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 				Protocol:        17,
 				Packets:         100,
 				Bytes:           50000,
-				StartTime:       now.Add(time.Duration(j*3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-				EndTime:         now.Add(time.Duration(j*3+i) * time.Minute).Format(time.RFC3339),
+				StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(j*3+i)*time.Minute - 5*time.Minute)),
+				EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(j*3+i) * time.Minute)),
 			}
 
 			err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
@@ -430,8 +430,8 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 				Protocol:        proto,
 				Packets:         100,
 				Bytes:           50000,
-				StartTime:       now.Add(time.Duration(i*2+j)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-				EndTime:         now.Add(time.Duration(i*2+j) * time.Minute).Format(time.RFC3339),
+				StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i*2+j)*time.Minute - 5*time.Minute)),
+				EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i*2+j) * time.Minute)),
 			}
 
 			err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
@@ -520,8 +520,8 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 				Protocol:        pc.proto,
 				Packets:         10,
 				Bytes:           1000,
-				StartTime:       now.Add(time.Duration(idx)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-				EndTime:         now.Add(time.Duration(idx) * time.Minute).Format(time.RFC3339),
+				StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(idx)*time.Minute - 5*time.Minute)),
+				EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(idx) * time.Minute)),
 			}
 			if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 				t.Fatalf("couldn't insert flow report: %s", err)
@@ -590,8 +590,8 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 			Protocol:        6,
 			Packets:         10,
 			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 			Direction:       "uplink",
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
@@ -611,8 +611,8 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 			Protocol:        6,
 			Packets:         5,
 			Bytes:           500,
-			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(3+i) * time.Minute)),
 			Direction:       "downlink",
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
@@ -672,8 +672,8 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 			Protocol:        6,
 			Packets:         10,
 			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
@@ -691,8 +691,8 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 			Protocol:        17,
 			Packets:         5,
 			Bytes:           500,
-			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(3+i) * time.Minute)),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
@@ -744,8 +744,8 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 			Protocol:        6,
 			Packets:         10,
 			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert TCP flow report: %s", err)
@@ -763,8 +763,8 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 			Protocol:        17,
 			Packets:         5,
 			Bytes:           500,
-			StartTime:       now.Add(time.Duration(4+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(4+i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(4+i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(4+i) * time.Minute)),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert UDP flow report: %s", err)
@@ -816,8 +816,8 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 			Protocol:        6,
 			Packets:         10,
 			Bytes:           1000,
-			StartTime:       now.Add(-10 * time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(-10 * time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(-time.Duration(i) * time.Minute)),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert recent flow report: %s", err)
@@ -836,8 +836,8 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 			Protocol:        17,
 			Packets:         5,
 			Bytes:           500,
-			StartTime:       oldTime.Add(-5 * time.Minute).Format(time.RFC3339),
-			EndTime:         oldTime.Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(oldTime.Add(-5 * time.Minute)),
+			EndTime:         dbwriter.EpochMillis(oldTime),
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert old flow report: %s", err)
@@ -845,11 +845,11 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 	}
 
 	// Filter to only yesterday onwards (excludes the 2-day-old flows)
-	from := now.AddDate(0, 0, -1).Format(time.RFC3339)
-	to := now.AddDate(0, 0, 1).Format(time.RFC3339)
+	from := dbwriter.EpochMillis(now.AddDate(0, 0, -1))
+	to := dbwriter.EpochMillis(now.AddDate(0, 0, 1))
 	filter := &db.FlowReportFilters{
-		EndTimeFrom: &from,
-		EndTimeTo:   &to,
+		RangeStart: &from,
+		RangeEnd:   &to,
 	}
 
 	protocols, _, err := database.GetFlowReportStats(ctx, filter)
@@ -894,8 +894,8 @@ func TestFlowReportsFilterByAction(t *testing.T) {
 			Protocol:        6,
 			Packets:         10,
 			Bytes:           1000,
-			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(i) * time.Minute)),
 			Action:          0,
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
@@ -914,8 +914,8 @@ func TestFlowReportsFilterByAction(t *testing.T) {
 			Protocol:        17,
 			Packets:         5,
 			Bytes:           500,
-			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
-			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+			StartTime:       dbwriter.EpochMillis(now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute)),
+			EndTime:         dbwriter.EpochMillis(now.Add(time.Duration(3+i) * time.Minute)),
 			Action:          1,
 		}
 		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
@@ -1005,8 +1005,8 @@ func TestFlowReportsRetention(t *testing.T) {
 		Protocol:        17,
 		Packets:         100,
 		Bytes:           50000,
-		StartTime:       oldTime.Add(-5 * time.Minute).Format(time.RFC3339),
-		EndTime:         oldTime.Format(time.RFC3339),
+		StartTime:       dbwriter.EpochMillis(oldTime.Add(-5 * time.Minute)),
+		EndTime:         dbwriter.EpochMillis(oldTime),
 	}
 
 	err = database.InsertFlowReports(ctx, []*dbwriter.FlowReport{oldFlowReport})
@@ -1024,8 +1024,8 @@ func TestFlowReportsRetention(t *testing.T) {
 		Protocol:        17,
 		Packets:         100,
 		Bytes:           50000,
-		StartTime:       time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339),
-		EndTime:         time.Now().UTC().Format(time.RFC3339),
+		StartTime:       dbwriter.EpochMillis(time.Now().UTC().Add(-5 * time.Minute)),
+		EndTime:         dbwriter.EpochMillis(time.Now().UTC()),
 	}
 
 	err = database.InsertFlowReports(ctx, []*dbwriter.FlowReport{recentFlowReport})
@@ -1065,5 +1065,124 @@ func TestFlowReportsRetention(t *testing.T) {
 
 	if reports[0].SubscriberID != recentFlowReport.SubscriberID {
 		t.Fatalf("Wrong report retained")
+	}
+}
+
+func TestFlowReportsSubSecondBoundsAreChronological(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012"); err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	base := time.Date(2026, 9, 15, 14, 30, 0, 0, time.UTC)
+
+	offsets := []time.Duration{
+		0,
+		500 * time.Millisecond,
+		1 * time.Second,
+		1500 * time.Millisecond,
+	}
+
+	for i, off := range offsets {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "192.168.1.100",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 53,
+			Protocol:        17,
+			Packets:         1,
+			Bytes:           1,
+			StartTime:       dbwriter.EpochMillis(base.Add(off).Add(-time.Second)),
+			EndTime:         dbwriter.EpochMillis(base.Add(off)),
+			Direction:       "uplink",
+		}
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
+			t.Fatalf("couldn't insert flow report: %s", err)
+		}
+	}
+
+	from := dbwriter.EpochMillis(base.Add(500 * time.Millisecond))
+	to := dbwriter.EpochMillis(base.Add(1500 * time.Millisecond))
+
+	reports, total, err := database.ListFlowReports(ctx, 1, 25, &db.FlowReportFilters{
+		RangeStart: &from,
+		RangeEnd:   &to,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if total != 3 {
+		t.Fatalf("expected 3 flows ending in [.5s, 1.5s), got %d", total)
+	}
+
+	for _, r := range reports {
+		if r.EndTime < from {
+			t.Fatalf("flow ending %d sorted before the lower bound %d", r.EndTime, from)
+		}
+	}
+}
+
+func TestFlowReportsOverlapIncludesFlowOpenAtRangeStart(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	if _, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012"); err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	windowStart := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	windowEnd := windowStart.Add(time.Hour)
+
+	straddling := &dbwriter.FlowReport{
+		SubscriberID:    "460123456789012",
+		SourceIP:        "192.168.1.100",
+		DestinationIP:   "8.8.8.8",
+		SourcePort:      1111,
+		DestinationPort: 53,
+		Protocol:        17,
+		Packets:         1,
+		Bytes:           1,
+		StartTime:       dbwriter.EpochMillis(windowStart.Add(-30 * time.Minute)),
+		EndTime:         dbwriter.EpochMillis(windowStart.Add(30 * time.Minute)),
+		Direction:       "uplink",
+	}
+
+	after := &dbwriter.FlowReport{
+		SubscriberID:    "460123456789012",
+		SourceIP:        "192.168.1.100",
+		DestinationIP:   "8.8.8.8",
+		SourcePort:      2222,
+		DestinationPort: 53,
+		Protocol:        17,
+		Packets:         1,
+		Bytes:           1,
+		StartTime:       dbwriter.EpochMillis(windowEnd.Add(time.Minute)),
+		EndTime:         dbwriter.EpochMillis(windowEnd.Add(2 * time.Minute)),
+		Direction:       "uplink",
+	}
+
+	if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{straddling, after}); err != nil {
+		t.Fatalf("couldn't insert flow reports: %s", err)
+	}
+
+	from := dbwriter.EpochMillis(windowStart)
+	to := dbwriter.EpochMillis(windowEnd)
+
+	_, total, err := database.ListFlowReports(ctx, 1, 25, &db.FlowReportFilters{
+		RangeStart: &from,
+		RangeEnd:   &to,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("expected the straddling flow and only it, got %d", total)
 	}
 }

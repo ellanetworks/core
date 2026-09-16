@@ -660,15 +660,14 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 
 			return c.GenerateSupportBundle(ctx, params)
 		}},
-		{"ListUsage", func(t *testing.T, ctx context.Context, c *client.Client) error {
+		{"ListUsagePerDay", func(t *testing.T, ctx context.Context, c *client.Client) error {
 			params := &client.ListUsageParams{
-				Start:      "2023-10-01",
-				End:        "2023-10-02",
-				GroupBy:    "day",
+				Start:      "2023-10-01T00:00:00Z",
+				End:        "2023-10-02T00:00:00Z",
 				Subscriber: "",
 			}
 
-			_, err := c.ListUsage(ctx, params)
+			_, err := c.ListUsagePerDay(ctx, params)
 
 			return err
 		}},

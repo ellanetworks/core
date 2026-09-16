@@ -1485,7 +1485,7 @@ func (db *Database) PrepareStatements() error {
 		// Daily Usage
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 

@@ -103,14 +103,14 @@ type ListRadioEventsResponse struct {
 }
 
 type ListRadioEventsParams struct {
-	Page          int    `json:"page"`
-	PerPage       int    `json:"per_page"`
-	Protocol      string `json:"protocol"`
-	Direction     string `json:"direction"`
-	Radio         string `json:"radio"`
-	MessageType   string `json:"message_type"`
-	TimestampFrom string `json:"timestamp_from"`
-	TimestampTo   string `json:"timestamp_to"`
+	Page        int    `json:"page"`
+	PerPage     int    `json:"per_page"`
+	Protocol    string `json:"protocol"`
+	Direction   string `json:"direction"`
+	Radio       string `json:"radio"`
+	MessageType string `json:"message_type"`
+	Start       string `json:"start"`
+	End         string `json:"end"`
 }
 
 type RadioEventContent struct {
@@ -202,12 +202,12 @@ func (c *Client) ListRadioEvents(ctx context.Context, p *ListRadioEventsParams) 
 		query.Set("message_type", p.MessageType)
 	}
 
-	if p.TimestampFrom != "" {
-		query.Set("timestamp_from", p.TimestampFrom)
+	if p.Start != "" {
+		query.Set("start", p.Start)
 	}
 
-	if p.TimestampTo != "" {
-		query.Set("timestamp_to", p.TimestampTo)
+	if p.End != "" {
+		query.Set("end", p.End)
 	}
 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

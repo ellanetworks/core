@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Alert,
+  Autocomplete,
   Box,
   Button,
   Typography,
@@ -11,7 +11,6 @@ import {
   IconButton,
   TextField,
   MenuItem,
-  ListSubheader,
 } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
@@ -59,6 +58,12 @@ import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import PageTitle from "@/components/PageTitle";
+import TimeRangePicker, {
+  EMPTY_TIME_RANGE,
+  timeRangeFilter,
+  timeRangeParams,
+  type TimeRangeValue,
+} from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
 const NGAP_MESSAGE_TYPES = [
@@ -199,6 +204,23 @@ const MESSAGE_TYPES_BY_PROTOCOL: Record<string, string[]> = {
   S1AP: S1AP_MESSAGE_TYPES,
 };
 
+const NGAP_MESSAGE_TYPE_SET = new Set(NGAP_MESSAGE_TYPES);
+const S1AP_MESSAGE_TYPE_SET = new Set(S1AP_MESSAGE_TYPES);
+
+const ALL_MESSAGE_TYPES = [
+  ...new Set([...NGAP_MESSAGE_TYPES, ...S1AP_MESSAGE_TYPES]),
+].sort((a, b) => a.localeCompare(b));
+
+const messageTypeProtocol = (messageType: string): string => {
+  const inNGAP = NGAP_MESSAGE_TYPE_SET.has(messageType);
+  const inS1AP = S1AP_MESSAGE_TYPE_SET.has(messageType);
+  if (inNGAP === inS1AP) return "";
+  return inNGAP ? "NGAP" : "S1AP";
+};
+
+const radioOptionLabel = (radio: APIRadio): string =>
+  radio.address ? `${radio.name} (${radio.address})` : radio.name;
+
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
   if (!value) return null;
@@ -237,14 +259,6 @@ function usePageVisible() {
   return visible;
 }
 
-const toIsoInstant = (value: string): string => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
-};
-
-const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
-
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -275,15 +289,10 @@ export default function RadioEvents() {
   const [protocolFilter, setProtocolFilter] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
   const [messageTypeFilter, setMessageTypeFilter] = useState("");
-  const [timestampFrom, setTimestampFrom] = useState("");
-  const [timestampTo, setTimestampTo] = useState("");
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>(EMPTY_TIME_RANGE);
 
   const messageTypeOptions = useMemo(
-    () =>
-      MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? [
-        ...NGAP_MESSAGE_TYPES,
-        ...S1AP_MESSAGE_TYPES,
-      ],
+    () => MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? ALL_MESSAGE_TYPES,
     [protocolFilter],
   );
 
@@ -333,15 +342,7 @@ export default function RadioEvents() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
-  const timestampFromIso = toIsoInstant(timestampFrom);
-  const timestampToIso = toIsoInstant(timestampTo);
-
-  const timestampError =
-    (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
-      ? "Enter a valid date and time."
-      : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
-        ? "The To timestamp must be on or after the From timestamp."
-        : "";
+  const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
 
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
@@ -349,37 +350,36 @@ export default function RadioEvents() {
     if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
     if (effectiveMessageType) params.message_type = effectiveMessageType;
-    if (timestampFromIso) params.timestamp_from = timestampFromIso;
-    if (timestampToIso) params.timestamp_to = timestampToIso;
     return params;
-  }, [
-    radioFilter,
-    protocolFilter,
-    directionFilter,
-    effectiveMessageType,
-    timestampFromIso,
-    timestampToIso,
-  ]);
+  }, [radioFilter, protocolFilter, directionFilter, effectiveMessageType]);
+
+  const queryFilters = useMemo(
+    () => ({ ...filterParams, ...timeFilter }),
+    [filterParams, timeFilter],
+  );
 
   const [paginationModel, setPaginationModel] =
-    useFilteredPagination(filterParams);
+    useFilteredPagination(queryFilters);
   const pageOneBased = paginationModel.page + 1;
   const perPage = paginationModel.pageSize;
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
-    queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
-    enabled: authReady && !!accessToken && !timestampError,
+    queryKey: ["networkLogs", pageOneBased, perPage, queryFilters],
+    enabled: authReady && !!accessToken,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
-      listRadioEvents(accessToken!, pageOneBased, perPage, filterParams),
+      listRadioEvents(accessToken!, pageOneBased, perPage, {
+        ...filterParams,
+        ...timeRangeParams(timeFilter),
+      }),
   });
 
   const networkRows = networkLogsQuery.data?.items ?? [];
 
   const subRowCount = networkLogsQuery.data?.total_count ?? 0;
 
-  const hasActiveFilters = Object.keys(filterParams).length > 0;
+  const hasActiveFilters = Object.keys(queryFilters).length > 0;
 
   const eventRow = useMemo<LogRow | null>(() => {
     if (!eventIdParam) return null;
@@ -626,28 +626,60 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <TextField
-            select
-            label="Radio"
-            value={radioFilter}
-            onChange={(e) => setRadioFilter(e.target.value)}
+          <TimeRangePicker value={timeRange} onChange={setTimeRange} />
+          <Autocomplete
+            options={radioOptions}
+            value={radioOptions.find((r) => r.name === radioFilter) ?? null}
+            onChange={(_event, value) => setRadioFilter(value?.name ?? "")}
+            getOptionLabel={radioOptionLabel}
+            isOptionEqualToValue={(option, value) => option.name === value.name}
             size="small"
-            sx={{ minWidth: 150 }}
-          >
-            <MenuItem value="">All radios</MenuItem>
-            {radioOptions.map((r) => (
-              <MenuItem key={r.name} value={r.name}>
-                {r.name} ({r.address})
-              </MenuItem>
-            ))}
-          </TextField>
+            sx={{ flex: "1 1 260px", minWidth: 220 }}
+            renderInput={(params) => (
+              <TextField {...params} label="Radio" placeholder="All radios" />
+            )}
+          />
+          <Autocomplete
+            options={messageTypeOptions}
+            value={effectiveMessageType || null}
+            onChange={(_event, value) => setMessageTypeFilter(value ?? "")}
+            size="small"
+            sx={{ flex: "1 1 340px", minWidth: 280 }}
+            renderOption={({ key, ...optionProps }, option) => {
+              const protocol = protocolFilter
+                ? ""
+                : messageTypeProtocol(option);
+              return (
+                <Box
+                  component="li"
+                  key={key}
+                  {...optionProps}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 2,
+                  }}
+                >
+                  {option}
+                  {protocol && (
+                    <Typography variant="caption" color="textSecondary">
+                      {protocol}
+                    </Typography>
+                  )}
+                </Box>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Message Type" placeholder="All" />
+            )}
+          />
           <TextField
             select
             label="Protocol"
             value={protocolFilter}
             onChange={(e) => setProtocolFilter(e.target.value)}
             size="small"
-            sx={{ minWidth: 150 }}
+            sx={{ flex: "0 0 auto", minWidth: 150 }}
           >
             <MenuItem value="">All</MenuItem>
             <MenuItem value="NGAP">NGAP (5G)</MenuItem>
@@ -659,7 +691,7 @@ export default function RadioEvents() {
             value={directionFilter}
             onChange={(e) => setDirectionFilter(e.target.value)}
             size="small"
-            sx={{ minWidth: 150 }}
+            sx={{ flex: "0 0 auto", minWidth: 150 }}
           >
             <MenuItem value="">All</MenuItem>
             <MenuItem value="inbound">
@@ -681,82 +713,7 @@ export default function RadioEvents() {
               </Box>
             </MenuItem>
           </TextField>
-          <TextField
-            select
-            label="Message Type"
-            value={effectiveMessageType}
-            onChange={(e) => setMessageTypeFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {protocolFilter
-              ? messageTypeOptions.map((mt) => (
-                  <MenuItem key={mt} value={mt}>
-                    {mt}
-                  </MenuItem>
-                ))
-              : [
-                  <ListSubheader key="ngap-header">NGAP (5G)</ListSubheader>,
-                  ...NGAP_MESSAGE_TYPES.map((mt) => (
-                    <MenuItem key={`ngap-${mt}`} value={mt}>
-                      {mt}
-                    </MenuItem>
-                  )),
-                  <ListSubheader key="s1ap-header">S1AP (4G)</ListSubheader>,
-                  ...S1AP_MESSAGE_TYPES.map((mt) => (
-                    <MenuItem key={`s1ap-${mt}`} value={mt}>
-                      {mt}
-                    </MenuItem>
-                  )),
-                ]}
-          </TextField>
-          <TextField
-            label="From"
-            type="datetime-local"
-            value={timestampFrom}
-            onChange={(e) => setTimestampFrom(e.target.value)}
-            error={!!timestampError}
-            size="small"
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                "aria-describedby": timestampError
-                  ? TIMESTAMP_ERROR_ID
-                  : undefined,
-              },
-            }}
-            sx={{ minWidth: 200 }}
-          />
-          <TextField
-            label="To"
-            type="datetime-local"
-            value={timestampTo}
-            onChange={(e) => setTimestampTo(e.target.value)}
-            error={!!timestampError}
-            size="small"
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                min: timestampFrom || undefined,
-                "aria-describedby": timestampError
-                  ? TIMESTAMP_ERROR_ID
-                  : undefined,
-              },
-            }}
-            sx={{ minWidth: 200 }}
-          />
         </Box>
-
-        {timestampError && (
-          <Alert
-            id={TIMESTAMP_ERROR_ID}
-            severity="error"
-            sx={{ alignSelf: "flex-start" }}
-          >
-            {timestampError}
-          </Alert>
-        )}
 
         <Box
           sx={{
@@ -809,63 +766,59 @@ export default function RadioEvents() {
           </Typography>
         </Box>
 
-        {timestampError ? null : (
-          <QueryState
-            query={networkLogsQuery}
-            resource="radio events"
-            isEmpty={(data) => (data.total_count ?? 0) === 0}
-            filtered={hasActiveFilters}
-            noResults={
-              <EmptyState
-                primaryText="No radio events match the selected filters"
-                secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
-              />
-            }
-            empty={
-              <EmptyState
-                primaryText="No radio events yet"
-                secondaryText="Signalling exchanged with connected radios will appear here."
-              />
-            }
-          >
-            {() => (
-              <EntityGrid<APIRadioEvent>
-                variant="log"
-                rows={networkRows}
-                columns={networkColumns}
-                getRowId={(row) => row.id}
-                loading={
-                  networkLogsQuery.isLoading ||
-                  networkLogsQuery.isPlaceholderData
-                }
-                paginationMode="server"
-                rowCount={subRowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                onRowClick={handleRowClick}
-                rowSelectionModel={selectionModel}
-                onRowSelectionModelChange={handleSelectionChange}
-                sx={{
-                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                  "& .MuiDataGrid-row.Mui-selected": {
+        <QueryState
+          query={networkLogsQuery}
+          resource="radio events"
+          isEmpty={(data) => (data.total_count ?? 0) === 0}
+          filtered={hasActiveFilters}
+          noResults={
+            <EmptyState
+              primaryText="No radio events match the selected filters"
+              secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
+            />
+          }
+          empty={
+            <EmptyState
+              primaryText="No radio events yet"
+              secondaryText="Signalling exchanged with connected radios will appear here."
+            />
+          }
+        >
+          {() => (
+            <EntityGrid<APIRadioEvent>
+              variant="log"
+              rows={networkRows}
+              columns={networkColumns}
+              getRowId={(row) => row.id}
+              loading={
+                networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
+              }
+              paginationMode="server"
+              rowCount={subRowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              onRowClick={handleRowClick}
+              rowSelectionModel={selectionModel}
+              onRowSelectionModelChange={handleSelectionChange}
+              sx={{
+                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                "& .MuiDataGrid-row.Mui-selected": {
+                  backgroundColor: (t) => t.palette.action.selected,
+                  "&:hover": {
                     backgroundColor: (t) => t.palette.action.selected,
-                    "&:hover": {
-                      backgroundColor: (t) => t.palette.action.selected,
-                    },
-                    "& .MuiDataGrid-cell": { fontWeight: 500 },
-                    "&::before": { display: "none" },
                   },
-                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                    {
-                      outline: "none",
-                    },
-                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                    { outline: "none" },
-                }}
-              />
-            )}
-          </QueryState>
-        )}
+                  "& .MuiDataGrid-cell": { fontWeight: 500 },
+                  "&::before": { display: "none" },
+                },
+                "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+                  outline: "none",
+                },
+                "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                  { outline: "none" },
+              }}
+            />
+          )}
+        </QueryState>
       </Box>
 
       <Box

@@ -753,9 +753,14 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 }
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {
+	timestamp := int64(unparseableTimestampFallback)
+	if ts, err := time.Parse(time.RFC3339, p.Timestamp); err == nil {
+		timestamp = dbwriter.EpochMillis(ts)
+	}
+
 	log := &dbwriter.AuditLog{
 		ID:        p.ID,
-		Timestamp: p.Timestamp,
+		Timestamp: timestamp,
 		Level:     p.Level,
 		Actor:     p.Actor,
 		Action:    p.Action,
@@ -763,8 +768,7 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 		Details:   p.Details,
 	}
 
-	err := db.runner(ctx).Query(ctx, db.insertAuditLogStmt, log).Run()
-	if err != nil {
+	if err := db.runner(ctx).Query(ctx, db.insertAuditLogStmt, log).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

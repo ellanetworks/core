@@ -93,7 +93,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 
 	al := &dbwriter.AuditLog{
 		ID:        auditID.String(),
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timestamp: dbwriter.EpochMillis(time.Now().UTC()),
 		Level:     "INFO",
 		Actor:     "testuser",
 		Action:    "test-action",
@@ -287,7 +287,7 @@ func TestExportSupportData_IncludesRadioLogs(t *testing.T) {
 
 	// insert a radio event
 	re := &dbwriter.RadioEvent{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Timestamp:     dbwriter.EpochMillis(time.Now().UTC()),
 		Protocol:      "NGAP",
 		MessageType:   "InitialUEMessage",
 		Direction:     "inbound",
@@ -345,7 +345,7 @@ func TestExportSupportData_RadioLogsLimit(t *testing.T) {
 	total := 150
 	for i := 1; i <= total; i++ {
 		re := &dbwriter.RadioEvent{
-			Timestamp:     time.Now().UTC().Add(time.Duration(i) * time.Second).Format(time.RFC3339),
+			Timestamp:     dbwriter.EpochMillis(time.Now().UTC().Add(time.Duration(i) * time.Second)),
 			Protocol:      "NGAP",
 			MessageType:   fmt.Sprintf("msg-%d", i),
 			Direction:     "inbound",

@@ -100,14 +100,14 @@ func TestApplyChangeset_SkipsRetiredReplicatedTable(t *testing.T) {
 		[]string{AuditLogsTableName, NetworkSlicesTableName},
 		[]string{
 			fmt.Sprintf(`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
-			 VALUES ('%s', '2026-08-27T09:00:00Z', 'INFO', 'other-node', 'login', '10.0.0.2', 'details')`, auditID),
+			 VALUES ('%s', 1756288800000, 'INFO', 'other-node', 'login', '10.0.0.2', 'details')`, auditID),
 			`INSERT INTO network_slices (id, sst, sd, name)
 			 VALUES ('01900000-0000-7000-8000-00000000aaaa', 1, '000001', 'changeset-regression')`,
 		})
 
 	if _, err := database.PlainDB().ExecContext(ctx,
 		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
-		 VALUES (?, '2026-08-27T10:00:00Z', 'INFO', 'local-node', 'login', '10.0.0.1', 'details')`,
+		 VALUES (?, 1756292400000, 'INFO', 'local-node', 'login', '10.0.0.1', 'details')`,
 		auditID); err != nil {
 		t.Fatalf("seed local audit_logs row: %v", err)
 	}
@@ -145,12 +145,12 @@ func TestApplyChangeset_UnfilteredRetiredTableWouldConflict(t *testing.T) {
 		[]string{AuditLogsTableName},
 		[]string{
 			fmt.Sprintf(`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
-			 VALUES ('%s', '2026-08-27T09:00:00Z', 'INFO', 'other-node', 'login', '10.0.0.2', 'details')`, auditID),
+			 VALUES ('%s', 1756288800000, 'INFO', 'other-node', 'login', '10.0.0.2', 'details')`, auditID),
 		})
 
 	if _, err := database.PlainDB().ExecContext(ctx,
 		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
-		 VALUES (?, '2026-08-27T10:00:00Z', 'INFO', 'local-node', 'login', '10.0.0.1', 'details')`,
+		 VALUES (?, 1756292400000, 'INFO', 'local-node', 'login', '10.0.0.1', 'details')`,
 		auditID); err != nil {
 		t.Fatalf("seed local audit_logs row: %v", err)
 	}

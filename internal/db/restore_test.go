@@ -275,8 +275,8 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		Protocol:        6,
 		Packets:         42,
 		Bytes:           1337,
-		StartTime:       time.Now().UTC().Add(-time.Minute).Format(time.RFC3339),
-		EndTime:         time.Now().UTC().Format(time.RFC3339),
+		StartTime:       dbwriter.EpochMillis(time.Now().UTC().Add(-time.Minute)),
+		EndTime:         dbwriter.EpochMillis(time.Now().UTC()),
 		Direction:       "uplink",
 	}
 

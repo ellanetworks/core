@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"golang.org/x/sys/unix"
@@ -82,8 +83,8 @@ func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6Entrypo
 		Protocol:        flow.Proto,
 		Packets:         stats.Packets,
 		Bytes:           stats.Bytes,
-		StartTime:       startTime.UTC().Format(time.RFC3339Nano),
-		EndTime:         endTime.UTC().Format(time.RFC3339Nano),
+		StartTime:       dbwriter.EpochMillis(startTime),
+		EndTime:         dbwriter.EpochMillis(endTime),
 		Direction:       direction,
 		Action:          models.Action(flow.Action),
 	}

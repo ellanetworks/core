@@ -5,6 +5,7 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -77,10 +78,10 @@ func seedRetentionRows(t *testing.T, database *db.Database) {
 
 	createSubscriber(t, database, imsi)
 
-	old := time.Now().UTC().AddDate(0, 0, -3).Format(time.RFC3339)
-	recent := time.Now().UTC().Format(time.RFC3339)
+	old := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -3))
+	recent := dbwriter.EpochMillis(time.Now().UTC())
 
-	for _, ts := range []string{old, recent} {
+	for _, ts := range []int64{old, recent} {
 		if err := database.InsertRadioEvent(ctx, &dbwriter.RadioEvent{
 			Timestamp:   ts,
 			Protocol:    "ngap",
@@ -105,7 +106,7 @@ func seedRetentionRows(t *testing.T, database *db.Database) {
 		}
 
 		if err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
-			ID:        "audit-" + ts,
+			ID:        fmt.Sprintf("audit-%d", ts),
 			Timestamp: ts,
 			Level:     "info",
 			Actor:     "tester",
@@ -115,10 +116,7 @@ func seedRetentionRows(t *testing.T, database *db.Database) {
 			t.Fatalf("insert audit log: %v", err)
 		}
 
-		day, err := time.Parse(time.RFC3339, ts)
-		if err != nil {
-			t.Fatalf("parse timestamp: %v", err)
-		}
+		day := dbwriter.FromEpochMillis(ts)
 
 		if err := database.IncrementDailyUsage(ctx, db.DailyUsage{
 			EpochDay:      day.Unix() / 86400,
@@ -134,8 +132,10 @@ func seedRetentionRows(t *testing.T, database *db.Database) {
 func countUsageDays(t *testing.T, database *db.Database, imsi string) int {
 	t.Helper()
 
-	rows, err := database.GetUsagePerDay(context.Background(), imsi,
-		time.Now().UTC().AddDate(0, 0, -30), time.Now().UTC().AddDate(0, 0, 1))
+	rows, err := database.GetUsagePerDay(context.Background(), imsi, db.DayRange{
+		First: db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, -30)),
+		Last:  db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, 1)),
+	})
 	if err != nil {
 		t.Fatalf("get usage per day: %v", err)
 	}

@@ -47,8 +47,8 @@ const listAuditLogsFilteredPageStmt = `
 type AuditLogFilters struct {
 	Actor         *string `db:"actor"`          // exact match
 	Action        *string `db:"action"`         // exact match
-	TimestampFrom *string `db:"timestamp_from"` // RFC3339 (UTC), inclusive lower bound
-	TimestampTo   *string `db:"timestamp_to"`   // RFC3339 (UTC), exclusive upper bound
+	TimestampFrom *int64  `db:"timestamp_from"` // epoch milliseconds, inclusive lower bound
+	TimestampTo   *int64  `db:"timestamp_to"`   // epoch milliseconds, exclusive upper bound
 }
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
@@ -174,7 +174,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "delete").Inc()
 
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
-	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
+	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
 	err := db.conn().Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: cutoff}).Run()
 	if err != nil {

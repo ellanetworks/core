@@ -3,13 +3,21 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
-export type SubscriberUsage = {
+export type DailySubscriberUsage = {
+  date: string;
   uplink_bytes: number;
   downlink_bytes: number;
   total_bytes: number;
 };
 
-export type UsageResult = Array<Record<string, SubscriberUsage>>;
+export type PerSubscriberUsage = {
+  imsi: string;
+  uplink_bytes: number;
+  downlink_bytes: number;
+  total_bytes: number;
+};
+
+export type UsageResult = DailySubscriberUsage[] | PerSubscriberUsage[];
 
 export type UsageRetentionPolicy = {
   days: number;
@@ -23,7 +31,15 @@ export async function getUsage(
   groupBy: "day" | "subscriber",
   limit?: number,
 ): Promise<UsageResult> {
-  const params = new URLSearchParams({ start, end });
+  const params = new URLSearchParams();
+
+  if (start.trim() !== "") {
+    params.set("start", start);
+  }
+
+  if (end.trim() !== "") {
+    params.set("end", end);
+  }
 
   if (subscriber.trim() !== "") {
     params.set("subscriber", subscriber);

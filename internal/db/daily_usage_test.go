@@ -120,7 +120,7 @@ func TestGetUsagePerDay_1Sub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -168,7 +168,7 @@ func TestGetUsagePerDay_1Sub_OutOfRangeDates(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -10)
 	endDate := time.Now().AddDate(0, 0, -5)
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -227,7 +227,7 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -286,7 +286,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), "", dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -373,7 +373,7 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi2, startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi2, dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -456,7 +456,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi1, startDate, endDate)
+	dailyUsages, err := database.GetUsagePerDay(context.Background(), imsi1, dayRange(startDate, endDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage for period: %s", err)
 	}
@@ -517,7 +517,7 @@ func TestGetUsagePerSubscriber_1Sub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", dayRange(startDate, endDate), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
@@ -623,7 +623,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
+	usagePerSubscriber, err := database.GetUsagePerSubscriber(context.Background(), "", dayRange(startDate, endDate), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("couldn't get daily usage per subscriber for period: %s", err)
 	}
@@ -644,8 +644,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 6444 downlink bytes, but got %d", usagePerSubscriber[0].BytesDownlink)
 	}
 
-	if usagePerSubscriber[1].IMSI != imsi2 {
-		t.Fatalf("Expected IMSI '%s', but got %s", imsi2, usagePerSubscriber[1].IMSI)
+	if usagePerSubscriber[1].IMSI != imsi1 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi1, usagePerSubscriber[1].IMSI)
 	}
 
 	if usagePerSubscriber[1].BytesUplink != 1000 {
@@ -656,8 +656,8 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		t.Fatalf("Expected 2000 downlink bytes, but got %d", usagePerSubscriber[1].BytesDownlink)
 	}
 
-	if usagePerSubscriber[2].IMSI != imsi1 {
-		t.Fatalf("Expected IMSI '%s', but got %s", imsi1, usagePerSubscriber[2].IMSI)
+	if usagePerSubscriber[2].IMSI != imsi2 {
+		t.Fatalf("Expected IMSI '%s', but got %s", imsi2, usagePerSubscriber[2].IMSI)
 	}
 
 	if usagePerSubscriber[2].BytesUplink != 1000 {
@@ -687,7 +687,7 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't increment daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, date, date)
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, dayRange(date, date))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -701,7 +701,7 @@ func TestClearDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't clear daily usage: %s", err)
 	}
 
-	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, date, date)
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, dayRange(date, date))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -749,7 +749,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		t.Fatalf("couldn't delete old daily usage: %s", err)
 	}
 
-	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, oldDate, oldDate)
+	dailyUsage, err := database.GetUsagePerDay(context.Background(), testImsi, dayRange(oldDate, oldDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -758,7 +758,7 @@ func TestDeleteOldDailyUsage(t *testing.T) {
 		t.Fatalf("Expected no old daily usage entry, but got one: %+v", dailyUsage)
 	}
 
-	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, newDate, newDate)
+	dailyUsage, err = database.GetUsagePerDay(context.Background(), testImsi, dayRange(newDate, newDate))
 	if err != nil {
 		t.Fatalf("couldn't get daily usage: %s", err)
 	}
@@ -809,7 +809,7 @@ func TestGetUsagePerSubscriber_Limit(t *testing.T) {
 	startDate := time.Now().AddDate(0, 0, -5)
 	endDate := time.Now()
 
-	all, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, db.NoUsageLimit)
+	all, err := database.GetUsagePerSubscriber(context.Background(), "", dayRange(startDate, endDate), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
@@ -822,7 +822,7 @@ func TestGetUsagePerSubscriber_Limit(t *testing.T) {
 		t.Fatalf("expected highest-usage subscriber %s first, got %s", imsis[2], all[0].IMSI)
 	}
 
-	limited, err := database.GetUsagePerSubscriber(context.Background(), "", startDate, endDate, 2)
+	limited, err := database.GetUsagePerSubscriber(context.Background(), "", dayRange(startDate, endDate), 2)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber with limit: %s", err)
 	}
@@ -873,7 +873,7 @@ func TestIncrementDailyUsageBatch_AccumulatesEveryRow(t *testing.T) {
 	}
 
 	for _, imsi := range imsis {
-		usage, err := database.GetUsagePerSubscriber(context.Background(), imsi, time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+		usage, err := database.GetUsagePerSubscriber(context.Background(), imsi, dayRange(time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)), db.NoUsageLimit)
 		if err != nil {
 			t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 		}
@@ -906,7 +906,7 @@ func TestIncrementDailyUsageBatch_SkipsUnknownSubscriberAndKeepsTheRest(t *testi
 		t.Fatalf("a batch with an unknown subscriber must still record the others: %s", err)
 	}
 
-	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", dayRange(time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
@@ -915,7 +915,7 @@ func TestIncrementDailyUsageBatch_SkipsUnknownSubscriberAndKeepsTheRest(t *testi
 		t.Fatalf("the known subscriber's usage was lost: %+v", usage)
 	}
 
-	orphan, err := database.GetUsagePerSubscriber(context.Background(), "001019999999999", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	orphan, err := database.GetUsagePerSubscriber(context.Background(), "001019999999999", dayRange(time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
@@ -984,7 +984,7 @@ func TestIncrementDailyUsageBatch_AFailedRowRollsBackTheRowsBeforeIt(t *testing.
 		t.Fatal("a CHECK violation must fail the batch")
 	}
 
-	usage, err := database.GetUsagePerSubscriber(context.Background(), "", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "", dayRange(time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
@@ -1087,12 +1087,58 @@ func TestIncrementDailyUsageBatch_AbortsOnAnErrorThatIsNotAMissingSubscriber(t *
 		t.Fatal("a CHECK violation must fail the batch, not be skipped like a missing subscriber")
 	}
 
-	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour), db.NoUsageLimit)
+	usage, err := database.GetUsagePerSubscriber(context.Background(), "001010000000001", dayRange(time.Now().Add(-24*time.Hour), time.Now().Add(24*time.Hour)), db.NoUsageLimit)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetUsagePerSubscriber: %s", err)
 	}
 
-	if len(usage) != 0 {
-		t.Errorf("got %d rows after a failed batch, want none", len(usage))
+	for _, u := range usage {
+		if u.BytesUplink != 0 || u.BytesDownlink != 0 {
+			t.Errorf("got %d/%d bytes for %s after a failed batch, want none", u.BytesUplink, u.BytesDownlink, u.IMSI)
+		}
+	}
+}
+
+func TestNewDayRange(t *testing.T) {
+	day := func(s string) time.Time {
+		parsed, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatalf("bad fixture %q: %s", s, err)
+		}
+
+		return parsed
+	}
+
+	for _, tc := range []struct {
+		name        string
+		start, end  string
+		first, last string
+		length      int64
+	}{
+		{"end on midnight excludes that day", "2025-11-14T00:00:00Z", "2025-11-19T00:00:00Z", "2025-11-14", "2025-11-18", 5},
+		{"one nanosecond past midnight includes it", "2025-11-14T00:00:00Z", "2025-11-19T00:00:00.000000001Z", "2025-11-14", "2025-11-19", 6},
+		{"a partial day is one day", "2025-11-14T09:30:00Z", "2025-11-14T17:00:00Z", "2025-11-14", "2025-11-14", 1},
+		{"start and end on the same instant is empty", "2025-11-14T09:30:00Z", "2025-11-14T09:30:00Z", "", "", 0},
+		{"end before start is empty", "2025-11-14T00:00:00Z", "2025-11-13T00:00:00Z", "", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := db.NewDayRange(day(tc.start), day(tc.end))
+
+			if got.Len() != tc.length {
+				t.Fatalf("Len() = %d, want %d", got.Len(), tc.length)
+			}
+
+			if tc.length == 0 {
+				return
+			}
+
+			if first := got.Day(0).Format("2006-01-02"); first != tc.first {
+				t.Errorf("first day = %s, want %s", first, tc.first)
+			}
+
+			if last := got.Day(got.Len() - 1).Format("2006-01-02"); last != tc.last {
+				t.Errorf("last day = %s, want %s", last, tc.last)
+			}
+		})
 	}
 }

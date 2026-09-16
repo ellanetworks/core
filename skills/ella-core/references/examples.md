@@ -80,7 +80,7 @@ curl -sk -H "Authorization: Bearer $ELLA_CORE_TOKEN" \
 
 # By day with explicit range
 curl -sk -H "Authorization: Bearer $ELLA_CORE_TOKEN" \
-  "$ELLA_CORE_URL/api/v1/subscriber-usage?group_by=day&start=$(date -u -d '7 days ago' +%F)&end=$(date -u +%F)" | jq
+  "$ELLA_CORE_URL/api/v1/subscriber-usage?group_by=day&start=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)&end=$(date -u +%Y-%m-%dT%H:%M:%SZ)" | jq
 ```
 
 ## Iterate all pages

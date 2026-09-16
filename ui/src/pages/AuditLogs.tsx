@@ -5,7 +5,6 @@ import React, { useMemo, useState } from "react";
 import PageTitle from "@/components/PageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Box,
   Typography,
   TextField,
@@ -41,10 +40,13 @@ import {
 } from "@/utils/layout";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
-import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
+import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
+import TimeRangePicker, {
+  AUDIT_RANGES,
+  timeRangeFilter,
+  timeRangeParams,
+} from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
-
-const DATE_ERROR_ID = "audit-logs-date-range-error";
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -56,8 +58,11 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const { startDate, endDate, handleStartChange, handleEndChange } =
-    useDateRangeSearchParams();
+  const [timeRange, setTimeRange] = useTimeRangeSearchParams({
+    defaultPreset: "7d",
+  });
+
+  const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
   const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
@@ -84,38 +89,41 @@ const AuditLog: React.FC = () => {
       : emails;
   }, [usersData, selectedUser]);
 
-  const filters: AuditLogFilters = useMemo(() => {
+  const filterParams: AuditLogFilters = useMemo(() => {
     const f: AuditLogFilters = {};
-    if (startDate) f.start = startDate;
-    if (endDate) f.end = endDate;
     if (selectedUser) f.user = selectedUser;
     if (selectedAction) f.action = selectedAction;
     return f;
-  }, [startDate, endDate, selectedUser, selectedAction]);
+  }, [selectedUser, selectedAction]);
 
-  const dateError =
-    startDate && endDate && startDate > endDate
-      ? "End date must be on or after the start date."
-      : "";
+  const queryFilters = useMemo(
+    () => ({ ...filterParams, ...timeFilter }),
+    [filterParams, timeFilter],
+  );
 
-  const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
+  const [paginationModel, setPaginationModel] =
+    useFilteredPagination(queryFilters);
   const pageOneBased = paginationModel.page + 1;
 
   const auditLogsQuery = useQuery<ListAuditLogsResponse>({
-    queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],
+    queryKey: [
+      "auditLogs",
+      pageOneBased,
+      paginationModel.pageSize,
+      queryFilters,
+    ],
     queryFn: () =>
-      listAuditLogs(
-        accessToken || "",
-        pageOneBased,
-        paginationModel.pageSize,
-        filters,
-      ),
-    enabled: authReady && !!accessToken && !dateError,
+      listAuditLogs(accessToken || "", pageOneBased, paginationModel.pageSize, {
+        ...filterParams,
+        ...timeRangeParams(timeFilter, { ranges: AUDIT_RANGES }),
+      }),
+    enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
+    refetchInterval: 5000,
   });
 
   const hasActiveFilters = Boolean(
-    startDate || endDate || selectedUser || selectedAction,
+    Object.keys(timeFilter).length || selectedUser || selectedAction,
   );
 
   const rowCount = auditLogsQuery.data?.total_count ?? 0;
@@ -235,34 +243,10 @@ const AuditLog: React.FC = () => {
             alignItems: { xs: "flex-start", sm: "center" },
           }}
         >
-          <TextField
-            label="Start date"
-            type="date"
-            value={startDate}
-            onChange={handleStartChange}
-            error={!!dateError}
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
-              },
-            }}
-            size="small"
-          />
-          <TextField
-            label="End date"
-            type="date"
-            value={endDate}
-            onChange={handleEndChange}
-            size="small"
-            error={!!dateError}
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: {
-                min: startDate || undefined,
-                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
-              },
-            }}
+          <TimeRangePicker
+            value={timeRange}
+            onChange={setTimeRange}
+            ranges={AUDIT_RANGES}
           />
           <TextField
             select
@@ -313,50 +297,40 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      {dateError ? (
-        <Alert
-          id={DATE_ERROR_ID}
-          severity="error"
-          sx={{ alignSelf: "flex-start" }}
-        >
-          {dateError}
-        </Alert>
-      ) : (
-        <QueryState
-          query={auditLogsQuery}
-          resource="audit logs"
-          isEmpty={(data) => (data.total_count ?? 0) === 0}
-          filtered={hasActiveFilters}
-          noResults={
-            <EmptyState
-              primaryText="No audit logs match the selected filters"
-              secondaryText="Try widening the date range or clearing the user and action filters."
-            />
-          }
-          empty={
-            <EmptyState
-              primaryText="No audit logs yet"
-              secondaryText={`Actions taken in ${PRODUCT.name} will be recorded here.`}
-            />
-          }
-        >
-          {(data) => (
-            <EntityGrid<APIAuditLog>
-              variant="log"
-              rows={data.items ?? []}
-              columns={columns}
-              getRowId={(row) => row.id}
-              paginationMode="server"
-              rowCount={rowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              density="standard"
-              rowHeight={DENSE_ROW_HEIGHT}
-              columnHeaderHeight={DENSE_HEADER_HEIGHT}
-            />
-          )}
-        </QueryState>
-      )}
+      <QueryState
+        query={auditLogsQuery}
+        resource="audit logs"
+        isEmpty={(data) => (data.total_count ?? 0) === 0}
+        filtered={hasActiveFilters}
+        noResults={
+          <EmptyState
+            primaryText="No audit logs match the selected filters"
+            secondaryText="Try widening the date range or clearing the user and action filters."
+          />
+        }
+        empty={
+          <EmptyState
+            primaryText="No audit logs yet"
+            secondaryText={`Actions taken in ${PRODUCT.name} will be recorded here.`}
+          />
+        }
+      >
+        {(data) => (
+          <EntityGrid<APIAuditLog>
+            variant="log"
+            rows={data.items ?? []}
+            columns={columns}
+            getRowId={(row) => row.id}
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            density="standard"
+            rowHeight={DENSE_ROW_HEIGHT}
+            columnHeaderHeight={DENSE_HEADER_HEIGHT}
+          />
+        )}
+      </QueryState>
 
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}

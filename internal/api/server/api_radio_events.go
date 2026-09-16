@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/decoder/ngap"
 	"github.com/ellanetworks/core/internal/decoder/s1ap"
 	"github.com/ellanetworks/core/internal/logger"
@@ -54,14 +55,6 @@ type GetRadioEventResponse struct {
 	Decoded any    `json:"decoded"`
 }
 
-func isRFC3339(s string) bool {
-	if _, err := time.Parse(time.RFC3339, s); err != nil {
-		return false
-	}
-
-	return true
-}
-
 func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 	q := r.URL.Query()
 	f := &db.RadioEventFilters{}
@@ -99,19 +92,18 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 		f.MessageType = &v
 	}
 
-	if v := strings.TrimSpace(q.Get("timestamp_from")); v != "" {
-		if !isRFC3339(v) {
-			return f, fmt.Errorf("invalid from timestamp")
-		}
+	start, end, err := parseTimeRange(q, time.Time{}, time.Time{})
+	if err != nil {
+		return f, err
+	}
 
+	if !start.IsZero() {
+		v := dbwriter.EpochMillis(start)
 		f.TimestampFrom = &v
 	}
 
-	if v := strings.TrimSpace(q.Get("timestamp_to")); v != "" {
-		if !isRFC3339(v) {
-			return f, fmt.Errorf("invalid to timestamp")
-		}
-
+	if !end.IsZero() {
+		v := dbwriter.EpochMillis(end)
 		f.TimestampTo = &v
 	}
 
@@ -202,7 +194,7 @@ func ListRadioEvents(dbInstance *db.Database) http.Handler {
 		for i, log := range logs {
 			items[i] = RadioEvent{
 				ID:          log.ID,
-				Timestamp:   log.Timestamp,
+				Timestamp:   dbwriter.FormatEpochMillis(log.Timestamp),
 				Protocol:    log.Protocol,
 				MessageType: log.MessageType,
 				Direction:   log.Direction,

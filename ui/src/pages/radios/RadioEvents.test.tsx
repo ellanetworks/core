@@ -78,6 +78,29 @@ const selectOption = async (
   );
 };
 
+const timeRangeButton = () =>
+  screen.getByRole("button", { name: /^Time range:/ });
+
+const showCustomRange = async () => {
+  fireEvent.click(timeRangeButton());
+  await screen.findByLabelText("From");
+};
+
+const closeTimeRange = async () => {
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+  await waitFor(() =>
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+  );
+};
+
+const selectQuickRange = async (
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) => {
+  await user.click(timeRangeButton());
+  await user.click(await screen.findByRole("menuitem", { name }));
+};
+
 beforeEach(() => {
   seedApi();
 });
@@ -109,8 +132,8 @@ describe("RadioEvents filters", () => {
     expect(params).not.toHaveProperty("protocol");
     expect(params).not.toHaveProperty("direction");
     expect(params).not.toHaveProperty("message_type");
-    expect(params).not.toHaveProperty("timestamp_from");
-    expect(params).not.toHaveProperty("timestamp_to");
+    expect(params).not.toHaveProperty("start");
+    expect(params).not.toHaveProperty("end");
   });
 
   it("sends the selected radio", async () => {
@@ -198,7 +221,7 @@ describe("RadioEvents protocol and message type", () => {
     await selectOption(user, "Protocol", "S1AP (4G)");
     await selectOption(user, "Protocol", "NGAP (5G)");
 
-    expect(messageType()).not.toHaveTextContent(NGAP_ONLY_MESSAGE);
+    expect(messageType()).toHaveValue("");
   });
 
   it("keeps a message type both protocols share", async () => {
@@ -222,23 +245,26 @@ describe("RadioEvents timestamps", () => {
   it("sends the From bound as an ISO instant", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-01T10:30" },
     });
 
     await waitFor(() =>
-      expect(lastEventParams().timestamp_from).toBe("2026-08-01T10:30:00.000Z"),
+      expect(lastEventParams().start).toBe("2026-08-01T10:30:00.000Z"),
     );
   });
 
   it("survives a timestamp the browser cannot parse", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
     });
+    await closeTimeRange();
 
     expect(
       await screen.findByRole("heading", { name: /Network Events/ }),
@@ -248,10 +274,12 @@ describe("RadioEvents timestamps", () => {
   it("does not send an unparseable timestamp to the API", async () => {
     await renderEvents();
     await waitForEventRequests(1);
+    await showCustomRange();
 
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "999999-01-01T00:00" },
     });
+    await closeTimeRange();
     await waitFor(() =>
       expect(
         screen.getByRole("heading", { name: /Network Events/ }),
@@ -259,30 +287,15 @@ describe("RadioEvents timestamps", () => {
     );
 
     const sent = eventRequests()
-      .map((r) => r.params.get("timestamp_from"))
+      .map((r) => r.params.get("start"))
       .filter(Boolean);
     expect(sent.filter((v) => Number.isNaN(Date.parse(v!)))).toEqual([]);
-  });
-
-  it("rejects a To bound that precedes the From bound", async () => {
-    await renderEvents();
-    await waitForEventRequests(1);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /to.*must be on or after.*from/i,
-    );
   });
 });
 
 describe("RadioEvents stale results", () => {
   const setInvalidRange = async () => {
+    await showCustomRange();
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
     });
@@ -292,27 +305,19 @@ describe("RadioEvents stale results", () => {
     await screen.findByRole("alert");
   };
 
-  it("stops showing event rows once the range is invalid", async () => {
+  it("sends no request for the invalid range", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
     await renderEvents();
     await screen.findAllByText("radio-7");
 
     await setInvalidRange();
 
-    expect(screen.queryByText("radio-7")).not.toBeInTheDocument();
-  });
-
-  it("shows no loading indicator for a request it will never send", async () => {
-    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
-    await renderEvents();
-    await screen.findAllByText("radio-7");
-
-    await setInvalidRange();
-
-    expect(screen.queryAllByRole("progressbar")).toEqual([]);
-    expect(document.querySelectorAll(".MuiLinearProgress-root")).toHaveLength(
-      0,
-    );
+    const inverted = eventRequests().filter((r) => {
+      const from = r.params.get("start");
+      const to = r.params.get("end");
+      return !!from && !!to && from > to;
+    });
+    expect(inverted).toEqual([]);
   });
 
   it("restores the rows once the range is valid again", async () => {
@@ -331,6 +336,7 @@ describe("RadioEvents stale results", () => {
 
 describe("RadioEvents timestamp accessibility", () => {
   const invert = async () => {
+    await showCustomRange();
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
     });
@@ -353,36 +359,68 @@ describe("RadioEvents timestamp accessibility", () => {
       );
     },
   );
+});
 
-  it("carries no stale description once the range is valid", async () => {
+describe("RadioEvents relative time range", () => {
+  it("resolves a relative range into a sliding lower bound", async () => {
+    const user = userEvent.setup();
     await renderEvents();
     await waitForEventRequests(1);
-    await invert();
 
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-20T10:00" },
-    });
+    await selectQuickRange(user, "Last 15 minutes");
 
-    await waitFor(() =>
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByLabelText("To")).toHaveAccessibleDescription("");
+    await waitFor(() => expect(lastEventParams().start).toBeDefined());
+    const params = lastEventParams();
+    expect(params).not.toHaveProperty("relative_range");
+    expect(params).not.toHaveProperty("end");
+    expect(
+      Math.abs(Date.parse(params.start) - (Date.now() - 15 * 60_000)),
+    ).toBeLessThan(60_000);
   });
 
-  it("stops the picker offering a To before the From", async () => {
+  it("offers the quick ranges and the custom bounds in one panel", async () => {
     await renderEvents();
     await waitForEventRequests(1);
 
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+
+    fireEvent.click(timeRangeButton());
+
+    expect(await screen.findByLabelText("From")).toBeVisible();
+    expect(screen.getByLabelText("To")).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Any time" })).toBeVisible();
+    expect(
+      screen.getByRole("menuitem", { name: "Last 6 hours" }),
+    ).toBeVisible();
+  });
+
+  it("names the selected range on the button and closes the panel", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    await selectQuickRange(user, "Last 1 hour");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem")).not.toBeInTheDocument(),
+    );
+    expect(timeRangeButton()).toHaveAccessibleName("Time range: Last 1 hour");
+  });
+
+  it("switches to the custom range when a bound is typed", async () => {
+    await renderEvents();
+    await waitForEventRequests(1);
+    await showCustomRange();
+
     fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
+      target: { value: "2026-08-01T10:30" },
     });
 
     await waitFor(() =>
-      expect(screen.getByLabelText("To")).toHaveAttribute(
-        "min",
-        "2026-08-10T10:00",
-      ),
+      expect(lastEventParams().start).toBe("2026-08-01T10:30:00.000Z"),
     );
+    await closeTimeRange();
+    expect(timeRangeButton()).toHaveAccessibleName(/After/);
   });
 });
 

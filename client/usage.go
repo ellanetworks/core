@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 )
 
@@ -19,30 +18,38 @@ type UpdateUsageRetentionPolicyOptions struct {
 	Days int `json:"days"`
 }
 
-type SubscriberUsage struct {
-	UplinkBytes   int64 `json:"uplink_bytes"`
-	DownlinkBytes int64 `json:"downlink_bytes"`
-	TotalBytes    int64 `json:"total_bytes"`
+type DailySubscriberUsage struct {
+	Date          string `json:"date"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
 }
 
-type ListUsageResponse []map[string]SubscriberUsage
+type PerSubscriberUsage struct {
+	IMSI          string `json:"imsi"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
+}
 
 type ListUsageParams struct {
 	Start      string `json:"start"`
 	End        string `json:"end"`
-	GroupBy    string `json:"group_by"`
 	Subscriber string `json:"subscriber"`
 }
 
-// ListUsage retrieves subscriber usage data based on the provided parameters.
-// The server groups results and rejects any GroupBy other than "day" or
-// "subscriber".
-func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageResponse, error) {
-	if p.GroupBy != "day" && p.GroupBy != "subscriber" {
-		return nil, fmt.Errorf("group_by must be \"day\" or \"subscriber\", got %q", p.GroupBy)
-	}
+// ListUsagePerDay retrieves subscriber usage totalled per UTC day, oldest first.
+func (c *Client) ListUsagePerDay(ctx context.Context, p *ListUsageParams) ([]DailySubscriberUsage, error) {
+	return listUsage[DailySubscriberUsage](ctx, c, p, "day")
+}
 
-	query := url.Values{"group_by": {p.GroupBy}}
+// ListUsagePerSubscriber retrieves subscriber usage totalled per IMSI, busiest first.
+func (c *Client) ListUsagePerSubscriber(ctx context.Context, p *ListUsageParams) ([]PerSubscriberUsage, error) {
+	return listUsage[PerSubscriberUsage](ctx, c, p, "subscriber")
+}
+
+func listUsage[T any](ctx context.Context, c *Client, p *ListUsageParams, groupBy string) ([]T, error) {
+	query := url.Values{"group_by": {groupBy}}
 
 	if p.Start != "" {
 		query.Set("start", p.Start)
@@ -66,14 +73,13 @@ func (c *Client) ListUsage(ctx context.Context, p *ListUsageParams) (*ListUsageR
 		return nil, err
 	}
 
-	var usage ListUsageResponse
+	var usage []T
 
-	err = resp.DecodeResult(&usage)
-	if err != nil {
+	if err := resp.DecodeResult(&usage); err != nil {
 		return nil, err
 	}
 
-	return &usage, nil
+	return usage, nil
 }
 
 // ClearUsage deletes all recorded subscriber usage.

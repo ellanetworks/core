@@ -13,15 +13,9 @@
 - **ARP** — integer, range `1-15`
 - **AMBR / session bitrate** — string with unit, e.g. `"50 Mbps"`, `"1 Gbps"`, `"500 Kbps"`
 
-## Dates
-
-- Usage queries — `YYYY-MM-DD`
-
 ## Subscriber usage
 
 `GET /api/v1/subscriber-usage` **requires** the `group_by` query parameter (`day` or `subscriber`); omitting it returns 400. Optional: `start`, `end` (defaults: 7 days ago → today), `subscriber` (IMSI filter).
-
-Response is `{"result": [<single-key objects>]}` — each object's key is a date (when `group_by=day`) or an IMSI (when `group_by=subscriber`); the value is a `{uplink_bytes, downlink_bytes, total_bytes}` summary.
 
 ## Byte counts and presentation
 

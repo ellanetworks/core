@@ -155,14 +155,12 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 
 	req := engine.BuildFlowReportRequest(flow, stats)
 
-	_, err := time.Parse(time.RFC3339, req.StartTime)
-	if err != nil {
-		t.Fatalf("Invalid start time format: %s (error: %v)", req.StartTime, err)
+	if req.StartTime <= 0 {
+		t.Fatalf("Invalid start time: %d", req.StartTime)
 	}
 
-	_, err = time.Parse(time.RFC3339, req.EndTime)
-	if err != nil {
-		t.Fatalf("Invalid end time format: %s (error: %v)", req.EndTime, err)
+	if req.EndTime < req.StartTime {
+		t.Fatalf("End time %d precedes start time %d", req.EndTime, req.StartTime)
 	}
 }
 
@@ -187,10 +185,7 @@ func TestBuildFlowReportRequestTimestampAccuracy(t *testing.T) {
 
 	req := engine.BuildFlowReportRequest(flow, stats)
 
-	start, err := time.Parse(time.RFC3339Nano, req.StartTime)
-	if err != nil {
-		t.Fatalf("parse StartTime %q: %v", req.StartTime, err)
-	}
+	start := time.UnixMilli(req.StartTime).UTC()
 
 	if delta := start.Sub(now); delta < -250*time.Millisecond || delta > 250*time.Millisecond {
 		t.Fatalf("StartTime %s is %v from now %s; anchor lost sub-second precision",

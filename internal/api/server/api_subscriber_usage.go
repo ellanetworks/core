@@ -29,31 +29,60 @@ type UpdateSubscriberUsageRetentionPolicyParams struct {
 	Days int `json:"days"`
 }
 
-type SubscriberUsage struct {
-	UplinkBytes   int64 `json:"uplink_bytes"`
-	DownlinkBytes int64 `json:"downlink_bytes"`
-	TotalBytes    int64 `json:"total_bytes"`
+const MaxUsageDays = 11000
+
+type DailySubscriberUsage struct {
+	Date          string `json:"date"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
 }
 
-func stotimeDefault(s string, def time.Time) time.Time {
-	if s == "" {
-		return def
+type PerSubscriberUsage struct {
+	IMSI          string `json:"imsi"`
+	UplinkBytes   int64  `json:"uplink_bytes"`
+	DownlinkBytes int64  `json:"downlink_bytes"`
+	TotalBytes    int64  `json:"total_bytes"`
+}
+
+func usagePerDayResponse(usage []db.UsagePerDay, days db.DayRange) []DailySubscriberUsage {
+	byDay := make(map[int64]db.UsagePerDay, len(usage))
+	for _, u := range usage {
+		byDay[u.EpochDay] = u
 	}
 
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		return def
+	response := make([]DailySubscriberUsage, 0, days.Len())
+
+	for offset := int64(0); offset < days.Len(); offset++ {
+		u := byDay[days.First+offset]
+		response = append(response, DailySubscriberUsage{
+			Date:          days.Day(offset).Format("2006-01-02"),
+			UplinkBytes:   u.BytesUplink,
+			DownlinkBytes: u.BytesDownlink,
+			TotalBytes:    u.BytesUplink + u.BytesDownlink,
+		})
 	}
 
-	return t
+	return response
 }
 
 func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 
-		startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
-		endDate := stotimeDefault(q.Get("end"), time.Now())
+		now := time.Now()
+
+		startDate, endDate, err := parseTimeRange(q, now.AddDate(0, 0, -7), now)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		days := db.NewDayRange(startDate, endDate)
+		if today := db.DaysSinceEpoch(now); days.Last > today {
+			days.Last = today
+		}
+
 		groupBy := q.Get("group_by")
 
 		subscriber := q.Get("subscriber")
@@ -85,43 +114,37 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 
 		switch groupBy {
 		case "day":
-			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, startDate, endDate)
+			if days.Len() > MaxUsageDays {
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("exceeded maximum of %d days per query: narrow the time range", MaxUsageDays), nil, logger.APILog)
+				return
+			}
+
+			dailyUsage, err := dbInstance.GetUsagePerDay(ctx, subscriber, days)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
 			}
 
-			response := make([]map[string]SubscriberUsage, len(dailyUsage))
-
-			for i, usage := range dailyUsage {
-				response[i] = map[string]SubscriberUsage{
-					usage.GetDay().Format("2006-01-02"): {
-						UplinkBytes:   usage.BytesUplink,
-						DownlinkBytes: usage.BytesDownlink,
-						TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-					},
-				}
-			}
+			response := usagePerDayResponse(dailyUsage, days)
 
 			writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
 
 			return
 		case "subscriber":
-			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, startDate, endDate, limit)
+			subscriberUsage, err := dbInstance.GetUsagePerSubscriber(ctx, subscriber, days, limit)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber usage", err, logger.APILog)
 				return
 			}
 
-			response := make([]map[string]SubscriberUsage, len(subscriberUsage))
+			response := make([]PerSubscriberUsage, len(subscriberUsage))
 
 			for i, usage := range subscriberUsage {
-				response[i] = map[string]SubscriberUsage{
-					usage.IMSI: {
-						UplinkBytes:   usage.BytesUplink,
-						DownlinkBytes: usage.BytesDownlink,
-						TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
-					},
+				response[i] = PerSubscriberUsage{
+					IMSI:          usage.IMSI,
+					UplinkBytes:   usage.BytesUplink,
+					DownlinkBytes: usage.BytesDownlink,
+					TotalBytes:    usage.BytesUplink + usage.BytesDownlink,
 				}
 			}
 

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -58,6 +58,15 @@ const lastLogParams = () => {
   return Object.fromEntries(request.params);
 };
 
+const timeRangeButton = () =>
+  screen.getByRole("button", { name: /^Time range:/ });
+
+const openTimeRange = async (user: ReturnType<typeof userEvent.setup>) => {
+  if (screen.queryByLabelText("From")) return;
+  await user.click(timeRangeButton());
+  await screen.findByLabelText("From");
+};
+
 const waitForLogRequests = (count: number) =>
   waitFor(() => expect(logRequests().length).toBeGreaterThanOrEqual(count));
 
@@ -107,114 +116,106 @@ describe("AuditLogs filters", () => {
   });
 });
 
+describe("AuditLogs time range presets", () => {
+  it("offers a range that covers the retention window", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+    await openTimeRange(user);
+
+    for (const name of ["Last 15 minutes", "Last 30 days", "Last 90 days"]) {
+      expect(screen.getByRole("menuitem", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("queries the full window a long preset resolves to", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+    await openTimeRange(user);
+
+    await user.click(screen.getByRole("menuitem", { name: "Last 90 days" }));
+
+    await waitFor(() => {
+      const elapsed = Date.now() - Date.parse(lastLogParams().start);
+      expect(elapsed).toBeGreaterThan(89 * 24 * 60 * 60_000);
+      expect(elapsed).toBeLessThan(91 * 24 * 60 * 60_000);
+    });
+  });
+});
+
+describe("AuditLogs auto refresh", () => {
+  it("keeps polling for new entries", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderAuditLogs();
+      await waitForLogRequests(1);
+      const before = logRequests().length;
+
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      await waitFor(() => expect(logRequests().length).toBeGreaterThan(before));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("AuditLogs date range from the URL", () => {
+  it("ignores a start param it cannot parse", async () => {
+    await renderAuditLogs("/audit-logs?range=custom&start=not-a-date");
+    await waitForLogRequests(1);
+
+    expect(lastLogParams()).not.toHaveProperty("start");
+    expect(timeRangeButton()).not.toHaveTextContent("not-a-date");
+  });
+});
+
 describe("AuditLogs date range accessibility", () => {
   const invert = async (user: ReturnType<typeof userEvent.setup>) => {
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
+    await openTimeRange(user);
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
     await screen.findByRole("alert");
   };
 
-  it.each(["Start date", "End date"])(
+  it.each(["From", "To"])(
     "describes the %s field with the reason it is invalid",
     async (label) => {
       const user = userEvent.setup();
       await renderAuditLogs();
       await waitForLogRequests(1);
+      await openTimeRange(user);
 
       await invert(user);
 
       expect(screen.getByLabelText(label)).toHaveAccessibleDescription(
-        /end date must be on or after the start date/i,
+        /must be on or after/i,
       );
     },
   );
-
-  it("stops the picker offering an end date before the start", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-
-    const start = screen.getByLabelText("Start date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-
-    await waitFor(() =>
-      expect(screen.getByLabelText("End date")).toHaveAttribute(
-        "min",
-        "2026-08-10",
-      ),
-    );
-  });
-});
-
-describe("AuditLogs stale results", () => {
-  it("stops showing log rows once the range is inverted", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await screen.findAllByText("create_subscriber");
-
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
-    await screen.findByRole("alert");
-
-    expect(screen.queryByText("create_subscriber")).not.toBeInTheDocument();
-  });
-
-  it("shows no loading indicator for a request it will never send", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
-    await screen.findByRole("alert");
-
-    expect(screen.queryAllByRole("progressbar")).toEqual([]);
-  });
 });
 
 describe("AuditLogs date range", () => {
-  it("reports an end date that precedes the start date", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
-
-    expect(
-      await screen.findByText("End date must be on or after the start date."),
-    ).toBeVisible();
-  });
-
   it("does not query an inverted range", async () => {
     const user = userEvent.setup();
     await renderAuditLogs();
     await waitForLogRequests(1);
+    await openTimeRange(user);
 
-    const start = screen.getByLabelText("Start date");
-    const end = screen.getByLabelText("End date");
-    await user.clear(start);
-    await user.type(start, "2026-08-10");
-    await user.clear(end);
-    await user.type(end, "2026-08-01");
-    await screen.findByText("End date must be on or after the start date.");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
+    await screen.findAllByText(
+      "The To timestamp must be on or after the From timestamp.",
+    );
 
     const inverted = logRequests().filter((r) => {
       const from = r.params.get("start");

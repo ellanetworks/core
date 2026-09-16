@@ -40,6 +40,7 @@ var migrations = []migration{
 	{16, "add subscriber_framed_routes table", migrateV16},
 	{17, "add local_switch_settings table", migrateV17},
 	{18, "add description column to subscribers", migrateV18},
+	{19, "store audit log, radio event and flow report timestamps as INTEGER epoch milliseconds (not seconds, unlike every other INTEGER time column)", migrateV19},
 }
 
 // baselineVersion is the highest migration that runs locally during
