@@ -55,7 +55,13 @@ import CreateFramedRouteModal from "@/components/CreateFramedRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
-import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
+import {
+  MAX_WIDTH,
+  PAGE_PADDING_X,
+  TABLE_CONTAINER_SX,
+  columnsMinWidth,
+  splitGridColumns,
+} from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
@@ -512,6 +518,15 @@ const DataNetworkDetail: React.FC = () => {
   const allocationRowCount = allocationsQuery.data?.total_count;
   const ipv6AllocationRowCount = ipv6AllocationsQuery.data?.total_count;
 
+  const allocationsGridTemplateColumns = useMemo(
+    () =>
+      splitGridColumns(
+        columnsMinWidth(allocationColumns),
+        columnsMinWidth(ipv6AllocationColumns),
+      ),
+    [allocationColumns, ipv6AllocationColumns],
+  );
+
   const dataNetworkLoading = (
     <>
       <Box
@@ -783,10 +798,7 @@ const DataNetworkDetail: React.FC = () => {
                   <Box
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        md: hasIpv4Pool && hasIpv6Pool ? "1fr 1fr" : "1fr",
-                      },
+                      gridTemplateColumns: allocationsGridTemplateColumns,
                       gap: 2,
                       alignItems: "start",
                     }}

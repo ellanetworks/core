@@ -39,7 +39,12 @@ import EditPolicyModal from "@/components/EditPolicyModal";
 import PolicyRulesModal from "@/components/PolicyRulesModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
-import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import {
+  MAX_WIDTH,
+  PAGE_PADDING_X,
+  columnsMinWidth,
+  splitGridColumns,
+} from "@/utils/layout";
 import IPProtocolChip from "@/components/IPProtocolChip";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
@@ -233,13 +238,18 @@ const PolicyDetail: React.FC = () => {
     [],
   );
 
+  const rulesGridTemplateColumns = useMemo(
+    () => splitGridColumns(columnsMinWidth(ruleColumns)),
+    [ruleColumns],
+  );
+
   const policyLoading = (
     <>
       <Skeleton variant="rounded" height={220} />
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gridTemplateColumns: rulesGridTemplateColumns,
           gap: 3,
           mt: 3,
         }}
@@ -506,7 +516,7 @@ const PolicyDetail: React.FC = () => {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gridTemplateColumns: rulesGridTemplateColumns,
                   gap: 3,
                 }}
               >
