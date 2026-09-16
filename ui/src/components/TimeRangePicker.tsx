@@ -56,6 +56,16 @@ export const RELATIVE_RANGES: RelativeRange[] = [
   { value: "7d", label: "Last 7 days", ms: 7 * DAY_MS },
 ];
 
+export const AUDIT_RANGES: RelativeRange[] = [
+  { value: "15m", label: "Last 15 minutes", ms: 15 * 60_000 },
+  { value: "1h", label: "Last 1 hour", ms: 60 * 60_000 },
+  { value: "6h", label: "Last 6 hours", ms: 6 * 60 * 60_000 },
+  { value: "24h", label: "Last 24 hours", ms: DAY_MS },
+  { value: "7d", label: "Last 7 days", ms: 7 * DAY_MS },
+  { value: "30d", label: "Last 30 days", ms: 30 * DAY_MS },
+  { value: "90d", label: "Last 90 days", ms: 90 * DAY_MS },
+];
+
 export const DAILY_RANGES: RelativeRange[] = [
   { value: "today", label: "Today", ms: 0, endMs: 0, anchor: "day" },
   {

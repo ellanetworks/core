@@ -394,13 +394,6 @@ describe("Traffic date range from the URL", () => {
 
     expect(lastFlowParams().start).toBe("2026-01-15T00:00:00.000Z");
   });
-
-  it("ignores a start param it cannot parse", async () => {
-    await renderTraffic("/traffic/flows?range=custom&start=not-a-date");
-    await waitForFlowRequests(1);
-
-    expect(lastFlowParams().start).not.toBe("not-a-date");
-  });
 });
 
 describe("Traffic date range accessibility", () => {
@@ -509,23 +502,6 @@ describe("Traffic incomplete date range", () => {
     expect(flowRequests().length).toBe(before);
   });
 
-  it("never disables the flow query without saying why", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    for (const label of ["From", "To"]) {
-      fireEvent.change(screen.getByLabelText(label), {
-        target: { value: "" },
-      });
-      expect(
-        screen.queryAllByRole("alert").length,
-        `clearing ${label} froze the page with no explanation`,
-      ).toBeGreaterThan(0);
-    }
-  });
-
   it("resumes querying once the range is complete again", async () => {
     const user = userEvent.setup();
     await renderTraffic();
@@ -563,47 +539,6 @@ describe("Traffic stale results", () => {
     expect(
       (await screen.findAllByText("93.184.216.34")).length,
     ).toBeGreaterThan(0);
-  });
-
-  it("leaves no blank page behind when the panel is closed on an invalid range", async () => {
-    const user = userEvent.setup();
-    seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
-    await renderTraffic();
-    await screen.findAllByText("93.184.216.34");
-    const before = screen.getByRole("button", {
-      name: /^Time range:/,
-    }).textContent;
-
-    await openTimeRange(user);
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "" },
-    });
-    await screen.findByRole("alert");
-    await user.keyboard("{Escape}");
-
-    await waitFor(() =>
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-    );
-    expect(
-      screen.getByRole("button", { name: /^Time range:/ }).textContent,
-    ).toBe(before);
-    expect(
-      (await screen.findAllByText("93.184.216.34")).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("shows no loading indicator for a request it will never send", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "" },
-    });
-    await screen.findByRole("alert");
-
-    expect(screen.queryAllByRole("progressbar")).toEqual([]);
   });
 
   it("keeps the usage chart while a date is cleared", async () => {

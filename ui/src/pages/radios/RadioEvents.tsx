@@ -266,8 +266,8 @@ const timestampParams = (range: {
   to?: string;
 }): Record<string, string> => {
   const params: Record<string, string> = {};
-  if (range.from) params.timestamp_from = range.from;
-  if (range.to) params.timestamp_to = range.to;
+  if (range.from) params.start = range.from;
+  if (range.to) params.end = range.to;
   return params;
 };
 

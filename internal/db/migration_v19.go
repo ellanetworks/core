@@ -9,10 +9,17 @@ import (
 	"fmt"
 )
 
-const toEpochMillis = `CAST(round(unixepoch(%s, 'subsec') * 1000) AS INTEGER)`
+const unparseableTimestampFallback = 0
+
+const toEpochMillis = `CASE
+	WHEN typeof(%[1]s) IN ('integer', 'real') THEN CAST(%[1]s AS INTEGER)
+	WHEN %[1]s GLOB '[0-9]*' AND %[1]s NOT GLOB '*[^0-9]*' THEN CAST(%[1]s AS INTEGER)
+	WHEN unixepoch(%[1]s, 'subsec') IS NOT NULL THEN CAST(round(unixepoch(%[1]s, 'subsec') * 1000) AS INTEGER)
+	ELSE %[2]d
+END`
 
 func epochMillisExpr(column string) string {
-	return fmt.Sprintf(toEpochMillis, column)
+	return fmt.Sprintf(toEpochMillis, column, unparseableTimestampFallback)
 }
 
 type timestampTableRebuild struct {
@@ -36,6 +43,9 @@ func migrateV19(ctx context.Context, tx *sql.Tx) error {
 				details    TEXT NOT NULL DEFAULT ''
 			)`,
 			selectCols: "id, " + epochMillisExpr("timestamp") + ", level, actor, action, ip, details",
+			indices: []string{
+				"CREATE INDEX idx_audit_logs_timestamp ON %s (timestamp DESC, id DESC)",
+			},
 		},
 		{
 			table: RadioEventsTableName,

@@ -132,8 +132,8 @@ describe("RadioEvents filters", () => {
     expect(params).not.toHaveProperty("protocol");
     expect(params).not.toHaveProperty("direction");
     expect(params).not.toHaveProperty("message_type");
-    expect(params).not.toHaveProperty("timestamp_from");
-    expect(params).not.toHaveProperty("timestamp_to");
+    expect(params).not.toHaveProperty("start");
+    expect(params).not.toHaveProperty("end");
   });
 
   it("sends the selected radio", async () => {
@@ -252,7 +252,7 @@ describe("RadioEvents timestamps", () => {
     });
 
     await waitFor(() =>
-      expect(lastEventParams().timestamp_from).toBe("2026-08-01T10:30:00.000Z"),
+      expect(lastEventParams().start).toBe("2026-08-01T10:30:00.000Z"),
     );
   });
 
@@ -287,7 +287,7 @@ describe("RadioEvents timestamps", () => {
     );
 
     const sent = eventRequests()
-      .map((r) => r.params.get("timestamp_from"))
+      .map((r) => r.params.get("start"))
       .filter(Boolean);
     expect(sent.filter((v) => Number.isNaN(Date.parse(v!)))).toEqual([]);
   });
@@ -332,7 +332,7 @@ describe("RadioEvents stale results", () => {
     expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
   });
 
-  it("leaves no blank page behind when the panel is closed on an invalid range", async () => {
+  it("discards an invalid edit when the panel is closed", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
     await renderEvents();
     await screen.findAllByText("radio-7");
@@ -362,8 +362,8 @@ describe("RadioEvents stale results", () => {
     await setInvalidRange();
 
     const inverted = eventRequests().filter((r) => {
-      const from = r.params.get("timestamp_from");
-      const to = r.params.get("timestamp_to");
+      const from = r.params.get("start");
+      const to = r.params.get("end");
       return !!from && !!to && from > to;
     });
     expect(inverted).toEqual([]);
@@ -450,12 +450,12 @@ describe("RadioEvents relative time range", () => {
 
     await selectQuickRange(user, "Last 15 minutes");
 
-    await waitFor(() => expect(lastEventParams().timestamp_from).toBeDefined());
+    await waitFor(() => expect(lastEventParams().start).toBeDefined());
     const params = lastEventParams();
     expect(params).not.toHaveProperty("relative_range");
-    expect(params).not.toHaveProperty("timestamp_to");
+    expect(params).not.toHaveProperty("end");
     expect(
-      Math.abs(Date.parse(params.timestamp_from) - (Date.now() - 15 * 60_000)),
+      Math.abs(Date.parse(params.start) - (Date.now() - 15 * 60_000)),
     ).toBeLessThan(60_000);
   });
 
@@ -498,7 +498,7 @@ describe("RadioEvents relative time range", () => {
     });
 
     await waitFor(() =>
-      expect(lastEventParams().timestamp_from).toBe("2026-08-01T10:30:00.000Z"),
+      expect(lastEventParams().start).toBe("2026-08-01T10:30:00.000Z"),
     );
     await closeTimeRange();
     expect(timeRangeButton()).toHaveAccessibleName(/After/);

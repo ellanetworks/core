@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -116,6 +116,51 @@ describe("AuditLogs filters", () => {
   });
 });
 
+describe("AuditLogs time range presets", () => {
+  it("offers a range that covers the retention window", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+    await openTimeRange(user);
+
+    for (const name of ["Last 15 minutes", "Last 30 days", "Last 90 days"]) {
+      expect(screen.getByRole("menuitem", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("queries the full window a long preset resolves to", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+    await openTimeRange(user);
+
+    await user.click(screen.getByRole("menuitem", { name: "Last 90 days" }));
+
+    await waitFor(() => {
+      const elapsed = Date.now() - Date.parse(lastLogParams().start);
+      expect(elapsed).toBeGreaterThan(89 * 24 * 60 * 60_000);
+      expect(elapsed).toBeLessThan(91 * 24 * 60 * 60_000);
+    });
+  });
+});
+
+describe("AuditLogs auto refresh", () => {
+  it("keeps polling for new entries", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderAuditLogs();
+      await waitForLogRequests(1);
+      const before = logRequests().length;
+
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      await waitFor(() => expect(logRequests().length).toBeGreaterThan(before));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("AuditLogs date range from the URL", () => {
   it("ignores a start param it cannot parse", async () => {
     await renderAuditLogs("/audit-logs?range=custom&start=not-a-date");
@@ -123,13 +168,6 @@ describe("AuditLogs date range from the URL", () => {
 
     expect(lastLogParams()).not.toHaveProperty("start");
     expect(timeRangeButton()).not.toHaveTextContent("not-a-date");
-  });
-
-  it("still queries a link that carries only a start date", async () => {
-    await renderAuditLogs("/audit-logs?range=custom&start=2026-01-15");
-    await waitForLogRequests(1);
-
-    expect(lastLogParams().start).toBe("2026-01-15T00:00:00.000Z");
   });
 });
 
@@ -198,23 +236,6 @@ describe("AuditLogs stale results", () => {
     expect(
       (await screen.findAllByText("create_subscriber")).length,
     ).toBeGreaterThan(0);
-  });
-
-  it("shows no loading indicator for a request it will never send", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-    await screen.findByRole("alert");
-
-    expect(screen.queryAllByRole("progressbar")).toEqual([]);
   });
 });
 

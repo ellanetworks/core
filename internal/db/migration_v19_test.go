@@ -112,6 +112,7 @@ func TestMigrationV19PreservesIndexes(t *testing.T) {
 	}
 
 	wanted := []string{
+		"idx_audit_logs_timestamp",
 		"idx_network_logs_protocol",
 		"idx_network_logs_timestamp",
 		"idx_network_logs_message_type",
@@ -131,6 +132,69 @@ func TestMigrationV19PreservesIndexes(t *testing.T) {
 		if err := conn.QueryRowContext(ctx,
 			`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`, name).Scan(&found); err != nil {
 			t.Fatalf("index %s missing after v19: %v", name, err)
+		}
+	}
+}
+
+func TestMigrationV19ToleratesAlreadyConvertedValues(t *testing.T) {
+	tmp := t.TempDir()
+
+	conn, err := openSQLiteConnection(context.Background(), filepath.Join(tmp, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	ctx := context.Background()
+
+	if err := runMigrations(ctx, conn, 18); err != nil {
+		t.Fatalf("migrate to v18: %v", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		t.Fatalf("disable foreign keys: %v", err)
+	}
+
+	seed := []string{
+		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
+		   VALUES ('a1', '1767225600000', 'info', 'admin', 'create', '127.0.0.1', '')`,
+		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
+		   VALUES ('a2', '', 'info', 'admin', 'create', '127.0.0.1', '')`,
+		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
+		   VALUES ('a3', 'not-a-timestamp', 'info', 'admin', 'create', '127.0.0.1', '')`,
+		`INSERT INTO flow_reports (id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action)
+		   VALUES (1, '001010000000001', '10.0.0.1', '8.8.8.8', 1, 53, 17, 1, 1, '1767225600000', '1767225602250', 'uplink', 0)`,
+	}
+
+	for _, s := range seed {
+		if _, err := conn.ExecContext(ctx, s); err != nil {
+			t.Fatalf("seed %q: %v", s, err)
+		}
+	}
+
+	if err := runMigrations(ctx, conn, 19); err != nil {
+		t.Fatalf("migrate to v19: %v", err)
+	}
+
+	const jan1 = 1767225600000
+
+	want := map[string]int64{
+		"SELECT timestamp FROM audit_logs WHERE id = 'a1'": jan1,
+		"SELECT timestamp FROM audit_logs WHERE id = 'a2'": unparseableTimestampFallback,
+		"SELECT timestamp FROM audit_logs WHERE id = 'a3'": unparseableTimestampFallback,
+		"SELECT start_time FROM flow_reports WHERE id = 1": jan1,
+		"SELECT end_time FROM flow_reports WHERE id = 1":   jan1 + 2250,
+	}
+
+	for query, expected := range want {
+		var got int64
+		if err := conn.QueryRowContext(ctx, query).Scan(&got); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+
+		if got != expected {
+			t.Fatalf("%s: expected %d, got %d", query, expected, got)
 		}
 	}
 }

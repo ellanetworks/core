@@ -42,7 +42,7 @@ import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
 import TimeRangePicker, {
-  RELATIVE_RANGES,
+  AUDIT_RANGES,
   resolveTimeRangeFilter,
   timeRangeFilter,
 } from "@/components/TimeRangePicker";
@@ -67,7 +67,7 @@ const AuditLog: React.FC = () => {
   const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
 
   const { from: startDate = "", to: endDate = "" } = useMemo(
-    () => resolveTimeRangeFilter(timeFilter, { ranges: RELATIVE_RANGES }),
+    () => resolveTimeRangeFilter(timeFilter, { ranges: AUDIT_RANGES }),
     [timeFilter],
   );
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
@@ -119,6 +119,7 @@ const AuditLog: React.FC = () => {
       ),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
+    refetchInterval: 5000,
   });
 
   const hasActiveFilters = Boolean(
@@ -246,7 +247,7 @@ const AuditLog: React.FC = () => {
             value={timeRange}
             onChange={setTimeRange}
             errorId={DATE_ERROR_ID}
-            ranges={RELATIVE_RANGES}
+            ranges={AUDIT_RANGES}
           />
           <TextField
             select
