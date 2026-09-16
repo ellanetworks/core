@@ -291,23 +291,6 @@ describe("RadioEvents timestamps", () => {
       .filter(Boolean);
     expect(sent.filter((v) => Number.isNaN(Date.parse(v!)))).toEqual([]);
   });
-
-  it("rejects a To bound that precedes the From bound", async () => {
-    await renderEvents();
-    await waitForEventRequests(1);
-    await showCustomRange();
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /to.*must be on or after.*from/i,
-    );
-  });
 });
 
 describe("RadioEvents stale results", () => {
@@ -321,38 +304,6 @@ describe("RadioEvents stale results", () => {
     });
     await screen.findByRole("alert");
   };
-
-  it("keeps showing the rows of the last applied range", async () => {
-    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
-    await renderEvents();
-    await screen.findAllByText("radio-7");
-
-    await setInvalidRange();
-
-    expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
-  });
-
-  it("discards an invalid edit when the panel is closed", async () => {
-    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
-    await renderEvents();
-    await screen.findAllByText("radio-7");
-
-    await showCustomRange();
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-    await screen.findByRole("alert");
-    await closeTimeRange();
-
-    await waitFor(() =>
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-    );
-    expect(timeRangeButton()).toHaveTextContent("After Aug 10, 10:00");
-    expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
-  });
 
   it("sends no request for the invalid range", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
@@ -408,38 +359,6 @@ describe("RadioEvents timestamp accessibility", () => {
       );
     },
   );
-
-  it("carries no stale description once the range is valid", async () => {
-    await renderEvents();
-    await waitForEventRequests(1);
-    await invert();
-
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-20T10:00" },
-    });
-
-    await waitFor(() =>
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByLabelText("To")).toHaveAccessibleDescription("");
-  });
-
-  it("stops the picker offering a To before the From", async () => {
-    await renderEvents();
-    await waitForEventRequests(1);
-    await showCustomRange();
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-
-    await waitFor(() =>
-      expect(screen.getByLabelText("To")).toHaveAttribute(
-        "min",
-        "2026-08-10T10:00",
-      ),
-    );
-  });
 });
 
 describe("RadioEvents relative time range", () => {

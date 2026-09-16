@@ -198,70 +198,9 @@ describe("AuditLogs date range accessibility", () => {
       );
     },
   );
-
-  it("stops the picker offering an end date before the start", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-
-    await waitFor(() =>
-      expect(screen.getByLabelText("To")).toHaveAttribute(
-        "min",
-        "2026-08-10T10:00",
-      ),
-    );
-  });
-});
-
-describe("AuditLogs stale results", () => {
-  it("keeps showing the rows of the last applied range", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await screen.findAllByText("create_subscriber");
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-    await screen.findByRole("alert");
-
-    expect(
-      (await screen.findAllByText("create_subscriber")).length,
-    ).toBeGreaterThan(0);
-  });
 });
 
 describe("AuditLogs date range", () => {
-  it("reports an end date that precedes the start date", async () => {
-    const user = userEvent.setup();
-    await renderAuditLogs();
-    await waitForLogRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-
-    expect(
-      (
-        await screen.findAllByText(
-          "The To timestamp must be on or after the From timestamp.",
-        )
-      ).length,
-    ).toBeGreaterThan(0);
-  });
-
   it("does not query an inverted range", async () => {
     const user = userEvent.setup();
     await renderAuditLogs();

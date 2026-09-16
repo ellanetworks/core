@@ -123,9 +123,10 @@ test("Traffic prefills the custom bounds from the active preset", async ({
 
   const from = await page.getByLabel("From", { exact: true }).inputValue();
   const to = await page.getByLabel("To", { exact: true }).inputValue();
-  expect(from).toMatch(/^\d{4}-\d{2}-\d{2}T00:00$/);
-  expect(to).toMatch(/^\d{4}-\d{2}-\d{2}T00:00$/);
-  const spanDays = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+  expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const spanDays =
+    Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
   expect(spanDays).toBe(7);
 
   await expect(page.getByRole("menuitem", { name: "Any time" })).toHaveCount(0);

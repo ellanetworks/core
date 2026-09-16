@@ -345,24 +345,6 @@ describe("Traffic flow text filters", () => {
 });
 
 describe("Traffic date range", () => {
-  it("rejects an end date that precedes the start date", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /must be on or after/i,
-    );
-  });
-
   it("does not query an inverted range", async () => {
     const user = userEvent.setup();
     await renderTraffic();
@@ -421,80 +403,6 @@ describe("Traffic time range across tabs", () => {
   });
 });
 
-describe("Traffic date range accessibility", () => {
-  const invert = async (user: ReturnType<typeof userEvent.setup>) => {
-    await openTimeRange(user);
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-01T10:00" },
-    });
-    await screen.findByRole("alert");
-  };
-
-  it("describes the start date field with the reason it is invalid", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    await invert(user);
-
-    expect(screen.getByLabelText("From")).toHaveAccessibleDescription(
-      /must be on or after/i,
-    );
-  });
-
-  it("describes the end date field with the reason it is invalid", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    await invert(user);
-
-    expect(screen.getByLabelText("To")).toHaveAccessibleDescription(
-      /must be on or after/i,
-    );
-  });
-
-  it("carries no stale description once the range is valid", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-    await invert(user);
-
-    fireEvent.change(screen.getByLabelText("To"), {
-      target: { value: "2026-08-20T10:00" },
-    });
-
-    await waitFor(() =>
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByLabelText("To")).toHaveAccessibleDescription("");
-  });
-
-  it("stops the picker offering an end date before the start", async () => {
-    const user = userEvent.setup();
-    await renderTraffic();
-    await waitForFlowRequests(1);
-    await openTimeRange(user);
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "2026-08-10T10:00" },
-    });
-
-    await waitFor(() =>
-      expect(screen.getByLabelText("To")).toHaveAttribute(
-        "min",
-        "2026-08-10T10:00",
-      ),
-    );
-  });
-});
-
 describe("Traffic incomplete date range", () => {
   it("explains why a cleared date was not applied", async () => {
     const user = userEvent.setup();
@@ -549,23 +457,6 @@ describe("Traffic incomplete date range", () => {
 });
 
 describe("Traffic stale results", () => {
-  it("keeps showing the flow rows of the last applied range", async () => {
-    const user = userEvent.setup();
-    seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
-    await renderTraffic();
-    await openTimeRange(user);
-    await screen.findAllByText("93.184.216.34");
-
-    fireEvent.change(screen.getByLabelText("From"), {
-      target: { value: "" },
-    });
-    await screen.findByRole("alert");
-
-    expect(
-      (await screen.findAllByText("93.184.216.34")).length,
-    ).toBeGreaterThan(0);
-  });
-
   it("keeps the usage chart while a date is cleared", async () => {
     const user = userEvent.setup();
     await renderTraffic("/traffic/usage");

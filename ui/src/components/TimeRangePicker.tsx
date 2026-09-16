@@ -170,6 +170,22 @@ export const toDateInputValue = (stampValue: string | undefined): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
+export const toLastDateInputValue = (
+  stampValue: string | undefined,
+): string => {
+  if (!stampValue) return "";
+  const parsed = new Date(stampValue);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return toDateInputValue(new Date(parsed.getTime() - DAY_MS).toISOString());
+};
+
+export const fromLastDateInputValue = (value: string): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Date(parsed.getTime() + DAY_MS).toISOString();
+};
+
 export const toInputValue = (stampValue: string | undefined): string => {
   if (!stampValue) return "";
   const parsed = new Date(stampValue);
@@ -275,16 +291,18 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
   const dayGranularity =
     ranges.length > 0 && ranges.every((range) => range.anchor === "day");
   const formatBound = dayGranularity ? toDateInputValue : toInputValue;
+  const formatTo = dayGranularity ? toLastDateInputValue : toInputValue;
   const bounds = {
     from: formatBound(isCustom ? edited.from : presetBounds.from),
-    to: formatBound(isCustom ? edited.to : presetBounds.to),
+    to: formatTo(isCustom ? edited.to : presetBounds.to),
   };
 
   const editBound = (field: "from" | "to", next: string) => {
+    const toValue = field === "to" ? next : bounds.to;
     const candidate: TimeRangeValue = {
       preset: CUSTOM_RANGE,
       from: toInstant(field === "from" ? next : bounds.from),
-      to: toInstant(field === "to" ? next : bounds.to),
+      to: dayGranularity ? fromLastDateInputValue(toValue) : toInstant(toValue),
     };
     const candidateErrors = timeRangeFieldErrors(candidate, !allowAnyTime);
     if (candidateErrors.from || candidateErrors.to) {

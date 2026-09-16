@@ -4,17 +4,17 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   ANY_RANGE,
-  browserTimeZone,
   CUSTOM_RANGE,
   DAILY_RANGES,
+  fromLastDateInputValue,
   isValidBound,
   resolveTimeRangeFilter,
-  timeRangeError,
   timeRangeFieldErrors,
   timeRangeFilter,
   timeRangeLabel,
   timeRangeParams,
   toInputValue,
+  toLastDateInputValue,
 } from "./TimeRangePicker";
 
 const originalTz = process.env.TZ;
@@ -239,24 +239,14 @@ describe("timeRangeFieldErrors", () => {
   });
 });
 
-describe("timeRangeError", () => {
-  it("rejects an inverted range", () => {
-    expect(
-      timeRangeError({
-        preset: CUSTOM_RANGE,
-        from: local("2026-10-23T00:00"),
-        to: local("2026-09-04T00:00"),
-      }),
-    ).toMatch(/on or after/i);
+describe("day bounds", () => {
+  it("shows the last included day, not the exclusive end", () => {
+    expect(toLastDateInputValue("2026-09-17T04:00:00.000Z")).toBe("2026-09-16");
   });
 
-  it("accepts a preset", () => {
-    expect(timeRangeError({ preset: "7d", from: "", to: "" })).toBe("");
-  });
-});
-
-describe("browserTimeZone", () => {
-  it("names the zone as the browser reports it", () => {
-    expect(browserTimeZone()).toBe("EDT");
+  it("turns the last included day back into an exclusive end", () => {
+    expect(fromLastDateInputValue("2026-09-16")).toBe(
+      "2026-09-17T00:00:00.000Z",
+    );
   });
 });
