@@ -184,6 +184,10 @@ func (l *Listener) Deregister(alpn string) {
 func (l *Listener) Start(ctx context.Context) error {
 	lc := net.ListenConfig{}
 
+	if device := vrfDeviceForBindAddress(l.cfg.BindAddress); device != "" {
+		lc.Control = bindToDeviceControl(device)
+	}
+
 	tcpLn, err := lc.Listen(ctx, "tcp", l.cfg.BindAddress)
 	if err != nil {
 		return fmt.Errorf("cluster listener bind %s: %w", l.cfg.BindAddress, err)

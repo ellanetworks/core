@@ -67,10 +67,19 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	const composeDir = "compose/core-tester/"
 
 	composeFile := ComposeFile()
+	composeFiles := []string{composeFile}
+
+	if os.Getenv("VRF") != "" {
+		if err := buildVRFImage(ctx); err != nil {
+			t.Fatalf("build ella-core-vrf image: %v", err)
+		}
+
+		composeFiles = append(composeFiles, "../vrf/vrf-overlay.yaml")
+	}
 
 	dc.ComposeCleanup(ctx)
 
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up (%s): %v", composeFile, err)
 	}
 
@@ -90,7 +99,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 			}
 		}
 
-		dc.ComposeDownWithFile(ctx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(ctx, composeDir, composeFiles...)
 	})
 
 	cl, err := client.New(&client.Config{BaseURL: APIAddress()})

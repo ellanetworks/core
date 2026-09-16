@@ -35,10 +35,34 @@ func NewDockerClient() (*DockerClient, error) {
 	return &DockerClient{Client: cli}, nil
 }
 
+func buildVRFImage(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "compose/vrf/build-image.sh")
+	cmd.Dir = "."
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("build vrf image: %w\n%s", err, out)
+	}
+
+	return nil
+}
+
 // ComposeUpWithFile starts containers defined in a specific docker-compose file
 // Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
 func (dc *DockerClient) ComposeUpWithFile(ctx context.Context, composeDir, composeFile string) error {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "up", "-d")
+	return dc.ComposeUpWithFiles(ctx, composeDir, composeFile)
+}
+
+func (dc *DockerClient) ComposeUpWithFiles(ctx context.Context, composeDir string, composeFiles ...string) error {
+	args := []string{"compose"}
+
+	for _, f := range composeFiles {
+		args = append(args, "-f", f)
+	}
+
+	args = append(args, "up", "-d")
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -56,7 +80,19 @@ func (dc *DockerClient) ComposeUpWithFile(ctx context.Context, composeDir, compo
 // because a stale ella.db or raft log from a previous run would make a node think
 // it has already bootstrapped and skip the discovery/join path.
 func (dc *DockerClient) ComposeDownWithFile(ctx context.Context, composeDir, composeFile string) {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "down", "-v")
+	dc.ComposeDownWithFiles(ctx, composeDir, composeFile)
+}
+
+func (dc *DockerClient) ComposeDownWithFiles(ctx context.Context, composeDir string, composeFiles ...string) {
+	args := []string{"compose"}
+
+	for _, f := range composeFiles {
+		args = append(args, "-f", f)
+	}
+
+	args = append(args, "down", "-v")
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

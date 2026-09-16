@@ -66,6 +66,7 @@ type BGPService struct {
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
 	n6AddrV4    netip.Addr           // IPv4 address of N6 interface
 	n6AddrV6    netip.Addr           // IPv6 address of N6 interface
+	n6Interface string               // name of the N6 interface, for VRF resolution
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -97,6 +98,10 @@ func WithImportPrefixStore(s ImportPrefixStore) Option {
 // WithRouteFilter sets the safety rejection filter for learned routes.
 func WithRouteFilter(f *RouteFilter) Option {
 	return func(b *BGPService) { b.filter = f }
+}
+
+func WithN6Interface(name string) Option {
+	return func(b *BGPService) { b.n6Interface = name }
 }
 
 // UpdateFilter replaces the safety rejection filter and re-evaluates all
@@ -243,6 +248,48 @@ func (b *BGPService) routeLearningEnabled() bool {
 	return b.kernel != nil && b.importStore != nil && b.filter != nil
 }
 
+func (b *BGPService) listenBindDevice(settings BGPSettings) string {
+	if settings.ListenAddress != "" {
+		if host, _, err := net.SplitHostPort(settings.ListenAddress); err == nil && host != "" {
+			if addr, err := netip.ParseAddr(host); err == nil && !addr.IsUnspecified() {
+				if device, err := vrfDeviceForAddress(addr.String()); err == nil {
+					return device
+				}
+			}
+		}
+	}
+
+	if b.n6Interface == "" {
+		return ""
+	}
+
+	device, err := vrfMasterDevice(b.n6Interface)
+	if err != nil {
+		b.logger.Warn("failed to resolve VRF device for BGP listener, listening without VRF binding",
+			zap.String("interface", b.n6Interface), zap.Error(err))
+
+		return ""
+	}
+
+	return device
+}
+
+func (b *BGPService) peerBindDevice() string {
+	if b.n6Interface == "" {
+		return ""
+	}
+
+	device, err := vrfMasterDevice(b.n6Interface)
+	if err != nil {
+		b.logger.Warn("failed to resolve VRF device for BGP peer, dialing without VRF binding",
+			zap.String("interface", b.n6Interface), zap.Error(err))
+
+		return ""
+	}
+
+	return device
+}
+
 // startLocked starts the GoBGP server. Must be called with mu held.
 // The RIB starts empty (or replays the existing in-memory paths map on a
 // reconfigure-restart). Subscriber routes are populated by the Reconciler.
@@ -277,6 +324,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 			ListenPort:      listenPort,
 			ListenAddresses: listenAddresses,
 			Families:        families,
+			BindToDevice:    b.listenBindDevice(settings),
 		},
 	})
 	if err != nil {
@@ -765,6 +813,12 @@ func (b *BGPService) Paths() map[string]string {
 
 // addPeer adds a single peer to the GoBGP server.
 func (b *BGPService) addPeer(ctx context.Context, s *gobgp.BgpServer, peer BGPPeer) error {
+	var transport *api.Transport
+
+	if device := b.peerBindDevice(); device != "" {
+		transport = &api.Transport{BindInterface: device}
+	}
+
 	p := &api.Peer{
 		Conf: &api.PeerConf{
 			NeighborAddress: peer.Address,
@@ -772,6 +826,7 @@ func (b *BGPService) addPeer(ctx context.Context, s *gobgp.BgpServer, peer BGPPe
 			Description:     peer.Description,
 			AuthPassword:    peer.Password,
 		},
+		Transport: transport,
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     true,
 			MultihopTtl: 255,

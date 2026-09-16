@@ -85,6 +85,7 @@ type Name string
 const (
 	Datapath4G     Name = "datapath-4g"
 	Datapath5G     Name = "datapath-5g"
+	Datapath5GVRF  Name = "datapath-5g-vrf"
 	SRSRAN4G       Name = "srsran-4g"
 	UE2UE          Name = "ue2ue"
 	Framed         Name = "framed"
@@ -92,6 +93,7 @@ const (
 	Handover5G     Name = "handover-5g"
 	BGP4G          Name = "bgp-4g"
 	BGP5G          Name = "bgp-5g"
+	BGP5GVRF       Name = "bgp-5g-vrf"
 	HA             Name = "ha"
 	RollingUpgrade Name = "rolling-upgrade"
 	HA3GPP4G       Name = "ha-3gpp-4g"
@@ -105,10 +107,13 @@ type Definition struct {
 	Timeout     string
 	NeedsTester bool
 	Setup       string
+	Topology    string
 }
 
 const gobgpPeerBuild = "docker build -t gobgp-peer:latest " +
 	"-f integration/compose/bgp/Dockerfile.gobgp integration/compose/bgp/"
+
+const vrfImageBuild = "sh integration/compose/vrf/build-image.sh"
 
 var Definitions = map[Name]Definition{
 	Datapath4G:     {Profile: ProfileFull, Timeout: "30m", NeedsTester: true},
@@ -120,6 +125,8 @@ var Definitions = map[Name]Definition{
 	Handover5G:     {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true},
 	BGP4G:          {Profile: ProfileAttachPlusV6, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
 	BGP5G:          {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild},
+	BGP5GVRF:       {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true, Setup: gobgpPeerBuild + " && " + vrfImageBuild, Topology: "vrf"},
+	Datapath5GVRF:  {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, Setup: vrfImageBuild, Topology: "vrf"},
 	HA:             {Profile: ProfileClusterFamilies, Timeout: "15m"},
 	RollingUpgrade: {Profile: ProfileMinimal, Timeout: "15m", Setup: "integration/compose/ha-rolling/build-images.sh"},
 	HA3GPP4G:       {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},

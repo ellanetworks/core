@@ -35,6 +35,10 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string,
 		Config:    dialCfg,
 	}
 
+	if device := vrfDeviceForDestination(addr); device != "" {
+		dialer.NetDialer.Control = bindToDeviceControl(device)
+	}
+
 	if timeout > 0 {
 		var cancel context.CancelFunc
 

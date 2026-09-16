@@ -648,12 +648,13 @@ func (c *SCTPConn) setReadDeadline(t time.Time) error {
 }
 
 type Listener struct {
-	file      *os.File
-	rc        syscall.RawConn
-	laddr     *SCTPAddr
-	reqAddr   *SCTPAddr
-	ifaceName string
-	closed    atomic.Bool
+	file       *os.File
+	rc         syscall.RawConn
+	laddr      *SCTPAddr
+	reqAddr    *SCTPAddr
+	ifaceName  string
+	bindDevice string
+	closed     atomic.Bool
 }
 
 func (ln *Listener) Addr() net.Addr {

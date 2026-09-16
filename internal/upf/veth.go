@@ -117,6 +117,61 @@ func destroyVethPair(name string) error {
 	return nil
 }
 
+var (
+	vethLinkByName    = netlink.LinkByName
+	vethLinkByIndex   = netlink.LinkByIndex
+	vethLinkSetMaster = netlink.LinkSetMaster
+)
+
+func enslaveVethPairsToReferenceVRF(refName string) error {
+	ref, err := vethLinkByName(refName)
+	if err != nil {
+		return fmt.Errorf("lookup reference interface %s: %w", refName, err)
+	}
+
+	masterIndex := ref.Attrs().MasterIndex
+	if masterIndex == 0 {
+		return nil
+	}
+
+	master, err := vethLinkByIndex(masterIndex)
+	if err != nil {
+		return fmt.Errorf("lookup master of interface %s: %w", refName, err)
+	}
+
+	if master.Type() != "vrf" {
+		return nil
+	}
+
+	enslaved := 0
+
+	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName} {
+		l, err := vethLinkByName(name)
+		if err != nil {
+			if _, ok := err.(netlink.LinkNotFoundError); ok {
+				continue
+			}
+
+			return fmt.Errorf("lookup %s: %w", name, err)
+		}
+
+		if err := vethLinkSetMaster(l, master); err != nil {
+			return fmt.Errorf("enslave %s to %s: %w", name, master.Attrs().Name, err)
+		}
+
+		enslaved++
+	}
+
+	if enslaved > 0 {
+		logger.UpfLog.Info("Enslaved veth pairs",
+			zap.String("vrf", master.Attrs().Name),
+			zap.String("reference", refName),
+		)
+	}
+
+	return nil
+}
+
 func vethIndex(name string) (int, error) {
 	iface, err := net.InterfaceByName(name)
 	if err != nil {

@@ -354,6 +354,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		bgp.WithKernel(realKernel),
 		bgp.WithImportPrefixStore(importStore),
 		bgp.WithRouteFilter(routeFilter),
+		bgp.WithN6Interface(cfg.Interfaces.N6.Name),
 	)
 
 	bgpSettings, err := dbInstance.GetBGPSettings(ctx)
