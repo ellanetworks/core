@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -145,11 +145,6 @@ export const timeRangeFieldErrors = (
   return errors;
 };
 
-export const timeRangeError = (value: TimeRangeValue): string => {
-  const errors = timeRangeFieldErrors(value);
-  return errors.from ?? errors.to ?? "";
-};
-
 export const timeRangeFilter = (value: TimeRangeValue): TimeRangeFilter => {
   if (value.preset === CUSTOM_RANGE) {
     const filter: TimeRangeFilter = {};
@@ -163,7 +158,7 @@ export const timeRangeFilter = (value: TimeRangeValue): TimeRangeFilter => {
   return { relative: value.preset };
 };
 
-export const toDateInputValue = (stampValue: string | undefined): string => {
+const toDateInputValue = (stampValue: string | undefined): string => {
   if (!stampValue) return "";
   const parsed = new Date(stampValue);
   if (Number.isNaN(parsed.getTime())) return "";
@@ -258,7 +253,6 @@ export const browserTimeZone = (): string => {
 type TimeRangePickerProps = {
   value: TimeRangeValue;
   onChange: (next: TimeRangeValue) => void;
-  errorId: string;
   minWidth?: number;
   ranges?: RelativeRange[];
   allowAnyTime?: boolean;
@@ -267,11 +261,11 @@ type TimeRangePickerProps = {
 const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
   value,
   onChange,
-  errorId,
   minWidth = 230,
   ranges = RELATIVE_RANGES,
   allowAnyTime = true,
 }) => {
+  const errorId = useId();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [draft, setDraft] = useState<TimeRangeValue | null>(null);
   const edited = draft ?? value;

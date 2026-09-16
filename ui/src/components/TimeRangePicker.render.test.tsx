@@ -11,8 +11,6 @@ import TimeRangePicker, {
   type TimeRangeValue,
 } from "./TimeRangePicker";
 
-const ERROR_ID = "time-range-error";
-
 const originalTz = process.env.TZ;
 
 beforeAll(() => {
@@ -42,7 +40,6 @@ const Harness = ({
         setValue(next);
         onChange?.(next);
       }}
-      errorId={ERROR_ID}
       ranges={ranges}
       allowAnyTime={allowAnyTime}
     />

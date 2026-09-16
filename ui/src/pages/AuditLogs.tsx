@@ -48,8 +48,6 @@ import TimeRangePicker, {
 } from "@/components/TimeRangePicker";
 import { PRODUCT } from "@/utils/product";
 
-const DATE_ERROR_ID = "audit-logs-date-range-error";
-
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
@@ -248,7 +246,6 @@ const AuditLog: React.FC = () => {
           <TimeRangePicker
             value={timeRange}
             onChange={setTimeRange}
-            errorId={DATE_ERROR_ID}
             ranges={AUDIT_RANGES}
           />
           <TextField

@@ -259,8 +259,6 @@ function usePageVisible() {
   return visible;
 }
 
-const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
-
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -628,11 +626,7 @@ export default function RadioEvents() {
             alignItems: "center",
           }}
         >
-          <TimeRangePicker
-            value={timeRange}
-            onChange={setTimeRange}
-            errorId={TIMESTAMP_ERROR_ID}
-          />
+          <TimeRangePicker value={timeRange} onChange={setTimeRange} />
           <Autocomplete
             options={radioOptions}
             value={radioOptions.find((r) => r.name === radioFilter) ?? null}

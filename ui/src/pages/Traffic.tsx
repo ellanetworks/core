@@ -152,7 +152,6 @@ type UsagePerDayRow = {
 
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
-const DATE_ERROR_ID = "traffic-date-range-error";
 const DEFAULT_RANGE = "7d";
 
 const Traffic: React.FC = () => {
@@ -895,7 +894,6 @@ const Traffic: React.FC = () => {
                   <TimeRangePicker
                     value={timeRange}
                     onChange={setTimeRange}
-                    errorId={DATE_ERROR_ID}
                     ranges={tabRanges}
                     allowAnyTime={false}
                   />
@@ -1033,7 +1031,6 @@ const Traffic: React.FC = () => {
                   <TimeRangePicker
                     value={timeRange}
                     onChange={setTimeRange}
-                    errorId={DATE_ERROR_ID}
                     ranges={tabRanges}
                     allowAnyTime={false}
                   />
