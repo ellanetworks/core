@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import PageTitle from "@/components/PageTitle";
 import {
   Autocomplete,
@@ -77,6 +77,7 @@ import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
 import { useTimeRangeSearchParams } from "@/hooks/useTimeRangeSearchParams";
 import TimeRangePicker, {
+  CUSTOM_RANGE,
   DAILY_RANGES,
   RELATIVE_RANGES,
   resolveTimeRangeFilter,
@@ -150,6 +151,7 @@ type UsagePerDayRow = {
 const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
 const DATE_ERROR_ID = "traffic-date-range-error";
+const DEFAULT_RANGE = "7d";
 
 const Traffic: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -175,11 +177,17 @@ const Traffic: React.FC = () => {
   );
 
   const [timeRange, setTimeRange] = useTimeRangeSearchParams({
-    defaultPreset: "7d",
+    defaultPreset: DEFAULT_RANGE,
   });
 
   const tabRanges =
     currentTab === TAB_PATHS[1] ? RELATIVE_RANGES : DAILY_RANGES;
+
+  useEffect(() => {
+    if (timeRange.preset === CUSTOM_RANGE) return;
+    if (tabRanges.some((range) => range.value === timeRange.preset)) return;
+    setTimeRange({ preset: DEFAULT_RANGE, from: "", to: "" });
+  }, [tabRanges, timeRange.preset, setTimeRange]);
 
   const { from: startDate = "", to: endDate = "" } = useMemo(
     () =>

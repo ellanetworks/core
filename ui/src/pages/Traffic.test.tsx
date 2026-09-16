@@ -396,6 +396,31 @@ describe("Traffic date range from the URL", () => {
   });
 });
 
+describe("Traffic time range across tabs", () => {
+  it("keeps a preset both tabs offer", async () => {
+    await renderTraffic("/traffic/usage?range=7d");
+    await screen.findByText(/Daily data usage/);
+
+    expect(timeRangeButton()).toHaveTextContent("Last 7 days");
+  });
+
+  it("drops a sub-day preset the usage tab cannot honour", async () => {
+    await renderTraffic("/traffic/usage?range=15m");
+    await screen.findByText(/Daily data usage/);
+
+    await waitFor(() =>
+      expect(timeRangeButton()).toHaveTextContent("Last 7 days"),
+    );
+  });
+
+  it("offers minute ranges on the flows tab", async () => {
+    await renderTraffic("/traffic/flows?range=15m");
+    await waitForFlowRequests(1);
+
+    expect(timeRangeButton()).toHaveTextContent("Last 15 minutes");
+  });
+});
+
 describe("Traffic date range accessibility", () => {
   const invert = async (user: ReturnType<typeof userEvent.setup>) => {
     await openTimeRange(user);
