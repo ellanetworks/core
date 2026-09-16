@@ -19,7 +19,7 @@ Build the image and load it into Docker
 
 ```shell
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.17.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.18.0_amd64.rock docker-daemon:ella-core:latest
 ```
 
 ### 2. Run the integration tests
@@ -83,7 +83,7 @@ uvx --with-requirements requirements-docs.txt mkdocs build
 ```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.17.0_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.18.0_amd64.rock docker-daemon:ella-core:latest
 docker run ella-core:latest
 ```
 
