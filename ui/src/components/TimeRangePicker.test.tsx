@@ -3,6 +3,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
+  browserTimeZone,
   CUSTOM_RANGE,
   DAILY_RANGES,
   isValidBound,
@@ -221,5 +222,11 @@ describe("timeRangeError", () => {
 
   it("accepts a preset", () => {
     expect(timeRangeError({ preset: "7d", from: "", to: "" })).toBe("");
+  });
+});
+
+describe("browserTimeZone", () => {
+  it("names the zone as the browser reports it", () => {
+    expect(browserTimeZone()).toBe("EDT");
   });
 });

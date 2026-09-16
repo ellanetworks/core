@@ -212,6 +212,13 @@ export const timeRangeLabel = (
   return "Custom range";
 };
 
+export const browserTimeZone = (): string => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZoneName: "short",
+  }).formatToParts(new Date());
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? "";
+};
+
 type TimeRangePickerProps = {
   value: TimeRangeValue;
   onChange: (next: TimeRangeValue) => void;
@@ -317,87 +324,94 @@ const TimeRangePicker: React.FC<TimeRangePickerProps> = ({
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         slotProps={{ paper: { sx: { mt: 1 } } }}
       >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-          }}
-        >
+        <Box>
           <Box
             sx={{
-              p: 2,
-              width: 300,
               display: "flex",
-              flexDirection: "column",
-              gap: 2,
+              flexDirection: { xs: "column", sm: "row" },
             }}
           >
-            <Typography variant="subtitle2">Custom range</Typography>
-            <TextField
-              label="From"
-              type="datetime-local"
-              value={bounds.from}
-              onChange={(event) => editBound("from", event.target.value)}
-              error={!!errors.from}
-              helperText={sharedError ? undefined : errors.from}
-              size="small"
-              slotProps={{
-                inputLabel: { shrink: true },
-                formHelperText: { id: `${errorId}-from`, role: "alert" },
-                htmlInput: {
-                  "aria-describedby": errors.from
-                    ? sharedError
-                      ? errorId
-                      : `${errorId}-from`
-                    : undefined,
-                },
+            <Box
+              sx={{
+                p: 2,
+                width: 300,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
               }}
-            />
-            <TextField
-              label="To"
-              type="datetime-local"
-              value={bounds.to}
-              onChange={(event) => editBound("to", event.target.value)}
-              error={!!errors.to}
-              helperText={errors.to}
-              size="small"
-              slotProps={{
-                inputLabel: { shrink: true },
-                formHelperText: { id: errorId, role: "alert" },
-                htmlInput: {
-                  min: (isCustom && bounds.from) || undefined,
-                  "aria-describedby": errors.to ? errorId : undefined,
-                },
+            >
+              <Typography variant="subtitle2">Custom range</Typography>
+              <TextField
+                label="From"
+                type="datetime-local"
+                value={bounds.from}
+                onChange={(event) => editBound("from", event.target.value)}
+                error={!!errors.from}
+                helperText={sharedError ? undefined : errors.from}
+                size="small"
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  formHelperText: { id: `${errorId}-from`, role: "alert" },
+                  htmlInput: {
+                    "aria-describedby": errors.from
+                      ? sharedError
+                        ? errorId
+                        : `${errorId}-from`
+                      : undefined,
+                  },
+                }}
+              />
+              <TextField
+                label="To"
+                type="datetime-local"
+                value={bounds.to}
+                onChange={(event) => editBound("to", event.target.value)}
+                error={!!errors.to}
+                helperText={errors.to}
+                size="small"
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  formHelperText: { id: errorId, role: "alert" },
+                  htmlInput: {
+                    min: (isCustom && bounds.from) || undefined,
+                    "aria-describedby": errors.to ? errorId : undefined,
+                  },
+                }}
+              />
+            </Box>
+            <Box
+              sx={{
+                borderColor: "divider",
+                borderLeft: { sm: 1 },
+                borderTop: { xs: 1, sm: 0 },
+                minWidth: 220,
               }}
-            />
+            >
+              <MenuList>
+                {allowAnyTime && (
+                  <MenuItem
+                    selected={value.preset === ""}
+                    onClick={() => applyPreset("")}
+                  >
+                    Any time
+                  </MenuItem>
+                )}
+                {ranges.map((range) => (
+                  <MenuItem
+                    key={range.value}
+                    selected={value.preset === range.value}
+                    onClick={() => applyPreset(range.value)}
+                  >
+                    {range.label}
+                  </MenuItem>
+                ))}
+              </MenuList>
+            </Box>
           </Box>
-          <Box
-            sx={{
-              borderColor: "divider",
-              borderLeft: { sm: 1 },
-              borderTop: { xs: 1, sm: 0 },
-              minWidth: 220,
-            }}
-          >
-            <MenuList>
-              {allowAnyTime && (
-                <MenuItem
-                  selected={value.preset === ""}
-                  onClick={() => applyPreset("")}
-                >
-                  Any time
-                </MenuItem>
-              )}
-              {ranges.map((range) => (
-                <MenuItem
-                  key={range.value}
-                  selected={value.preset === range.value}
-                  onClick={() => applyPreset(range.value)}
-                >
-                  {range.label}
-                </MenuItem>
-              ))}
-            </MenuList>
+          <Box sx={{ borderTop: 1, borderColor: "divider", px: 2, py: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Browser time: {browserTimeZone()}
+            </Typography>
           </Box>
         </Box>
       </Popover>
