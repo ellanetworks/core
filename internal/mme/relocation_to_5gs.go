@@ -71,6 +71,33 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 	return req, nil
 }
 
+func (m *MME) GoHandoverToFiveGS(ctx context.Context, complete func(context.Context)) {
+	m.handoversToFiveGS.Add(1)
+
+	go func() {
+		defer m.handoversToFiveGS.Done()
+
+		complete(context.WithoutCancel(ctx))
+	}()
+}
+
+func (m *MME) AwaitHandoversToFiveGS(ctx context.Context) error {
+	drained := make(chan struct{})
+
+	go func() {
+		defer close(drained)
+
+		m.handoversToFiveGS.Wait()
+	}()
+
+	select {
+	case <-drained:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, connections []interworking.PDNConnection, target interworking.NGRANIdentity, sourceToTarget []byte, cause *s1ap.Cause) (*interworking.FiveGSRelocationRequest, error) {
 	security, err := ue.EPSSecurityContextForRelocation()
 	if err != nil {

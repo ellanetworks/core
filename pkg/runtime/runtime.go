@@ -681,6 +681,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmeServer.Shutdown(stepCtx)
 		})
 
+		step("Draining handovers to 5GS", func(stepCtx context.Context) {
+			if err := mmeInstance.AwaitHandoversToFiveGS(stepCtx); err != nil {
+				logger.EllaLog.Warn("Handovers to 5GS did not drain", zap.Error(err))
+			}
+		})
+
 		// 4. Stop everything that writes into the BGP speaker: the N6
 		// address watcher and the lease reconciler.
 		logger.EllaLog.Info("Shutting down N6 address watcher")

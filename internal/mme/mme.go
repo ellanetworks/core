@@ -122,6 +122,8 @@ type MME struct {
 	// handoverGuardTimeout bounds the whole S1 handover (HANDOVER REQUIRED → NOTIFY)
 	// so a silent target does not pin the UE's handover slot.
 	handoverGuardTimeout time.Duration
+
+	handoversToFiveGS sync.WaitGroup
 }
 
 const T3412PeriodicTAU = 54 * time.Minute

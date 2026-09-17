@@ -41,7 +41,9 @@ func handoverRequiredToFiveGS(ctx context.Context, m *mme.MME, radio *mme.Radio,
 		return
 	}
 
-	go completeHandoverToFiveGS(context.WithoutCancel(ctx), m, ue, source, *prep)
+	m.GoHandoverToFiveGS(ctx, func(ctx context.Context) {
+		completeHandoverToFiveGS(ctx, m, ue, source, *prep)
+	})
 }
 
 func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext, source *mme.UeConn, req interworking.FiveGSRelocationRequest) {
