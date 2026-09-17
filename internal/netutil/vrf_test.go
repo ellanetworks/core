@@ -201,6 +201,38 @@ func TestVRFDeviceForAddress(t *testing.T) {
 	}
 }
 
+func TestVRFDeviceForAddressSkipsFailedLinkLookup(t *testing.T) {
+	links := vrfTestTopo()
+	stubVRFNetlink(t, links, nil)
+
+	AddrList = func(link netlink.Link, family int) ([]netlink.Addr, error) {
+		ip := net.ParseIP("10.3.0.2")
+
+		return []netlink.Addr{
+			{IPNet: &net.IPNet{IP: ip, Mask: net.CIDRMask(24, 32)}, LinkIndex: 42},
+			{IPNet: &net.IPNet{IP: ip, Mask: net.CIDRMask(24, 32)}, LinkIndex: 2},
+		}, nil
+	}
+
+	got, err := VRFDeviceForAddress("10.3.0.2")
+	if err != nil || got != "cp-vrf" {
+		t.Errorf("VRFDeviceForAddress(first link lookup fails) = %q, %v; want cp-vrf, nil", got, err)
+	}
+
+	AddrList = func(link netlink.Link, family int) ([]netlink.Addr, error) {
+		ip := net.ParseIP("10.3.0.2")
+
+		return []netlink.Addr{
+			{IPNet: &net.IPNet{IP: ip, Mask: net.CIDRMask(24, 32)}, LinkIndex: 42},
+		}, nil
+	}
+
+	got, err = VRFDeviceForAddress("10.3.0.2")
+	if err != nil || got != "" {
+		t.Errorf("VRFDeviceForAddress(only link lookup fails) = %q, %v; want \"\", nil", got, err)
+	}
+}
+
 func TestVRFBindDevice(t *testing.T) {
 	stubVRFNetlink(t, vrfTestTopo(), map[string]int{
 		"10.3.0.2": 2,
