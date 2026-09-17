@@ -6,8 +6,8 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: "eth0"
-      VRF_UP_IFACES: "n6"
+      VRF_CP_IFACES: ""
+      VRF_UP_IFACES: "eth0 n6"
       VRF_UP_ROUTES: ""
     volumes:
       - ./cfg/node1:/cfg:ro
@@ -30,8 +30,8 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: "eth0"
-      VRF_UP_IFACES: "n6"
+      VRF_CP_IFACES: ""
+      VRF_UP_IFACES: "eth0 n6"
       VRF_UP_ROUTES: ""
     volumes:
       - ./cfg/node2:/cfg:ro
@@ -54,8 +54,8 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: "eth0"
-      VRF_UP_IFACES: "n6"
+      VRF_CP_IFACES: ""
+      VRF_UP_IFACES: "eth0 n6"
       VRF_UP_ROUTES: ""
     volumes:
       - ./cfg/node3:/cfg:ro
