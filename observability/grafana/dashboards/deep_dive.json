@@ -1191,8 +1191,8 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "go_gc_duration_seconds{job=~\"$job\",instance=~\"$instance\",quantile=\"0.99\"}",
-          "legendFormat": "GC Pause P99",
+          "expr": "go_gc_duration_seconds{job=~\"$job\",instance=~\"$instance\",quantile=\"1.0\"}",
+          "legendFormat": "GC Pause Max",
           "range": true,
           "refId": "B"
         }
