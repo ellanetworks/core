@@ -22,7 +22,7 @@ logging:
 
 # The database configuration.
 db:
-  # The path to the directory holding the database file (ella.db).
+  # The path to the database file.
   path: "/var/snap/ella-core/common/data/ella.db"
 
 # The network interfaces configuration.
