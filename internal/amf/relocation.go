@@ -70,6 +70,33 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 	return &RelocationPreparation{Request: req, Container: mapped.Container}, nil
 }
 
+func (a *AMF) GoHandoverToEPS(ctx context.Context, complete func(context.Context)) {
+	a.handoversToEPS.Add(1)
+
+	go func() {
+		defer a.handoversToEPS.Done()
+
+		complete(context.WithoutCancel(ctx))
+	}()
+}
+
+func (a *AMF) AwaitHandoversToEPS(ctx context.Context) error {
+	drained := make(chan struct{})
+
+	go func() {
+		defer close(drained)
+
+		a.handoversToEPS.Wait()
+	}()
+
+	select {
+	case <-drained:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (a *AMF) RequestRelocationToEPS(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	if a.EPS == nil {
 		return interworking.ForwardRelocationResponse{}, ErrNoEPSPeer

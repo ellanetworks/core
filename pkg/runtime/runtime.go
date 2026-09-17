@@ -681,9 +681,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmeServer.Shutdown(stepCtx)
 		})
 
-		step("Draining handovers to 5GS", func(stepCtx context.Context) {
+		step("Draining inter-system handovers", func(stepCtx context.Context) {
 			if err := mmeInstance.AwaitHandoversToFiveGS(stepCtx); err != nil {
 				logger.EllaLog.Warn("Handovers to 5GS did not drain", zap.Error(err))
+			}
+
+			if err := amfInstance.AwaitHandoversToEPS(stepCtx); err != nil {
+				logger.EllaLog.Warn("Handovers to EPS did not drain", zap.Error(err))
 			}
 		})
 

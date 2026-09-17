@@ -59,7 +59,9 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		return
 	}
 
-	go completeHandoverToEPS(context.WithoutCancel(ctx), amfInstance, sourceUe, amfUe, prep, unusable)
+	amfInstance.GoHandoverToEPS(ctx, func(ctx context.Context) {
+		completeHandoverToEPS(ctx, amfInstance, sourceUe, amfUe, prep, unusable)
+	})
 }
 
 func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *amf.UeConn, amfUe *amf.UeContext, prep *amf.RelocationPreparation, unusable []amf.HandoverCandidate) {

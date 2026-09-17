@@ -37,6 +37,7 @@ type epsPeerStub struct {
 	err        error
 	cancelErr  error
 	request    *interworking.ForwardRelocationRequest
+	requests   int
 	cancelled  int
 	completed  []interworking.RelocationID
 	gate       chan struct{}
@@ -52,6 +53,7 @@ func (p *epsPeerStub) MMContextAck(context.Context, etsi.SUPI, []uint8) error { 
 func (p *epsPeerStub) ForwardRelocation(_ context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	p.mu.Lock()
 	p.request = &req
+	p.requests++
 	gate := p.gate
 	p.mu.Unlock()
 
@@ -70,6 +72,13 @@ func (p *epsPeerStub) ForwardRelocation(_ context.Context, req interworking.Forw
 		TargetToSource:      []byte{0x0a, 0x0b},
 		AcceptedPDUSessions: p.accepted,
 	}, nil
+}
+
+func (p *epsPeerStub) forwards() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.requests
 }
 
 func (p *epsPeerStub) relocationID() interworking.RelocationID {
@@ -142,7 +151,7 @@ func handoverRequiredToENB(t *testing.T, sessions ...uint8) *ngap.HandoverRequir
 	return msg
 }
 
-func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf.AMF, *amf.UeContext, *relocationSignalSender, *amf.Radio) {
+func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf.AMF, *amf.UeContext, *fakeNGAPSender, *amf.Radio) {
 	t.Helper()
 
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
@@ -201,33 +210,29 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	return amfInstance, amfUe, sender, sourceRan
 }
 
-type relocationSignalSender struct {
-	*fakeNGAPSender
-	outcome chan struct{}
-	once    sync.Once
+func newRelocationSender() *fakeNGAPSender {
+	return &fakeNGAPSender{}
 }
 
-func (s *relocationSignalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error) {
-	n, err := s.fakeNGAPSender.WriteMsg(b, info)
-
-	if len(s.SentHandoverCommands) > 0 || len(s.SentHandoverPreparationFailures) > 0 {
-		s.once.Do(func() { close(s.outcome) })
-	}
-
-	return n, err
-}
-
-func newRelocationSender() *relocationSignalSender {
-	return &relocationSignalSender{fakeNGAPSender: &fakeNGAPSender{}, outcome: make(chan struct{})}
-}
-
-func awaitCommand(t *testing.T, sender *relocationSignalSender) {
+func awaitHandoverToEPS(t *testing.T, amfInstance *amf.AMF) {
 	t.Helper()
 
-	select {
-	case <-sender.outcome:
-	case <-time.After(2 * time.Second):
-		t.Fatal("the source gNB got neither a Handover Command nor a Preparation Failure")
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	if err := amfInstance.AwaitHandoversToEPS(ctx); err != nil {
+		t.Fatalf("the handover to EPS never settled: %v", err)
+	}
+}
+
+func settleHandoverToEPS(t *testing.T, amfInstance *amf.AMF, sender *fakeNGAPSender, want int) {
+	t.Helper()
+
+	awaitHandoverToEPS(t, amfInstance)
+
+	got := len(sender.SentHandoverCommands) + len(sender.SentHandoverPreparationFailures)
+	if got != want {
+		t.Fatalf("the source gNB got %d Handover Commands and Preparation Failures, want %d", got, want)
 	}
 }
 
@@ -236,7 +241,7 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	if len(sender.SentHandoverPreparationFailures) != 0 {
 		t.Fatalf("the handover was refused: %+v", sender.SentHandoverPreparationFailures[0])
@@ -299,7 +304,7 @@ func TestHandoverRequiredToEPSReleasesUnacceptedSessions(t *testing.T) {
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1, 2)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1, 2))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	if len(sender.SentHandoverCommands) != 1 {
 		t.Fatalf("got %d Handover Commands, want 1", len(sender.SentHandoverCommands))
@@ -316,7 +321,7 @@ func TestHandoverRequiredToEPSPeerRefuses(t *testing.T) {
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	if len(sender.SentHandoverCommands) != 0 {
 		t.Fatalf("a refused handover drew a Handover Command")
@@ -370,7 +375,7 @@ func TestHandoverCancelToEPS(t *testing.T) {
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: 1,
@@ -399,7 +404,7 @@ func TestHandoverCancelToEPSUnwindsWhenThePeerHoldsNothing(t *testing.T) {
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
 
@@ -411,7 +416,7 @@ func TestHandoverCancelToEPSUnwindsWhenThePeerHoldsNothing(t *testing.T) {
 	amfInstance2, amfUe2, sender2, sourceRan2 := relocatingUe(t, peer2, 1)
 
 	HandleHandoverRequired(context.Background(), amfInstance2, sourceRan2, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender2)
+	settleHandoverToEPS(t, amfInstance2, sender2, 1)
 
 	HandleHandoverCancel(context.Background(), amfInstance2, sourceRan2, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
 
@@ -458,7 +463,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
@@ -492,7 +497,7 @@ func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
 	}
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
@@ -558,13 +563,40 @@ func TestHandoverToEPSFailureCause(t *testing.T) {
 	}
 }
 
+func TestHandoverToEPSRemapsTheEPSContextAcrossAttempts(t *testing.T) {
+	peer := &epsPeerStub{err: errors.New("no target eNB")}
+	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	settleHandoverToEPS(t, amfInstance, sender, 1)
+
+	first := *peer.forwarded()
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	settleHandoverToEPS(t, amfInstance, sender, 2)
+
+	second := *peer.forwarded()
+
+	if peer.forwards() != 2 {
+		t.Fatalf("the peer got %d relocation requests, want 2", peer.forwards())
+	}
+
+	if second.SecurityContext.DLNASCount == first.SecurityContext.DLNASCount {
+		t.Errorf("the downlink NAS COUNT stayed at %v across two mappings", second.SecurityContext.DLNASCount)
+	}
+
+	if second.SecurityContext.KASME == first.SecurityContext.KASME {
+		t.Error("the retry shipped the mapped K'ASME the first target already holds")
+	}
+}
+
 func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for !amfUe.BeginKeyChainProc(procedure.N2Handover) {
@@ -591,7 +623,7 @@ func TestHandoverToEPSGuardHoldsTheKeyChainUntilThePeerIsTold(t *testing.T) {
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	awaitCommand(t, sender)
+	settleHandoverToEPS(t, amfInstance, sender, 1)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for peer.cancels() == 0 {
