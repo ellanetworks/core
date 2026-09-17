@@ -52,7 +52,7 @@ const SubscriberDetail: React.FC = () => {
     queryKey: ["subscriber", imsi],
     queryFn: () => getSubscriber(accessToken!, imsi!),
     enabled: authReady && !!accessToken && !!imsi,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

@@ -81,7 +81,7 @@ const PolicyDetail: React.FC = () => {
     queryKey: ["policy", name],
     queryFn: () => getPolicy(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

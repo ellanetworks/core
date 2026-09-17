@@ -38,7 +38,7 @@ export default function SlicesTab() {
     queryFn: () =>
       listSlices(accessToken || "", pagination.page + 1, pagination.pageSize),
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
     placeholderData: (prev) => prev,

@@ -112,7 +112,7 @@ const DataNetworkDetail: React.FC = () => {
     queryKey: ["data-network", name],
     queryFn: () => getDataNetwork(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -131,7 +131,7 @@ const DataNetworkDetail: React.FC = () => {
       !!accessToken &&
       !!name &&
       !!dataNetworkQuery.data?.ipv4_pool,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -150,7 +150,7 @@ const DataNetworkDetail: React.FC = () => {
       !!accessToken &&
       !!name &&
       !!dataNetworkQuery.data?.ipv6_pool,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

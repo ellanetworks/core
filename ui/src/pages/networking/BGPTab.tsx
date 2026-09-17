@@ -99,7 +99,7 @@ export default function BGPTab() {
     queryKey: ["bgp-settings"],
     queryFn: () => getBGPSettings(accessToken || ""),
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
   });
@@ -158,7 +158,7 @@ export default function BGPTab() {
         peersPagination.pageSize,
       ),
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
     placeholderData: (prev) => prev,
@@ -274,7 +274,7 @@ export default function BGPTab() {
     queryKey: ["bgp-advertised-routes"],
     queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
   });
@@ -334,7 +334,7 @@ export default function BGPTab() {
     queryKey: ["bgp-learned-routes"],
     queryFn: () => getBGPLearnedRoutes(accessToken || ""),
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
   });

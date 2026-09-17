@@ -329,7 +329,7 @@ const Traffic: React.FC = () => {
       ),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const { data: flowStatsData } = useQuery<FlowReportStatsResponse>({
@@ -337,7 +337,7 @@ const Traffic: React.FC = () => {
     queryFn: () => getFlowReportStats(accessToken || "", flowRequestFilters()),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const filtersWithoutProtocol = useMemo(() => {
@@ -351,7 +351,7 @@ const Traffic: React.FC = () => {
       getFlowReportStats(accessToken || "", flowRequestFilters("protocol")),
     enabled: authReady && !!accessToken && !!appliedProtocol,
     placeholderData: (prev) => prev,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   // Without a protocol filter flowStatsData is itself unfiltered, and a
@@ -371,7 +371,7 @@ const Traffic: React.FC = () => {
       getFlowReportStats(accessToken || "", flowRequestFilters("destination")),
     enabled: authReady && !!accessToken && !!appliedDestination,
     placeholderData: (prev) => prev,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const destinationOptionsData = appliedDestination

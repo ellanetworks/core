@@ -44,7 +44,7 @@ export default function RadiosList() {
       );
     },
     enabled: !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     retry: false,
     placeholderData: (prev) => prev,

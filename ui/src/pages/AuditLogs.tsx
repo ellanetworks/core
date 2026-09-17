@@ -119,7 +119,7 @@ const AuditLog: React.FC = () => {
       }),
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const hasActiveFilters = Boolean(

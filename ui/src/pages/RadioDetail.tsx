@@ -76,7 +76,7 @@ const RadioDetail: React.FC = () => {
     queryKey: ["radio", ref],
     queryFn: () => getRadio(accessToken!, ref!),
     enabled: authReady && !!accessToken && !!ref,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -117,7 +117,7 @@ const RadioDetail: React.FC = () => {
     queryFn: () =>
       listSubscribersByRadio(accessToken!, radioName!, subsPage, subsPerPage),
     enabled: authReady && !!accessToken && !!radioName,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -128,7 +128,7 @@ const RadioDetail: React.FC = () => {
         radio: radioName!,
       }),
     enabled: authReady && !!accessToken && !!radioName,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

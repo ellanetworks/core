@@ -76,7 +76,7 @@ const ProfileDetail: React.FC = () => {
     queryKey: ["profile", name],
     queryFn: () => getProfile(accessToken!, name!),
     enabled: authReady && !!accessToken && !!name,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -84,7 +84,7 @@ const ProfileDetail: React.FC = () => {
     queryKey: ["policies", "profile", name],
     queryFn: () => listPolicies(accessToken!, 1, 100, name!),
     enabled: authReady && !!accessToken && !!name,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

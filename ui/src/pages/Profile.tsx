@@ -40,7 +40,7 @@ export default function Profile() {
     queryKey: ["loggedInUser"],
     queryFn: () => getLoggedInUser(accessToken!),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -48,7 +48,7 @@ export default function Profile() {
     queryKey: ["myAPITokens"],
     queryFn: () => listAPITokens(accessToken!, 1, 100),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

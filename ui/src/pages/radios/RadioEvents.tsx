@@ -314,7 +314,7 @@ export default function RadioEvents() {
     queryKey: ["radios-for-filter"],
     queryFn: () => listRadios(accessToken!, 1, 100),
     enabled: authReady && !!accessToken,
-    refetchInterval: 10_000,
+    refetchInterval: 500,
   });
   const radioOptions: APIRadio[] = useMemo(() => {
     const radios = radiosQuery.data?.items ?? [];
@@ -366,7 +366,7 @@ export default function RadioEvents() {
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, queryFilters],
     enabled: authReady && !!accessToken,
-    refetchInterval: autoRefresh && visible ? 3000 : false,
+    refetchInterval: autoRefresh && visible ? 500 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
       listRadioEvents(accessToken!, pageOneBased, perPage, {

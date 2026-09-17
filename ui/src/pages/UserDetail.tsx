@@ -51,7 +51,7 @@ const UserDetail: React.FC = () => {
     queryKey: ["user", email],
     queryFn: () => getUser(accessToken!, email!),
     enabled: authReady && !!accessToken && !!email,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -59,7 +59,7 @@ const UserDetail: React.FC = () => {
     queryKey: ["userAPITokens", email],
     queryFn: () => listUserAPITokens(accessToken!, email!, 1, 12),
     enabled: authReady && !!accessToken && !!email && isAdmin,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 
@@ -67,7 +67,7 @@ const UserDetail: React.FC = () => {
     queryKey: ["userAuditLogs", email],
     queryFn: () => listAuditLogs(accessToken!, 1, 10, { user: email! }),
     enabled: authReady && !!accessToken && !!email,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     retry: false,
   });
 

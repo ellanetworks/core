@@ -33,7 +33,7 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
         subscriber_id: imsi,
       }),
     enabled: authReady && !!accessToken && !!imsi,
-    refetchInterval: 10000,
+    refetchInterval: 500,
     retry: false,
     placeholderData: (prev) => prev,
   });

@@ -63,7 +63,7 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
       return getUsage(accessToken || "", from, to, imsi, "day");
     },
     enabled: authReady && !!accessToken && !!imsi,
-    refetchInterval: 30000,
+    refetchInterval: 500,
     retry: false,
     placeholderData: (prev) => prev,
   });

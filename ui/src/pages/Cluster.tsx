@@ -221,7 +221,7 @@ const ClusterPage: React.FC = () => {
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["status"],
     queryFn: getStatus,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
@@ -230,14 +230,14 @@ const ClusterPage: React.FC = () => {
     queryKey: ["cluster-members"],
     queryFn: () => listClusterMembers(accessToken || ""),
     enabled: authReady && !!accessToken && clusterEnabled,
-    refetchInterval: 5000,
+    refetchInterval: 500,
   });
 
   const autopilotQuery = useQuery<AutopilotState>({
     queryKey: ["cluster-autopilot"],
     queryFn: () => getAutopilotState(accessToken || ""),
     enabled: authReady && !!accessToken && clusterEnabled,
-    refetchInterval: 2000,
+    refetchInterval: 500,
     retry: false,
   });
 

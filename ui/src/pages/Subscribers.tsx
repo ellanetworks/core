@@ -69,7 +69,7 @@ const SubscriberPage: React.FC = () => {
       search: appliedSearch,
     }),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     // The poll is the retry; backoff would only delay the error reaching the UI.
     retry: false,
