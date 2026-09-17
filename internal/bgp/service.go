@@ -254,7 +254,11 @@ func (b *BGPService) vrfContext(settings BGPSettings) string {
 	if settings.ListenAddress != "" {
 		if host, _, err := net.SplitHostPort(settings.ListenAddress); err == nil && host != "" {
 			if addr, err := netip.ParseAddr(host); err == nil && !addr.IsUnspecified() {
-				if device, err := netutil.VRFDeviceForAddress(addr.String()); err == nil {
+				device, err := netutil.VRFDeviceForAddress(addr.String())
+				if err != nil {
+					b.logger.Warn("failed to resolve VRF device for BGP listen address, falling back to interface binding",
+						zap.String("address", addr.String()), zap.Error(err))
+				} else {
 					return device
 				}
 			}

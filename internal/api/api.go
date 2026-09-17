@@ -139,13 +139,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	go func() {
 		lc := net.ListenConfig{}
 
-		bindDevice := cfg.Interfaces.API.Name
-		if bindDevice == "" {
-			if device, err := netutil.VRFDeviceForAddress(cfg.Interfaces.API.Address); err == nil {
-				bindDevice = device
-			}
-		}
-
+		bindDevice := apiBindDevice(cfg.Interfaces.API)
 		if bindDevice != "" {
 			lc.Control = netutil.BindToDeviceControl(bindDevice)
 		}
@@ -377,6 +371,22 @@ func (s *Server) Handler() http.Handler {
 // Shutdown gracefully shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+func apiBindDevice(api config.APIInterface) string {
+	if api.Name != "" {
+		return api.Name
+	}
+
+	device, err := netutil.VRFDeviceForAddress(api.Address)
+	if err != nil {
+		logger.APILog.Warn("could not resolve VRF device for API listener, running without VRF binding",
+			zap.String("address", api.Address), zap.Error(err))
+
+		return ""
+	}
+
+	return device
 }
 
 func resolveScheme(cfg config.Config) Scheme {

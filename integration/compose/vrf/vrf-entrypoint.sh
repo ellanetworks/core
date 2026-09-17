@@ -54,8 +54,6 @@ $BB sysctl -w net.ipv4.ip_forward=1
 $BB sysctl -w net.ipv6.conf.all.forwarding=1
 $BB sysctl -w net.ipv6.conf.all.keep_addr_on_down=1
 $BB sysctl -w net.ipv6.conf.default.keep_addr_on_down=1
-$BB sysctl -w net.ipv4.tcp_l3mdev_accept=1
-$BB sysctl -w net.ipv4.udp_l3mdev_accept=1
 $BB sysctl -w net.vrf.strict_mode=1 || true
 
 for keep_iface in $VRF_UP_IFACES $VRF_CP_IFACES; do
