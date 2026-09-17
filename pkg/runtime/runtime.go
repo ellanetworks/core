@@ -631,13 +631,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// does not starve subsequent ones.
 		stepTimeout := 5 * time.Second
 
-		step := func(name string, fn func(context.Context)) {
+		stepWithin := func(name string, timeout time.Duration, fn func(context.Context)) {
 			logger.EllaLog.Info(name)
 
-			stepCtx, cancel := context.WithTimeout(context.Background(), stepTimeout)
+			stepCtx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			fn(stepCtx)
+		}
+
+		step := func(name string, fn func(context.Context)) {
+			stepWithin(name, stepTimeout, fn)
 		}
 
 		// 0. Transfer leadership (HA only) so the cluster can continue
@@ -665,6 +669,26 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		sessionReconciler.Stop()
 		mmeReconciler.Stop()
 
+		handoverDrainTimeout := max(amfInstance.HandoverGuardTimeout(), mmeInstance.HandoverGuardTimeout()) + stepTimeout
+
+		stepWithin("Draining inter-system handovers", handoverDrainTimeout, func(stepCtx context.Context) {
+			var draining sync.WaitGroup
+
+			draining.Go(func() {
+				if err := amfInstance.AwaitHandoversToEPS(stepCtx); err != nil {
+					logger.EllaLog.Warn("Handovers to EPS did not drain", zap.Error(err))
+				}
+			})
+
+			draining.Go(func() {
+				if err := mmeInstance.AwaitHandoversToFiveGS(stepCtx); err != nil {
+					logger.EllaLog.Warn("Handovers to 5GS did not drain", zap.Error(err))
+				}
+			})
+
+			draining.Wait()
+		})
+
 		// 2. Cancel all AMF UE timers immediately so paging and other
 		//    retransmissions stop firing during teardown.
 		step("Cancelling AMF timers", func(stepCtx context.Context) {
@@ -679,16 +703,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// 3b. Shut down the 4G S1-MME server.
 		step("Shutting down MME", func(stepCtx context.Context) {
 			mmeServer.Shutdown(stepCtx)
-		})
-
-		step("Draining inter-system handovers", func(stepCtx context.Context) {
-			if err := mmeInstance.AwaitHandoversToFiveGS(stepCtx); err != nil {
-				logger.EllaLog.Warn("Handovers to 5GS did not drain", zap.Error(err))
-			}
-
-			if err := amfInstance.AwaitHandoversToEPS(stepCtx); err != nil {
-				logger.EllaLog.Warn("Handovers to EPS did not drain", zap.Error(err))
-			}
 		})
 
 		// 4. Stop everything that writes into the BGP speaker: the N6

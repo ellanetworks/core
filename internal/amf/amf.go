@@ -178,7 +178,7 @@ type AMF struct {
 	LPPHandler               LPPHandler
 	EPS                      interworking.EPSPeer
 
-	handoversToEPS sync.WaitGroup
+	handoversToEPS interworking.HandoverGroup
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

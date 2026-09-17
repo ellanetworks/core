@@ -77,20 +77,7 @@ func (a *AMF) GoHandoverToEPS(ctx context.Context, complete func(context.Context
 }
 
 func (a *AMF) AwaitHandoversToEPS(ctx context.Context) error {
-	drained := make(chan struct{})
-
-	go func() {
-		defer close(drained)
-
-		a.handoversToEPS.Wait()
-	}()
-
-	select {
-	case <-drained:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return a.handoversToEPS.Await(ctx)
 }
 
 func (a *AMF) RequestRelocationToEPS(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
