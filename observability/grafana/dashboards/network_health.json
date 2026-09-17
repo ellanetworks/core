@@ -410,7 +410,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\"}[$__rate_interval]) * 8) + (rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\"}[$__rate_interval]) * 8)",
+          "expr": "sum(rate(app_upf_bytes_total{job=~\"$job\",instance=~\"$instance\",direction=~\"uplink|downlink\"}[$__rate_interval])) * 8",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
