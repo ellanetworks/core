@@ -305,6 +305,12 @@ type fakeNGAPSender struct {
 	SentDownlinkRanStatusTransfers     []*ngap.DownlinkRANStatusTransfer
 	SentPDUSessionModifyConfirms       []*ngap.PDUSessionResourceModifyConfirm
 	SentDownlinkNASTransport           []*ngap.DownlinkNASTransport
+
+	sent int
+}
+
+func (fng *fakeNGAPSender) count() int {
+	return fng.sent
 }
 
 func capture[M any](bucket *[]*M, parse func([]byte) (*M, error), value []byte, name string) {
@@ -321,6 +327,8 @@ func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	if err != nil {
 		panic(fmt.Sprintf("fakeNGAPSender: unmarshal NGAP PDU: %v", err))
 	}
+
+	fng.sent++
 
 	switch m := pdu.(type) {
 	case *ngap.InitiatingMessage:

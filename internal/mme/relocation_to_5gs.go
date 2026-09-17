@@ -72,13 +72,9 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 }
 
 func (m *MME) GoHandoverToFiveGS(ctx context.Context, complete func(context.Context)) {
-	m.handoversToFiveGS.Add(1)
-
-	go func() {
-		defer m.handoversToFiveGS.Done()
-
+	m.handoversToFiveGS.Go(func() {
 		complete(context.WithoutCancel(ctx))
-	}()
+	})
 }
 
 func (m *MME) AwaitHandoversToFiveGS(ctx context.Context) error {

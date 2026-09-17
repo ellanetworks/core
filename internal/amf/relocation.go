@@ -71,13 +71,9 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 }
 
 func (a *AMF) GoHandoverToEPS(ctx context.Context, complete func(context.Context)) {
-	a.handoversToEPS.Add(1)
-
-	go func() {
-		defer a.handoversToEPS.Done()
-
+	a.handoversToEPS.Go(func() {
 		complete(context.WithoutCancel(ctx))
-	}()
+	})
 }
 
 func (a *AMF) AwaitHandoversToEPS(ctx context.Context) error {

@@ -230,9 +230,8 @@ func settleHandoverToEPS(t *testing.T, amfInstance *amf.AMF, sender *fakeNGAPSen
 
 	awaitHandoverToEPS(t, amfInstance)
 
-	got := len(sender.SentHandoverCommands) + len(sender.SentHandoverPreparationFailures)
-	if got != want {
-		t.Fatalf("the source gNB got %d Handover Commands and Preparation Failures, want %d", got, want)
+	if got := sender.count(); got != want {
+		t.Fatalf("the source gNB got %d messages, want %d", got, want)
 	}
 }
 
@@ -240,8 +239,10 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	if len(sender.SentHandoverPreparationFailures) != 0 {
 		t.Fatalf("the handover was refused: %+v", sender.SentHandoverPreparationFailures[0])
@@ -303,8 +304,10 @@ func TestHandoverRequiredToEPSReleasesUnacceptedSessions(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1, 2)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1, 2))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	if len(sender.SentHandoverCommands) != 1 {
 		t.Fatalf("got %d Handover Commands, want 1", len(sender.SentHandoverCommands))
@@ -320,8 +323,10 @@ func TestHandoverRequiredToEPSPeerRefuses(t *testing.T) {
 	peer := &epsPeerStub{err: errors.New("no target eNB")}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	if len(sender.SentHandoverCommands) != 0 {
 		t.Fatalf("a refused handover drew a Handover Command")
@@ -374,8 +379,10 @@ func TestHandoverCancelToEPS(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: 1,
@@ -403,8 +410,10 @@ func TestHandoverCancelToEPSUnwindsWhenThePeerHoldsNothing(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}, cancelErr: interworking.ErrRelocationTooLate}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
 
@@ -415,8 +424,10 @@ func TestHandoverCancelToEPSUnwindsWhenThePeerHoldsNothing(t *testing.T) {
 	peer2 := &epsPeerStub{accepted: []uint8{1}, cancelErr: errors.New("no such relocation")}
 	amfInstance2, amfUe2, sender2, sourceRan2 := relocatingUe(t, peer2, 1)
 
+	before2 := sender2.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance2, sourceRan2, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance2, sender2, 1)
+	settleHandoverToEPS(t, amfInstance2, sender2, before2+1)
 
 	HandleHandoverCancel(context.Background(), amfInstance2, sourceRan2, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
 
@@ -462,8 +473,10 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
@@ -496,8 +509,10 @@ func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
 		t.Fatal("the UE is not reported as a connected 5G subscriber before the move")
 	}
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
@@ -567,13 +582,15 @@ func TestHandoverToEPSRemapsTheEPSContextAcrossAttempts(t *testing.T) {
 	peer := &epsPeerStub{err: errors.New("no target eNB")}
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	first := *peer.forwarded()
 
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 2)
+	settleHandoverToEPS(t, amfInstance, sender, before+2)
 
 	second := *peer.forwarded()
 
@@ -590,13 +607,39 @@ func TestHandoverToEPSRemapsTheEPSContextAcrossAttempts(t *testing.T) {
 	}
 }
 
+func TestAwaitHandoversToEPSWaitsForTheAttemptToSettle(t *testing.T) {
+	gate := make(chan struct{})
+	peer := &epsPeerStub{err: errors.New("no target eNB"), gate: gate}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	before := sender.count()
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	if err := amfInstance.AwaitHandoversToEPS(ctx); err == nil {
+		t.Fatal("the drain returned while the peer still held the preparation")
+	}
+
+	close(gate)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
+
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Error("the UE still holds a handover to EPS after the drain")
+	}
+}
+
 func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for !amfUe.BeginKeyChainProc(procedure.N2Handover) {
@@ -622,8 +665,10 @@ func TestHandoverToEPSGuardHoldsTheKeyChainUntilThePeerIsTold(t *testing.T) {
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
+	before := sender.count()
+
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-	settleHandoverToEPS(t, amfInstance, sender, 1)
+	settleHandoverToEPS(t, amfInstance, sender, before+1)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for peer.cancels() == 0 {
