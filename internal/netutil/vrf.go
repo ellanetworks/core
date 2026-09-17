@@ -91,7 +91,7 @@ func VRFDeviceForAddress(ipStr string) (string, error) {
 
 		link, err := LinkByIndex(addr.LinkIndex)
 		if err != nil {
-			return "", fmt.Errorf("lookup interface for address %s: %w", ip, err)
+			continue
 		}
 
 		master, err := VRFMasterOf(link)
