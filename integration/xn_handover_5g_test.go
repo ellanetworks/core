@@ -27,7 +27,7 @@ import (
 // path itself once the UE has arrived; the after-ping proves the AMF's path
 // switch handler reprogrammed the UPF downlink to the target gNB.
 func TestIntegration5GXnHandover(t *testing.T) {
-	suites.Require(t, suites.Handover5G)
+	suites.RequireAll(t, suites.Handover5G, suites.Handover5GVRF)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GXnHandover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -41,7 +41,7 @@ func TestIntegration5GXnHandover(t *testing.T) {
 		scenario   = "gnb/xn_handover_connectivity"
 	)
 
-	composeFile := HandoverComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, HandoverComposeFile())
 	coreAPI := APIAddress()
 	coreN2 := HandoverCoreN2Address()
 
@@ -54,7 +54,7 @@ func TestIntegration5GXnHandover(t *testing.T) {
 
 	dc.ComposeCleanup(ctx)
 
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up: %v", err)
 	}
 
@@ -64,7 +64,7 @@ func TestIntegration5GXnHandover(t *testing.T) {
 
 		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
-		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(cleanupCtx, composeDir, composeFiles...)
 	})
 
 	coreClient, err := client.New(&client.Config{BaseURLs: []string{coreAPI}})

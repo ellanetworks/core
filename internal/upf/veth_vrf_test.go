@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 )
 
@@ -20,10 +21,10 @@ type vethStubTopo struct {
 func stubVethNetlink(t *testing.T, topo *vethStubTopo) {
 	t.Helper()
 
-	oldByName, oldByIndex, oldSetMaster := vethLinkByName, vethLinkByIndex, vethLinkSetMaster
+	oldByName, oldByIndex, oldSetMaster := vethLinkByName, netutil.LinkByIndex, vethLinkSetMaster
 
 	t.Cleanup(func() {
-		vethLinkByName, vethLinkByIndex, vethLinkSetMaster = oldByName, oldByIndex, oldSetMaster
+		vethLinkByName, netutil.LinkByIndex, vethLinkSetMaster = oldByName, oldByIndex, oldSetMaster
 	})
 
 	vethLinkByName = func(name string) (netlink.Link, error) {
@@ -34,7 +35,7 @@ func stubVethNetlink(t *testing.T, topo *vethStubTopo) {
 		return nil, netlink.LinkNotFoundError{}
 	}
 
-	vethLinkByIndex = func(index int) (netlink.Link, error) {
+	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
 		if l, ok := topo.byIndex[index]; ok {
 			return l, nil
 		}

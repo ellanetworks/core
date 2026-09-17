@@ -145,7 +145,7 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 
 		cfg := serverSocketConfig
 
-		device, err := vrfBindDevice(interfaceName, address)
+		device, err := netutil.VRFBindDevice(interfaceName, address)
 		if err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 		bindDevice = device
 
 		if bindDevice != "" {
-			cfg.Control = bindToDeviceControl(bindDevice)
+			cfg.Control = netutil.BindToDeviceControl(bindDevice)
 		}
 
 		l, err := cfg.Listen("sctp", laddr)

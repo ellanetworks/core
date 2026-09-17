@@ -1,6 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//go:build linux
-
 // SPDX-License-Identifier: BUSL-1.1
 
 package kernel
@@ -9,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -43,9 +42,9 @@ func TestRouteTableForLink(t *testing.T) {
 		6:  orphan,
 	}
 
-	oldByIndex := kernelLinkByIndex
+	oldByIndex := netutil.LinkByIndex
 
-	kernelLinkByIndex = func(index int) (netlink.Link, error) {
+	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
 		if l, ok := byIndex[index]; ok {
 			return l, nil
 		}
@@ -53,7 +52,7 @@ func TestRouteTableForLink(t *testing.T) {
 		return nil, errors.New("no such index")
 	}
 
-	t.Cleanup(func() { kernelLinkByIndex = oldByIndex })
+	t.Cleanup(func() { netutil.LinkByIndex = oldByIndex })
 
 	for _, tc := range []struct {
 		name string

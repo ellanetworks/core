@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -142,21 +141,13 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 
 		bindDevice := cfg.Interfaces.API.Name
 		if bindDevice == "" {
-			bindDevice = vrfDeviceForAPIAddress(cfg.Interfaces.API.Address)
+			if device, err := netutil.VRFDeviceForAddress(cfg.Interfaces.API.Address); err == nil {
+				bindDevice = device
+			}
 		}
 
 		if bindDevice != "" {
-			lc.Control = func(network, address string, c syscall.RawConn) error {
-				var setSockOptErr error
-
-				if err := c.Control(func(fd uintptr) {
-					setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, bindDevice)
-				}); err != nil {
-					return err
-				}
-
-				return setSockOptErr
-			}
+			lc.Control = netutil.BindToDeviceControl(bindDevice)
 		}
 
 		// A bind can transiently fail while a shared N2/N3 interface flaps; retry.

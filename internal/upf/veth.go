@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
@@ -119,7 +120,6 @@ func destroyVethPair(name string) error {
 
 var (
 	vethLinkByName    = netlink.LinkByName
-	vethLinkByIndex   = netlink.LinkByIndex
 	vethLinkSetMaster = netlink.LinkSetMaster
 )
 
@@ -129,17 +129,12 @@ func enslaveVethPairsToReferenceVRF(refName string) error {
 		return fmt.Errorf("lookup reference interface %s: %w", refName, err)
 	}
 
-	masterIndex := ref.Attrs().MasterIndex
-	if masterIndex == 0 {
-		return nil
-	}
-
-	master, err := vethLinkByIndex(masterIndex)
+	master, err := netutil.VRFMasterOf(ref)
 	if err != nil {
-		return fmt.Errorf("lookup master of interface %s: %w", refName, err)
+		return err
 	}
 
-	if master.Type() != "vrf" {
+	if master == nil {
 		return nil
 	}
 

@@ -14,7 +14,7 @@ import (
 // the framed-route downlink while an off-route host does not (TS 23.501
 // §5.6.14). Runs with NAT disabled; see runFramedSuite.
 func TestIntegration5GFramedRouting(t *testing.T) {
-	suites.Require(t, suites.Framed)
+	suites.RequireAll(t, suites.Framed, suites.FramedVRF)
 
 	runFramedSuite(t, "gnb")
 }
@@ -23,7 +23,7 @@ func TestIntegration5GFramedRouting(t *testing.T) {
 // framed route on a live PDU session releases it with cause #39 "reactivation
 // requested" so the UE re-establishes with the new routes (TS 23.501 §5.6.14).
 func TestIntegration5GFramedRoutingReconcile(t *testing.T) {
-	suites.Require(t, suites.Framed)
+	suites.RequireAll(t, suites.Framed, suites.FramedVRF)
 
 	runFramedReconcileSuite(t, "gnb/framed_route_add_live", "gnb/framed_route_remove_live")
 }

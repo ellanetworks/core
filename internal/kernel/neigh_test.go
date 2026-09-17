@@ -4,10 +4,14 @@
 package kernel
 
 import (
+	"context"
+	"errors"
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func assertHops(t *testing.T, got []nexthop, want []nexthop) {
@@ -75,5 +79,90 @@ func TestNexthopsFromRoutes_NoUsableRoute(t *testing.T) {
 
 	if got := nexthopsFromRoutes(dst, []netlink.Route{{LinkIndex: 0}}); len(got) != 0 {
 		t.Fatalf("a route without an output interface must yield no nexthops, got %v", got)
+	}
+}
+
+func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route, links []netlink.Link) *[]netlink.Neigh {
+	t.Helper()
+
+	oldRouteGet, oldLinkList, oldNeighSet := neighRouteGetWithOptions, neighLinkList, neighSet
+
+	t.Cleanup(func() {
+		neighRouteGetWithOptions, neighLinkList, neighSet = oldRouteGet, oldLinkList, oldNeighSet
+	})
+
+	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
+		vrf := ""
+		if opts != nil {
+			vrf = opts.VrfName
+		}
+
+		if routes, ok := routes[dst.String()+"|"+vrf]; ok {
+			return routes, nil
+		}
+
+		return nil, unix.ENETUNREACH
+	}
+
+	neighLinkList = func() ([]netlink.Link, error) {
+		return links, nil
+	}
+
+	seeded := &[]netlink.Neigh{}
+
+	neighSet = func(n *netlink.Neigh) error {
+		*seeded = append(*seeded, *n)
+		return nil
+	}
+
+	return seeded
+}
+
+func TestAddNeighbour_MainTableRoute(t *testing.T) {
+	gw := net.ParseIP("10.6.0.3")
+
+	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
+		"10.45.0.5|": {{LinkIndex: 6, Gw: gw}},
+	}, nil)
+
+	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
+		t.Fatalf("AddNeighbour: %v", err)
+	}
+
+	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 6 || !(*seeded)[0].IP.Equal(gw) {
+		t.Errorf("expected gateway %s seeded on link 6, got %+v", gw, *seeded)
+	}
+}
+
+func TestAddNeighbour_VRFTableRoute(t *testing.T) {
+	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+	n3 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n3", Index: 2, MasterIndex: 10}}
+	gw := net.ParseIP("10.3.0.1")
+
+	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
+		"10.45.0.5|up-vrf": {{LinkIndex: 2, Gw: gw}},
+	}, []netlink.Link{upVRF, n3})
+
+	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
+		t.Fatalf("AddNeighbour: %v", err)
+	}
+
+	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 2 || !(*seeded)[0].IP.Equal(gw) {
+		t.Errorf("expected gateway %s seeded on link 2 via VRF fallback, got %+v", gw, *seeded)
+	}
+}
+
+func TestAddNeighbour_NoRouteAnywhere(t *testing.T) {
+	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+
+	seeded := stubNeighNetlink(t, nil, []netlink.Link{upVRF})
+
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"))
+	if !errors.Is(err, errNoRouteToNeighbour) {
+		t.Errorf("expected errNoRouteToNeighbour, got %v", err)
+	}
+
+	if len(*seeded) != 0 {
+		t.Errorf("expected no neighbours seeded, got %+v", *seeded)
 	}
 }

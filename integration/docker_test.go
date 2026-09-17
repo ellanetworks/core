@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/moby/moby/api/types/container"
@@ -45,6 +46,20 @@ func buildVRFImage(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func withVRFOverlay(ctx context.Context, t *testing.T, composeFiles ...string) []string {
+	t.Helper()
+
+	if os.Getenv("VRF") == "" {
+		return composeFiles
+	}
+
+	if err := buildVRFImage(ctx); err != nil {
+		t.Fatalf("build ella-core-vrf image: %v", err)
+	}
+
+	return append(composeFiles, "../vrf/vrf-overlay.yaml")
 }
 
 // ComposeUpWithFile starts containers defined in a specific docker-compose file

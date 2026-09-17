@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/ellanetworks/core/internal/netutil"
 )
 
 // Dial opens an mTLS connection to the cluster peer at addr and
@@ -26,6 +28,17 @@ func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout t
 	return l.dial(ctx, addr, "", alpn, timeout)
 }
 
+// DialContextTCP dials addr over TCP, bound to the VRF device routing to it.
+func DialContextTCP(ctx context.Context, network, addr string) (net.Conn, error) {
+	dialer := &net.Dialer{}
+
+	if device := vrfDeviceForDestination(addr); device != "" {
+		dialer.Control = netutil.BindToDeviceControl(device)
+	}
+
+	return dialer.DialContext(ctx, network, addr)
+}
+
 func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string, alpn string, timeout time.Duration) (*tls.Conn, error) {
 	dialCfg := l.tlsConfig.Clone()
 	dialCfg.NextProtos = []string{alpn}
@@ -36,7 +49,7 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string,
 	}
 
 	if device := vrfDeviceForDestination(addr); device != "" {
-		dialer.NetDialer.Control = bindToDeviceControl(device)
+		dialer.NetDialer.Control = netutil.BindToDeviceControl(device)
 	}
 
 	if timeout > 0 {
