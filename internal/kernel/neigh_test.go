@@ -152,6 +152,25 @@ func TestAddNeighbour_VRFTableRoute(t *testing.T) {
 	}
 }
 
+func TestAddNeighbour_VRFTableRouteVLAN(t *testing.T) {
+	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+	n3 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n3", Index: 2, MasterIndex: 10}}
+	vlan := &netlink.Vlan{LinkAttrs: netlink.LinkAttrs{Name: "n3.100", Index: 3, MasterIndex: 10, ParentIndex: 2}, VlanId: 100}
+	gw := net.ParseIP("10.3.0.1")
+
+	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
+		"10.45.0.5|up-vrf": {{LinkIndex: 3, Gw: gw}},
+	}, []netlink.Link{upVRF, n3, vlan})
+
+	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
+		t.Fatalf("AddNeighbour: %v", err)
+	}
+
+	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 3 || !(*seeded)[0].IP.Equal(gw) {
+		t.Errorf("expected gateway %s seeded on VLAN link 3 via VRF fallback, got %+v", gw, *seeded)
+	}
+}
+
 func TestAddNeighbour_NoRouteAnywhere(t *testing.T) {
 	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
 
@@ -164,5 +183,32 @@ func TestAddNeighbour_NoRouteAnywhere(t *testing.T) {
 
 	if len(*seeded) != 0 {
 		t.Errorf("expected no neighbours seeded, got %+v", *seeded)
+	}
+}
+
+func TestAddNeighbour_LinkListError(t *testing.T) {
+	oldRouteGet, oldLinkList := neighRouteGetWithOptions, neighLinkList
+
+	t.Cleanup(func() {
+		neighRouteGetWithOptions, neighLinkList = oldRouteGet, oldLinkList
+	})
+
+	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
+		return nil, unix.ENETUNREACH
+	}
+
+	errLinkList := errors.New("netlink: dump failed")
+
+	neighLinkList = func() ([]netlink.Link, error) {
+		return nil, errLinkList
+	}
+
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"))
+	if !errors.Is(err, errLinkList) {
+		t.Fatalf("expected wrapped link list error, got %v", err)
+	}
+
+	if errors.Is(err, errNoRouteToNeighbour) {
+		t.Errorf("link list failure must not be reported as errNoRouteToNeighbour")
 	}
 }

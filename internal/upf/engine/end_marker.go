@@ -90,7 +90,11 @@ func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
 
 	lc := net.ListenConfig{}
 
-	if device, err := netutil.VRFDeviceForAddress(local.String()); err == nil && device != "" {
+	device, err := netutil.VRFDeviceForAddress(local.String())
+	if err != nil {
+		logger.UpfLog.Warn("could not resolve VRF device for End Marker socket, running without VRF binding",
+			zap.String("local", local.String()), zap.Error(err))
+	} else if device != "" {
 		lc.Control = netutil.BindToDeviceControl(device)
 	}
 

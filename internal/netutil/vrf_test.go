@@ -4,11 +4,14 @@
 package netutil
 
 import (
+	"context"
 	"errors"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func stubVRFNetlink(t *testing.T, links map[string]netlink.Link, addrs map[string]int) {
@@ -64,12 +67,15 @@ func stubVRFNetlink(t *testing.T, links map[string]netlink.Link, addrs map[strin
 
 func vrfTestTopo() map[string]netlink.Link {
 	return map[string]netlink.Link{
-		"cp-vrf": &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "cp-vrf", Index: 10}, Table: 1002},
-		"eth0":   &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth0", Index: 2, MasterIndex: 10}},
-		"eth1":   &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth1", Index: 3}},
-		"br0":    &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0", Index: 11}},
-		"eth2":   &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth2", Index: 4, MasterIndex: 11}},
-		"orphan": &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "orphan", Index: 5, MasterIndex: 99}},
+		"cp-vrf":   &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "cp-vrf", Index: 10}, Table: 1002},
+		"eth0":     &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth0", Index: 2, MasterIndex: 10}},
+		"eth1":     &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth1", Index: 3}},
+		"br0":      &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0", Index: 11}},
+		"eth2":     &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "eth2", Index: 4, MasterIndex: 11}},
+		"orphan":   &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "orphan", Index: 5, MasterIndex: 99}},
+		"eth0.100": &netlink.Vlan{LinkAttrs: netlink.LinkAttrs{Name: "eth0.100", Index: 6, MasterIndex: 10, ParentIndex: 2}, VlanId: 100},
+		"eth0.200": &netlink.Vlan{LinkAttrs: netlink.LinkAttrs{Name: "eth0.200", Index: 7, ParentIndex: 2}, VlanId: 200},
+		"eth1.100": &netlink.Vlan{LinkAttrs: netlink.LinkAttrs{Name: "eth1.100", Index: 8, MasterIndex: 10, ParentIndex: 3}, VlanId: 100},
 	}
 }
 
@@ -87,7 +93,17 @@ func TestVRFMasterOf(t *testing.T) {
 		t.Errorf("VRFMasterOf(vrf itself) = %v, %v; want cp-vrf, nil", master, err)
 	}
 
-	for _, name := range []string{"eth1", "eth2"} {
+	master, err = VRFMasterOf(links["eth0.100"])
+	if err != nil || master == nil || master.Attrs().Name != "cp-vrf" {
+		t.Errorf("VRFMasterOf(enslaved vlan) = %v, %v; want cp-vrf, nil", master, err)
+	}
+
+	master, err = VRFMasterOf(links["eth1.100"])
+	if err != nil || master == nil || master.Attrs().Name != "cp-vrf" {
+		t.Errorf("VRFMasterOf(enslaved vlan on plain parent) = %v, %v; want cp-vrf, nil", master, err)
+	}
+
+	for _, name := range []string{"eth1", "eth2", "eth0.200"} {
 		master, err := VRFMasterOf(links[name])
 		if err != nil || master != nil {
 			t.Errorf("VRFMasterOf(%s) = %v, %v; want nil, nil", name, master, err)
@@ -115,6 +131,9 @@ func TestVRFDeviceForInterface(t *testing.T) {
 		{"eth1", ""},
 		{"eth2", ""},
 		{"cp-vrf", "cp-vrf"},
+		{"eth0.100", "cp-vrf"},
+		{"eth1.100", "cp-vrf"},
+		{"eth0.200", ""},
 	} {
 		got, err := VRFDeviceForInterface(tc.iface)
 		if err != nil {
@@ -141,6 +160,8 @@ func TestVRFDeviceForAddress(t *testing.T) {
 		"10.3.0.2": 2,
 		"10.9.0.2": 3,
 		"fd00::2":  2,
+		"10.3.1.2": 6,
+		"10.3.2.2": 7,
 	})
 
 	got, err := VRFDeviceForAddress("10.3.0.2")
@@ -153,9 +174,19 @@ func TestVRFDeviceForAddress(t *testing.T) {
 		t.Errorf("VRFDeviceForAddress(IPv6 VRF address) = %q, %v; want cp-vrf, nil", got, err)
 	}
 
+	got, err = VRFDeviceForAddress("10.3.1.2")
+	if err != nil || got != "cp-vrf" {
+		t.Errorf("VRFDeviceForAddress(enslaved VLAN address) = %q, %v; want cp-vrf, nil", got, err)
+	}
+
 	got, err = VRFDeviceForAddress("10.9.0.2")
 	if err != nil || got != "" {
 		t.Errorf("VRFDeviceForAddress(plain address) = %q, %v; want \"\", nil", got, err)
+	}
+
+	got, err = VRFDeviceForAddress("10.3.2.2")
+	if err != nil || got != "" {
+		t.Errorf("VRFDeviceForAddress(unenslaved VLAN over VRF parent) = %q, %v; want \"\", nil", got, err)
 	}
 
 	for _, addr := range []string{"", "0.0.0.0", "::", "127.0.0.1", "::1", "10.9.9.9", "fd00::9"} {
@@ -198,5 +229,49 @@ func TestVRFBindDevice(t *testing.T) {
 
 	if _, err := VRFBindDevice("nope", ""); err == nil {
 		t.Error("VRFBindDevice(missing interface): expected error, got nil")
+	}
+}
+
+func TestBindToDeviceControl(t *testing.T) {
+	lc := net.ListenConfig{Control: BindToDeviceControl("lo")}
+
+	conn, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
+	if err != nil {
+		if errors.Is(err, unix.EPERM) {
+			t.Skipf("SO_BINDTODEVICE requires CAP_NET_RAW: %v", err)
+		}
+
+		t.Fatalf("listen with SO_BINDTODEVICE: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	sock, ok := conn.(*net.UDPConn)
+	if !ok {
+		t.Fatalf("expected a UDP socket, got %T", conn)
+	}
+
+	raw, err := sock.SyscallConn()
+	if err != nil {
+		t.Fatalf("syscall conn: %v", err)
+	}
+
+	var (
+		device  string
+		ctrlErr error
+	)
+
+	if err := raw.Control(func(fd uintptr) {
+		device, ctrlErr = unix.GetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE)
+	}); err != nil {
+		t.Fatalf("control: %v", err)
+	}
+
+	if ctrlErr != nil {
+		t.Fatalf("getsockopt SO_BINDTODEVICE: %v", ctrlErr)
+	}
+
+	if got := strings.TrimRight(device, "\x00"); got != "lo" {
+		t.Errorf("socket bound to %q, want lo", got)
 	}
 }

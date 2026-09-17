@@ -106,7 +106,7 @@ func routesToNeighbour(dst net.IP) ([]netlink.Route, error) {
 
 	links, err := neighLinkList()
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("could not list links: %w", err)
 	}
 
 	for _, link := range links {

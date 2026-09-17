@@ -32,6 +32,14 @@ func TestRouteTableForLink(t *testing.T) {
 	orphan := &netlink.Device{
 		LinkAttrs: netlink.LinkAttrs{Name: "orphan", Index: 6, MasterIndex: 99},
 	}
+	enslavedVlan := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{Name: "n3.100", Index: 7, MasterIndex: 10, ParentIndex: 2},
+		VlanId:    100,
+	}
+	vlanOverEnslavedParent := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{Name: "n3.200", Index: 8, ParentIndex: 2},
+		VlanId:    200,
+	}
 
 	byIndex := map[int]netlink.Link{
 		10: upVRF,
@@ -40,6 +48,8 @@ func TestRouteTableForLink(t *testing.T) {
 		11: bridge,
 		5:  bridged,
 		6:  orphan,
+		7:  enslavedVlan,
+		8:  vlanOverEnslavedParent,
 	}
 
 	oldByIndex := netutil.LinkByIndex
@@ -63,6 +73,8 @@ func TestRouteTableForLink(t *testing.T) {
 		{"plain", plain, unix.RT_TABLE_MAIN},
 		{"vrf itself", upVRF, 1001},
 		{"non-vrf master", bridged, unix.RT_TABLE_MAIN},
+		{"enslaved vlan", enslavedVlan, 1001},
+		{"vlan over enslaved parent", vlanOverEnslavedParent, unix.RT_TABLE_MAIN},
 	} {
 		got, err := routeTableForLink(tc.link)
 		if err != nil {

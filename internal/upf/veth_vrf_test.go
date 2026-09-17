@@ -173,3 +173,57 @@ func TestEnslaveVethPairsMissingReference(t *testing.T) {
 		t.Error("missing reference: expected error, got nil")
 	}
 }
+
+func TestEnslaveVethPairsWithVLANReference(t *testing.T) {
+	upVRF := &netlink.Vrf{
+		LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10},
+		Table:     1001,
+	}
+	n3 := &netlink.Device{
+		LinkAttrs: netlink.LinkAttrs{Name: "n3", Index: 2, MasterIndex: 10},
+	}
+	vlan := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{Name: "n3.100", Index: 3, MasterIndex: 10, ParentIndex: 2},
+		VlanId:    100,
+	}
+
+	topo := &vethStubTopo{
+		byName: map[string]netlink.Link{
+			"up-vrf":       upVRF,
+			"n3":           n3,
+			"n3.100":       vlan,
+			"veth-smf":     vethDevice("veth-smf", 20, 0),
+			"veth-xdp":     vethDevice("veth-xdp", 21, 0),
+			"veth-buf":     vethDevice("veth-buf", 22, 0),
+			"veth-buf-xdp": vethDevice("veth-buf-xdp", 23, 0),
+		},
+		byIndex: map[int]netlink.Link{},
+	}
+
+	for _, l := range topo.byName {
+		topo.byIndex[l.Attrs().Index] = l
+	}
+
+	stubVethNetlink(t, topo)
+
+	if err := enslaveVethPairsToReferenceVRF("n3.100"); err != nil {
+		t.Fatalf("enslave with enslaved VLAN reference: %v", err)
+	}
+
+	if len(topo.mastered) != 4 {
+		t.Fatalf("expected 4 enslavements, got %d (%v)", len(topo.mastered), topo.mastered)
+	}
+
+	for _, m := range topo.mastered {
+		want := map[string]bool{
+			"veth-smf->up-vrf":     true,
+			"veth-xdp->up-vrf":     true,
+			"veth-buf->up-vrf":     true,
+			"veth-buf-xdp->up-vrf": true,
+		}
+
+		if !want[m] {
+			t.Errorf("unexpected enslavement %q", m)
+		}
+	}
+}
