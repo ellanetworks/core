@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/netutil"
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -67,6 +68,7 @@ type BGPService struct {
 	n6AddrV4    netip.Addr           // IPv4 address of N6 interface
 	n6AddrV6    netip.Addr           // IPv6 address of N6 interface
 	n6Interface string               // name of the N6 interface, for VRF resolution
+	bindDevice  string
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -248,11 +250,11 @@ func (b *BGPService) routeLearningEnabled() bool {
 	return b.kernel != nil && b.importStore != nil && b.filter != nil
 }
 
-func (b *BGPService) listenBindDevice(settings BGPSettings) string {
+func (b *BGPService) vrfContext(settings BGPSettings) string {
 	if settings.ListenAddress != "" {
 		if host, _, err := net.SplitHostPort(settings.ListenAddress); err == nil && host != "" {
 			if addr, err := netip.ParseAddr(host); err == nil && !addr.IsUnspecified() {
-				if device, err := vrfDeviceForAddress(addr.String()); err == nil {
+				if device, err := netutil.VRFDeviceForAddress(addr.String()); err == nil {
 					return device
 				}
 			}
@@ -263,25 +265,9 @@ func (b *BGPService) listenBindDevice(settings BGPSettings) string {
 		return ""
 	}
 
-	device, err := vrfMasterDevice(b.n6Interface)
+	device, err := netutil.VRFDeviceForInterface(b.n6Interface)
 	if err != nil {
-		b.logger.Warn("failed to resolve VRF device for BGP listener, listening without VRF binding",
-			zap.String("interface", b.n6Interface), zap.Error(err))
-
-		return ""
-	}
-
-	return device
-}
-
-func (b *BGPService) peerBindDevice() string {
-	if b.n6Interface == "" {
-		return ""
-	}
-
-	device, err := vrfMasterDevice(b.n6Interface)
-	if err != nil {
-		b.logger.Warn("failed to resolve VRF device for BGP peer, dialing without VRF binding",
+		b.logger.Warn("failed to resolve VRF device for BGP, running without VRF binding",
 			zap.String("interface", b.n6Interface), zap.Error(err))
 
 		return ""
@@ -317,6 +303,8 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV6_UNICAST]),
 	}
 
+	b.bindDevice = b.vrfContext(settings)
+
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:             uint32(settings.LocalAS),
@@ -324,7 +312,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 			ListenPort:      listenPort,
 			ListenAddresses: listenAddresses,
 			Families:        families,
-			BindToDevice:    b.listenBindDevice(settings),
+			BindToDevice:    b.bindDevice,
 		},
 	})
 	if err != nil {
@@ -815,7 +803,7 @@ func (b *BGPService) Paths() map[string]string {
 func (b *BGPService) addPeer(ctx context.Context, s *gobgp.BgpServer, peer BGPPeer) error {
 	var transport *api.Transport
 
-	if device := b.peerBindDevice(); device != "" {
+	if device := b.bindDevice; device != "" {
 		transport = &api.Transport{BindInterface: device}
 	}
 

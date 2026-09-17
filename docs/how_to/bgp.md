@@ -13,7 +13,7 @@ Ella Core includes an embedded BGP speaker that advertises `/32` (IPv4) or `/64`
 2. Edit the BGP settings:
      - **Local AS**: Your autonomous system number (e.g. `64512`).
      - **Router ID**: A unique IPv4 address identifying this BGP speaker. Leave it empty to use the N6 interface current IPv4 address (e.g. `192.168.5.10`).
-     - **Listen Address**: The address and port to listen on (default `:179`). Leave the address empty to accept sessions on every interface, or set one to restrict the speaker to it. Change the port only if you need BGP on a non-standard one.
+     - **Listen Address**: The address and port to listen on (default `:179`). Leave the address empty to accept sessions on every interface, or set one to restrict the speaker to it. Change the port only if you need BGP on a non-standard one. When VRFs are in use, this address also scopes peer connections: set it to an address on a VRF-enslaved interface and both the listener and all peers are bound to that VRF; leave it empty and both follow the N6 interface's VRF.
 3. Click **Save**.
 4. Toggle **BGP** to **ON**.
 

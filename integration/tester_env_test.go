@@ -67,15 +67,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	const composeDir = "compose/core-tester/"
 
 	composeFile := ComposeFile()
-	composeFiles := []string{composeFile}
-
-	if os.Getenv("VRF") != "" {
-		if err := buildVRFImage(ctx); err != nil {
-			t.Fatalf("build ella-core-vrf image: %v", err)
-		}
-
-		composeFiles = append(composeFiles, "../vrf/vrf-overlay.yaml")
-	}
+	composeFiles := withVRFOverlay(ctx, t, composeFile)
 
 	dc.ComposeCleanup(ctx)
 

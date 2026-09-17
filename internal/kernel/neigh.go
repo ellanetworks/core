@@ -21,6 +21,12 @@ var tracer = otel.Tracer("ella-core/kernel")
 
 var errNoRouteToNeighbour = errors.New("no route to neighbour")
 
+var (
+	neighRouteGetWithOptions = netlink.RouteGetWithOptions
+	neighLinkList            = netlink.LinkList
+	neighSet                 = netlink.NeighSet
+)
+
 // AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
 func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) error {
 	_, span := tracer.Start(
@@ -46,8 +52,8 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 
 	dst := neigh.AsSlice()
 
-	routes, err := netlink.RouteGetWithOptions(dst, &netlink.RouteGetOptions{FIBMatch: true})
-	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+	routes, err := routesToNeighbour(dst)
+	if err != nil {
 		return fmt.Errorf("could not resolve route to %s: %w", neigh, err)
 	}
 
@@ -86,6 +92,35 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 type nexthop struct {
 	ifindex int
 	ip      net.IP
+}
+
+func routesToNeighbour(dst net.IP) ([]netlink.Route, error) {
+	routes, err := neighRouteGetWithOptions(dst, &netlink.RouteGetOptions{FIBMatch: true})
+	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+		return nil, err
+	}
+
+	if len(routes) > 0 {
+		return routes, nil
+	}
+
+	links, err := neighLinkList()
+	if err != nil {
+		return nil, nil
+	}
+
+	for _, link := range links {
+		if link.Type() != "vrf" {
+			continue
+		}
+
+		routes, err := neighRouteGetWithOptions(dst, &netlink.RouteGetOptions{VrfName: link.Attrs().Name, FIBMatch: true})
+		if err == nil && len(routes) > 0 {
+			return routes, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func nexthopsFromRoutes(dst net.IP, routes []netlink.Route) []nexthop {
@@ -137,5 +172,5 @@ func setNeighbour(ifindex int, ip net.IP) error {
 		FlagsExt:  netlink.NTF_EXT_MANAGED,
 	}
 
-	return netlink.NeighSet(&nlNeigh)
+	return neighSet(&nlNeigh)
 }

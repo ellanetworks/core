@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
@@ -185,7 +186,7 @@ func (l *Listener) Start(ctx context.Context) error {
 	lc := net.ListenConfig{}
 
 	if device := vrfDeviceForBindAddress(l.cfg.BindAddress); device != "" {
-		lc.Control = bindToDeviceControl(device)
+		lc.Control = netutil.BindToDeviceControl(device)
 	}
 
 	tcpLn, err := lc.Listen(ctx, "tcp", l.cfg.BindAddress)

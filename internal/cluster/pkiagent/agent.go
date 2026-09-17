@@ -538,6 +538,7 @@ func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig:       tlsCfg,
+			DialContext:           listener.DialContextTCP,
 			ForceAttemptHTTP2:     false,
 			ResponseHeaderTimeout: 10 * time.Second,
 		},

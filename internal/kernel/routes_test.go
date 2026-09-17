@@ -4,10 +4,13 @@
 package kernel
 
 import (
+	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 )
 
@@ -214,5 +217,150 @@ func TestGwOrVia_V4MappedDestination(t *testing.T) {
 
 	if len(gw) != net.IPv4len {
 		t.Errorf("got a %d-byte Gw, want %d", len(gw), net.IPv4len)
+	}
+}
+
+func TestEnsureGatewaysSeedsVRFTableRoutes(t *testing.T) {
+	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+	n6 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n6", Index: 6, MasterIndex: 10}}
+	gw := net.ParseIP("10.6.0.3")
+
+	oldByName, oldByIndex, oldListFiltered, oldNeighSet := kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet
+
+	t.Cleanup(func() {
+		kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet = oldByName, oldByIndex, oldListFiltered, oldNeighSet
+	})
+
+	kernelLinkByName = func(name string) (netlink.Link, error) {
+		if name == "n6" {
+			return n6, nil
+		}
+
+		return nil, errors.New("not found: " + name)
+	}
+
+	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
+		if index == 10 {
+			return upVRF, nil
+		}
+
+		return nil, errors.New("no such index")
+	}
+
+	var gotTable int
+
+	var gotFilter uint64
+
+	kernelRouteListFiltered = func(family int, filter *netlink.Route, filterMask uint64) ([]netlink.Route, error) {
+		gotTable = filter.Table
+		gotFilter = filterMask
+
+		return []netlink.Route{{LinkIndex: 6, Gw: gw, Table: filter.Table}}, nil
+	}
+
+	var seeded []netlink.Neigh
+
+	neighSet = func(n *netlink.Neigh) error {
+		seeded = append(seeded, *n)
+		return nil
+	}
+
+	rk := NewRealKernel("n3", "n6")
+
+	if err := rk.EnsureGatewaysOnInterfaceInNeighTable(context.Background(), N6); err != nil {
+		t.Fatalf("EnsureGatewaysOnInterfaceInNeighTable: %v", err)
+	}
+
+	if gotTable != 1001 {
+		t.Errorf("route listing used table %d, want 1001 (the interface's VRF table)", gotTable)
+	}
+
+	if gotFilter&netlink.RT_FILTER_TABLE == 0 {
+		t.Errorf("route listing filter mask %#x missing RT_FILTER_TABLE", gotFilter)
+	}
+
+	if len(seeded) != 2 || seeded[0].LinkIndex != 6 || !seeded[0].IP.Equal(gw) {
+		t.Errorf("expected gateway %s seeded on link 6 for both address families, got %+v", gw, seeded)
+	}
+}
+
+func TestRouteOperationsUseVRFTable(t *testing.T) {
+	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+	n6 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n6", Index: 6, MasterIndex: 10}}
+
+	oldByName, oldByIndex := kernelLinkByName, netutil.LinkByIndex
+	oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet := kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet
+
+	t.Cleanup(func() {
+		kernelLinkByName, netutil.LinkByIndex = oldByName, oldByIndex
+		kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet = oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet
+	})
+
+	kernelLinkByName = func(name string) (netlink.Link, error) {
+		if name == "n6" {
+			return n6, nil
+		}
+
+		return nil, errors.New("not found: " + name)
+	}
+
+	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
+		if index == 10 {
+			return upVRF, nil
+		}
+
+		return nil, errors.New("no such index")
+	}
+
+	tables := map[string]int{}
+
+	kernelRouteAdd = func(route *netlink.Route) error {
+		tables["add"] = route.Table
+		return nil
+	}
+
+	kernelRouteDel = func(route *netlink.Route) error {
+		tables["del"] = route.Table
+		return nil
+	}
+
+	kernelRouteReplace = func(route *netlink.Route) error {
+		tables["replace"] = route.Table
+		return nil
+	}
+
+	kernelRouteListFiltered = func(family int, filter *netlink.Route, filterMask uint64) ([]netlink.Route, error) {
+		tables["list"] = filter.Table
+		return nil, nil
+	}
+
+	neighSet = func(n *netlink.Neigh) error {
+		return nil
+	}
+
+	rk := NewRealKernel("n3", "n6")
+	dst := netip.MustParsePrefix("10.45.0.0/22")
+	gw := netip.MustParseAddr("10.6.0.3")
+
+	if err := rk.CreateRoute(context.Background(), dst, gw, 100, N6); err != nil {
+		t.Fatalf("CreateRoute: %v", err)
+	}
+
+	if err := rk.DeleteRoute(context.Background(), dst, gw, 100, N6); err != nil {
+		t.Fatalf("DeleteRoute: %v", err)
+	}
+
+	if err := rk.ReplaceRoute(context.Background(), dst, gw, 100, N6); err != nil {
+		t.Fatalf("ReplaceRoute: %v", err)
+	}
+
+	if _, err := rk.ListManagedRoutes(context.Background(), N6); err != nil {
+		t.Fatalf("ListManagedRoutes: %v", err)
+	}
+
+	for _, op := range []string{"add", "del", "replace", "list"} {
+		if tables[op] != 1001 {
+			t.Errorf("%s used table %d, want 1001 (the interface's VRF table)", op, tables[op])
+		}
 	}
 }

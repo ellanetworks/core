@@ -21,10 +21,12 @@ var vrfDatapathScenarios = []string{
 	"gnb/connectivity",
 	"gnb/connectivity_ipv6",
 	"gnb/buffered_downlink",
+	"gnb/error_indication",
 }
 
 var vrfLocalSwitchScenarios = map[string]bool{
 	"gnb/buffered_downlink": true,
+	"gnb/error_indication":  true,
 }
 
 func TestIntegrationTesterVRF(t *testing.T) {

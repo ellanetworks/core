@@ -36,8 +36,11 @@ const (
 const rtProtoElla netlink.RouteProtocol = 0xEC
 
 var (
-	kernelLinkByName  = netlink.LinkByName
-	kernelLinkByIndex = netlink.LinkByIndex
+	kernelLinkByName        = netlink.LinkByName
+	kernelRouteListFiltered = netlink.RouteListFiltered
+	kernelRouteAdd          = netlink.RouteAdd
+	kernelRouteDel          = netlink.RouteDel
+	kernelRouteReplace      = netlink.RouteReplace
 )
 
 // ManagedRoute describes one Ella-owned kernel route.
@@ -213,7 +216,7 @@ func (rk *RealKernel) CreateRoute(ctx context.Context, destination netip.Prefix,
 		nlRoute.Via = via
 	}
 
-	if err := netlink.RouteAdd(&nlRoute); err != nil {
+	if err := kernelRouteAdd(&nlRoute); err != nil {
 		logger.EllaLog.Debug("failed to add route", zap.Any("nl_route", nlRoute))
 		return fmt.Errorf("failed to add route: %v", err)
 	}
@@ -271,7 +274,7 @@ func (rk *RealKernel) DeleteRoute(ctx context.Context, destination netip.Prefix,
 		nlRoute.Via = via
 	}
 
-	if err := netlink.RouteDel(&nlRoute); err != nil {
+	if err := kernelRouteDel(&nlRoute); err != nil {
 		return fmt.Errorf("failed to delete route: %v", err)
 	}
 
@@ -317,7 +320,7 @@ func (rk *RealKernel) ReplaceRoute(ctx context.Context, destination netip.Prefix
 		nlRoute.Via = via
 	}
 
-	if err := netlink.RouteReplace(&nlRoute); err != nil {
+	if err := kernelRouteReplace(&nlRoute); err != nil {
 		return fmt.Errorf("failed to replace route: %v", err)
 	}
 
@@ -369,7 +372,7 @@ func (rk *RealKernel) ListManagedRoutes(ctx context.Context, ifKey NetworkInterf
 	var allRoutes []netlink.Route
 
 	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
-		routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+		routes, err := kernelRouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list routes: %v", err)
 		}
@@ -475,7 +478,7 @@ func (rk *RealKernel) RouteExists(ctx context.Context, destination netip.Prefix,
 
 	_, expectedVia := gwOrVia(destination, gateway)
 
-	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	routes, err := kernelRouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return false, fmt.Errorf("failed to list routes: %v", err)
 	}
@@ -612,12 +615,17 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ctx context.Context,
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
-	nlRoute := netlink.Route{LinkIndex: link.Attrs().Index}
+	table, err := routeTableForLink(link)
+	if err != nil {
+		return fmt.Errorf("failed to resolve route table for interface %q: %v", interfaceName, err)
+	}
+
+	nlRoute := netlink.Route{LinkIndex: link.Attrs().Index, Table: table}
 
 	var routes []netlink.Route
 
 	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
-		r, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF)
+		r, err := kernelRouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
 		if err != nil {
 			return fmt.Errorf("failed to list routes: %v", err)
 		}
