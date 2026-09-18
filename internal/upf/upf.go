@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel/attribute"
@@ -164,6 +165,14 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, fmt.Errorf("failed to create session engine: %w", err)
 	}
 
+	n3VRFDevice, err := netutil.VRFDeviceForInterface(n3Interface.Name)
+	if err != nil {
+		logger.UpfLog.Warn("failed to resolve N3 VRF device, gNB neighbours will be resolved against the main routing table",
+			zap.String("n3_interface", n3Interface.Name), zap.Error(err))
+	}
+
+	se.SetN3VRFDevice(n3VRFDevice)
+
 	notificationReader, err := ringbuf.NewReader(bpfObjects.NocpMap)
 	if err != nil {
 		return nil, fmt.Errorf("coud not start traffic notification reader: %s", err.Error())
@@ -225,8 +234,9 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	if err := enslaveVethPairsToReferenceVRF(n3Interface.Name); err != nil {
-		logger.UpfLog.Warn("failed to enslave veth pairs to N3 VRF, RA injection and downlink buffering may be unavailable",
-			zap.String("n3_interface", n3Interface.Name), zap.Error(err))
+		upf.Close(ctx)
+
+		return nil, fmt.Errorf("failed to enslave veth pairs to the N3 VRF: %w", err)
 	}
 
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped

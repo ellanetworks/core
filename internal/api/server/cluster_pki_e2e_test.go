@@ -47,7 +47,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 	// Leader's own cert generated and pre-pinned. MintJoinToken
 	// embeds this fingerprint so the joiner pins the bootstrap TLS
 	// handshake.
-	leaderAgent := pkiagent.NewAgent(1, clusterID, t.TempDir())
+	leaderAgent := pkiagent.NewAgent(1, clusterID, t.TempDir(), "")
 	if err := leaderAgent.GenerateAndPersist(); err != nil {
 		t.Fatalf("leader generate: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 
 	// Fresh joiner agent. ClusterID intentionally left empty —
 	// JoinFlow is responsible for pulling it from the token.
-	joiner := pkiagent.NewAgent(2, "", t.TempDir())
+	joiner := pkiagent.NewAgent(2, "", t.TempDir(), "")
 
 	if err := joiner.JoinFlow(ctx, leaderAddr, token); err != nil {
 		t.Fatalf("join flow: %v", err)
@@ -128,7 +128,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 
 	// Replay protection: a second JoinFlow with the same token
 	// must fail (single-use).
-	replay := pkiagent.NewAgent(2, "", t.TempDir())
+	replay := pkiagent.NewAgent(2, "", t.TempDir(), "")
 	if err := replay.JoinFlow(ctx, leaderAddr, token); err == nil {
 		t.Fatal("second JoinFlow with the same token should fail")
 	}

@@ -70,7 +70,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	for _, far := range req.FARs {
 		farInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, ebpf.FarInfo{})
 
-		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
+		go conn.addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
 		sess.PutFar(far.FARID, farInfo)
 		farMap[far.FARID] = farInfo
@@ -293,7 +293,7 @@ func uplinkTEID(createdPDRs []SPDRInfo) uint32 {
 
 // addRemoteIPToNeigh adds the given remote IP (as an in6_addr [16]byte) to the kernel
 // neighbour table so that GTP encapsulated packets can be forwarded.
-func addRemoteIPToNeigh(ctx context.Context, remoteIP [16]byte) {
+func (conn *SessionEngine) addRemoteIPToNeigh(ctx context.Context, remoteIP [16]byte) {
 	var zero [16]byte
 	if remoteIP == zero {
 		return
@@ -304,7 +304,7 @@ func addRemoteIPToNeigh(ctx context.Context, remoteIP [16]byte) {
 		return
 	}
 
-	if err := kernel.AddNeighbour(ctx, ip); err != nil {
+	if err := kernel.AddNeighbour(ctx, ip, conn.N3VRFDevice()); err != nil {
 		logger.UpfLog.Warn("could not add gnb IP to neighbour list", logger.IPAddress(ip.String()), zap.Error(err))
 	}
 }

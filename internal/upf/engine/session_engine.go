@@ -26,6 +26,7 @@ type SessionEngine struct {
 	nodeAddrV4              net.IP
 	n3AddressIPv4           netip.Addr // may be zero if not available
 	n3AddressIPv6           netip.Addr // may be zero if not available
+	n3VRFDevice             string
 	advertisedN3AddressIPv4 netip.Addr
 	advertisedN3AddressIPv6 netip.Addr
 	BpfObjects              *ebpf.BpfObjects
@@ -220,6 +221,20 @@ func (pc *SessionEngine) SetAdvertisedN3Addresses(newN3AddrIPv4, newN3AddrIPv6 n
 
 	pc.advertisedN3AddressIPv4 = newN3AddrIPv4
 	pc.advertisedN3AddressIPv6 = newN3AddrIPv6
+}
+
+func (pc *SessionEngine) SetN3VRFDevice(device string) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.n3VRFDevice = device
+}
+
+func (pc *SessionEngine) N3VRFDevice() string {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+
+	return pc.n3VRFDevice
 }
 
 func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 netip.Addr, advertisedN3IPv4 netip.Addr, advertisedN3IPv6 netip.Addr, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {

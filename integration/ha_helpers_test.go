@@ -279,7 +279,7 @@ interfaces:
     address: %q
     port: 38412
   n3:
-    name: "eth0"
+    name: "n3"
   n6:
     name: "n6"
   api:
@@ -946,7 +946,7 @@ interfaces:
     address: "0.0.0.0"
     port: 38412
   n3:
-    name: "eth0"
+    name: "n3"
   n6:
     name: "n6"
   api:

@@ -11,6 +11,10 @@ IP=/bin/ip
 : "${VRF_TABLE_CP:=1002}"
 : "${VRF_CP_IFACES:=eth0}"
 : "${VRF_UP_ROUTES:=}"
+: "${VRF_MAIN_DEFAULT:=}"
+: "${VRF_MAIN_DEFAULT_IFACE:=mgmt0}"
+: "${VRF_MAIN_DEFAULT_ADDR:=10.200.0.1/24}"
+: "${VRF_MAIN_DEFAULT_GW:=10.200.0.254}"
 : "${CORE_BIN:=/bin/core}"
 : "${CORE_CONFIG:=/core.yaml}"
 
@@ -129,8 +133,17 @@ for entry in $DEFAULT_GWS; do
   fi
 done
 
+if [ -n "${VRF_MAIN_DEFAULT:-}" ]; then
+  $IP link add "$VRF_MAIN_DEFAULT_IFACE" type dummy
+  $IP addr add "$VRF_MAIN_DEFAULT_ADDR" dev "$VRF_MAIN_DEFAULT_IFACE"
+  $IP link set "$VRF_MAIN_DEFAULT_IFACE" up
+  $IP route replace default via "$VRF_MAIN_DEFAULT_GW" dev "$VRF_MAIN_DEFAULT_IFACE" table main
+  log "installed dead-end default route in table main via $VRF_MAIN_DEFAULT_IFACE"
+fi
+
 log "VRF setup done"
 $IP link show type vrf || true
+$IP route show table main || true
 $IP route show table "$VRF_TABLE_UP" || true
 $IP route show table "$VRF_TABLE_CP" || true
 

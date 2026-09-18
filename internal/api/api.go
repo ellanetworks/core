@@ -137,26 +137,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	s.httpServer = srv
 
 	go func() {
-		lc := net.ListenConfig{}
-
-		bindDevice := apiBindDevice(cfg.Interfaces.API)
-		if bindDevice != "" {
-			lc.Control = netutil.BindToDeviceControl(bindDevice)
-		}
-
-		// A bind can transiently fail while a shared N2/N3 interface flaps; retry.
-		var ln net.Listener
-
-		listenErr := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, netutil.IsAddrNotAvailable, func() error {
-			l, err := lc.Listen(ctx, "tcp", httpAddr)
-			if err != nil {
-				return err
-			}
-
-			ln = l
-
-			return nil
-		})
+		ln, bindDevice, listenErr := listenAPI(ctx, cfg.Interfaces.API, httpAddr)
 		if listenErr != nil {
 			logger.APILog.Fatal("couldn't create listener", zap.Error(listenErr))
 			return
@@ -371,6 +352,36 @@ func (s *Server) Handler() http.Handler {
 // Shutdown gracefully shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+func listenAPI(ctx context.Context, api config.APIInterface, addr string) (net.Listener, string, error) {
+	var (
+		ln         net.Listener
+		bindDevice string
+	)
+
+	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, netutil.IsAddrNotAvailable, func() error {
+		lc := net.ListenConfig{}
+
+		bindDevice = apiBindDevice(api)
+		if bindDevice != "" {
+			lc.Control = netutil.BindToDeviceControl(bindDevice)
+		}
+
+		l, err := lc.Listen(ctx, "tcp", addr)
+		if err != nil {
+			return err
+		}
+
+		ln = l
+
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	return ln, bindDevice, nil
 }
 
 func apiBindDevice(api config.APIInterface) string {

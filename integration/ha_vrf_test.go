@@ -5,13 +5,88 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
+	"path"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/suites"
 )
 
 const haVRFComposeDir = "compose/ha-vrf/"
+
+const haVRFComposeProject = "ha-vrf"
+
+func assertVRFTopology(t *testing.T, ctx context.Context, dc *DockerClient) {
+	t.Helper()
+
+	want := map[string]string{"eth0": "cp-vrf", "n3": "up-vrf", "n6": "up-vrf"}
+
+	for _, service := range haNodeServices {
+		container, err := dc.ResolveComposeContainer(ctx, haVRFComposeProject, service)
+		if err != nil {
+			t.Fatalf("resolve container for %s: %v", service, err)
+		}
+
+		for iface, wantVRF := range want {
+			got, err := vrfMasterOf(ctx, dc, container, iface)
+			if err != nil {
+				t.Fatalf("%s: read VRF master of %s: %v", service, iface, err)
+			}
+
+			if got != wantVRF {
+				t.Fatalf("%s: %s is enslaved to %q, expected %q", service, iface, got, wantVRF)
+			}
+		}
+
+		iface, err := mainTableDefaultIface(ctx, dc, container)
+		if err != nil {
+			t.Fatalf("%s: read main-table default route: %v", service, err)
+		}
+
+		if iface != "mgmt0" {
+			t.Fatalf("%s: main-table default route is on %q, expected mgmt0", service, iface)
+		}
+
+		HALogf(t, "%s: eth0 in cp-vrf, n3+n6 in up-vrf, main-table default via mgmt0", service)
+	}
+}
+
+func vrfMasterOf(ctx context.Context, dc *DockerClient, container, iface string) (string, error) {
+	argv := []string{"/bin/busybox", "sh", "-c", "readlink /sys/class/net/" + iface + "/master || true"}
+
+	out, err := dc.Exec(ctx, container, argv, false, 15*time.Second, nil)
+	if err != nil {
+		return "", err
+	}
+
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return "", nil
+	}
+
+	return path.Base(out), nil
+}
+
+func mainTableDefaultIface(ctx context.Context, dc *DockerClient, container string) (string, error) {
+	out, err := dc.Exec(ctx, container, []string{"/bin/busybox", "cat", "/proc/net/route"}, false, 15*time.Second, nil)
+	if err != nil {
+		return "", err
+	}
+
+	for line := range strings.SplitSeq(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[1] != "00000000" {
+			continue
+		}
+
+		return fields[0], nil
+	}
+
+	return "", fmt.Errorf("no default route in table main:\n%s", out)
+}
 
 func TestIntegrationHAVRFClusterFormation(t *testing.T) {
 	suites.RequireAll(t, suites.HAVRF)
@@ -31,6 +106,10 @@ func TestIntegrationHAVRFClusterFormation(t *testing.T) {
 		}
 	}()
 
+	if err := buildVRFImage(ctx); err != nil {
+		t.Fatalf("build ella-core-vrf image: %v", err)
+	}
+
 	HALog(t, "bringing up staged HA cluster with VRF-enslaved cluster interfaces")
 
 	clients, err := bringUpHAClusterAt(t, ctx, dockerClient, haVRFComposeDir, haNodeServices, nil)
@@ -41,6 +120,8 @@ func TestIntegrationHAVRFClusterFormation(t *testing.T) {
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haVRFComposeDir, haNodeServices, clients)
 	})
+
+	assertVRFTopology(t, ctx, dockerClient)
 
 	HALog(t, "cluster is ready, verifying roles")
 

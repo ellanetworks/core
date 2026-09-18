@@ -185,7 +185,7 @@ func (l *Listener) Deregister(alpn string) {
 func (l *Listener) Start(ctx context.Context) error {
 	lc := net.ListenConfig{}
 
-	if device := vrfDeviceForBindAddress(l.cfg.BindAddress); device != "" {
+	if device := vrfDeviceForBindAddress(ctx, l.cfg.BindAddress); device != "" {
 		lc.Control = netutil.BindToDeviceControl(device)
 	}
 
