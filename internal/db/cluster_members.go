@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const ClusterMembersTableName = "cluster_members"
@@ -276,6 +278,12 @@ func (db *Database) setDrainState(ctx context.Context, nodeID int, from []string
 	span.SetStatus(codes.Ok, "")
 
 	if settled == "" {
+		logger.From(ctx, logger.DBLog).Warn(
+			"Drain state compare skipped: the leader predates it and applied the transition unconditionally",
+			zap.Int("node_id", nodeID),
+			zap.String("state", state),
+		)
+
 		settled = state
 	}
 

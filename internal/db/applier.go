@@ -1544,7 +1544,7 @@ func (db *Database) applySetDrainState(ctx context.Context, p *setDrainStatePayl
 	member := &ClusterMember{
 		NodeID:         p.NodeID,
 		DrainState:     p.DrainState,
-		DrainUpdatedAt: p.DrainUpdatedAt,
+		DrainUpdatedAt: time.Now().Unix(),
 	}
 
 	var outcome sqlair.Outcome

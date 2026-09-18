@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 )
@@ -251,7 +252,51 @@ func TestDBSetDrainStateIf(t *testing.T) {
 		t.Fatalf("persisted drainState = %q, want %q", member.DrainState, db.DrainStateDrained)
 	}
 
+	if member.DrainUpdatedAt == 0 {
+		t.Fatal("drainUpdatedAt was not stamped")
+	}
+
 	if _, err := database.SetDrainStateIf(ctx, 99, []string{db.DrainStateActive}, db.DrainStateDraining); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound for an unknown node", err)
+	}
+}
+
+func TestDBSetDrainStateIfLeavesTheDeadlineClockAloneOnANoOp(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:      1,
+		RaftAddress: "127.0.0.1:7000",
+		APIAddress:  "https://127.0.0.1:5000",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("Couldn't upsert cluster member: %s", err)
+	}
+
+	if _, err := database.SetDrainStateIf(ctx, 1, []string{db.DrainStateActive}, db.DrainStateDraining); err != nil {
+		t.Fatalf("Couldn't start drain: %s", err)
+	}
+
+	started, err := database.GetClusterMember(ctx, 1)
+	if err != nil {
+		t.Fatalf("Couldn't get cluster member: %s", err)
+	}
+
+	time.Sleep(1100 * time.Millisecond)
+
+	if _, err := database.SetDrainStateIf(ctx, 1, []string{db.DrainStateActive}, db.DrainStateDraining); err != nil {
+		t.Fatalf("Couldn't re-drain: %s", err)
+	}
+
+	after, err := database.GetClusterMember(ctx, 1)
+	if err != nil {
+		t.Fatalf("Couldn't get cluster member: %s", err)
+	}
+
+	if after.DrainUpdatedAt != started.DrainUpdatedAt {
+		t.Fatalf("drainUpdatedAt moved from %d to %d: re-draining restarted the deadline clock",
+			started.DrainUpdatedAt, after.DrainUpdatedAt)
 	}
 }
