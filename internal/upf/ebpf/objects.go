@@ -105,6 +105,8 @@ type BpfObjects struct {
 	UseTCX           bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
+	N3RoutingIndex   uint32
+	N6RoutingIndex   uint32
 	N3Vlan           uint32
 	N6Vlan           uint32
 
@@ -124,6 +126,8 @@ func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex in
 		LocalSwitch:      localSwitch,
 		N3InterfaceIndex: uint32(n3ifindex),
 		N6InterfaceIndex: uint32(n6ifindex),
+		N3RoutingIndex:   uint32(n3ifindex),
+		N6RoutingIndex:   uint32(n6ifindex),
 		N3Vlan:           n3vlan,
 		N6Vlan:           n6vlan,
 		pagingList:       make(map[DataNotification]bool),
@@ -241,6 +245,14 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 	if err := spec.Variables["n6_ifindex"].Set(bpfObjects.N6InterfaceIndex); err != nil {
 		logger.UpfLog.Error("failed to set n6 interface index", zap.Error(err))
 		return err
+	}
+
+	if err := spec.Variables["n3_routing_ifindex"].Set(bpfObjects.N3RoutingIndex); err != nil {
+		return fmt.Errorf("set n3 routing interface index: %w", err)
+	}
+
+	if err := spec.Variables["n6_routing_ifindex"].Set(bpfObjects.N6RoutingIndex); err != nil {
+		return fmt.Errorf("set n6 routing interface index: %w", err)
 	}
 
 	if err := spec.Variables["n3_vlan"].Set(bpfObjects.N3Vlan); err != nil {

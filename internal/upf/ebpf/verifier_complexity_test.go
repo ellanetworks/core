@@ -121,12 +121,14 @@ func loadOneProgram(t *testing.T, spec *ebpf.CollectionSpec, name string, cfg da
 	}
 
 	vars := map[string]any{
-		"masquerade":   cfg.masquerade,
-		"flowact":      cfg.flowact,
-		"n3_ifindex":   uint32(2),
-		"n6_ifindex":   uint32(3),
-		"nat_port_min": NatPortMin,
-		"nat_port_max": NatPortMax,
+		"masquerade":         cfg.masquerade,
+		"flowact":            cfg.flowact,
+		"n3_ifindex":         uint32(2),
+		"n6_ifindex":         uint32(3),
+		"n3_routing_ifindex": uint32(4),
+		"n6_routing_ifindex": uint32(5),
+		"nat_port_min":       NatPortMin,
+		"nat_port_max":       NatPortMax,
 	}
 
 	for k, v := range vars {
