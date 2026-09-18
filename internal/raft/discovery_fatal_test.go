@@ -5,6 +5,7 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -19,18 +20,21 @@ func TestStartDiscoveryWithoutClusterListenerIsTerminal(t *testing.T) {
 	m := &Manager{nodeID: 3}
 	m.discoveryPending.Store(true)
 
-	m.StartDiscovery(context.Background())
-
-	if got := m.DiscoveryError(); got == "" {
+	err := m.StartDiscovery(context.Background())
+	if err == nil {
 		t.Fatal("a missing cluster listener can never resolve by retrying; it must be reported as terminal")
 	}
 
-	if !strings.Contains(m.DiscoveryError(), "cluster listener") {
-		t.Errorf("discovery error should name the missing listener, got %q", m.DiscoveryError())
+	if !errors.Is(err, ErrDiscoveryFatal) {
+		t.Errorf("error must be terminal, got %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "cluster listener") {
+		t.Errorf("discovery error should name the missing listener, got %q", err)
 	}
 }
 
-func TestRunDiscoveryStopsOnTerminalError(t *testing.T) {
+func TestStartDiscoveryStopsOnFounderBootstrapFailure(t *testing.T) {
 	t.Parallel()
 
 	applier := newTestApplier(t)
@@ -62,18 +66,16 @@ func TestRunDiscoveryStopsOnTerminalError(t *testing.T) {
 		Leaf:             pki.LeafFunc(1),
 	}))
 
-	mgr.StartDiscovery(ctx)
-
-	deadline := time.Now().Add(10 * time.Second)
-	for mgr.DiscoveryError() == "" {
-		if time.Now().After(deadline) {
-			t.Fatal("discovery kept retrying an error that can never succeed instead of stopping")
-		}
-
-		time.Sleep(10 * time.Millisecond)
+	err = mgr.StartDiscovery(ctx)
+	if err == nil {
+		t.Fatal("a founder that cannot bootstrap must report it instead of retrying forever")
 	}
 
-	if !strings.Contains(mgr.DiscoveryError(), "bootstrap") {
-		t.Errorf("discovery error should explain the bootstrap failure, got %q", mgr.DiscoveryError())
+	if !errors.Is(err, ErrDiscoveryFatal) {
+		t.Errorf("error must be terminal, got %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "bootstrap") {
+		t.Errorf("discovery error should explain the bootstrap failure, got %q", err)
 	}
 }

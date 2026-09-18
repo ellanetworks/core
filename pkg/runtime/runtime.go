@@ -255,7 +255,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	dbInstance.StartDiscovery(ctx)
+	if err := dbInstance.StartDiscovery(ctx); err != nil {
+		if ctx.Err() != nil {
+			logger.EllaLog.Info("Shutdown signal received, exiting.")
+
+			return nil
+		}
+
+		return fmt.Errorf("couldn't form the cluster: %w", err)
+	}
 
 	var wg sync.WaitGroup
 

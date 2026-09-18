@@ -152,7 +152,6 @@ type Manager struct {
 	leaderClient *leaderHTTPClient
 
 	discoveryPending atomic.Bool
-	discoveryFatal   atomic.Pointer[string]
 
 	barrieredTerm atomic.Uint64
 	barrierMu     sync.Mutex

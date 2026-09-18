@@ -5,6 +5,8 @@ package raft
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,7 +44,7 @@ func newDiscoveryTestManager(t *testing.T, peers []string) *Manager {
 	return m
 }
 
-func TestStartDiscoveryRetriesPastJoinTimeout(t *testing.T) {
+func TestStartDiscoveryGivesUpAfterJoinTimeout(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,16 +52,17 @@ func TestStartDiscoveryRetriesPastJoinTimeout(t *testing.T) {
 
 	m := newDiscoveryTestManager(t, []string{"127.0.0.1:1"})
 
-	m.StartDiscovery(ctx)
-
-	time.Sleep(300 * time.Millisecond)
-
-	if !m.discoveryPending.Load() {
-		t.Error("discovery must still be pending, not abandoned")
+	err := m.StartDiscovery(ctx)
+	if err == nil {
+		t.Fatal("a joiner that never reaches a peer must give up so the supervisor restarts it")
 	}
 
-	if got := m.DiscoveryError(); got != "" {
-		t.Errorf("an unreachable peer is transient and must never be treated as terminal, got %q", got)
+	if !errors.Is(err, ErrDiscoveryFatal) {
+		t.Errorf("giving up must be terminal for the caller, got %v", err)
+	}
+
+	if !m.discoveryPending.Load() {
+		t.Error("a node that never joined must not be marked as formed")
 	}
 }
 
@@ -69,14 +72,57 @@ func TestStartDiscoveryStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	m := newDiscoveryTestManager(t, []string{"127.0.0.1:1"})
+	m.config.JoinTimeout = time.Minute
 
-	m.StartDiscovery(ctx)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
 
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	time.Sleep(200 * time.Millisecond)
+	err := m.StartDiscovery(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("shutdown must surface as a cancellation, got %v", err)
+	}
+
+	if errors.Is(err, ErrDiscoveryFatal) {
+		t.Error("shutting down is not a configuration error and must not be reported as one")
+	}
 
 	if !m.discoveryPending.Load() {
 		t.Error("cancelling must not mark discovery successful")
+	}
+}
+
+func TestStartDiscoveryReportsWhyFormedPeersWereSkipped(t *testing.T) {
+	t.Parallel()
+
+	m, serverAddr := newProbePeerHarness(t, statusHandler(&statusClusterBlock{
+		Role:          "Leader",
+		NodeID:        1,
+		ClusterID:     "cluster-1",
+		SchemaVersion: 12,
+	}))
+
+	m.nodeID = 2
+	m.config = ClusterConfig{
+		Peers:            []string{serverAddr},
+		AdvertiseAddress: "127.0.0.1:9999",
+		HasJoinToken:     true,
+		SchemaVersion:    9,
+		JoinTimeout:      50 * time.Millisecond,
+	}
+	m.discoveryPending.Store(true)
+
+	err := m.StartDiscovery(context.Background())
+	if err == nil {
+		t.Fatal("a joiner that can never accept any peer must give up")
+	}
+
+	if strings.Contains(err.Error(), "no peer") {
+		t.Errorf("the peer had formed a cluster; reporting otherwise sends the operator to the wrong place: %q", err)
+	}
+
+	if !strings.Contains(err.Error(), "schema") {
+		t.Errorf("error should name the schema mismatch that blocked the join, got %q", err)
 	}
 }
