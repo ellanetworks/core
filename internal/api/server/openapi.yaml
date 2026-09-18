@@ -3030,20 +3030,9 @@ paths:
       tags: [Cluster]
       summary: Drain a specific cluster member
       description: >-
-        Marks the target node as draining. The transition is replicated
-        through Raft; the drain reconciler on the target node then acts on
-        it: it stops the node advertising itself to RANs (AMF Status
-        Indication, TS 38.413), off-loads its subscribers to active peers,
-        stops the local BGP speaker, yields Raft leadership when the target
-        is the current leader, and finally moves `drainState` to `drained`.
-
-        The response carries the drain state the node is left in. Draining
-        a node that is already `draining` or `drained` leaves it untouched
-        and reports its current state.
-
-        In HA mode this endpoint can be called on any node: the state
-        transition is compared and written on the leader, which followers
-        forward to. Requires admin privileges.
+        Marks the target node as draining. It stops the node advertising itself to RANs,
+        off-loads its subscribers to active peers,
+        stops the local BGP speaker.
       parameters:
         - name: id
           in: path
@@ -3073,16 +3062,7 @@ paths:
       tags: [Cluster]
       summary: Resume a drained cluster member
       description: >-
-        Reverses drain on the target node: clears `drainState` back to
-        `"active"`, after which the target's drain reconciler restarts its
-        local BGP speaker (if BGP is globally enabled) and makes the node
-        eligible again. Does not reverse AMF Status Indication (a new NG
-        Setup on RAN reconnection re-establishes the GUAMI) and does not
-        reclaim Raft leadership yielded during drain. Idempotent: resuming
-        an active node is a no-op.
-
-        In HA mode this endpoint can be called on any node. Requires admin
-        privileges.
+        Reverses drain on the target node.
       parameters:
         - name: id
           in: path

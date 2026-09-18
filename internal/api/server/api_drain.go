@@ -27,11 +27,6 @@ type DrainResponse struct {
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
-//
-// Runs on any node: the state transition is a replicated operation that
-// followers forward to the leader, and the drain reconciler on the target
-// node acts on the replicated state, including yielding Raft leadership
-// when the drained node is the leader.
 func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
@@ -71,9 +66,6 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
-//
-// Runs on any node, like drain. Does not reclaim Raft leadership yielded
-// during the drain.
 func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
