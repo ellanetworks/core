@@ -24,9 +24,9 @@ export function defaultForce(health: NodeHealth): boolean {
 
 const FORCE_HELP: Record<NodeHealth, string> = {
   unhealthy:
-    "Autopilot reports this node unhealthy. It will not drain on its own.",
+    "The leader reports this node unhealthy. It will not drain on its own.",
   healthy: "This node looks healthy. Drain it first if you can.",
-  unknown: "Autopilot has not reported this node yet.",
+  unknown: "The leader has not reported on this node yet.",
 };
 
 interface Props {

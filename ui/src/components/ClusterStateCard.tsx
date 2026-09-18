@@ -17,7 +17,7 @@ import type { APIStatus } from "@/queries/status";
 import type { AutopilotState } from "@/queries/cluster";
 
 const CONVERGING =
-  "Autopilot has not reported yet. It typically takes a moment to converge after a leadership change.";
+  "The leader has not reported yet. This is normal for a moment after a leadership change.";
 
 const InfoRow: React.FC<{
   label: string;

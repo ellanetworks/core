@@ -359,7 +359,7 @@ const ClusterPage: React.FC = () => {
           if (!ap) {
             return (
               <CenteredCell>
-                <Tooltip title="Autopilot has not reported this node yet (e.g. during post-failover cold-start).">
+                <Tooltip title="The leader has not reported on this node yet.">
                   <Chip label="—" size="small" variant="outlined" />
                 </Tooltip>
               </CenteredCell>
@@ -367,13 +367,11 @@ const ClusterPage: React.FC = () => {
           }
           return (
             <CenteredCell>
-              <Tooltip title={`Autopilot nodeStatus: ${ap.nodeStatus}`}>
-                <Chip
-                  label={ap.healthy ? "healthy" : "unhealthy"}
-                  size="small"
-                  color={ap.healthy ? "success" : "error"}
-                />
-              </Tooltip>
+              <Chip
+                label={ap.healthy ? "Healthy" : "Unhealthy"}
+                size="small"
+                color={ap.healthy ? "success" : "error"}
+              />
             </CenteredCell>
           );
         },
@@ -401,9 +399,7 @@ const ClusterPage: React.FC = () => {
             ? "Drain this node."
             : "Node is drained; use Resume to reverse or Remove to delete.";
 
-          const resumeTitle = canResume
-            ? "Resume."
-            : "Node is already active.";
+          const resumeTitle = canResume ? "Resume." : "Node is already active.";
 
           const removeTitle = isCurrentLeader
             ? "Cannot remove the current leader. Drain it first, then retry."
@@ -550,7 +546,6 @@ const ClusterPage: React.FC = () => {
         <DrainNodeModal
           open
           nodeId={drainTarget.nodeId}
-          isLeader={drainTarget.isLeader}
           onClose={() => setDrainTarget(null)}
           onSuccess={handleDrainSuccess}
         />

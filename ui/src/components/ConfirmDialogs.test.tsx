@@ -69,14 +69,13 @@ describe("DeleteConfirmationModal", () => {
 describe("DrainNodeModal", () => {
   const PATH = "/api/v1/cluster/members/:id/drain";
 
-  const render = (isLeader = false) => {
+  const render = () => {
     const onClose = vi.fn();
     const onSuccess = vi.fn();
     renderWithProviders(
       <DrainNodeModal
         open
         nodeId={2}
-        isLeader={isLeader}
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -85,25 +84,13 @@ describe("DrainNodeModal", () => {
     return { onClose, onSuccess };
   };
 
-  it("names the node and hides the explanation until asked", async () => {
-    const user = userEvent.setup();
+  it("names the node and says what drain does", () => {
     render();
 
     expect(dialog()).toHaveAccessibleName("Drain node 2?");
-    expect(screen.queryByText(/stop selecting this node/)).not.toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: /What this does/ }));
-    await waitFor(() =>
-      expect(screen.getByText(/stop selecting this node/)).toBeVisible(),
-    );
-  });
-
-  it("mentions leadership transfer only for a leader", async () => {
-    const user = userEvent.setup();
-    render(true);
-
-    await user.click(screen.getByRole("button", { name: /What this does/ }));
-    await screen.findByText(/Transfers Raft leadership/);
+    expect(
+      screen.getByText(/moves its subscribers to the rest of the cluster/),
+    ).toBeVisible();
   });
 
   it("passes the drain result to onSuccess and closes", async () => {
@@ -136,7 +123,7 @@ describe("DrainNodeModal", () => {
 describe("ResumeNodeModal", () => {
   const PATH = "/api/v1/cluster/members/:id/resume";
 
-  it("lists what resume does not reverse and confirms", async () => {
+  it("names the node and confirms", async () => {
     const user = userEvent.setup();
     api.post(PATH, () => ({}));
     const onClose = vi.fn();
@@ -153,12 +140,7 @@ describe("ResumeNodeModal", () => {
     );
 
     expect(dialog()).toHaveAccessibleName("Resume node 3?");
-    await user.click(
-      screen.getByRole("button", { name: /What Resume does not reverse/ }),
-    );
-    await waitFor(() =>
-      expect(screen.getByText(/stays a follower/)).toBeVisible(),
-    );
+    expect(screen.getByText(/Clears drain state/)).toBeVisible();
 
     await user.click(button(/^Resume$/));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());

@@ -9,7 +9,6 @@ import ConfirmDialog from "@/components/form/ConfirmDialog";
 interface Props {
   open: boolean;
   nodeId: number;
-  isLeader: boolean;
   onClose: () => void;
   onSuccess: (result: DrainResponse) => void;
 }
@@ -17,7 +16,6 @@ interface Props {
 const DrainNodeModal: React.FC<Props> = ({
   open,
   nodeId,
-  isLeader,
   onClose,
   onSuccess,
 }) => {
