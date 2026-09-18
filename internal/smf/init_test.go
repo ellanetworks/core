@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package amf
+package smf
 
 import (
-	"testing"
-
-	"github.com/ellanetworks/core/internal/metrics"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -14,9 +11,6 @@ import (
 
 var testSpanRecorder = tracetest.NewSpanRecorder()
 
-func TestMain(m *testing.M) {
-	metrics.RegisterMetrics()
+func init() {
 	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(testSpanRecorder)))
-
-	m.Run()
 }
