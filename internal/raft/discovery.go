@@ -54,38 +54,45 @@ type statusResponse struct {
 	Result statusResult `json:"result"`
 }
 
-// StartDiscovery performs cluster formation for HA mode in the background.
-// It must be called after the cluster listener starts so peers can reach
-// this node's cluster port. Standalone or resumed state makes it a no-op.
-func (m *Manager) StartDiscovery(ctx context.Context) {
+// StartDiscovery performs cluster formation for HA mode.
+func (m *Manager) StartDiscovery(ctx context.Context) error {
 	if !m.discoveryPending.Load() {
-		return
+		return nil
 	}
 
 	if m.clusterListener == nil {
-		m.setDiscoveryFatal(fmt.Errorf("%w: cluster discovery requires a cluster listener (mTLS)", ErrDiscoveryFatal))
-		return
+		return fmt.Errorf("%w: cluster discovery requires a cluster listener (mTLS)", ErrDiscoveryFatal)
+	}
+
+	if !m.config.HasJoinToken {
+		if err := m.bootstrapFounder(ctx); err != nil {
+			return err
+		}
+
+		m.discoveryPending.Store(false)
+
+		return nil
 	}
 
 	go m.runDiscovery(ctx)
+
+	return nil
 }
 
-func (m *Manager) setDiscoveryFatal(err error) {
-	msg := err.Error()
-	m.discoveryFatal.Store(&msg)
-
-	logger.RaftLog.Error("Cluster discovery cannot continue; fix the configuration and restart",
-		zap.Int("node_id", m.nodeID),
-		zap.Error(err),
-	)
-}
-
-func (m *Manager) DiscoveryError() string {
-	if msg := m.discoveryFatal.Load(); msg != nil {
-		return *msg
+func (m *Manager) bootstrapFounder(ctx context.Context) error {
+	if err := m.assertNoFormedPeer(ctx); err != nil {
+		return err
 	}
 
-	return ""
+	logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
+		zap.Int("node_id", m.nodeID),
+	)
+
+	if err := m.bootstrapCluster(); err != nil {
+		return fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
+	}
+
+	return nil
 }
 
 func (m *Manager) runDiscovery(ctx context.Context) {
@@ -113,7 +120,11 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 		joined, err := m.discoveryTick(ctx)
 
 		if errors.Is(err, ErrDiscoveryFatal) {
-			m.setDiscoveryFatal(err)
+			logger.RaftLog.Error("Cluster discovery cannot continue; fix the configuration and restart",
+				zap.Int("node_id", m.nodeID),
+				zap.Error(err),
+			)
+
 			return
 		}
 
@@ -157,22 +168,6 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 }
 
 func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
-	if !m.config.HasJoinToken {
-		if err := m.assertNoFormedPeer(ctx); err != nil {
-			return false, err
-		}
-
-		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
-			zap.Int("node_id", m.nodeID),
-		)
-
-		if err := m.bootstrapCluster(); err != nil {
-			return false, fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
-		}
-
-		return true, nil
-	}
-
 	for _, peerAddr := range m.config.Peers {
 		if peerAddr == m.config.AdvertiseAddress {
 			continue

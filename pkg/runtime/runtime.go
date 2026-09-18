@@ -255,7 +255,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	dbInstance.StartDiscovery(ctx)
+	if err := dbInstance.StartDiscovery(ctx); err != nil {
+		return fmt.Errorf("couldn't form the cluster: %w", err)
+	}
 
 	var wg sync.WaitGroup
 

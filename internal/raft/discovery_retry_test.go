@@ -50,16 +50,14 @@ func TestStartDiscoveryRetriesPastJoinTimeout(t *testing.T) {
 
 	m := newDiscoveryTestManager(t, []string{"127.0.0.1:1"})
 
-	m.StartDiscovery(ctx)
+	if err := m.StartDiscovery(ctx); err != nil {
+		t.Fatalf("StartDiscovery: %v", err)
+	}
 
 	time.Sleep(300 * time.Millisecond)
 
 	if !m.discoveryPending.Load() {
 		t.Error("discovery must still be pending, not abandoned")
-	}
-
-	if got := m.DiscoveryError(); got != "" {
-		t.Errorf("an unreachable peer is transient and must never be treated as terminal, got %q", got)
 	}
 }
 
@@ -70,7 +68,9 @@ func TestStartDiscoveryStopsOnContextCancel(t *testing.T) {
 
 	m := newDiscoveryTestManager(t, []string{"127.0.0.1:1"})
 
-	m.StartDiscovery(ctx)
+	if err := m.StartDiscovery(ctx); err != nil {
+		t.Fatalf("StartDiscovery: %v", err)
+	}
 
 	time.Sleep(50 * time.Millisecond)
 	cancel()

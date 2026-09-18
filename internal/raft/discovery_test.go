@@ -300,7 +300,7 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 	}
 }
 
-func TestDiscoveryTick_FounderRefusesFormedPeer(t *testing.T) {
+func TestStartDiscovery_FounderRefusesFormedPeer(t *testing.T) {
 	m, serverAddr := newProbePeerHarness(t, statusHandler(&statusClusterBlock{
 		Role:          "Leader",
 		NodeID:        1,
@@ -315,22 +315,23 @@ func TestDiscoveryTick_FounderRefusesFormedPeer(t *testing.T) {
 		HasJoinToken:     false,
 		SchemaVersion:    9,
 	}
+	m.discoveryPending.Store(true)
 
-	joined, err := m.discoveryTick(t.Context())
+	err := m.StartDiscovery(t.Context())
 	if err == nil {
-		t.Fatalf("a founder must not bootstrap against a peer that already has a cluster (joined=%v)", joined)
+		t.Fatal("a founder must not bootstrap against a peer that already has a cluster")
 	}
 
 	if !errors.Is(err, ErrDiscoveryFatal) {
-		t.Errorf("error must be terminal so discovery stops retrying, got %v", err)
-	}
-
-	if joined {
-		t.Error("joined should be false when the founder refuses to bootstrap")
+		t.Errorf("error must be terminal so the caller stops instead of retrying, got %v", err)
 	}
 
 	if !strings.Contains(err.Error(), "cluster-1") || !strings.Contains(err.Error(), "join-token") {
 		t.Errorf("error should name the existing cluster and the missing join-token, got %q", err)
+	}
+
+	if !m.discoveryPending.Load() {
+		t.Error("a refused founder has not formed anything, so discovery must stay pending")
 	}
 }
 
