@@ -16,6 +16,9 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { APIStatus } from "@/queries/status";
 import type { AutopilotState } from "@/queries/cluster";
 
+const CONVERGING =
+  "Autopilot has not reported yet. It typically takes a moment to converge after a leadership change.";
+
 const InfoRow: React.FC<{
   label: string;
   value?: React.ReactNode;
@@ -94,47 +97,97 @@ const CopyableValue: React.FC<{ value: string }> = ({ value }) => {
   );
 };
 
-const HealthValue: React.FC<{ autopilot?: AutopilotState }> = ({
-  autopilot,
+const ToleranceChip: React.FC<{ failureTolerance: number }> = ({
+  failureTolerance,
 }) => {
-  if (!autopilot) {
+  if (failureTolerance < 1) {
     return (
-      <UnknownChip title="Autopilot has not reported yet. It typically takes a moment to converge after a leadership change." />
-    );
-  }
-  return (
-    <Chip
-      label={autopilot.healthy ? "Healthy" : "Unhealthy"}
-      size="small"
-      color={autopilot.healthy ? "success" : "error"}
-    />
-  );
-};
-
-const FailureToleranceValue: React.FC<{ autopilot?: AutopilotState }> = ({
-  autopilot,
-}) => {
-  if (!autopilot) {
-    return (
-      <UnknownChip title="Autopilot has not reported yet. It typically takes a moment to converge after a leadership change." />
-    );
-  }
-
-  const ft = autopilot.failureTolerance;
-
-  if (ft < 0) {
-    return (
-      <Tooltip title="Quorum is lost. The cluster cannot accept writes until a voter recovers.">
-        <Chip label="Quorum lost" size="small" color="error" />
+      <Tooltip title="At the quorum limit. One more voter failure would stop writes.">
+        <Chip
+          label="No failure tolerance"
+          size="small"
+          color="warning"
+          variant="outlined"
+        />
       </Tooltip>
     );
   }
 
-  if (ft === 0) {
+  const plural = failureTolerance === 1 ? "" : "s";
+
+  return (
+    <Tooltip
+      title={`The cluster keeps accepting writes while up to ${failureTolerance} voter${plural} are down.`}
+    >
+      <Chip
+        label={`Tolerates ${failureTolerance} voter failure${plural}`}
+        size="small"
+        color="success"
+        variant="outlined"
+      />
+    </Tooltip>
+  );
+};
+
+const HealthValue: React.FC<{
+  autopilot?: AutopilotState;
+  hasLeader: boolean;
+}> = ({ autopilot, hasLeader }) => {
+  if (!hasLeader) {
     return (
-      <Tooltip title="At the quorum limit. One more voter failure would stop writes.">
+      <Tooltip title="No node holds leadership. The cluster cannot accept writes until enough voters recover for an election to succeed.">
+        <Chip label="No leader" size="small" color="error" />
+      </Tooltip>
+    );
+  }
+
+  if (!autopilot) {
+    return <UnknownChip title={CONVERGING} />;
+  }
+
+  return (
+    <Box
+      sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
+    >
+      <Chip
+        label={autopilot.healthy ? "Healthy" : "Unhealthy"}
+        size="small"
+        color={autopilot.healthy ? "success" : "error"}
+      />
+      <ToleranceChip failureTolerance={autopilot.failureTolerance} />
+    </Box>
+  );
+};
+
+const SchemaValue: React.FC<{ status?: APIStatus }> = ({ status }) => {
+  const applied = status?.cluster?.appliedSchemaVersion;
+  const binary = status?.schemaVersion;
+  const pending = status?.cluster?.pendingMigration;
+
+  if (applied === undefined) {
+    return (
+      <UnknownChip title="The committed schema version is not available." />
+    );
+  }
+
+  if (!pending) {
+    return (
+      <Tooltip title="Every node has committed this schema version.">
+        <Typography variant="body2">{`v${applied}`}</Typography>
+      </Tooltip>
+    );
+  }
+
+  const supports =
+    binary === undefined ? "" : ` This node's binary supports v${binary}.`;
+
+  if (pending.laggardNodeId) {
+    return (
+      <Tooltip
+        title={`The cluster has committed schema v${pending.currentSchema} and cannot advance.${supports} Upgrade or remove node ${pending.laggardNodeId} to let the migration proceed.`}
+      >
         <Chip
-          label="0 voters"
+          label={`v${pending.currentSchema} · blocked by node ${pending.laggardNodeId}`}
           size="small"
           color="warning"
           variant="outlined"
@@ -145,60 +198,10 @@ const FailureToleranceValue: React.FC<{ autopilot?: AutopilotState }> = ({
 
   return (
     <Tooltip
-      title={`The cluster keeps accepting writes while up to ${ft} voter${ft === 1 ? "" : "s"} are down.`}
+      title={`The cluster has committed schema v${pending.currentSchema} and is migrating to v${pending.targetSchema}.${supports}`}
     >
       <Chip
-        label={`${ft} voter${ft === 1 ? "" : "s"}`}
-        size="small"
-        color="success"
-        variant="outlined"
-      />
-    </Tooltip>
-  );
-};
-
-const SchemaValue: React.FC<{
-  applied?: number;
-  binary?: number;
-}> = ({ applied, binary }) => {
-  if (applied === undefined && binary === undefined) {
-    return <UnknownChip title="Schema versions are not available yet." />;
-  }
-
-  const appliedText = applied === undefined ? "unknown" : `v${applied}`;
-
-  if (binary === undefined || applied === undefined || applied === binary) {
-    return <Typography variant="body2">{appliedText}</Typography>;
-  }
-
-  return (
-    <Box
-      sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
-    >
-      <Typography variant="body2">{appliedText}</Typography>
-      <Tooltip
-        title={`The cluster has committed schema v${applied}; this node's binary supports v${binary}. They differ only during a rolling upgrade.`}
-      >
-        <Chip
-          label={`this node supports v${binary}`}
-          size="small"
-          color="warning"
-          variant="outlined"
-        />
-      </Tooltip>
-    </Box>
-  );
-};
-
-const VersionsValue: React.FC<{ versions: string[] }> = ({ versions }) => {
-  if (versions.length === 1) {
-    return <Typography variant="body2">{versions[0]}</Typography>;
-  }
-
-  return (
-    <Tooltip title="Nodes are running different binary versions. This is expected during a rolling upgrade but should not persist.">
-      <Chip
-        label={`Mixed — ${versions.join(", ")}`}
+        label={`v${pending.currentSchema} → v${pending.targetSchema}`}
         size="small"
         color="warning"
         variant="outlined"
@@ -210,18 +213,14 @@ const VersionsValue: React.FC<{ versions: string[] }> = ({ versions }) => {
 interface ClusterStateCardProps {
   status?: APIStatus;
   autopilot?: AutopilotState;
-  versions: string[];
 }
 
 const ClusterStateCard: React.FC<ClusterStateCardProps> = ({
   status,
   autopilot,
-  versions,
 }) => {
   const cluster = status?.cluster;
-  const leaderNodeId = cluster?.leaderNodeId || autopilot?.leaderNodeId || 0;
-  const voters = autopilot?.voters;
-  const pending = cluster?.pendingMigration;
+  const hasLeader = (cluster?.leaderNodeId ?? 0) !== 0;
 
   return (
     <Card variant="outlined" sx={{ mb: 2 }}>
@@ -237,69 +236,11 @@ const ClusterStateCard: React.FC<ClusterStateCardProps> = ({
             ) : undefined
           }
         />
-        <InfoRow label="Health" value={<HealthValue autopilot={autopilot} />} />
         <InfoRow
-          label="Failure tolerance"
-          value={<FailureToleranceValue autopilot={autopilot} />}
+          label="Health"
+          value={<HealthValue autopilot={autopilot} hasLeader={hasLeader} />}
         />
-        <InfoRow
-          label="Voters"
-          value={
-            voters === undefined ? (
-              <UnknownChip title="Autopilot has not reported yet. It typically takes a moment to converge after a leadership change." />
-            ) : (
-              `${voters.length} (${voters.length === 0 ? "none" : voters.map((id) => `node ${id}`).join(", ")})`
-            )
-          }
-        />
-        <InfoRow
-          label="Leader"
-          value={leaderNodeId ? `Node ${leaderNodeId}` : "No leader"}
-        />
-        <InfoRow
-          label="Schema"
-          value={
-            <SchemaValue
-              applied={cluster?.appliedSchemaVersion}
-              binary={status?.schemaVersion}
-            />
-          }
-        />
-        <InfoRow
-          label="Pending migration"
-          value={
-            pending ? (
-              <Tooltip
-                title={
-                  pending.laggardNodeId
-                    ? `Node ${pending.laggardNodeId} is still on an older binary and is blocking the migration. Upgrade or remove it to let the cluster advance.`
-                    : "A schema migration is pending cluster-wide."
-                }
-              >
-                <Chip
-                  label={
-                    pending.laggardNodeId
-                      ? `v${pending.currentSchema} → v${pending.targetSchema}, blocked by node ${pending.laggardNodeId}`
-                      : `v${pending.currentSchema} → v${pending.targetSchema}`
-                  }
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                />
-              </Tooltip>
-            ) : (
-              "None"
-            )
-          }
-        />
-        <InfoRow
-          label="Binary versions"
-          value={
-            versions.length === 0 ? undefined : (
-              <VersionsValue versions={versions} />
-            )
-          }
-        />
+        <InfoRow label="Schema" value={<SchemaValue status={status} />} />
       </CardContent>
     </Card>
   );

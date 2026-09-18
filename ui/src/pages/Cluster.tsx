@@ -218,15 +218,12 @@ const ClusterPage: React.FC = () => {
     }));
   }, [members, autopilot]);
 
-  const versions = useMemo(
-    () =>
-      Array.from(
-        new Set(members.map((m) => m.binaryVersion).filter((v) => v !== "")),
-      ).sort(),
-    [members],
-  );
-
-  const versionsDiffer = versions.length > 1;
+  const versionsDiffer = useMemo(() => {
+    const versions = new Set(
+      members.map((m) => m.binaryVersion).filter((v) => v !== ""),
+    );
+    return versions.size > 1;
+  }, [members]);
 
   const handlePromote = useCallback(
     async (m: ClusterMember) => {
@@ -539,11 +536,7 @@ const ClusterPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      <ClusterStateCard
-        status={statusQuery.data}
-        autopilot={autopilot}
-        versions={versions}
-      />
+      <ClusterStateCard status={statusQuery.data} autopilot={autopilot} />
 
       <Typography variant="h6" sx={{ mb: 1.5 }}>
         Nodes

@@ -73,40 +73,74 @@ const removeButton = (nodeId: number) =>
 
 const dialog = () => screen.getByRole("dialog");
 
+const stateCard = () =>
+  screen
+    .getByRole("heading", { name: "State" })
+    .closest(".MuiCard-root") as HTMLElement;
+
 describe("Cluster page State section", () => {
-  it("shows cluster id, failure tolerance, voters, leader and schema", async () => {
+  it("shows cluster id, health with failure tolerance, and schema", async () => {
     seedStatus();
     seedAutopilot();
     api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
 
     await renderCluster();
 
-    expect(await screen.findByText("cluster-abc-123")).toBeInTheDocument();
-    expect(await screen.findByText("1 voter")).toBeInTheDocument();
-    expect(screen.getByText("3 (node 1, node 2, node 3)")).toBeInTheDocument();
-    expect(screen.getByText("Node 1")).toBeInTheDocument();
-    expect(screen.getByText("v7")).toBeInTheDocument();
-    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(
+      await within(stateCard()).findByText("cluster-abc-123"),
+    ).toBeInTheDocument();
+    expect(await within(stateCard()).findByText("Healthy")).toBeInTheDocument();
+    expect(
+      within(stateCard()).getByText("Tolerates 1 voter failure"),
+    ).toBeInTheDocument();
+    expect(within(stateCard()).getByText("v7")).toBeInTheDocument();
   });
 
-  it("renders quorum loss as a badge rather than an alert", async () => {
+  it("warns when the cluster has no failure tolerance left", async () => {
     seedStatus();
-    seedAutopilot({ healthy: false, failureTolerance: -1 });
+    seedAutopilot({ failureTolerance: 0, voters: [1, 2] });
     api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
 
     await renderCluster();
 
-    expect(await screen.findByText("Quorum lost")).toBeInTheDocument();
-    expect(await screen.findByText("Unhealthy")).toBeInTheDocument();
+    expect(
+      await within(stateCard()).findByText("No failure tolerance"),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a leaderless cluster instead of waiting on autopilot", async () => {
+    seedStatus({ leaderNodeId: 0, isLeader: false, role: "Follower" });
+    api.get(AUTOPILOT, () => httpError(503, "no leader"));
+    api.get(MEMBERS, () => [member({ nodeId: 1 })]);
+
+    await renderCluster();
+
+    expect(
+      await within(stateCard()).findByText("No leader"),
+    ).toBeInTheDocument();
+    expect(within(stateCard()).queryByText("Unknown")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("names the node blocking a pending migration", async () => {
+  it("renders an unhealthy cluster as a badge rather than an alert", async () => {
+    seedStatus();
+    seedAutopilot({ healthy: false });
+    api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
+
+    await renderCluster();
+
+    expect(
+      await within(stateCard()).findByText("Unhealthy"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("names the node blocking a migration that cannot advance", async () => {
     seedStatus({
       appliedSchemaVersion: 6,
       pendingMigration: {
         currentSchema: 6,
-        targetSchema: 7,
+        targetSchema: 6,
         laggardNodeId: 3,
       },
     });
@@ -116,37 +150,40 @@ describe("Cluster page State section", () => {
     await renderCluster();
 
     expect(
-      await screen.findByText("v6 → v7, blocked by node 3"),
+      await within(stateCard()).findByText("v6 · blocked by node 3"),
     ).toBeInTheDocument();
-    expect(screen.getByText("this node supports v7")).toBeInTheDocument();
   });
 
-  it("renders live values as unknown when autopilot is unavailable", async () => {
+  it("shows a migration that is still advancing without naming a laggard", async () => {
+    seedStatus({
+      appliedSchemaVersion: 6,
+      pendingMigration: { currentSchema: 6, targetSchema: 7 },
+    });
+    seedAutopilot();
+    api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
+
+    await renderCluster();
+
+    expect(await within(stateCard()).findByText("v6 → v7")).toBeInTheDocument();
+    expect(
+      within(stateCard()).queryByText(/blocked by/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders health as unknown while autopilot converges, keeping status facts", async () => {
     seedStatus();
     api.get(AUTOPILOT, () => httpError(503, "autopilot has not converged"));
     api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
 
     await renderCluster();
 
-    expect(await screen.findByText("cluster-abc-123")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByText("Unknown")).toHaveLength(3));
-    expect(screen.getByText("v7")).toBeInTheDocument();
-    expect(screen.getByText("Node 1")).toBeInTheDocument();
-  });
-
-  it("flags mixed binary versions", async () => {
-    seedStatus();
-    seedAutopilot();
-    api.get(MEMBERS, () => [
-      member({ nodeId: 1, isLeader: true, binaryVersion: "v0.11.8" }),
-      member({ nodeId: 2, binaryVersion: "v0.11.9" }),
-    ]);
-
-    await renderCluster();
-
     expect(
-      await screen.findByText("Mixed — v0.11.8, v0.11.9"),
+      await within(stateCard()).findByText("cluster-abc-123"),
     ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(stateCard()).getAllByText("Unknown")).toHaveLength(1),
+    );
+    expect(within(stateCard()).getByText("v7")).toBeInTheDocument();
   });
 });
 
