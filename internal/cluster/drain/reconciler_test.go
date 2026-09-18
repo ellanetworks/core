@@ -315,3 +315,36 @@ func TestSweepDoesNotCompleteADrainTheOperatorResumedMidOffload(t *testing.T) {
 		t.Fatalf("state = %s, want active: the sweep overwrote a concurrent resume", got)
 	}
 }
+
+func TestReconcileKeepsLeadershipWhenDrained(t *testing.T) {
+	store := newStore(db.DrainStateDrained, db.DrainStateActive)
+	store.leader = true
+
+	New(store, nil, nil, &fakeNF{}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("transferred leadership %d times on an already drained node", store.transferCount())
+	}
+}
+
+func TestReconcileKeepsLeadershipWhenNoPeerIsActive(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateDraining, db.DrainStateDrained)
+	store.leader = true
+
+	New(store, nil, nil, &fakeNF{}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("transferred leadership %d times with no active voter to take it", store.transferCount())
+	}
+}
+
+func TestSweepDoesNotCompleteTheDrainWhileStillLeader(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+	store.leader = true
+
+	New(store, nil, nil, &fakeNF{}).sweep(context.Background())
+
+	if got := store.stateOf(); got != db.DrainStateDraining {
+		t.Fatalf("state = %s, want draining: a node still holding leadership was reported safe to restart", got)
+	}
+}

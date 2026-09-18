@@ -9,12 +9,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/bgp"
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/mme"
 )
 
 const (
@@ -27,7 +23,7 @@ type DrainResponse struct {
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
-func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func DrainClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
@@ -66,7 +62,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
-func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func ResumeClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {

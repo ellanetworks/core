@@ -150,13 +150,17 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 
 	r.reconcileBGP(ctx, eligible)
 
-	if !eligible {
-		r.yieldLeadership()
+	if state == db.DrainStateDraining {
+		r.yieldLeadership(ctx)
 	}
 }
 
-func (r *Reconciler) yieldLeadership() {
+func (r *Reconciler) yieldLeadership(ctx context.Context) {
 	if !r.store.ClusterEnabled() || !r.store.IsLeader() {
+		return
+	}
+
+	if !r.hasSomewhereToGo(ctx) {
 		return
 	}
 
@@ -250,6 +254,10 @@ func (r *Reconciler) sweep(ctx context.Context) {
 	}
 
 	if remaining > 0 && batch > 0 {
+		return
+	}
+
+	if r.store.IsLeader() {
 		return
 	}
 
