@@ -386,7 +386,6 @@ const ClusterPage: React.FC = () => {
         sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: JoinedRow }) => {
-          const isSelf = p.row.nodeId === selfNodeId;
           const isCurrentLeader = p.row.nodeId === currentLeaderNodeId;
           const state = p.row.drainState;
           const canDrain = state === "active";
@@ -408,11 +407,7 @@ const ClusterPage: React.FC = () => {
 
           const removeTitle = isCurrentLeader
             ? "Cannot remove the current leader. Drain it first so leadership transfers, then retry."
-            : state === "drained"
-              ? "Remove this node from the Raft cluster."
-              : isSelf
-                ? "Remove this node from the Raft cluster. It is not drained and it is serving this page, so removal requires force and will end your session."
-                : "Remove this node from the Raft cluster. It is not drained, so removal requires force and will drop its radios and sessions.";
+            : "Remove this node from the Raft cluster.";
 
           return [
             <Tooltip key="promote" title={promoteTitle}>

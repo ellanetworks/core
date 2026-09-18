@@ -2,13 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState } from "react";
-import {
-  Alert,
-  Box,
-  Checkbox,
-  FormControlLabel,
-  Typography,
-} from "@mui/material";
+import { Box, Checkbox, FormControlLabel, Typography } from "@mui/material";
 import {
   removeClusterMember,
   type DrainState,
@@ -30,11 +24,9 @@ export function defaultForce(health: NodeHealth): boolean {
 
 const FORCE_HELP: Record<NodeHealth, string> = {
   unhealthy:
-    "Autopilot reports this node as unhealthy, so it is unlikely to ever reach the drained state on its own.",
-  healthy:
-    "Autopilot reports this node as healthy. Drain it first unless you have a reason not to.",
-  unknown:
-    "Autopilot has not reported this node yet. That happens to every node for a moment after a leadership change, so it does not on its own mean the node is down.",
+    "Autopilot reports this node unhealthy. It will not drain on its own.",
+  healthy: "This node looks healthy. Drain it first if you can.",
+  unknown: "Autopilot has not reported this node yet.",
 };
 
 interface Props {
@@ -81,9 +73,8 @@ const RemoveNodeModal: React.FC<Props> = ({
       title={`Remove node ${nodeId}?`}
       description={
         <>
-          Removes <strong>node {nodeId}</strong> from the Raft cluster. Shut the
-          node down afterward — if it stays online, it will keep trying to
-          rejoin.
+          <strong>Node {nodeId}</strong> will keep trying to rejoin unless you
+          shut it down afterward.
         </>
       }
       extra={
@@ -99,32 +90,22 @@ const RemoveNodeModal: React.FC<Props> = ({
                 }
                 label="Force remove (skip drain)"
               />
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{ mb: 1.5 }}
-              >
-                This node is <em>{drainState}</em>, not <em>drained</em>, so the
-                cluster will refuse the removal unless you skip the drain.{" "}
+              <Typography variant="body2" color="textSecondary">
                 {FORCE_HELP[health]}
               </Typography>
             </>
           )}
 
           {force && (
-            <Alert severity="warning" sx={{ mb: isSelf ? 1.5 : 0 }}>
-              Skipping drain drops this node&apos;s work instead of migrating
-              it. Connected radios are not told to reselect, BGP routes are
-              withdrawn without warning, and the 4G and 5G subscribers on this
-              node lose their sessions and must re-attach.
-            </Alert>
+            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+              Radios and sessions on this node are dropped, not migrated.
+            </Typography>
           )}
 
           {isSelf && (
-            <Alert severity="warning">
-              This is the node serving this page. Removing it ends your session
-              here — reconnect to another node to keep managing the cluster.
-            </Alert>
+            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+              This is the node serving this page. Removing it ends your session.
+            </Typography>
           )}
         </Box>
       }

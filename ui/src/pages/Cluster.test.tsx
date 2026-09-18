@@ -283,7 +283,7 @@ describe("Cluster page force remove", () => {
     await user.click(checkbox);
 
     expect(
-      within(dialog()).getByText(/lose their sessions and must re-attach/),
+      within(dialog()).getByText(/dropped, not migrated/),
     ).toBeInTheDocument();
   });
 
@@ -329,9 +329,7 @@ describe("Cluster page force remove", () => {
     await waitFor(() => expect(removeButton(2)).toBeEnabled());
     await user.click(removeButton(2));
 
-    expect(
-      within(dialog()).getByText(/ends your session here/),
-    ).toBeInTheDocument();
+    expect(within(dialog()).getByText(/ends your session/)).toBeInTheDocument();
   });
 
   it("keeps the dialog open and shows why when the cluster refuses the removal", async () => {

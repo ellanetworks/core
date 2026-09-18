@@ -40,9 +40,8 @@ const DrainNodeModal: React.FC<Props> = ({
       description={
         <>
           Stops new traffic on <strong>node {nodeId}</strong> and moves its
-          subscribers to the rest of the cluster, so it can be restarted,
-          upgraded, or removed. 4G subscribers reconnect briefly; 5G subscribers
-          keep their sessions. Use Resume to reverse.
+          subscribers to the rest of the cluster. 4G subscribers reconnect
+          briefly. 5G subscribers keep their sessions.
         </>
       }
       details={{
@@ -56,7 +55,7 @@ const DrainNodeModal: React.FC<Props> = ({
               : ""}{" "}
             Sets <code>drainState</code> to <em>draining</em>, then to{" "}
             <em>drained</em> once the node holds no subscribers or the one-hour
-            deadline passes. The node is removable at <em>drained</em>.
+            deadline passes.
           </Typography>
         ),
       }}

@@ -38,8 +38,7 @@ const ResumeNodeModal: React.FC<Props> = ({
       description={
         <>
           Clears drain state on <strong>node {nodeId}</strong> and restarts its
-          local BGP speaker (if BGP is enabled). Route advertisements resume on
-          the next reconciler tick.
+          local BGP speaker if BGP is enabled.
         </>
       }
       details={{
@@ -52,13 +51,12 @@ const ResumeNodeModal: React.FC<Props> = ({
             sx={{ mt: 1, pl: 2.5 }}
           >
             <li>
-              Subscribers already moved off — they stay on the nodes they
+              Subscribers that already moved off stay on the nodes they
               re-attached to.
             </li>
             <li>
-              Raft leadership transfer — if this node was the leader when
-              drained, it stays a follower until something else moves
-              leadership.
+              If this node was the leader when drained, it stays a follower
+              until something else moves leadership.
             </li>
           </Typography>
         ),

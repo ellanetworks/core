@@ -192,10 +192,11 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
 
         {token && (
           <>
-            <Alert severity="success" sx={{ mb: 2 }}>
-              Token minted. Copy it now — it is shown only once and expires at{" "}
+            <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
+              Token minted. Copy it now, because it is shown only once. It
+              expires at{" "}
               {formatDateTime(new Date(expiresAt * 1000).toISOString())}.
-            </Alert>
+            </Typography>
 
             <Typography variant="body2" sx={{ mb: 1 }}>
               Add the following to the new node&apos;s configuration file, then
