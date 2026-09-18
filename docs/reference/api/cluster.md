@@ -138,7 +138,7 @@ None
 
 ## Drain Cluster Member
 
-This path drains a node, moving its subscribers to the rest of the cluster so it can be restarted, upgraded, or removed. Must be sent to the leader. Requires admin privileges.
+This path drains a node, moving its subscribers to the rest of the cluster so it can be restarted, upgraded, or removed. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -160,7 +160,7 @@ None.
 
 ## Resume Cluster Member
 
-This path returns a drained node to service. Idempotent. Must be sent to the leader. Requires admin privileges.
+This path returns a drained node to service. Idempotent. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |

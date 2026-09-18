@@ -45,10 +45,12 @@ type BGPSpeaker interface {
 type Store interface {
 	NodeID() int
 	ClusterEnabled() bool
+	IsLeader() bool
+	LeadershipTransfer() error
 	IsBGPEnabled(ctx context.Context) (bool, error)
 	GetClusterMember(ctx context.Context, nodeID int) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
-	SetDrainState(ctx context.Context, nodeID int, state string) error
+	SetDrainStateIf(ctx context.Context, nodeID int, from []string, state string) (string, error)
 }
 
 type Reconciler struct {
@@ -147,6 +149,25 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	}
 
 	r.reconcileBGP(ctx, eligible)
+
+	if !eligible {
+		r.yieldLeadership()
+	}
+}
+
+func (r *Reconciler) yieldLeadership() {
+	if !r.store.ClusterEnabled() || !r.store.IsLeader() {
+		return
+	}
+
+	if err := r.store.LeadershipTransfer(); err != nil {
+		logger.EllaLog.Warn("drain reconcile: leadership transfer failed; retrying on the next reconcile",
+			zap.Error(err))
+
+		return
+	}
+
+	logger.EllaLog.Info("drain reconcile: yielded raft leadership away from the draining node")
 }
 
 func (r *Reconciler) localState(ctx context.Context) (string, bool) {
@@ -232,8 +253,14 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	if err := r.store.SetDrainState(ctx, r.store.NodeID(), db.DrainStateDrained); err != nil {
+	settled, err := r.store.SetDrainStateIf(ctx, r.store.NodeID(),
+		[]string{db.DrainStateDraining}, db.DrainStateDrained)
+	if err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not mark drain complete", zap.Error(err))
+		return
+	}
+
+	if settled != db.DrainStateDrained {
 		return
 	}
 

@@ -3030,19 +3030,20 @@ paths:
       tags: [Cluster]
       summary: Drain a specific cluster member
       description: >-
-        Drains the target node and persists `drainState=drained`. Runs the
-        node-local drain side-effects: signals RANs that the node's GUAMI
-        is unavailable (AMF Status Indication, TS 38.413), stops the local
-        BGP speaker, and transfers Raft leadership when the target is the
-        current leader.
+        Marks the target node as draining. The transition is replicated
+        through Raft; the drain reconciler on the target node then acts on
+        it: it stops the node advertising itself to RANs (AMF Status
+        Indication, TS 38.413), off-loads its subscribers to active peers,
+        stops the local BGP speaker, yields Raft leadership when the target
+        is the current leader, and finally moves `drainState` to `drained`.
 
-        Idempotent: re-draining a node already in `drained` returns the
-        current state without re-running side-effects.
+        The response carries the drain state the node is left in. Draining
+        a node that is already `draining` or `drained` leaves it untouched
+        and reports its current state.
 
-        In HA mode, drain runs on the leader (followers forward the request
-        automatically); the leader dispatches the node-local side-effects
-        to the target over the cluster mTLS port, or runs them inline when
-        the target is the leader itself. Requires admin privileges.
+        In HA mode this endpoint can be called on any node: the state
+        transition is compared and written on the leader, which followers
+        forward to. Requires admin privileges.
       parameters:
         - name: id
           in: path
@@ -3063,8 +3064,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "502":
-          description: Target node unreachable (proxy failure).
+        "503":
+          description: No leader is currently available; try again.
 
   /api/v1/cluster/members/{id}/resume:
     post:
@@ -3072,12 +3073,16 @@ paths:
       tags: [Cluster]
       summary: Resume a drained cluster member
       description: >-
-        Reverses drain on the target node: restarts the local BGP speaker
-        (if BGP is globally enabled) and clears `drainState` back to
-        `"active"`. Does not reverse AMF Status Indication (a new NG Setup
-        on RAN reconnection re-establishes the GUAMI) and does not reclaim
-        Raft leadership transferred during drain. Idempotent: resuming a
-        non-drained node is a no-op. Requires admin privileges.
+        Reverses drain on the target node: clears `drainState` back to
+        `"active"`, after which the target's drain reconciler restarts its
+        local BGP speaker (if BGP is globally enabled) and makes the node
+        eligible again. Does not reverse AMF Status Indication (a new NG
+        Setup on RAN reconnection re-establishes the GUAMI) and does not
+        reclaim Raft leadership yielded during drain. Idempotent: resuming
+        an active node is a no-op.
+
+        In HA mode this endpoint can be called on any node. Requires admin
+        privileges.
       parameters:
         - name: id
           in: path
@@ -3092,8 +3097,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "502":
-          description: Target node unreachable (proxy failure).
+        "503":
+          description: No leader is currently available; try again.
 
   /api/v1/cluster/pki/join-tokens:
     post:

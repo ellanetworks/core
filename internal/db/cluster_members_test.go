@@ -5,6 +5,7 @@ package db_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -197,5 +198,60 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	if len(members) != 0 {
 		t.Fatalf("Expected no members after cleanup, got %d", len(members))
+	}
+}
+
+func TestDBSetDrainStateIf(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:      1,
+		RaftAddress: "127.0.0.1:7000",
+		APIAddress:  "https://127.0.0.1:5000",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("Couldn't upsert cluster member: %s", err)
+	}
+
+	state, err := database.SetDrainStateIf(ctx, 1, []string{db.DrainStateActive}, db.DrainStateDraining)
+	if err != nil {
+		t.Fatalf("Couldn't start drain: %s", err)
+	}
+
+	if state != db.DrainStateDraining {
+		t.Fatalf("state = %q, want %q: a fresh row reads as active", state, db.DrainStateDraining)
+	}
+
+	state, err = database.SetDrainStateIf(ctx, 1, []string{db.DrainStateDraining}, db.DrainStateDrained)
+	if err != nil {
+		t.Fatalf("Couldn't complete drain: %s", err)
+	}
+
+	if state != db.DrainStateDrained {
+		t.Fatalf("state = %q, want %q", state, db.DrainStateDrained)
+	}
+
+	state, err = database.SetDrainStateIf(ctx, 1, []string{db.DrainStateActive}, db.DrainStateDraining)
+	if err != nil {
+		t.Fatalf("Couldn't re-drain: %s", err)
+	}
+
+	if state != db.DrainStateDrained {
+		t.Fatalf("state = %q, want %q: draining a drained node must not restart the drain", state, db.DrainStateDrained)
+	}
+
+	member, err := database.GetClusterMember(ctx, 1)
+	if err != nil {
+		t.Fatalf("Couldn't get cluster member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateDrained {
+		t.Fatalf("persisted drainState = %q, want %q", member.DrainState, db.DrainStateDrained)
+	}
+
+	if _, err := database.SetDrainStateIf(ctx, 99, []string{db.DrainStateActive}, db.DrainStateDraining); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound for an unknown node", err)
 	}
 }
