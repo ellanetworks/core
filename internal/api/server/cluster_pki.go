@@ -89,7 +89,9 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 			fp, pins, err = svc.RedeemJoinToken(r.Context(), req.Token, req.NodeID, []byte(req.CertPEM))
 			if err != nil {
-				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusUnauthorized), "redeem join token", err, logger.APILog)
+				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusUnauthorized),
+					clusterPKIMessage(err, "redeem join token"), err, logger.APILog)
+
 				return
 			}
 		}
@@ -121,6 +123,18 @@ func clusterPKIStatus(err error, deny int) int {
 
 	default:
 		return deny
+	}
+}
+
+func clusterPKIMessage(err error, fallback string) string {
+	switch {
+	case errors.Is(err, db.ErrJoinTokenExpired),
+		errors.Is(err, db.ErrJoinTokenAlreadyConsumed),
+		errors.Is(err, db.ErrJoinTokenNodeMismatch):
+		return err.Error()
+
+	default:
+		return fallback
 	}
 }
 

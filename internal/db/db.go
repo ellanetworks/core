@@ -395,7 +395,7 @@ const (
 
 func warnIfWorldReadable(path string) {
 	info, err := os.Stat(path)
-	if err != nil {
+	if err != nil || !info.Mode().IsRegular() {
 		return
 	}
 
