@@ -87,6 +87,15 @@ struct route_stat {
 	__u64 fib_lookup_ip6_error;
 };
 
+static __always_inline __u32 routing_egress_ifindex(__u32 ifindex)
+{
+	if (n3_routing_ifindex && ifindex == n3_routing_ifindex)
+		return n3_ifindex;
+	if (n6_routing_ifindex && ifindex == n6_routing_ifindex)
+		return n6_ifindex;
+	return ifindex;
+}
+
 static __always_inline enum ctx_action
 do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	      struct route_stat *statistic, bool trust_fib)
@@ -101,20 +110,24 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
 				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return redirect_out(ctx, fib_params->ifindex,
+		return redirect_out(ctx, routing_egress_ifindex(fib_params->ifindex),
 			    egress_vlan_forwarded(ctx));
 	}
 
 	__u32 expected_ifindex;
+	__u32 expected_routing_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
 		expected_ifindex = n6_ifindex;
+		expected_routing_ifindex = n6_routing_ifindex;
 	} else {
 		expected_ifindex = n3_ifindex;
+		expected_routing_ifindex = n3_routing_ifindex;
 	}
 
 	if (n3_ifindex != 0 && n6_ifindex != 0 &&
-	    fib_params->ifindex != expected_ifindex) {
+	    fib_params->ifindex != expected_ifindex &&
+	    fib_params->ifindex != expected_routing_ifindex) {
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip4_ifindex_mismatch += 1;
@@ -151,20 +164,24 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
 				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return redirect_out(ctx, fib_params->ifindex,
+		return redirect_out(ctx, routing_egress_ifindex(fib_params->ifindex),
 			    egress_vlan_forwarded(ctx));
 	}
 
 	__u32 expected_ifindex;
+	__u32 expected_routing_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
 		expected_ifindex = n6_ifindex;
+		expected_routing_ifindex = n6_routing_ifindex;
 	} else {
 		expected_ifindex = n3_ifindex;
+		expected_routing_ifindex = n3_routing_ifindex;
 	}
 
 	if (n3_ifindex != 0 && n6_ifindex != 0 &&
-	    fib_params->ifindex != expected_ifindex) {
+	    fib_params->ifindex != expected_ifindex &&
+	    fib_params->ifindex != expected_routing_ifindex) {
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip6_ifindex_mismatch += 1;
@@ -182,7 +199,7 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
-	return redirect_out(ctx, fib_params->ifindex,
+	return redirect_out(ctx, routing_egress_ifindex(fib_params->ifindex),
 			    egress_vlan_forwarded(ctx));
 }
 
@@ -199,7 +216,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 	fib_params.tot_len = bpf_ntohs(ctx->ip4->tot_len);
 	fib_params.ipv4_src = ctx->ip4->saddr;
 	fib_params.ipv4_dst = ctx->ip4->daddr;
-	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	fib_params.ifindex = ctx->routing_ifindex;
 
 	/* Only source_nat reads the derived address, and trust_fib skips it.
 	 * Asking anyway adds BPF_FIB_LKUP_RET_NO_SRC_ADDR as a drop reason. */
@@ -308,7 +325,7 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 			 sizeof(ctx->ip6->saddr));
 	__builtin_memcpy(fib_params.ipv6_dst, &ctx->ip6->daddr,
 			 sizeof(ctx->ip6->daddr));
-	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	fib_params.ifindex = ctx->routing_ifindex;
 
 	int rc = bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
 				0 /*BPF_FIB_LOOKUP_OUTPUT*/);

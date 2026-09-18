@@ -39,7 +39,7 @@ static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 	fib_params.tot_len = 0;
 	fib_params.ipv4_src = ctx->ip4->daddr;
 	fib_params.ipv4_dst = ctx->ip4->saddr;
-	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	fib_params.ifindex = ctx->routing_ifindex;
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
 		       BPF_FIB_LOOKUP_SRC);
@@ -63,7 +63,7 @@ static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
 			 sizeof(fib_params.ipv6_src));
 	__builtin_memcpy(fib_params.ipv6_dst, &orig->saddr,
 			 sizeof(fib_params.ipv6_dst));
-	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	fib_params.ifindex = ctx->routing_ifindex;
 
 	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
 		       BPF_FIB_LOOKUP_SRC);
@@ -288,8 +288,8 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 				bpf_htons(incoming_vlan & 0x0FFF);
 			new_vlan->h_vlan_encapsulated_proto =
 				bpf_htons(ETH_P_IPV6);
-			new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		}
+		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
 		new_ip6 = (struct ipv6hdr *)(new_vlan + 1);
 	}
 	if ((const void *)(new_ip6 + 1) > data_end) {

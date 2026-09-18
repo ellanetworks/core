@@ -134,7 +134,19 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
+	n3RoutingIface, err := net.InterfaceByName(n3Interface.Name)
+	if err != nil {
+		return nil, fmt.Errorf("lookup N3 routing interface %s: %w", n3Interface.Name, err)
+	}
+
+	n6RoutingIface, err := net.InterfaceByName(n6Interface.Name)
+	if err != nil {
+		return nil, fmt.Errorf("lookup N6 routing interface %s: %w", n6Interface.Name, err)
+	}
+
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
+	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
