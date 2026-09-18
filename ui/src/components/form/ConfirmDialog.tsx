@@ -25,12 +25,14 @@ interface ConfirmDialogProps {
   onConfirm: () => Promise<void>;
   title: string;
   description: React.ReactNode;
+  extra?: React.ReactNode;
   details?: { label: string; content: React.ReactNode };
   confirmLabel?: string;
   confirmingLabel?: string;
   confirmColor?: ButtonProps["color"];
   maxWidth?: DialogProps["maxWidth"];
   fullWidth?: boolean;
+  confirmDisabled?: boolean;
 }
 
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -39,12 +41,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   description,
+  extra,
   details,
   confirmLabel = "Confirm",
   confirmingLabel = "Confirming…",
   confirmColor = "error",
   maxWidth = "sm",
   fullWidth = false,
+  confirmDisabled = false,
 }) => {
   const baseId = useId();
   const titleId = `${baseId}-title`;
@@ -92,6 +96,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </Collapse>
         <DialogContentText id={descriptionId}>{description}</DialogContentText>
 
+        {extra}
+
         {details && (
           <Box sx={{ mt: 1 }}>
             <Link
@@ -121,7 +127,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           variant="contained"
           color={confirmColor}
           onClick={handleConfirm}
-          disabled={loading}
+          disabled={loading || confirmDisabled}
           startIcon={
             loading ? <CircularProgress size={16} color="inherit" /> : undefined
           }
