@@ -34,6 +34,8 @@ const (
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+
+	setClusterMemberAttributesStmtStr = "UPDATE %s SET apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion WHERE nodeID==$ClusterMember.nodeID"
 )
 
 type ClusterMember struct {
@@ -61,6 +63,12 @@ func normalizeDrainState(s string) string {
 	}
 
 	return s
+}
+
+type setClusterMemberAttributesPayload struct {
+	NodeID        int
+	APIAddress    string
+	BinaryVersion string
 }
 
 type setDrainStatePayload struct {
@@ -177,6 +185,46 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "upsert").Inc()
 
 	_, err := opUpsertClusterMember.Invoke(ctx, db, member)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+func (db *Database) SetClusterMemberAttributes(ctx context.Context, nodeID int, apiAddress string, binaryVersion string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
+
+	_, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection.name", ClusterMembersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
+
+	payload := &setClusterMemberAttributesPayload{
+		NodeID:        nodeID,
+		APIAddress:    apiAddress,
+		BinaryVersion: binaryVersion,
+	}
+
+	_, err := opSetClusterMemberAttributes.Invoke(ctx, db, payload)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

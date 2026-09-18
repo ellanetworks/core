@@ -26,6 +26,8 @@ var (
 	ErrJoinTokenExpired         = errors.New("join token expired")
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
 	ErrRetiredOperation         = errors.New("forwarded operation is retired")
+	ErrForwardRejected          = ellaraft.ErrForwardRejected
+	ErrRemovedFromCluster       = ellaraft.ErrRemovedFromCluster
 )
 
 func isUniqueNameError(err error) bool {

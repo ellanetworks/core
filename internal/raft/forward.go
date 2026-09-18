@@ -84,6 +84,19 @@ func ForwardErrorCode(err error) string {
 
 var ErrOutcomeUnknown = errors.New("forwarded write outcome unknown")
 
+var (
+	ErrForwardRejected    = errors.New("leader rejected the forwarded operation")
+	ErrRemovedFromCluster = errors.New("node is not a current cluster member")
+)
+
+func wrapForwardStatusErr(sentinel error, err error) error {
+	if err == nil {
+		return sentinel
+	}
+
+	return fmt.Errorf("%w: %w", sentinel, err)
+}
+
 type forwardAttemptFn func(ctx context.Context) (*ProposeResult, int, error)
 
 func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload json.RawMessage, timeout time.Duration) (*ProposeResult, error) {
@@ -135,6 +148,12 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 		switch status {
 		case http.StatusConflict:
 			return nil, err
+
+		case http.StatusBadRequest:
+			return nil, wrapForwardStatusErr(ErrForwardRejected, err)
+
+		case http.StatusGone:
+			return nil, wrapForwardStatusErr(ErrRemovedFromCluster, err)
 
 		case http.StatusMisdirectedRequest:
 			lastErr = hraft.ErrNotLeader

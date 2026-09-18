@@ -48,7 +48,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		result, applyErr := db.applyChangeset(ctx, payload, logIndex)
 		if applyErr == nil {
-			if payload.Operation == "UpsertClusterMember" {
+			if payload.Operation == "UpsertClusterMember" || payload.Operation == "SetClusterMemberAttributes" {
 				db.signalMigrationCheck()
 			}
 
@@ -1497,6 +1497,32 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 	err := db.runner(ctx).Query(ctx, db.upsertClusterMemberStmt, m).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applySetClusterMemberAttributes(ctx context.Context, p *setClusterMemberAttributesPayload) (any, error) {
+	member := &ClusterMember{
+		NodeID:        p.NodeID,
+		APIAddress:    p.APIAddress,
+		BinaryVersion: p.BinaryVersion,
+	}
+
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.setClusterMemberAttributesStmt, member).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
 	}
 
 	return nil, nil

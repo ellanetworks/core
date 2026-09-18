@@ -313,6 +313,8 @@ type Database struct {
 	countClusterMembersStmt *sqlair.Statement
 	setDrainStateStmt       *sqlair.Statement
 
+	setClusterMemberAttributesStmt *sqlair.Statement
+
 	// Cluster PKI statements
 	listNodeCertsStmt         *sqlair.Statement
 	getNodeCertByFPStmt       *sqlair.Statement
@@ -1245,6 +1247,26 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 	return db.UpsertClusterMember(ctx, member)
 }
 
+func (db *Database) PublishClusterMemberAttributes(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	nodeID := db.raftManager.NodeID()
+	apiAddress := db.raftManager.APIAddress()
+
+	existing, err := db.GetClusterMember(ctx, nodeID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("read own cluster member row: %w", err)
+	}
+
+	if err == nil && existing.APIAddress == apiAddress && existing.BinaryVersion == binaryVersion {
+		return nil
+	}
+
+	return db.SetClusterMemberAttributes(ctx, nodeID, apiAddress, binaryVersion)
+}
+
 // NewDatabase opens (or creates) the SQLite database file at dbPath. The
 // parent directory is used for sibling artifacts (raft/, backup/restore
 // staging). A non-existent path is treated as a fresh install.
@@ -1682,6 +1704,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.setClusterMemberAttributesStmt, fmt.Sprintf(setClusterMemberAttributesStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 
 		// Cluster PKI (v12 fingerprint pinning)
 		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},

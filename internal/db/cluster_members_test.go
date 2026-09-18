@@ -300,3 +300,70 @@ func TestDBSetDrainStateIfLeavesTheDeadlineClockAloneOnANoOp(t *testing.T) {
 			started.DrainUpdatedAt, after.DrainUpdatedAt)
 	}
 }
+
+func TestDBSetClusterMemberAttributesLeavesRaftOwnedFieldsAlone(t *testing.T) {
+	database := setupTestDB(t)
+
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:        1,
+		RaftAddress:   "127.0.0.1:7000",
+		APIAddress:    "https://127.0.0.1:5000",
+		BinaryVersion: "1.17.0",
+		Suffrage:      "nonvoter",
+	}); err != nil {
+		t.Fatalf("Couldn't upsert cluster member: %s", err)
+	}
+
+	if _, err := database.SetDrainStateIf(ctx, 1, []string{db.DrainStateActive}, db.DrainStateDraining); err != nil {
+		t.Fatalf("Couldn't start drain: %s", err)
+	}
+
+	before, err := database.GetClusterMember(ctx, 1)
+	if err != nil {
+		t.Fatalf("Couldn't get cluster member: %s", err)
+	}
+
+	if err := database.SetClusterMemberAttributes(ctx, 1, "https://127.0.0.1:6000", "1.18.0"); err != nil {
+		t.Fatalf("Couldn't set cluster member attributes: %s", err)
+	}
+
+	after, err := database.GetClusterMember(ctx, 1)
+	if err != nil {
+		t.Fatalf("Couldn't get cluster member: %s", err)
+	}
+
+	if after.APIAddress != "https://127.0.0.1:6000" {
+		t.Fatalf("Expected apiAddress https://127.0.0.1:6000, got %s", after.APIAddress)
+	}
+
+	if after.BinaryVersion != "1.18.0" {
+		t.Fatalf("Expected binaryVersion 1.18.0, got %s", after.BinaryVersion)
+	}
+
+	if after.RaftAddress != before.RaftAddress {
+		t.Fatalf("raftAddress changed from %s to %s", before.RaftAddress, after.RaftAddress)
+	}
+
+	if after.Suffrage != before.Suffrage {
+		t.Fatalf("suffrage changed from %s to %s", before.Suffrage, after.Suffrage)
+	}
+
+	if after.DrainState != before.DrainState {
+		t.Fatalf("drainState changed from %s to %s", before.DrainState, after.DrainState)
+	}
+
+	if after.DrainUpdatedAt != before.DrainUpdatedAt {
+		t.Fatalf("drainUpdatedAt changed from %d to %d", before.DrainUpdatedAt, after.DrainUpdatedAt)
+	}
+}
+
+func TestDBSetClusterMemberAttributesUnknownNode(t *testing.T) {
+	database := setupTestDB(t)
+
+	err := database.SetClusterMemberAttributes(context.Background(), 42, "https://127.0.0.1:5000", "1.18.0")
+	if !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("Expected ErrNotFound, got %v", err)
+	}
+}

@@ -19,6 +19,8 @@ import (
 
 const haComposeDir = "compose/ha/"
 
+const defaultNodeAPIPort = 5002
+
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 // captureClusterLogs collects each service's container logs and writes
@@ -230,6 +232,10 @@ func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, i
 // service name) instead of the per-node IP. The FQDN path is what real
 // orchestrator-managed deployments use.
 func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN bool) error {
+	return writeNodeConfigPort(composeDir, nodeID, peers, joinToken, initialSuffrage, useFQDN, defaultNodeAPIPort)
+}
+
+func writeNodeConfigPort(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN bool, apiPort int) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -284,7 +290,7 @@ interfaces:
     name: "n6"
   api:
     address: %q
-    port: 5002
+    port: %d
 datapath:
   attach-mode: "xdp-generic"
 cluster:
@@ -292,7 +298,7 @@ cluster:
   node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, apiPort, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
