@@ -4,7 +4,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -34,7 +33,6 @@ import {
   listClusterMembers,
   getAutopilotState,
   promoteClusterMember,
-  removeClusterMember,
   type ClusterMember,
   type AutopilotServer,
   type AutopilotState,
@@ -44,7 +42,8 @@ import {
 import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import RemoveNodeModal, { nodeHealth } from "@/components/RemoveNodeModal";
+import ClusterStateCard from "@/components/ClusterStateCard";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { formatDateTime } from "@/utils/formatters";
 import PageTitle from "@/components/PageTitle";
@@ -53,6 +52,14 @@ type JoinedRow = ClusterMember & {
   id: number;
   autopilot?: AutopilotServer;
 };
+
+const ActionSlot = React.forwardRef<
+  HTMLSpanElement,
+  React.ComponentPropsWithoutRef<"span"> & { touchRippleRef?: unknown }
+>(function ActionSlot({ touchRippleRef, ...props }, ref) {
+  void touchRippleRef;
+  return <span ref={ref} {...props} />;
+});
 
 // MUI top-aligns renderCell output; vertical centering requires a full-height flex container.
 const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
@@ -73,8 +80,8 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
 function drainStateChip(state: DrainState, updatedAt?: string) {
   if (state === "draining") {
     const title = updatedAt
-      ? `Draining since ${formatDateTime(updatedAt)}. Not yet safe to remove.`
-      : "Node is draining; not yet safe to remove.";
+      ? `Draining since ${formatDateTime(updatedAt)}.`
+      : "";
     return (
       <Tooltip title={title}>
         <Chip
@@ -87,9 +94,7 @@ function drainStateChip(state: DrainState, updatedAt?: string) {
     );
   }
   if (state === "drained") {
-    const title = updatedAt
-      ? `Drained at ${formatDateTime(updatedAt)}. Safe to remove.`
-      : "Node is drained; safe to remove.";
+    const title = updatedAt ? `Drained at ${formatDateTime(updatedAt)}.` : "";
     return (
       <Tooltip title={title}>
         <Chip label="Drained" size="small" color="error" variant="outlined" />
@@ -163,51 +168,6 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   );
 };
 
-const HealthBanner: React.FC<{
-  autopilot: AutopilotState | undefined;
-  autopilotError: boolean;
-  versionsDiffer: boolean;
-}> = ({ autopilot, autopilotError, versionsDiffer }) => {
-  if (autopilotError && !autopilot) {
-    return (
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        Live cluster health is unavailable. Autopilot typically takes a moment
-        to converge after a leadership change.
-      </Alert>
-    );
-  }
-
-  if (!autopilot) return null;
-
-  const ft = autopilot.failureTolerance;
-  const severity: "success" | "warning" | "error" =
-    !autopilot.healthy || ft < 0 ? "error" : ft === 0 ? "warning" : "success";
-
-  const ftText =
-    ft < 0
-      ? "Quorum lost — the cluster cannot accept writes until a voter recovers."
-      : ft === 0
-        ? "At quorum limit — one more voter failure would stop writes."
-        : `Failure tolerance: ${ft} voter${ft === 1 ? "" : "s"}.`;
-
-  return (
-    <Stack spacing={1} sx={{ mb: 2 }}>
-      <Alert severity={severity}>
-        <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>
-          Cluster is {autopilot.healthy ? "healthy" : "unhealthy"}.
-        </Typography>{" "}
-        {ftText}
-      </Alert>
-      {versionsDiffer && (
-        <Alert severity="warning">
-          Nodes are running different binary versions. This is expected during a
-          rolling upgrade but should not persist.
-        </Alert>
-      )}
-    </Stack>
-  );
-};
-
 const ClusterPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -216,7 +176,7 @@ const ClusterPage: React.FC = () => {
   const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
-  const [removeTarget, setRemoveTarget] = useState<ClusterMember | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<JoinedRow | null>(null);
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["status"],
@@ -281,21 +241,10 @@ const ClusterPage: React.FC = () => {
     [accessToken, showSnackbar, queryClient],
   );
 
-  const handleRemoveConfirm = async () => {
-    if (!accessToken || !removeTarget) return;
-    const target = removeTarget;
-    setRemoveTarget(null);
-    try {
-      await removeClusterMember(accessToken, target.nodeId);
-      showSnackbar(`Node ${target.nodeId} removed.`, "success");
-      queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
-      queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
-    } catch (err) {
-      showSnackbar(
-        `Failed to remove: ${err instanceof Error ? err.message : "unknown error"}`,
-        "error",
-      );
-    }
+  const handleRemoveSuccess = (nodeId: number) => {
+    showSnackbar(`Node ${nodeId} removed.`, "success");
+    queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
+    queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
 
   const handleDrainSuccess = (result: DrainResponse) => {
@@ -408,7 +357,7 @@ const ClusterPage: React.FC = () => {
           if (!ap) {
             return (
               <CenteredCell>
-                <Tooltip title="Autopilot has not reported this node yet (e.g. during post-failover cold-start).">
+                <Tooltip title="The leader has not reported on this node yet.">
                   <Chip label="—" size="small" variant="outlined" />
                 </Tooltip>
               </CenteredCell>
@@ -416,13 +365,11 @@ const ClusterPage: React.FC = () => {
           }
           return (
             <CenteredCell>
-              <Tooltip title={`Autopilot nodeStatus: ${ap.nodeStatus}`}>
-                <Chip
-                  label={ap.healthy ? "healthy" : "unhealthy"}
-                  size="small"
-                  color={ap.healthy ? "success" : "error"}
-                />
-              </Tooltip>
+              <Chip
+                label={ap.healthy ? "Healthy" : "Unhealthy"}
+                size="small"
+                color={ap.healthy ? "success" : "error"}
+              />
             </CenteredCell>
           );
         },
@@ -435,12 +382,11 @@ const ClusterPage: React.FC = () => {
         sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: JoinedRow }) => {
-          const isSelf = p.row.nodeId === selfNodeId;
           const isCurrentLeader = p.row.nodeId === currentLeaderNodeId;
           const state = p.row.drainState;
           const canDrain = state === "active";
           const canResume = state !== "active";
-          const canRemove = !isSelf && !isCurrentLeader && state === "drained";
+          const canRemove = !isCurrentLeader;
           const canPromote = p.row.suffrage === "nonvoter";
 
           const promoteTitle = canPromote
@@ -448,26 +394,18 @@ const ClusterPage: React.FC = () => {
             : "Already a voter.";
 
           const drainTitle = canDrain
-            ? "Drain this node: transfer leadership if leader, notify RANs, stop BGP."
+            ? "Drain this node."
             : "Node is drained; use Resume to reverse or Remove to delete.";
 
-          const resumeTitle = canResume
-            ? "Resume: clear drain state and restart BGP. Does not reverse AMF Status Indication or reclaim leadership."
-            : "Node is already active.";
+          const resumeTitle = canResume ? "Resume." : "Node is already active.";
 
-          const removeTitle = isSelf
-            ? "Cannot remove the node you are currently connected to."
-            : isCurrentLeader
-              ? "Cannot remove the current leader. Drain it first so leadership transfers, then retry."
-              : state === "draining"
-                ? "Drain in progress. Remove is enabled once the node reaches 'drained'."
-                : state !== "drained"
-                  ? "Drain the node first. Remove is enabled only for nodes in the 'drained' state."
-                  : "Remove this node from the Raft cluster.";
+          const removeTitle = isCurrentLeader
+            ? "Cannot remove the current leader. Drain it first, then retry."
+            : "Remove this node from the cluster.";
 
           return [
             <Tooltip key="promote" title={promoteTitle}>
-              <span>
+              <ActionSlot>
                 <GridActionsCellItem
                   icon={
                     <ArrowUpwardIcon
@@ -478,10 +416,10 @@ const ClusterPage: React.FC = () => {
                   disabled={!canPromote}
                   onClick={() => handlePromote(p.row)}
                 />
-              </span>
+              </ActionSlot>
             </Tooltip>,
             <Tooltip key="drain" title={drainTitle}>
-              <span>
+              <ActionSlot>
                 <GridActionsCellItem
                   icon={
                     <PowerSettingsNewIcon
@@ -492,10 +430,10 @@ const ClusterPage: React.FC = () => {
                   disabled={!canDrain}
                   onClick={() => setDrainTarget(p.row)}
                 />
-              </span>
+              </ActionSlot>
             </Tooltip>,
             <Tooltip key="resume" title={resumeTitle}>
-              <span>
+              <ActionSlot>
                 <GridActionsCellItem
                   icon={
                     <PlayArrowIcon color={canResume ? "success" : "disabled"} />
@@ -504,10 +442,10 @@ const ClusterPage: React.FC = () => {
                   disabled={!canResume}
                   onClick={() => setResumeTarget(p.row)}
                 />
-              </span>
+              </ActionSlot>
             </Tooltip>,
             <Tooltip key="remove" title={removeTitle}>
-              <span>
+              <ActionSlot>
                 <GridActionsCellItem
                   icon={
                     <DeleteIcon color={canRemove ? "primary" : "disabled"} />
@@ -516,7 +454,7 @@ const ClusterPage: React.FC = () => {
                   disabled={!canRemove}
                   onClick={() => setRemoveTarget(p.row)}
                 />
-              </span>
+              </ActionSlot>
             </Tooltip>,
           ];
         },
@@ -587,11 +525,11 @@ const ClusterPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      <HealthBanner
-        autopilot={autopilot}
-        autopilotError={autopilotQuery.isError}
-        versionsDiffer={versionsDiffer}
-      />
+      <ClusterStateCard status={statusQuery.data} autopilot={autopilot} />
+
+      <Typography variant="h6" sx={{ mb: 1.5 }}>
+        Nodes
+      </Typography>
 
       <EntityGrid<JoinedRow>
         rows={rows}
@@ -606,7 +544,6 @@ const ClusterPage: React.FC = () => {
         <DrainNodeModal
           open
           nodeId={drainTarget.nodeId}
-          isLeader={drainTarget.isLeader}
           onClose={() => setDrainTarget(null)}
           onSuccess={handleDrainSuccess}
         />
@@ -622,12 +559,14 @@ const ClusterPage: React.FC = () => {
       )}
 
       {removeTarget && (
-        <DeleteConfirmationModal
+        <RemoveNodeModal
           open
+          nodeId={removeTarget.nodeId}
+          drainState={removeTarget.drainState}
+          health={nodeHealth(removeTarget.autopilot)}
+          isSelf={removeTarget.nodeId === selfNodeId}
           onClose={() => setRemoveTarget(null)}
-          onConfirm={handleRemoveConfirm}
-          title={`Remove node ${removeTarget.nodeId}?`}
-          description={`Removes node ${removeTarget.nodeId} from the Raft cluster. The node must be shut down afterward — if it stays online, it will keep trying to rejoin.`}
+          onSuccess={() => handleRemoveSuccess(removeTarget.nodeId)}
         />
       )}
     </Box>

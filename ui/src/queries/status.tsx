@@ -3,6 +3,12 @@
 
 import { apiFetch } from "@/queries/utils";
 
+export type PendingMigration = {
+  currentSchema: number;
+  targetSchema: number;
+  laggardNodeId?: number;
+};
+
 export type ClusterStatus = {
   enabled: boolean;
   role: string;
@@ -12,6 +18,8 @@ export type ClusterStatus = {
   leaderAPIAddress?: string;
   appliedIndex: number;
   clusterId?: string;
+  appliedSchemaVersion?: number;
+  pendingMigration?: PendingMigration;
 };
 
 export type APIStatus = {
