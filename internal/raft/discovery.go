@@ -65,8 +65,12 @@ func (m *Manager) StartDiscovery(ctx context.Context) error {
 	}
 
 	if !m.config.HasJoinToken {
-		if err := m.bootstrapFounder(ctx); err != nil {
-			return err
+		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
+			zap.Int("node_id", m.nodeID),
+		)
+
+		if err := m.bootstrapCluster(); err != nil {
+			return fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
 		}
 
 		m.discoveryPending.Store(false)
@@ -74,42 +78,33 @@ func (m *Manager) StartDiscovery(ctx context.Context) error {
 		return nil
 	}
 
-	go m.runDiscovery(ctx)
-
-	return nil
-}
-
-func (m *Manager) bootstrapFounder(ctx context.Context) error {
-	if err := m.assertNoFormedPeer(ctx); err != nil {
+	if err := m.joinExistingCluster(ctx); err != nil {
 		return err
 	}
 
-	logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
-		zap.Int("node_id", m.nodeID),
-	)
-
-	if err := m.bootstrapCluster(); err != nil {
-		return fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
-	}
+	m.discoveryPending.Store(false)
 
 	return nil
 }
 
-func (m *Manager) runDiscovery(ctx context.Context) {
-	slowAfter := m.config.JoinTimeout
-	if slowAfter == 0 {
-		slowAfter = defaultJoinTimeout
+func (m *Manager) joinExistingCluster(parent context.Context) error {
+	giveUpAfter := m.config.JoinTimeout
+	if giveUpAfter == 0 {
+		giveUpAfter = defaultJoinTimeout
 	}
 
 	logger.RaftLog.Info("Starting cluster discovery",
 		zap.Int("node_id", m.nodeID),
-		zap.Bool("has_join_token", m.config.HasJoinToken),
 		zap.Int("peer_count", len(m.config.Peers)),
-		zap.Duration("warn_after", slowAfter),
+		zap.Duration("give_up_after", giveUpAfter),
 	)
 
+	ctx, cancel := context.WithTimeout(parent, giveUpAfter)
+	defer cancel()
+
 	started := time.Now()
-	warned := false
+
+	var lastErr error
 
 	var lastErrLog time.Time
 
@@ -120,54 +115,50 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 		joined, err := m.discoveryTick(ctx)
 
 		if errors.Is(err, ErrDiscoveryFatal) {
-			logger.RaftLog.Error("Cluster discovery cannot continue; fix the configuration and restart",
-				zap.Int("node_id", m.nodeID),
-				zap.Error(err),
-			)
-
-			return
+			return err
 		}
 
-		if err != nil && time.Since(lastErrLog) >= discoveryErrLogInterval {
-			lastErrLog = time.Now()
+		if err != nil {
+			lastErr = err
 
-			logger.RaftLog.Error("Cluster discovery attempt failed; retrying",
-				zap.Int("node_id", m.nodeID),
-				zap.Error(err),
-			)
+			if time.Since(lastErrLog) >= discoveryErrLogInterval {
+				lastErrLog = time.Now()
+
+				logger.RaftLog.Error("Cluster discovery attempt failed; retrying",
+					zap.Int("node_id", m.nodeID),
+					zap.Error(err),
+				)
+			}
 		}
 
 		if err == nil && joined {
-			m.discoveryPending.Store(false)
-
 			logger.RaftLog.Info("Cluster formation complete",
 				zap.Int("node_id", m.nodeID),
 				zap.Duration("took", time.Since(started)),
 			)
 
-			return
-		}
-
-		if !warned && time.Since(started) > slowAfter {
-			warned = true
-
-			logger.RaftLog.Warn("Cluster formation is taking longer than expected; still retrying",
-				zap.Int("node_id", m.nodeID),
-				zap.Duration("elapsed", time.Since(started)),
-				zap.Strings("peers", m.config.Peers),
-			)
+			return nil
 		}
 
 		select {
 		case <-ctx.Done():
-			logger.RaftLog.Info("Cluster discovery stopped", zap.Error(ctx.Err()))
-			return
+			if parent.Err() != nil {
+				return parent.Err()
+			}
+
+			if lastErr != nil {
+				return fmt.Errorf("%w: could not join a cluster within %s: %w", ErrDiscoveryFatal, giveUpAfter, lastErr)
+			}
+
+			return fmt.Errorf("%w: no peer in cluster.peers had formed a cluster within %s", ErrDiscoveryFatal, giveUpAfter)
 		case <-ticker.C:
 		}
 	}
 }
 
 func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
+	var skipped error
+
 	for _, peerAddr := range m.config.Peers {
 		if peerAddr == m.config.AdvertiseAddress {
 			continue
@@ -187,18 +178,14 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		// Schema handshake (follower side): allow joining a peer whose
-		// cluster schema is <= our local schema, since post-baseline
-		// migrations are proposed through Raft by the leader. Reject the
-		// reverse (we'd be downgrading). The leader side of this check
-		// lives in api_cluster.go:AddClusterMember and has the complementary
-		// rule: reject joiners with schema < leader.
 		if m.config.SchemaVersion < peerSchema {
 			logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
 				zap.String("peer", peerAddr),
 				zap.Int("local_schema", m.config.SchemaVersion),
 				zap.Int("remote_schema", peerSchema),
 			)
+
+			skipped = fmt.Errorf("peer %s runs schema %d, newer than this node's %d", peerAddr, peerSchema, m.config.SchemaVersion)
 
 			continue
 		}
@@ -209,6 +196,8 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 				zap.Error(err),
 			)
 
+			skipped = fmt.Errorf("peer %s rejected the join: %w", peerAddr, err)
+
 			continue
 		}
 
@@ -216,7 +205,7 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 	}
 
 	// No formed peer found this tick. The joiner keeps polling.
-	return false, nil
+	return false, skipped
 }
 
 // clusterHTTPDo dials a peer's cluster port over mTLS and performs a
@@ -281,23 +270,6 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 	}
 
 	return resp, nil
-}
-
-func (m *Manager) assertNoFormedPeer(ctx context.Context) error {
-	for _, peerAddr := range m.config.Peers {
-		if peerAddr == m.config.AdvertiseAddress {
-			continue
-		}
-
-		state, nodeID, clusterID, _ := m.probePeer(ctx, peerAddr)
-		if state != peerFormed {
-			continue
-		}
-
-		return fmt.Errorf("%w: peer %s already belongs to cluster %s (node-id %d) but this node has no cluster.join-token and would found a second cluster; mint a join token on the existing cluster and set cluster.join-token", ErrDiscoveryFatal, peerAddr, clusterID, nodeID)
-	}
-
-	return nil
 }
 
 func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, int, string, int) {

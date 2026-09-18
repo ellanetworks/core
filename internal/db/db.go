@@ -1171,7 +1171,7 @@ func (db *Database) RemoveServer(nodeID int) error {
 	return db.raftManager.RemoveServer(nodeID)
 }
 
-// StartDiscovery performs cluster formation for HA mode in the background.
+// StartDiscovery performs cluster formation for HA mode.
 // Must be called after the HTTP server starts so peers can reach this
 // node's API.
 func (db *Database) StartDiscovery(ctx context.Context) error {

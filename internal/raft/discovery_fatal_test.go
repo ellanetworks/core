@@ -34,7 +34,7 @@ func TestStartDiscoveryWithoutClusterListenerIsTerminal(t *testing.T) {
 	}
 }
 
-func TestRunDiscoveryStopsOnTerminalError(t *testing.T) {
+func TestStartDiscoveryStopsOnFounderBootstrapFailure(t *testing.T) {
 	t.Parallel()
 
 	applier := newTestApplier(t)
