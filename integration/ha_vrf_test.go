@@ -6,7 +6,6 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 	"testing"
 	"time"
@@ -55,19 +54,19 @@ func assertVRFTopology(t *testing.T, ctx context.Context, dc *DockerClient) {
 }
 
 func vrfMasterOf(ctx context.Context, dc *DockerClient, container, iface string) (string, error) {
-	argv := []string{"/bin/busybox", "sh", "-c", "readlink /sys/class/net/" + iface + "/master || true"}
-
-	out, err := dc.Exec(ctx, container, argv, false, 15*time.Second, nil)
+	out, err := dc.Exec(ctx, container, []string{"/bin/ip", "-o", "link", "show", iface}, false, 15*time.Second, nil)
 	if err != nil {
 		return "", err
 	}
 
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return "", nil
+	fields := strings.Fields(out)
+	for i, field := range fields {
+		if field == "master" && i+1 < len(fields) {
+			return fields[i+1], nil
+		}
 	}
 
-	return path.Base(out), nil
+	return "", nil
 }
 
 func mainTableDefaultIface(ctx context.Context, dc *DockerClient, container string) (string, error) {
