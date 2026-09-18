@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -1521,10 +1522,34 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload)
 	return nil, nil
 }
 
-func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (any, error) {
+func (db *Database) applySetDrainState(ctx context.Context, p *setDrainStatePayload) (any, error) {
+	if len(p.ExpectFrom) > 0 {
+		current := ClusterMember{NodeID: p.NodeID}
+
+		if err := db.runner(ctx).Query(ctx, db.getClusterMemberStmt, current).Get(&current); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		settled := normalizeDrainState(current.DrainState)
+
+		if !slices.Contains(p.ExpectFrom, settled) {
+			return settled, nil
+		}
+	}
+
+	member := &ClusterMember{
+		NodeID:         p.NodeID,
+		DrainState:     p.DrainState,
+		DrainUpdatedAt: time.Now().Unix(),
+	}
+
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.setDrainStateStmt, m).Get(&outcome)
+	err := db.runner(ctx).Query(ctx, db.setDrainStateStmt, member).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1538,7 +1563,7 @@ func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (a
 		return nil, ErrNotFound
 	}
 
-	return nil, nil
+	return p.DrainState, nil
 }
 
 func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayload) (any, error) {

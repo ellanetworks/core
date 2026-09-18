@@ -319,7 +319,7 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	seedLease("10.45.0.12", "001010000000003", "static")
 
 	// Mark the node drained so the remove precondition is satisfied.
-	if err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDrained); err != nil {
+	if _, err := env.DB.SetDrainStateIf(ctx, removedNodeID, nil, db.DrainStateDrained); err != nil {
 		t.Fatalf("set drain state: %s", err)
 	}
 
@@ -566,7 +566,7 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 		t.Fatalf("upsert self: %s", err)
 	}
 
-	if err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
+	if _, err := env.DB.SetDrainStateIf(ctx, self, nil, db.DrainStateDraining); err != nil {
 		t.Fatalf("seed drained state: %s", err)
 	}
 

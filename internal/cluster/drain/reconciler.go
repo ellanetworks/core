@@ -48,7 +48,7 @@ type Store interface {
 	IsBGPEnabled(ctx context.Context) (bool, error)
 	GetClusterMember(ctx context.Context, nodeID int) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
-	SetDrainState(ctx context.Context, nodeID int, state string) error
+	SetDrainStateIf(ctx context.Context, nodeID int, from []string, state string) (string, error)
 }
 
 type Reconciler struct {
@@ -232,8 +232,14 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	if err := r.store.SetDrainState(ctx, r.store.NodeID(), db.DrainStateDrained); err != nil {
+	settled, err := r.store.SetDrainStateIf(ctx, r.store.NodeID(),
+		[]string{db.DrainStateDraining}, db.DrainStateDrained)
+	if err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not mark drain complete", zap.Error(err))
+		return
+	}
+
+	if settled != db.DrainStateDrained {
 		return
 	}
 

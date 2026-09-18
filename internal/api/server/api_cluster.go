@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,30 @@ const (
 	ClusterMemberAddAction    = "cluster_member_add"
 	ClusterMemberRemoveAction = "cluster_member_remove"
 )
+
+type clusterLeadership interface {
+	ClusterEnabled() bool
+	IsLeader() bool
+	LeaderAddress() string
+	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
+}
+
+func LeaderOnly(dbInstance clusterLeadership, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !dbInstance.ClusterEnabled() || dbInstance.IsLeader() {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		message := "not the leader; retry against the current leader"
+
+		if apiAddress, nodeID := resolveLeader(dbInstance); apiAddress != "" {
+			message = fmt.Sprintf("not the leader; retry against node %d at %s", nodeID, apiAddress)
+		}
+
+		writeError(r.Context(), w, http.StatusMisdirectedRequest, message, nil, logger.APILog)
+	})
+}
 
 type ClusterMemberResponse struct {
 	NodeID         int    `json:"nodeId"`

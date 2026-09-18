@@ -18,7 +18,7 @@ import (
 // table and returns the leader's API address and node-id. Either field
 // is zero when no leader is known or the leader's row is not yet
 // present.
-func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID int) {
+func resolveLeader(dbInstance clusterLeadership) (apiAddress string, nodeID int) {
 	raftAddr := dbInstance.LeaderAddress()
 	if raftAddr == "" {
 		return "", 0
