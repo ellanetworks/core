@@ -71,6 +71,16 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 	return req, nil
 }
 
+func (m *MME) GoHandoverToFiveGS(ctx context.Context, complete func(context.Context)) {
+	m.handoversToFiveGS.Go(func() {
+		complete(context.WithoutCancel(ctx))
+	})
+}
+
+func (m *MME) AwaitHandoversToFiveGS(ctx context.Context) error {
+	return m.handoversToFiveGS.Await(ctx)
+}
+
 func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, connections []interworking.PDNConnection, target interworking.NGRANIdentity, sourceToTarget []byte, cause *s1ap.Cause) (*interworking.FiveGSRelocationRequest, error) {
 	security, err := ue.EPSSecurityContextForRelocation()
 	if err != nil {

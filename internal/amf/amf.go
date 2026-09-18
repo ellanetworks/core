@@ -177,6 +177,8 @@ type AMF struct {
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
 	EPS                      interworking.EPSPeer
+
+	handoversToEPS interworking.HandoverGroup
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

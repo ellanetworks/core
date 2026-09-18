@@ -639,13 +639,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// does not starve subsequent ones.
 		stepTimeout := 5 * time.Second
 
-		step := func(name string, fn func(context.Context)) {
+		stepWithin := func(name string, timeout time.Duration, fn func(context.Context)) {
 			logger.EllaLog.Info(name)
 
-			stepCtx, cancel := context.WithTimeout(context.Background(), stepTimeout)
+			stepCtx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			fn(stepCtx)
+		}
+
+		step := func(name string, fn func(context.Context)) {
+			stepWithin(name, stepTimeout, fn)
 		}
 
 		// 0. Transfer leadership (HA only) so the cluster can continue
@@ -672,6 +676,26 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Info("Shutting down session reconcilers")
 		sessionReconciler.Stop()
 		mmeReconciler.Stop()
+
+		handoverDrainTimeout := max(amfInstance.HandoverGuardTimeout(), mmeInstance.HandoverGuardTimeout()) + stepTimeout
+
+		stepWithin("Draining inter-system handovers", handoverDrainTimeout, func(stepCtx context.Context) {
+			var draining sync.WaitGroup
+
+			draining.Go(func() {
+				if err := amfInstance.AwaitHandoversToEPS(stepCtx); err != nil {
+					logger.EllaLog.Warn("Handovers to EPS did not drain", zap.Error(err))
+				}
+			})
+
+			draining.Go(func() {
+				if err := mmeInstance.AwaitHandoversToFiveGS(stepCtx); err != nil {
+					logger.EllaLog.Warn("Handovers to 5GS did not drain", zap.Error(err))
+				}
+			})
+
+			draining.Wait()
+		})
 
 		// 2. Cancel all AMF UE timers immediately so paging and other
 		//    retransmissions stop firing during teardown.
