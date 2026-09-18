@@ -156,21 +156,6 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 	}
 }
 
-// discoveryTick runs one iteration of the discovery poll. Returns true when
-// the cluster has been joined or bootstrapped.
-//
-// The tick has two modes, selected by the join-token:
-//
-//   - A node with a join-token is a joiner. It only returns success when it
-//     finds a formed peer and POSTs its membership to it. Solo-bootstrap is
-//     never taken, even if no peers are reachable.
-//   - A node without a join-token is the founder. It probes its peers
-//     first and refuses to start if any of them already belongs to a
-//     cluster, so a missing or mistyped join-token cannot silently found
-//     a second cluster against a live peer list. When no peer is formed
-//     it bootstraps on the first tick. PostInitClusterSetup on the first
-//     leader mints the CA and issues this node's leaf so joiners can
-//     connect.
 func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 	if !m.config.HasJoinToken {
 		if err := m.assertNoFormedPeer(ctx); err != nil {
@@ -199,11 +184,6 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		// Duplicate node-id is a hard misconfiguration: two nodes can't
-		// share an ID without risking split-brain during bootstrap or
-		// clobbering an existing cluster member at join time. Fail loud
-		// so the operator fixes cluster.node-id rather than letting the
-		// cluster form silently wrong.
 		if nodeID > 0 && nodeID == m.nodeID {
 			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", ErrDiscoveryFatal, peerAddr, nodeID)
 		}
@@ -308,9 +288,6 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 	return resp, nil
 }
 
-// assertNoFormedPeer fails the founder path when a configured peer
-// already belongs to a cluster. Unreachable peers are treated as absent:
-// the founder's first boot normally happens before any peer is up.
 func (m *Manager) assertNoFormedPeer(ctx context.Context) error {
 	for _, peerAddr := range m.config.Peers {
 		if peerAddr == m.config.AdvertiseAddress {
@@ -328,10 +305,6 @@ func (m *Manager) assertNoFormedPeer(ctx context.Context) error {
 	return nil
 }
 
-// probePeer queries a peer's cluster status endpoint and returns its state,
-// node ID, cluster ID, and schema version. This is the one discovery path
-// that cannot pin an expected peer-id — learning the peer's identity is
-// the purpose of the probe.
 func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, int, string, int) {
 	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, 0, "/cluster/status", nil)
 	if err != nil {
@@ -365,9 +338,8 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
-// ProbePeerSchemaVersion reads the peer's reported SchemaVersion from
-// its /cluster/status endpoint. peerNodeID pins the mTLS dial.
-// Callers must treat any error as "capability unknown".
+// ProbePeerSchemaVersion reads the peer's reported Schema Version from
+// its /cluster/status endpoint.
 func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, peerAddr string) (int, error) {
 	if peerNodeID <= 0 {
 		return 0, fmt.Errorf("peer node id required")
@@ -406,9 +378,6 @@ func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, pe
 	return v, nil
 }
 
-// joinCluster POSTs our membership to a peer's cluster port. peerNodeID
-// is the node-id learned from the prior probePeer call; it pins the mTLS
-// dial so we only send the join payload to the node we intended.
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID int, clusterID string) error {
 	payload := struct {
 		NodeID        int    `json:"nodeId"`
