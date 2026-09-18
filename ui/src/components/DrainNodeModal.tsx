@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Typography } from "@mui/material";
 import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
@@ -40,25 +39,9 @@ const DrainNodeModal: React.FC<Props> = ({
       description={
         <>
           Stops new traffic on <strong>node {nodeId}</strong> and moves its
-          subscribers to the rest of the cluster. 4G subscribers reconnect
-          briefly. 5G subscribers keep their sessions.
+          subscribers to the rest of the cluster.
         </>
       }
-      details={{
-        label: "What this does",
-        content: (
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Tells connected radios to stop selecting this node, and stops the
-            local BGP speaker.
-            {isLeader
-              ? " Transfers Raft leadership to another voter."
-              : ""}{" "}
-            Sets <code>drainState</code> to <em>draining</em>, then to{" "}
-            <em>drained</em> once the node holds no subscribers or the one-hour
-            deadline passes.
-          </Typography>
-        ),
-      }}
       confirmLabel="Drain"
       confirmingLabel="Draining…"
       confirmColor="warning"

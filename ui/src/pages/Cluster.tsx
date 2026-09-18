@@ -398,16 +398,16 @@ const ClusterPage: React.FC = () => {
             : "Already a voter.";
 
           const drainTitle = canDrain
-            ? "Drain this node: transfer leadership if leader, notify RANs, stop BGP."
+            ? "Drain this node."
             : "Node is drained; use Resume to reverse or Remove to delete.";
 
           const resumeTitle = canResume
-            ? "Resume: clear drain state and restart BGP. Does not reverse AMF Status Indication or reclaim leadership."
+            ? "Resume."
             : "Node is already active.";
 
           const removeTitle = isCurrentLeader
-            ? "Cannot remove the current leader. Drain it first so leadership transfers, then retry."
-            : "Remove this node from the Raft cluster.";
+            ? "Cannot remove the current leader. Drain it first, then retry."
+            : "Remove this node from the cluster.";
 
           return [
             <Tooltip key="promote" title={promoteTitle}>
