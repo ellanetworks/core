@@ -13,6 +13,10 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.11
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -31,6 +35,10 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.12
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -49,6 +57,10 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.13
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -64,6 +76,11 @@ networks:
     ipam:
       config:
         - subnet: 10.100.0.0/24
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
   n6:
     ipam:
       config:

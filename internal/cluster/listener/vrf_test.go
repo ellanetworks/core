@@ -17,8 +17,6 @@ import (
 type clusterTopo struct {
 	links     map[string]netlink.Link
 	addrs     map[string]int
-	routes    map[string]int
-	vrfRoutes map[string]string
 	hostnames map[string][]string
 }
 
@@ -26,21 +24,17 @@ func stubClusterNetlink(t *testing.T, topo clusterTopo) {
 	t.Helper()
 
 	byIndex := map[int]netlink.Link{}
-	allLinks := make([]netlink.Link, 0, len(topo.links))
 
 	for _, l := range topo.links {
 		byIndex[l.Attrs().Index] = l
-		allLinks = append(allLinks, l)
 	}
 
 	oldByIndex, oldAddrList := netutil.LinkByIndex, netutil.AddrList
-	oldRouteGet, oldRouteGetWithOptions := clusterRouteGet, clusterRouteGetWithOptions
-	oldLinkList, oldLookupIP := clusterLinkList, clusterLookupIP
+	oldLookupIP := clusterLookupIP
 
 	t.Cleanup(func() {
 		netutil.LinkByIndex, netutil.AddrList = oldByIndex, oldAddrList
-		clusterRouteGet, clusterRouteGetWithOptions = oldRouteGet, oldRouteGetWithOptions
-		clusterLinkList, clusterLookupIP = oldLinkList, oldLookupIP
+		clusterLookupIP = oldLookupIP
 	})
 
 	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
@@ -62,26 +56,6 @@ func stubClusterNetlink(t *testing.T, topo clusterTopo) {
 		}
 
 		return out, nil
-	}
-
-	clusterRouteGet = func(dst net.IP) ([]netlink.Route, error) {
-		if idx, ok := topo.routes[dst.String()]; ok {
-			return []netlink.Route{{LinkIndex: idx}}, nil
-		}
-
-		return nil, errors.New("no route to " + dst.String())
-	}
-
-	clusterRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
-		if opts != nil && opts.VrfName != "" && topo.vrfRoutes[dst.String()] == opts.VrfName {
-			return []netlink.Route{{LinkIndex: 0}}, nil
-		}
-
-		return nil, errors.New("no route to " + dst.String())
-	}
-
-	clusterLinkList = func() ([]netlink.Link, error) {
-		return allLinks, nil
 	}
 
 	clusterLookupIP = func(ctx context.Context, network, host string) ([]net.IP, error) {
@@ -119,77 +93,69 @@ func clusterVRFTopo() clusterTopo {
 			"n6": &netlink.Device{
 				LinkAttrs: netlink.LinkAttrs{Name: "n6", Index: 6, MasterIndex: 10},
 			},
-			"eth1": &netlink.Device{
-				LinkAttrs: netlink.LinkAttrs{Name: "eth1", Index: 5},
+			"mgmt0": &netlink.Device{
+				LinkAttrs: netlink.LinkAttrs{Name: "mgmt0", Index: 5},
 			},
 		},
 		addrs: map[string]int{
-			"10.9.0.2": 4,
-			"10.9.0.9": 5,
-		},
-		routes: map[string]int{
-			"10.6.0.3": 6,
-			"10.9.0.9": 5,
-		},
-		vrfRoutes: map[string]string{
-			"10.100.0.12": "cp-vrf",
+			"10.100.0.11": 4,
+			"10.6.0.11":   6,
+			"10.200.0.1":  5,
 		},
 		hostnames: map[string][]string{
-			"node2": {"10.100.0.12"},
-			"node9": {"192.0.2.9"},
-			"node3": {"10.9.0.9", "10.100.0.12"},
+			"node1":     {"10.100.0.11"},
+			"unmanaged": {"192.0.2.9"},
+			"multi":     {"192.0.2.9", "10.100.0.11"},
 		},
 	}
 }
 
 func TestVRFDeviceForBindAddress(t *testing.T) {
-	topo := clusterVRFTopo()
-	stubClusterNetlink(t, topo)
+	stubClusterNetlink(t, clusterVRFTopo())
 
 	for _, tc := range []struct {
 		addr string
 		want string
 	}{
-		{"10.9.0.2:5002", "cp-vrf"},
-		{"10.9.0.9:5002", ""},
-		{":5002", ""},
-		{"127.0.0.1:5002", ""},
-		{"node1:5002", ""},
+		{"10.100.0.11:7000", "cp-vrf"},
+		{"10.6.0.11:7000", "up-vrf"},
+		{"10.200.0.1:7000", ""},
+		{"0.0.0.0:7000", ""},
+		{":7000", ""},
+		{"127.0.0.1:7000", ""},
+		{"10.9.9.9:7000", ""},
 		{"bogus", ""},
-		{"10.9.9.9:5002", ""},
+		{"node1:7000", "cp-vrf"},
+		{"unmanaged:7000", ""},
+		{"multi:7000", "cp-vrf"},
+		{"unresolvable:7000", ""},
 	} {
-		if got := vrfDeviceForBindAddress(tc.addr); got != tc.want {
+		if got := vrfDeviceForBindAddress(context.Background(), tc.addr); got != tc.want {
 			t.Errorf("vrfDeviceForBindAddress(%q) = %q, want %q", tc.addr, got, tc.want)
 		}
 	}
 }
 
-func TestVRFDeviceForDestination(t *testing.T) {
-	topo := clusterVRFTopo()
-	stubClusterNetlink(t, topo)
+func TestVRFDeviceForBindAddressIgnoresDestination(t *testing.T) {
+	stubClusterNetlink(t, clusterVRFTopo())
 
-	for _, tc := range []struct {
-		addr string
-		want string
-	}{
-		{"10.6.0.3:179", "up-vrf"},
-		{"10.9.0.9:179", ""},
-		{"127.0.0.1:179", ""},
-		{"192.0.2.1:179", ""},
-		{"bogus", ""},
-		{"10.100.0.12:7000", "cp-vrf"},
-		{"node2:7000", "cp-vrf"},
-		{"node9:7000", ""},
-		{"node3:7000", "cp-vrf"},
-		{"unresolvable:7000", ""},
-	} {
-		if got := vrfDeviceForDestination(tc.addr); got != tc.want {
-			t.Errorf("vrfDeviceForDestination(%q) = %q, want %q", tc.addr, got, tc.want)
+	const bindAddr = "10.100.0.11:7000"
+
+	want := vrfDeviceForBindAddress(context.Background(), bindAddr)
+	if want != "cp-vrf" {
+		t.Fatalf("bind address resolved to %q, want cp-vrf", want)
+	}
+
+	ln := &Listener{cfg: Config{BindAddress: bindAddr}}
+
+	for _, peer := range []string{"10.100.0.12:7000", "10.6.0.3:7000", "192.0.2.1:7000"} {
+		if got := vrfDeviceForBindAddress(context.Background(), ln.cfg.BindAddress); got != want {
+			t.Errorf("dial to %s resolved to %q, want %q", peer, got, want)
 		}
 	}
 }
 
-func TestResolveDestinationIPBoundsLookup(t *testing.T) {
+func TestResolveBindHostBoundsLookup(t *testing.T) {
 	oldLookupIP := clusterLookupIP
 
 	t.Cleanup(func() { clusterLookupIP = oldLookupIP })
@@ -208,11 +174,53 @@ func TestResolveDestinationIPBoundsLookup(t *testing.T) {
 		return nil, errors.New("no such host")
 	}
 
-	if got := resolveDestinationIPs("node2"); len(got) != 0 {
-		t.Errorf("resolveDestinationIPs(unresolvable) = %v, want no addresses", got)
+	if got := resolveBindHost(context.Background(), "node1"); len(got) != 0 {
+		t.Errorf("resolveBindHost(unresolvable) = %v, want no addresses", got)
 	}
 
 	if until := time.Until(gotDeadline); until <= 0 || until > resolveTimeout {
 		t.Errorf("resolver deadline in %v, want within (0, %v]", until, resolveTimeout)
+	}
+}
+
+func TestResolveBindHostHonoursCallerDeadline(t *testing.T) {
+	oldLookupIP := clusterLookupIP
+
+	t.Cleanup(func() { clusterLookupIP = oldLookupIP })
+
+	var gotDeadline time.Time
+
+	clusterLookupIP = func(ctx context.Context, network, host string) ([]net.IP, error) {
+		gotDeadline, _ = ctx.Deadline()
+
+		return nil, errors.New("no such host")
+	}
+
+	const callerTimeout = 50 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(context.Background(), callerTimeout)
+	defer cancel()
+
+	resolveBindHost(ctx, "node1")
+
+	if until := time.Until(gotDeadline); until <= 0 || until > callerTimeout {
+		t.Errorf("resolver deadline in %v, want within (0, %v]", until, callerTimeout)
+	}
+}
+
+func TestResolveBindHostSkipsLookupForIPLiteral(t *testing.T) {
+	oldLookupIP := clusterLookupIP
+
+	t.Cleanup(func() { clusterLookupIP = oldLookupIP })
+
+	clusterLookupIP = func(ctx context.Context, network, host string) ([]net.IP, error) {
+		t.Errorf("resolver called for IP literal %q", host)
+
+		return nil, errors.New("unexpected lookup")
+	}
+
+	got := resolveBindHost(context.Background(), "10.100.0.11")
+	if len(got) != 1 || !got[0].Equal(net.ParseIP("10.100.0.11")) {
+		t.Errorf("resolveBindHost(10.100.0.11) = %v, want [10.100.0.11]", got)
 	}
 }

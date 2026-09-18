@@ -4,9 +4,12 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/netutil"
@@ -95,5 +98,54 @@ func TestAPIBindDeviceFallsBackOnResolutionError(t *testing.T) {
 	got := apiBindDevice(config.APIInterface{Address: "10.0.0.2"})
 	if got != "" {
 		t.Errorf("apiBindDevice = %q, want unbound fallback on resolution error", got)
+	}
+}
+
+func TestListenAPIResolvesBindDevicePerAttempt(t *testing.T) {
+	var calls atomic.Int64
+
+	oldAddrList := netutil.AddrList
+
+	t.Cleanup(func() { netutil.AddrList = oldAddrList })
+
+	netutil.AddrList = func(link netlink.Link, family int) ([]netlink.Addr, error) {
+		calls.Add(1)
+
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+
+	_, _, err := listenAPI(ctx, config.APIInterface{Address: "192.0.2.1"}, "192.0.2.1:38412")
+	if err == nil {
+		t.Fatal("expected error listening on unassigned address, got nil")
+	}
+
+	if !netutil.IsAddrNotAvailable(err) {
+		t.Errorf("expected retryable EADDRNOTAVAIL from the socket bind, got: %v", err)
+	}
+
+	if got := calls.Load(); got < 2 {
+		t.Errorf("bind device resolved %d time(s), want one resolution per retry attempt", got)
+	}
+}
+
+func TestListenAPIReportsNoDeviceOnLoopback(t *testing.T) {
+	stubBindDeviceNetlink(t, nil)
+
+	ln, device, err := listenAPI(context.Background(), config.APIInterface{Address: "127.0.0.1"}, "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listenAPI on loopback: %v", err)
+	}
+
+	defer func() {
+		if err := ln.Close(); err != nil {
+			t.Errorf("close listener: %v", err)
+		}
+	}()
+
+	if device != "" {
+		t.Errorf("listenAPI bound to device %q, want no VRF binding on loopback", device)
 	}
 }

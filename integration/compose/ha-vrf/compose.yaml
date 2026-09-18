@@ -6,9 +6,10 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: ""
-      VRF_UP_IFACES: "eth0 n6"
+      VRF_CP_IFACES: "eth0"
+      VRF_UP_IFACES: "n3 n6"
       VRF_UP_ROUTES: ""
+      VRF_MAIN_DEFAULT: "1"
     volumes:
       - ./cfg/node1:/cfg:ro
       - data1:/data
@@ -19,6 +20,10 @@ services:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.11
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.11
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -30,9 +35,10 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: ""
-      VRF_UP_IFACES: "eth0 n6"
+      VRF_CP_IFACES: "eth0"
+      VRF_UP_IFACES: "n3 n6"
       VRF_UP_ROUTES: ""
+      VRF_MAIN_DEFAULT: "1"
     volumes:
       - ./cfg/node2:/cfg:ro
       - data2:/data
@@ -43,6 +49,10 @@ services:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.12
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.12
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -54,9 +64,10 @@ services:
     privileged: true
     environment:
       CORE_CONFIG: "/cfg/core.yaml"
-      VRF_CP_IFACES: ""
-      VRF_UP_IFACES: "eth0 n6"
+      VRF_CP_IFACES: "eth0"
+      VRF_UP_IFACES: "n3 n6"
       VRF_UP_ROUTES: ""
+      VRF_MAIN_DEFAULT: "1"
     volumes:
       - ./cfg/node3:/cfg:ro
       - data3:/data
@@ -67,6 +78,10 @@ services:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.13
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.13
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -82,6 +97,11 @@ networks:
     ipam:
       config:
         - subnet: 10.100.0.0/24
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
   n6:
     ipam:
       config:

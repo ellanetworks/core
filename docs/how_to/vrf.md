@@ -2,7 +2,7 @@
 description: How to run Ella Core interfaces inside VRFs
 ---
 
-Any interface used by Ella Core (N2, N3, N6, API) can live inside a Linux VRF (Virtual Routing and Forwarding) domain. Ella Core has no VRF setting of its own: it discovers VRF membership from the host at startup and automatically binds its listeners and sockets to the right VRF device, programs routes and neighbours into the VRF's routing table, and scopes BGP sessions accordingly.
+Any interface used by Ella Core (N2, N3, N6, API, cluster) can live inside a Linux VRF (Virtual Routing and Forwarding) domain. Ella Core has no VRF setting of its own: it discovers VRF membership from the host at startup and automatically binds its listeners and sockets to the right VRF device, programs routes and neighbours into the VRF's routing table, and scopes BGP sessions accordingly.
 
 ## Assign the interfaces to a VRF
 
@@ -14,7 +14,8 @@ Create a VRF domain on the host and assign each interface Ella Core uses to the 
 !!! warning "N3 and N6 must share a VRF"
     The N3 and N6 interfaces must be assigned to the **same** VRF (or both left in the main routing table). Ella Core validates this at startup and refuses to start if they are in different VRFs.
 
-Optionally, set `net.vrf.strict_mode=1` to enforce that only routes in the VRF's table are used for traffic in the VRF domain. Without it, a route lookup that misses in the VRF's table falls through to the main routing table.
+!!! warning "Route fall-through"
+    If the Linux kernel does not find a matching route in the routing table for a VRF, it will lookup in the main table. To prevent this, refer to the [vrf documentation](https://www.kernel.org/doc/html/latest/networking/vrf.html) for the Linux kernel.
 
 ## Configure Ella Core
 
@@ -38,6 +39,20 @@ With `n3` and `n6` enslaved to a VRF named `up-vrf`, Ella Core will:
 - Bind the GTP-U endpoint, End Marker sockets, and BGP speaker to `up-vrf`.
 - Install subscriber routes, framed routes, and neighbour entries into the VRF's routing table.
 - Enslave its internal veth pairs (`veth-smf`, `veth-xdp`, `veth-buf`, `veth-buf-xdp`) to `up-vrf` so downlink buffering and IPv6 router advertisements follow the user-plane routing domain.
+
+## Put the cluster interface in a VRF
+
+In a [high availability](deploy_ha_cluster.md) deployment, the interface carrying `cluster.bind-address` can be in its own VRF. Ella Core derives the VRF from that address and uses it for both directions: the cluster listener binds to it, and every outbound cluster connection. Peers must therefore be reachable from inside that VRF.
+
+```yaml
+cluster:
+  enabled: true
+  node-id: 1
+  bind-address: "10.100.0.11:7000"
+```
+
+!!! warning "A wildcard bind address disables VRF binding"
+    With `cluster.bind-address` set to a wildcard such as `0.0.0.0:7000`, Ella Core cannot determine the right VRF to bind to; therefore it disables VRF binding.
 
 ## Combining VRFs with VLANs
 

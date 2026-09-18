@@ -82,13 +82,13 @@ func TestNexthopsFromRoutes_NoUsableRoute(t *testing.T) {
 	}
 }
 
-func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route, links []netlink.Link) *[]netlink.Neigh {
+func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route) *[]netlink.Neigh {
 	t.Helper()
 
-	oldRouteGet, oldLinkList, oldNeighSet := neighRouteGetWithOptions, neighLinkList, neighSet
+	oldRouteGet, oldNeighSet := neighRouteGetWithOptions, neighSet
 
 	t.Cleanup(func() {
-		neighRouteGetWithOptions, neighLinkList, neighSet = oldRouteGet, oldLinkList, oldNeighSet
+		neighRouteGetWithOptions, neighSet = oldRouteGet, oldNeighSet
 	})
 
 	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
@@ -102,10 +102,6 @@ func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route, links []n
 		}
 
 		return nil, unix.ENETUNREACH
-	}
-
-	neighLinkList = func() ([]netlink.Link, error) {
-		return links, nil
 	}
 
 	seeded := &[]netlink.Neigh{}
@@ -123,9 +119,9 @@ func TestAddNeighbour_MainTableRoute(t *testing.T) {
 
 	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
 		"10.45.0.5|": {{LinkIndex: 6, Gw: gw}},
-	}, nil)
+	})
 
-	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
+	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), ""); err != nil {
 		t.Fatalf("AddNeighbour: %v", err)
 	}
 
@@ -135,48 +131,59 @@ func TestAddNeighbour_MainTableRoute(t *testing.T) {
 }
 
 func TestAddNeighbour_VRFTableRoute(t *testing.T) {
-	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
-	n3 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n3", Index: 2, MasterIndex: 10}}
 	gw := net.ParseIP("10.3.0.1")
 
 	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
 		"10.45.0.5|up-vrf": {{LinkIndex: 2, Gw: gw}},
-	}, []netlink.Link{upVRF, n3})
+	})
 
-	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
+	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "up-vrf"); err != nil {
 		t.Fatalf("AddNeighbour: %v", err)
 	}
 
 	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 2 || !(*seeded)[0].IP.Equal(gw) {
-		t.Errorf("expected gateway %s seeded on link 2 via VRF fallback, got %+v", gw, *seeded)
+		t.Errorf("expected gateway %s seeded on link 2 from the up-vrf table, got %+v", gw, *seeded)
 	}
 }
 
-func TestAddNeighbour_VRFTableRouteVLAN(t *testing.T) {
-	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
-	n3 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n3", Index: 2, MasterIndex: 10}}
-	vlan := &netlink.Vlan{LinkAttrs: netlink.LinkAttrs{Name: "n3.100", Index: 3, MasterIndex: 10, ParentIndex: 2}, VlanId: 100}
+func TestAddNeighbour_VRFLookupIgnoresMainTable(t *testing.T) {
+	mgmtGW := net.ParseIP("10.200.0.254")
+
+	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
+		"10.45.0.5|": {{LinkIndex: 5, Gw: mgmtGW}},
+	})
+
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "up-vrf")
+	if !errors.Is(err, errNoRouteToNeighbour) {
+		t.Errorf("expected errNoRouteToNeighbour, got %v", err)
+	}
+
+	if len(*seeded) != 0 {
+		t.Errorf("expected no neighbours seeded from the main table, got %+v", *seeded)
+	}
+}
+
+func TestAddNeighbour_MainLookupIgnoresVRFTables(t *testing.T) {
 	gw := net.ParseIP("10.3.0.1")
 
 	seeded := stubNeighNetlink(t, map[string][]netlink.Route{
-		"10.45.0.5|up-vrf": {{LinkIndex: 3, Gw: gw}},
-	}, []netlink.Link{upVRF, n3, vlan})
+		"10.45.0.5|up-vrf": {{LinkIndex: 2, Gw: gw}},
+	})
 
-	if err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5")); err != nil {
-		t.Fatalf("AddNeighbour: %v", err)
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "")
+	if !errors.Is(err, errNoRouteToNeighbour) {
+		t.Errorf("expected errNoRouteToNeighbour, got %v", err)
 	}
 
-	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 3 || !(*seeded)[0].IP.Equal(gw) {
-		t.Errorf("expected gateway %s seeded on VLAN link 3 via VRF fallback, got %+v", gw, *seeded)
+	if len(*seeded) != 0 {
+		t.Errorf("expected no neighbours seeded from a VRF table, got %+v", *seeded)
 	}
 }
 
 func TestAddNeighbour_NoRouteAnywhere(t *testing.T) {
-	upVRF := &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "up-vrf", Index: 10}, Table: 1001}
+	seeded := stubNeighNetlink(t, nil)
 
-	seeded := stubNeighNetlink(t, nil, []netlink.Link{upVRF})
-
-	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"))
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "up-vrf")
 	if !errors.Is(err, errNoRouteToNeighbour) {
 		t.Errorf("expected errNoRouteToNeighbour, got %v", err)
 	}
@@ -186,29 +193,72 @@ func TestAddNeighbour_NoRouteAnywhere(t *testing.T) {
 	}
 }
 
-func TestAddNeighbour_LinkListError(t *testing.T) {
-	oldRouteGet, oldLinkList := neighRouteGetWithOptions, neighLinkList
+func TestAddNeighbour_RouteGetError(t *testing.T) {
+	oldRouteGet := neighRouteGetWithOptions
 
-	t.Cleanup(func() {
-		neighRouteGetWithOptions, neighLinkList = oldRouteGet, oldLinkList
-	})
+	t.Cleanup(func() { neighRouteGetWithOptions = oldRouteGet })
+
+	errRouteGet := errors.New("netlink: route get failed")
 
 	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
-		return nil, unix.ENETUNREACH
+		return nil, errRouteGet
 	}
 
-	errLinkList := errors.New("netlink: dump failed")
-
-	neighLinkList = func() ([]netlink.Link, error) {
-		return nil, errLinkList
-	}
-
-	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"))
-	if !errors.Is(err, errLinkList) {
-		t.Fatalf("expected wrapped link list error, got %v", err)
+	err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "up-vrf")
+	if !errors.Is(err, errRouteGet) {
+		t.Fatalf("expected wrapped route get error, got %v", err)
 	}
 
 	if errors.Is(err, errNoRouteToNeighbour) {
-		t.Errorf("link list failure must not be reported as errNoRouteToNeighbour")
+		t.Errorf("a netlink failure must not be reported as errNoRouteToNeighbour")
+	}
+}
+
+func TestAddNeighbour_UnreachableIsNotAnError(t *testing.T) {
+	for _, errno := range []error{unix.EHOSTUNREACH, unix.ENETUNREACH} {
+		oldRouteGet := neighRouteGetWithOptions
+
+		neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
+			return nil, errno
+		}
+
+		err := AddNeighbour(context.Background(), netip.MustParseAddr("10.45.0.5"), "up-vrf")
+
+		neighRouteGetWithOptions = oldRouteGet
+
+		if !errors.Is(err, errNoRouteToNeighbour) {
+			t.Errorf("%v: expected errNoRouteToNeighbour, got %v", errno, err)
+		}
+	}
+}
+
+func TestRoutesToNeighbourSelectsTable(t *testing.T) {
+	oldRouteGet := neighRouteGetWithOptions
+
+	t.Cleanup(func() { neighRouteGetWithOptions = oldRouteGet })
+
+	var gotOpts *netlink.RouteGetOptions
+
+	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
+		gotOpts = opts
+
+		return nil, nil
+	}
+
+	for _, tc := range []struct{ device, wantVRF string }{
+		{"", ""},
+		{"up-vrf", "up-vrf"},
+	} {
+		if _, err := routesToNeighbour(net.ParseIP("10.45.0.5"), tc.device); err != nil {
+			t.Fatalf("routesToNeighbour(%q): %v", tc.device, err)
+		}
+
+		if gotOpts == nil || !gotOpts.FIBMatch {
+			t.Fatalf("routesToNeighbour(%q) did not request a FIB match", tc.device)
+		}
+
+		if gotOpts.VrfName != tc.wantVRF {
+			t.Errorf("routesToNeighbour(%q) looked up VRF %q, want %q", tc.device, gotOpts.VrfName, tc.wantVRF)
+		}
 	}
 }

@@ -28,15 +28,16 @@ func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout t
 	return l.dial(ctx, addr, "", alpn, timeout)
 }
 
-// DialContextTCP dials addr over TCP, bound to the VRF device routing to it.
-func DialContextTCP(ctx context.Context, network, addr string) (net.Conn, error) {
-	dialer := &net.Dialer{}
+func DialContextTCPFrom(bindAddress string) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := &net.Dialer{}
 
-	if device := vrfDeviceForDestination(addr); device != "" {
-		dialer.Control = netutil.BindToDeviceControl(device)
+		if device := vrfDeviceForBindAddress(ctx, bindAddress); device != "" {
+			dialer.Control = netutil.BindToDeviceControl(device)
+		}
+
+		return dialer.DialContext(ctx, network, addr)
 	}
-
-	return dialer.DialContext(ctx, network, addr)
 }
 
 func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string, alpn string, timeout time.Duration) (*tls.Conn, error) {
@@ -48,16 +49,16 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string,
 		Config:    dialCfg,
 	}
 
-	if device := vrfDeviceForDestination(addr); device != "" {
-		dialer.NetDialer.Control = netutil.BindToDeviceControl(device)
-	}
-
 	if timeout > 0 {
 		var cancel context.CancelFunc
 
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 
 		defer cancel()
+	}
+
+	if device := vrfDeviceForBindAddress(ctx, l.cfg.BindAddress); device != "" {
+		dialer.NetDialer.Control = netutil.BindToDeviceControl(device)
 	}
 
 	rawConn, err := dialer.DialContext(ctx, "tcp", addr)

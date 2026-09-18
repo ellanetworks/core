@@ -23,7 +23,6 @@ var errNoRouteToNeighbour = errors.New("no route to neighbour")
 
 var (
 	neighRouteGetWithOptions = netlink.RouteGetWithOptions
-	neighLinkList            = netlink.LinkList
 	neighSet                 = netlink.NeighSet
 )
 
@@ -41,18 +40,19 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 	return setNeighbour(ifindex, neigh.AsSlice())
 }
 
-func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
+func AddNeighbour(ctx context.Context, neigh netip.Addr, vrfDevice string) error {
 	_, span := tracer.Start(
 		ctx,
 		"kernel/add_neighbour",
 		trace.WithAttributes(
 			attribute.String("kernel.neighbour.address", neigh.String()),
+			attribute.String("kernel.vrf.device", vrfDevice),
 		))
 	defer span.End()
 
 	dst := neigh.AsSlice()
 
-	routes, err := routesToNeighbour(dst)
+	routes, err := routesToNeighbour(dst, vrfDevice)
 	if err != nil {
 		return fmt.Errorf("could not resolve route to %s: %w", neigh, err)
 	}
@@ -94,33 +94,18 @@ type nexthop struct {
 	ip      net.IP
 }
 
-func routesToNeighbour(dst net.IP) ([]netlink.Route, error) {
-	routes, err := neighRouteGetWithOptions(dst, &netlink.RouteGetOptions{FIBMatch: true})
+func routesToNeighbour(dst net.IP, vrfDevice string) ([]netlink.Route, error) {
+	opts := &netlink.RouteGetOptions{FIBMatch: true}
+	if vrfDevice != "" {
+		opts.VrfName = vrfDevice
+	}
+
+	routes, err := neighRouteGetWithOptions(dst, opts)
 	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
 		return nil, err
 	}
 
-	if len(routes) > 0 {
-		return routes, nil
-	}
-
-	links, err := neighLinkList()
-	if err != nil {
-		return nil, fmt.Errorf("could not list links: %w", err)
-	}
-
-	for _, link := range links {
-		if link.Type() != "vrf" {
-			continue
-		}
-
-		routes, err := neighRouteGetWithOptions(dst, &netlink.RouteGetOptions{VrfName: link.Attrs().Name, FIBMatch: true})
-		if err == nil && len(routes) > 0 {
-			return routes, nil
-		}
-	}
-
-	return nil, nil
+	return routes, nil
 }
 
 func nexthopsFromRoutes(dst net.IP, routes []netlink.Route) []nexthop {
