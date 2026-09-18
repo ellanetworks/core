@@ -80,8 +80,8 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
 function drainStateChip(state: DrainState, updatedAt?: string) {
   if (state === "draining") {
     const title = updatedAt
-      ? `Draining since ${formatDateTime(updatedAt)}. Not yet safe to remove.`
-      : "Node is draining; not yet safe to remove.";
+      ? `Draining since ${formatDateTime(updatedAt)}.`
+      : "";
     return (
       <Tooltip title={title}>
         <Chip
@@ -94,9 +94,7 @@ function drainStateChip(state: DrainState, updatedAt?: string) {
     );
   }
   if (state === "drained") {
-    const title = updatedAt
-      ? `Drained at ${formatDateTime(updatedAt)}. Safe to remove.`
-      : "Node is drained; safe to remove.";
+    const title = updatedAt ? `Drained at ${formatDateTime(updatedAt)}.` : "";
     return (
       <Tooltip title={title}>
         <Chip label="Drained" size="small" color="error" variant="outlined" />

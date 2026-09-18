@@ -125,9 +125,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
     }
   };
 
-  const ttlLabel =
-    TTL_OPTIONS.find((o) => o.seconds === ttlSeconds)?.label ?? "30 minutes";
-
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>Add a Node to the Cluster</DialogTitle>
@@ -140,11 +137,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
 
         {!token && (
           <>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Mint a single-use join token for the new node. The token expires
-              in {ttlLabel.toLowerCase()}.
-            </Typography>
-
             {membersQuery.isLoadingError && (
               <ErrorAlert
                 resource="cluster members"
@@ -178,7 +170,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
               label="Token lifetime"
               value={ttlSeconds}
               onChange={(e) => setTtlSeconds(Number(e.target.value))}
-              helperText="The token can be used once within this window."
               margin="normal"
             >
               {TTL_OPTIONS.map((opt) => (

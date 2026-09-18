@@ -102,30 +102,24 @@ const ToleranceChip: React.FC<{ failureTolerance: number }> = ({
 }) => {
   if (failureTolerance < 1) {
     return (
-      <Tooltip title="At the quorum limit. One more voter failure would stop writes.">
-        <Chip
-          label="No failure tolerance"
-          size="small"
-          color="warning"
-          variant="outlined"
-        />
-      </Tooltip>
+      <Chip
+        label="No failure tolerance"
+        size="small"
+        color="warning"
+        variant="outlined"
+      />
     );
   }
 
   const plural = failureTolerance === 1 ? "" : "s";
 
   return (
-    <Tooltip
-      title={`The cluster keeps accepting writes while up to ${failureTolerance} voter${plural} are down.`}
-    >
-      <Chip
-        label={`Tolerates ${failureTolerance} voter failure${plural}`}
-        size="small"
-        color="success"
-        variant="outlined"
-      />
-    </Tooltip>
+    <Chip
+      label={`Tolerates ${failureTolerance} voter failure${plural}`}
+      size="small"
+      color="success"
+      variant="outlined"
+    />
   );
 };
 
@@ -171,11 +165,7 @@ const SchemaValue: React.FC<{ status?: APIStatus }> = ({ status }) => {
   }
 
   if (!pending) {
-    return (
-      <Tooltip title="Every node has committed this schema version.">
-        <Typography variant="body2">{`v${applied}`}</Typography>
-      </Tooltip>
-    );
+    return <Typography variant="body2">{`v${applied}`}</Typography>;
   }
 
   const supports =

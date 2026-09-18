@@ -250,7 +250,7 @@ describe("Cluster page force remove", () => {
     ).toBeDisabled();
   });
 
-  it("warns what force drops on a healthy node before allowing confirm", async () => {
+  it("requires an explicit opt-in before removing a healthy node", async () => {
     const user = userEvent.setup();
     seedStatus();
     seedAutopilot({
@@ -279,12 +279,15 @@ describe("Cluster page force remove", () => {
       name: /Force remove/,
     });
     expect(checkbox).not.toBeChecked();
+    expect(
+      within(dialog()).getByRole("button", { name: /^Remove$/ }),
+    ).toBeDisabled();
 
     await user.click(checkbox);
 
     expect(
-      within(dialog()).getByText(/dropped, not migrated/),
-    ).toBeInTheDocument();
+      within(dialog()).getByRole("button", { name: /^Remove$/ }),
+    ).toBeEnabled();
   });
 
   it("omits the force option for an already drained node", async () => {

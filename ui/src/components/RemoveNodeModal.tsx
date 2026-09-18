@@ -22,13 +22,6 @@ export function defaultForce(health: NodeHealth): boolean {
   return health === "unhealthy";
 }
 
-const FORCE_HELP: Record<NodeHealth, string> = {
-  unhealthy:
-    "The leader reports this node unhealthy. It will not drain on its own.",
-  healthy: "This node looks healthy. Drain it first if you can.",
-  unknown: "The leader has not reported on this node yet.",
-};
-
 interface Props {
   open: boolean;
   nodeId: number;
@@ -80,26 +73,15 @@ const RemoveNodeModal: React.FC<Props> = ({
       extra={
         <Box sx={{ mt: 2 }}>
           {forceRequired && (
-            <>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={force}
-                    onChange={(e) => setForce(e.target.checked)}
-                  />
-                }
-                label="Force remove (skip drain)"
-              />
-              <Typography variant="body2" color="textSecondary">
-                {FORCE_HELP[health]}
-              </Typography>
-            </>
-          )}
-
-          {force && (
-            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
-              Radios and sessions on this node are dropped, not migrated.
-            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={force}
+                  onChange={(e) => setForce(e.target.checked)}
+                />
+              }
+              label="Force remove (skip drain)"
+            />
           )}
 
           {isSelf && (
