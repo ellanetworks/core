@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
@@ -249,7 +250,7 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 		writer = io.MultiWriter(&buf, mirror)
 	}
 
-	if _, err := io.Copy(writer, attachResp.Reader); err != nil && ctx.Err() == nil {
+	if _, err := stdcopy.StdCopy(writer, writer, attachResp.Reader); err != nil && ctx.Err() == nil {
 		return buf.String(), fmt.Errorf("read exec output: %w", err)
 	}
 
