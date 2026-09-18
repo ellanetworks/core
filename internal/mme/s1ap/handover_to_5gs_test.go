@@ -93,6 +93,13 @@ func (p *fiveGSPeerStub) forwarded() *interworking.FiveGSRelocationRequest {
 	return p.request
 }
 
+func (p *fiveGSPeerStub) forwards() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.requests
+}
+
 func (p *fiveGSPeerStub) cancels() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -136,16 +143,24 @@ func requireHandoverToFiveGS(t *testing.T, m *mme.MME, ue *mme.UeContext, source
 		initiatingValue(t, mustMarshal(t, handoverRequiredToGNB(ue).Marshal)))
 }
 
-func awaitSourceMessage(t *testing.T, source *captureConn, want int) {
+func awaitHandoverToFiveGS(t *testing.T, m *mme.MME) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for source.count() < want {
-		if time.Now().After(deadline) {
-			t.Fatalf("the source eNB got %d messages, want %d", source.count(), want)
-		}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
 
-		time.Sleep(time.Millisecond)
+	if err := m.AwaitHandoversToFiveGS(ctx); err != nil {
+		t.Fatalf("the handover to 5GS never settled: %v", err)
+	}
+}
+
+func settleHandoverToFiveGS(t *testing.T, m *mme.MME, source *captureConn, want int) {
+	t.Helper()
+
+	awaitHandoverToFiveGS(t, m)
+
+	if got := source.count(); got != want {
+		t.Fatalf("the source eNB got %d messages, want %d", got, want)
 	}
 }
 
@@ -189,7 +204,7 @@ func TestHandoverRequiredToFiveGS(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	req := peer.forwarded()
 	if req == nil {
@@ -276,7 +291,7 @@ func TestHandoverRequiredToFiveGSReleasesUnacceptedPDNs(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	cmd := lastHandoverCommand(t, source)
 	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(6) {
@@ -293,7 +308,7 @@ func TestHandoverToFiveGSFailsWhenThePeerAdmitsNothing(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	if _, ok := lastPDU(t, source).(*s1ap.UnsuccessfulOutcome); !ok {
 		t.Fatalf("last message to the source is %T, want a Handover Preparation Failure", lastPDU(t, source))
@@ -312,7 +327,7 @@ func TestHandoverRequiredToFiveGSPeerRefuses(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	if got := lastPreparationFailure(t, source); got.Cause == nil {
 		t.Error("the refusal reached the source eNB without a cause")
@@ -375,7 +390,7 @@ func TestRelocationCompleteReleasesTheSourceENB(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	id, held := m.RelocationToFiveGS(ue)
 	if !held {
@@ -456,7 +471,7 @@ func TestHandoverToFiveGSGuardCancelsAUEThatNeverArrives(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	deadline := time.Now().Add(2 * time.Second)
 
@@ -485,7 +500,7 @@ func TestRelocationCompleteReleasesEvenWhenTheGuardFiredFirst(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	id, held := m.RelocationToFiveGS(ue)
 	if !held {
@@ -542,7 +557,7 @@ func TestHandoverCancelToFiveGS(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	cancelHandover(t, m, source, handoverCancel(ue))
 	expectCancelAcknowledge(t, source)
@@ -564,7 +579,7 @@ func TestHandoverCancelToFiveGSWhenTheUEHasAlreadyArrived(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	cancelHandover(t, m, source, handoverCancel(ue))
 	expectCancelAcknowledge(t, source)
@@ -582,7 +597,7 @@ func TestHandoverCancelToFiveGSWhenThePeerHoldsNothing(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	cancelHandover(t, m, source, handoverCancel(ue))
 	expectCancelAcknowledge(t, source)
@@ -600,7 +615,7 @@ func TestENBStatusTransferDuringAHandoverToFiveGS(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
@@ -625,7 +640,7 @@ func TestSourceENBLossLeavesTheArrivalToThePeersGuard(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	m.ReclaimConns(t.Context(), m.ConnsOnConn(source), "eNB disconnect")
 
@@ -658,7 +673,7 @@ func TestHandoverToFiveGSRelaysTheTargetsCause(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	fail := lastPreparationFailure(t, source)
 	if fail.Cause == nil {
@@ -676,13 +691,21 @@ func TestHandoverToFiveGSChainsTheNextHopAcrossAttempts(t *testing.T) {
 	peer := &fiveGSPeerStub{err: errors.New("no target gNB")}
 	ue, source := relocatingToFiveGSUE(t, m, peer)
 
-	requireHandoverToFiveGS(t, m, ue, source)
-
-	first := peer.awaitRequest(t, 1)
+	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
-	second := peer.awaitRequest(t, 2)
+	first := *peer.forwarded()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	settleHandoverToFiveGS(t, m, source, before+2)
+
+	second := *peer.forwarded()
+
+	if peer.forwards() != 2 {
+		t.Fatalf("the peer got %d relocation requests, want 2", peer.forwards())
+	}
 
 	if second.SecurityContext.NH == first.SecurityContext.NH {
 		t.Error("the retry shipped the NH the first target already holds")
@@ -693,25 +716,26 @@ func TestHandoverToFiveGSChainsTheNextHopAcrossAttempts(t *testing.T) {
 	}
 }
 
-func (p *fiveGSPeerStub) awaitRequest(t *testing.T, want int) interworking.FiveGSRelocationRequest {
-	t.Helper()
+func TestAwaitHandoversToFiveGSWaitsForTheAttemptToSettle(t *testing.T) {
+	m := newTestMME(t)
+	gate := make(chan struct{})
+	peer := &fiveGSPeerStub{err: errors.New("no target gNB"), gate: gate}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
 
-	deadline := time.Now().Add(2 * time.Second)
+	requireHandoverToFiveGS(t, m, ue, source)
 
-	for {
-		p.mu.Lock()
-		got, req := p.requests, p.request
-		p.mu.Unlock()
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
 
-		if got >= want {
-			return *req
-		}
+	if err := m.AwaitHandoversToFiveGS(ctx); err == nil {
+		t.Fatal("the drain returned while the peer still held the preparation")
+	}
 
-		if time.Now().After(deadline) {
-			t.Fatalf("the peer got %d relocation requests, want %d", got, want)
-		}
+	close(gate)
+	awaitHandoverToFiveGS(t, m)
 
-		time.Sleep(time.Millisecond)
+	if _, held := m.RelocationToFiveGS(ue); held {
+		t.Error("the UE still holds a relocation to 5GS after the drain")
 	}
 }
 
@@ -726,7 +750,7 @@ func TestHandoverToFiveGSReleasesAPDNThatCannotMove(t *testing.T) {
 	before := source.count()
 
 	requireHandoverToFiveGS(t, m, ue, source)
-	awaitSourceMessage(t, source, before+1)
+	settleHandoverToFiveGS(t, m, source, before+1)
 
 	cmd := lastHandoverCommand(t, source)
 	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(6) {
