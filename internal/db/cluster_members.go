@@ -223,10 +223,6 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 	return nil
 }
 
-// SetDrainStateIf persists the drain state for a cluster member when its
-// current state is one of from, and stamps drainUpdatedAt. An empty from
-// applies the transition unconditionally. Returns the settled state, or
-// ErrNotFound if no row exists for nodeID.
 func (db *Database) SetDrainStateIf(ctx context.Context, nodeID int, from []string, state string) (string, error) {
 	if !IsValidDrainState(state) {
 		return "", fmt.Errorf("invalid drain state %q", state)
