@@ -6,9 +6,11 @@ package raft
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
@@ -296,4 +298,94 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiscoveryTick_FounderRefusesFormedPeer(t *testing.T) {
+	m, serverAddr := newProbePeerHarness(t, statusHandler(&statusClusterBlock{
+		Role:          "Leader",
+		NodeID:        1,
+		ClusterID:     "cluster-1",
+		SchemaVersion: 9,
+	}))
+
+	m.nodeID = 2
+	m.config = ClusterConfig{
+		Peers:            []string{serverAddr},
+		AdvertiseAddress: "127.0.0.1:9999",
+		HasJoinToken:     false,
+		SchemaVersion:    9,
+	}
+
+	joined, err := m.discoveryTick(t.Context())
+	if err == nil {
+		t.Fatalf("a founder must not bootstrap against a peer that already has a cluster (joined=%v)", joined)
+	}
+
+	if !errors.Is(err, ErrDiscoveryFatal) {
+		t.Errorf("error must be terminal so discovery stops retrying, got %v", err)
+	}
+
+	if joined {
+		t.Error("joined should be false when the founder refuses to bootstrap")
+	}
+
+	if !strings.Contains(err.Error(), "cluster-1") || !strings.Contains(err.Error(), "join-token") {
+		t.Errorf("error should name the existing cluster and the missing join-token, got %q", err)
+	}
+}
+
+func TestAssertNoFormedPeer_AllowsBootstrap(t *testing.T) {
+	unreachable := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+
+	tests := []struct {
+		name    string
+		handler http.Handler
+		self    bool
+	}{
+		{
+			name:    "peer_forming",
+			handler: statusHandler(nil),
+		},
+		{
+			name: "peer_formed_but_is_self",
+			handler: statusHandler(&statusClusterBlock{
+				Role: "Leader", NodeID: 1, ClusterID: "cluster-1",
+			}),
+			self: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m, serverAddr := newProbePeerHarness(t, tc.handler)
+
+			m.nodeID = 2
+			m.config = ClusterConfig{
+				Peers:            []string{serverAddr},
+				AdvertiseAddress: "127.0.0.1:9999",
+			}
+
+			if tc.self {
+				m.config.AdvertiseAddress = serverAddr
+			}
+
+			if err := m.assertNoFormedPeer(t.Context()); err != nil {
+				t.Errorf("founder must be allowed to bootstrap, got %v", err)
+			}
+		})
+	}
+
+	t.Run("peer_unreachable", func(t *testing.T) {
+		m, _ := newProbePeerHarness(t, statusHandler(nil))
+
+		m.nodeID = 2
+		m.config = ClusterConfig{
+			Peers:            []string{unreachable},
+			AdvertiseAddress: "127.0.0.1:9999",
+		}
+
+		if err := m.assertNoFormedPeer(t.Context()); err != nil {
+			t.Errorf("an unreachable peer must not block the founder's first boot, got %v", err)
+		}
+	})
 }

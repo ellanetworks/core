@@ -164,13 +164,19 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 //   - A node with a join-token is a joiner. It only returns success when it
 //     finds a formed peer and POSTs its membership to it. Solo-bootstrap is
 //     never taken, even if no peers are reachable.
-//   - A node without a join-token is the founder. It bootstraps immediately
-//     on the first tick, without probing peers — the founder has nothing
-//     to learn from them and the probe cost (5 s × non-self peers) would
-//     otherwise delay startup. PostInitClusterSetup on the first leader
-//     mints the CA and issues this node's leaf so joiners can connect.
+//   - A node without a join-token is the founder. It probes its peers
+//     first and refuses to start if any of them already belongs to a
+//     cluster, so a missing or mistyped join-token cannot silently found
+//     a second cluster against a live peer list. When no peer is formed
+//     it bootstraps on the first tick. PostInitClusterSetup on the first
+//     leader mints the CA and issues this node's leaf so joiners can
+//     connect.
 func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 	if !m.config.HasJoinToken {
+		if err := m.assertNoFormedPeer(ctx); err != nil {
+			return false, err
+		}
+
 		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
 			zap.Int("node_id", m.nodeID),
 		)
@@ -300,6 +306,26 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 	}
 
 	return resp, nil
+}
+
+// assertNoFormedPeer fails the founder path when a configured peer
+// already belongs to a cluster. Unreachable peers are treated as absent:
+// the founder's first boot normally happens before any peer is up.
+func (m *Manager) assertNoFormedPeer(ctx context.Context) error {
+	for _, peerAddr := range m.config.Peers {
+		if peerAddr == m.config.AdvertiseAddress {
+			continue
+		}
+
+		state, nodeID, clusterID, _ := m.probePeer(ctx, peerAddr)
+		if state != peerFormed {
+			continue
+		}
+
+		return fmt.Errorf("%w: peer %s already belongs to cluster %s (node-id %d) but this node has no cluster.join-token and would found a second cluster; mint a join token on the existing cluster and set cluster.join-token", ErrDiscoveryFatal, peerAddr, clusterID, nodeID)
+	}
+
+	return nil
 }
 
 // probePeer queries a peer's cluster status endpoint and returns its state,
