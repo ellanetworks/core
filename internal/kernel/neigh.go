@@ -21,6 +21,11 @@ var tracer = otel.Tracer("ella-core/kernel")
 
 var errNoRouteToNeighbour = errors.New("no route to neighbour")
 
+var (
+	neighRouteGetWithOptions = netlink.RouteGetWithOptions
+	neighSet                 = netlink.NeighSet
+)
+
 // AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
 func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) error {
 	_, span := tracer.Start(
@@ -35,19 +40,20 @@ func AddNeighbourOnLink(ctx context.Context, neigh netip.Addr, ifindex int) erro
 	return setNeighbour(ifindex, neigh.AsSlice())
 }
 
-func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
+func AddNeighbour(ctx context.Context, neigh netip.Addr, vrfDevice string) error {
 	_, span := tracer.Start(
 		ctx,
 		"kernel/add_neighbour",
 		trace.WithAttributes(
 			attribute.String("kernel.neighbour.address", neigh.String()),
+			attribute.String("kernel.vrf.device", vrfDevice),
 		))
 	defer span.End()
 
 	dst := neigh.AsSlice()
 
-	routes, err := netlink.RouteGetWithOptions(dst, &netlink.RouteGetOptions{FIBMatch: true})
-	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+	routes, err := routesToNeighbour(dst, vrfDevice)
+	if err != nil {
 		return fmt.Errorf("could not resolve route to %s: %w", neigh, err)
 	}
 
@@ -86,6 +92,20 @@ func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 type nexthop struct {
 	ifindex int
 	ip      net.IP
+}
+
+func routesToNeighbour(dst net.IP, vrfDevice string) ([]netlink.Route, error) {
+	opts := &netlink.RouteGetOptions{FIBMatch: true}
+	if vrfDevice != "" {
+		opts.VrfName = vrfDevice
+	}
+
+	routes, err := neighRouteGetWithOptions(dst, opts)
+	if err != nil && !errors.Is(err, unix.EHOSTUNREACH) && !errors.Is(err, unix.ENETUNREACH) {
+		return nil, err
+	}
+
+	return routes, nil
 }
 
 func nexthopsFromRoutes(dst net.IP, routes []netlink.Route) []nexthop {
@@ -137,5 +157,5 @@ func setNeighbour(ifindex int, ip net.IP) error {
 		FlagsExt:  netlink.NTF_EXT_MANAGED,
 	}
 
-	return netlink.NeighSet(&nlNeigh)
+	return neighSet(&nlNeigh)
 }

@@ -80,9 +80,9 @@ func (p *pkiState) Issuer() *pkiissuer.Service {
 	return p.issuer
 }
 
-func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
+func newPKIState(nodeID int, clusterID, dataDir, bindAddress string) *pkiState {
 	return &pkiState{
-		agent: pkiagent.NewAgent(nodeID, clusterID, dataDir),
+		agent: pkiagent.NewAgent(nodeID, clusterID, dataDir, bindAddress),
 	}
 }
 

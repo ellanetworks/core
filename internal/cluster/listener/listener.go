@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
@@ -183,6 +184,10 @@ func (l *Listener) Deregister(alpn string) {
 // Stop to shut down the accept loop.
 func (l *Listener) Start(ctx context.Context) error {
 	lc := net.ListenConfig{}
+
+	if device := vrfDeviceForBindAddress(ctx, l.cfg.BindAddress); device != "" {
+		lc.Control = netutil.BindToDeviceControl(device)
+	}
 
 	tcpLn, err := lc.Listen(ctx, "tcp", l.cfg.BindAddress)
 	if err != nil {

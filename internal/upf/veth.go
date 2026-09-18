@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
@@ -113,6 +114,55 @@ func destroyVethPair(name string) error {
 	}
 
 	logger.UpfLog.Info("Destroyed veth pair", zap.String("link", name))
+
+	return nil
+}
+
+var (
+	vethLinkByName    = netlink.LinkByName
+	vethLinkSetMaster = netlink.LinkSetMaster
+)
+
+func enslaveVethPairsToReferenceVRF(refName string) error {
+	ref, err := vethLinkByName(refName)
+	if err != nil {
+		return fmt.Errorf("lookup reference interface %s: %w", refName, err)
+	}
+
+	master, err := netutil.VRFMasterOf(ref)
+	if err != nil {
+		return err
+	}
+
+	if master == nil {
+		return nil
+	}
+
+	enslaved := 0
+
+	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName} {
+		l, err := vethLinkByName(name)
+		if err != nil {
+			if _, ok := err.(netlink.LinkNotFoundError); ok {
+				continue
+			}
+
+			return fmt.Errorf("lookup %s: %w", name, err)
+		}
+
+		if err := vethLinkSetMaster(l, master); err != nil {
+			return fmt.Errorf("enslave %s to %s: %w", name, master.Attrs().Name, err)
+		}
+
+		enslaved++
+	}
+
+	if enslaved > 0 {
+		logger.UpfLog.Info("Enslaved veth pairs",
+			zap.String("vrf", master.Attrs().Name),
+			zap.String("reference", refName),
+		)
+	}
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -180,8 +181,13 @@ func runBGPSuite(t *testing.T, sessionHoldScenario string) {
 	dc.ComposeCleanup(ctx)
 
 	composeFile := bgpComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, composeFile)
 
-	if err := dc.ComposeUpWithFile(ctx, bgpComposeDir, composeFile); err != nil {
+	if os.Getenv("VRF") != "" {
+		t.Setenv("VRF_UP_ROUTES", "")
+	}
+
+	if err := dc.ComposeUpWithFiles(ctx, bgpComposeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up: %v", err)
 	}
 
@@ -193,7 +199,7 @@ func runBGPSuite(t *testing.T, sessionHoldScenario string) {
 			}
 		}
 
-		dc.ComposeDownWithFile(ctx, bgpComposeDir, composeFile)
+		dc.ComposeDownWithFiles(ctx, bgpComposeDir, composeFiles...)
 	})
 
 	cl, err := client.New(&client.Config{BaseURL: bgpAPIAddress()})

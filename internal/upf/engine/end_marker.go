@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
 )
@@ -86,9 +88,26 @@ func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
 		return sock, nil
 	}
 
-	sock, err := net.ListenUDP("udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, gtpuPort)))
+	lc := net.ListenConfig{}
+
+	device, err := netutil.VRFDeviceForAddress(local.String())
+	if err != nil {
+		logger.UpfLog.Warn("could not resolve VRF device for End Marker socket, running without VRF binding",
+			zap.String("local", local.String()), zap.Error(err))
+	} else if device != "" {
+		lc.Control = netutil.BindToDeviceControl(device)
+	}
+
+	conn, err := lc.ListenPacket(context.Background(), "udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, gtpuPort)).String())
 	if err != nil {
 		return nil, fmt.Errorf("bind %s for GTP-U End Markers: %w", local, err)
+	}
+
+	sock, ok := conn.(*net.UDPConn)
+	if !ok {
+		_ = conn.Close()
+
+		return nil, fmt.Errorf("bind %s for GTP-U End Markers: not a UDP socket", local)
 	}
 
 	if err := sock.SetReadBuffer(endMarkerReadBuffer); err != nil {

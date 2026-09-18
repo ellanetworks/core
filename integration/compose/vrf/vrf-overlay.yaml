@@ -1,0 +1,12 @@
+services:
+  ella-core:
+    image: ella-core-vrf:latest
+    entrypoint: ["/bin/busybox", "sh", "/vrf-entrypoint.sh"]
+    environment:
+      VRF_UP_NAME: "${VRF_UP_NAME:-up-vrf}"
+      VRF_TABLE_UP: "${VRF_TABLE_UP:-1001}"
+      VRF_UP_IFACES: "${VRF_UP_IFACES:-n3 n6}"
+      VRF_CP_NAME: "${VRF_CP_NAME:-cp-vrf}"
+      VRF_TABLE_CP: "${VRF_TABLE_CP:-1002}"
+      VRF_CP_IFACES: "${VRF_CP_IFACES:-eth0}"
+      VRF_UP_ROUTES: "${VRF_UP_ROUTES-10.45.0.0/22 via 10.6.0.3 dev n6}"

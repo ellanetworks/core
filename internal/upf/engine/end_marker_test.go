@@ -5,12 +5,16 @@ package engine
 
 import (
 	"encoding/hex"
+	"errors"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -194,6 +198,124 @@ func TestEndMarkerSocketsRefuseSendAfterClose(t *testing.T) {
 	target := endMarkerTarget{teid: 1, local: local, peer: netip.MustParseAddr("127.0.0.5")}
 	if err := socks.send(target, 1); err == nil {
 		t.Error("a send after shutdown reopened a socket nothing will close")
+	}
+}
+
+func nonLoopbackIPv4(t *testing.T) netip.Addr {
+	t.Helper()
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Skipf("cannot list host addresses: %v", err)
+	}
+
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip, ok := netip.AddrFromSlice(ipNet.IP)
+		if !ok {
+			continue
+		}
+
+		if ip = ip.Unmap(); ip.Is4() && !ip.IsLoopback() {
+			return ip
+		}
+	}
+
+	t.Skip("no non-loopback IPv4 address on this host")
+
+	return netip.Addr{}
+}
+
+func boundDevice(t *testing.T, sock *net.UDPConn) string {
+	t.Helper()
+
+	raw, err := sock.SyscallConn()
+	if err != nil {
+		t.Fatalf("syscall conn: %v", err)
+	}
+
+	var (
+		device  string
+		ctrlErr error
+	)
+
+	if err := raw.Control(func(fd uintptr) {
+		device, ctrlErr = unix.GetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE)
+	}); err != nil {
+		t.Fatalf("control: %v", err)
+	}
+
+	if ctrlErr != nil {
+		t.Fatalf("getsockopt SO_BINDTODEVICE: %v", ctrlErr)
+	}
+
+	return strings.TrimRight(device, "\x00")
+}
+
+func stubEndMarkerVRF(t *testing.T, local netip.Addr, addrListErr error) {
+	t.Helper()
+
+	oldAddrList, oldLinkByIndex := netutil.AddrList, netutil.LinkByIndex
+
+	t.Cleanup(func() {
+		netutil.AddrList, netutil.LinkByIndex = oldAddrList, oldLinkByIndex
+	})
+
+	netutil.AddrList = func(link netlink.Link, family int) ([]netlink.Addr, error) {
+		if addrListErr != nil {
+			return nil, addrListErr
+		}
+
+		return []netlink.Addr{{
+			IPNet:     &net.IPNet{IP: local.AsSlice(), Mask: net.CIDRMask(24, 32)},
+			LinkIndex: 2,
+		}}, nil
+	}
+
+	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
+		if index == 2 {
+			return &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "lo", Index: 2}, Table: 1001}, nil
+		}
+
+		return nil, errors.New("no such index")
+	}
+}
+
+func TestEndMarkerSocketBindsToResolvedVRFDevice(t *testing.T) {
+	local := nonLoopbackIPv4(t)
+
+	stubEndMarkerVRF(t, local, nil)
+
+	socks := senderOrSkip(t, local)
+
+	sock, err := socks.get(local)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+
+	if dev := boundDevice(t, sock); dev != "lo" {
+		t.Errorf("End Marker socket bound to %q, want the resolved VRF device lo", dev)
+	}
+}
+
+func TestEndMarkerSocketFallsBackWhenVRFResolutionFails(t *testing.T) {
+	local := nonLoopbackIPv4(t)
+
+	stubEndMarkerVRF(t, local, errors.New("netlink: dump failed"))
+
+	socks := senderOrSkip(t, local)
+
+	sock, err := socks.get(local)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+
+	if dev := boundDevice(t, sock); dev != "" {
+		t.Errorf("End Marker socket bound to %q, want unbound fallback on resolution error", dev)
 	}
 }
 

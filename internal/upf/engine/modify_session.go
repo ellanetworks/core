@@ -109,7 +109,7 @@ func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.S
 			}
 		}
 
-		go addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
+		go conn.addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
 
 		session.PutFar(far.FARID, sFarInfo)
 

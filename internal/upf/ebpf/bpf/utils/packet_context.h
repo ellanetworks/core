@@ -41,6 +41,8 @@ volatile const int n3_ifindex;
 volatile const int n3_ifindex = 0;
 volatile const int n6_ifindex;
 volatile const int n6_ifindex = 0;
+volatile const __u32 n3_routing_ifindex = 0;
+volatile const __u32 n6_routing_ifindex = 0;
 volatile const int n3_vlan;
 volatile const int n3_vlan = 0;
 volatile const int n6_vlan;
@@ -62,6 +64,7 @@ struct packet_context {
 	struct upf_statistic *statistics;
 	struct counters *counter;
 	struct __ctx_buff *ctx_buff;
+	__u32 routing_ifindex;
 	struct ethhdr *eth;
 	struct iphdr *ip4;
 	struct ipv6hdr *ip6;
@@ -93,6 +96,18 @@ struct packet_context {
 	__u8 frag_recovered : 1;
 	__u8 is_fragment : 1;
 };
+
+__noinline __weak __u32
+routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
+{
+	__u32 ifindex = ctx_ingress_ifindex(ctx);
+
+	if (interface == INTERFACE_N3 && ifindex == (__u32)n3_ifindex)
+		return n3_routing_ifindex;
+	if (interface == INTERFACE_N6 && ifindex == (__u32)n6_ifindex)
+		return n6_routing_ifindex;
+	return ifindex;
+}
 
 /* A merged buffer holds several datagrams behind one set of headers, so
  * neither encapsulation nor decapsulation can produce a correct frame from it.
