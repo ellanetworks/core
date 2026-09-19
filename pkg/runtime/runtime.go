@@ -271,6 +271,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		awaitInitialSettings(ctx, dbInstance, pki)
 	})
 
+	wg.Go(func() {
+		publishClusterMemberAttributes(ctx, dbInstance, ver.Version)
+	})
+
 	if observer := dbInstance.LeaderObserver(); observer != nil {
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
 

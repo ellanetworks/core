@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 const ClusterMembersTableName = "cluster_members"
@@ -32,6 +34,8 @@ const (
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+
+	setClusterMemberAttributesStmtStr = "UPDATE %s SET apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion WHERE nodeID==$ClusterMember.nodeID"
 )
 
 type ClusterMember struct {
@@ -51,6 +55,27 @@ func IsValidDrainState(s string) bool {
 	}
 
 	return false
+}
+
+func normalizeDrainState(s string) string {
+	if s == "" {
+		return DrainStateActive
+	}
+
+	return s
+}
+
+type setClusterMemberAttributesPayload struct {
+	NodeID        int
+	APIAddress    string
+	BinaryVersion string
+}
+
+type setDrainStatePayload struct {
+	NodeID         int
+	DrainState     string
+	DrainUpdatedAt int64
+	ExpectFrom     []string `json:",omitempty"`
 }
 
 func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {
@@ -172,6 +197,46 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 	return nil
 }
 
+func (db *Database) SetClusterMemberAttributes(ctx context.Context, nodeID int, apiAddress string, binaryVersion string) error {
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
+
+	_, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection.name", ClusterMembersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
+
+	payload := &setClusterMemberAttributesPayload{
+		NodeID:        nodeID,
+		APIAddress:    apiAddress,
+		BinaryVersion: binaryVersion,
+	}
+
+	_, err := opSetClusterMemberAttributes.Invoke(ctx, db, payload)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
 func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName)
 
@@ -206,11 +271,9 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 	return nil
 }
 
-// SetDrainState persists the drain state for a cluster member and
-// stamps drainUpdatedAt. Returns ErrNotFound if no row exists for nodeID.
-func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string) error {
+func (db *Database) SetDrainStateIf(ctx context.Context, nodeID int, from []string, state string) (string, error) {
 	if !IsValidDrainState(state) {
-		return fmt.Errorf("invalid drain state %q", state)
+		return "", fmt.Errorf("invalid drain state %q", state)
 	}
 
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
@@ -233,23 +296,34 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string)
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
 
-	member := &ClusterMember{
+	payload := &setDrainStatePayload{
 		NodeID:         nodeID,
 		DrainState:     state,
 		DrainUpdatedAt: time.Now().Unix(),
+		ExpectFrom:     from,
 	}
 
-	_, err := opSetDrainState.Invoke(ctx, db, member)
+	settled, err := opSetDrainState.Invoke(ctx, db, payload)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
-		return err
+		return "", err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return nil
+	if settled == "" {
+		logger.From(ctx, logger.DBLog).Warn(
+			"Drain state compare skipped: the leader predates it and applied the transition unconditionally",
+			zap.Int("node_id", nodeID),
+			zap.String("state", state),
+		)
+
+		settled = state
+	}
+
+	return settled, nil
 }
 
 func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {

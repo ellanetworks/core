@@ -54,6 +54,7 @@ var pinnedChangesetOps = map[string]int{
 	"RedeemJoinToken":                  12,
 	"ReleaseIPLease":                   13,
 	"ReplaceFramedRoutes":              16,
+	"SetClusterMemberAttributes":       9,
 	"SetDefaultPolicy":                 14,
 	"SetDrainState":                    9,
 	"SetJWTSecret":                     1,
