@@ -77,7 +77,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, status int, message 
 	}
 
 	log := logger.From(ctx, l)
-	if status >= 500 {
+	if status >= 500 && status != http.StatusServiceUnavailable {
 		log.Error(message, zap.Error(err))
 	} else {
 		log.Warn(message, zap.Error(err))
