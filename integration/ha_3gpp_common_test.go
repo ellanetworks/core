@@ -105,7 +105,7 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 					HALogf(t, "%s status: unreachable (%v)", svc, statusErr)
 				} else {
 					role := "standalone"
-					if status.Cluster != nil {
+					if status.Cluster.Enabled {
 						role = status.Cluster.Role
 					}
 
@@ -616,7 +616,7 @@ func nodeIDOf(ctx context.Context, c *client.Client) (int, error) {
 		return 0, fmt.Errorf("get status: %w", err)
 	}
 
-	if status.Cluster == nil {
+	if !status.Cluster.Enabled {
 		return 0, fmt.Errorf("node reports no cluster status")
 	}
 

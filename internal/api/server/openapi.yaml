@@ -3030,19 +3030,10 @@ paths:
       tags: [Cluster]
       summary: Drain a specific cluster member
       description: >-
-        Drains the target node and persists `drainState=drained`. Runs the
+        Drains the target node. Runs the
         node-local drain side-effects: signals RANs that the node's GUAMI
-        is unavailable (AMF Status Indication, TS 38.413), stops the local
-        BGP speaker, and transfers Raft leadership when the target is the
+        is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the
         current leader.
-
-        Idempotent: re-draining a node already in `drained` returns the
-        current state without re-running side-effects.
-
-        In HA mode, drain runs on the leader (followers forward the request
-        automatically); the leader dispatches the node-local side-effects
-        to the target over the cluster mTLS port, or runs them inline when
-        the target is the leader itself. Requires admin privileges.
       parameters:
         - name: id
           in: path
@@ -3586,7 +3577,7 @@ components:
             Mechanism the data plane attached with.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
-      required: [version, revision, initialized, ready, schemaVersion]
+      required: [version, revision, initialized, ready, schemaVersion, cluster]
 
     StatusResponseEnvelope:
       type: object
@@ -5814,38 +5805,75 @@ components:
 
     # -- Cluster ---------------------------------------------------------
     ClusterStatus:
+      description: >-
+        Cluster information.
+      oneOf:
+        - title: Standalone
+          type: object
+          properties:
+            enabled:
+              const: false
+          required: [enabled]
+          additionalProperties: false
+        - title: Clustered
+          type: object
+          properties:
+            enabled:
+              const: true
+            role:
+              type: string
+              description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
+            nodeId:
+              type: integer
+              description: Raft node ID of this instance.
+            isLeader:
+              type: boolean
+              description: True when this node is the current Raft leader.
+            leaderNodeId:
+              type: integer
+              description: Raft node ID of the current leader. Zero when the leader is unknown or its cluster_members row is not yet present.
+            appliedIndex:
+              type: integer
+              format: uint64
+              description: Last applied Raft log index.
+            clusterId:
+              type: string
+              description: Cluster ID from the operator configuration. Omitted when not set.
+            leaderAPIAddress:
+              type: string
+              description: >-
+                HTTP API URL of the current Raft leader (e.g.
+                `https://10.0.0.1:5000`). Empty when the leader is unknown.
+                The Raft transport address is available on
+                `/api/v1/cluster/members` as `raftAddress`.
+            appliedSchemaVersion:
+              type: integer
+              description: >-
+                Shared-database schema version the cluster has committed. The
+                top-level `schemaVersion` is what this binary supports; the two
+                differ only during a rolling upgrade.
+            pendingMigration:
+              $ref: "#/components/schemas/PendingMigration"
+          required: [enabled, role, nodeId, isLeader, leaderNodeId, appliedIndex, appliedSchemaVersion]
+
+    PendingMigration:
       type: object
-      description: Cluster information. Only present when clustering is enabled.
+      description: >-
+        Present only during a rolling-upgrade window, while the cluster has not
+        yet committed the schema version this binary expects.
       properties:
-        enabled:
-          type: boolean
-        role:
-          type: string
-          description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
-        nodeId:
+        currentSchema:
           type: integer
-          description: Raft node ID of this instance.
-        isLeader:
-          type: boolean
-          description: True when this node is the current Raft leader.
-        leaderNodeId:
+          description: Schema version the cluster has committed.
+        targetSchema:
           type: integer
-          description: Raft node ID of the current leader. Zero when the leader is unknown or its cluster_members row is not yet present.
-        appliedIndex:
+          description: Schema version the migration is moving to.
+        laggardNodeId:
           type: integer
-          format: uint64
-          description: Last applied Raft log index.
-        clusterId:
-          type: string
-          description: Cluster ID from the operator configuration. Omitted when not set.
-        leaderAPIAddress:
-          type: string
           description: >-
-            HTTP API URL of the current Raft leader (e.g.
-            `https://10.0.0.1:5000`). Empty when the leader is unknown.
-            The Raft transport address is available on
-            `/api/v1/cluster/members` as `raftAddress`.
-      required: [enabled, role, nodeId, isLeader, leaderNodeId, appliedIndex]
+            Node holding the migration back. Omitted when no single node is
+            responsible.
+      required: [currentSchema, targetSchema]
 
     ClusterMember:
       type: object
@@ -5871,7 +5899,7 @@ components:
           description: True when this member is the current Raft leader.
         drainState:
           type: string
-          enum: [active, drained]
+          enum: [active, draining, drained]
           description: Drain state of the member.
         drainUpdatedAt:
           type: string
@@ -5969,7 +5997,7 @@ components:
       properties:
         drainState:
           type: string
-          enum: [drained]
+          enum: [draining, drained]
           description: Drain state of the target after the call.
       required: [drainState]
 

@@ -58,7 +58,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 			t.Fatalf("failed to get status from node %d: %v", i+1, err)
 		}
 
-		if status.Cluster == nil {
+		if !status.Cluster.Enabled {
 			t.Fatalf("node %d has no cluster status", i+1)
 		}
 
@@ -152,7 +152,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 			t.Fatalf("failed to get status from node %d: %v", i+1, err)
 		}
 
-		if status.Cluster == nil || status.Cluster.Role != "Follower" {
+		if !status.Cluster.Enabled || status.Cluster.Role != "Follower" {
 			continue
 		}
 
@@ -225,7 +225,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 			t.Fatalf("failed to get status from node %d: %v", i+1, err)
 		}
 
-		if status.Cluster == nil || status.Cluster.Role != "Follower" {
+		if !status.Cluster.Enabled || status.Cluster.Role != "Follower" {
 			continue
 		}
 
@@ -331,7 +331,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	// Record the leader's node ID before stopping it, so we can match it in
 	// the autopilot report afterward.
 	leaderStatus, err := leader.GetStatus(ctx)
-	if err != nil || leaderStatus.Cluster == nil {
+	if err != nil || !leaderStatus.Cluster.Enabled {
 		t.Fatalf("failed to read leader status pre-stop: %v", err)
 	}
 
@@ -548,7 +548,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	HALog(t, "draining the current leader")
 
 	leaderStatus, err := leader.GetStatus(ctx)
-	if err != nil || leaderStatus.Cluster == nil {
+	if err != nil || !leaderStatus.Cluster.Enabled {
 		t.Fatalf("failed to read leader status pre-drain: %v", err)
 	}
 
@@ -1215,7 +1215,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("status on restored node: %v", err)
 	}
 
-	if status.Cluster == nil || status.Cluster.Role != "Leader" {
+	if !status.Cluster.Enabled || status.Cluster.Role != "Leader" {
 		t.Fatalf("restored node role = %v, want Leader", status.Cluster)
 	}
 
@@ -1345,7 +1345,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	}
 
 	leaderStatus, err := leader.GetStatus(ctx)
-	if err != nil || leaderStatus.Cluster == nil {
+	if err != nil || !leaderStatus.Cluster.Enabled {
 		t.Fatalf("read leader status: %v", err)
 	}
 
@@ -1391,7 +1391,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	}
 
 	newLeaderStatus, err := newLeader.GetStatus(ctx)
-	if err != nil || newLeaderStatus.Cluster == nil {
+	if err != nil || !newLeaderStatus.Cluster.Enabled {
 		t.Fatalf("read new leader status: %v", err)
 	}
 
@@ -1564,7 +1564,7 @@ func waitForRoleLeft(ctx context.Context, c *client.Client, role string, timeout
 		switch {
 		case err != nil:
 			lastErr = err
-		case status.Cluster == nil:
+		case !status.Cluster.Enabled:
 			lastErr = fmt.Errorf("status response carries no cluster section")
 		default:
 			lastErr = nil

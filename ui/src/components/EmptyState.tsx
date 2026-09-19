@@ -6,7 +6,7 @@ import { Box, Typography } from "@mui/material";
 
 interface EmptyStateProps {
   primaryText: string;
-  secondaryText: string;
+  secondaryText: React.ReactNode;
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({
