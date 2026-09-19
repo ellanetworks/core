@@ -49,22 +49,7 @@ func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
 	}
 }
 
-func (d *autopilotDelegate) NotifyState(state *autopilot.State) {
-	healthy := 0
-
-	for _, s := range state.Servers {
-		if s.Health.Healthy {
-			healthy++
-		}
-	}
-
-	logger.RaftLog.Debug("Autopilot state updated",
-		zap.Bool("healthy", state.Healthy),
-		zap.Int("failure_tolerance", state.FailureTolerance),
-		zap.Int("server_count", len(state.Servers)),
-		zap.Int("healthy_servers", healthy),
-	)
-}
+func (d *autopilotDelegate) NotifyState(_ *autopilot.State) {}
 
 func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft.ServerID]*autopilot.Server) map[raft.ServerID]*autopilot.ServerStats {
 	result := make(map[raft.ServerID]*autopilot.ServerStats, len(servers))
