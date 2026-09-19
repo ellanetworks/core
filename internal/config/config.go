@@ -701,26 +701,75 @@ func GetInterfaceIPs(name string) ([]string, error) {
 
 const maxClusterNodeID = 63
 
-func validateCluster(c ClusterYaml) (Cluster, error) {
+func warnUnclusteredSettings(c ClusterYaml) {
+	set := make([]string, 0, 4)
+
+	if c.NodeID != 0 {
+		set = append(set, "node-id")
+	}
+
+	if len(c.Peers) > 0 {
+		set = append(set, "peers")
+	}
+
+	if strings.TrimSpace(c.JoinToken) != "" {
+		set = append(set, "join-token")
+	}
+
+	if c.Bootstrap {
+		set = append(set, "bootstrap")
+	}
+
+	if len(set) == 0 {
+		return
+	}
+
+	logger.EllaLog.Warn("cluster.bind-address is not set, so this node runs standalone with node ID 1 and these settings are ignored: cluster." +
+		strings.Join(set, ", cluster."))
+}
+
+func warnDeprecatedClusterSettings(c ClusterYaml) {
+	if len(c.Peers) > 0 {
+		logger.EllaLog.Warn("cluster.peers is deprecated and is read only on this node's first boot; " +
+			"send seed addresses to POST /api/v1/cluster/join instead")
+	}
+
+	if strings.TrimSpace(c.JoinToken) != "" {
+		logger.EllaLog.Warn("cluster.join-token is deprecated and leaks a live credential into the config file " +
+			"and support bundles; send the token to POST /api/v1/cluster/join instead")
+	}
+
+	if c.InitialSuffrage != "" {
+		logger.EllaLog.Warn("cluster.initial-suffrage is deprecated; set suffrage on the POST /api/v1/cluster/join request instead")
+	}
+
 	if !c.Enabled {
+		logger.EllaLog.Warn("cluster.enabled is deprecated and ignored; clustering follows cluster.bind-address, which is set on this node")
+	}
+}
+
+func validateCluster(c ClusterYaml) (Cluster, error) {
+	if c.BindAddress == "" {
+		warnUnclusteredSettings(c)
+
 		return Cluster{}, nil
 	}
+
+	warnDeprecatedClusterSettings(c)
 
 	if c.NodeID < 1 || c.NodeID > maxClusterNodeID {
 		return Cluster{}, fmt.Errorf("cluster.node-id must be between 1 and %d (constrained by the 6-bit AMF Pointer field), got %d", maxClusterNodeID, c.NodeID)
 	}
 
-	if c.BindAddress == "" {
-		return Cluster{}, errors.New("cluster.bind-address is required when cluster is enabled")
-	}
+	bindAddress := c.BindAddress
 
-	if _, _, err := net.SplitHostPort(c.BindAddress); err != nil {
-		return Cluster{}, fmt.Errorf("cluster.bind-address %q is not a valid host:port: %w", c.BindAddress, err)
+	if _, _, err := net.SplitHostPort(bindAddress); err != nil {
+		return Cluster{}, fmt.Errorf("cluster.bind-address %q is not a valid host:port: %w", bindAddress, err)
 	}
 
 	advertiseAddress := c.AdvertiseAddress
 	if advertiseAddress == "" {
-		advertiseAddress = c.BindAddress
+		advertiseAddress = bindAddress
 	}
 
 	if _, _, err := net.SplitHostPort(advertiseAddress); err != nil {
@@ -732,11 +781,7 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, fmt.Errorf("cluster.advertise-address %q must not use an unspecified IP (0.0.0.0 / ::)", advertiseAddress)
 	}
 
-	if len(c.Peers) == 0 {
-		return Cluster{}, errors.New("cluster.peers must not be empty when cluster is enabled")
-	}
-
-	selfFound := false
+	selfFound := len(c.Peers) == 0
 
 	for i, peer := range c.Peers {
 		if _, _, err := net.SplitHostPort(peer); err != nil {
@@ -775,6 +820,10 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	if c.Bootstrap && joinToken != "" {
 		return Cluster{}, errors.New("cluster.bootstrap and cluster.join-token are mutually exclusive: set bootstrap to found a new cluster, or supply a join-token to join an existing one")
+	}
+
+	if joinToken != "" && len(c.Peers) == 0 {
+		return Cluster{}, errors.New("cluster.join-token is set but cluster.peers is empty: list at least one address of a node already in the cluster, or drop the token and join via POST /api/v1/cluster/join")
 	}
 
 	// Cluster TLS is bootstrapped in-band (see internal/cluster/pkiissuer);
@@ -823,7 +872,7 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		Enabled:           true,
 		Bootstrap:         c.Bootstrap,
 		NodeID:            c.NodeID,
-		BindAddress:       c.BindAddress,
+		BindAddress:       bindAddress,
 		AdvertiseAddress:  advertiseAddress,
 		Peers:             c.Peers,
 		JoinToken:         joinToken,

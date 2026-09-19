@@ -51,10 +51,10 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `bootstrap` (boolean, optional): Declares that this node founds a new cluster. Required on the first boot of the first node; ignored once the node has cluster state. Mutually exclusive with `join-token`. Defaults to `false`.
     - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
-    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
-    - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
-    - `join-token` (string, optional): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts.
-    - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
+    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must not use an unspecified IP, and must appear in `peers` when `peers` is set.
+    - `peers` (list of strings, optional, **deprecated**): `host:port` seed addresses, read only on this node's first boot. Host may be an IP or DNS name. When set, must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string. Required when `join-token` is set. Send seed addresses to `POST /api/v1/cluster/join` instead.
+    - `join-token` (string, optional, **deprecated**): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Requires `peers`. Consumed on first boot and ignored on subsequent starts. Send the token to `POST /api/v1/cluster/join` instead; the config file and every support bundle retain whatever is written here.
+    - `initial-suffrage` (string, optional, **deprecated**): `voter` or `nonvoter`. Defaults to `voter`. Set `suffrage` on the `POST /api/v1/cluster/join` request instead.
     - `join-timeout` (duration string, optional): How long a joining node keeps trying to reach a formed peer before it gives up and exits. Defaults to `2m`.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
@@ -106,10 +106,4 @@ cluster:
   bootstrap: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
 ```
-
-Set `bootstrap: true` on the first node only. Every other node joins with a `join-token` instead.

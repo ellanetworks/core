@@ -43,10 +43,6 @@ cluster:
   bootstrap: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
 ```
 
 ## 2. Start node 1
@@ -63,18 +59,13 @@ Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the token.
 
-Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Drop `bootstrap` — only the founding node carries it — and paste the copied token block over the placeholder:
+Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"` and no `bootstrap`:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
   enabled: true
   node-id: 2
   bind-address: "10.0.0.2:7000"
-  peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
-  join-token: "ejYM..."
 ```
 
 Start node 2:
@@ -82,6 +73,8 @@ Start node 2:
 ```shell
 sudo snap start --enable ella-core.cored
 ```
+
+Open `https://10.0.0.2:5002` in a browser. On the **Join a cluster** page, paste the token, enter node 1's cluster address `10.0.0.1:7000`, and click **Join**.
 
 ## 5. Add node 3
 

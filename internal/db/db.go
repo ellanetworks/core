@@ -643,6 +643,30 @@ func (db *Database) AutopilotState() *autopilot.State {
 	return db.raftManager.AutopilotState()
 }
 
+func (db *Database) DiscoveryPending() bool {
+	if db.raftManager == nil {
+		return false
+	}
+
+	return db.raftManager.DiscoveryPending()
+}
+
+func (db *Database) SetBootstrap() {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetBootstrap()
+}
+
+func (db *Database) SetJoinSeeds(seeds []string, suffrage string) {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetJoinSeeds(seeds, suffrage)
+}
+
 // ClusterEnabled returns whether clustering is active.
 func (db *Database) ClusterEnabled() bool {
 	return db.clusterEnabled

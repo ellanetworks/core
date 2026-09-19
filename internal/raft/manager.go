@@ -818,6 +818,24 @@ func (m *Manager) RemoveServer(nodeID int) error {
 }
 
 // ClusterEnabled returns whether the manager was started in HA mode.
+func (m *Manager) DiscoveryPending() bool {
+	return m.discoveryPending.Load()
+}
+
+func (m *Manager) SetBootstrap() {
+	m.config.Bootstrap = true
+	m.config.HasJoinToken = false
+}
+
+func (m *Manager) SetJoinSeeds(seeds []string, suffrage string) {
+	m.config.Peers = seeds
+	m.config.HasJoinToken = true
+
+	if suffrage != "" {
+		m.config.InitialSuffrage = suffrage
+	}
+}
+
 func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/api/server"
+	"github.com/ellanetworks/core/internal/cluster/joinreq"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
@@ -277,6 +278,66 @@ func maybeRestoreFromBundle(dbPath string) (bool, error) {
 // enough for fresh-cluster bootstrap to converge in seconds, loose
 // enough that a peer rebooting doesn't see a stampede.
 const joinRetryInterval = 2 * time.Second
+
+const joinRequestTimeout = 60 * time.Second
+
+func awaitAPIJoin(ctx context.Context, pki *pkiState, dbInstance *db.Database) error {
+	coord := joinreq.Default()
+
+	coord.Open()
+
+	defer coord.Close()
+
+	logger.EllaLog.Info("Waiting to be told what cluster to be: POST /api/v1/cluster/bootstrap to found one, or /api/v1/cluster/join with a token and a seed address to join an existing one")
+
+	for {
+		req, err := coord.Await(ctx)
+		if err != nil {
+			return err
+		}
+
+		applyErr := applyJoinRequest(ctx, pki, dbInstance, req)
+
+		coord.Report(applyErr)
+
+		if applyErr == nil {
+			logger.EllaLog.Info("Cluster instruction accepted",
+				zap.String("mode", string(req.Mode)),
+				zap.Strings("seed_addresses", req.SeedAddresses))
+
+			return nil
+		}
+
+		logger.EllaLog.Warn("Cluster instruction failed; still waiting for a usable one",
+			zap.Error(applyErr))
+	}
+}
+
+func applyJoinRequest(ctx context.Context, pki *pkiState, dbInstance *db.Database, req joinreq.Request) error {
+	if req.Mode == joinreq.ModeBootstrap {
+		dbInstance.SetBootstrap()
+
+		return nil
+	}
+
+	joinCtx, cancel := context.WithTimeout(ctx, joinRequestTimeout)
+	defer cancel()
+
+	if !pki.agent.HaveLeafOnDisk() {
+		if err := runJoinFlow(joinCtx, pki.agent, req.SeedAddresses, req.Token); err != nil {
+			return err
+		}
+	}
+
+	if err := pki.agent.Load(); err != nil {
+		return fmt.Errorf("load leaf: %w", err)
+	}
+
+	pki.SeedPinsFromAgentDisk()
+	dbInstance.SetJoinSeeds(req.SeedAddresses, req.Suffrage)
+
+	return nil
+}
 
 // runJoinFlow walks cluster.peers, presenting token, until one peer
 // accepts the cert registration. Retries the full list until ctx is
