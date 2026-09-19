@@ -98,6 +98,13 @@ type ClusterConfig struct {
 	// joiner's cluster_members row. Used for operator inventory only;
 	// the migration gate reads SchemaVersion live via /cluster/status.
 	BinaryVersion string
+
+	// DeferAttach holds back Raft construction until the node learns
+	// which server ID it is. A fresh node with no persisted node-id is
+	// told by the operator, so its Raft LocalID is not knowable at
+	// startup; the manager is built once the join or bootstrap
+	// instruction arrives.
+	DeferAttach bool
 }
 
 const (

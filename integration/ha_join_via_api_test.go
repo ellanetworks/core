@@ -56,10 +56,8 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: "%s:7000"
-`, addr, addr, nodeID, ClusterAddressWithBrackets(nodeID))
+`, addr, addr, ClusterAddressWithBrackets(nodeID))
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -195,6 +193,10 @@ func TestIntegrationHAJoinViaAPI(t *testing.T) {
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices[:2], []*client.Client{node1})
 	})
+
+	if err := foundCluster(ctx, getHANodeURLs()[0]); err != nil {
+		t.Fatalf("found cluster on node 1: %v", err)
+	}
 
 	if err := waitForNodeReady(ctx, node1); err != nil {
 		t.Fatalf("node 1 never became ready: %v", err)

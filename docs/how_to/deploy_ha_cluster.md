@@ -39,9 +39,6 @@ interfaces:
 datapath:
   attach-mode: "xdp-native"
 cluster:
-  enabled: true
-  bootstrap: true
-  node-id: 1
   bind-address: "10.0.0.1:7000"
 ```
 
@@ -53,18 +50,16 @@ sudo snap start --enable ella-core.cored
 
 ## 3. Create the admin user
 
-Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
+Open `https://10.0.0.1:5002` in a browser, create the admin, and log in. Creating the admin founds the cluster on this node.
 
 ## 4. Add node 2
 
 On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the token.
 
-Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"` and no `bootstrap`:
+Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
-  enabled: true
-  node-id: 2
   bind-address: "10.0.0.2:7000"
 ```
 

@@ -72,7 +72,7 @@ func TestStartDiscoveryRefusesToFoundWithoutDeclaration(t *testing.T) {
 		t.Errorf("error must be terminal, got %v", err)
 	}
 
-	for _, want := range []string{"cluster.bootstrap", "join token"} {
+	for _, want := range []string{"cluster/bootstrap", "join token"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error should name %q so the operator sees both options, got %q", want, err)
 		}

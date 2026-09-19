@@ -152,12 +152,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		APIAddress:        apiAddress,
 		Peers:             cfg.Cluster.Peers,
 		HasJoinToken:      cfg.Cluster.JoinToken != "",
-		Bootstrap:         cfg.Cluster.Bootstrap,
 		JoinTimeout:       cfg.Cluster.JoinTimeout,
 		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
 		TrailingLogs:      cfg.Cluster.TrailingLogs,
+		DeferAttach:       cfg.Cluster.Enabled && !ellaraft.NodeIDKnown(cfg.Cluster.NodeID, filepath.Dir(cfg.DB.Path)),
 		SchemaVersion:     db.SchemaVersion(),
 		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
 		BinaryVersion:     ver.Version,
@@ -259,7 +259,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	if cfg.Cluster.Enabled && !cfg.Cluster.Bootstrap && cfg.Cluster.JoinToken == "" && dbInstance.DiscoveryPending() {
+	if cfg.Cluster.Enabled && cfg.Cluster.JoinToken == "" && (dbInstance.DiscoveryPending() || dbInstance.RaftDeferred()) {
 		if err := awaitAPIJoin(ctx, pki, dbInstance); err != nil {
 			if ctx.Err() != nil {
 				logger.EllaLog.Info("Shutdown signal received, exiting.")

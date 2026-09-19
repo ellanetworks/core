@@ -42,6 +42,9 @@ type Database struct {
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
 	raftManager    *ellaraft.Manager
+	raftCfg        ellaraft.ClusterConfig
+	raftOpts       []ellaraft.ManagerOption
+	workerCtx      context.Context
 	proposeTimeout time.Duration
 
 	// changefeed broadcasts post-apply events to in-process
@@ -649,6 +652,49 @@ func (db *Database) DiscoveryPending() bool {
 	}
 
 	return db.raftManager.DiscoveryPending()
+}
+
+func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
+	db.raftManager = mgr
+	db.proposeTimeout = mgr.ProposeTimeout()
+	db.probeMemberSchema = mgr.ProbePeerSchemaVersion
+	db.raftMemberIDs = mgr.MemberIDs
+}
+
+// RaftDeferred reports that clustering is on but the Raft manager has
+// not been built yet, because this node does not know its server ID
+// until an operator tells it to found or join a cluster.
+func (db *Database) RaftDeferred() bool {
+	return db.clusterEnabled && db.raftManager == nil
+}
+
+// AttachRaft builds the Raft manager this node held back at startup.
+// Pass the server ID the cluster assigned, or 0 to take the default.
+func (db *Database) AttachRaft(ctx context.Context, nodeID int) error {
+	if db.raftManager != nil {
+		return nil
+	}
+
+	cfg := db.raftCfg
+	cfg.DeferAttach = false
+
+	if nodeID != 0 {
+		cfg.NodeID = nodeID
+	}
+
+	mgr, err := ellaraft.NewManager(ctx, cfg, db, db.dataDir, db.raftOpts...)
+	if err != nil {
+		return fmt.Errorf("start raft manager as node %d: %w", cfg.NodeID, err)
+	}
+
+	db.raftCfg = cfg
+	db.adoptRaftManager(mgr)
+
+	if observer := mgr.LeaderObserver(); observer != nil {
+		observer.Register(newClusterCoordinator(db, db.workerCtx))
+	}
+
+	return nil
 }
 
 func (db *Database) SetBootstrap() {
@@ -1319,16 +1365,20 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir, raftOpts...)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to start raft manager: %w", err)
-	}
+	db.raftCfg = raftCfg
+	db.raftOpts = raftOpts
 
-	db.raftManager = raftMgr
-	db.proposeTimeout = raftMgr.ProposeTimeout()
-	db.probeMemberSchema = raftMgr.ProbePeerSchemaVersion
-	db.raftMemberIDs = raftMgr.MemberIDs
+	var raftMgr *ellaraft.Manager
+
+	if !raftCfg.DeferAttach {
+		raftMgr, err = ellaraft.NewManager(ctx, raftCfg, db, dataDir, raftOpts...)
+		if err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to start raft manager: %w", err)
+		}
+
+		db.adoptRaftManager(raftMgr)
+	}
 
 	// Ensure the FSM migration marker exists so future FSM.Restore
 	// calls know the new code is active and use the snapshot's
@@ -1343,11 +1393,14 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.migrationCheckCh = make(chan struct{}, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	db.migrationCheckCancel = workerCancel
+	db.workerCtx = workerCtx
 
 	go db.runMigrationCheckWorker(workerCtx)
 
-	if observer := raftMgr.LeaderObserver(); observer != nil {
-		observer.Register(newClusterCoordinator(db, workerCtx))
+	if raftMgr != nil {
+		if observer := raftMgr.LeaderObserver(); observer != nil {
+			observer.Register(newClusterCoordinator(db, workerCtx))
+		}
 	}
 
 	RegisterMetrics(db)
@@ -1366,7 +1419,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	// seeded on leadership, not here: Initialize proposes through Raft and
 	// no node is leader this early. HA mode seeds through runLeaderInit in
 	// pkg/runtime; standalone seeds through the callback registered below.
-	if !raftCfg.Enabled {
+	if !raftCfg.Enabled && raftMgr != nil {
 		if observer := raftMgr.LeaderObserver(); observer != nil {
 			observer.Register(newStandaloneInitializer(db, workerCtx))
 		}

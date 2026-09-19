@@ -155,7 +155,6 @@ type TelemetryYaml struct {
 
 type ClusterYaml struct {
 	Enabled           bool     `yaml:"enabled"`
-	Bootstrap         bool     `yaml:"bootstrap"`
 	NodeID            int      `yaml:"node-id"`
 	BindAddress       string   `yaml:"bind-address"`
 	AdvertiseAddress  string   `yaml:"advertise-address"`
@@ -243,7 +242,6 @@ type Telemetry struct {
 // binary runs as a standalone single-server instance.
 type Cluster struct {
 	Enabled           bool
-	Bootstrap         bool
 	NodeID            int
 	BindAddress       string
 	AdvertiseAddress  string
@@ -716,10 +714,6 @@ func warnUnclusteredSettings(c ClusterYaml) {
 		set = append(set, "join-token")
 	}
 
-	if c.Bootstrap {
-		set = append(set, "bootstrap")
-	}
-
 	if len(set) == 0 {
 		return
 	}
@@ -745,6 +739,10 @@ func warnDeprecatedClusterSettings(c ClusterYaml) {
 
 	if !c.Enabled {
 		logger.EllaLog.Warn("cluster.enabled is deprecated and ignored; clustering follows cluster.bind-address, which is set on this node")
+	}
+
+	if c.NodeID != 0 {
+		logger.EllaLog.Warn("cluster.node-id is deprecated; a founding node takes ID 1 and a joining node takes the ID from its join token")
 	}
 }
 
@@ -818,10 +816,6 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		}
 	}
 
-	if c.Bootstrap && joinToken != "" {
-		return Cluster{}, errors.New("cluster.bootstrap and cluster.join-token are mutually exclusive: set bootstrap to found a new cluster, or supply a join-token to join an existing one")
-	}
-
 	if joinToken != "" && len(c.Peers) == 0 {
 		return Cluster{}, errors.New("cluster.join-token is set but cluster.peers is empty: list at least one address of a node already in the cluster, or drop the token and join via POST /api/v1/cluster/join")
 	}
@@ -870,7 +864,6 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	return Cluster{
 		Enabled:           true,
-		Bootstrap:         c.Bootstrap,
 		NodeID:            c.NodeID,
 		BindAddress:       bindAddress,
 		AdvertiseAddress:  advertiseAddress,

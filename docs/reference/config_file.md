@@ -48,8 +48,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs standalone.
-    - `bootstrap` (boolean, optional): Declares that this node founds a new cluster. Required on the first boot of the first node; ignored once the node has cluster state. Mutually exclusive with `join-token`. Defaults to `false`.
-    - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
+    - `node-id` (int, 1–63, optional, **deprecated**): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues. A founding node takes ID 1; a joining node takes the ID from its join token, so this no longer needs setting.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must not use an unspecified IP, and must appear in `peers` when `peers` is set.
     - `peers` (list of strings, optional, **deprecated**): `host:port` seed addresses, read only on this node's first boot. Host may be an IP or DNS name. When set, must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string. Required when `join-token` is set. Send seed addresses to `POST /api/v1/cluster/join` instead.
@@ -102,8 +101,5 @@ Enable clustering on each node to deploy Ella Core in a high-availability config
 
 ```yaml
 cluster:
-  enabled: true
-  bootstrap: true
-  node-id: 1
   bind-address: "10.0.0.1:7000"
 ```

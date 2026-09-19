@@ -365,15 +365,13 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: %q
   snapshot-interval: %q
   snapshot-threshold: %d
   trailing-logs: %d
   peers:
 %s%s%s`,
-		addr, addr, nodeID, ClusterAddressWithPort(nodeID, 7000),
+		addr, addr, ClusterAddressWithPort(nodeID, 7000),
 		cfg.Interval, cfg.Threshold, cfg.TrailingLogs,
 		peersYAML.String(), joinTokenLine, suffrageLine)
 

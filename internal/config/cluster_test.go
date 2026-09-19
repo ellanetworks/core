@@ -14,10 +14,9 @@ import (
 
 // Cluster config v2 drops the operator-supplied TLS fields (cluster.tls.*)
 // in favour of the in-band PKI bootstrapped at first-leader election, and
-// gates cluster formation on two mutually exclusive signals:
-// cluster.join-token (joiner) and cluster.bootstrap (founder). The tests
-// below exercise the remaining surface: node-id range, bind address format,
-// peers list, suffrage, timeouts.
+// leaves cluster formation to the API. The tests below exercise the
+// remaining surface: node-id range, bind address format, peers list,
+// suffrage, timeouts.
 
 const baseConfigYAML = `
 db:
@@ -173,43 +172,6 @@ func itoa(n int) string {
 	return out
 }
 
-func TestCluster_BootstrapParses(t *testing.T) {
-	cfg, err := config.Validate(writeConfig(t, baseConfigYAML+"  bootstrap: true\n"))
-	if err != nil {
-		t.Fatalf("validate: %v", err)
-	}
-
-	if !cfg.Cluster.Bootstrap {
-		t.Error("cluster.bootstrap must survive validation")
-	}
-}
-
-func TestCluster_BootstrapDefaultsOff(t *testing.T) {
-	cfg, err := config.Validate(writeConfig(t, baseConfigYAML))
-	if err != nil {
-		t.Fatalf("validate: %v", err)
-	}
-
-	if cfg.Cluster.Bootstrap {
-		t.Error("founding a cluster must never be the default")
-	}
-}
-
-func TestCluster_BootstrapAndJoinTokenAreMutuallyExclusive(t *testing.T) {
-	token := strings.Repeat("a", 100)
-
-	body := baseConfigYAML + "  bootstrap: true\n  join-token: \"" + token + "\"\n"
-
-	_, err := config.Validate(writeConfig(t, body))
-	if err == nil {
-		t.Fatal("a node cannot both found a cluster and join one")
-	}
-
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error should say the two settings conflict, got %q", err)
-	}
-}
-
 func TestCluster_PeersOptionalWithoutJoinToken(t *testing.T) {
 	body := strings.Replace(baseConfigYAML, `  peers:
     - "127.0.0.1:7000"
@@ -217,7 +179,7 @@ func TestCluster_PeersOptionalWithoutJoinToken(t *testing.T) {
     - "127.0.0.1:7002"
 `, "", 1)
 
-	cfg, err := config.Validate(writeConfig(t, body+"  bootstrap: true\n"))
+	cfg, err := config.Validate(writeConfig(t, body))
 	if err != nil {
 		t.Fatalf("peers must be optional when the node is not joining from config: %v", err)
 	}

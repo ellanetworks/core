@@ -54,7 +54,7 @@ Paths below assume the default data directory `/var/snap/ella-core/common/data` 
                 /var/snap/ella-core/common/data/cluster-tls
     ```
 
-3. In that node's `core.yaml`, remove `cluster.join-token` if it is set and add `cluster.bootstrap: true`. The node founds the restored cluster, so it needs the same declaration the original first node had.
+3. Remove `cluster.join-token` from that node's `core.yaml` if it is set.
 
 4. Drop the backup archive into the data directory as `restore.bundle`:
 

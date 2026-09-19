@@ -129,6 +129,10 @@ func TestIntegrationHAStandaloneGrowsIntoCluster(t *testing.T) {
 		t.Fatalf("restart node 1 as founder: %v", err)
 	}
 
+	if err := foundCluster(ctx, getHANodeURLs()[0]); err != nil {
+		t.Fatalf("found cluster on the converted node: %v", err)
+	}
+
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, []*client.Client{node1})
 	})

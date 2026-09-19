@@ -21,8 +21,6 @@ This guide walks through adding a node to an existing Ella Core high-availabilit
 
     ```yaml title="core.yaml (new node)"
     cluster:
-      enabled: true
-      node-id: 4
       bind-address: "10.0.0.4:7000"
     ```
 

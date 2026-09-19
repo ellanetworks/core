@@ -313,27 +313,42 @@ func awaitAPIJoin(ctx context.Context, pki *pkiState, dbInstance *db.Database) e
 	}
 }
 
-func applyJoinRequest(ctx context.Context, pki *pkiState, dbInstance *db.Database, req joinreq.Request) error {
+func applyJoinRequest(ctx context.Context, pkiState *pkiState, dbInstance *db.Database, req joinreq.Request) error {
 	if req.Mode == joinreq.ModeBootstrap {
+		if err := dbInstance.AttachRaft(ctx, 0); err != nil {
+			return err
+		}
+
 		dbInstance.SetBootstrap()
 
 		return nil
 	}
 
+	claims, err := pki.ExtractClaimsUnverified(req.Token)
+	if err != nil {
+		return fmt.Errorf("read join token: %w", err)
+	}
+
+	pkiState.agent.NodeID = claims.NodeID
+
+	if err := dbInstance.AttachRaft(ctx, claims.NodeID); err != nil {
+		return err
+	}
+
 	joinCtx, cancel := context.WithTimeout(ctx, joinRequestTimeout)
 	defer cancel()
 
-	if !pki.agent.HaveLeafOnDisk() {
-		if err := runJoinFlow(joinCtx, pki.agent, req.SeedAddresses, req.Token); err != nil {
+	if !pkiState.agent.HaveLeafOnDisk() {
+		if err := runJoinFlow(joinCtx, pkiState.agent, req.SeedAddresses, req.Token); err != nil {
 			return err
 		}
 	}
 
-	if err := pki.agent.Load(); err != nil {
+	if err := pkiState.agent.Load(); err != nil {
 		return fmt.Errorf("load leaf: %w", err)
 	}
 
-	pki.SeedPinsFromAgentDisk()
+	pkiState.SeedPinsFromAgentDisk()
 	dbInstance.SetJoinSeeds(req.SeedAddresses, req.Suffrage)
 
 	return nil
