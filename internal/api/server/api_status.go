@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"sync/atomic"
 
@@ -63,13 +64,23 @@ type ClusterStatusResponse struct {
 	PendingMigration     *PendingMigrationResponse `json:"pendingMigration,omitempty"`
 }
 
+func (c ClusterStatusResponse) MarshalJSON() ([]byte, error) {
+	if !c.Enabled {
+		return []byte(`{"enabled":false}`), nil
+	}
+
+	type alias ClusterStatusResponse
+
+	return json.Marshal(alias(c))
+}
+
 type StatusResponse struct {
-	Version       string                 `json:"version"`
-	Revision      string                 `json:"revision"`
-	Initialized   bool                   `json:"initialized"`
-	Ready         bool                   `json:"ready"`
-	SchemaVersion int                    `json:"schemaVersion"`
-	Cluster       *ClusterStatusResponse `json:"cluster,omitempty"`
+	Version       string                `json:"version"`
+	Revision      string                `json:"revision"`
+	Initialized   bool                  `json:"initialized"`
+	Ready         bool                  `json:"ready"`
+	SchemaVersion int                   `json:"schemaVersion"`
+	Cluster       ClusterStatusResponse `json:"cluster"`
 
 	// One of the config.Datapath* values, absent until the UPF is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
@@ -105,7 +116,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 
 		if dbInstance.ClusterEnabled() {
 			role := dbInstance.RaftState()
-			clusterStatus := &ClusterStatusResponse{
+			clusterStatus := ClusterStatusResponse{
 				Enabled:      true,
 				Role:         role,
 				NodeID:       dbInstance.NodeID(),

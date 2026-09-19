@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
 import ClusterPage from "./Cluster";
+import { PRODUCT } from "@/utils/product";
 
 const api = setupApiServer();
 
@@ -77,6 +78,33 @@ const stateCard = () =>
   screen
     .getByRole("heading", { name: "State" })
     .closest(".MuiCard-root") as HTMLElement;
+
+describe("Cluster page standalone state", () => {
+  it("explains standalone mode and links out to the HA documentation", async () => {
+    api.get(STATUS, () => ({
+      initialized: true,
+      ready: true,
+      schemaVersion: 7,
+      cluster: { enabled: false },
+    }));
+
+    await renderCluster();
+
+    expect(
+      screen.getByText("High-availability cluster members and health."),
+    ).toBeTruthy();
+
+    expect(screen.getByText("High availability is not enabled")).toBeTruthy();
+
+    expect(
+      screen.getByText(/This node is running in standalone mode/),
+    ).toBeTruthy();
+
+    const learnMore = screen.getByRole("link", { name: /Learn more/ });
+    expect(learnMore).toHaveAttribute("href", PRODUCT.haDocsUrl);
+    expect(learnMore).toHaveAttribute("target", "_blank");
+  });
+});
 
 describe("Cluster page State section", () => {
   it("shows cluster id, health with failure tolerance, and schema", async () => {

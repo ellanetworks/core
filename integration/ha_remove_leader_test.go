@@ -56,7 +56,7 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 	}
 
 	leaderStatus, err := leader.GetStatus(ctx)
-	if err != nil || leaderStatus.Cluster == nil {
+	if err != nil || !leaderStatus.Cluster.Enabled {
 		t.Fatalf("read leader status: %v", err)
 	}
 

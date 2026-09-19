@@ -349,7 +349,7 @@ func waitForClusterReadyWithin(ctx context.Context, clients []*client.Client, ti
 				break
 			}
 
-			if status.Cluster == nil {
+			if !status.Cluster.Enabled {
 				break
 			}
 
@@ -392,7 +392,7 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 				continue
 			}
 
-			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+			if status.Cluster.Enabled && status.Cluster.Role == "Leader" {
 				leaderIdxs = append(leaderIdxs, i)
 				claims = append(claims, fmt.Sprintf("node %d", status.Cluster.NodeID))
 			}
@@ -436,7 +436,7 @@ func waitForNewLeader(ctx context.Context, survivors []*client.Client) (*client.
 				continue
 			}
 
-			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+			if status.Cluster.Enabled && status.Cluster.Role == "Leader" {
 				leaders = append(leaders, c)
 			}
 		}
@@ -516,7 +516,7 @@ func waitForFollowerConvergence(ctx context.Context, clients []*client.Client, m
 				break
 			}
 
-			if status.Cluster == nil {
+			if !status.Cluster.Enabled {
 				converged = false
 				break
 			}
@@ -548,7 +548,7 @@ func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, err
 		return 0, fmt.Errorf("get leader status: %w", err)
 	}
 
-	if status.Cluster == nil {
+	if !status.Cluster.Enabled {
 		return 0, fmt.Errorf("leader has no cluster status")
 	}
 
@@ -678,7 +678,7 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 			pending       string
 		)
 
-		if status.Cluster != nil {
+		if status.Cluster.Enabled {
 			role = status.Cluster.Role
 			appliedSchema = status.Cluster.AppliedSchemaVersion
 
