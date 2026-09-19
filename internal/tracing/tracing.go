@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -14,7 +15,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.uber.org/zap"
 )
+
+type otelErrorHandler struct{}
+
+func (otelErrorHandler) Handle(err error) {
+	logger.EllaLog.Warn("OpenTelemetry error", zap.Error(err))
+}
 
 type TelemetryConfig struct {
 	Enabled         bool
@@ -54,6 +62,8 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider
 		trace.WithBatcher(exp),
 		trace.WithResource(res),
 	)
+
+	otel.SetErrorHandler(otelErrorHandler{})
 
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(
