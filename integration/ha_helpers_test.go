@@ -257,8 +257,11 @@ func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToke
 	}
 
 	joinTokenLine := ""
+	bootstrapLine := "  bootstrap: true\n"
+
 	if joinToken != "" {
 		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+		bootstrapLine = ""
 	}
 
 	suffrageLine := ""
@@ -289,10 +292,10 @@ datapath:
   attach-mode: "xdp-generic"
 cluster:
   enabled: true
-  node-id: %d
+%s  node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, bootstrapLine, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -929,8 +932,11 @@ func writeFQDNNodeConfig(composeDir string, nodeID int, peers []string, joinToke
 	}
 
 	joinTokenLine := ""
+	bootstrapLine := "  bootstrap: true\n"
+
 	if joinToken != "" {
 		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+		bootstrapLine = ""
 	}
 
 	body := fmt.Sprintf(`logging:
@@ -956,10 +962,10 @@ datapath:
   attach-mode: "xdp-generic"
 cluster:
   enabled: true
-  node-id: %d
+%s  node-id: %d
   bind-address: "ella-core-%d:7000"
   peers:
-%s%s`, nodeID, nodeID, peersYAML.String(), joinTokenLine)
+%s%s`, bootstrapLine, nodeID, nodeID, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

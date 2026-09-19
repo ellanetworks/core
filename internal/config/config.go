@@ -155,6 +155,7 @@ type TelemetryYaml struct {
 
 type ClusterYaml struct {
 	Enabled           bool     `yaml:"enabled"`
+	Bootstrap         bool     `yaml:"bootstrap"`
 	NodeID            int      `yaml:"node-id"`
 	BindAddress       string   `yaml:"bind-address"`
 	AdvertiseAddress  string   `yaml:"advertise-address"`
@@ -242,6 +243,7 @@ type Telemetry struct {
 // binary runs as a standalone single-server instance.
 type Cluster struct {
 	Enabled           bool
+	Bootstrap         bool
 	NodeID            int
 	BindAddress       string
 	AdvertiseAddress  string
@@ -771,6 +773,10 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		}
 	}
 
+	if c.Bootstrap && joinToken != "" {
+		return Cluster{}, errors.New("cluster.bootstrap and cluster.join-token are mutually exclusive: set bootstrap to found a new cluster, or supply a join-token to join an existing one")
+	}
+
 	// Cluster TLS is bootstrapped in-band (see internal/cluster/pkiissuer);
 	// there are no longer any operator-provided cert paths to validate.
 
@@ -815,6 +821,7 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	return Cluster{
 		Enabled:           true,
+		Bootstrap:         c.Bootstrap,
 		NodeID:            c.NodeID,
 		BindAddress:       c.BindAddress,
 		AdvertiseAddress:  advertiseAddress,

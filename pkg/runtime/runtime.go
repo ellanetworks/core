@@ -151,6 +151,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		APIAddress:        apiAddress,
 		Peers:             cfg.Cluster.Peers,
 		HasJoinToken:      cfg.Cluster.JoinToken != "",
+		Bootstrap:         cfg.Cluster.Bootstrap,
 		JoinTimeout:       cfg.Cluster.JoinTimeout,
 		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:  cfg.Cluster.SnapshotInterval,

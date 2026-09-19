@@ -21,6 +21,7 @@ datapath:
   attach-mode: "xdp-generic"
 cluster:
   enabled: true
+  bootstrap: true
   node-id: 1
   bind-address: "ella-core-1:7000"
   peers:

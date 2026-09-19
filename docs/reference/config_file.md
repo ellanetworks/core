@@ -48,11 +48,12 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs standalone.
+    - `bootstrap` (boolean, optional): Declares that this node founds a new cluster. Required on the first boot of the first node; ignored once the node has cluster state. Mutually exclusive with `join-token`. Defaults to `false`.
     - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
     - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
-    - `join-token` (string, optional): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
+    - `join-token` (string, optional): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts.
     - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
     - `join-timeout` (duration string, optional): How long a joining node keeps trying to reach a formed peer before it gives up and exits. Defaults to `2m`.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
@@ -102,6 +103,7 @@ Enable clustering on each node to deploy Ella Core in a high-availability config
 ```yaml
 cluster:
   enabled: true
+  bootstrap: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
   peers:
@@ -109,3 +111,5 @@ cluster:
     - "10.0.0.2:7000"
     - "10.0.0.3:7000"
 ```
+
+Set `bootstrap: true` on the first node only. Every other node joins with a `join-token` instead.

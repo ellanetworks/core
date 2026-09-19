@@ -8,6 +8,7 @@ interfaces:
 datapath: {attach-mode: xdp-generic}
 cluster:
   enabled: true
+  bootstrap: true
   node-id: 1
   bind-address: "10.100.0.11:7000"
   peers: ["10.100.0.11:7000","10.100.0.12:7000","10.100.0.13:7000"]

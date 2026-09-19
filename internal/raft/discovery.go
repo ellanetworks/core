@@ -65,7 +65,11 @@ func (m *Manager) StartDiscovery(ctx context.Context) error {
 	}
 
 	if !m.config.HasJoinToken {
-		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
+		if !m.config.Bootstrap {
+			return fmt.Errorf("%w: this node has no cluster state, no cluster.join-token and no cluster.bootstrap; set cluster.bootstrap: true to found a new cluster, or supply a join token to join an existing one", ErrDiscoveryFatal)
+		}
+
+		logger.RaftLog.Info("Bootstrapping new cluster (cluster.bootstrap is set)",
 			zap.Int("node_id", m.nodeID),
 		)
 

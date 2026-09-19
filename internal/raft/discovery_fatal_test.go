@@ -34,6 +34,51 @@ func TestStartDiscoveryWithoutClusterListenerIsTerminal(t *testing.T) {
 	}
 }
 
+func TestStartDiscoveryRefusesToFoundWithoutDeclaration(t *testing.T) {
+	t.Parallel()
+
+	applier := newTestApplier(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	mgr, err := NewManager(ctx, FastTestConfig(), applier, t.TempDir())
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	t.Cleanup(func() { _ = mgr.Shutdown() })
+
+	mgr.config.HasJoinToken = false
+	mgr.config.Bootstrap = false
+	mgr.discoveryPending.Store(true)
+
+	pki := testutil.GenTestPKI(t, []int{1})
+
+	mgr.attachClusterListener(listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           1,
+		Pin:              pki.PinFunc(),
+		Leaf:             pki.LeafFunc(1),
+	}))
+
+	err = mgr.StartDiscovery(ctx)
+	if err == nil {
+		t.Fatal("a node with neither a join token nor a founder declaration must refuse to found a cluster")
+	}
+
+	if !errors.Is(err, ErrDiscoveryFatal) {
+		t.Errorf("error must be terminal, got %v", err)
+	}
+
+	for _, want := range []string{"cluster.bootstrap", "join token"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error should name %q so the operator sees both options, got %q", want, err)
+		}
+	}
+}
+
 func TestStartDiscoveryStopsOnFounderBootstrapFailure(t *testing.T) {
 	t.Parallel()
 
@@ -54,6 +99,7 @@ func TestStartDiscoveryStopsOnFounderBootstrapFailure(t *testing.T) {
 	}
 
 	mgr.config.HasJoinToken = false
+	mgr.config.Bootstrap = true
 	mgr.discoveryPending.Store(true)
 
 	pki := testutil.GenTestPKI(t, []int{1})
