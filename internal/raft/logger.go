@@ -4,9 +4,12 @@
 package raft
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"syscall"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/go-hclog"
@@ -30,6 +33,10 @@ func newZapRaftLogger() hclog.Logger {
 func (l *zapRaftLogger) Log(level hclog.Level, msg string, args ...interface{}) {
 	fields := argsToFields(args)
 
+	if level == hclog.Error && isUnreachablePeerError(args) {
+		level = hclog.Warn
+	}
+
 	switch level {
 	case hclog.Trace, hclog.Debug:
 		l.zap.Debug(msg, fields...)
@@ -40,6 +47,33 @@ func (l *zapRaftLogger) Log(level hclog.Level, msg string, args ...interface{}) 
 	case hclog.Error:
 		l.zap.Error(msg, fields...)
 	}
+}
+
+func isUnreachablePeerError(args []interface{}) bool {
+	for i := 1; i < len(args); i += 2 {
+		err, ok := args[i].(error)
+		if !ok {
+			continue
+		}
+
+		if errors.Is(err, syscall.ECONNREFUSED) ||
+			errors.Is(err, syscall.EHOSTUNREACH) ||
+			errors.Is(err, syscall.ENETUNREACH) ||
+			errors.Is(err, syscall.ECONNRESET) ||
+			errors.Is(err, syscall.ETIMEDOUT) ||
+			errors.Is(err, syscall.EPIPE) ||
+			errors.Is(err, io.EOF) ||
+			errors.Is(err, io.ErrUnexpectedEOF) {
+			return true
+		}
+
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (l *zapRaftLogger) Trace(msg string, args ...interface{}) { l.Log(hclog.Trace, msg, args...) }
