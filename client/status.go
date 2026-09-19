@@ -13,32 +13,26 @@ type PendingMigration struct {
 }
 
 type ClusterStatus struct {
-	Enabled          bool   `json:"enabled"`
-	Role             string `json:"role"`
-	NodeID           int    `json:"nodeId"`
-	IsLeader         bool   `json:"isLeader"`
-	LeaderNodeID     int    `json:"leaderNodeId"`
-	AppliedIndex     uint64 `json:"appliedIndex"`
-	ClusterID        string `json:"clusterId,omitempty"`
-	LeaderAPIAddress string `json:"leaderAPIAddress,omitempty"`
-
-	// AppliedSchemaVersion is what the cluster has committed; the
-	// parent SchemaVersion is what this binary supports. They differ
-	// only mid-rolling-upgrade.
+	Enabled              bool              `json:"enabled"`
+	Role                 string            `json:"role"`
+	NodeID               int               `json:"nodeId"`
+	IsLeader             bool              `json:"isLeader"`
+	LeaderNodeID         int               `json:"leaderNodeId"`
+	AppliedIndex         uint64            `json:"appliedIndex"`
+	ClusterID            string            `json:"clusterId,omitempty"`
+	LeaderAPIAddress     string            `json:"leaderAPIAddress,omitempty"`
 	AppliedSchemaVersion int               `json:"appliedSchemaVersion"`
 	PendingMigration     *PendingMigration `json:"pendingMigration,omitempty"`
 }
 
 type Status struct {
-	Version       string         `json:"version"`
-	Revision      string         `json:"revision,omitempty"`
-	Initialized   bool           `json:"initialized"`
-	Ready         bool           `json:"ready"`
-	SchemaVersion int            `json:"schemaVersion"`
-	Cluster       *ClusterStatus `json:"cluster,omitempty"`
-
-	// Empty until the data plane is up.
-	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
+	Version            string        `json:"version"`
+	Revision           string        `json:"revision,omitempty"`
+	Initialized        bool          `json:"initialized"`
+	Ready              bool          `json:"ready"`
+	SchemaVersion      int           `json:"schemaVersion"`
+	Cluster            ClusterStatus `json:"cluster"`
+	DatapathAttachMode string        `json:"datapathAttachMode,omitempty"`
 }
 
 // GetStatus retrieves the current status of the system.

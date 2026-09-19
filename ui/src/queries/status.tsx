@@ -9,18 +9,31 @@ export type PendingMigration = {
   laggardNodeId?: number;
 };
 
-export type ClusterStatus = {
-  enabled: boolean;
-  role: string;
-  nodeId: number;
-  isLeader: boolean;
-  leaderNodeId: number;
-  leaderAPIAddress?: string;
-  appliedIndex: number;
-  clusterId?: string;
-  appliedSchemaVersion?: number;
-  pendingMigration?: PendingMigration;
-};
+export type ClusterStatus =
+  | {
+      enabled: false;
+      role?: undefined;
+      nodeId?: undefined;
+      isLeader?: undefined;
+      leaderNodeId?: undefined;
+      leaderAPIAddress?: undefined;
+      appliedIndex?: undefined;
+      clusterId?: undefined;
+      appliedSchemaVersion?: undefined;
+      pendingMigration?: undefined;
+    }
+  | {
+      enabled: true;
+      role: string;
+      nodeId: number;
+      isLeader: boolean;
+      leaderNodeId: number;
+      leaderAPIAddress?: string;
+      appliedIndex: number;
+      clusterId?: string;
+      appliedSchemaVersion: number;
+      pendingMigration?: PendingMigration;
+    };
 
 export type APIStatus = {
   initialized: boolean;
@@ -28,7 +41,7 @@ export type APIStatus = {
   revision?: string;
   ready?: boolean;
   schemaVersion?: number;
-  cluster?: ClusterStatus;
+  cluster: ClusterStatus;
 };
 
 export const getStatus = async (): Promise<APIStatus> => {

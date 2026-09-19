@@ -171,7 +171,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 			waitForPending := func(c *client.Client, label string) {
 				if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
-					if s.Cluster == nil {
+					if !s.Cluster.Enabled {
 						return errors.New("cluster status missing")
 					}
 
@@ -229,7 +229,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 	for i, c := range clients {
 		if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
-			if s.Cluster == nil {
+			if !s.Cluster.Enabled {
 				return errors.New("cluster status missing")
 			}
 
@@ -313,7 +313,7 @@ func assertSchemaState(t *testing.T, ctx context.Context, c *client.Client, labe
 		t.Errorf("%s: revision=%q, want %q", label, s.Revision, want.revision)
 	}
 
-	if s.Cluster == nil {
+	if !s.Cluster.Enabled {
 		t.Errorf("%s: cluster status missing", label)
 		return
 	}
@@ -373,7 +373,7 @@ func mustReadStatus(ctx context.Context, t *testing.T, c *client.Client) *client
 
 func roleAt(ctx context.Context, c *client.Client) string {
 	s, err := c.GetStatus(ctx)
-	if err != nil || s.Cluster == nil {
+	if err != nil || !s.Cluster.Enabled {
 		return "?"
 	}
 

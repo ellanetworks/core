@@ -6,6 +6,7 @@ import {
   Box,
   Typography,
   CircularProgress,
+  Link as MuiLink,
   Card,
   CardHeader,
   CardContent,
@@ -64,6 +65,48 @@ import {
 } from "@/components/TimeRangePicker";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
+
+const DeploymentIdentity: React.FC<{
+  loading: boolean;
+  status?: APIStatus;
+}> = ({ loading, status }) => {
+  const { role } = useAuth();
+
+  if (loading) {
+    return <CircularProgress size={16} />;
+  }
+
+  if (!status) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        —
+      </Typography>
+    );
+  }
+
+  const mode = status.cluster.enabled
+    ? `Cluster node ${status.cluster.nodeId}`
+    : "Standalone";
+
+  return (
+    <Typography variant="body2" color="text.secondary">
+      {status.version ?? "—"}
+      {" · "}
+      {role === "Admin" ? (
+        <MuiLink
+          component={Link}
+          to="/cluster"
+          color="inherit"
+          underline="hover"
+        >
+          {mode}
+        </MuiLink>
+      ) : (
+        mode
+      )}
+    </Typography>
+  );
+};
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -286,7 +329,6 @@ const Dashboard = () => {
     placeholderData: (prev) => prev,
   });
 
-  const version = statusQuery.data?.version ?? null;
   const subscriberCount = subscribersQuery.data?.total_count ?? null;
   const radioCount = radiosQuery.data?.total_count ?? null;
   const m = metricsQuery.data;
@@ -359,25 +401,13 @@ const Dashboard = () => {
           mb: 3,
           display: "flex",
           flexWrap: "wrap",
-          alignItems: "center",
+          alignItems: "baseline",
           justifyContent: "space-between",
           gap: 2,
         }}
       >
-        <PageTitle
-          title={PRODUCT.name}
-          documentTitle="Dashboard"
-          adornment={
-            <>
-              {" "}
-              {statusLoading ? (
-                <CircularProgress size={22} sx={{ ml: 1 }} />
-              ) : (
-                (version ?? "—")
-              )}
-            </>
-          }
-        />
+        <PageTitle title={PRODUCT.name} documentTitle="Dashboard" />
+        <DeploymentIdentity loading={statusLoading} status={statusQuery.data} />
       </Box>
 
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>

@@ -47,7 +47,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
-    - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs as a standalone single-server instance.
+    - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs standalone.
     - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.

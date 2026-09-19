@@ -127,7 +127,7 @@ func findFollower(ctx context.Context, clients []*client.Client) (int, *client.C
 			continue
 		}
 
-		if status.Cluster == nil {
+		if !status.Cluster.Enabled {
 			continue
 		}
 

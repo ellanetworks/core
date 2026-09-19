@@ -8,9 +8,12 @@ export const VENDOR = {
   websiteUrl: "https://ellanetworks.com",
 } as const;
 
+const DOCS_URL = "https://docs.ellanetworks.com";
+
 export const PRODUCT = {
   name: DEFAULT_PRODUCT_NAME,
-  docsUrl: "https://docs.ellanetworks.com",
+  docsUrl: DOCS_URL,
+  haDocsUrl: `${DOCS_URL}/explanation/high_availability/`,
 };
 
 export const logoAlt = () => `${PRODUCT.name} Logo`;

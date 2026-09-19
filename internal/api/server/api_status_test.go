@@ -21,7 +21,7 @@ type ClusterStatusBody struct {
 type GetStatusResponseResult struct {
 	Version       string             `json:"version"`
 	SchemaVersion int                `json:"schemaVersion"`
-	Cluster       *ClusterStatusBody `json:"cluster,omitempty"`
+	Cluster       *ClusterStatusBody `json:"cluster"`
 }
 
 type GetStatusResponse struct {
@@ -68,9 +68,18 @@ func TestStatusEndToEnd(t *testing.T) {
 			t.Fatalf("expected positive schemaVersion, got %d", response.Result.SchemaVersion)
 		}
 
-		// Test server runs without Raft, so the cluster sub-object is omitted.
-		if response.Result.Cluster != nil {
-			t.Fatalf("expected cluster to be nil with clustering disabled, got %+v", response.Result.Cluster)
+		// Test server runs without Raft, so the cluster sub-object reports
+		// enabled=false and carries no other field.
+		if response.Result.Cluster == nil {
+			t.Fatalf("expected cluster to be present with clustering disabled")
+		}
+
+		if response.Result.Cluster.Enabled {
+			t.Fatalf("expected cluster.enabled=false with clustering disabled")
+		}
+
+		if response.Result.Cluster.Role != "" || response.Result.Cluster.NodeID != 0 {
+			t.Fatalf("expected no raft fields with clustering disabled, got %+v", response.Result.Cluster)
 		}
 	})
 }

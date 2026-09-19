@@ -9,13 +9,14 @@ import {
   Chip,
   CircularProgress,
   IconButton,
-  Paper,
+  Link as MuiLink,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   type GridColDef,
   type GridRenderCellParams,
@@ -28,6 +29,8 @@ import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import { PRODUCT } from "@/utils/product";
+import EmptyState from "@/components/EmptyState";
 import { getStatus, type APIStatus } from "@/queries/status";
 import {
   listClusterMembers,
@@ -52,6 +55,9 @@ type JoinedRow = ClusterMember & {
   id: number;
   autopilot?: AutopilotServer;
 };
+
+const CLUSTER_PAGE_DESCRIPTION =
+  "High-availability cluster members and health.";
 
 const ActionSlot = React.forwardRef<
   HTMLSpanElement,
@@ -484,13 +490,29 @@ const ClusterPage: React.FC = () => {
           px: PAGE_PADDING_X,
         }}
       >
-        <PageTitle title="Cluster" sx={{ mb: 2 }} />
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="body1">
-            This node is running in single-node mode. High availability is not
-            enabled.
-          </Typography>
-        </Paper>
+        <PageTitle title="Cluster" />
+        <Typography variant="body1" color="textSecondary">
+          {CLUSTER_PAGE_DESCRIPTION}
+        </Typography>
+
+        <EmptyState
+          primaryText="High availability is not enabled"
+          secondaryText={
+            <>
+              This node is running in standalone mode.{" "}
+              <MuiLink
+                href={PRODUCT.haDocsUrl}
+                target="_blank"
+                rel="noreferrer"
+                underline="hover"
+                sx={{ display: "inline-flex", alignItems: "center" }}
+              >
+                Learn more
+                <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
+              </MuiLink>
+            </>
+          }
+        />
       </Box>
     );
   }
@@ -503,7 +525,7 @@ const ClusterPage: React.FC = () => {
         <Grid size={{ xs: 12, md: 8 }}>
           <PageTitle title="Cluster" />
           <Typography variant="body1" color="textSecondary">
-            High-availability cluster members and health.
+            {CLUSTER_PAGE_DESCRIPTION}
           </Typography>
         </Grid>
         <Grid
