@@ -41,7 +41,10 @@ import {
   type AutopilotState,
   type DrainState,
   type DrainResponse,
+  getClusterJoinStatus,
+  type ClusterJoinStatus,
 } from "@/queries/cluster";
+import ClusterSetupCard from "@/components/ClusterSetupCard";
 import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
@@ -191,6 +194,16 @@ const ClusterPage: React.FC = () => {
   });
 
   const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
+
+  const joinQuery = useQuery<ClusterJoinStatus>({
+    queryKey: ["cluster-join-status"],
+    queryFn: getClusterJoinStatus,
+    enabled: statusQuery.isSuccess && !clusterEnabled,
+    refetchInterval: 2000,
+  });
+
+  const joinState = joinQuery.data?.state ?? "unavailable";
+  const awaitingSetup = joinState === "waiting" || joinState === "joining";
 
   const membersQuery = useQuery<ClusterMember[]>({
     queryKey: ["cluster-members"],
@@ -495,24 +508,34 @@ const ClusterPage: React.FC = () => {
           {CLUSTER_PAGE_DESCRIPTION}
         </Typography>
 
-        <EmptyState
-          primaryText="High availability is not enabled"
-          secondaryText={
-            <>
-              This node is running in standalone mode.{" "}
-              <MuiLink
-                href={PRODUCT.haDocsUrl}
-                target="_blank"
-                rel="noreferrer"
-                underline="hover"
-                sx={{ display: "inline-flex", alignItems: "center" }}
-              >
-                Learn more
-                <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
-              </MuiLink>
-            </>
-          }
-        />
+        {awaitingSetup ? (
+          <Box sx={{ mt: 3 }}>
+            <ClusterSetupCard
+              state={joinState}
+              failure={joinQuery.data?.error}
+              onSubmitted={() => void joinQuery.refetch()}
+            />
+          </Box>
+        ) : (
+          <EmptyState
+            primaryText="High availability is not enabled"
+            secondaryText={
+              <>
+                This node is running in standalone mode.{" "}
+                <MuiLink
+                  href={PRODUCT.haDocsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  underline="hover"
+                  sx={{ display: "inline-flex", alignItems: "center" }}
+                >
+                  Learn more
+                  <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
+                </MuiLink>
+              </>
+            }
+          />
+        )}
       </Box>
     );
   }

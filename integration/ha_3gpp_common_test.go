@@ -512,11 +512,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s`, clusterAddr, n3Addr, clusterAddr, nodeID, clusterBindHost, peersYAML.String(), joinTokenLine)
+%s%s`, clusterAddr, n3Addr, clusterAddr, clusterBindHost, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

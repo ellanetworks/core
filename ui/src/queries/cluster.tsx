@@ -112,3 +112,53 @@ export async function mintClusterJoinToken(
     body: params,
   });
 }
+
+export type ClusterJoinState = "unavailable" | "waiting" | "joining" | "joined";
+
+export type ClusterJoinStatus = {
+  state: ClusterJoinState;
+  error?: string;
+};
+
+export async function getClusterJoinStatus(): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/join", {});
+}
+
+export async function joinCluster(
+  token: string,
+  seedAddresses: string[],
+): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/join", {
+    method: "POST",
+    body: { token, seedAddresses },
+  });
+}
+
+export async function bootstrapCluster(): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/bootstrap", {
+    method: "POST",
+  });
+}
+
+export async function waitForClusterReady(
+  timeoutMs = 60000,
+  intervalMs = 500,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const status = await getClusterJoinStatus();
+      if (status.state === "joined") return;
+      if (status.error) throw new Error(status.error);
+    } catch (err) {
+      if (err instanceof Error && err.message && !(err instanceof TypeError)) {
+        // Keep polling: the node restarts its API as the cluster forms.
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error("The cluster did not finish forming in time");
+}

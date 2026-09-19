@@ -91,7 +91,7 @@ func TestStartServerStandup(t *testing.T) {
 
 	cctx, cancel := context.WithCancel(t.Context())
 
-	srv, err := StartDiscovery(cctx, testdb, cfg)
+	srv, err := StartDiscovery(cctx, testdb, cfg, nil)
 	if err != nil {
 		t.Fatalf("StartDiscovery returned error: %v", err)
 	}

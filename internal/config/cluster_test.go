@@ -14,8 +14,7 @@ import (
 
 // Cluster config v2 drops the operator-supplied TLS fields (cluster.tls.*)
 // in favour of the in-band PKI bootstrapped at first-leader election, and
-// replaces the bootstrap-expect gate with the cluster.join-token signal
-// (present → joiner, absent → founder). The tests below exercise the
+// leaves cluster formation to the API. The tests below exercise the
 // remaining surface: node-id range, bind address format, peers list,
 // suffrage, timeouts.
 
@@ -89,12 +88,25 @@ func TestCluster_NodeIDRange(t *testing.T) {
 	}
 }
 
-func TestCluster_BindAddressRequired(t *testing.T) {
-	cfg := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, `bind-address: ""`, 1)
+func TestCluster_BindAddressSwitchesClusteringOn(t *testing.T) {
+	body := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, `bind-address: ""`, 1)
 
-	_, err := config.Validate(writeConfig(t, cfg))
-	if err == nil {
-		t.Fatal("empty bind-address should be rejected")
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("a node without a cluster address must still start: %v", err)
+	}
+
+	if cfg.Cluster.Enabled {
+		t.Error("no cluster address means no clustering")
+	}
+
+	cfg, err = config.Validate(writeConfig(t, baseConfigYAML))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	if !cfg.Cluster.Enabled {
+		t.Error("a cluster address is what turns clustering on")
 	}
 }
 
@@ -158,4 +170,86 @@ func itoa(n int) string {
 	}
 
 	return out
+}
+
+func TestCluster_PeersOptionalWithoutJoinToken(t *testing.T) {
+	body := strings.Replace(baseConfigYAML, `  peers:
+    - "127.0.0.1:7000"
+    - "127.0.0.1:7001"
+    - "127.0.0.1:7002"
+`, "", 1)
+
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("peers must be optional when the node is not joining from config: %v", err)
+	}
+
+	if len(cfg.Cluster.Peers) != 0 {
+		t.Errorf("expected no peers, got %v", cfg.Cluster.Peers)
+	}
+}
+
+func TestCluster_JoinTokenRequiresPeers(t *testing.T) {
+	body := strings.Replace(baseConfigYAML, `  peers:
+    - "127.0.0.1:7000"
+    - "127.0.0.1:7001"
+    - "127.0.0.1:7002"
+`, "", 1)
+
+	_, err := config.Validate(writeConfig(t, body+"  join-token: \""+strings.Repeat("a", 100)+"\"\n"))
+	if err == nil {
+		t.Fatal("a config-file join token has nowhere to go without peers")
+	}
+
+	if !strings.Contains(err.Error(), "cluster.peers is empty") {
+		t.Errorf("error should name the missing peers, got %q", err)
+	}
+}
+
+func TestCluster_DeprecatedFieldsStillAccepted(t *testing.T) {
+	token := strings.Repeat("a", 100)
+
+	cfg, err := config.Validate(writeConfig(t, baseConfigYAML+
+		"  join-token: \""+token+"\"\n  initial-suffrage: \"nonvoter\"\n"))
+	if err != nil {
+		t.Fatalf("deprecated fields must keep working for a release: %v", err)
+	}
+
+	if cfg.Cluster.JoinToken != token {
+		t.Error("join-token must survive validation")
+	}
+
+	if cfg.Cluster.InitialSuffrage != "nonvoter" {
+		t.Error("initial-suffrage must survive validation")
+	}
+
+	if len(cfg.Cluster.Peers) != 3 {
+		t.Error("peers must survive validation")
+	}
+}
+
+func TestCluster_EnabledIsIgnored(t *testing.T) {
+	body := strings.Replace(baseConfigYAML, "  enabled: true\n", "  enabled: false\n", 1)
+
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	if !cfg.Cluster.Enabled {
+		t.Error("cluster.enabled is deprecated; a node with a cluster address clusters regardless")
+	}
+}
+
+func TestCluster_NoBindAddressDiscardsClusterSettings(t *testing.T) {
+	body := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, `bind-address: ""`, 1)
+
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	if cfg.Cluster.Enabled || cfg.Cluster.NodeID != 0 || len(cfg.Cluster.Peers) != 0 {
+		t.Errorf("without a cluster address the block must be discarded, got %+v", cfg.Cluster)
+	}
 }

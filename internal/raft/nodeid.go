@@ -110,3 +110,13 @@ func readNodeIDFile(path string) (int, error) {
 func writeNodeIDFile(path string, id int) error {
 	return os.WriteFile(path, []byte(strconv.Itoa(id)+"\n"), 0o600)
 }
+
+func NodeIDKnown(configNodeID int, dataDir string) bool {
+	if configNodeID != 0 {
+		return true
+	}
+
+	_, err := readNodeIDFile(filepath.Join(dataDir, nodeIDFilename))
+
+	return err == nil
+}

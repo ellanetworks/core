@@ -39,13 +39,7 @@ interfaces:
 datapath:
   attach-mode: "xdp-native"
 cluster:
-  enabled: true
-  node-id: 1
   bind-address: "10.0.0.1:7000"
-  peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
 ```
 
 ## 2. Start node 1
@@ -56,24 +50,17 @@ sudo snap start --enable ella-core.cored
 
 ## 3. Create the admin user
 
-Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
+Open `https://10.0.0.1:5002` in a browser, create the admin, and log in. Creating the admin founds the cluster on this node.
 
 ## 4. Add node 2
 
 On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the token.
 
-Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Paste the copied token block over the placeholder:
+Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
-  enabled: true
-  node-id: 2
   bind-address: "10.0.0.2:7000"
-  peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
-  join-token: "ejYM..."
 ```
 
 Start node 2:
@@ -81,6 +68,8 @@ Start node 2:
 ```shell
 sudo snap start --enable ella-core.cored
 ```
+
+Open `https://10.0.0.2:5002` in a browser. On the **Join a cluster** page, paste the token, enter node 1's cluster address `10.0.0.1:7000`, and click **Join**.
 
 ## 5. Add node 3
 

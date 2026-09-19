@@ -17,19 +17,11 @@ This guide walks through adding a node to an existing Ella Core high-availabilit
 1. On any existing node, open the Ella Core UI and navigate to the **Cluster** page. Note which node carries the **Leader** chip.
 2. Open the **Cluster** page on the leader.
 3. Click **Add Node**, select the next free node ID (for example `4`), click **Mint Token**, and copy the token.
-4. On the new host, create `core.yaml` using the same shape as the other nodes. List every node (including the new one) in `peers`, and paste the token into `join-token`:
+4. On the new host, create `core.yaml` using the same shape as the other nodes:
 
     ```yaml title="core.yaml (new node)"
     cluster:
-      enabled: true
-      node-id: 4
       bind-address: "10.0.0.4:7000"
-      peers:
-        - "10.0.0.1:7000"
-        - "10.0.0.2:7000"
-        - "10.0.0.3:7000"
-        - "10.0.0.4:7000"
-      join-token: "ejYM..."
     ```
 
 5. Start Ella Core on the new host:
@@ -38,7 +30,9 @@ This guide walks through adding a node to an existing Ella Core high-availabilit
     sudo snap start --enable ella-core.cored
     ```
 
-6. On the **Cluster** page, verify the new node appears and is shown as a **Voter** and **Healthy**. It joins the voting set directly.
+6. Open `https://10.0.0.4:5002` in a browser. On the **Join a cluster** page, paste the token, enter the cluster address of a node already in the cluster (for example `10.0.0.1:7000`), and click **Join**.
+
+7. On the **Cluster** page, verify the new node appears and is shown as a **Voter** and **Healthy**.
 
 ## Verify the new cluster size
 
