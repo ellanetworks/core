@@ -14,7 +14,7 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-func newTestStreamLayer(t *testing.T, pki *testutil.PKI, nodeID int) (*raftStreamLayer, *listener.Listener, string) {
+func newTestStreamLayer(t *testing.T, pki *testutil.PKI, nodeID string) (*raftStreamLayer, *listener.Listener, string) {
 	t.Helper()
 
 	port := freePort(t)
@@ -31,16 +31,16 @@ func newTestStreamLayer(t *testing.T, pki *testutil.PKI, nodeID int) (*raftStrea
 
 	sl, err := newRaftStreamLayer(ln, addr)
 	if err != nil {
-		t.Fatalf("newRaftStreamLayer for node %d: %v", nodeID, err)
+		t.Fatalf("newRaftStreamLayer for node %s: %v", nodeID, err)
 	}
 
 	return sl, ln, addr
 }
 
 func TestRaftStreamLayer_Addr(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
-	sl, _, addr := newTestStreamLayer(t, pki, 1)
+	sl, _, addr := newTestStreamLayer(t, pki, "1")
 
 	if got := sl.Addr().String(); got != addr {
 		t.Fatalf("Addr() = %q, want %q", got, addr)
@@ -48,16 +48,16 @@ func TestRaftStreamLayer_Addr(t *testing.T) {
 }
 
 func TestRaftStreamLayer_AddrPreservesFQDN(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
 	port := freePort(t)
 
 	ln := listener.New(listener.Config{
 		BindAddress:      fmt.Sprintf("127.0.0.1:%d", port),
 		AdvertiseAddress: fmt.Sprintf("127.0.0.1:%d", port),
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(1),
+		Leaf:             pki.LeafFunc("1"),
 	})
 
 	advertise := fmt.Sprintf("ella-core-1:%d", port)
@@ -79,7 +79,7 @@ func TestRaftStreamLayer_AddrPreservesFQDN(t *testing.T) {
 }
 
 func TestRaftStreamLayer_RejectsMalformedAdvertise(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
 	cases := []string{
 		"",
@@ -94,9 +94,9 @@ func TestRaftStreamLayer_RejectsMalformedAdvertise(t *testing.T) {
 			ln := listener.New(listener.Config{
 				BindAddress:      fmt.Sprintf("127.0.0.1:%d", port),
 				AdvertiseAddress: fmt.Sprintf("127.0.0.1:%d", port),
-				NodeID:           1,
+				NodeID:           "1",
 				Pin:              pki.PinFunc(),
-				Leaf:             pki.LeafFunc(1),
+				Leaf:             pki.LeafFunc("1"),
 			})
 
 			if _, err := newRaftStreamLayer(ln, in); err == nil {
@@ -107,9 +107,9 @@ func TestRaftStreamLayer_RejectsMalformedAdvertise(t *testing.T) {
 }
 
 func TestRaftStreamLayer_CloseUnblocksAccept(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
-	sl, _, _ := newTestStreamLayer(t, pki, 1)
+	sl, _, _ := newTestStreamLayer(t, pki, "1")
 
 	done := make(chan struct{})
 
@@ -136,9 +136,9 @@ func TestRaftStreamLayer_CloseUnblocksAccept(t *testing.T) {
 }
 
 func TestRaftStreamLayer_CloseIsIdempotent(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
-	sl, _, _ := newTestStreamLayer(t, pki, 1)
+	sl, _, _ := newTestStreamLayer(t, pki, "1")
 
 	if err := sl.Close(); err != nil {
 		t.Fatalf("first Close: %v", err)
@@ -150,10 +150,10 @@ func TestRaftStreamLayer_CloseIsIdempotent(t *testing.T) {
 }
 
 func TestRaftStreamLayer_DialAndAccept(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 2})
+	pki := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	sl1, ln1, addr1 := newTestStreamLayer(t, pki, 1)
-	sl2, ln2, _ := newTestStreamLayer(t, pki, 2)
+	sl1, ln1, addr1 := newTestStreamLayer(t, pki, "1")
+	sl2, ln2, _ := newTestStreamLayer(t, pki, "2")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -206,9 +206,9 @@ func TestRaftStreamLayer_DialAndAccept(t *testing.T) {
 }
 
 func TestRaftStreamLayer_DialBadAddress(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
-	sl, ln, _ := newTestStreamLayer(t, pki, 1)
+	sl, ln, _ := newTestStreamLayer(t, pki, "1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

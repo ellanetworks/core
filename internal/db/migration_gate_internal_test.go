@@ -32,11 +32,11 @@ func newStandaloneDB(t *testing.T) *Database {
 }
 
 type stubProbe struct {
-	versions    map[int]int
-	unreachable map[int]bool
+	versions    map[string]int
+	unreachable map[string]bool
 }
 
-func (s stubProbe) probe(_ context.Context, nodeID int, _ string) (int, error) {
+func (s stubProbe) probe(_ context.Context, nodeID string, _ string) (int, error) {
 	if s.unreachable[nodeID] {
 		return 0, errors.New("simulated peer unreachable")
 	}
@@ -54,17 +54,17 @@ func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 	ctx := context.Background()
 
 	for _, m := range []*ClusterMember{
-		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
-		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
-		{NodeID: 3, RaftAddress: "c:1", APIAddress: "c:2", Suffrage: "voter"},
+		{NodeID: "1", RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
+		{NodeID: "3", RaftAddress: "c:1", APIAddress: "c:2", Suffrage: "voter"},
 	} {
 		if err := database.UpsertClusterMember(ctx, m); err != nil {
-			t.Fatalf("seed member %d: %v", m.NodeID, err)
+			t.Fatalf("seed member %s: %v", m.NodeID, err)
 		}
 	}
 
-	database.raftMemberIDs = func() []int { return []int{1, 2, 3} }
-	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
+	database.raftMemberIDs = func() []string { return []string{"1", "2", "3"} }
+	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10, "2": 9, "3": 11}}.probe
 
 	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
@@ -75,8 +75,8 @@ func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 		t.Fatalf("floor: want 9, got %d", floor)
 	}
 
-	if laggard != 2 {
-		t.Fatalf("laggard: want 2, got %d", laggard)
+	if laggard != "2" {
+		t.Fatalf("laggard: want 2, got %s", laggard)
 	}
 }
 
@@ -85,18 +85,18 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 	ctx := context.Background()
 
 	for _, m := range []*ClusterMember{
-		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
-		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
+		{NodeID: "1", RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
 	} {
 		if err := database.UpsertClusterMember(ctx, m); err != nil {
-			t.Fatalf("seed member %d: %v", m.NodeID, err)
+			t.Fatalf("seed member %s: %v", m.NodeID, err)
 		}
 	}
 
-	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.raftMemberIDs = func() []string { return []string{"1", "2"} }
 	database.probeMemberSchema = stubProbe{
-		versions:    map[int]int{1: 10},
-		unreachable: map[int]bool{2: true},
+		versions:    map[string]int{"1": 10},
+		unreachable: map[string]bool{"2": true},
 	}.probe
 
 	floor, laggard, err := database.minMemberSchemaSupport(ctx)
@@ -108,8 +108,8 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 		t.Fatalf("floor: want 0 (unreachable blocks), got %d", floor)
 	}
 
-	if laggard != 2 {
-		t.Fatalf("laggard: want 2, got %d", laggard)
+	if laggard != "2" {
+		t.Fatalf("laggard: want 2, got %s", laggard)
 	}
 }
 
@@ -117,20 +117,22 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
+	self := database.RaftID()
+
 	for _, m := range []*ClusterMember{
-		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
-		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter"},
+		{NodeID: self, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter"},
 	} {
 		if err := database.UpsertClusterMember(ctx, m); err != nil {
-			t.Fatalf("seed member %d: %v", m.NodeID, err)
+			t.Fatalf("seed member %s: %v", m.NodeID, err)
 		}
 	}
 
-	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.raftMemberIDs = func() []string { return []string{self, "2"} }
 
-	probed := map[int]bool{}
+	probed := map[string]bool{}
 
-	database.probeMemberSchema = func(_ context.Context, nodeID int, _ string) (int, error) {
+	database.probeMemberSchema = func(_ context.Context, nodeID string, _ string) (int, error) {
 		probed[nodeID] = true
 		return 3, nil
 	}
@@ -140,7 +142,7 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
-	if !probed[2] {
+	if !probed["2"] {
 		t.Fatalf("learner node 2 was not probed")
 	}
 
@@ -148,8 +150,8 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 		t.Fatalf("floor: want 3 (learner), got %d", floor)
 	}
 
-	if laggard != 2 {
-		t.Fatalf("laggard: want 2, got %d", laggard)
+	if laggard != "2" {
+		t.Fatalf("laggard: want 2, got %s", laggard)
 	}
 }
 
@@ -157,18 +159,20 @@ func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
+	self := database.RaftID()
+
 	for _, m := range []*ClusterMember{
-		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
-		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
+		{NodeID: self, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
 	} {
 		if err := database.UpsertClusterMember(ctx, m); err != nil {
-			t.Fatalf("seed member %d: %v", m.NodeID, err)
+			t.Fatalf("seed member %s: %v", m.NodeID, err)
 		}
 	}
 
-	database.raftMemberIDs = func() []int { return []int{1} }
+	database.raftMemberIDs = func() []string { return []string{self} }
 
-	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
 	floor, _, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
@@ -185,13 +189,13 @@ func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T
 	ctx := context.Background()
 
 	if err := database.UpsertClusterMember(ctx, &ClusterMember{
-		NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter",
+		NodeID: "1", RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter",
 	}); err != nil {
 		t.Fatalf("seed member 1: %v", err)
 	}
 
-	database.raftMemberIDs = func() []int { return []int{1, 2} }
-	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10}}.probe
+	database.raftMemberIDs = func() []string { return []string{"1", "2"} }
+	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10}}.probe
 
 	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
@@ -202,8 +206,8 @@ func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T
 		t.Fatalf("floor: want 0 (member with no row blocks), got %d", floor)
 	}
 
-	if laggard != 2 {
-		t.Fatalf("laggard: want 2, got %d", laggard)
+	if laggard != "2" {
+		t.Fatalf("laggard: want 2, got %s", laggard)
 	}
 }
 
@@ -212,13 +216,13 @@ func TestMinMemberSchemaSupport_UnavailableConfigurationBlocks(t *testing.T) {
 	ctx := context.Background()
 
 	if err := database.UpsertClusterMember(ctx, &ClusterMember{
-		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter",
+		NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter",
 	}); err != nil {
 		t.Fatalf("seed member 2: %v", err)
 	}
 
-	database.raftMemberIDs = func() []int { return nil }
-	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+	database.raftMemberIDs = func() []string { return nil }
+	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
 	floor, _, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
@@ -235,7 +239,7 @@ func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
 	ctx := context.Background()
 
 	if err := database.UpsertClusterMember(ctx, &ClusterMember{
-		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter",
+		NodeID: "2", RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter",
 	}); err != nil {
 		t.Fatalf("seed member 2: %v", err)
 	}
@@ -250,8 +254,8 @@ func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
 		t.Fatalf("lower schema version: %v", err)
 	}
 
-	database.raftMemberIDs = func() []int { return []int{2} }
-	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+	database.raftMemberIDs = func() []string { return []string{"2"} }
+	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
 	status, err := database.PendingMigrationInfo(ctx)
 	if err != nil {
@@ -262,8 +266,8 @@ func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
 		t.Fatalf("TargetSchema: want %d (current), got %d", current-1, status.TargetSchema)
 	}
 
-	if status.LaggardNodeID != 2 {
-		t.Fatalf("LaggardNodeID: want 2, got %d", status.LaggardNodeID)
+	if status.LaggardNodeID != "2" {
+		t.Fatalf("LaggardNodeID: want 2, got %s", status.LaggardNodeID)
 	}
 }
 

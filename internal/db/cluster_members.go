@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -28,14 +29,21 @@ const (
 const (
 	listClusterMembersStmtStr  = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
 	getClusterMemberStmtStr    = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, amfPointer, displayName, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
 )
 
+const (
+	DefaultAMFPointer = 1
+	MaxAMFPointer     = 63
+)
+
 type ClusterMember struct {
-	NodeID         int    `db:"nodeID"`
+	NodeID         string `db:"nodeID"`
+	AMFPointer     int    `db:"amfPointer"`
+	DisplayName    string `db:"displayName"`
 	RaftAddress    string `db:"raftAddress"`
 	APIAddress     string `db:"apiAddress"`
 	BinaryVersion  string `db:"binaryVersion"`
@@ -95,7 +103,7 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 	return members, nil
 }
 
-func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterMember, error) {
+func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*ClusterMember, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
 
 	ctx, span := tracer.Start(
@@ -172,7 +180,7 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 	return nil
 }
 
-func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
+func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName)
 
 	_, span := tracer.Start(
@@ -193,7 +201,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "delete").Inc()
 
-	_, err := opDeleteClusterMember.Invoke(ctx, db, &intPayload{Value: nodeID})
+	_, err := opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -208,7 +216,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 // SetDrainState persists the drain state for a cluster member and
 // stamps drainUpdatedAt. Returns ErrNotFound if no row exists for nodeID.
-func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string) error {
+func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) error {
 	if !IsValidDrainState(state) {
 		return fmt.Errorf("invalid drain state %q", state)
 	}

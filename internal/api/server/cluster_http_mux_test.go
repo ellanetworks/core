@@ -38,7 +38,7 @@ func newTestDB(t *testing.T) *db.Database {
 // ctxWithPeerNodeID injects a peer node-id into the request context using
 // the same key that peerNodeIDConnContext uses in production. Exists so
 // in-package tests do not need to stand up a TLS connection.
-func ctxWithPeerNodeID(ctx context.Context, nodeID int) context.Context {
+func ctxWithPeerNodeID(ctx context.Context, nodeID string) context.Context {
 	return context.WithValue(ctx, peerNodeIDCtxKey{}, nodeID)
 }
 
@@ -55,7 +55,7 @@ func TestRemovedNodeFence_RejectsUnknownPeer(t *testing.T) {
 	handler := removedNodeFence(testDB, next)
 
 	req := httptest.NewRequestWithContext(
-		ctxWithPeerNodeID(context.Background(), 42),
+		ctxWithPeerNodeID(context.Background(), "42"),
 		http.MethodPost, "/api/v1/subscribers", nil)
 	w := httptest.NewRecorder()
 
@@ -74,7 +74,7 @@ func TestRemovedNodeFence_AllowsCurrentMember(t *testing.T) {
 	testDB := newTestDB(t)
 
 	if err := testDB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:      7,
+		NodeID:      "7",
 		RaftAddress: "127.0.0.1:9000",
 		APIAddress:  "127.0.0.1:9001",
 		Suffrage:    "voter",
@@ -92,7 +92,7 @@ func TestRemovedNodeFence_AllowsCurrentMember(t *testing.T) {
 	handler := removedNodeFence(testDB, next)
 
 	req := httptest.NewRequestWithContext(
-		ctxWithPeerNodeID(context.Background(), 7),
+		ctxWithPeerNodeID(context.Background(), "7"),
 		http.MethodPost, "/api/v1/subscribers", nil)
 	w := httptest.NewRecorder()
 

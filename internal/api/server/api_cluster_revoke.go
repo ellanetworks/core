@@ -17,11 +17,11 @@ import (
 // whose peer cert matches the dropped pin. Once the deletion
 // replicates, peer listeners reject the removed node's
 // handshakes.
-func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *listener.Listener, nodeID int) {
+func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *listener.Listener, nodeID string) {
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {
 		logger.APILog.Warn("revocation: list pins failed",
-			zap.Int("node_id", nodeID), zap.Error(err))
+			zap.String("node_id", nodeID), zap.Error(err))
 
 		return
 	}
@@ -42,7 +42,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 
 	if err := dbInstance.DeleteClusterNodeCert(ctx, nodeID); err != nil {
 		logger.APILog.Warn("revocation: delete pin failed",
-			zap.Int("node_id", nodeID), zap.Error(err))
+			zap.String("node_id", nodeID), zap.Error(err))
 
 		return
 	}
@@ -53,7 +53,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 
 	if closed := ln.CloseByPeerFingerprint(fingerprint); closed > 0 {
 		logger.APILog.Info("revocation: closed active cluster connections after member removal",
-			zap.Int("node_id", nodeID),
+			zap.String("node_id", nodeID),
 			zap.String("fingerprint", fingerprint),
 			zap.Int("closed", closed))
 	}

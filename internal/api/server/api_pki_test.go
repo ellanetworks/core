@@ -80,7 +80,7 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 
 	// Register the leader's pin (NodeID()==0 in standalone, so seed
 	// node 1 as the "leader" the test API uses).
-	leaderCert, _, err := pki.GenerateNodeCert(1, "test-cluster", time.Hour)
+	leaderCert, _, err := pki.GenerateNodeCert("1", "test-cluster", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 	leaderFP = pki.Fingerprint(leaderCert)
 
 	if err := env.DB.UpsertClusterNodeCert(context.Background(), &db.ClusterNodeCert{
-		NodeID:      1,
+		NodeID:      "1",
 		Fingerprint: leaderFP,
 		CertPEM:     string(pki.EncodeCertPEM(leaderCert)),
 		AddedAt:     time.Now().Unix(),
@@ -155,7 +155,7 @@ func TestPKIAdminEndpoints_MintWaitsForLeaderInit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	leaderCert, _, err := pki.GenerateNodeCert(1, "test-cluster", time.Hour)
+	leaderCert, _, err := pki.GenerateNodeCert("1", "test-cluster", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestPKIAdminEndpoints_MintWaitsForLeaderInit(t *testing.T) {
 			return
 		}
 
-		_, _, _ = issuer.RegisterCert(ctx, 1, pki.EncodeCertPEM(leaderCert))
+		_, _, _ = issuer.RegisterCert(ctx, "1", pki.EncodeCertPEM(leaderCert))
 	}()
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost,

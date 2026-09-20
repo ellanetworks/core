@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
@@ -22,14 +22,14 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID         int    `json:"nodeId"`
-	RaftAddress    string `json:"raftAddress"`
-	APIAddress     string `json:"apiAddress"`
-	BinaryVersion  string `json:"binaryVersion"`
-	Suffrage       string `json:"suffrage"`
-	IsLeader       bool   `json:"isLeader"`
-	DrainState     string `json:"drainState"`
-	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
+	NodeID         pki.NodeID `json:"nodeId"`
+	RaftAddress    string     `json:"raftAddress"`
+	APIAddress     string     `json:"apiAddress"`
+	BinaryVersion  string     `json:"binaryVersion"`
+	Suffrage       string     `json:"suffrage"`
+	IsLeader       bool       `json:"isLeader"`
+	DrainState     string     `json:"drainState"`
+	DrainUpdatedAt string     `json:"drainUpdatedAt,omitempty"`
 }
 
 func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
@@ -44,7 +44,7 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 	}
 
 	return ClusterMemberResponse{
-		NodeID:         m.NodeID,
+		NodeID:         pki.NodeID(m.NodeID),
 		RaftAddress:    m.RaftAddress,
 		APIAddress:     m.APIAddress,
 		BinaryVersion:  m.BinaryVersion,
@@ -56,13 +56,13 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 }
 
 type AddClusterMemberRequest struct {
-	NodeID        int    `json:"nodeId"`
-	RaftAddress   string `json:"raftAddress"`
-	APIAddress    string `json:"apiAddress"`
-	ClusterID     string `json:"clusterId,omitempty"`
-	SchemaVersion int    `json:"schemaVersion,omitempty"`
-	BinaryVersion string `json:"binaryVersion,omitempty"`
-	Suffrage      string `json:"suffrage,omitempty"`
+	NodeID        pki.NodeID `json:"nodeId"`
+	RaftAddress   string     `json:"raftAddress"`
+	APIAddress    string     `json:"apiAddress"`
+	ClusterID     string     `json:"clusterId,omitempty"`
+	SchemaVersion int        `json:"schemaVersion,omitempty"`
+	BinaryVersion string     `json:"binaryVersion,omitempty"`
+	Suffrage      string     `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -92,7 +92,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if req.NodeID <= 0 {
+		if req.NodeID == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "nodeId must be a positive integer", nil, logger.APILog)
 			return
 		}
@@ -157,19 +157,19 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		}
 
 		if suffrage == "nonvoter" {
-			if err := dbInstance.AddNonvoter(req.NodeID, req.RaftAddress); err != nil {
+			if err := dbInstance.AddNonvoter(string(req.NodeID), req.RaftAddress); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
 				return
 			}
 		} else {
-			if err := dbInstance.AddVoter(req.NodeID, req.RaftAddress); err != nil {
+			if err := dbInstance.AddVoter(string(req.NodeID), req.RaftAddress); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
 				return
 			}
 		}
 
 		member := &db.ClusterMember{
-			NodeID:        req.NodeID,
+			NodeID:        string(req.NodeID),
 			RaftAddress:   req.RaftAddress,
 			APIAddress:    req.APIAddress,
 			BinaryVersion: req.BinaryVersion,
@@ -188,7 +188,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberAddAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Added cluster member node %d at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
+			fmt.Sprintf("Added cluster member node %s at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member added"}, http.StatusCreated, logger.APILog)
@@ -197,9 +197,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nodeIDStr := r.PathValue("id")
-
-		nodeID, err := strconv.Atoi(nodeIDStr)
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
 			return
@@ -241,7 +239,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		force := r.URL.Query().Get("force") == "true"
 		if !force && member.DrainState != db.DrainStateDrained {
 			writeError(r.Context(), w, http.StatusConflict,
-				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%d/drain, or pass ?force=true to skip",
+				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%s/drain, or pass ?force=true to skip",
 					member.DrainState, nodeID),
 				nil, logger.APILog)
 
@@ -266,7 +264,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// can re-run cleanup later via a direct DB operation if needed.
 		if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
 			logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
-				zap.Int("node_id", nodeID), zap.Error(err))
+				zap.String("node_id", nodeID), zap.Error(err))
 		}
 
 		// Drop the removed node's pin from cluster_node_certs. The
@@ -284,7 +282,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberRemoveAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Removed cluster member node %d", nodeID),
+			fmt.Sprintf("Removed cluster member node %s", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
@@ -295,9 +293,7 @@ const ClusterMemberPromoteAction = "cluster_member_promote"
 
 func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nodeIDStr := r.PathValue("id")
-
-		nodeID, err := strconv.Atoi(nodeIDStr)
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
 			return
@@ -333,7 +329,7 @@ func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberPromoteAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Promoted cluster member node %d to voter", nodeID),
+			fmt.Sprintf("Promoted cluster member node %s to voter", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member promoted to voter"}, http.StatusOK, logger.APILog)

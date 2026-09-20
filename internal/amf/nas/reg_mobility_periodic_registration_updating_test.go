@@ -69,7 +69,7 @@ func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ strin
 	return []db.Policy{{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"}}, nil
 }
 
-func (fdb *failingSubscriberDB) NodeID() int { return 0 }
+func (fdb *failingSubscriberDB) AMFPointer() int { return 0 }
 
 func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) []byte {
 	t.Helper()
@@ -815,7 +815,7 @@ func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.
 	}, nil
 }
 
-func (m *multiSliceDB) NodeID() int { return 0 }
+func (m *multiSliceDB) AMFPointer() int { return 0 }
 
 func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")

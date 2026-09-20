@@ -186,11 +186,11 @@ func TestSetupTestCluster_RemoveAndReaddServer(t *testing.T) {
 	}
 
 	removeNode := tc.Nodes[removeIdx]
-	removeNodeID := removeNode.NodeID()
+	removeNodeID := removeNode.RaftID()
 
 	// Remove the node from the Raft configuration.
 	if err := leader.RemoveServer(removeNodeID); err != nil {
-		t.Fatalf("RemoveServer(%d): %v", removeNodeID, err)
+		t.Fatalf("RemoveServer(%s): %v", removeNodeID, err)
 	}
 
 	ids := leader.MemberIDs()
@@ -200,7 +200,7 @@ func TestSetupTestCluster_RemoveAndReaddServer(t *testing.T) {
 
 	for _, id := range ids {
 		if id == removeNodeID {
-			t.Fatalf("removed node %d still in MemberIDs", removeNodeID)
+			t.Fatalf("removed node %s still in MemberIDs", removeNodeID)
 		}
 	}
 
@@ -216,7 +216,7 @@ func TestSetupTestCluster_RemoveAndReaddServer(t *testing.T) {
 
 	// Re-add the removed node.
 	if err := leader.AddVoter(removeNodeID, removeNode.RaftAddress()); err != nil {
-		t.Fatalf("AddVoter(%d): %v", removeNodeID, err)
+		t.Fatalf("AddVoter(%s): %v", removeNodeID, err)
 	}
 
 	ids = leader.MemberIDs()

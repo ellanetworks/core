@@ -61,7 +61,7 @@ type LeafFunc func() *tls.Certificate
 type Config struct {
 	BindAddress      string
 	AdvertiseAddress string
-	NodeID           int
+	NodeID           string
 
 	// Pin returns whether a peer cert's SHA-256 fingerprint is
 	// registered (and which nodeID owns it). Called once per

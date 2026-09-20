@@ -83,7 +83,7 @@ func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.
 	return d.policies, d.polErr
 }
 
-func (d *configTestDB) NodeID() int { return 0 }
+func (d *configTestDB) AMFPointer() int { return 0 }
 
 func mustSUPI(t *testing.T) etsi.SUPI {
 	t.Helper()

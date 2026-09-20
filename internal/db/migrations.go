@@ -41,6 +41,7 @@ var migrations = []migration{
 	{17, "add local_switch_settings table", migrateV17},
 	{18, "add description column to subscribers", migrateV18},
 	{19, "store audit log, radio event and flow report timestamps as INTEGER epoch milliseconds (not seconds, unlike every other INTEGER time column)", migrateV19},
+	{20, "retype node identity to TEXT; add cluster_members.amfPointer and displayName", migrateV20},
 }
 
 // baselineVersion is the highest migration that runs locally during

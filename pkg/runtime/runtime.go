@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -69,7 +70,7 @@ func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error
 		return nil
 	}
 
-	if err := dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.NodeID()); err != nil {
+	if err := dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.RaftID()); err != nil {
 		return err
 	}
 
@@ -143,9 +144,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
+	raftID, err := ellaraft.ResolveRaftID(filepath.Dir(cfg.DB.Path))
+	if err != nil {
+		return err
+	}
+
+	if cfg.Cluster.NodeID != 0 && strconv.Itoa(cfg.Cluster.NodeID) != raftID {
+		logger.EllaLog.Warn("cluster.node-id no longer sets this node's identity and does not match the persisted one",
+			zap.Int("config_node_id", cfg.Cluster.NodeID), zap.String("node_id", raftID))
+	}
+
 	raftCfg := ellaraft.ClusterConfig{
 		Enabled:           cfg.Cluster.Enabled,
-		NodeID:            cfg.Cluster.NodeID,
+		RaftID:            raftID,
 		BindAddress:       cfg.Cluster.BindAddress,
 		AdvertiseAddress:  cfg.Cluster.AdvertiseAddress,
 		APIAddress:        apiAddress,
@@ -184,7 +195,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// joining node it gets it from the join token's claims;
 		// across restarts it's recovered from the on-disk leaf's
 		// SPIFFE URI.
-		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
+		pki = newPKIState(raftID, "", dataDir)
 
 		// Join-token path runs before the listener comes up so raft
 		// can mTLS-handshake as soon as it forms.
@@ -208,7 +219,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		clusterLn = listener.New(listener.Config{
 			BindAddress:      cfg.Cluster.BindAddress,
 			AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
-			NodeID:           cfg.Cluster.NodeID,
+			NodeID:           raftID,
 			Pin:              pki.PinFunc(),
 			Leaf:             pki.LeafFunc(),
 		})
@@ -272,10 +283,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	if observer := dbInstance.LeaderObserver(); observer != nil {
-		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
+		observer.Register(server.NewLeadershipAuditCallback(dbInstance.RaftID()))
 
 		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, cfg.Cluster.NodeID, ver.Version, restoredFromBundle))
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, raftID, ver.Version, restoredFromBundle))
 		}
 	}
 
@@ -378,7 +389,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases, db.TopicFramedRoutes)
 	defer stopBgpWakeup()
 
-	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID(), bgpWakeup)
+	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.RaftID(), bgpWakeup)
 	bgpReconciler.Start()
 
 	// The N6 address watcher keeps the BGP next-hops aligned with the
@@ -908,7 +919,7 @@ type bgpLeaseStoreAdapter struct {
 	db *db.Database
 }
 
-func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]bgp.Lease, error) {
+func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeID string) ([]bgp.Lease, error) {
 	dbLeases, err := a.db.ListActiveLeasesByNode(ctx, nodeID)
 	if err != nil {
 		return nil, err

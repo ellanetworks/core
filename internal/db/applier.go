@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/google/uuid"
 	hraft "github.com/hashicorp/raft"
@@ -208,6 +209,9 @@ type (
 	}
 	intPayload struct {
 		Value int `json:"value"`
+	}
+	nodeIDPayload struct {
+		Value pki.NodeID `json:"value"`
 	}
 	int64Payload struct {
 		Value int64 `json:"value"`
@@ -425,8 +429,8 @@ func (db *Database) applyDeleteAllDynamicLeases(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) applyDeleteDynamicLeasesByNode(ctx context.Context, p *intPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteDynLeasesByNodeStmt, IPLease{NodeID: p.Value}).Run()
+func (db *Database) applyDeleteDynamicLeasesByNode(ctx context.Context, p *nodeIDPayload) (any, error) {
+	err := db.runner(ctx).Query(ctx, db.deleteDynLeasesByNodeStmt, IPLease{NodeID: string(p.Value)}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -461,7 +465,7 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 
 	lease.Type = "static"
 	lease.SessionID = nil
-	lease.NodeID = 0
+	lease.NodeID = ""
 	lease.CreatedAt = time.Now().Unix()
 
 	return db.applyCreateLease(ctx, lease)
@@ -516,11 +520,11 @@ func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload
 }
 
 type releaseIPLeasePayload struct {
-	PoolID    string `json:"poolId"`
-	PoolType  string `json:"poolType"`
-	IMSI      string `json:"imsi"`
-	SessionID int    `json:"sessionId"`
-	NodeID    int    `json:"nodeId"`
+	PoolID    string     `json:"poolId"`
+	PoolType  string     `json:"poolType"`
+	IMSI      string     `json:"imsi"`
+	SessionID int        `json:"sessionId"`
+	NodeID    pki.NodeID `json:"nodeId"`
 }
 
 func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePayload) (any, error) {
@@ -540,7 +544,7 @@ func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePa
 		return nil, fmt.Errorf("get lease: %w", err)
 	}
 
-	if lease.NodeID != p.NodeID {
+	if lease.NodeID != string(p.NodeID) {
 		return "", nil
 	}
 
@@ -570,11 +574,11 @@ func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePa
 // this op. The leader's apply function picks the address atomically
 // inside leaderCaptureAndPropose's proposeMu.
 type allocateIPLeasePayload struct {
-	PoolID    string `json:"poolId"`
-	PoolType  string `json:"poolType"`
-	IMSI      string `json:"imsi"`
-	SessionID int    `json:"sessionId"`
-	NodeID    int    `json:"nodeId"`
+	PoolID    string     `json:"poolId"`
+	PoolType  string     `json:"poolType"`
+	IMSI      string     `json:"imsi"`
+	SessionID int        `json:"sessionId"`
+	NodeID    pki.NodeID `json:"nodeId"`
 }
 
 // applyAllocateIPLease atomically resolves an IP for (poolID, IMSI,
@@ -644,8 +648,8 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		// dynamic address, since one address cannot serve two sessions.
 		if static.SessionID == nil || *static.SessionID == sessionID {
 			static.SessionID = &sessionID
-			if static.NodeID != p.NodeID {
-				static.NodeID = p.NodeID
+			if static.NodeID != string(p.NodeID) {
+				static.NodeID = string(p.NodeID)
 				if _, applyErr := db.applyUpdateLeaseNode(ctx, &static); applyErr != nil {
 					return nil, fmt.Errorf("bind static lease node: %w", applyErr)
 				}
@@ -673,8 +677,8 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	err = runner.Query(ctx, db.getDynamicLeaseBySessionStmt, existing).Get(&existing)
 	switch {
 	case err == nil:
-		if existing.NodeID != p.NodeID {
-			existing.NodeID = p.NodeID
+		if existing.NodeID != string(p.NodeID) {
+			existing.NodeID = string(p.NodeID)
 			if _, applyErr := db.applyUpdateLeaseNode(ctx, &existing); applyErr != nil {
 				return nil, fmt.Errorf("update lease node: %w", applyErr)
 			}
@@ -735,7 +739,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 			SessionID:  &sessionID,
 			Type:       "dynamic",
 			CreatedAt:  now,
-			NodeID:     p.NodeID,
+			NodeID:     string(p.NodeID),
 		}
 
 		if _, applyErr := db.applyCreateLease(ctx, lease); applyErr != nil {
@@ -1501,10 +1505,10 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 	return nil, nil
 }
 
-func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload) (any, error) {
+func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPayload) (any, error) {
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: p.Value}).Get(&outcome)
+	err := db.runner(ctx).Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

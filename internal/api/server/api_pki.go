@@ -16,7 +16,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/pki"
 )
 
 const (
@@ -53,8 +52,6 @@ func pkiAdminEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler 
 
 // MintJoinTokenRequest is the admin body for POST /api/v1/cluster/pki/join-tokens.
 type MintJoinTokenRequest struct {
-	NodeID int `json:"nodeID"`
-
 	// TTLSeconds is optional; zero selects the default of 30 minutes.
 	TTLSeconds int `json:"ttlSeconds,omitempty"`
 }
@@ -79,19 +76,12 @@ func PKIMintJoinToken(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		if req.NodeID < pki.MinNodeID || req.NodeID > pki.MaxNodeID {
-			writeError(r.Context(), w, http.StatusBadRequest,
-				fmt.Sprintf("nodeID must be in [%d, %d]", pki.MinNodeID, pki.MaxNodeID), nil, logger.APILog)
-
-			return
-		}
-
 		ttl := time.Duration(req.TTLSeconds) * time.Second
 		if ttl == 0 {
 			ttl = 30 * time.Minute
 		}
 
-		token, err := mintWhenReady(r.Context(), svc, req.NodeID, ttl)
+		token, err := mintWhenReady(r.Context(), svc, ttl)
 		if err != nil {
 			if errors.Is(err, pkiissuer.ErrNotReady) {
 				w.Header().Set("Retry-After", "1")
@@ -112,7 +102,7 @@ func PKIMintJoinToken(svc *pkiissuer.Service) http.Handler {
 			PKIMintJoinTokenAction,
 			getActorFromContext(r),
 			getClientIP(r),
-			fmt.Sprintf("Minted join token for node %d (ttl=%s)", req.NodeID, ttl),
+			fmt.Sprintf("Minted join token (ttl=%s)", ttl),
 		)
 
 		writeResponse(r.Context(), w, MintJoinTokenResponse{
@@ -124,11 +114,11 @@ func PKIMintJoinToken(svc *pkiissuer.Service) http.Handler {
 
 // mintWhenReady retries MintJoinToken while the issuer reports
 // ErrNotReady, up to mintReadyWait.
-func mintWhenReady(ctx context.Context, svc *pkiissuer.Service, nodeID int, ttl time.Duration) (string, error) {
+func mintWhenReady(ctx context.Context, svc *pkiissuer.Service, ttl time.Duration) (string, error) {
 	deadline := time.Now().Add(mintReadyWait)
 
 	for {
-		token, err := svc.MintJoinToken(ctx, nodeID, ttl)
+		token, err := svc.MintJoinToken(ctx, ttl)
 		if !errors.Is(err, pkiissuer.ErrNotReady) || time.Now().After(deadline) {
 			return token, err
 		}

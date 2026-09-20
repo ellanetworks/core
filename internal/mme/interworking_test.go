@@ -44,7 +44,7 @@ func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
 	amfID := util.AMFIDToModels(
 		ngap.AMFRegionID(op.GUAMIRegionID()),
 		ngap.AMFSetID(op.AmfSetID),
-		ngap.AMFPointer(fakeBearerStore{}.NodeID()),
+		ngap.AMFPointer(fakeBearerStore{}.AMFPointer()),
 	)
 
 	region, set, pointer, err := util.AMFIDToNGAP(amfID)

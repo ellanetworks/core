@@ -35,11 +35,11 @@ type pkiState struct {
 
 	issuerMu sync.Mutex
 
-	bootstrapPins atomic.Pointer[map[string]int]
-	pins          atomic.Pointer[map[string]int]
+	bootstrapPins atomic.Pointer[map[string]string]
+	pins          atomic.Pointer[map[string]string]
 }
 
-func (p *pkiState) activePins() map[string]int {
+func (p *pkiState) activePins() map[string]string {
 	if m := p.pins.Load(); m != nil && len(*m) > 0 {
 		return *m
 	}
@@ -80,7 +80,7 @@ func (p *pkiState) Issuer() *pkiissuer.Service {
 	return p.issuer
 }
 
-func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
+func newPKIState(nodeID string, clusterID, dataDir string) *pkiState {
 	return &pkiState{
 		agent: pkiagent.NewAgent(nodeID, clusterID, dataDir),
 	}
@@ -101,7 +101,7 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 
 		nid, ok := m[fingerprint]
 
-		known := make([]int, 0, len(m))
+		known := make([]string, 0, len(m))
 		for _, n := range m {
 			known = append(known, n)
 		}
@@ -124,7 +124,7 @@ func (p *pkiState) SeedPinsFromAgentDisk() {
 	if err != nil {
 		logger.EllaLog.Warn("seed pins: load peer-pins.json", zap.Error(err))
 
-		m = map[string]int{}
+		m = map[string]string{}
 	}
 
 	if leaf := p.agent.Leaf(); leaf != nil && leaf.Leaf != nil {
@@ -145,7 +145,7 @@ func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) err
 		return err
 	}
 
-	m := make(map[string]int, len(rows))
+	m := make(map[string]string, len(rows))
 	for _, r := range rows {
 		m[r.Fingerprint] = r.NodeID
 	}
@@ -165,15 +165,15 @@ func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) err
 
 	logger.EllaLog.Debug("cluster pin cache refreshed",
 		zap.Int("size", len(m)),
-		zap.Ints("added", added),
-		zap.Ints("removed", removed))
+		zap.Strings("added", added),
+		zap.Strings("removed", removed))
 
 	return nil
 }
 
 // pinDelta returns the nodeIDs that were added in next vs prev and
 // the nodeIDs that were removed.
-func pinDelta(prev, next map[string]int) (added, removed []int) {
+func pinDelta(prev, next map[string]string) (added, removed []string) {
 	for fp, nid := range next {
 		if _, ok := prev[fp]; !ok {
 			added = append(added, nid)

@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/osutil"
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
@@ -52,6 +52,7 @@ type AutopilotConfig struct {
 type ClusterConfig struct {
 	Enabled          bool
 	NodeID           int
+	RaftID           string
 	BindAddress      string
 	AdvertiseAddress string
 	APIAddress       string
@@ -110,11 +111,6 @@ const (
 	// replication; operators tune via ClusterConfig.ProposeTimeout.
 	defaultProposeTimeout = 5 * time.Second
 
-	// defaultStandaloneNodeID is the node ID a standalone install adopts and
-	// persists when neither config, environment, nor a previously written
-	// node-id file supplies one.
-	defaultStandaloneNodeID = 1
-
 	leaderPollInterval = 25 * time.Millisecond
 
 	leaderBarrierRetryInterval = 1 * time.Second
@@ -141,7 +137,7 @@ type Manager struct {
 	logStore        raft.LogStore
 	snaps           raft.SnapshotStore
 	config          ClusterConfig
-	nodeID          int
+	raftID          string
 	dataDir         string
 	observer        *LeaderObserver
 	autopilot       *autopilotRunner
@@ -248,7 +244,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 
 	singleServer := !cfg.Enabled
 
-	nodeID, err := resolveNodeIDForMode(cfg, singleServer, dataDir)
+	raftID, err := resolveRaftIDForMode(cfg, dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +257,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	fsm := NewFSM(applier, dataDir)
 
 	raftConfig := raft.DefaultConfig()
-	raftConfig.LocalID = raft.ServerID(fmt.Sprintf("%d", nodeID))
+	raftConfig.LocalID = raft.ServerID(raftID)
 	raftConfig.Logger = newZapRaftLogger()
 
 	if cfg.SnapshotInterval > 0 {
@@ -405,7 +401,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		logStore:      boltStore,
 		snaps:         snapshotStore,
 		config:        cfg,
-		nodeID:        nodeID,
+		raftID:        raftID,
 		dataDir:       dataDir,
 		observer:      observer,
 		boltNoSync:    false,
@@ -424,12 +420,12 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		m.followerTracker = ft
 		m.autopilot = newAutopilotRunner(r, m)
 
-		observer.Register(ft.asLeaderCallback(raft.ServerID(strconv.Itoa(nodeID))))
+		observer.Register(ft.asLeaderCallback(raft.ServerID(raftID)))
 		observer.Register(m.autopilot)
 	}
 
 	if singleServer {
-		warnOnMultiServerStandaloneState(r, nodeID, raftDir)
+		warnOnMultiServerStandaloneState(r, raftID, raftDir)
 	}
 
 	go observer.Run(r)
@@ -456,7 +452,7 @@ func describeServers(r *raft.Raft) string {
 	return strings.Join(ids, ", ")
 }
 
-func warnOnMultiServerStandaloneState(r *raft.Raft, nodeID int, raftDir string) {
+func warnOnMultiServerStandaloneState(r *raft.Raft, raftID string, raftDir string) {
 	future := r.GetConfiguration()
 	if err := future.Error(); err != nil {
 		return
@@ -467,7 +463,7 @@ func warnOnMultiServerStandaloneState(r *raft.Raft, nodeID int, raftDir string) 
 	}
 
 	logger.RaftLog.Error("Standalone node cannot elect itself: on-disk raft state lists multiple servers",
-		zap.Int("node_id", nodeID),
+		zap.String("node_id", raftID),
 		zap.String("raft_dir", raftDir),
 		zap.String("servers", describeServers(r)),
 		zap.String("remedy", "write a peers.json recovery file into the raft directory to reset the server configuration"),
@@ -479,15 +475,14 @@ func warnOnMultiServerStandaloneState(r *raft.Raft, nodeID int, raftDir string) 
 // rejects later mismatches that would invalidate issued GUTIs. Single-server
 // mode additionally falls back to defaultStandaloneNodeID when no source
 // supplies one, so standalone installs need not provision cluster.node-id.
-func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) (int, error) {
-	fallback := 0
-	if singleServer {
-		fallback = defaultStandaloneNodeID
+func resolveRaftIDForMode(cfg ClusterConfig, dataDir string) (string, error) {
+	if cfg.RaftID != "" {
+		return pki.NormalizeNodeID(cfg.RaftID)
 	}
 
-	id, err := resolveNodeID(cfg.NodeID, dataDir, fallback)
+	id, err := ResolveRaftID(dataDir)
 	if err != nil {
-		return 0, fmt.Errorf("resolve node ID: %w", err)
+		return "", fmt.Errorf("resolve raft ID: %w", err)
 	}
 
 	return id, nil
@@ -597,26 +592,18 @@ func (m *Manager) LeaderAddress() string {
 // LeaderAddressAndID returns the leader's Raft transport address together
 // with the integer node-id parsed from the leader's Raft ServerID.
 // Callers dialing the leader over mTLS use the ID to enforce the
-// expected-peer check. A zero ID indicates the server-id did not parse
-// as an integer (should not happen given bootstrap writes node-id as a
-// decimal string, but the caller should still guard).
-func (m *Manager) LeaderAddressAndID() (string, int) {
+// expected-peer check.
+func (m *Manager) LeaderAddressAndID() (string, string) {
 	addr, id := m.raft.LeaderWithID()
 	if addr == "" {
-		return "", 0
+		return "", ""
 	}
 
-	n, err := strconv.Atoi(string(id))
-	if err != nil {
-		return string(addr), 0
-	}
-
-	return string(addr), n
+	return string(addr), string(id)
 }
 
-// NodeID returns this node's cluster ID.
-func (m *Manager) NodeID() int {
-	return m.nodeID
+func (m *Manager) RaftID() string {
+	return m.raftID
 }
 
 // RaftAddress returns the transport-local Raft address this node is reachable
@@ -642,7 +629,7 @@ func (m *Manager) attachClusterListener(ln *listener.Listener) {
 		return
 	}
 
-	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, addr string, peerID int) (net.Conn, error) {
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, addr string, peerID string) (net.Conn, error) {
 		return ln.Dial(ctx, addr, peerID, listener.ALPNHTTP, dialTimeout)
 	})
 }
@@ -775,13 +762,13 @@ func (m *Manager) LeaderObserver() *LeaderObserver {
 // AddVoter adds a new node to the Raft cluster as a voting member. Only the
 // leader can add nodes. The nodeID and address identify the new server; if the
 // node already exists with a different address, it is updated.
-func (m *Manager) AddVoter(nodeID int, address string) error {
-	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+func (m *Manager) AddVoter(nodeID string, address string) error {
+	serverID := raft.ServerID(nodeID)
 	serverAddr := raft.ServerAddress(address)
 
 	future := m.raft.AddVoter(serverID, serverAddr, 0, 0)
 	if err := future.Error(); err != nil {
-		return fmt.Errorf("add voter %d at %s: %w", nodeID, address, err)
+		return fmt.Errorf("add voter %s at %s: %w", nodeID, address, err)
 	}
 
 	return nil
@@ -790,12 +777,12 @@ func (m *Manager) AddVoter(nodeID int, address string) error {
 // RemoveServer removes a node from the Raft cluster. Only the leader can
 // remove nodes. After removal the target node will revert to follower state
 // and stop receiving replication.
-func (m *Manager) RemoveServer(nodeID int) error {
-	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+func (m *Manager) RemoveServer(nodeID string) error {
+	serverID := raft.ServerID(nodeID)
 
 	future := m.raft.RemoveServer(serverID, 0, 0)
 	if err := future.Error(); err != nil {
-		return fmt.Errorf("remove server %d: %w", nodeID, err)
+		return fmt.Errorf("remove server %s: %w", nodeID, err)
 	}
 
 	return nil
@@ -839,21 +826,16 @@ func (m *Manager) LeadershipTransfer() error {
 
 // MemberIDs returns the current Raft configuration, nonvoters included: they
 // apply committed entries too. Nil on error.
-func (m *Manager) MemberIDs() []int {
+func (m *Manager) MemberIDs() []string {
 	future := m.raft.GetConfiguration()
 	if err := future.Error(); err != nil {
 		return nil
 	}
 
-	var ids []int
+	var ids []string
 
 	for _, srv := range future.Configuration().Servers {
-		id, err := strconv.Atoi(string(srv.ID))
-		if err != nil {
-			continue
-		}
-
-		ids = append(ids, id)
+		ids = append(ids, string(srv.ID))
 	}
 
 	return ids
@@ -946,13 +928,13 @@ func (m *Manager) waitForLeader(ctx context.Context) error {
 // AddNonvoter adds a new node to the Raft cluster as a non-voting member.
 // Non-voters receive log replication but do not participate in elections
 // or commit quorum. Used during rolling upgrades for catch-up before promotion.
-func (m *Manager) AddNonvoter(nodeID int, address string) error {
-	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+func (m *Manager) AddNonvoter(nodeID string, address string) error {
+	serverID := raft.ServerID(nodeID)
 	serverAddr := raft.ServerAddress(address)
 
 	future := m.raft.AddNonvoter(serverID, serverAddr, 0, 0)
 	if err := future.Error(); err != nil {
-		return fmt.Errorf("add nonvoter %d at %s: %w", nodeID, address, err)
+		return fmt.Errorf("add nonvoter %s at %s: %w", nodeID, address, err)
 	}
 
 	return nil

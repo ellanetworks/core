@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
@@ -15,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
@@ -76,7 +76,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 		// would strand subsequent replicated writes on a now-follower.
 		transferred := false
 
-		if nodeID == dbInstance.NodeID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
+		if nodeID == dbInstance.RaftID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
 			if err := dbInstance.LeadershipTransfer(); err != nil {
 				logger.APILog.Warn("leadership transfer failed during self-drain; drain state is already draining",
 					zap.Error(err))
@@ -92,7 +92,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 			DrainAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %d drain, leadership_transferred=%v", nodeID, transferred),
+			fmt.Sprintf("Node %s drain, leadership_transferred=%v", nodeID, transferred),
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
@@ -150,22 +150,17 @@ func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpServi
 			ResumeAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %d resumed", nodeID),
+			fmt.Sprintf("Node %s resumed", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
 	})
 }
 
-func parseMemberIDPath(r *http.Request) (int, bool) {
-	idStr := r.PathValue("id")
-	if idStr == "" {
-		return 0, false
-	}
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil || id <= 0 {
-		return 0, false
+func parseMemberIDPath(r *http.Request) (string, bool) {
+	id, err := pki.NormalizeNodeID(r.PathValue("id"))
+	if err != nil {
+		return "", false
 	}
 
 	return id, true

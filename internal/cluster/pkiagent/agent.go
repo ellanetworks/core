@@ -41,7 +41,7 @@ const (
 
 // Agent manages the local node's cluster cert.
 type Agent struct {
-	NodeID    int
+	NodeID    string
 	ClusterID string
 	DataDir   string
 
@@ -51,7 +51,7 @@ type Agent struct {
 // NewAgent returns an unloaded agent. Callers must invoke Load,
 // JoinFlow, or GenerateAndPersist before Leaf returns a usable
 // certificate.
-func NewAgent(nodeID int, clusterID, dataDir string) *Agent {
+func NewAgent(nodeID string, clusterID, dataDir string) *Agent {
 	return &Agent{
 		NodeID:    nodeID,
 		ClusterID: clusterID,
@@ -188,18 +188,18 @@ func (a *Agent) GenerateAndPersist() error {
 
 // RegisterRequest is the wire format posted to /cluster/pki/register.
 type RegisterRequest struct {
-	CertPEM   string `json:"certPEM"`
-	Token     string `json:"token,omitempty"`
-	NodeID    int    `json:"nodeID"`
-	ClusterID string `json:"clusterID"`
+	CertPEM   string     `json:"certPEM"`
+	Token     string     `json:"token,omitempty"`
+	NodeID    pki.NodeID `json:"nodeID"`
+	ClusterID string     `json:"clusterID"`
 }
 
 // PinRecord is one entry in cluster_node_certs as carried over the
 // wire to a joining or rotating node so it can seed its local pin
 // map at the next listener startup.
 type PinRecord struct {
-	NodeID      int    `json:"nodeID"`
-	Fingerprint string `json:"fingerprint"`
+	NodeID      pki.NodeID `json:"nodeID"`
+	Fingerprint string     `json:"fingerprint"`
 }
 
 // RegisterResponse is returned on a successful register. Pins is
@@ -231,10 +231,6 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 
 	if claims.ClusterID == "" {
 		return fmt.Errorf("join token has no cluster id")
-	}
-
-	if claims.NodeID != a.NodeID {
-		return fmt.Errorf("join token is for node-id %d, but this node is %d", claims.NodeID, a.NodeID)
 	}
 
 	if a.ClusterID == "" {
@@ -311,8 +307,8 @@ func (a *Agent) loadJoinCert(clusterID string) (certPEM, keyPEM []byte, cert *x5
 	certClusterID, certNodeID, err := pki.IdentityFromCert(cert)
 	if err != nil || certClusterID != clusterID || certNodeID != a.NodeID {
 		logger.EllaLog.Info("discarding pending join cert with a stale identity",
-			zap.String("want_cluster", clusterID), zap.Int("want_node", a.NodeID),
-			zap.String("got_cluster", certClusterID), zap.Int("got_node", certNodeID))
+			zap.String("want_cluster", clusterID), zap.String("want_node", a.NodeID),
+			zap.String("got_cluster", certClusterID), zap.String("got_node", certNodeID))
 
 		return nil, nil, nil
 	}
@@ -337,7 +333,7 @@ func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, toke
 	body, err := json.Marshal(RegisterRequest{
 		CertPEM:   string(certPEM),
 		Token:     token,
-		NodeID:    a.NodeID,
+		NodeID:    pki.NodeID(a.NodeID),
 		ClusterID: a.ClusterID,
 	})
 	if err != nil {
@@ -385,11 +381,11 @@ func (a *Agent) path(name string) string {
 // LoadPeerPins reads the pin snapshot last persisted by JoinFlow
 // (or any later register call). Returns an empty map and no error
 // when the file is absent — fresh nodes have nothing to seed yet.
-func (a *Agent) LoadPeerPins() (map[string]int, error) {
+func (a *Agent) LoadPeerPins() (map[string]string, error) {
 	raw, err := os.ReadFile(a.path(peerPinsFile)) // #nosec G304 -- under dataDir
 	if err != nil {
 		if os.IsNotExist(err) {
-			return map[string]int{}, nil
+			return map[string]string{}, nil
 		}
 
 		return nil, fmt.Errorf("read peer-pins.json: %w", err)
@@ -400,9 +396,9 @@ func (a *Agent) LoadPeerPins() (map[string]int, error) {
 		return nil, fmt.Errorf("parse peer-pins.json: %w", err)
 	}
 
-	out := make(map[string]int, len(records))
+	out := make(map[string]string, len(records))
 	for _, r := range records {
-		out[r.Fingerprint] = r.NodeID
+		out[r.Fingerprint] = string(r.NodeID)
 	}
 
 	logger.EllaLog.Debug("loaded peer-pins.json",

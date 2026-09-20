@@ -285,7 +285,7 @@ func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([
 	return []db.Policy{{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"}}, nil
 }
 
-func (fdb *fakeDBInstance) NodeID() int { return 0 }
+func (fdb *fakeDBInstance) AMFPointer() int { return 0 }
 
 type fakeNGAPSender struct {
 	SentNGSetupFailures                []*ngap.NGSetupFailure

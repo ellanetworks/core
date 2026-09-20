@@ -112,7 +112,7 @@ func (s *stubDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error
 	return s.slices, nil
 }
 
-func (s *stubDB) NodeID() int { return 0 }
+func (s *stubDB) AMFPointer() int { return 0 }
 
 // TestErrorIndicationGNBToAMF drives an ERROR INDICATION the gNB would send
 // after a protocol error, and asserts the AMF accepts it without answering —

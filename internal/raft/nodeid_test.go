@@ -6,262 +6,87 @@ package raft
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
-func TestResolveNodeID_FromFile(t *testing.T) {
-	t.Parallel()
-
+func TestResolveRaftID_GeneratesAndPersists(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("7\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	id, err := ResolveNodeID(0, dir)
+	id, err := ResolveRaftID(dir)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("ResolveRaftID: %v", err)
 	}
 
-	if id != 7 {
-		t.Fatalf("want 7, got %d", id)
-	}
-}
-
-func TestResolveNodeID_MismatchConfigVsFile(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("3\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
+	if _, err := uuid.Parse(id); err != nil {
+		t.Fatalf("a fresh node must take a UUID identity, got %q", id)
 	}
 
-	_, err := ResolveNodeID(9, dir)
-	if err == nil {
-		t.Fatal("expected mismatch error when config differs from persisted file")
-	}
-
-	if !strings.Contains(err.Error(), "mismatch") {
-		t.Fatalf("expected mismatch error, got: %v", err)
-	}
-}
-
-func TestResolveNodeID_NoSourceAvailable(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	_, err := ResolveNodeID(0, dir)
-	if err == nil {
-		t.Fatal("expected error when no source is available")
-	}
-
-	if !strings.Contains(err.Error(), "node ID not provided") {
-		t.Fatalf("expected 'not provided' error, got: %v", err)
-	}
-}
-
-func TestResolveNodeID_ConfiguredIDRange(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		id      int
-		wantErr bool
-	}{
-		{name: "min", id: 1},
-		{name: "max", id: MaxNodeID},
-		{name: "below min", id: -1, wantErr: true},
-		{name: "above max", id: MaxNodeID + 1, wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			id, err := ResolveNodeID(tt.id, t.TempDir())
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("ResolveNodeID(%d) = %d, want an out-of-range error", tt.id, id)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("ResolveNodeID(%d): %v", tt.id, err)
-			}
-
-			if id != tt.id {
-				t.Fatalf("want %d, got %d", tt.id, id)
-			}
-		})
-	}
-}
-
-func TestResolveNodeID_CorruptFile(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("garbage"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	_, err := ResolveNodeID(0, dir)
-	if err == nil {
-		t.Fatal("expected error for corrupt node-id file")
-	}
-}
-
-func TestResolveNodeID_FileOutOfRange(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("999\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	_, err := ResolveNodeID(0, dir)
-	if err == nil {
-		t.Fatal("expected error for out-of-range persisted ID")
-	}
-}
-
-func TestResolveNodeID_PersistOnFirstBoot(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	// No file exists yet.
-	_, err := os.Stat(filepath.Join(dir, nodeIDFilename))
-	if err == nil {
-		t.Fatal("node-id file should not exist yet")
-	}
-
-	id, err := ResolveNodeID(42, dir)
+	again, err := ResolveRaftID(dir)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("second ResolveRaftID: %v", err)
 	}
 
-	if id != 42 {
-		t.Fatalf("want 42, got %d", id)
+	if again != id {
+		t.Fatalf("identity changed across calls: %q then %q", id, again)
 	}
 
-	// File should now exist.
-	persisted := readPersistedID(t, dir)
-	if persisted != 42 {
-		t.Fatalf("persisted id: want 42, got %d", persisted)
-	}
-
-	// Second call with same config should succeed.
-	id, err = ResolveNodeID(42, dir)
+	raw, err := os.ReadFile(filepath.Join(dir, nodeIDFilename))
 	if err != nil {
-		t.Fatalf("second call: %v", err)
+		t.Fatalf("read node-id: %v", err)
 	}
 
-	if id != 42 {
-		t.Fatalf("second call: want 42, got %d", id)
+	if string(raw) != id+"\n" {
+		t.Fatalf("node-id file holds %q, want %q", string(raw), id+"\n")
 	}
 }
 
-func readPersistedID(t testing.TB, dir string) int {
-	t.Helper()
-
-	id, err := readNodeIDFile(filepath.Join(dir, nodeIDFilename))
-	if err != nil {
-		t.Fatalf("readNodeIDFile: %v", err)
-	}
-
-	return id
-}
-
-func TestResolveNodeIDForMode_StandalonePersistsDefault(t *testing.T) {
-	t.Parallel()
-
+func TestResolveRaftID_KeepsLegacyIntegerIdentity(t *testing.T) {
 	dir := t.TempDir()
 
-	id, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
+	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := ResolveRaftID(dir)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("ResolveRaftID: %v", err)
 	}
 
-	if id != defaultStandaloneNodeID {
-		t.Fatalf("want %d, got %d", defaultStandaloneNodeID, id)
-	}
-
-	if persisted := readPersistedID(t, dir); persisted != defaultStandaloneNodeID {
-		t.Fatalf("persisted id: want %d, got %d", defaultStandaloneNodeID, persisted)
+	if id != "2" {
+		t.Fatalf("a cluster formed before the identity split keeps its integer: got %q, want 2", id)
 	}
 }
 
-func TestResolveNodeIDForMode_StandalonePrefersPersistedOverDefault(t *testing.T) {
-	t.Parallel()
-
+func TestResolveRaftID_NormalizesCase(t *testing.T) {
 	dir := t.TempDir()
+	id := "0199C0DE-0000-7000-8000-00000000BEEF"
 
-	if err := writeNodeIDFile(filepath.Join(dir, nodeIDFilename), 7); err != nil {
-		t.Fatalf("writeNodeIDFile: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("  "+id+"  \n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 
-	id, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
+	got, err := ResolveRaftID(dir)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("ResolveRaftID: %v", err)
 	}
 
-	if id != 7 {
-		t.Fatalf("want 7, got %d", id)
+	if got != "0199c0de-0000-7000-8000-00000000beef" {
+		t.Fatalf("identity must be trimmed and lowercased once, got %q", got)
 	}
 }
 
-func TestResolveNodeIDForMode_StandaloneThenHAKeepsID(t *testing.T) {
-	t.Parallel()
-
+func TestResolveRaftID_RejectsUnparseableFile(t *testing.T) {
 	dir := t.TempDir()
 
-	standaloneID, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
-	if err != nil {
-		t.Fatalf("standalone boot: %v", err)
-	}
+	for _, content := range []string{"", "0", "64", "not-a-uuid", "1 2"} {
+		if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
 
-	haID, err := resolveNodeIDForMode(ClusterConfig{Enabled: true, NodeID: standaloneID}, false, dir)
-	if err != nil {
-		t.Fatalf("HA boot after standalone: %v", err)
-	}
-
-	if haID != standaloneID {
-		t.Fatalf("id changed across mode switch: standalone %d, HA %d", standaloneID, haID)
-	}
-}
-
-func TestResolveNodeIDForMode_StandaloneThenHARejectsChangedID(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if _, err := resolveNodeIDForMode(ClusterConfig{}, true, dir); err != nil {
-		t.Fatalf("standalone boot: %v", err)
-	}
-
-	_, err := resolveNodeIDForMode(ClusterConfig{Enabled: true, NodeID: 3}, false, dir)
-	if err == nil {
-		t.Fatal("expected error when HA config assigns an ID the standalone boot did not persist")
-	}
-
-	if !strings.Contains(err.Error(), "mismatch") {
-		t.Fatalf("want mismatch error, got: %v", err)
-	}
-}
-
-func TestResolveNodeIDForMode_HAStillRequiresExplicitID(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	if _, err := resolveNodeIDForMode(ClusterConfig{Enabled: true}, false, dir); err == nil {
-		t.Fatal("expected error when HA supplies no node ID")
+		if _, err := ResolveRaftID(dir); err == nil {
+			t.Fatalf("content %q must fail startup rather than mint a new identity", content)
+		}
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -77,7 +76,7 @@ func freeLoopbackAddress(t *testing.T) string {
 	return addr
 }
 
-func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, addr string, payload []byte) {
+func seedRaftSnapshot(t *testing.T, dataDir string, nodeID string, addr string, payload []byte) {
 	t.Helper()
 
 	raftDir := filepath.Join(dataDir, "raft")
@@ -116,7 +115,7 @@ func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, addr string, pay
 	}
 
 	nodeIDPath := filepath.Join(dataDir, "node-id")
-	if err := os.WriteFile(nodeIDPath, []byte(strconv.Itoa(nodeID)+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(nodeIDPath, []byte(nodeID+"\n"), 0o600); err != nil {
 		t.Fatalf("write node-id: %v", err)
 	}
 }
@@ -132,11 +131,11 @@ func TestBootSnapshotRestoreRespectsBaselineInClusterMode(t *testing.T) {
 	addr := freeLoopbackAddress(t)
 
 	payload := buildBaselineSnapshotPayload(t)
-	seedRaftSnapshot(t, dataDir, 1, addr, payload)
+	seedRaftSnapshot(t, dataDir, "1", addr, payload)
 
 	cfg := ellaraft.FastTestConfig()
 	cfg.Enabled = true
-	cfg.NodeID = 1
+	cfg.RaftID = "1"
 	cfg.BindAddress = addr
 	cfg.AdvertiseAddress = addr
 

@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/osutil"
+	"github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/google/uuid"
 	autopilot "github.com/hashicorp/raft-autopilot"
@@ -335,10 +336,11 @@ type Database struct {
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
+	amfPointer         atomic.Int32
 
 	// Field-injected so tests can stub them.
-	probeMemberSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
-	raftMemberIDs     func() []int
+	probeMemberSchema func(ctx context.Context, nodeID string, raftAddr string) (int, error)
+	raftMemberIDs     func() []string
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -582,13 +584,29 @@ func (db *Database) ProposeTimeout() time.Duration {
 	return db.raftManager.ProposeTimeout()
 }
 
-// NodeID returns this node's Raft node ID. Returns 0 when running standalone.
-func (db *Database) NodeID() int {
+// RaftID returns this node's Raft server identity. Empty when running
+// without a Raft manager.
+func (db *Database) RaftID() string {
 	if db.raftManager == nil {
-		return 0
+		return ""
 	}
 
-	return db.raftManager.NodeID()
+	return db.raftManager.RaftID()
+}
+
+// AMFPointer returns the 1-63 value this node stamps into the GUTIs it
+// issues, as the AMF Pointer in 5G and the MME Code in EPS.
+func (db *Database) AMFPointer() int {
+	if p := db.amfPointer.Load(); p > 0 {
+		return int(p)
+	}
+
+	return DefaultAMFPointer
+}
+
+// SetAMFPointer caches the pointer allocated to this node.
+func (db *Database) SetAMFPointer(pointer int) {
+	db.amfPointer.Store(int32(pointer)) // #nosec G115 -- bounded by [1, 63]
 }
 
 // LeaderAddress returns the Raft transport address of the current leader.
@@ -601,11 +619,10 @@ func (db *Database) LeaderAddress() string {
 }
 
 // LeaderAddressAndID returns the leader's Raft transport address together
-// with its integer node-id. Either value is zero when there is no leader
-// or when the leader's ServerID cannot be parsed as an integer.
-func (db *Database) LeaderAddressAndID() (string, int) {
+// with its node identity. Either value is empty when there is no leader.
+func (db *Database) LeaderAddressAndID() (string, string) {
 	if db.raftManager == nil {
-		return "", 0
+		return "", ""
 	}
 
 	return db.raftManager.LeaderAddressAndID()
@@ -660,7 +677,7 @@ func (db *Database) LeadershipTransfer() error {
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.
-func (db *Database) AddVoter(nodeID int, raftAddress string) error {
+func (db *Database) AddVoter(nodeID string, raftAddress string) error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
@@ -669,7 +686,7 @@ func (db *Database) AddVoter(nodeID int, raftAddress string) error {
 }
 
 // AddNonvoter adds a node to the Raft cluster as a non-voting member.
-func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
+func (db *Database) AddNonvoter(nodeID string, raftAddress string) error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
@@ -847,7 +864,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 			zap.Int("current", current),
 			zap.Int("binary_max", binaryMax),
 			zap.Int("member_floor", floor),
-			zap.Int("laggard_node_id", laggard),
+			zap.String("laggard_node_id", laggard),
 		)
 
 		return nil
@@ -870,8 +887,8 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 type PendingMigrationStatus struct {
 	Pending       bool
 	CurrentSchema int
-	TargetSchema  int // bounded by min(binaryMax, member floor); equals current when blocked
-	LaggardNodeID int // member holding target == current; zero when unblocked
+	TargetSchema  int    // bounded by min(binaryMax, member floor); equals current when blocked
+	LaggardNodeID string // member holding target == current; empty when unblocked
 }
 
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
@@ -927,16 +944,16 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 
 // minMemberSchemaSupport returns the minimum SchemaVersion across cluster
 // members and the laggard's nodeID.
-func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
+func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
-		return 0, 0, fmt.Errorf("list cluster members: %w", err)
+		return 0, "", fmt.Errorf("list cluster members: %w", err)
 	}
 
 	// The configuration is the set of nodes that receive entries, so it decides
 	// who binds the floor: a row can outlive removal from it, and a node can
 	// enter it before its row is written.
-	var configuration []int
+	var configuration []string
 	if db.raftMemberIDs != nil {
 		configuration = db.raftMemberIDs()
 	}
@@ -944,19 +961,19 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 	if len(configuration) == 0 {
 		logger.From(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
 
-		return 0, 0, nil
+		return 0, "", nil
 	}
 
-	rows := make(map[int]ClusterMember, len(members))
+	rows := make(map[string]ClusterMember, len(members))
 	for _, m := range members {
 		rows[m.NodeID] = m
 	}
 
-	selfID := db.raftManager.NodeID()
+	selfID := db.raftManager.RaftID()
 	floor := -1
-	laggard := 0
+	laggard := ""
 
-	consider := func(nodeID, version int) {
+	consider := func(nodeID string, version int) {
 		if floor < 0 || version < floor {
 			floor = version
 			laggard = nodeID
@@ -972,7 +989,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		m, ok := rows[nodeID]
 		if !ok {
 			logger.From(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
-				zap.Int("node_id", nodeID),
+				zap.String("node_id", nodeID),
 			)
 
 			return 0, nodeID, nil
@@ -981,7 +998,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
 			logger.From(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
-				zap.Int("node_id", nodeID),
+				zap.String("node_id", nodeID),
 				zap.String("raft_address", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
@@ -1085,7 +1102,7 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		return err
 	}
 
-	stillAbsent := make(map[int]struct{}, len(confirmed))
+	stillAbsent := make(map[string]struct{}, len(confirmed))
 	for _, nodeID := range confirmed {
 		stillAbsent[nodeID] = struct{}{}
 	}
@@ -1102,12 +1119,12 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		}
 
 		if err := db.DeleteClusterMember(ctx, nodeID); err != nil {
-			errs = append(errs, fmt.Errorf("delete cluster member %d: %w", nodeID, err))
+			errs = append(errs, fmt.Errorf("delete cluster member %s: %w", nodeID, err))
 			continue
 		}
 
 		logger.From(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
-			zap.Int("node_id", nodeID),
+			zap.String("node_id", nodeID),
 		)
 
 		db.purgeReconciledNodeArtifacts(ctx, nodeID)
@@ -1116,8 +1133,8 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
-	var configuration []int
+func (db *Database) orphanedClusterMembers(ctx context.Context) ([]string, error) {
+	var configuration []string
 
 	if db.raftMemberIDs != nil {
 		configuration = db.raftMemberIDs()
@@ -1132,12 +1149,12 @@ func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
 		return nil, fmt.Errorf("list cluster members: %w", err)
 	}
 
-	inConfiguration := make(map[int]struct{}, len(configuration))
+	inConfiguration := make(map[string]struct{}, len(configuration))
 	for _, nodeID := range configuration {
 		inConfiguration[nodeID] = struct{}{}
 	}
 
-	var orphans []int
+	var orphans []string
 
 	for _, m := range members {
 		if _, ok := inConfiguration[m.NodeID]; ok {
@@ -1150,20 +1167,20 @@ func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
 	return orphans, nil
 }
 
-func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID int) {
+func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID string) {
 	if err := db.DeleteDynamicLeasesByNode(ctx, nodeID); err != nil {
 		logger.From(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
-			zap.Int("node_id", nodeID), zap.Error(err))
+			zap.String("node_id", nodeID), zap.Error(err))
 	}
 
 	if err := db.DeleteClusterNodeCert(ctx, nodeID); err != nil {
 		logger.From(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
-			zap.Int("node_id", nodeID), zap.Error(err))
+			zap.String("node_id", nodeID), zap.Error(err))
 	}
 }
 
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.
-func (db *Database) RemoveServer(nodeID int) error {
+func (db *Database) RemoveServer(nodeID string) error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
@@ -1230,19 +1247,67 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 
 	suffrage := "voter"
 
-	if existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID()); err == nil && existing != nil && existing.Suffrage != "" {
+	if existing, err := db.GetClusterMember(ctx, db.raftManager.RaftID()); err == nil && existing != nil && existing.Suffrage != "" {
 		suffrage = existing.Suffrage
 	}
 
+	pointer, err := db.resolveAMFPointer(ctx, db.raftManager.RaftID())
+	if err != nil {
+		return err
+	}
+
 	member := &ClusterMember{
-		NodeID:        db.raftManager.NodeID(),
+		NodeID:        db.raftManager.RaftID(),
+		AMFPointer:    pointer,
 		RaftAddress:   db.raftManager.RaftAddress(),
 		APIAddress:    db.raftManager.APIAddress(),
 		BinaryVersion: binaryVersion,
 		Suffrage:      suffrage,
 	}
 
-	return db.UpsertClusterMember(ctx, member)
+	if err := db.UpsertClusterMember(ctx, member); err != nil {
+		return err
+	}
+
+	db.SetAMFPointer(pointer)
+
+	return nil
+}
+
+// resolveAMFPointer returns the pointer already allocated to nodeID, or
+// the lowest free value in [1, MaxAMFPointer] when it has none. A legacy
+// integer identity keeps that integer as its pointer.
+func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
+	members, err := db.ListClusterMembers(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list cluster members: %w", err)
+	}
+
+	taken := make(map[int]struct{}, len(members))
+
+	for _, m := range members {
+		if m.NodeID == nodeID && m.AMFPointer > 0 {
+			return m.AMFPointer, nil
+		}
+
+		if m.AMFPointer > 0 {
+			taken[m.AMFPointer] = struct{}{}
+		}
+	}
+
+	if legacy, ok := pki.LegacyNodeID(nodeID); ok {
+		if _, clash := taken[legacy]; !clash {
+			return legacy, nil
+		}
+	}
+
+	for candidate := DefaultAMFPointer; candidate <= MaxAMFPointer; candidate++ {
+		if _, clash := taken[candidate]; !clash {
+			return candidate, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no AMF Pointer available: all %d values are allocated", MaxAMFPointer)
 }
 
 // NewDatabase opens (or creates) the SQLite database file at dbPath. The

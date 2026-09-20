@@ -224,7 +224,7 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 	}, nil
 }
 
-func (fakeBearerStore) NodeID() int { return 1 }
+func (fakeBearerStore) AMFPointer() int { return 1 }
 
 var testSubscriber = struct {
 	IMSI string

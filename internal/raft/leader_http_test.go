@@ -41,7 +41,7 @@ func TestLeaderHTTPClient_ReusesConnections(t *testing.T) {
 
 	var dials atomic.Int64
 
-	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ string) (net.Conn, error) {
 		dials.Add(1)
 		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
 	})
@@ -49,7 +49,7 @@ func TestLeaderHTTPClient_ReusesConnections(t *testing.T) {
 	defer c.close()
 
 	for i := range 5 {
-		resp, err := c.do(context.Background(), addr, 1, leaderHTTPRequest{
+		resp, err := c.do(context.Background(), addr, "1", leaderHTTPRequest{
 			method:           http.MethodPost,
 			path:             ProposeForwardPath,
 			contentType:      "application/json",
@@ -75,19 +75,19 @@ func TestLeaderHTTPClient_RebuildsOnLeaderChange(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 
-	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
 	})
 
 	defer c.close()
 
-	first := c.clientFor(addr, 1)
+	first := c.clientFor(addr, "1")
 
-	if same := c.clientFor(addr, 1); same != first {
+	if same := c.clientFor(addr, "1"); same != first {
 		t.Fatal("same leader must reuse the same pooled client")
 	}
 
-	if other := c.clientFor(addr, 2); other == first {
+	if other := c.clientFor(addr, "2"); other == first {
 		t.Fatal("a leadership change must retire the previous leader's client")
 	}
 }
@@ -97,13 +97,13 @@ func TestLeaderHTTPClient_OversizeResponseIsAnError(t *testing.T) {
 		_, _ = w.Write([]byte(strings.Repeat("x", 4096)))
 	}))
 
-	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
 	})
 
 	defer c.close()
 
-	_, err := c.do(context.Background(), addr, 1, leaderHTTPRequest{
+	_, err := c.do(context.Background(), addr, "1", leaderHTTPRequest{
 		method:           http.MethodGet,
 		path:             "/cluster/status",
 		maxResponseBytes: 512,
@@ -118,13 +118,13 @@ func TestLeaderHTTPClient_OversizeResponseIsAnError(t *testing.T) {
 }
 
 func TestLeaderHTTPClient_DialFailureIsMarkedUnreachable(t *testing.T) {
-	c := newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(context.Context, string, string) (net.Conn, error) {
 		return nil, fmt.Errorf("no route to host")
 	})
 
 	defer c.close()
 
-	_, err := c.do(context.Background(), "127.0.0.1:1", 1, leaderHTTPRequest{
+	_, err := c.do(context.Background(), "127.0.0.1:1", "1", leaderHTTPRequest{
 		method:           http.MethodPost,
 		path:             ProposeForwardPath,
 		body:             []byte(`{}`),
@@ -140,7 +140,7 @@ func TestLeaderHTTPClient_TimeoutBoundsTheRoundTrip(t *testing.T) {
 		<-r.Context().Done()
 	}))
 
-	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(ctx context.Context, a string, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
 	})
 
@@ -148,7 +148,7 @@ func TestLeaderHTTPClient_TimeoutBoundsTheRoundTrip(t *testing.T) {
 
 	start := time.Now()
 
-	_, err := c.do(context.Background(), addr, 1, leaderHTTPRequest{
+	_, err := c.do(context.Background(), addr, "1", leaderHTTPRequest{
 		method:           http.MethodPost,
 		path:             ProposeForwardPath,
 		body:             []byte(`{}`),
@@ -165,14 +165,14 @@ func TestLeaderHTTPClient_TimeoutBoundsTheRoundTrip(t *testing.T) {
 }
 
 func TestLeaderHTTPClient_MalformedAddressIsNotSent(t *testing.T) {
-	c := newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
+	c := newLeaderHTTPClient(func(context.Context, string, string) (net.Conn, error) {
 		t.Fatal("dial must not be attempted when the request cannot be built")
 		return nil, nil
 	})
 
 	defer c.close()
 
-	_, err := c.do(context.Background(), "bad\x7fhost:7000", 1, leaderHTTPRequest{
+	_, err := c.do(context.Background(), "bad\x7fhost:7000", "1", leaderHTTPRequest{
 		method:           http.MethodPost,
 		path:             ProposeForwardPath,
 		maxResponseBytes: 1024,

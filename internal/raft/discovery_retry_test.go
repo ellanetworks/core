@@ -17,18 +17,18 @@ import (
 func newDiscoveryTestManager(t *testing.T, peers []string) *Manager {
 	t.Helper()
 
-	pki := testutil.GenTestPKI(t, []int{1, 2})
+	pki := testutil.GenTestPKI(t, []string{"1", "2"})
 
 	ln := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
+		NodeID:           "2",
 		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(2),
+		Leaf:             pki.LeafFunc("2"),
 	})
 
 	m := &Manager{
-		nodeID:          2,
+		raftID:          "2",
 		clusterListener: ln,
 		config: ClusterConfig{
 			Peers:            peers,
@@ -98,12 +98,12 @@ func TestStartDiscoveryReportsWhyFormedPeersWereSkipped(t *testing.T) {
 
 	m, serverAddr := newProbePeerHarness(t, statusHandler(&statusClusterBlock{
 		Role:          "Leader",
-		NodeID:        1,
+		NodeID:        "1",
 		ClusterID:     "cluster-1",
 		SchemaVersion: 12,
 	}))
 
-	m.nodeID = 2
+	m.raftID = "2"
 	m.config = ClusterConfig{
 		Peers:            []string{serverAddr},
 		AdvertiseAddress: "127.0.0.1:9999",

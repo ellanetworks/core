@@ -242,7 +242,7 @@ func (d *drainTestDB) ListPoliciesByProfile(context.Context, string) ([]db.Polic
 	return nil, errNotImplementedInDrainTest
 }
 
-func (d *drainTestDB) NodeID() int { return d.nodeID }
+func (d *drainTestDB) AMFPointer() int { return d.nodeID }
 
 var errNotImplementedInDrainTest = errors.New("not implemented in drain test")
 

@@ -35,7 +35,7 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-func newTestListener(t *testing.T, p *testutil.PKI, nodeID int) (*listener.Listener, string) {
+func newTestListener(t *testing.T, p *testutil.PKI, nodeID string) (*listener.Listener, string) {
 	t.Helper()
 
 	port := freePort(t)
@@ -55,9 +55,9 @@ func newTestListener(t *testing.T, p *testutil.PKI, nodeID int) (*listener.Liste
 func TestListener_Roundtrip(t *testing.T) {
 	for _, alpn := range []string{listener.ALPNRaft, listener.ALPNHTTP} {
 		t.Run(alpn, func(t *testing.T) {
-			p := testutil.GenTestPKI(t, []int{1, 2})
+			p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-			ln1, addr1 := newTestListener(t, p, 1)
+			ln1, addr1 := newTestListener(t, p, "1")
 
 			var received sync.WaitGroup
 
@@ -84,10 +84,10 @@ func TestListener_Roundtrip(t *testing.T) {
 				t.Fatalf("start listener: %v", err)
 			}
 
-			ln2, _ := newTestListener(t, p, 2)
+			ln2, _ := newTestListener(t, p, "2")
 			defer ln2.Stop()
 
-			conn, err := ln2.Dial(ctx, addr1, 1, alpn, 2*time.Second)
+			conn, err := ln2.Dial(ctx, addr1, "1", alpn, 2*time.Second)
 			if err != nil {
 				t.Fatalf("dial: %v", err)
 			}
@@ -116,9 +116,9 @@ func TestListener_Roundtrip(t *testing.T) {
 }
 
 func TestListener_ALPNDispatch(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
 	var raftHit, httpHit sync.WaitGroup
 
@@ -148,10 +148,10 @@ func TestListener_ALPNDispatch(t *testing.T) {
 		t.Fatalf("start listener: %v", err)
 	}
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	connR, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
+	connR, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial raft: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestListener_ALPNDispatch(t *testing.T) {
 
 	_ = connR.Close()
 
-	connH, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
+	connH, err := ln2.Dial(ctx, addr1, "1", listener.ALPNHTTP, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial http: %v", err)
 	}
@@ -186,11 +186,11 @@ func TestListener_ALPNDispatch(t *testing.T) {
 // TestListener_UnpinnedPeer_Rejected: a node whose cert is not pinned
 // in the server's keyring is refused at handshake.
 func TestListener_UnpinnedPeer_Rejected(t *testing.T) {
-	pki1 := testutil.GenTestPKI(t, []int{1})
-	pki2 := testutil.GenTestPKI(t, []int{2})
+	pki1 := testutil.GenTestPKI(t, []string{"1"})
+	pki2 := testutil.GenTestPKI(t, []string{"2"})
 
 	// ln1 only knows its own pin.
-	ln1, addr1 := newTestListener(t, pki1, 1)
+	ln1, addr1 := newTestListener(t, pki1, "1")
 
 	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
 		defer func() { _ = conn.Close() }()
@@ -211,23 +211,23 @@ func TestListener_UnpinnedPeer_Rejected(t *testing.T) {
 	ln2 := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
+		NodeID:           "2",
 		Pin:              pki2.PinFunc(),
-		Leaf:             pki2.LeafFunc(2),
+		Leaf:             pki2.LeafFunc("2"),
 	})
 	defer ln2.Stop()
 
-	if _, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second); err == nil {
+	if _, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second); err == nil {
 		t.Fatal("expected dial to fail when peer is not in keyring")
 	}
 }
 
 func TestListener_PeerNodeID(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
-	var gotNodeID int
+	var gotNodeID string
 
 	var wg sync.WaitGroup
 
@@ -253,10 +253,10 @@ func TestListener_PeerNodeID(t *testing.T) {
 		t.Fatalf("start listener: %v", err)
 	}
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -265,17 +265,17 @@ func TestListener_PeerNodeID(t *testing.T) {
 
 	wg.Wait()
 
-	if gotNodeID != 2 {
-		t.Fatalf("expected peer node-id 2, got %d", gotNodeID)
+	if gotNodeID != "2" {
+		t.Fatalf("expected peer node-id 2, got %s", gotNodeID)
 	}
 
 	ln1.Stop()
 }
 
 func TestListener_Dial_ExpectedPeerMismatch(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
 	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
 		_ = conn.Close()
@@ -290,10 +290,10 @@ func TestListener_Dial_ExpectedPeerMismatch(t *testing.T) {
 
 	defer ln1.Stop()
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	_, err := ln2.Dial(ctx, addr1, 7, listener.ALPNRaft, 2*time.Second)
+	_, err := ln2.Dial(ctx, addr1, "7", listener.ALPNRaft, 2*time.Second)
 	if err == nil {
 		t.Fatal("expected dial to fail when peer URI nodeID does not match expectedPeerID")
 	}
@@ -304,9 +304,9 @@ func TestListener_Dial_ExpectedPeerMismatch(t *testing.T) {
 }
 
 func TestListener_DialAnyPeer(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
 	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
 		_ = conn.Close()
@@ -321,7 +321,7 @@ func TestListener_DialAnyPeer(t *testing.T) {
 
 	defer ln1.Stop()
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
 	conn, err := ln2.DialAnyPeer(ctx, addr1, listener.ALPNRaft, 2*time.Second)
@@ -333,9 +333,9 @@ func TestListener_DialAnyPeer(t *testing.T) {
 }
 
 func TestListener_Stop_Completes(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
+	p := testutil.GenTestPKI(t, []string{"1"})
 
-	ln, _ := newTestListener(t, p, 1)
+	ln, _ := newTestListener(t, p, "1")
 
 	ln.Register(listener.ALPNRaft, func(conn net.Conn) {
 		_ = conn.Close()
@@ -360,14 +360,14 @@ func TestListener_Stop_Completes(t *testing.T) {
 }
 
 func TestListener_AdvertiseAddress(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
+	p := testutil.GenTestPKI(t, []string{"1"})
 
 	ln := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:9999",
 		AdvertiseAddress: "10.0.0.1:7000",
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              p.PinFunc(),
-		Leaf:             p.LeafFunc(1),
+		Leaf:             p.LeafFunc("1"),
 	})
 
 	if ln.AdvertiseAddress() != "10.0.0.1:7000" {
@@ -376,9 +376,9 @@ func TestListener_AdvertiseAddress(t *testing.T) {
 }
 
 func TestListener_UnknownALPN_Closed(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
 	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
 		_ = conn.Close()
@@ -391,10 +391,10 @@ func TestListener_UnknownALPN_Closed(t *testing.T) {
 		t.Fatalf("start listener: %v", err)
 	}
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, "1", listener.ALPNHTTP, 2*time.Second)
 	if err != nil {
 		if !strings.Contains(err.Error(), "ALPN") {
 			t.Logf("dial error (acceptable): %v", err)
@@ -418,9 +418,9 @@ func TestListener_UnknownALPN_Closed(t *testing.T) {
 }
 
 func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 
 	handed := make(chan net.Conn, 1)
 
@@ -437,10 +437,10 @@ func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
 
 	defer ln1.Stop()
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	client, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
+	client, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
 
 	defer func() { _ = server.Close() }()
 
-	fp := pki.Fingerprint(p.Nodes[2].Cert)
+	fp := pki.Fingerprint(p.Nodes["2"].Cert)
 
 	if n := ln1.CloseByPeerFingerprint(fp); n != 1 {
 		t.Fatalf("CloseByPeerFingerprint closed %d connections, want 1", n)

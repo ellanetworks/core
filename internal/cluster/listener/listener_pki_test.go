@@ -21,7 +21,7 @@ import (
 // leaf can complete the handshake on the bootstrap ALPN and the
 // handler runs.
 func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
+	p := testutil.GenTestPKI(t, []string{"1"})
 
 	port := freePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
@@ -29,9 +29,9 @@ func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 	ln := listener.New(listener.Config{
 		BindAddress:      addr,
 		AdvertiseAddress: addr,
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              p.PinFunc(),
-		Leaf:             p.LeafFunc(1),
+		Leaf:             p.LeafFunc("1"),
 	})
 
 	defer ln.Stop()
@@ -84,9 +84,9 @@ func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 // TestListener_CloseByPeerFingerprint closes a tracked connection
 // after its peer has been removed from the keyring.
 func TestListener_CloseByPeerFingerprint(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
-	ln1, addr1 := newTestListener(t, p, 1)
+	ln1, addr1 := newTestListener(t, p, "1")
 	defer ln1.Stop()
 
 	handlerReady := make(chan struct{})
@@ -110,10 +110,10 @@ func TestListener_CloseByPeerFingerprint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestListener_CloseByPeerFingerprint(t *testing.T) {
 
 	<-handlerReady
 
-	fp := pki.Fingerprint(p.Nodes[2].Cert)
+	fp := pki.Fingerprint(p.Nodes["2"].Cert)
 
 	closed := ln1.CloseByPeerFingerprint(fp)
 	if closed == 0 {
@@ -154,10 +154,10 @@ func waitWithTimeout(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 }
 
 func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1, 2})
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
 
 	base := p.PinFunc()
-	fp := pki.Fingerprint(p.Nodes[2].Cert)
+	fp := pki.Fingerprint(p.Nodes["2"].Cert)
 
 	var (
 		mu       sync.Mutex
@@ -194,9 +194,9 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 	ln1 := listener.New(listener.Config{
 		BindAddress:      addr1,
 		AdvertiseAddress: addr1,
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              pin,
-		Leaf:             p.LeafFunc(1),
+		Leaf:             p.LeafFunc("1"),
 	})
 
 	defer ln1.Stop()
@@ -216,13 +216,13 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ln2, _ := newTestListener(t, p, 2)
+	ln2, _ := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
 	dialed := make(chan *tls.Conn, 1)
 
 	go func() {
-		conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 5*time.Second)
+		conn, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 5*time.Second)
 		if err != nil {
 			dialed <- nil
 			return

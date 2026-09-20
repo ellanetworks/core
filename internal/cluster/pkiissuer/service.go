@@ -43,7 +43,7 @@ type Store interface {
 	ListClusterNodeCerts(ctx context.Context) ([]db.ClusterNodeCert, error)
 
 	MintJoinTokenRecord(ctx context.Context, r *db.ClusterJoinToken) error
-	RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]db.ClusterNodeCert, error)
+	RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]db.ClusterNodeCert, error)
 
 	IsLeader() bool
 }
@@ -103,7 +103,7 @@ func (s *Service) Ready(ctx context.Context) bool {
 // pin its bootstrap TLS handshake. Returns ErrNotReady until the
 // join-HMAC key and this node's own certificate are committed
 // cluster-wide.
-func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration) (string, error) {
+func (s *Service) MintJoinToken(ctx context.Context, ttl time.Duration) (string, error) {
 	if ttl < pki.DefaultJoinTokenMinTTL || ttl > pki.DefaultJoinTokenMaxTTL {
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
 	}
@@ -144,7 +144,6 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 
 	claims := pki.JoinClaims{
 		TokenID:       tokenID,
-		NodeID:        nodeID,
 		IssuedAt:      now.Unix(),
 		ExpiresAt:     now.Add(ttl).Unix(),
 		LeaderCertPin: leaderPin,
@@ -164,7 +163,6 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 
 	if err := s.store.MintJoinTokenRecord(ctx, &db.ClusterJoinToken{
 		ID:         tokenID,
-		NodeID:     nodeID,
 		ClaimsJSON: string(claimsJSON),
 		ExpiresAt:  claims.ExpiresAt,
 	}); err != nil {
@@ -212,7 +210,7 @@ func (s *Service) pinsForToken(ctx context.Context) (string, []string, error) {
 	return leaderPin, all, nil
 }
 
-func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
+func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID string, certPEM []byte) (string, []db.ClusterNodeCert, error) {
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {
 		return "", nil, err
@@ -221,10 +219,6 @@ func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID i
 	claims, err := pki.VerifyJoinToken(hmacKey, time.Now(), tokenStr)
 	if err != nil {
 		return "", nil, err
-	}
-
-	if claims.NodeID != nodeID {
-		return "", nil, fmt.Errorf("token is for node %d, not %d", claims.NodeID, nodeID)
 	}
 
 	cert, fp, err := s.validateNodeCert(ctx, nodeID, certPEM)
@@ -245,7 +239,7 @@ func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID i
 // verifies) and replicates its SHA-256 pin into cluster_node_certs.
 // Returns the pin fingerprint and the post-commit snapshot of
 // every registered pin so the caller can seed its local pin map.
-func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
+func (s *Service) RegisterCert(ctx context.Context, nodeID string, certPEM []byte) (string, []db.ClusterNodeCert, error) {
 	cert, fp, err := s.validateNodeCert(ctx, nodeID, certPEM)
 	if err != nil {
 		return "", nil, err
@@ -270,7 +264,7 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) 
 	return fp, pins, nil
 }
 
-func (s *Service) validateNodeCert(ctx context.Context, nodeID int, certPEM []byte) (*x509.Certificate, string, error) {
+func (s *Service) validateNodeCert(ctx context.Context, nodeID string, certPEM []byte) (*x509.Certificate, string, error) {
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("get operator: %w", err)
@@ -291,7 +285,7 @@ func (s *Service) validateNodeCert(ctx context.Context, nodeID int, certPEM []by
 	}
 
 	if certNodeID != nodeID {
-		return nil, "", fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
+		return nil, "", fmt.Errorf("cert URI nodeID %s != requested nodeID %s", certNodeID, nodeID)
 	}
 
 	// Issuer must equal subject; the cluster TLS contract requires

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -25,14 +26,14 @@ import (
 // the production dial and accept paths.
 type peerGate struct {
 	mu      sync.RWMutex
-	blocked map[int]struct{}
+	blocked map[string]struct{}
 }
 
 func newPeerGate() *peerGate {
-	return &peerGate{blocked: make(map[int]struct{})}
+	return &peerGate{blocked: make(map[string]struct{})}
 }
 
-func (g *peerGate) block(nodeID int) {
+func (g *peerGate) block(nodeID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -43,10 +44,10 @@ func (g *peerGate) reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.blocked = make(map[int]struct{})
+	g.blocked = make(map[string]struct{})
 }
 
-func (g *peerGate) reachable(nodeID int) bool {
+func (g *peerGate) reachable(nodeID string) bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
@@ -56,7 +57,7 @@ func (g *peerGate) reachable(nodeID int) bool {
 }
 
 type testNode struct {
-	nodeID  int
+	nodeID  string
 	addr    string
 	dataDir string
 	applier Applier
@@ -110,9 +111,9 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 		t.Fatal("cluster size must be >= 1")
 	}
 
-	nodeIDs := make([]int, n)
+	nodeIDs := make([]string, n)
 	for i := range n {
-		nodeIDs[i] = i + 1
+		nodeIDs[i] = strconv.Itoa(i + 1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,7 +132,7 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 
 	for i := range n {
 		tc.nodes = append(tc.nodes, &testNode{
-			nodeID:  i + 1,
+			nodeID:  strconv.Itoa(i + 1),
 			addr:    fmt.Sprintf("127.0.0.1:%d", ports[i]),
 			dataDir: t.TempDir(),
 			applier: newApplier(),
@@ -155,7 +156,7 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 	servers := make([]hraft.Server, 0, n)
 	for _, node := range tc.nodes {
 		servers = append(servers, hraft.Server{
-			ID:      hraft.ServerID(fmt.Sprintf("%d", node.nodeID)),
+			ID:      hraft.ServerID(node.nodeID),
 			Address: node.mgr.transport.LocalAddr(),
 		})
 	}
@@ -180,7 +181,7 @@ func (tc *TestCluster) startNode(node *testNode) {
 
 	cfg := ClusterConfig{
 		Enabled:            true,
-		NodeID:             node.nodeID,
+		RaftID:             node.nodeID,
 		BindAddress:        node.addr,
 		AdvertiseAddress:   node.addr,
 		HeartbeatTimeout:   50 * time.Millisecond,
@@ -201,7 +202,7 @@ func (tc *TestCluster) startNode(node *testNode) {
 
 	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir, WithClusterListener(node.ln))
 	if err != nil {
-		tc.t.Fatalf("create node %d: %v", node.nodeID, err)
+		tc.t.Fatalf("create node %s: %v", node.nodeID, err)
 	}
 
 	node.mgr = m
@@ -227,7 +228,7 @@ func (tc *TestCluster) pinFunc(node *testNode) listener.PinFunc {
 		res := base(fingerprint)
 		if res.Found && !node.gate.reachable(res.NodeID) {
 			res.Found = false
-			res.NodeID = 0
+			res.NodeID = ""
 		}
 
 		return res
@@ -254,7 +255,7 @@ func (tc *TestCluster) startListener(node *testNode) {
 	tc.t.Helper()
 
 	if err := node.ln.Start(tc.ctx); err != nil {
-		tc.t.Fatalf("start cluster listener for node %d: %v", node.nodeID, err)
+		tc.t.Fatalf("start cluster listener for node %s: %v", node.nodeID, err)
 	}
 }
 
@@ -317,7 +318,7 @@ func (tc *TestCluster) StopNode(idx int) {
 	}
 
 	if err := node.mgr.Shutdown(); err != nil && !errors.Is(err, hraft.ErrRaftShutdown) {
-		tc.t.Errorf("shutdown node %d: %v", node.nodeID, err)
+		tc.t.Errorf("shutdown node %s: %v", node.nodeID, err)
 	}
 
 	for _, w := range tc.wirings {

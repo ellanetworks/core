@@ -18,10 +18,10 @@ const (
 // LeadershipAuditCallback logs leadership transitions to the audit log.
 // Implements raft.LeaderCallback.
 type LeadershipAuditCallback struct {
-	nodeID int
+	nodeID string
 }
 
-func NewLeadershipAuditCallback(nodeID int) *LeadershipAuditCallback {
+func NewLeadershipAuditCallback(nodeID string) *LeadershipAuditCallback {
 	return &LeadershipAuditCallback{nodeID: nodeID}
 }
 
@@ -31,7 +31,7 @@ func (c *LeadershipAuditCallback) OnBecameLeader() {
 		LeadershipAcquiredAction,
 		"system",
 		"",
-		fmt.Sprintf("Node %d acquired leadership", c.nodeID),
+		fmt.Sprintf("Node %s acquired leadership", c.nodeID),
 	)
 }
 
@@ -41,6 +41,6 @@ func (c *LeadershipAuditCallback) OnLostLeadership() {
 		LeadershipLostAction,
 		"system",
 		"",
-		fmt.Sprintf("Node %d lost leadership", c.nodeID),
+		fmt.Sprintf("Node %s lost leadership", c.nodeID),
 	)
 }

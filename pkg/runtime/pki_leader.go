@@ -40,7 +40,7 @@ type pkiLeaderCallback struct {
 	termDone        chan struct{}
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, nodeID int, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
+func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, nodeID string, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
 	return &pkiLeaderCallback{
 		ctx: ctx,
 		db:  dbInstance,
@@ -185,7 +185,7 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 }
 
 // runLeaderInit is idempotent.
-func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int, binaryVersion string) error {
+func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID string, binaryVersion string) error {
 	if err := dbInstance.Initialize(ctx); err != nil {
 		return fmt.Errorf("initialize: %w", err)
 	}
@@ -207,7 +207,7 @@ func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, 
 	return nil
 }
 
-func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, nodeID int) error {
+func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, nodeID string) error {
 	// Step 1: ensure this node's self-signed cert exists. On a fresh
 	// first-leader boot the cert was not created by JoinFlow, so we
 	// generate one here. The clusterID is now populated by

@@ -38,13 +38,13 @@ func TestClusterNodeCert_UpsertListGetDelete(t *testing.T) {
 	now := time.Now().Unix()
 
 	a := &db.ClusterNodeCert{
-		NodeID:      1,
+		NodeID:      "1",
 		Fingerprint: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		CertPEM:     "-----BEGIN CERTIFICATE-----\nMIIA\n-----END CERTIFICATE-----",
 		AddedAt:     now,
 	}
 	b := &db.ClusterNodeCert{
-		NodeID:      2,
+		NodeID:      "2",
 		Fingerprint: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		CertPEM:     "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
 		AddedAt:     now,
@@ -72,13 +72,13 @@ func TestClusterNodeCert_UpsertListGetDelete(t *testing.T) {
 		t.Fatalf("get by fp: %v", err)
 	}
 
-	if got.NodeID != 1 {
-		t.Fatalf("nodeID mismatch: got %d", got.NodeID)
+	if got.NodeID != "1" {
+		t.Fatalf("nodeID mismatch: got %s", got.NodeID)
 	}
 
 	// Re-pin (rotation): upsert with same nodeID, different fingerprint.
 	rotated := &db.ClusterNodeCert{
-		NodeID:      1,
+		NodeID:      "1",
 		Fingerprint: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		CertPEM:     "-----BEGIN CERTIFICATE-----\nMIIC\n-----END CERTIFICATE-----",
 		AddedAt:     now + 1,
@@ -96,12 +96,12 @@ func TestClusterNodeCert_UpsertListGetDelete(t *testing.T) {
 		t.Fatalf("new fingerprint should be present: %v", err)
 	}
 
-	if err := database.DeleteClusterNodeCert(ctx, 1); err != nil {
+	if err := database.DeleteClusterNodeCert(ctx, "1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
 	rows, _ = database.ListClusterNodeCerts(ctx)
-	if len(rows) != 1 || rows[0].NodeID != 2 {
+	if len(rows) != 1 || rows[0].NodeID != "2" {
 		t.Fatalf("after delete expected only node 2, got %+v", rows)
 	}
 }
@@ -145,7 +145,7 @@ func TestClusterJoinTokens_MintGetConsume(t *testing.T) {
 
 	tok := &db.ClusterJoinToken{
 		ID:         "tok-1",
-		NodeID:     7,
+		NodeID:     "7",
 		ClaimsJSON: `{"id":"tok-1"}`,
 		ExpiresAt:  time.Now().Add(time.Hour).Unix(),
 	}
@@ -163,16 +163,16 @@ func TestClusterJoinTokens_MintGetConsume(t *testing.T) {
 		t.Fatalf("expected unconsumed token, got %d", row.ConsumedAt)
 	}
 
-	if err := database.ConsumeJoinToken(ctx, "tok-1", 7); err != nil {
+	if err := database.ConsumeJoinToken(ctx, "tok-1", "7"); err != nil {
 		t.Fatalf("consume: %v", err)
 	}
 
-	if err := database.ConsumeJoinToken(ctx, "tok-1", 7); !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
+	if err := database.ConsumeJoinToken(ctx, "tok-1", "7"); !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
 		t.Fatalf("second consume should fail with ErrJoinTokenAlreadyConsumed, got %v", err)
 	}
 }
 
-func mintTestToken(t *testing.T, database *db.Database, id string, nodeID int, ttl time.Duration) {
+func mintTestToken(t *testing.T, database *db.Database, id string, nodeID string, ttl time.Duration) {
 	t.Helper()
 
 	err := database.MintJoinTokenRecord(context.Background(), &db.ClusterJoinToken{
@@ -190,14 +190,14 @@ func TestRedeemJoinToken_ConsumesAndPinsTogether(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-1", 7, time.Hour)
+	mintTestToken(t, database, "tok-1", "7", time.Hour)
 
-	pins, err := database.RedeemJoinToken(ctx, "tok-1", 7, "sha256:aa", "PEM-7")
+	pins, err := database.RedeemJoinToken(ctx, "tok-1", "7", "sha256:aa", "PEM-7")
 	if err != nil {
 		t.Fatalf("redeem: %v", err)
 	}
 
-	if len(pins) != 1 || pins[0].NodeID != 7 || pins[0].Fingerprint != "sha256:aa" {
+	if len(pins) != 1 || pins[0].NodeID != "7" || pins[0].Fingerprint != "sha256:aa" {
 		t.Fatalf("unexpected pin snapshot: %+v", pins)
 	}
 
@@ -206,7 +206,7 @@ func TestRedeemJoinToken_ConsumesAndPinsTogether(t *testing.T) {
 		t.Fatalf("get token: %v", err)
 	}
 
-	if row.ConsumedAt == 0 || row.ConsumedBy != 7 {
+	if row.ConsumedAt == 0 || row.ConsumedBy != "7" {
 		t.Fatalf("token not consumed by node 7: %+v", row)
 	}
 }
@@ -215,13 +215,13 @@ func TestRedeemJoinToken_SameNodeSameCertReplays(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-2", 7, time.Hour)
+	mintTestToken(t, database, "tok-2", "7", time.Hour)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-2", 7, "sha256:aa", "PEM-7"); err != nil {
+	if _, err := database.RedeemJoinToken(ctx, "tok-2", "7", "sha256:aa", "PEM-7"); err != nil {
 		t.Fatalf("first redeem: %v", err)
 	}
 
-	pins, err := database.RedeemJoinToken(ctx, "tok-2", 7, "sha256:aa", "PEM-7")
+	pins, err := database.RedeemJoinToken(ctx, "tok-2", "7", "sha256:aa", "PEM-7")
 	if err != nil {
 		t.Fatalf("replay must succeed, got: %v", err)
 	}
@@ -235,31 +235,53 @@ func TestRedeemJoinToken_RejectsReplayWithDifferentCert(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-3", 7, time.Hour)
+	mintTestToken(t, database, "tok-3", "7", time.Hour)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-3", 7, "sha256:aa", "PEM-7"); err != nil {
+	if _, err := database.RedeemJoinToken(ctx, "tok-3", "7", "sha256:aa", "PEM-7"); err != nil {
 		t.Fatalf("first redeem: %v", err)
 	}
 
-	_, err := database.RedeemJoinToken(ctx, "tok-3", 7, "sha256:bb", "PEM-7b")
+	_, err := database.RedeemJoinToken(ctx, "tok-3", "7", "sha256:bb", "PEM-7b")
 	if !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
 		t.Fatalf("got %v, want ErrJoinTokenAlreadyConsumed", err)
 	}
 }
 
-func TestRedeemJoinToken_RejectsWrongNodeAndExpiry(t *testing.T) {
+func TestRedeemJoinToken_AnyNodeMayRedeem(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-4", 7, time.Hour)
+	mintTestToken(t, database, "tok-4", "7", time.Hour)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-4", 8, "sha256:aa", "PEM-8"); !errors.Is(err, db.ErrJoinTokenNodeMismatch) {
-		t.Fatalf("wrong node: got %v, want ErrJoinTokenNodeMismatch", err)
+	if _, err := database.RedeemJoinToken(ctx, "tok-4", "8", "sha256:bb", "PEM-8"); err != nil {
+		t.Fatalf("a join token proves the bearer may join and names no node: %v", err)
+	}
+}
+
+func TestRedeemJoinToken_RejectsIdentityBoundToAnotherCert(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-a", "7", time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-a", "7", "sha256:aa", "PEM-7"); err != nil {
+		t.Fatalf("first redemption: %v", err)
 	}
 
-	mintTestToken(t, database, "tok-5", 9, -time.Hour)
+	mintTestToken(t, database, "tok-b", "7", time.Hour)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-5", 9, "sha256:aa", "PEM-9"); !errors.Is(err, db.ErrJoinTokenExpired) {
+	if _, err := database.RedeemJoinToken(ctx, "tok-b", "7", "sha256:cc", "PEM-7-other"); !errors.Is(err, db.ErrNodeIdentityBound) {
+		t.Fatalf("a second cert for a bound identity: got %v, want ErrNodeIdentityBound", err)
+	}
+}
+
+func TestRedeemJoinToken_RejectsExpiry(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-5", "9", -time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-5", "9", "sha256:aa", "PEM-9"); !errors.Is(err, db.ErrJoinTokenExpired) {
 		t.Fatalf("expired: got %v, want ErrJoinTokenExpired", err)
 	}
 
@@ -271,7 +293,7 @@ func TestRedeemJoinToken_RejectsWrongNodeAndExpiry(t *testing.T) {
 func TestRedeemJoinToken_UnknownTokenIsNotFound(t *testing.T) {
 	database := setupPKIDB(t)
 
-	if _, err := database.RedeemJoinToken(context.Background(), "nope", 7, "sha256:aa", "PEM"); !errors.Is(err, db.ErrNotFound) {
+	if _, err := database.RedeemJoinToken(context.Background(), "nope", "7", "sha256:aa", "PEM"); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("got %v, want ErrNotFound", err)
 	}
 }
@@ -280,15 +302,15 @@ func TestRedeemJoinToken_ToleratesClockSkewOnExpiry(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-skew", 11, -pki.JoinTokenClockSkew/2)
+	mintTestToken(t, database, "tok-skew", "11", -pki.JoinTokenClockSkew/2)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-skew", 11, "sha256:cc", "PEM-11"); err != nil {
+	if _, err := database.RedeemJoinToken(ctx, "tok-skew", "11", "sha256:cc", "PEM-11"); err != nil {
 		t.Fatalf("token inside the clock-skew grace was rejected: %v", err)
 	}
 
-	mintTestToken(t, database, "tok-stale", 12, -2*pki.JoinTokenClockSkew)
+	mintTestToken(t, database, "tok-stale", "12", -2*pki.JoinTokenClockSkew)
 
-	if _, err := database.RedeemJoinToken(ctx, "tok-stale", 12, "sha256:dd", "PEM-12"); !errors.Is(err, db.ErrJoinTokenExpired) {
+	if _, err := database.RedeemJoinToken(ctx, "tok-stale", "12", "sha256:dd", "PEM-12"); !errors.Is(err, db.ErrJoinTokenExpired) {
 		t.Fatalf("token beyond the clock-skew grace: got %v, want ErrJoinTokenExpired", err)
 	}
 }
@@ -297,8 +319,8 @@ func TestDeleteStaleJoinTokens_KeepsTokensInsideClockSkew(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-fresh", 13, -pki.JoinTokenClockSkew/2)
-	mintTestToken(t, database, "tok-old", 14, -2*pki.JoinTokenClockSkew)
+	mintTestToken(t, database, "tok-fresh", "13", -pki.JoinTokenClockSkew/2)
+	mintTestToken(t, database, "tok-old", "14", -2*pki.JoinTokenClockSkew)
 
 	if err := database.DeleteStaleJoinTokens(ctx, time.Now()); err != nil {
 		t.Fatalf("tidy: %v", err)

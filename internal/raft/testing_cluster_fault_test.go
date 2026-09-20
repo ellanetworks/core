@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +85,7 @@ func TestCluster_FollowerTrackerMarksStoppedPeerUnhealthy(t *testing.T) {
 
 	leader := tc.Nodes[leaderIdx]
 	followerIdx := (leaderIdx + 1) % 3
-	peerID := hraft.ServerID(strconv.Itoa(tc.nodes[followerIdx].nodeID))
+	peerID := hraft.ServerID(tc.nodes[followerIdx].nodeID)
 
 	proposeAndIndex(t, leader, 3)
 	tc.StopNode(followerIdx)
@@ -191,10 +190,10 @@ func TestCluster_PartitionBlocksBothDirections(t *testing.T) {
 	}
 }
 
-func waitForMembers(m *Manager, want int, timeout time.Duration) []int {
+func waitForMembers(m *Manager, want int, timeout time.Duration) []string {
 	deadline := time.Now().Add(timeout)
 
-	var ids []int
+	var ids []string
 
 	for time.Now().Before(deadline) {
 		ids = m.MemberIDs()
@@ -248,13 +247,13 @@ func TestCluster_RemoveStoppedNode(t *testing.T) {
 	tc.StopNode(followerIdx)
 
 	if err := leader.RemoveServer(stoppedID); err != nil {
-		t.Fatalf("remove stopped node %d: %v", stoppedID, err)
+		t.Fatalf("remove stopped node %s: %v", stoppedID, err)
 	}
 
 	ids := waitForMembers(leader, 2, 10*time.Second)
 	for _, id := range ids {
 		if id == stoppedID {
-			t.Fatalf("stopped node %d still in configuration %v", stoppedID, ids)
+			t.Fatalf("stopped node %s still in configuration %v", stoppedID, ids)
 		}
 	}
 
@@ -296,7 +295,7 @@ func TestCluster_StoppedPeerStaysInConfiguration(t *testing.T) {
 	leader := tc.Nodes[leaderIdx]
 	followerIdx := (leaderIdx + 1) % 3
 	stoppedID := tc.nodes[followerIdx].nodeID
-	peerID := hraft.ServerID(strconv.Itoa(stoppedID))
+	peerID := hraft.ServerID(stoppedID)
 
 	proposeAndIndex(t, leader, 3)
 	tc.StopNode(followerIdx)
@@ -307,7 +306,7 @@ func TestCluster_StoppedPeerStaysInConfiguration(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if ids := leader.MemberIDs(); len(ids) != 3 {
-			t.Fatalf("node %d left the configuration after a brief outage; configuration is %v", stoppedID, ids)
+			t.Fatalf("node %s left the configuration after a brief outage; configuration is %v", stoppedID, ids)
 		}
 
 		time.Sleep(50 * time.Millisecond)

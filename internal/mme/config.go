@@ -30,7 +30,7 @@ func (m *MME) Operator(ctx context.Context) (OperatorConfig, error) {
 		return OperatorConfig{}, fmt.Errorf("get operator: %w", err)
 	}
 
-	return OperatorConfig{op: op, nodeID: m.Bearer.NodeID()}, nil
+	return OperatorConfig{op: op, nodeID: m.Bearer.AMFPointer()}, nil
 }
 
 // PLMN returns the operator's serving PLMN (TS 23.003), the network's

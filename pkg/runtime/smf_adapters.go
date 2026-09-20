@@ -121,7 +121,7 @@ func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID 
 	// leader inside leaderCaptureAndPropose's proposeMu, so concurrent
 	// allocations from any node serialise correctly. The legacy
 	// pre-pick-on-follower path is gone.
-	addr, err := s.a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
+	addr, err := s.a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.RaftID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate failed")
@@ -152,7 +152,7 @@ func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID u
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
+	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.RaftID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")
@@ -181,7 +181,7 @@ func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionI
 		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
 	}
 
-	addr, err := s.a.db.AllocateIPv6Lease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
+	addr, err := s.a.db.AllocateIPv6Lease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.RaftID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate IPv6 failed")
@@ -212,7 +212,7 @@ func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID
 		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
 	}
 
-	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
+	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.RaftID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release IPv6 failed")

@@ -50,7 +50,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		if req.NodeID < pki.MinNodeID || req.NodeID > pki.MaxNodeID {
+		if req.NodeID == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "node-id out of range", nil, logger.APILog)
 			return
 		}
@@ -66,14 +66,14 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 		case hasPeer:
 			// mTLS path: the cert's owner is the only caller who
 			// may re-pin its nodeID.
-			if peerNodeID != req.NodeID {
+			if peerNodeID != string(req.NodeID) {
 				writeError(r.Context(), w, http.StatusForbidden,
 					"node-id in body does not match presenting peer cert", nil, logger.APILog)
 
 				return
 			}
 
-			fp, pins, err = svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
+			fp, pins, err = svc.RegisterCert(r.Context(), string(req.NodeID), []byte(req.CertPEM))
 			if err != nil {
 				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusBadRequest), "register cert", err, logger.APILog)
 				return
@@ -87,7 +87,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 				return
 			}
 
-			fp, pins, err = svc.RedeemJoinToken(r.Context(), req.Token, req.NodeID, []byte(req.CertPEM))
+			fp, pins, err = svc.RedeemJoinToken(r.Context(), req.Token, string(req.NodeID), []byte(req.CertPEM))
 			if err != nil {
 				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusUnauthorized),
 					clusterPKIMessage(err, "redeem join token"), err, logger.APILog)
@@ -98,7 +98,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 		records := make([]pkiagent.PinRecord, 0, len(pins))
 		for _, p := range pins {
-			records = append(records, pkiagent.PinRecord{NodeID: p.NodeID, Fingerprint: p.Fingerprint})
+			records = append(records, pkiagent.PinRecord{NodeID: pki.NodeID(p.NodeID), Fingerprint: p.Fingerprint})
 		}
 
 		w.Header().Set("Content-Type", "application/json")

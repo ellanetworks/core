@@ -148,7 +148,7 @@ func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload j
 
 	return m.runForwardRetryLoop(ctx, timeout, func(attemptCtx context.Context) (*ProposeResult, int, error) {
 		leaderAddr, leaderID := m.LeaderAddressAndID()
-		if leaderAddr == "" || leaderID == 0 {
+		if leaderAddr == "" || leaderID == "" {
 			return nil, http.StatusServiceUnavailable, nil
 		}
 
@@ -210,7 +210,7 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 	return nil, lastErr
 }
 
-func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leaderID int, data []byte) (*ProposeResult, int, error) {
+func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leaderID string, data []byte) (*ProposeResult, int, error) {
 	resp, err := m.leaderClient.do(ctx, leaderAddr, leaderID, leaderHTTPRequest{
 		method:           http.MethodPost,
 		path:             ProposeForwardPath,
@@ -342,7 +342,7 @@ type LeaderResponse struct {
 // leader.
 func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body []byte, contentType string) (*LeaderResponse, error) {
 	leaderAddr, leaderID := m.LeaderAddressAndID()
-	if m.leaderClient == nil || leaderAddr == "" || leaderID == 0 {
+	if m.leaderClient == nil || leaderAddr == "" || leaderID == "" {
 		return nil, hraft.ErrNotLeader
 	}
 

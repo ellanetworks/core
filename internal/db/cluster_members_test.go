@@ -37,7 +37,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	// Upsert a member
 	member1 := &db.ClusterMember{
-		NodeID:      1,
+		NodeID:      "1",
 		RaftAddress: "10.0.0.1:8300",
 		APIAddress:  "10.0.0.1:8443",
 	}
@@ -57,8 +57,8 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 		t.Fatalf("Expected 1 member, got %d", len(members))
 	}
 
-	if members[0].NodeID != 1 {
-		t.Fatalf("Expected nodeID 1, got %d", members[0].NodeID)
+	if members[0].NodeID != "1" {
+		t.Fatalf("Expected nodeID 1, got %s", members[0].NodeID)
 	}
 
 	if members[0].RaftAddress != "10.0.0.1:8300" {
@@ -70,7 +70,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 	}
 
 	// Get member by ID
-	retrieved, err := database.GetClusterMember(ctx, 1)
+	retrieved, err := database.GetClusterMember(ctx, "1")
 	if err != nil {
 		t.Fatalf("Couldn't get cluster member: %s", err)
 	}
@@ -81,7 +81,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	// Upsert same member with updated address (should update, not duplicate)
 	member1Updated := &db.ClusterMember{
-		NodeID:      1,
+		NodeID:      "1",
 		RaftAddress: "10.0.0.1:9300",
 		APIAddress:  "10.0.0.1:9443",
 	}
@@ -102,7 +102,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 	}
 
 	// Verify updated address
-	retrieved, err = database.GetClusterMember(ctx, 1)
+	retrieved, err = database.GetClusterMember(ctx, "1")
 	if err != nil {
 		t.Fatalf("Couldn't get updated cluster member: %s", err)
 	}
@@ -117,7 +117,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	// Add a second member
 	member2 := &db.ClusterMember{
-		NodeID:      2,
+		NodeID:      "2",
 		RaftAddress: "10.0.0.2:8300",
 		APIAddress:  "10.0.0.2:8443",
 	}
@@ -147,22 +147,22 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 		t.Fatalf("Expected 2 members, got %d", len(members))
 	}
 
-	if members[0].NodeID != 1 {
-		t.Fatalf("Expected first member nodeID 1, got %d", members[0].NodeID)
+	if members[0].NodeID != "1" {
+		t.Fatalf("Expected first member nodeID 1, got %s", members[0].NodeID)
 	}
 
-	if members[1].NodeID != 2 {
-		t.Fatalf("Expected second member nodeID 2, got %d", members[1].NodeID)
+	if members[1].NodeID != "2" {
+		t.Fatalf("Expected second member nodeID 2, got %s", members[1].NodeID)
 	}
 
 	// Get non-existent member should return ErrNotFound
-	_, err = database.GetClusterMember(ctx, 999)
+	_, err = database.GetClusterMember(ctx, "999")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got: %v", err)
 	}
 
 	// Delete first member
-	err = database.DeleteClusterMember(ctx, 1)
+	err = database.DeleteClusterMember(ctx, "1")
 	if err != nil {
 		t.Fatalf("Couldn't delete cluster member: %s", err)
 	}
@@ -178,13 +178,13 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 	}
 
 	// Delete non-existent member should return ErrNotFound
-	err = database.DeleteClusterMember(ctx, 999)
+	err = database.DeleteClusterMember(ctx, "999")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound for delete of non-existent, got: %v", err)
 	}
 
 	// Clean up second member
-	err = database.DeleteClusterMember(ctx, 2)
+	err = database.DeleteClusterMember(ctx, "2")
 	if err != nil {
 		t.Fatalf("Couldn't delete second cluster member: %s", err)
 	}

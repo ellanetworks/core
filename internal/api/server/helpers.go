@@ -24,7 +24,7 @@ func getEmailFromContext(r *http.Request) string {
 // ella-node-<n>. Requests on the public API port fall back to the JWT email.
 func getActorFromContext(r *http.Request) string {
 	if nodeID, ok := peerNodeIDFromContext(r.Context()); ok {
-		return fmt.Sprintf("ella-node-%d", nodeID)
+		return fmt.Sprintf("ella-node-%s", nodeID)
 	}
 
 	return getEmailFromContext(r)

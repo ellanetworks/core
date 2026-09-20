@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
 )
@@ -19,43 +20,43 @@ import (
 // table and returns the leader's API address and node-id. Either field
 // is zero when no leader is known or the leader's row is not yet
 // present.
-func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID int) {
+func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID pki.NodeID) {
 	raftAddr := dbInstance.LeaderAddress()
 	if raftAddr == "" {
-		return "", 0
+		return "", ""
 	}
 
 	members, err := dbInstance.ListClusterMembers(context.Background())
 	if err != nil {
-		return "", 0
+		return "", ""
 	}
 
 	for _, m := range members {
 		if m.RaftAddress == raftAddr {
-			return m.APIAddress, m.NodeID
+			return m.APIAddress, pki.NodeID(m.NodeID)
 		}
 	}
 
-	return "", 0
+	return "", ""
 }
 
 // PendingMigrationResponse is non-nil only during a rolling-upgrade
 // window. Surfaced under cluster.pendingMigration.
 type PendingMigrationResponse struct {
-	CurrentSchema int `json:"currentSchema"`
-	TargetSchema  int `json:"targetSchema"`
-	LaggardNodeId int `json:"laggardNodeId,omitempty"`
+	CurrentSchema int        `json:"currentSchema"`
+	TargetSchema  int        `json:"targetSchema"`
+	LaggardNodeId pki.NodeID `json:"laggardNodeId,omitempty"`
 }
 
 type ClusterStatusResponse struct {
-	Enabled          bool   `json:"enabled"`
-	Role             string `json:"role"`
-	NodeID           int    `json:"nodeId"`
-	IsLeader         bool   `json:"isLeader"`
-	LeaderNodeID     int    `json:"leaderNodeId"`
-	AppliedIndex     uint64 `json:"appliedIndex"`
-	ClusterID        string `json:"clusterId,omitempty"`
-	LeaderAPIAddress string `json:"leaderAPIAddress,omitempty"`
+	Enabled          bool       `json:"enabled"`
+	Role             string     `json:"role"`
+	NodeID           pki.NodeID `json:"nodeId"`
+	IsLeader         bool       `json:"isLeader"`
+	LeaderNodeID     pki.NodeID `json:"leaderNodeId"`
+	AppliedIndex     uint64     `json:"appliedIndex"`
+	ClusterID        string     `json:"clusterId,omitempty"`
+	LeaderAPIAddress string     `json:"leaderAPIAddress,omitempty"`
 
 	// AppliedSchemaVersion is what the cluster has committed; the
 	// top-level SchemaVersion is what this binary supports. They
@@ -119,7 +120,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 			clusterStatus := ClusterStatusResponse{
 				Enabled:      true,
 				Role:         role,
-				NodeID:       dbInstance.NodeID(),
+				NodeID:       pki.NodeID(dbInstance.RaftID()),
 				IsLeader:     dbInstance.IsLeader(),
 				AppliedIndex: dbInstance.RaftAppliedIndex(),
 			}
@@ -143,7 +144,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 					clusterStatus.PendingMigration = &PendingMigrationResponse{
 						CurrentSchema: pending.CurrentSchema,
 						TargetSchema:  pending.TargetSchema,
-						LaggardNodeId: pending.LaggardNodeID,
+						LaggardNodeId: pki.NodeID(pending.LaggardNodeID),
 					}
 				}
 			} else {

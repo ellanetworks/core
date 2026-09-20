@@ -17,7 +17,7 @@ import (
 func TestStartDiscoveryWithoutClusterListenerIsTerminal(t *testing.T) {
 	t.Parallel()
 
-	m := &Manager{nodeID: 3}
+	m := &Manager{raftID: "3"}
 	m.discoveryPending.Store(true)
 
 	err := m.StartDiscovery(context.Background())
@@ -56,14 +56,14 @@ func TestStartDiscoveryStopsOnFounderBootstrapFailure(t *testing.T) {
 	mgr.config.HasJoinToken = false
 	mgr.discoveryPending.Store(true)
 
-	pki := testutil.GenTestPKI(t, []int{1})
+	pki := testutil.GenTestPKI(t, []string{"1"})
 
 	mgr.attachClusterListener(listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(1),
+		Leaf:             pki.LeafFunc("1"),
 	}))
 
 	err = mgr.StartDiscovery(ctx)

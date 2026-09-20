@@ -8,12 +8,11 @@ import (
 	"errors"
 	"net/http"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/hashicorp/raft"
+	"github.com/ellanetworks/core/internal/pki"
 	autopilot "github.com/hashicorp/raft-autopilot"
 )
 
@@ -26,21 +25,21 @@ const InternalAutopilotPath = "/cluster/internal/autopilot"
 // mapped from autopilot.ServerState so the library struct never leaks
 // into the public API.
 type AutopilotServerResponse struct {
-	NodeID          int    `json:"nodeId"`
-	RaftAddress     string `json:"raftAddress"`
-	NodeStatus      string `json:"nodeStatus"`
-	Healthy         bool   `json:"healthy"`
-	IsLeader        bool   `json:"isLeader"`
-	HasVotingRights bool   `json:"hasVotingRights"`
-	StableSince     string `json:"stableSince,omitempty"`
+	NodeID          pki.NodeID `json:"nodeId"`
+	RaftAddress     string     `json:"raftAddress"`
+	NodeStatus      string     `json:"nodeStatus"`
+	Healthy         bool       `json:"healthy"`
+	IsLeader        bool       `json:"isLeader"`
+	HasVotingRights bool       `json:"hasVotingRights"`
+	StableSince     string     `json:"stableSince,omitempty"`
 }
 
 // AutopilotStateResponse is the cluster-wide live state on the wire.
 type AutopilotStateResponse struct {
 	Healthy          bool                      `json:"healthy"`
 	FailureTolerance int                       `json:"failureTolerance"`
-	LeaderNodeID     int                       `json:"leaderNodeId"`
-	Voters           []int                     `json:"voters"`
+	LeaderNodeID     pki.NodeID                `json:"leaderNodeId"`
+	Voters           []pki.NodeID              `json:"voters"`
 	Servers          []AutopilotServerResponse `json:"servers"`
 }
 
@@ -102,29 +101,24 @@ func ClusterAutopilotState(dbInstance *db.Database) http.Handler {
 func mapAutopilotState(state *autopilot.State) AutopilotStateResponse {
 	if state == nil {
 		return AutopilotStateResponse{
-			Voters:  []int{},
+			Voters:  []pki.NodeID{},
 			Servers: []AutopilotServerResponse{},
 		}
 	}
 
-	voters := make([]int, 0, len(state.Voters))
+	voters := make([]pki.NodeID, 0, len(state.Voters))
 
 	for _, id := range state.Voters {
-		if n, err := parseRaftServerID(id); err == nil {
-			voters = append(voters, n)
-		}
+		voters = append(voters, pki.NodeID(id))
 	}
 
-	sort.Ints(voters)
+	sort.Slice(voters, func(i, j int) bool { return voters[i] < voters[j] })
 
-	leaderID, _ := parseRaftServerID(state.Leader)
+	leaderID := pki.NodeID(state.Leader)
 
 	servers := make([]AutopilotServerResponse, 0, len(state.Servers))
 	for id, srv := range state.Servers {
-		nodeID, err := parseRaftServerID(id)
-		if err != nil {
-			continue
-		}
+		nodeID := pki.NodeID(id)
 
 		item := AutopilotServerResponse{
 			NodeID:          nodeID,
@@ -153,8 +147,4 @@ func mapAutopilotState(state *autopilot.State) AutopilotStateResponse {
 		Voters:           voters,
 		Servers:          servers,
 	}
-}
-
-func parseRaftServerID(id raft.ServerID) (int, error) {
-	return strconv.Atoi(string(id))
 }

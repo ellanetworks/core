@@ -104,16 +104,16 @@ func startTestClusterHTTP(t *testing.T, ln *listener.Listener, handler http.Hand
 func newProbePeerHarness(t *testing.T, handler http.Handler) (*Manager, string) {
 	t.Helper()
 
-	pki := testutil.GenTestPKI(t, []int{1, 2})
+	pki := testutil.GenTestPKI(t, []string{"1", "2"})
 
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
 
 	serverLn := listener.New(listener.Config{
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(1),
+		Leaf:             pki.LeafFunc("1"),
 	})
 
 	startTestClusterHTTP(t, serverLn, handler)
@@ -127,9 +127,9 @@ func newProbePeerHarness(t *testing.T, handler http.Handler) (*Manager, string) 
 	clientLn := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
+		NodeID:           "2",
 		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(2),
+		Leaf:             pki.LeafFunc("2"),
 	})
 
 	return &Manager{clusterListener: clientLn}, serverAddr
@@ -147,35 +147,35 @@ func TestProbePeer(t *testing.T) {
 		name          string
 		handler       http.Handler
 		wantState     peerState
-		wantNodeID    int
+		wantNodeID    string
 		wantClusterID string
 		wantSchema    int
 	}{
 		{
 			name: "leader",
 			handler: statusHandler(&statusClusterBlock{
-				Role: "Leader", NodeID: 1, ClusterID: "cluster-1", SchemaVersion: 9,
+				Role: "Leader", NodeID: "1", ClusterID: "cluster-1", SchemaVersion: 9,
 			}),
 			wantState:     peerFormed,
-			wantNodeID:    1,
+			wantNodeID:    "1",
 			wantClusterID: "cluster-1",
 			wantSchema:    9,
 		},
 		{
 			name: "follower",
 			handler: statusHandler(&statusClusterBlock{
-				Role: "Follower", NodeID: 2, ClusterID: "cluster-1", SchemaVersion: 9,
+				Role: "Follower", NodeID: "2", ClusterID: "cluster-1", SchemaVersion: 9,
 			}),
 			wantState:     peerFormed,
-			wantNodeID:    2,
+			wantNodeID:    "2",
 			wantClusterID: "cluster-1",
 			wantSchema:    9,
 		},
 		{
 			name:       "forming",
-			handler:    statusHandler(&statusClusterBlock{Role: "Follower", NodeID: 3}),
+			handler:    statusHandler(&statusClusterBlock{Role: "Follower", NodeID: "3"}),
 			wantState:  peerForming,
-			wantNodeID: 3,
+			wantNodeID: "3",
 		},
 		{
 			name: "unavailable",
@@ -197,7 +197,7 @@ func TestProbePeer(t *testing.T) {
 			}
 
 			if nodeID != tt.wantNodeID {
-				t.Errorf("nodeID = %d, want %d", nodeID, tt.wantNodeID)
+				t.Errorf("nodeID = %s, want %s", nodeID, tt.wantNodeID)
 			}
 
 			if clusterID != tt.wantClusterID {
@@ -226,7 +226,7 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pki := testutil.GenTestPKI(t, []int{1, 2})
+			pki := testutil.GenTestPKI(t, []string{"1", "2"})
 
 			serverPort := discoveryFreePort(t)
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
@@ -234,15 +234,15 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 			serverLn := listener.New(listener.Config{
 				BindAddress:      serverAddr,
 				AdvertiseAddress: serverAddr,
-				NodeID:           1,
+				NodeID:           "1",
 				Pin:              pki.PinFunc(),
 
-				Leaf: pki.LeafFunc(1),
+				Leaf: pki.LeafFunc("1"),
 			})
 
 			cluster := &statusClusterBlock{
 				Role:          tc.role,
-				NodeID:        2, // same as probing node
+				NodeID:        "2", // same as probing node
 				SchemaVersion: 9,
 			}
 
@@ -269,14 +269,14 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 			clientLn := listener.New(listener.Config{
 				BindAddress:      "127.0.0.1:0",
 				AdvertiseAddress: "127.0.0.1:0",
-				NodeID:           2,
+				NodeID:           "2",
 				Pin:              pki.PinFunc(),
 
-				Leaf: pki.LeafFunc(2),
+				Leaf: pki.LeafFunc("2"),
 			})
 
 			m := &Manager{
-				nodeID:          2,
+				raftID:          "2",
 				clusterListener: clientLn,
 				config: ClusterConfig{
 					Peers:            []string{serverAddr},

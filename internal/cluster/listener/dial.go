@@ -15,7 +15,7 @@ import (
 // negotiates alpn. Closes the connection unless the peer's
 // fingerprint is pinned and its SPIFFE URI nodeID equals
 // expectedPeerID.
-func (l *Listener) Dial(ctx context.Context, addr string, expectedPeerID int, alpn string, timeout time.Duration) (*tls.Conn, error) {
+func (l *Listener) Dial(ctx context.Context, addr string, expectedPeerID string, alpn string, timeout time.Duration) (*tls.Conn, error) {
 	return l.dial(ctx, addr, expectedPeerID, alpn, timeout)
 }
 
@@ -23,10 +23,10 @@ func (l *Listener) Dial(ctx context.Context, addr string, expectedPeerID int, al
 // enforcement still applies. Used by discovery paths that learn the
 // peer's identity from the connection.
 func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout time.Duration) (*tls.Conn, error) {
-	return l.dial(ctx, addr, 0, alpn, timeout)
+	return l.dial(ctx, addr, "", alpn, timeout)
 }
 
-func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, alpn string, timeout time.Duration) (*tls.Conn, error) {
+func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string, alpn string, timeout time.Duration) (*tls.Conn, error) {
 	dialCfg := l.tlsConfig.Clone()
 	dialCfg.NextProtos = []string{alpn}
 
@@ -59,7 +59,7 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, al
 		return nil, fmt.Errorf("cluster dial %s: negotiated ALPN %q, expected %q", addr, proto, alpn)
 	}
 
-	if expectedPeerID != 0 {
+	if expectedPeerID != "" {
 		actualID, err := PeerNodeID(tlsConn)
 		if err != nil {
 			_ = tlsConn.Close()
@@ -68,7 +68,7 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, al
 
 		if actualID != expectedPeerID {
 			_ = tlsConn.Close()
-			return nil, fmt.Errorf("cluster dial %s: expected peer node-id %d, peer presented %d", addr, expectedPeerID, actualID)
+			return nil, fmt.Errorf("cluster dial %s: expected peer node-id %s, peer presented %s", addr, expectedPeerID, actualID)
 		}
 	}
 

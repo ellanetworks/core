@@ -43,12 +43,12 @@ type BGPSpeaker interface {
 }
 
 type Store interface {
-	NodeID() int
+	RaftID() string
 	ClusterEnabled() bool
 	IsBGPEnabled(ctx context.Context) (bool, error)
-	GetClusterMember(ctx context.Context, nodeID int) (*db.ClusterMember, error)
+	GetClusterMember(ctx context.Context, nodeID string) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
-	SetDrainState(ctx context.Context, nodeID int, state string) error
+	SetDrainState(ctx context.Context, nodeID string, state string) error
 }
 
 type Reconciler struct {
@@ -154,7 +154,7 @@ func (r *Reconciler) localState(ctx context.Context) (string, bool) {
 		return db.DrainStateActive, true
 	}
 
-	member, err := r.store.GetClusterMember(ctx, r.store.NodeID())
+	member, err := r.store.GetClusterMember(ctx, r.store.RaftID())
 	if err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not read local cluster member", zap.Error(err))
 		return "", false
@@ -201,7 +201,7 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	member, err := r.store.GetClusterMember(ctx, r.store.NodeID())
+	member, err := r.store.GetClusterMember(ctx, r.store.RaftID())
 	if err != nil || member.DrainState != db.DrainStateDraining {
 		return
 	}
@@ -232,7 +232,7 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	if err := r.store.SetDrainState(ctx, r.store.NodeID(), db.DrainStateDrained); err != nil {
+	if err := r.store.SetDrainState(ctx, r.store.RaftID(), db.DrainStateDrained); err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not mark drain complete", zap.Error(err))
 		return
 	}
@@ -255,7 +255,7 @@ func (r *Reconciler) hasSomewhereToGo(ctx context.Context) bool {
 	}
 
 	for _, m := range members {
-		if m.NodeID == r.store.NodeID() {
+		if m.NodeID == r.store.RaftID() {
 			continue
 		}
 

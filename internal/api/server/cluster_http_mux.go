@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/raft"
 	"go.uber.org/zap"
 )
@@ -100,11 +101,11 @@ func removedNodeFence(dbInstance *db.Database, next http.Handler) http.Handler {
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				logger.APILog.Warn("proxy: rejected write from removed cluster member",
-					zap.Int("peer_node_id", peerID),
+					zap.String("peer_node_id", peerID),
 					zap.String("method", r.Method),
 					zap.String("path", r.URL.Path))
 				writeError(r.Context(), w, http.StatusGone,
-					fmt.Sprintf("node-id %d is not a current cluster member", peerID), nil, logger.APILog)
+					fmt.Sprintf("node-id %s is not a current cluster member", peerID), nil, logger.APILog)
 
 				return
 			}
@@ -142,7 +143,7 @@ func selfRegistrationGuard(next http.Handler) http.Handler {
 		}
 
 		var probe struct {
-			NodeID int `json:"nodeId"`
+			NodeID pki.NodeID `json:"nodeId"`
 		}
 
 		if err := json.Unmarshal(body, &probe); err != nil {
@@ -150,9 +151,9 @@ func selfRegistrationGuard(next http.Handler) http.Handler {
 			return
 		}
 
-		if probe.NodeID != peerID {
+		if string(probe.NodeID) != peerID {
 			writeError(r.Context(), w, http.StatusForbidden,
-				fmt.Sprintf("nodeId %d does not match peer certificate CN (node-id %d)", probe.NodeID, peerID),
+				fmt.Sprintf("nodeId %s does not match peer certificate CN (node-id %s)", probe.NodeID, peerID),
 				nil, logger.APILog)
 
 			return
@@ -165,12 +166,12 @@ func selfRegistrationGuard(next http.Handler) http.Handler {
 }
 
 type clusterNodeStatus struct {
-	Role          string `json:"role"`
-	NodeID        int    `json:"nodeId"`
-	ClusterID     string `json:"clusterId,omitempty"`
-	SchemaVersion int    `json:"schemaVersion"`
-	AppliedSchema int    `json:"appliedSchema,omitempty"`
-	PendingSchema int    `json:"pendingSchema,omitempty"`
+	Role          string     `json:"role"`
+	NodeID        pki.NodeID `json:"nodeId"`
+	ClusterID     string     `json:"clusterId,omitempty"`
+	SchemaVersion int        `json:"schemaVersion"`
+	AppliedSchema int        `json:"appliedSchema,omitempty"`
+	PendingSchema int        `json:"pendingSchema,omitempty"`
 }
 
 type clusterStatusResponse struct {
@@ -183,7 +184,7 @@ func ClusterStatus(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		status := clusterNodeStatus{
 			Role:          dbInstance.RaftState(),
-			NodeID:        dbInstance.NodeID(),
+			NodeID:        pki.NodeID(dbInstance.RaftID()),
 			SchemaVersion: db.SchemaVersion(),
 		}
 

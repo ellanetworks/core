@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -58,7 +59,7 @@ type IPLease struct {
 	SessionID  *int   `db:"sessionID"`
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
-	NodeID     int    `db:"nodeID"`
+	NodeID     string `db:"nodeID"`
 	PoolType   string `db:"poolType"`
 }
 
@@ -87,7 +88,7 @@ func (l *IPLease) Address() netip.Addr {
 // follower, the call is forwarded to the leader through the existing
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
-func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName)
 
 	_, span := tracer.Start(
@@ -113,7 +114,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		PoolType:  poolType,
 		IMSI:      imsi,
 		SessionID: sessionID,
-		NodeID:    nodeID,
+		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
 		span.RecordError(err)
@@ -141,7 +142,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 // forwards intent to the leader through the replication mechanism so that
 // concurrent allocations from any node serialise correctly under proposeMu.
 // Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
-func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName)
 
 	_, span := tracer.Start(
@@ -167,7 +168,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		PoolType:  poolType,
 		IMSI:      imsi,
 		SessionID: sessionID,
-		NodeID:    nodeID,
+		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
 		span.RecordError(err)
@@ -309,7 +310,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 	return nil
 }
 
-func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName)
 
 	_, span := tracer.Start(
@@ -335,7 +336,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		PoolType:  poolType,
 		IMSI:      imsi,
 		SessionID: sessionID,
-		NodeID:    nodeID,
+		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
 		span.RecordError(err)
@@ -436,7 +437,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 // DeleteDynamicLeasesByNode removes dynamic leases tagged with the
 // given nodeID. Static leases are preserved: an admin-pinned IP stays
 // bound to its IMSI regardless of which node previously served it.
-func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
+func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s (dynamic by node)", "DELETE", IPLeasesTableName)
 
 	_, span := tracer.Start(
@@ -458,7 +459,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &intPayload{Value: nodeID})
+	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -473,7 +474,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
-func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID string, sessionID int) error {
 	querySummary := fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName)
 
 	_, span := tracer.Start(
@@ -556,7 +557,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 // node to derive its local advertisement set: BGP routes are advertised
 // from the node that hosts the PDU session, not by every node in the
 // cluster.
-func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]IPLease, error) {
+func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) ([]IPLease, error) {
 	querySummary := fmt.Sprintf("%s %s (active,by_node)", "SELECT", IPLeasesTableName)
 
 	ctx, span := tracer.Start(

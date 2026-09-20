@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 type ClusterStatusBody struct {
-	Enabled          bool   `json:"enabled"`
-	Role             string `json:"role"`
-	NodeID           int    `json:"nodeId"`
-	IsLeader         bool   `json:"isLeader"`
-	LeaderNodeID     int    `json:"leaderNodeId"`
-	LeaderAPIAddress string `json:"leaderAPIAddress,omitempty"`
+	Enabled          bool       `json:"enabled"`
+	Role             string     `json:"role"`
+	NodeID           pki.NodeID `json:"nodeId"`
+	IsLeader         bool       `json:"isLeader"`
+	LeaderNodeID     pki.NodeID `json:"leaderNodeId"`
+	LeaderAPIAddress string     `json:"leaderAPIAddress,omitempty"`
 }
 
 type GetStatusResponseResult struct {
@@ -78,7 +80,7 @@ func TestStatusEndToEnd(t *testing.T) {
 			t.Fatalf("expected cluster.enabled=false with clustering disabled")
 		}
 
-		if response.Result.Cluster.Role != "" || response.Result.Cluster.NodeID != 0 {
+		if response.Result.Cluster.Role != "" || response.Result.Cluster.NodeID != "" {
 			t.Fatalf("expected no raft fields with clustering disabled, got %+v", response.Result.Cluster)
 		}
 	})

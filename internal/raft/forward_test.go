@@ -386,13 +386,13 @@ func TestDoForwardRequest_PostSendFailureIsOutcomeUnknown(t *testing.T) {
 	}))
 
 	m := newRetryLoopTestManager(t)
-	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, a string, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
 	})
 
 	t.Cleanup(m.leaderClient.close)
 
-	_, status, err := m.doForwardRequest(context.Background(), addr, 1, []byte(`{}`))
+	_, status, err := m.doForwardRequest(context.Background(), addr, "1", []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected an error when the leader hangs up mid-request")
 	}
@@ -408,7 +408,7 @@ func TestDoForwardRequest_PostSendFailureIsOutcomeUnknown(t *testing.T) {
 
 func TestDoForwardRequest_DialTimeoutIsRetryableNotOutcomeUnknown(t *testing.T) {
 	m := newRetryLoopTestManager(t)
-	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, _ string, _ int) (net.Conn, error) {
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, _ string, _ string) (net.Conn, error) {
 		<-ctx.Done()
 
 		return nil, errors.New("dial: i/o timeout")
@@ -419,7 +419,7 @@ func TestDoForwardRequest_DialTimeoutIsRetryableNotOutcomeUnknown(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	_, status, err := m.doForwardRequest(ctx, "10.0.0.1:7000", 1, []byte(`{}`))
+	_, status, err := m.doForwardRequest(ctx, "10.0.0.1:7000", "1", []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected an error when the dial outlives the request deadline")
 	}
@@ -435,13 +435,13 @@ func TestDoForwardRequest_DialTimeoutIsRetryableNotOutcomeUnknown(t *testing.T) 
 
 func TestDoForwardRequest_DialFailureIsRetryableNotOutcomeUnknown(t *testing.T) {
 	m := newRetryLoopTestManager(t)
-	m.leaderClient = newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
+	m.leaderClient = newLeaderHTTPClient(func(context.Context, string, string) (net.Conn, error) {
 		return nil, errors.New("dial refused")
 	})
 
 	t.Cleanup(m.leaderClient.close)
 
-	_, status, err := m.doForwardRequest(context.Background(), "10.0.0.1:7000", 1, []byte(`{}`))
+	_, status, err := m.doForwardRequest(context.Background(), "10.0.0.1:7000", "1", []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected an error when the leader cannot be dialled")
 	}

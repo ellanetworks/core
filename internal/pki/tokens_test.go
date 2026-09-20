@@ -20,7 +20,6 @@ func TestToken_RoundTrip(t *testing.T) {
 
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(15 * time.Minute).Unix(),
 		LeaderCertPin: "sha256:abc",
@@ -37,7 +36,7 @@ func TestToken_RoundTrip(t *testing.T) {
 		t.Fatalf("Verify: %v", err)
 	}
 
-	if got.TokenID != claims.TokenID || got.NodeID != claims.NodeID {
+	if got.TokenID != claims.TokenID {
 		t.Fatalf("round-trip mismatch: %+v vs %+v", got, claims)
 	}
 }
@@ -49,7 +48,6 @@ func TestToken_WrongKey(t *testing.T) {
 	id, _ := pki.NewTokenID()
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
 		LeaderCertPin: "sha256:abc",
@@ -69,7 +67,6 @@ func TestToken_Tampered(t *testing.T) {
 	id, _ := pki.NewTokenID()
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
 		LeaderCertPin: "sha256:abc",
@@ -93,7 +90,6 @@ func TestToken_Expired(t *testing.T) {
 	id, _ := pki.NewTokenID()
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        2,
 		IssuedAt:      time.Now().Add(-2 * time.Hour).Unix(),
 		ExpiresAt:     time.Now().Add(-time.Hour).Unix(),
 		LeaderCertPin: "sha256:abc",
@@ -113,7 +109,6 @@ func TestToken_FutureIssued(t *testing.T) {
 	id, _ := pki.NewTokenID()
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        2,
 		IssuedAt:      time.Now().Add(time.Hour).Unix(),
 		ExpiresAt:     time.Now().Add(2 * time.Hour).Unix(),
 		LeaderCertPin: "sha256:abc",
@@ -146,7 +141,6 @@ func TestExtractClaimsUnverified_ReadsFingerprint(t *testing.T) {
 
 	claims := pki.JoinClaims{
 		TokenID:       id,
-		NodeID:        7,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
 		LeaderCertPin: "sha256:deadbeef",
@@ -167,10 +161,6 @@ func TestExtractClaimsUnverified_ReadsFingerprint(t *testing.T) {
 	if got.LeaderCertPin != "sha256:deadbeef" {
 		t.Fatalf("fingerprint = %q", got.LeaderCertPin)
 	}
-
-	if got.NodeID != 7 {
-		t.Fatalf("nodeID = %d", got.NodeID)
-	}
 }
 
 func TestMint_MissingFingerprint(t *testing.T) {
@@ -178,7 +168,6 @@ func TestMint_MissingFingerprint(t *testing.T) {
 
 	_, err := pki.MintJoinToken(k, pki.JoinClaims{
 		TokenID:   "x",
-		NodeID:    1,
 		IssuedAt:  1,
 		ExpiresAt: 10,
 	})
@@ -202,7 +191,6 @@ func TestMint_ShortKey(t *testing.T) {
 
 	_, err := pki.MintJoinToken(short, pki.JoinClaims{
 		TokenID:       "x",
-		NodeID:        1,
 		IssuedAt:      1,
 		ExpiresAt:     10,
 		LeaderCertPin: "sha256:abc",
