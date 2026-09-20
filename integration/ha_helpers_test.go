@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -113,6 +115,16 @@ func bringUpHACluster(t *testing.T, ctx context.Context, dc *DockerClient) ([]*c
 func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
 	t.Helper()
 
+	return bringUpHAClusterMode(t, ctx, dc, composeDir, services, extraPeers, false)
+}
+
+// bringUpHAClusterMode forms a cluster, optionally staging it the way a
+// release before the identity split expects: cluster.node-id in every
+// config and a node-id in the mint request. The rolling-upgrade test
+// needs that shape because its baseline image predates this change.
+func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string, legacy bool) ([]*client.Client, error) {
+	t.Helper()
+
 	dc.ComposeCleanup(ctx)
 
 	fail := func(err error) ([]*client.Client, error) {
@@ -124,7 +136,12 @@ func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, com
 	peers = append(peers, extraPeers...)
 
 	// Write node 1's config (no join-token, default voter suffrage).
-	if err := writeNodeConfig(composeDir, 1, peers, "", ""); err != nil {
+	writeCfg := writeNodeConfig
+	if legacy {
+		writeCfg = writeLegacyNodeConfig
+	}
+
+	if err := writeCfg(composeDir, 1, peers, "", ""); err != nil {
 		return fail(err)
 	}
 
@@ -156,6 +173,14 @@ func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, com
 	// For each additional node: mint token, write config, start.
 	for i := 1; i < len(services); i++ {
 		nodeID := i + 1
+
+		if legacy {
+			if err := stageAndStartLegacyJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers); err != nil {
+				return fail(err)
+			}
+
+			continue
+		}
 
 		if err := stageAndStartJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers, ""); err != nil {
 			return fail(err)
@@ -217,6 +242,22 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 	return dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service)
 }
 
+// stageAndStartLegacyJoiner mints a join token from a leader that still
+// binds tokens to a node-id, writes a config carrying that node-id, and
+// starts the service.
+func stageAndStartLegacyJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string) error {
+	token, err := mintLegacyJoinToken(ctx, leader, nodeID)
+	if err != nil {
+		return err
+	}
+
+	if err := writeLegacyNodeConfig(composeDir, nodeID, peers, token, ""); err != nil {
+		return err
+	}
+
+	return dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service)
+}
+
 // writeNodeConfig renders the node's core.yaml into the compose dir's
 // bind-mount path (./cfg/node<n>/core.yaml). Pass an empty
 // initialSuffrage to omit the cluster.initial-suffrage field.
@@ -224,11 +265,22 @@ func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, i
 	return writeNodeConfigOpts(composeDir, nodeID, peers, joinToken, initialSuffrage, false)
 }
 
+// writeLegacyNodeConfig renders a config carrying cluster.node-id, which
+// is what a release before the identity split requires. Used to stage a
+// baseline cluster the current binary then upgrades into.
+func writeLegacyNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
+	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, false, true)
+}
+
 // writeNodeConfigOpts is writeNodeConfig with a useFQDN switch that makes
 // cluster.bind-address resolve via Docker's embedded DNS (the compose
 // service name) instead of the per-node IP. The FQDN path is what real
 // orchestrator-managed deployments use.
 func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN bool) error {
+	return writeNodeConfigBody(composeDir, nodeID, peers, joinToken, initialSuffrage, useFQDN, false)
+}
+
+func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN, legacyNodeID bool) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -265,6 +317,11 @@ func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToke
 		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
 	}
 
+	nodeIDLine := ""
+	if legacyNodeID {
+		nodeIDLine = fmt.Sprintf("  node-id: %d\n", nodeID)
+	}
+
 	body := fmt.Sprintf(`logging:
   system:
     level: "debug"
@@ -288,9 +345,9 @@ datapath:
   attach-mode: "xdp-generic"
 cluster:
   enabled: true
-  bind-address: "%s:7000"
+%s  bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, nodeIDLine, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -1056,4 +1113,52 @@ func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *clie
 	}
 
 	return dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, service)
+}
+
+// mintLegacyJoinToken posts a mint request carrying a node-id, the shape
+// a release before the identity split requires. The typed client no
+// longer sends that field, so the request is built by hand.
+func mintLegacyJoinToken(ctx context.Context, leader *client.Client, nodeID int) (string, error) {
+	body := fmt.Sprintf(`{"nodeID":%d,"ttlSeconds":600}`, nodeID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		getHANodeURLs()[0]+"/api/v1/cluster/pki/join-tokens", strings.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("build legacy mint request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+leader.GetToken())
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("legacy mint for node %d: %w", nodeID, err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read legacy mint response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return "", fmt.Errorf("legacy mint for node %d: %s: %s", nodeID, resp.Status, payload)
+	}
+
+	var parsed struct {
+		Result struct {
+			Token string `json:"token"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(payload, &parsed); err != nil {
+		return "", fmt.Errorf("decode legacy mint response %s: %w", payload, err)
+	}
+
+	if parsed.Result.Token == "" {
+		return "", fmt.Errorf("legacy mint for node %d returned no token: %s", nodeID, payload)
+	}
+
+	return parsed.Result.Token, nil
 }

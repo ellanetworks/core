@@ -79,13 +79,37 @@ func TestCluster_ValidateBase(t *testing.T) {
 }
 
 func TestCluster_NodeIDRange(t *testing.T) {
-	for _, bad := range []int{0, 64, -1, 100} {
+	for _, bad := range []int{64, -1, 100} {
 		p := writeConfig(t, strings.Replace(baseConfigYAML, "node-id: 1", "node-id: "+itoa(bad), 1))
 
 		_, err := config.Validate(p)
 		if err == nil {
 			t.Fatalf("node-id %d should be rejected", bad)
 		}
+	}
+}
+
+// node-id no longer names the node: a config that omits it is valid, and
+// one that carries it is accepted so an upgrade does not fail at boot.
+func TestCluster_NodeIDOptional(t *testing.T) {
+	withoutNodeID := strings.Replace(baseConfigYAML, "  node-id: 1\n", "", 1)
+
+	cfg, err := config.Validate(writeConfig(t, withoutNodeID))
+	if err != nil {
+		t.Fatalf("a config without node-id must validate: %v", err)
+	}
+
+	if cfg.Cluster.NodeID != 0 {
+		t.Fatalf("cluster.node-id = %d, want 0 when absent", cfg.Cluster.NodeID)
+	}
+
+	cfg, err = config.Validate(writeConfig(t, baseConfigYAML))
+	if err != nil {
+		t.Fatalf("a config carrying the deprecated node-id must still validate: %v", err)
+	}
+
+	if cfg.Cluster.NodeID != 1 {
+		t.Fatalf("cluster.node-id = %d, want the parsed 1", cfg.Cluster.NodeID)
 	}
 }
 

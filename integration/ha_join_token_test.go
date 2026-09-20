@@ -94,8 +94,10 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 			wantFragment: "join token",
 		},
 		{
-			name:         "not_a_token",
-			token:        "this-is-not-a-join-token",
+			// Long enough to clear the config-level length check, so
+			// the rejection comes from verifying the credential.
+			name:         "unsigned_garbage",
+			token:        strings.Repeat("A", 96),
 			wantFragment: "join token",
 		},
 	}

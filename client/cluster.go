@@ -13,6 +13,7 @@ import (
 
 type ClusterMember struct {
 	NodeID         NodeID `json:"nodeId"`
+	DisplayName    string `json:"displayName"`
 	RaftAddress    string `json:"raftAddress"`
 	APIAddress     string `json:"apiAddress"`
 	BinaryVersion  string `json:"binaryVersion"`
@@ -123,6 +124,25 @@ func (c *Client) ResumeClusterMember(ctx context.Context, nodeID NodeID) error {
 // Autopilot also promotes stable non-voters automatically after a short
 // stabilization window; use this call when you need promotion without
 // waiting.
+func (c *Client) SetClusterMemberDisplayName(ctx context.Context, nodeID NodeID, displayName string) error {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(map[string]string{"displayName": displayName}); err != nil {
+		return fmt.Errorf("marshal display name: %w", err)
+	}
+
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/display-name", nodeID),
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) PromoteClusterMember(ctx context.Context, nodeID NodeID) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

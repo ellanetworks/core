@@ -45,21 +45,11 @@ var migrations = []migration{
 }
 
 // baselineVersion is the highest migration that runs locally during
-// cluster-mode startup. Post-baseline migrations are proposed through Raft
-// by the leader (§5.5).
-//
-// v12 must be local: the listener verifier reads cluster_node_certs on
-// every handshake, so the table must exist before the cluster TLS port
-// accepts any connection. Running v12 through Raft would deadlock —
-// Raft can't replicate without a working mTLS transport, and the
-// transport can't accept until v12 has run. v11 is local for similar
-// reasons (UUID-typed columns must be in place before request handlers
-// fire). This is the same reason 1.10.1 → 1.11 cannot be a rolling
-// upgrade; operators take that hop via backup/restore.
-//
-// The leader's Initialize() seed runs before post-baseline migrations apply, so
-// every column or table it writes must exist at the baseline.
-const baselineVersion = 17
+// cluster-mode startup; the leader proposes the rest through Raft.
+// Anything touched before the cluster exists must sit at or below it: the
+// pin table the mTLS listener verifies against, the member row written
+// while forming, and the leader's Initialize() seed.
+const baselineVersion = 20
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.

@@ -1,5 +1,30 @@
-# Stub overwritten by writeNodeConfig at test time.
 logging:
   system:
     level: "debug"
     output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "/data/ella.db"
+interfaces:
+  n2:
+    address: "10.100.0.13"
+    port: 38412
+  n3:
+    name: "eth0"
+  n6:
+    name: "n6"
+  api:
+    address: "10.100.0.13"
+    port: 5002
+datapath:
+  attach-mode: "xdp-generic"
+cluster:
+  enabled: true
+  node-id: 3
+  bind-address: "10.100.0.13:7000"
+  peers:
+      - "10.100.0.11:7000"
+      - "10.100.0.12:7000"
+      - "10.100.0.13:7000"
+  join-token: "AQAAAXF7ImlkIjoiZjlhY2NlOGUwZDY0NjdjZGQ1MjcwYmI0ODM0YzBlYzciLCJub2RlX2lkIjozLCJpYXQiOjE3ODk5MzMxNjMsImV4cCI6MTc4OTkzMzc2MywibGNwIjoic2hhMjU2OjJmZGRlMjM5NGI1ZWU0Mzg2NjkwMzQyZmFmOTU2NmYwZWE2MzljMmU0OTRhYmM1YTc5ZjZhZGFiYzEyNzAwNDUiLCJjaWQiOiI2MzllNTBhMy1mMTAxLTQ3YzEtOWM2NC1mNDEzYTE1N2ZjZDIiLCJwaW5zIjpbInNoYTI1NjoyZmRkZTIzOTRiNWVlNDM4NjY5MDM0MmZhZjk1NjZmMGVhNjM5YzJlNDk0YWJjNWE3OWY2YWRhYmMxMjcwMDQ1Iiwic2hhMjU2OjU4ODU1YTRmNzQ5OTA4NjY1OTA0YWQzMWI5NDE4OTBhMmMzZTM2MjhiNmMzMjkzOTVkODhlNTgzYjdmMThjNTIiXX3oVaSrhbZo-RN7gXwciuAC-dvAbpDXV2gWYnxlNfZD6g"
