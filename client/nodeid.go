@@ -5,7 +5,13 @@ package client
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
+)
+
+const (
+	minLegacyNodeID = 1
+	maxLegacyNodeID = 63
 )
 
 type NodeID string
@@ -45,15 +51,14 @@ func (n *NodeID) UnmarshalJSON(data []byte) error {
 }
 
 func isDecimal(s string) bool {
-	if s == "" {
+	n, err := strconv.ParseUint(s, 10, 31)
+	if err != nil {
 		return false
 	}
 
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
+	if strconv.FormatUint(n, 10) != s {
+		return false
 	}
 
-	return true
+	return n >= minLegacyNodeID && n <= maxLegacyNodeID
 }

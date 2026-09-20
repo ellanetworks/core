@@ -211,9 +211,9 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 
 // clusterHTTPDo dials a peer's cluster port over mTLS and performs a
 // single HTTP request. Pass nil body for GET-style requests. When
-// expectedPeerID is non-zero the dial verifies the peer's leaf CN
-// resolves to that node-id; pass 0 only from discovery paths that are
-// still learning the peer's identity.
+// expectedPeerID is non-empty the dial verifies the peer's leaf CN
+// resolves to that node-id; pass an empty string only from discovery
+// paths that are still learning the peer's identity.
 func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, expectedPeerID string, path string, body io.Reader) (*http.Response, error) {
 	var (
 		conn net.Conn

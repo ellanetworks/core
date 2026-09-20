@@ -25,6 +25,7 @@ const (
 type ClusterMemberResponse struct {
 	NodeID         pki.NodeID `json:"nodeId"`
 	DisplayName    string     `json:"displayName"`
+	AMFPointer     int        `json:"amfPointer"`
 	RaftAddress    string     `json:"raftAddress"`
 	APIAddress     string     `json:"apiAddress"`
 	BinaryVersion  string     `json:"binaryVersion"`
@@ -48,6 +49,7 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 	return ClusterMemberResponse{
 		NodeID:         pki.NodeID(m.NodeID),
 		DisplayName:    m.DisplayName,
+		AMFPointer:     m.AMFPointer,
 		RaftAddress:    m.RaftAddress,
 		APIAddress:     m.APIAddress,
 		BinaryVersion:  m.BinaryVersion,

@@ -9,6 +9,7 @@ export type DrainState = "active" | "draining" | "drained";
 export type ClusterMember = {
   nodeId: NodeId;
   displayName: string;
+  amfPointer: number;
   raftAddress: string;
   apiAddress: string;
   binaryVersion: string;

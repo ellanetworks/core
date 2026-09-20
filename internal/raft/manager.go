@@ -51,7 +51,6 @@ type AutopilotConfig struct {
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
 	Enabled          bool
-	NodeID           int
 	RaftID           string
 	BindAddress      string
 	AdvertiseAddress string
@@ -470,11 +469,8 @@ func warnOnMultiServerStandaloneState(r *raft.Raft, raftID string, raftDir strin
 	)
 }
 
-// resolveNodeIDForMode picks the Raft server ID. Both modes go through the
-// same config/env/file chain, which persists the ID on first boot and
-// rejects later mismatches that would invalidate issued GUTIs. Single-server
-// mode additionally falls back to defaultStandaloneNodeID when no source
-// supplies one, so standalone installs need not provision cluster.node-id.
+// resolveRaftIDForMode picks the Raft server ID: the configured RaftID when
+// set, otherwise the one persisted in dataDir.
 func resolveRaftIDForMode(cfg ClusterConfig, dataDir string) (string, error) {
 	if cfg.RaftID != "" {
 		return pki.NormalizeNodeID(cfg.RaftID)
@@ -590,9 +586,8 @@ func (m *Manager) LeaderAddress() string {
 }
 
 // LeaderAddressAndID returns the leader's Raft transport address together
-// with the integer node-id parsed from the leader's Raft ServerID.
-// Callers dialing the leader over mTLS use the ID to enforce the
-// expected-peer check.
+// with its Raft ServerID. Callers dialing the leader over mTLS use the ID
+// to enforce the expected-peer check.
 func (m *Manager) LeaderAddressAndID() (string, string) {
 	addr, id := m.raft.LeaderWithID()
 	if addr == "" {

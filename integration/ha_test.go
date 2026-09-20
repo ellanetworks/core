@@ -716,6 +716,30 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("node 4 did not become voter: %v", err)
 	}
 
+	// A node added after formation must get its own AMF Pointer: the
+	// leader allocates it into the member row, and a duplicate would
+	// make two nodes issue GUTIs under the same GUAMI.
+	scaledMembers, err := leader.ListClusterMembers(ctx)
+	if err != nil {
+		t.Fatalf("list cluster members after scale-up: %v", err)
+	}
+
+	pointers := make(map[int]client.NodeID, len(scaledMembers))
+
+	for _, m := range scaledMembers {
+		if m.AMFPointer < 1 || m.AMFPointer > 63 {
+			t.Fatalf("node %s holds AMF Pointer %d, want a value in [1, 63]", m.NodeID, m.AMFPointer)
+		}
+
+		if prev, dup := pointers[m.AMFPointer]; dup {
+			t.Fatalf("nodes %s and %s share AMF Pointer %d after scale-up", prev, m.NodeID, m.AMFPointer)
+		}
+
+		pointers[m.AMFPointer] = m.NodeID
+	}
+
+	HALogf(t, "four members hold distinct AMF Pointers: %v", pointers)
+
 	HALog(t, "node 4 promoted to voter, writing subscriber on leader")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{

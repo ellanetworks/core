@@ -62,6 +62,7 @@ func TestIntegrationHANodeIdentity(t *testing.T) {
 	}
 
 	seenID := make(map[client.NodeID]string, len(members))
+	seenPointer := make(map[int]client.NodeID, len(members))
 
 	for _, m := range members {
 		if _, err := uuid.Parse(m.NodeID.String()); err != nil {
@@ -77,9 +78,21 @@ func TestIntegrationHANodeIdentity(t *testing.T) {
 		if m.DisplayName != "" {
 			t.Errorf("node %s starts with display name %q, want empty", m.NodeID, m.DisplayName)
 		}
+
+		// Every node stamps its pointer into the GUTIs it issues, so two
+		// nodes sharing one hands out ambiguous identities.
+		if m.AMFPointer < 1 || m.AMFPointer > 63 {
+			t.Errorf("node %s holds AMF Pointer %d, want a value in [1, 63]", m.NodeID, m.AMFPointer)
+		}
+
+		if prev, dup := seenPointer[m.AMFPointer]; dup {
+			t.Errorf("nodes %s and %s share AMF Pointer %d", prev, m.NodeID, m.AMFPointer)
+		}
+
+		seenPointer[m.AMFPointer] = m.NodeID
 	}
 
-	HALogf(t, "three nodes formed a cluster under self-generated identities: %v", seenID)
+	HALogf(t, "three nodes formed a cluster under self-generated identities %v with AMF Pointers %v", seenID, seenPointer)
 
 	// An identity is the node's own and outlives the process that
 	// generated it; it is read back from <dataDir>/node-id on restart.

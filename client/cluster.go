@@ -14,6 +14,7 @@ import (
 type ClusterMember struct {
 	NodeID         NodeID `json:"nodeId"`
 	DisplayName    string `json:"displayName"`
+	AMFPointer     int    `json:"amfPointer"`
 	RaftAddress    string `json:"raftAddress"`
 	APIAddress     string `json:"apiAddress"`
 	BinaryVersion  string `json:"binaryVersion"`
