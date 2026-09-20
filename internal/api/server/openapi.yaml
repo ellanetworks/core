@@ -2973,8 +2973,7 @@ paths:
       summary: Set a cluster member's display name
       description: >-
         Sets the operator-facing name shown for a cluster member. The name
-        is free text and is not required to be unique; every lookup and
-        destructive operation takes the node identity. Requires admin
+        is free text and is not required to be unique. Requires admin
         privileges.
       parameters:
         - name: id
@@ -3131,9 +3130,8 @@ paths:
       tags: [Cluster]
       summary: Mint a cluster join token
       description: >-
-        Mints a single-use token that admits one new node to the cluster,
-        for use with `POST /api/v1/cluster/join`. Must be sent to the
-        leader. Requires admin privileges.
+        Mints a single-use token that admits one new node to the cluster.
+        Must be sent to the leader. Requires admin privileges.
       requestBody:
         required: true
         content:

@@ -63,6 +63,7 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve follower identity: %v", err)
 	}
+
 	expectedRaftAddr := fmt.Sprintf("%s:7000", followerService)
 
 	container, err := dc.ResolveComposeContainer(ctx, haComposeProject, followerService)
