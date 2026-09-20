@@ -26,6 +26,7 @@ None
         {
             "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
             "displayName": "core-mtl-a",
+            "amfPointer": 1,
             "raftAddress": "10.0.0.1:7000",
             "apiAddress": "https://10.0.0.1:5000",
             "binaryVersion": "v1.18.0",
@@ -36,6 +37,7 @@ None
         {
             "nodeId": "0199c4f1-8b02-7d44-a1e7-5c6d7e8f9a0b",
             "displayName": "",
+            "amfPointer": 2,
             "raftAddress": "10.0.0.2:7000",
             "apiAddress": "https://10.0.0.2:5000",
             "binaryVersion": "v1.18.0",
