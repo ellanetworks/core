@@ -313,6 +313,7 @@ type Database struct {
 	deleteClusterMemberStmt *sqlair.Statement
 	countClusterMembersStmt *sqlair.Statement
 	setDrainStateStmt       *sqlair.Statement
+	setDisplayNameStmt      *sqlair.Statement
 
 	// Cluster PKI statements
 	listNodeCertsStmt         *sqlair.Statement
@@ -607,6 +608,32 @@ func (db *Database) AMFPointer() int {
 // SetAMFPointer caches the pointer allocated to this node.
 func (db *Database) SetAMFPointer(pointer int) {
 	db.amfPointer.Store(int32(pointer)) // #nosec G115 -- bounded by [1, 63]
+}
+
+// RefreshAMFPointer reloads this node's AMF Pointer from
+// cluster_members. Every node applies the replicated row, so a node
+// learns the pointer the leader allocated it without a round trip.
+func (db *Database) RefreshAMFPointer(ctx context.Context) error {
+	if db.raftManager == nil {
+		db.SetAMFPointer(DefaultAMFPointer)
+
+		return nil
+	}
+
+	member, err := db.GetClusterMember(ctx, db.raftManager.RaftID())
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("get cluster member: %w", err)
+	}
+
+	if member.AMFPointer > 0 {
+		db.SetAMFPointer(member.AMFPointer)
+	}
+
+	return nil
 }
 
 // LeaderAddress returns the Raft transport address of the current leader.
@@ -1747,6 +1774,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.setDisplayNameStmt, fmt.Sprintf(setDisplayNameStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 
 		// Cluster PKI (v12 fingerprint pinning)
 		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},

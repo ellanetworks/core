@@ -33,6 +33,7 @@ const (
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+	setDisplayNameStmtStr      = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
 )
 
 const (
@@ -294,4 +295,48 @@ func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
+}
+
+// MaxDisplayNameLength bounds the operator-facing name.
+const MaxDisplayNameLength = 63
+
+// SetDisplayName sets a cluster member's operator-facing name. The name
+// is free text; lookups and destructive operations take the identity.
+func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name string) error {
+	if len(name) > MaxDisplayNameLength {
+		return fmt.Errorf("display name is %d bytes, over the %d-byte limit", len(name), MaxDisplayNameLength)
+	}
+
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
+
+	_, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection.name", ClusterMembersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
+
+	member := &ClusterMember{NodeID: nodeID, DisplayName: name}
+
+	if _, err := opSetDisplayName.Invoke(ctx, db, member); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }

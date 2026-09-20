@@ -324,3 +324,27 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 		}
 	}
 }
+
+// runAMFPointerSubscriber reloads this node's AMF Pointer whenever the
+// FSM applies a cluster_members change. The leader allocates the
+// pointer into the replicated row; every node, leader or follower,
+// picks its own up from the same entry.
+func runAMFPointerSubscriber(ctx context.Context, dbInstance *db.Database) {
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicClusterMembers)
+	defer stop()
+
+	if err := dbInstance.RefreshAMFPointer(ctx); err != nil {
+		logger.EllaLog.Warn("initial AMF Pointer refresh failed", zap.Error(err))
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wakeup:
+			if err := dbInstance.RefreshAMFPointer(ctx); err != nil {
+				logger.EllaLog.Warn("AMF Pointer refresh on changefeed wakeup failed", zap.Error(err))
+			}
+		}
+	}
+}

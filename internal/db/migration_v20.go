@@ -9,16 +9,75 @@ import (
 	"fmt"
 )
 
-// V20 retypes the raft node identity from INTEGER to TEXT and gives
-// cluster_members its own amfPointer column. An existing member keeps
-// its identity as the decimal text it already had, and its AMF Pointer
-// is that same number.
+// V20 retypes the raft node identity from INTEGER to TEXT everywhere it
+// is stored, gives cluster_members its own amfPointer column, and drops
+// cluster_join_tokens.nodeID now that a join token names no node. An
+// existing member keeps its identity as the decimal text it already had,
+// and its AMF Pointer is that same number.
 func migrateV20(ctx context.Context, tx *sql.Tx) error {
 	if err := migrateV20ClusterMembers(ctx, tx); err != nil {
 		return err
 	}
 
-	return migrateV20IPLeases(ctx, tx)
+	if err := migrateV20IPLeases(ctx, tx); err != nil {
+		return err
+	}
+
+	if err := migrateV20ClusterNodeCerts(ctx, tx); err != nil {
+		return err
+	}
+
+	return migrateV20ClusterJoinTokens(ctx, tx)
+}
+
+func migrateV20ClusterNodeCerts(ctx context.Context, tx *sql.Tx) error {
+	stmts := []string{
+		fmt.Sprintf(`CREATE TABLE %s_new (
+			nodeID      TEXT PRIMARY KEY,
+			fingerprint TEXT    NOT NULL UNIQUE,
+			certPEM     TEXT    NOT NULL,
+			addedAt     INTEGER NOT NULL
+		)`, ClusterNodeCertsTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (nodeID, fingerprint, certPEM, addedAt)
+			SELECT CAST(nodeID AS TEXT), fingerprint, certPEM, addedAt FROM %s`,
+			ClusterNodeCertsTableName, ClusterNodeCertsTableName),
+		fmt.Sprintf("DROP TABLE %s", ClusterNodeCertsTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", ClusterNodeCertsTableName, ClusterNodeCertsTableName),
+	}
+
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("rebuild %s: %w", ClusterNodeCertsTableName, err)
+		}
+	}
+
+	return nil
+}
+
+func migrateV20ClusterJoinTokens(ctx context.Context, tx *sql.Tx) error {
+	stmts := []string{
+		fmt.Sprintf(`CREATE TABLE %s_new (
+			id           TEXT PRIMARY KEY,
+			claimsJSON   TEXT NOT NULL,
+			expiresAt    INTEGER NOT NULL,
+			consumedAt   INTEGER NOT NULL DEFAULT 0,
+			consumedBy   TEXT NOT NULL DEFAULT ''
+		)`, ClusterJoinTokensTableName),
+		fmt.Sprintf(`INSERT INTO %s_new (id, claimsJSON, expiresAt, consumedAt, consumedBy)
+			SELECT id, claimsJSON, expiresAt, consumedAt,
+				CASE WHEN consumedAt = 0 THEN '' ELSE CAST(consumedBy AS TEXT) END FROM %s`,
+			ClusterJoinTokensTableName, ClusterJoinTokensTableName),
+		fmt.Sprintf("DROP TABLE %s", ClusterJoinTokensTableName),
+		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", ClusterJoinTokensTableName, ClusterJoinTokensTableName),
+	}
+
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("rebuild %s: %w", ClusterJoinTokensTableName, err)
+		}
+	}
+
+	return nil
 }
 
 func migrateV20ClusterMembers(ctx context.Context, tx *sql.Tx) error {

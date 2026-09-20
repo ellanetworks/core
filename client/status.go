@@ -15,9 +15,9 @@ type PendingMigration struct {
 type ClusterStatus struct {
 	Enabled              bool              `json:"enabled"`
 	Role                 string            `json:"role"`
-	NodeID               int               `json:"nodeId"`
+	NodeID               NodeID            `json:"nodeId"`
 	IsLeader             bool              `json:"isLeader"`
-	LeaderNodeID         int               `json:"leaderNodeId"`
+	LeaderNodeID         NodeID            `json:"leaderNodeId"`
 	AppliedIndex         uint64            `json:"appliedIndex"`
 	ClusterID            string            `json:"clusterId,omitempty"`
 	LeaderAPIAddress     string            `json:"leaderAPIAddress,omitempty"`

@@ -1525,6 +1525,26 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 	return nil, nil
 }
 
+func (db *Database) applySetDisplayName(ctx context.Context, m *ClusterMember) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.setDisplayNameStmt, m).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+
+	return nil, nil
+}
+
 func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (any, error) {
 	var outcome sqlair.Outcome
 

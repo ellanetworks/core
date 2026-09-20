@@ -50,7 +50,7 @@ const (
 	upsertNodeCertStmtStr       = "INSERT INTO %s (nodeID, fingerprint, certPEM, addedAt) VALUES ($ClusterNodeCert.nodeID, $ClusterNodeCert.fingerprint, $ClusterNodeCert.certPEM, $ClusterNodeCert.addedAt) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
 	deleteNodeCertByNodeStmtStr = "DELETE FROM %s WHERE nodeID=$ClusterNodeCert.nodeID"
 
-	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement
+	insertJoinTokenStmtStr       = "INSERT INTO %s (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, '')" // #nosec G101 -- SQL statement
 	getJoinTokenStmtStr          = "SELECT &ClusterJoinToken.* FROM %s WHERE id=$ClusterJoinToken.id"
 	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0" // #nosec G101 -- SQL statement
 	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"                      // #nosec G101 -- SQL statement
@@ -75,7 +75,6 @@ type ClusterNodeCert struct {
 // replays against a different voter fail.
 type ClusterJoinToken struct {
 	ID         string `db:"id"`
-	NodeID     string `db:"nodeID"`
 	ClaimsJSON string `db:"claimsJSON"`
 	ExpiresAt  int64  `db:"expiresAt"`
 	ConsumedAt int64  `db:"consumedAt"`

@@ -26,14 +26,12 @@ func TestJoinTokenTidy_DeletesStale(t *testing.T) {
 
 	stale := &db.ClusterJoinToken{
 		ID:         "expired",
-		NodeID:     "2",
 		ClaimsJSON: "{}",
 		ExpiresAt:  now.Add(-time.Hour).Unix(),
 	}
 
 	live := &db.ClusterJoinToken{
 		ID:         "live",
-		NodeID:     "2",
 		ClaimsJSON: "{}",
 		ExpiresAt:  now.Add(time.Hour).Unix(),
 	}

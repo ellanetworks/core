@@ -30,8 +30,8 @@ func TestListClusterMembers_Success(t *testing.T) {
 		t.Fatalf("expected 2 members, got %d", len(members))
 	}
 
-	if members[0].NodeID != 1 {
-		t.Errorf("expected nodeId 1, got %d", members[0].NodeID)
+	if members[0].NodeID != "1" {
+		t.Errorf("expected nodeId 1, got %s", members[0].NodeID)
 	}
 
 	if members[0].RaftAddress != "10.0.0.1:7000" {
@@ -42,8 +42,8 @@ func TestListClusterMembers_Success(t *testing.T) {
 		t.Errorf("expected suffrage voter, got %s", members[0].Suffrage)
 	}
 
-	if members[1].NodeID != 2 {
-		t.Errorf("expected nodeId 2, got %d", members[1].NodeID)
+	if members[1].NodeID != "2" {
+		t.Errorf("expected nodeId 2, got %s", members[1].NodeID)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestDrainClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	resp, err := c.DrainClusterMember(context.Background(), 3)
+	resp, err := c.DrainClusterMember(context.Background(), "3")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestResumeClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	if err := c.ResumeClusterMember(context.Background(), 3); err != nil {
+	if err := c.ResumeClusterMember(context.Background(), "3"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -108,7 +108,7 @@ func TestPromoteClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	err := c.PromoteClusterMember(context.Background(), 3)
+	err := c.PromoteClusterMember(context.Background(), "3")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestRemoveClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	err := c.RemoveClusterMember(context.Background(), 2, false)
+	err := c.RemoveClusterMember(context.Background(), "2", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestRemoveClusterMember_Force(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	if err := c.RemoveClusterMember(context.Background(), 2, true); err != nil {
+	if err := c.RemoveClusterMember(context.Background(), "2", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -180,7 +180,6 @@ func TestMintClusterJoinToken_Success(t *testing.T) {
 	c := &client.Client{Requester: fake}
 
 	resp, err := c.MintClusterJoinToken(context.Background(), &client.MintJoinTokenOptions{
-		NodeID:     2,
 		TTLSeconds: 600,
 	})
 	if err != nil {

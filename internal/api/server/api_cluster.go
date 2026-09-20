@@ -19,10 +19,12 @@ import (
 const (
 	ClusterMemberAddAction    = "cluster_member_add"
 	ClusterMemberRemoveAction = "cluster_member_remove"
+	ClusterMemberRenameAction = "cluster_member_rename"
 )
 
 type ClusterMemberResponse struct {
 	NodeID         pki.NodeID `json:"nodeId"`
+	DisplayName    string     `json:"displayName"`
 	RaftAddress    string     `json:"raftAddress"`
 	APIAddress     string     `json:"apiAddress"`
 	BinaryVersion  string     `json:"binaryVersion"`
@@ -45,6 +47,7 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 
 	return ClusterMemberResponse{
 		NodeID:         pki.NodeID(m.NodeID),
+		DisplayName:    m.DisplayName,
 		RaftAddress:    m.RaftAddress,
 		APIAddress:     m.APIAddress,
 		BinaryVersion:  m.BinaryVersion,
@@ -333,5 +336,56 @@ func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member promoted to voter"}, http.StatusOK, logger.APILog)
+	})
+}
+
+type SetDisplayNameRequest struct {
+	DisplayName string `json:"displayName"`
+}
+
+// SetClusterMemberDisplayName handles PUT /api/v1/cluster/members/{id}/display-name.
+//
+// Runs on the Raft leader (followers forward).
+func SetClusterMemberDisplayName(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
+			return
+		}
+
+		var req SetDisplayNameRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			return
+		}
+
+		if len(req.DisplayName) > db.MaxDisplayNameLength {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				fmt.Sprintf("displayName must be at most %d bytes", db.MaxDisplayNameLength), nil, logger.APILog)
+
+			return
+		}
+
+		if err := dbInstance.SetDisplayName(r.Context(), nodeID, req.DisplayName); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set display name", err, logger.APILog)
+
+			return
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			ClusterMemberRenameAction,
+			getActorFromContext(r),
+			getClientIP(r),
+			fmt.Sprintf("Set display name of node %s to %q", nodeID, req.DisplayName),
+		)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Display name updated"}, http.StatusOK, logger.APILog)
 	})
 }

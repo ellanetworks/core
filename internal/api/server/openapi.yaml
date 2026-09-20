@@ -2944,7 +2944,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
           description: Node ID of the cluster member to remove.
         - name: force
           in: query
@@ -2966,6 +2966,45 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/cluster/members/{id}/display-name:
+    put:
+      operationId: setClusterMemberDisplayName
+      tags: [Cluster]
+      summary: Set a cluster member's display name
+      description: >-
+        Sets the operator-facing name shown for a cluster member. The name
+        is free text and is not required to be unique; every lookup and
+        destructive operation takes the node identity. Requires admin
+        privileges.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Node identity of the cluster member to rename.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                  maxLength: 63
+                  description: The new name, or an empty string to clear it.
+              required: [displayName]
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/cluster/members/{id}/promote:
     post:
       operationId: promoteClusterMember
@@ -2982,7 +3021,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
           description: Node ID of the cluster member to promote.
       responses:
         "200":
@@ -3039,7 +3078,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
           description: Node ID of the cluster member to drain.
       responses:
         "200":
@@ -3074,7 +3113,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
           description: Node ID of the cluster member to resume.
       responses:
         "200":
@@ -5824,13 +5863,13 @@ components:
               type: string
               description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
             nodeId:
-              type: integer
+              type: string
               description: Raft node ID of this instance.
             isLeader:
               type: boolean
               description: True when this node is the current Raft leader.
             leaderNodeId:
-              type: integer
+              type: string
               description: Raft node ID of the current leader. Zero when the leader is unknown or its cluster_members row is not yet present.
             appliedIndex:
               type: integer
@@ -5869,7 +5908,7 @@ components:
           type: integer
           description: Schema version the migration is moving to.
         laggardNodeId:
-          type: integer
+          type: string
           description: >-
             Node holding the migration back. Omitted when no single node is
             responsible.
@@ -5879,8 +5918,16 @@ components:
       type: object
       properties:
         nodeId:
-          type: integer
-          description: Raft node ID.
+          type: string
+          description: >-
+            Raft node identity. A UUID on a node that joined from this
+            release onwards, and the decimal integer a node formed under
+            an earlier release keeps.
+        displayName:
+          type: string
+          description: >-
+            Operator-facing name, empty until an operator sets one. Free
+            text; lookups and destructive operations take nodeId.
         raftAddress:
           type: string
           description: "Address used for Raft consensus (host:port)."
@@ -5922,7 +5969,7 @@ components:
       description: Live autopilot view of a single cluster peer.
       properties:
         nodeId:
-          type: integer
+          type: string
           description: Raft node ID.
         raftAddress:
           type: string
@@ -5972,12 +6019,12 @@ components:
             without losing quorum. Zero means any additional failure
             stalls writes.
         leaderNodeId:
-          type: integer
+          type: string
           description: Raft node ID of the current leader; zero when unknown.
         voters:
           type: array
           items:
-            type: integer
+            type: string
           description: Node IDs of voting members, ascending.
         servers:
           type: array

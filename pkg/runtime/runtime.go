@@ -318,6 +318,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		})
 	}
 
+	wg.Go(func() {
+		runAMFPointerSubscriber(ctx, dbInstance)
+	})
+
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)

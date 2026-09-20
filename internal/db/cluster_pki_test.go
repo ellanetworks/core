@@ -145,7 +145,6 @@ func TestClusterJoinTokens_MintGetConsume(t *testing.T) {
 
 	tok := &db.ClusterJoinToken{
 		ID:         "tok-1",
-		NodeID:     "7",
 		ClaimsJSON: `{"id":"tok-1"}`,
 		ExpiresAt:  time.Now().Add(time.Hour).Unix(),
 	}
@@ -172,12 +171,11 @@ func TestClusterJoinTokens_MintGetConsume(t *testing.T) {
 	}
 }
 
-func mintTestToken(t *testing.T, database *db.Database, id string, nodeID string, ttl time.Duration) {
+func mintTestToken(t *testing.T, database *db.Database, id string, ttl time.Duration) {
 	t.Helper()
 
 	err := database.MintJoinTokenRecord(context.Background(), &db.ClusterJoinToken{
 		ID:         id,
-		NodeID:     nodeID,
 		ClaimsJSON: "{}",
 		ExpiresAt:  time.Now().Add(ttl).Unix(),
 	})
@@ -190,7 +188,7 @@ func TestRedeemJoinToken_ConsumesAndPinsTogether(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-1", "7", time.Hour)
+	mintTestToken(t, database, "tok-1", time.Hour)
 
 	pins, err := database.RedeemJoinToken(ctx, "tok-1", "7", "sha256:aa", "PEM-7")
 	if err != nil {
@@ -215,7 +213,7 @@ func TestRedeemJoinToken_SameNodeSameCertReplays(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-2", "7", time.Hour)
+	mintTestToken(t, database, "tok-2", time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-2", "7", "sha256:aa", "PEM-7"); err != nil {
 		t.Fatalf("first redeem: %v", err)
@@ -235,7 +233,7 @@ func TestRedeemJoinToken_RejectsReplayWithDifferentCert(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-3", "7", time.Hour)
+	mintTestToken(t, database, "tok-3", time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-3", "7", "sha256:aa", "PEM-7"); err != nil {
 		t.Fatalf("first redeem: %v", err)
@@ -251,7 +249,7 @@ func TestRedeemJoinToken_AnyNodeMayRedeem(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-4", "7", time.Hour)
+	mintTestToken(t, database, "tok-4", time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-4", "8", "sha256:bb", "PEM-8"); err != nil {
 		t.Fatalf("a join token proves the bearer may join and names no node: %v", err)
@@ -262,13 +260,13 @@ func TestRedeemJoinToken_RejectsIdentityBoundToAnotherCert(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-a", "7", time.Hour)
+	mintTestToken(t, database, "tok-a", time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-a", "7", "sha256:aa", "PEM-7"); err != nil {
 		t.Fatalf("first redemption: %v", err)
 	}
 
-	mintTestToken(t, database, "tok-b", "7", time.Hour)
+	mintTestToken(t, database, "tok-b", time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-b", "7", "sha256:cc", "PEM-7-other"); !errors.Is(err, db.ErrNodeIdentityBound) {
 		t.Fatalf("a second cert for a bound identity: got %v, want ErrNodeIdentityBound", err)
@@ -279,7 +277,7 @@ func TestRedeemJoinToken_RejectsExpiry(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-5", "9", -time.Hour)
+	mintTestToken(t, database, "tok-5", -time.Hour)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-5", "9", "sha256:aa", "PEM-9"); !errors.Is(err, db.ErrJoinTokenExpired) {
 		t.Fatalf("expired: got %v, want ErrJoinTokenExpired", err)
@@ -302,13 +300,13 @@ func TestRedeemJoinToken_ToleratesClockSkewOnExpiry(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-skew", "11", -pki.JoinTokenClockSkew/2)
+	mintTestToken(t, database, "tok-skew", -pki.JoinTokenClockSkew/2)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-skew", "11", "sha256:cc", "PEM-11"); err != nil {
 		t.Fatalf("token inside the clock-skew grace was rejected: %v", err)
 	}
 
-	mintTestToken(t, database, "tok-stale", "12", -2*pki.JoinTokenClockSkew)
+	mintTestToken(t, database, "tok-stale", -2*pki.JoinTokenClockSkew)
 
 	if _, err := database.RedeemJoinToken(ctx, "tok-stale", "12", "sha256:dd", "PEM-12"); !errors.Is(err, db.ErrJoinTokenExpired) {
 		t.Fatalf("token beyond the clock-skew grace: got %v, want ErrJoinTokenExpired", err)
@@ -319,8 +317,8 @@ func TestDeleteStaleJoinTokens_KeepsTokensInsideClockSkew(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
-	mintTestToken(t, database, "tok-fresh", "13", -pki.JoinTokenClockSkew/2)
-	mintTestToken(t, database, "tok-old", "14", -2*pki.JoinTokenClockSkew)
+	mintTestToken(t, database, "tok-fresh", -pki.JoinTokenClockSkew/2)
+	mintTestToken(t, database, "tok-old", -2*pki.JoinTokenClockSkew)
 
 	if err := database.DeleteStaleJoinTokens(ctx, time.Now()); err != nil {
 		t.Fatalf("tidy: %v", err)
@@ -332,5 +330,36 @@ func TestDeleteStaleJoinTokens_KeepsTokensInsideClockSkew(t *testing.T) {
 
 	if _, err := database.GetJoinToken(ctx, "tok-old"); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("tidy kept a token past the clock-skew grace: %v", err)
+	}
+}
+
+// A UUID identity has to survive a round trip through
+// cluster_node_certs. Before v20 the column was INTEGER PRIMARY KEY,
+// which is the rowid alias, and SQLite rejects a non-integer rowid
+// outright.
+func TestClusterNodeCerts_AcceptsUUIDIdentity(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	const uuidID = "0199c0de-0000-7000-8000-00000000beef"
+
+	row := &db.ClusterNodeCert{
+		NodeID:      uuidID,
+		Fingerprint: "sha256:uuidnode",
+		CertPEM:     "PEM-UUID",
+		AddedAt:     time.Now().Unix(),
+	}
+
+	if err := database.UpsertClusterNodeCert(ctx, row); err != nil {
+		t.Fatalf("upsert pin for a UUID identity: %v", err)
+	}
+
+	got, err := database.GetClusterNodeCertByFingerprint(ctx, "sha256:uuidnode")
+	if err != nil {
+		t.Fatalf("get pin: %v", err)
+	}
+
+	if got.NodeID != uuidID {
+		t.Fatalf("pin owner: got %q, want %q", got.NodeID, uuidID)
 	}
 }
