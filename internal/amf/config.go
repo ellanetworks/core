@@ -70,10 +70,15 @@ func (amf *AMF) operatorInfoFrom(operator *db.Operator) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
+	pointer := amf.DBInstance.AMFPointer()
+	if pointer < 1 {
+		return nil, fmt.Errorf("this node has no AMF Pointer yet; the leader allocates it into cluster_members on join")
+	}
+
 	amfID := util.AMFIDToModels(
 		ngap.AMFRegionID(operator.GUAMIRegionID()),
 		ngap.AMFSetID(operator.AmfSetID),
-		ngap.AMFPointer(amf.DBInstance.AMFPointer()),
+		ngap.AMFPointer(pointer),
 	)
 
 	return &OperatorInfo{

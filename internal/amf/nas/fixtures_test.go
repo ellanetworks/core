@@ -112,7 +112,7 @@ func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([
 	}, nil
 }
 
-func (fdb *fakeDBInstance) AMFPointer() int { return 0 }
+func (fdb *fakeDBInstance) AMFPointer() int { return 1 }
 
 type fakeNGAPSender struct {
 	SentDownlinkNASTransport               []*ngap.DownlinkNASTransport

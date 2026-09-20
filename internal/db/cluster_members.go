@@ -26,14 +26,21 @@ const (
 	DrainStateDrained  = "drained"
 )
 
+const clusterMemberIdentitySchema = 20
+
+const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.raftAddress, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.suffrage, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
+
 const (
-	listClusterMembersStmtStr  = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
-	getClusterMemberStmtStr    = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, amfPointer, displayName, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
-	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
-	setDisplayNameStmtStr      = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
+	listClusterMembersStmtStr        = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
+	listClusterMembersPreV20StmtStr  = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s ORDER BY nodeID ASC"
+	getClusterMemberStmtStr          = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	getClusterMemberPreV20StmtStr    = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	upsertClusterMemberStmtStr       = "INSERT INTO %s (nodeID, amfPointer, displayName, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	deleteClusterMemberStmtStr       = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	countClusterMembersStmtStr       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	setDrainStateStmtStr             = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+	setDisplayNameStmtStr            = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
 )
 
 const (
@@ -85,7 +92,12 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 
 	var members []ClusterMember
 
-	err := db.conn().Query(ctx, db.listClusterMembersStmt).GetAll(&members)
+	stmt := db.listClusterMembersStmt
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		stmt = db.listClusterMembersPreV20Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt).GetAll(&members)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -127,7 +139,12 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*Clust
 
 	row := ClusterMember{NodeID: nodeID}
 
-	err := db.conn().Query(ctx, db.getClusterMemberStmt, row).Get(&row)
+	stmt := db.getClusterMemberStmt
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		stmt = db.getClusterMemberPreV20Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)

@@ -49,7 +49,7 @@ var migrations = []migration{
 // Anything touched before the cluster exists must sit at or below it: the
 // pin table the mTLS listener verifies against, the member row written
 // while forming, and the leader's Initialize() seed.
-const baselineVersion = 20
+const baselineVersion = 17
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.

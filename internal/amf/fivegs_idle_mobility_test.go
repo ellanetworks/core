@@ -23,7 +23,7 @@ import (
 )
 
 func idleMobilityGuami() *models.Guami {
-	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "810040"}
+	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "810041"}
 }
 
 func idleMobilityAMF() *AMF {

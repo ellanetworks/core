@@ -310,10 +310,15 @@ type Database struct {
 	listClusterMembersStmt  *sqlair.Statement
 	getClusterMemberStmt    *sqlair.Statement
 	upsertClusterMemberStmt *sqlair.Statement
-	deleteClusterMemberStmt *sqlair.Statement
-	countClusterMembersStmt *sqlair.Statement
-	setDrainStateStmt       *sqlair.Statement
-	setDisplayNameStmt      *sqlair.Statement
+
+	listClusterMembersPreV20Stmt  *sqlair.Statement
+	getClusterMemberPreV20Stmt    *sqlair.Statement
+	upsertClusterMemberPreV20Stmt *sqlair.Statement
+	insertJoinTokenPreV20Stmt     *sqlair.Statement
+	deleteClusterMemberStmt       *sqlair.Statement
+	countClusterMembersStmt       *sqlair.Statement
+	setDrainStateStmt             *sqlair.Statement
+	setDisplayNameStmt            *sqlair.Statement
 
 	// Cluster PKI statements
 	listNodeCertsStmt         *sqlair.Statement
@@ -596,10 +601,18 @@ func (db *Database) RaftID() string {
 }
 
 // AMFPointer returns the 1-63 value this node stamps into the GUTIs it
-// issues, as the AMF Pointer in 5G and the MME Code in EPS.
+// issues, as the AMF Pointer in 5G and the MME Code in EPS. A clustered
+// node reports 0 until the leader's allocation reaches its
+// cluster_members row: serving NAS on a guessed pointer would hand two
+// nodes the same GUAMI. A standalone node allocates nothing and takes
+// the default.
 func (db *Database) AMFPointer() int {
 	if p := db.amfPointer.Load(); p > 0 {
 		return int(p)
+	}
+
+	if db.ClusterEnabled() {
+		return 0
 	}
 
 	return DefaultAMFPointer
@@ -614,8 +627,16 @@ func (db *Database) SetAMFPointer(pointer int) {
 // cluster_members. Every node applies the replicated row, so a node
 // learns the pointer the leader allocated it without a round trip.
 func (db *Database) RefreshAMFPointer(ctx context.Context) error {
-	if db.raftManager == nil {
+	if db.raftManager == nil || !db.ClusterEnabled() {
 		db.SetAMFPointer(DefaultAMFPointer)
+
+		return nil
+	}
+
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		if legacy, ok := pki.LegacyNodeID(db.raftManager.RaftID()); ok {
+			db.SetAMFPointer(legacy)
+		}
 
 		return nil
 	}
@@ -1256,6 +1277,10 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 		return nil
 	}
 
+	if err := db.CheckPendingMigrations(ctx); err != nil {
+		return fmt.Errorf("check pending migrations: %w", err)
+	}
+
 	if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
 		logger.From(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
 	}
@@ -1278,14 +1303,8 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 		suffrage = existing.Suffrage
 	}
 
-	pointer, err := db.resolveAMFPointer(ctx, db.raftManager.RaftID())
-	if err != nil {
-		return err
-	}
-
 	member := &ClusterMember{
 		NodeID:        db.raftManager.RaftID(),
-		AMFPointer:    pointer,
 		RaftAddress:   db.raftManager.RaftAddress(),
 		APIAddress:    db.raftManager.APIAddress(),
 		BinaryVersion: binaryVersion,
@@ -1296,18 +1315,25 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 		return err
 	}
 
-	db.SetAMFPointer(pointer)
-
-	return nil
+	return db.RefreshAMFPointer(ctx)
 }
 
 // resolveAMFPointer returns the pointer already allocated to nodeID, or
 // the lowest free value in [1, MaxAMFPointer] when it has none. A legacy
 // integer identity keeps that integer as its pointer.
+//
+// Runs inside applyUpsertClusterMember, so the read goes through
+// db.runner(ctx) — the pinned capture connection. Calling the public
+// ListClusterMembers here would dispatch to db.conn(), whose single
+// connection the capture already holds, and deadlock until the propose
+// timeout fires.
 func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
-	members, err := db.ListClusterMembers(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("list cluster members: %w", err)
+	var members []ClusterMember
+
+	if err := db.runner(ctx).Query(ctx, db.listClusterMembersStmt).GetAll(&members); err != nil {
+		if !errors.Is(err, sqlair.ErrNoRows) {
+			return 0, fmt.Errorf("list cluster members: %w", err)
+		}
 	}
 
 	taken := make(map[int]struct{}, len(members))
@@ -1775,6 +1801,9 @@ func (db *Database) PrepareStatements() error {
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.setDisplayNameStmt, fmt.Sprintf(setDisplayNameStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.listClusterMembersPreV20Stmt, fmt.Sprintf(listClusterMembersPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.getClusterMemberPreV20Stmt, fmt.Sprintf(getClusterMemberPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.upsertClusterMemberPreV20Stmt, fmt.Sprintf(upsertClusterMemberPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 
 		// Cluster PKI (v12 fingerprint pinning)
 		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
@@ -1783,6 +1812,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertNodeCertStmt, fmt.Sprintf(upsertNodeCertStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.deleteNodeCertByNodeStmt, fmt.Sprintf(deleteNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.insertJoinTokenStmt, fmt.Sprintf(insertJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
+		{&db.insertJoinTokenPreV20Stmt, fmt.Sprintf(insertJoinTokenPreV20StmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.getJoinTokenStmt, fmt.Sprintf(getJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.consumeJoinTokenStmt, fmt.Sprintf(consumeJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.deleteJoinTokensStaleStmt, fmt.Sprintf(deleteJoinTokensStaleStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},

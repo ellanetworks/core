@@ -30,7 +30,12 @@ func (m *MME) Operator(ctx context.Context) (OperatorConfig, error) {
 		return OperatorConfig{}, fmt.Errorf("get operator: %w", err)
 	}
 
-	return OperatorConfig{op: op, nodeID: m.Bearer.AMFPointer()}, nil
+	pointer := m.Bearer.AMFPointer()
+	if pointer < 1 {
+		return OperatorConfig{}, fmt.Errorf("this node has no AMF Pointer yet; the leader allocates it into cluster_members on join")
+	}
+
+	return OperatorConfig{op: op, nodeID: pointer}, nil
 }
 
 // PLMN returns the operator's serving PLMN (TS 23.003), the network's

@@ -78,7 +78,7 @@ func wrapIntegrityProtected(t *testing.T, ue *amf.UeContext, inner []byte, sqn u
 
 func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
-		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x01,
 		TMSI: [4]byte{0x00, 0x00, 0x00, 0x01},
 	})
 
@@ -123,7 +123,7 @@ func gutiWithTMSI(t *testing.T, tmsi [4]byte) (fgs.MobileIdentity, etsi.GUTI5G) 
 	t.Helper()
 
 	id := fgs.GUTIIdentity(fgs.GUTI{
-		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x01,
 		TMSI: tmsi,
 	})
 
@@ -197,7 +197,7 @@ func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T)
 
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
-		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x01,
 		TMSI: [4]byte{0x00, 0x00, 0x00, 0x01},
 	})
 

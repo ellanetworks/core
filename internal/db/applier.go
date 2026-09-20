@@ -1496,9 +1496,33 @@ func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any,
 	return struct{}{}, nil
 }
 
+// applyUpsertClusterMember allocates the member's AMF Pointer and writes
+// the row. The caller does not pre-resolve the pointer: like
+// applyAllocateIPLease, the leader picks it here, inside
+// leaderCaptureAndPropose's proposeMu, so concurrent joins see a stable
+// view and the chosen value replicates in the changeset bytes.
+//
+// resolveAMFPointer returns any pointer the member already holds, so the
+// write-back below is a no-op for an existing row. That ordering is what
+// makes amfPointer=excluded.amfPointer safe in the conflict clause;
+// reversing it would renumber live nodes.
 func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertClusterMemberStmt, m).Run()
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		if err := db.runner(ctx).Query(ctx, db.upsertClusterMemberPreV20Stmt, m).Run(); err != nil {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		return nil, nil
+	}
+
+	pointer, err := db.resolveAMFPointer(ctx, m.NodeID)
 	if err != nil {
+		return nil, err
+	}
+
+	m.AMFPointer = pointer
+
+	if err := db.runner(ctx).Query(ctx, db.upsertClusterMemberStmt, m).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
