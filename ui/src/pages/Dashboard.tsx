@@ -56,6 +56,7 @@ import {
   formatProtocol,
   buildProtocolColorMap,
 } from "@/utils/formatters";
+import { nodeLabel } from "@/queries/nodeId";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import {
   DAILY_RANGES,
@@ -85,7 +86,7 @@ const DeploymentIdentity: React.FC<{
   }
 
   const mode = status.cluster.enabled
-    ? `Cluster node ${status.cluster.nodeId}`
+    ? `Cluster node ${nodeLabel(status.cluster.displayName, status.cluster.nodeId)}`
     : "Standalone";
 
   return (

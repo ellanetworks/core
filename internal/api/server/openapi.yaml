@@ -5858,6 +5858,9 @@ components:
             nodeId:
               type: [string, integer]
               description: Identity of this node.
+            displayName:
+              type: string
+              description: Operator-set name for this node. Empty when unset.
             isLeader:
               type: boolean
               description: True when this node is the current Raft leader.

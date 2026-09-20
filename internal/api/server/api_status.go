@@ -52,6 +52,7 @@ type ClusterStatusResponse struct {
 	Enabled          bool       `json:"enabled"`
 	Role             string     `json:"role"`
 	NodeID           pki.NodeID `json:"nodeId"`
+	DisplayName      string     `json:"displayName"`
 	IsLeader         bool       `json:"isLeader"`
 	LeaderNodeID     pki.NodeID `json:"leaderNodeId"`
 	AppliedIndex     uint64     `json:"appliedIndex"`
@@ -131,6 +132,10 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 			}
 
 			clusterStatus.LeaderAPIAddress, clusterStatus.LeaderNodeID = resolveLeader(dbInstance)
+
+			if self, err := dbInstance.GetClusterMember(ctx, dbInstance.RaftID()); err == nil {
+				clusterStatus.DisplayName = self.DisplayName
+			}
 
 			// Schema fields are best-effort: read errors don't fail status.
 			if applied, err := dbInstance.CurrentSchemaVersion(ctx); err == nil {

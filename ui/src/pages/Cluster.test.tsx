@@ -424,7 +424,7 @@ describe("Cluster page node identity", () => {
     await renderCluster();
 
     await screen.findByText("edge-rack-4");
-    expect(screen.getByText("0199c0de…")).toBeInTheDocument();
+    expect(screen.getByText("0199c0de")).toBeInTheDocument();
     expect(screen.queryByText(UUID)).not.toBeInTheDocument();
   });
 
@@ -435,7 +435,7 @@ describe("Cluster page node identity", () => {
 
     await renderCluster();
 
-    await screen.findByText("0199c0de…");
+    await screen.findByText("0199c0de");
   });
 
   it("sends a rename to the display-name endpoint", async () => {
@@ -449,7 +449,7 @@ describe("Cluster page node identity", () => {
 
     await renderCluster();
 
-    const uuidRow = (await screen.findByText("0199c0de…")).closest(
+    const uuidRow = (await screen.findByText("0199c0de")).closest(
       "[role='row']",
     ) as HTMLElement;
 

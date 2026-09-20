@@ -15,6 +15,7 @@ export type ClusterStatus =
       enabled: false;
       role?: undefined;
       nodeId?: undefined;
+      displayName?: undefined;
       isLeader?: undefined;
       leaderNodeId?: undefined;
       leaderAPIAddress?: undefined;
@@ -27,6 +28,7 @@ export type ClusterStatus =
       enabled: true;
       role: string;
       nodeId: NodeId;
+      displayName: string;
       isLeader: boolean;
       leaderNodeId: NodeId;
       leaderAPIAddress?: string;

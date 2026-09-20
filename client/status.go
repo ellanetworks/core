@@ -7,15 +7,16 @@ import "context"
 
 // PendingMigration is non-nil only during a rolling-upgrade window.
 type PendingMigration struct {
-	CurrentSchema int `json:"currentSchema"`
-	TargetSchema  int `json:"targetSchema"`
-	LaggardNodeId int `json:"laggardNodeId,omitempty"`
+	CurrentSchema int    `json:"currentSchema"`
+	TargetSchema  int    `json:"targetSchema"`
+	LaggardNodeId NodeID `json:"laggardNodeId,omitempty"`
 }
 
 type ClusterStatus struct {
 	Enabled              bool              `json:"enabled"`
 	Role                 string            `json:"role"`
 	NodeID               NodeID            `json:"nodeId"`
+	DisplayName          string            `json:"displayName"`
 	IsLeader             bool              `json:"isLeader"`
 	LeaderNodeID         NodeID            `json:"leaderNodeId"`
 	AppliedIndex         uint64            `json:"appliedIndex"`
