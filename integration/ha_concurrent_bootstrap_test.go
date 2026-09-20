@@ -96,7 +96,6 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	node1.SetToken(adminToken)
 
 	tok2, err := node1.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     2,
 		TTLSeconds: 1800,
 	})
 	if err != nil {
@@ -104,7 +103,6 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	}
 
 	tok3, err := node1.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     3,
 		TTLSeconds: 1800,
 	})
 	if err != nil {

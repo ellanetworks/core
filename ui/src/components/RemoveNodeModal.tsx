@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState } from "react";
+import { NodeId } from "@/queries/nodeId";
 import { Box, Checkbox, FormControlLabel, Typography } from "@mui/material";
 import {
   removeClusterMember,
@@ -24,7 +25,8 @@ export function defaultForce(health: NodeHealth): boolean {
 
 interface Props {
   open: boolean;
-  nodeId: number;
+  nodeId: NodeId;
+  nodeLabel: string;
   drainState: DrainState;
   health: NodeHealth;
   isSelf: boolean;
@@ -35,6 +37,7 @@ interface Props {
 const RemoveNodeModal: React.FC<Props> = ({
   open,
   nodeId,
+  nodeLabel,
   drainState,
   health,
   isSelf,
@@ -63,11 +66,11 @@ const RemoveNodeModal: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       onConfirm={handleConfirm}
-      title={`Remove node ${nodeId}?`}
+      title={`Remove node ${nodeLabel}?`}
       description={
         <>
-          <strong>Node {nodeId}</strong> will keep trying to rejoin unless you
-          shut it down afterward.
+          <strong>Node {nodeLabel}</strong> will keep trying to rejoin unless
+          you shut it down afterward.
         </>
       }
       extra={

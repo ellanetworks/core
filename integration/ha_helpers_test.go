@@ -204,7 +204,6 @@ func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (str
 // empty initialSuffrage to accept the daemon default ("voter").
 func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string, initialSuffrage string) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     nodeID,
 		TTLSeconds: 600,
 	})
 	if err != nil {
@@ -289,10 +288,9 @@ datapath:
   attach-mode: "xdp-generic"
 cluster:
   enabled: true
-  node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -388,7 +386,7 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 
 			if status.Cluster.Enabled && status.Cluster.Role == "Leader" {
 				leaderIdxs = append(leaderIdxs, i)
-				claims = append(claims, fmt.Sprintf("node %d", status.Cluster.NodeID))
+				claims = append(claims, fmt.Sprintf("node %s", status.Cluster.NodeID))
 			}
 		}
 
@@ -549,14 +547,13 @@ func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, err
 	return status.Cluster.AppliedIndex, nil
 }
 
-// waitForMemberSuffrage polls ListClusterMembers until the given nodeID
+// waitForMemberSuffrage polls ListClusterMembers until the named node
 // appears with the expected suffrage value (e.g. "nonvoter" or "voter").
 //
-// scale-up join target); the helper is intentionally general so future
-// tests targeting other node IDs don't need a parallel helper.
-//
-//nolint:unparam // nodeID happens to be 4 for every existing caller (the
-func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wantSuffrage string) error {
+// The node is named by its raft address, which is the stable handle a
+// test has for a container; the node's identity is generated on first
+// boot and is not known in advance.
+func waitForMemberSuffrage(ctx context.Context, c *client.Client, raftAddress, wantSuffrage string) error {
 	timeout := 2 * time.Minute
 	deadline := time.Now().Add(timeout)
 
@@ -564,7 +561,7 @@ func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wa
 		members, err := c.ListClusterMembers(ctx)
 		if err == nil {
 			for _, m := range members {
-				if m.NodeID == nodeID && m.Suffrage == wantSuffrage {
+				if m.RaftAddress == raftAddress && m.Suffrage == wantSuffrage {
 					return nil
 				}
 			}
@@ -573,7 +570,25 @@ func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wa
 		time.Sleep(2 * time.Second)
 	}
 
-	return fmt.Errorf("node %d did not reach suffrage %q within %v", nodeID, wantSuffrage, timeout)
+	return fmt.Errorf("the node at %s did not reach suffrage %q within %v", raftAddress, wantSuffrage, timeout)
+}
+
+// memberIDAt returns the identity of the cluster member reachable at
+// raftAddress. Tests address nodes by container, and the cluster
+// addresses them by an identity the node generated for itself.
+func memberIDAt(ctx context.Context, c *client.Client, raftAddress string) (client.NodeID, error) {
+	members, err := c.ListClusterMembers(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list cluster members: %w", err)
+	}
+
+	for _, m := range members {
+		if m.RaftAddress == raftAddress {
+			return m.NodeID, nil
+		}
+	}
+
+	return "", fmt.Errorf("no cluster member at %s", raftAddress)
 }
 
 // waitForAutopilotHealthy polls GetAutopilotState on the given client until
@@ -616,7 +631,7 @@ func waitForAutopilotHealthy(ctx context.Context, c *client.Client, wantFailureT
 // waitForAutopilotReportsUnhealthy polls autopilot on leader until the given
 // node is reported unhealthy. Autopilot flips a peer unhealthy once
 // LastContactThreshold (10s) elapses without heartbeats.
-func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client, nodeID int) (*client.AutopilotState, error) {
+func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client, nodeID client.NodeID) (*client.AutopilotState, error) {
 	timeout := 30 * time.Second
 	deadline := time.Now().Add(timeout)
 
@@ -637,7 +652,7 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 		time.Sleep(1 * time.Second)
 	}
 
-	return last, fmt.Errorf("autopilot did not flag node %d unhealthy within %v; last=%+v",
+	return last, fmt.Errorf("autopilot did not flag node %s unhealthy within %v; last=%+v",
 		nodeID, timeout, last)
 }
 
@@ -697,7 +712,7 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 		t.Logf("cluster members (from node %d):", i+1)
 
 		for _, m := range members {
-			t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q drainState=%s",
+			t.Logf("  node=%s raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q drainState=%s",
 				m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader,
 				m.BinaryVersion, m.DrainState)
 		}
@@ -1030,7 +1045,6 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 
 func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, composeFile, service string, nodeID int, peers []string) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     nodeID,
 		TTLSeconds: 600,
 	})
 	if err != nil {

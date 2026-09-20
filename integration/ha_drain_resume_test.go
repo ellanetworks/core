@@ -53,7 +53,7 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("nodes not ready: %v", err)
 	}
 
-	followerID, follower, err := findFollower(ctx, clients)
+	_, followerID, follower, err := findFollower(ctx, clients)
 	if err != nil {
 		t.Fatalf("find follower: %v", err)
 	}
@@ -120,8 +120,11 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 	assertMembershipConsistent(t, ctx, clients)
 }
 
-func findFollower(ctx context.Context, clients []*client.Client) (int, *client.Client, error) {
-	for _, c := range clients {
+// findFollower returns the index of a follower in clients along with its
+// node identity. The index is what maps a node to its compose service;
+// the identity is opaque and carries no ordering.
+func findFollower(ctx context.Context, clients []*client.Client) (int, client.NodeID, *client.Client, error) {
+	for i, c := range clients {
 		status, err := c.GetStatus(ctx)
 		if err != nil {
 			continue
@@ -132,17 +135,17 @@ func findFollower(ctx context.Context, clients []*client.Client) (int, *client.C
 		}
 
 		if status.Cluster.Role == "Follower" {
-			return status.Cluster.NodeID, c, nil
+			return i, status.Cluster.NodeID, c, nil
 		}
 	}
 
-	return 0, nil, fmt.Errorf("no follower found")
+	return 0, "", nil, fmt.Errorf("no follower found")
 }
 
-func drainAndAssert(ctx context.Context, leader *client.Client, nodeID int) error {
+func drainAndAssert(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
 	resp, err := leader.DrainClusterMember(ctx, nodeID)
 	if err != nil {
-		return fmt.Errorf("DrainClusterMember(%d): %w", nodeID, err)
+		return fmt.Errorf("DrainClusterMember(%s): %w", nodeID, err)
 	}
 
 	if resp.DrainState != "draining" && resp.DrainState != "drained" {
@@ -154,7 +157,7 @@ func drainAndAssert(ctx context.Context, leader *client.Client, nodeID int) erro
 
 const drainCompletionTimeout = 90 * time.Second
 
-func waitForDrained(ctx context.Context, leader *client.Client, nodeID int) error {
+func waitForDrained(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
 	deadline := time.Now().Add(drainCompletionTimeout)
 
 	var last string
@@ -171,12 +174,12 @@ func waitForDrained(ctx context.Context, leader *client.Client, nodeID int) erro
 		time.Sleep(time.Second)
 	}
 
-	return fmt.Errorf("node %d did not reach drained within %s (last state %q)", nodeID, drainCompletionTimeout, last)
+	return fmt.Errorf("node %s did not reach drained within %s (last state %q)", nodeID, drainCompletionTimeout, last)
 }
 
-func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID int) error {
+func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
 	if err := leader.ResumeClusterMember(ctx, nodeID); err != nil {
-		return fmt.Errorf("ResumeClusterMember(%d): %w", nodeID, err)
+		return fmt.Errorf("ResumeClusterMember(%s): %w", nodeID, err)
 	}
 
 	state, err := drainStateOf(ctx, leader, nodeID)
@@ -191,7 +194,7 @@ func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID int) err
 	return nil
 }
 
-func drainStateOf(ctx context.Context, leader *client.Client, nodeID int) (string, error) {
+func drainStateOf(ctx context.Context, leader *client.Client, nodeID client.NodeID) (string, error) {
 	members, err := leader.ListClusterMembers(ctx)
 	if err != nil {
 		return "", fmt.Errorf("list members: %w", err)
@@ -203,5 +206,5 @@ func drainStateOf(ctx context.Context, leader *client.Client, nodeID int) (strin
 		}
 	}
 
-	return "", fmt.Errorf("node %d not in cluster members", nodeID)
+	return "", fmt.Errorf("node %s not in cluster members", nodeID)
 }

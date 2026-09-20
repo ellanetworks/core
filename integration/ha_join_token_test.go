@@ -77,19 +77,10 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 	}
 
 	valid, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     4,
 		TTLSeconds: 600,
 	})
 	if err != nil {
 		t.Fatalf("mint token for node 4: %v", err)
-	}
-
-	forOtherNode, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     5,
-		TTLSeconds: 600,
-	})
-	if err != nil {
-		t.Fatalf("mint token for node 5: %v", err)
 	}
 
 	cases := []struct {
@@ -103,9 +94,9 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 			wantFragment: "join token",
 		},
 		{
-			name:         "minted_for_another_node",
-			token:        forOtherNode.Token,
-			wantFragment: "but this node is",
+			name:         "not_a_token",
+			token:        "this-is-not-a-join-token",
+			wantFragment: "join token",
 		},
 	}
 
@@ -122,7 +113,7 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 		t.Fatalf("stage + start node 4 with a freshly minted token: %v", err)
 	}
 
-	if err := waitForMemberSuffrage(ctx, leader, 4, "nonvoter"); err != nil {
+	if err := waitForMemberSuffrage(ctx, leader, ClusterAddressWithPort(4, 7000), "nonvoter"); err != nil {
 		t.Fatalf("node 4 did not join with a valid token, so the rejections above prove nothing: %v", err)
 	}
 
@@ -163,7 +154,7 @@ func assertJoinRejected(t *testing.T, ctx context.Context, dc *DockerClient, lea
 		members, err := leader.ListClusterMembers(ctx)
 		if err == nil {
 			for _, m := range members {
-				if m.NodeID == 4 {
+				if m.RaftAddress == ClusterAddressWithPort(4, 7000) {
 					t.Fatalf("node 4 joined the cluster with a rejected token (suffrage=%s)", m.Suffrage)
 				}
 			}

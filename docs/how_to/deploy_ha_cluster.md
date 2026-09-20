@@ -40,7 +40,6 @@ datapath:
   attach-mode: "xdp-native"
 cluster:
   enabled: true
-  node-id: 1
   bind-address: "10.0.0.1:7000"
   peers:
     - "10.0.0.1:7000"
@@ -60,14 +59,13 @@ Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 ## 4. Add node 2
 
-On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the token.
+On node 1, open the **Cluster** page and click **Add Node**, click **Mint Token**, then copy the token.
 
 Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Paste the copied token block over the placeholder:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
   enabled: true
-  node-id: 2
   bind-address: "10.0.0.2:7000"
   peers:
     - "10.0.0.1:7000"

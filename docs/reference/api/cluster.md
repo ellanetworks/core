@@ -24,7 +24,8 @@ None
 {
     "result": [
         {
-            "nodeId": 1,
+            "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
+            "displayName": "core-mtl-a",
             "raftAddress": "10.0.0.1:7000",
             "apiAddress": "https://10.0.0.1:5000",
             "binaryVersion": "v1.18.0",
@@ -33,7 +34,8 @@ None
             "drainState": "active"
         },
         {
-            "nodeId": 2,
+            "nodeId": "0199c4f1-8b02-7d44-a1e7-5c6d7e8f9a0b",
+            "displayName": "",
             "raftAddress": "10.0.0.2:7000",
             "apiAddress": "https://10.0.0.2:5000",
             "binaryVersion": "v1.18.0",
@@ -110,11 +112,14 @@ None
     "result": {
         "healthy": true,
         "failureTolerance": 1,
-        "leaderNodeId": 1,
-        "voters": [1, 2, 3],
+        "leaderNodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
+        "voters": [
+            "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
+            "0199c4f1-8b02-7d44-a1e7-5c6d7e8f9a0b"
+        ],
         "servers": [
             {
-                "nodeId": 1,
+                "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
                 "raftAddress": "10.0.0.1:7000",
                 "nodeStatus": "alive",
                 "healthy": true,
@@ -123,7 +128,7 @@ None
                 "stableSince": "2026-04-20T08:15:02Z"
             },
             {
-                "nodeId": 2,
+                "nodeId": "0199c4f1-8b02-7d44-a1e7-5c6d7e8f9a0b",
                 "raftAddress": "10.0.0.2:7000",
                 "nodeStatus": "alive",
                 "healthy": true,
@@ -182,7 +187,7 @@ None
 
 ## Mint Join Token
 
-This path mints a single-use token authorising `nodeID` to join the cluster. Must be sent to the leader. Requires admin privileges.
+This path mints a single-use token authorising a host to join the cluster. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                               |
 | ------ | ---------------------------------- |
@@ -190,7 +195,6 @@ This path mints a single-use token authorising `nodeID` to join the cluster. Mus
 
 ### Parameters
 
-- `nodeID` (integer): Node ID of the joining host.
 - `ttlSeconds` (integer, optional): Token lifetime in seconds. Defaults to `1800`.
 
 ### Sample Response

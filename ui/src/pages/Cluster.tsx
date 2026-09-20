@@ -25,6 +25,7 @@ import {
 import EntityGrid from "@/components/grid/EntityGrid";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,9 +51,17 @@ import ClusterStateCard from "@/components/ClusterStateCard";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { formatDateTime } from "@/utils/formatters";
 import PageTitle from "@/components/PageTitle";
+import RenameNodeModal from "@/components/RenameNodeModal";
+import {
+  NodeId,
+  nodeIdKey,
+  nodeLabel,
+  sameNodeId,
+  shortNodeId,
+} from "@/queries/nodeId";
 
 type JoinedRow = ClusterMember & {
-  id: number;
+  id: string;
   autopilot?: AutopilotServer;
 };
 
@@ -183,6 +192,7 @@ const ClusterPage: React.FC = () => {
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
   const [removeTarget, setRemoveTarget] = useState<JoinedRow | null>(null);
+  const [renameTarget, setRenameTarget] = useState<JoinedRow | null>(null);
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["status"],
@@ -211,14 +221,14 @@ const ClusterPage: React.FC = () => {
   const autopilot = autopilotQuery.data;
 
   const rows: JoinedRow[] = useMemo(() => {
-    const apByNode = new Map<number, AutopilotServer>();
+    const apByNode = new Map<string, AutopilotServer>();
     for (const s of autopilot?.servers ?? []) {
-      apByNode.set(s.nodeId, s);
+      apByNode.set(nodeIdKey(s.nodeId), s);
     }
     return members.map((m) => ({
       ...m,
-      id: m.nodeId,
-      autopilot: apByNode.get(m.nodeId),
+      id: nodeIdKey(m.nodeId),
+      autopilot: apByNode.get(nodeIdKey(m.nodeId)),
     }));
   }, [members, autopilot]);
 
@@ -234,7 +244,10 @@ const ClusterPage: React.FC = () => {
       if (!accessToken) return;
       try {
         await promoteClusterMember(accessToken, m.nodeId);
-        showSnackbar(`Node ${m.nodeId} promoted to voter.`, "success");
+        showSnackbar(
+          `Node ${nodeLabel(m.displayName, m.nodeId)} promoted to voter.`,
+          "success",
+        );
         queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
         queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
       } catch (err) {
@@ -247,8 +260,20 @@ const ClusterPage: React.FC = () => {
     [accessToken, showSnackbar, queryClient],
   );
 
-  const handleRemoveSuccess = (nodeId: number) => {
-    showSnackbar(`Node ${nodeId} removed.`, "success");
+  const handleCopyNodeId = useCallback(
+    (nodeId: NodeId) => {
+      navigator.clipboard
+        .writeText(nodeIdKey(nodeId))
+        .then(() => showSnackbar("Node identity copied.", "success"))
+        .catch(() =>
+          showSnackbar("Could not copy the node identity.", "error"),
+        );
+    },
+    [showSnackbar],
+  );
+
+  const handleRemoveSuccess = (nodeId: NodeId) => {
+    showSnackbar(`Node ${shortNodeId(nodeId)} removed.`, "success");
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
@@ -266,15 +291,15 @@ const ClusterPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
 
-  const selfNodeId = statusQuery.data?.cluster?.nodeId ?? 0;
-  const currentLeaderNodeId = statusQuery.data?.cluster?.leaderNodeId ?? 0;
+  const selfNodeId = statusQuery.data?.cluster?.nodeId;
+  const currentLeaderNodeId = statusQuery.data?.cluster?.leaderNodeId;
 
   const columns: GridColDef<JoinedRow>[] = useMemo(
     () => [
       {
         field: "nodeId",
-        headerName: "Node ID",
-        width: 240,
+        headerName: "Node",
+        width: 320,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <Stack
             direction="row"
@@ -285,12 +310,29 @@ const ClusterPage: React.FC = () => {
               variant="body2"
               sx={{ fontWeight: p.row.isLeader ? 700 : 400 }}
             >
-              {p.row.nodeId}
+              {nodeLabel(p.row.displayName, p.row.nodeId)}
             </Typography>
+            {p.row.displayName !== "" && (
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", fontFamily: "monospace" }}
+              >
+                {shortNodeId(p.row.nodeId)}
+              </Typography>
+            )}
+            <Tooltip title={`Copy ${nodeIdKey(p.row.nodeId)}`}>
+              <IconButton
+                size="small"
+                aria-label="Copy node identity"
+                onClick={() => handleCopyNodeId(p.row.nodeId)}
+              >
+                <ContentCopyIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
             {p.row.isLeader && (
               <Chip label="Leader" color="primary" size="small" />
             )}
-            {p.row.nodeId === selfNodeId && (
+            {sameNodeId(p.row.nodeId, selfNodeId) && (
               <Chip label="This node" size="small" variant="outlined" />
             )}
           </Stack>
@@ -388,7 +430,7 @@ const ClusterPage: React.FC = () => {
         sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: JoinedRow }) => {
-          const isCurrentLeader = p.row.nodeId === currentLeaderNodeId;
+          const isCurrentLeader = sameNodeId(p.row.nodeId, currentLeaderNodeId);
           const state = p.row.drainState;
           const canDrain = state === "active";
           const canResume = state !== "active";
@@ -410,6 +452,15 @@ const ClusterPage: React.FC = () => {
             : "Remove this node from the cluster.";
 
           return [
+            <Tooltip key="rename" title="Set this node's display name.">
+              <ActionSlot>
+                <GridActionsCellItem
+                  icon={<EditIcon color="primary" />}
+                  label="Rename this node"
+                  onClick={() => setRenameTarget(p.row)}
+                />
+              </ActionSlot>
+            </Tooltip>,
             <Tooltip key="promote" title={promoteTitle}>
               <ActionSlot>
                 <GridActionsCellItem
@@ -466,7 +517,13 @@ const ClusterPage: React.FC = () => {
         },
       } as GridColDef<JoinedRow>,
     ],
-    [versionsDiffer, selfNodeId, currentLeaderNodeId, handlePromote],
+    [
+      versionsDiffer,
+      selfNodeId,
+      currentLeaderNodeId,
+      handlePromote,
+      handleCopyNodeId,
+    ],
   );
 
   const statusLoaded = !statusQuery.isLoading;
@@ -562,10 +619,24 @@ const ClusterPage: React.FC = () => {
 
       {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}
 
+      {renameTarget && (
+        <RenameNodeModal
+          open
+          nodeId={renameTarget.nodeId}
+          initialDisplayName={renameTarget.displayName}
+          onClose={() => setRenameTarget(null)}
+          onSuccess={() => {
+            showSnackbar("Display name updated.", "success");
+            queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
+          }}
+        />
+      )}
+
       {drainTarget && (
         <DrainNodeModal
           open
           nodeId={drainTarget.nodeId}
+          nodeLabel={nodeLabel(drainTarget.displayName, drainTarget.nodeId)}
           onClose={() => setDrainTarget(null)}
           onSuccess={handleDrainSuccess}
         />
@@ -575,6 +646,7 @@ const ClusterPage: React.FC = () => {
         <ResumeNodeModal
           open
           nodeId={resumeTarget.nodeId}
+          nodeLabel={nodeLabel(resumeTarget.displayName, resumeTarget.nodeId)}
           onClose={() => setResumeTarget(null)}
           onSuccess={handleResumeSuccess}
         />
@@ -584,9 +656,10 @@ const ClusterPage: React.FC = () => {
         <RemoveNodeModal
           open
           nodeId={removeTarget.nodeId}
+          nodeLabel={nodeLabel(removeTarget.displayName, removeTarget.nodeId)}
           drainState={removeTarget.drainState}
           health={nodeHealth(removeTarget.autopilot)}
-          isSelf={removeTarget.nodeId === selfNodeId}
+          isSelf={sameNodeId(removeTarget.nodeId, selfNodeId)}
           onClose={() => setRemoveTarget(null)}
           onSuccess={() => handleRemoveSuccess(removeTarget.nodeId)}
         />

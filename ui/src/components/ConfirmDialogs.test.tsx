@@ -76,6 +76,7 @@ describe("DrainNodeModal", () => {
       <DrainNodeModal
         open
         nodeId={2}
+        nodeLabel="2"
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -133,6 +134,7 @@ describe("ResumeNodeModal", () => {
       <ResumeNodeModal
         open
         nodeId={3}
+        nodeLabel="3"
         onClose={onClose}
         onSuccess={onSuccess}
       />,

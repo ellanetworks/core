@@ -3131,14 +3131,9 @@ paths:
       tags: [Cluster]
       summary: Mint a cluster join token
       description: >-
-        Mints a single-use HMAC-signed token authorising `nodeID` to
-        register its self-signed cluster certificate's fingerprint
-        with the leader. The joining node puts the token in its
-        `cluster.join-token` config field before starting the daemon.
-        The leader's pinned certificate fingerprint is embedded in
-        the token so the joiner can pin the bootstrap TLS handshake
-        directly to the leader's certificate. Requires admin
-        privileges.
+        Mints a single-use token that admits one new node to the cluster,
+        for use with `POST /api/v1/cluster/join`. Must be sent to the
+        leader. Requires admin privileges.
       requestBody:
         required: true
         content:
@@ -5863,14 +5858,14 @@ components:
               type: string
               description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
             nodeId:
-              type: string
-              description: Raft node ID of this instance.
+              type: [string, integer]
+              description: Identity of this node.
             isLeader:
               type: boolean
               description: True when this node is the current Raft leader.
             leaderNodeId:
-              type: string
-              description: Raft node ID of the current leader. Zero when the leader is unknown or its cluster_members row is not yet present.
+              type: [string, integer]
+              description: Identity of the current leader. Empty when the leader is unknown.
             appliedIndex:
               type: integer
               format: uint64
@@ -5918,16 +5913,11 @@ components:
       type: object
       properties:
         nodeId:
-          type: string
-          description: >-
-            Raft node identity. A UUID on a node that joined from this
-            release onwards, and the decimal integer a node formed under
-            an earlier release keeps.
+          type: [string, integer]
+          description: Identity of the node.
         displayName:
           type: string
-          description: >-
-            Operator-facing name, empty until an operator sets one. Free
-            text; lookups and destructive operations take nodeId.
+          description: Operator-set name for this node. Empty when unset.
         raftAddress:
           type: string
           description: "Address used for Raft consensus (host:port)."
@@ -5969,8 +5959,8 @@ components:
       description: Live autopilot view of a single cluster peer.
       properties:
         nodeId:
-          type: string
-          description: Raft node ID.
+          type: [string, integer]
+          description: Identity of the node.
         raftAddress:
           type: string
           description: "Raft transport address of this peer (host:port)."
@@ -6019,13 +6009,13 @@ components:
             without losing quorum. Zero means any additional failure
             stalls writes.
         leaderNodeId:
-          type: string
-          description: Raft node ID of the current leader; zero when unknown.
+          type: [string, integer]
+          description: Identity of the current leader. Empty when unknown.
         voters:
           type: array
           items:
-            type: string
-          description: Node IDs of voting members, ascending.
+            type: [string, integer]
+          description: Identities of voting members, ascending.
         servers:
           type: array
           items:
@@ -6057,15 +6047,9 @@ components:
     MintJoinTokenRequest:
       type: object
       properties:
-        nodeID:
-          type: integer
-          minimum: 1
-          maximum: 63
-          description: Node-id the token authorises.
         ttlSeconds:
           type: integer
           description: Token lifetime in seconds. Defaults to 1800.
-      required: [nodeID]
 
     MintJoinTokenResponse:
       type: object

@@ -16,7 +16,8 @@ const MEMBERS = "/api/v1/cluster/members";
 const AUTOPILOT = "/api/v1/cluster/autopilot";
 
 type MemberOverrides = {
-  nodeId: number;
+  nodeId: number | string;
+  displayName?: string;
   drainState?: "active" | "draining" | "drained";
   isLeader?: boolean;
   binaryVersion?: string;
@@ -24,6 +25,7 @@ type MemberOverrides = {
 
 const member = (o: MemberOverrides) => ({
   nodeId: o.nodeId,
+  displayName: o.displayName ?? "",
   raftAddress: `10.0.0.${o.nodeId}:7000`,
   apiAddress: `10.0.0.${o.nodeId}:5002`,
   binaryVersion: o.binaryVersion ?? "v0.11.8",
@@ -66,10 +68,10 @@ const renderCluster = async () => {
   return result;
 };
 
-const row = (nodeId: number) =>
+const row = (nodeId: number | string) =>
   screen.getByRole("row", { name: new RegExp(`^${nodeId}\\b`) });
 
-const removeButton = (nodeId: number) =>
+const removeButton = (nodeId: number | string) =>
   within(row(nodeId)).getByRole("menuitem", { name: /Remove from Cluster/ });
 
 const dialog = () => screen.getByRole("dialog");
@@ -405,5 +407,65 @@ describe("Cluster page force remove", () => {
     await renderCluster();
 
     await waitFor(() => expect(removeButton(1)).toBeDisabled());
+  });
+});
+
+describe("Cluster page node identity", () => {
+  const UUID = "0199c0de-0000-7000-8000-00000000beef";
+
+  it("shows a UUID identity shortened, and the display name where one is set", async () => {
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: UUID, displayName: "edge-rack-4" }),
+    ]);
+    seedStatus();
+    seedAutopilot();
+
+    await renderCluster();
+
+    await screen.findByText("edge-rack-4");
+    expect(screen.getByText("0199c0de…")).toBeInTheDocument();
+    expect(screen.queryByText(UUID)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the shortened identity when no display name is set", async () => {
+    api.get(MEMBERS, () => [member({ nodeId: UUID })]);
+    seedStatus();
+    seedAutopilot();
+
+    await renderCluster();
+
+    await screen.findByText("0199c0de…");
+  });
+
+  it("sends a rename to the display-name endpoint", async () => {
+    const user = userEvent.setup();
+    const RENAME = "/api/v1/cluster/members/:id/display-name";
+
+    api.get(MEMBERS, () => [member({ nodeId: UUID })]);
+    seedStatus();
+    seedAutopilot();
+    api.put(RENAME, () => ({ message: "Display name updated" }));
+
+    await renderCluster();
+
+    const uuidRow = (await screen.findByText("0199c0de…")).closest(
+      "[role='row']",
+    ) as HTMLElement;
+
+    await user.click(
+      within(uuidRow).getByRole("menuitem", { name: /Rename this node/ }),
+    );
+
+    const input = await screen.findByLabelText(/Display name/);
+    await user.clear(input);
+    await user.type(input, "edge-rack-4");
+    await user.click(within(dialog()).getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(
+        api.lastRequest(`/api/v1/cluster/members/${UUID}/display-name`)?.body,
+      ).toMatchObject({ displayName: "edge-rack-4" }),
+    );
   });
 });
