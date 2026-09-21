@@ -348,6 +348,14 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, err
 	}
 
+	if err := configureSnapshotRestoreOnStart(raftConfig, fsm, snapshotStore); err != nil {
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, err
+	}
+
 	recovered, err := maybeRecoverCluster(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
 	if err != nil {
 		closeTransport(transport)
@@ -975,6 +983,44 @@ func cleanSnapshotStaging(dataDir, raftDir string) {
 	}
 }
 
+func configureSnapshotRestoreOnStart(raftConfig *raft.Config, fsm *FSM, snaps raft.SnapshotStore) error {
+	lastApplied, err := fsm.readLastApplied()
+	if err != nil {
+		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
+	}
+
+	snapLast, err := newestSnapshotIndex(snaps)
+	if err != nil {
+		return err
+	}
+
+	raftConfig.NoSnapshotRestoreOnStart = lastApplied >= snapLast
+
+	logger.RaftLog.Info("Raft: snapshot restore on start",
+		zap.Bool("skipped", raftConfig.NoSnapshotRestoreOnStart),
+		zap.Uint64("fsm_last_applied", lastApplied),
+		zap.Uint64("newest_snapshot_index", snapLast))
+
+	return nil
+}
+
+func newestSnapshotIndex(snaps raft.SnapshotStore) (uint64, error) {
+	snapList, err := snaps.List()
+	if err != nil {
+		return 0, fmt.Errorf("list raft snapshots: %w", err)
+	}
+
+	var snapLast uint64
+
+	for _, snap := range snapList {
+		if snap.Index > snapLast {
+			snapLast = snap.Index
+		}
+	}
+
+	return snapLast, nil
+}
+
 func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.SnapshotStore, raftDir string) error {
 	lastApplied, err := fsm.readLastApplied()
 	if err != nil {
@@ -990,17 +1036,9 @@ func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.Snaps
 		return fmt.Errorf("read raft log last index: %w", err)
 	}
 
-	snapList, err := snaps.List()
+	snapLast, err := newestSnapshotIndex(snaps)
 	if err != nil {
-		return fmt.Errorf("list raft snapshots: %w", err)
-	}
-
-	var snapLast uint64
-
-	for _, snap := range snapList {
-		if snap.Index > snapLast {
-			snapLast = snap.Index
-		}
+		return err
 	}
 
 	durable := max(logLast, snapLast)
