@@ -64,7 +64,7 @@ func TestRunJoinFlow_RetriesUntilContextCancelled(t *testing.T) {
 }
 
 func TestApplyJoinRequest_RefusesWhenALeafIsAlreadyOnDisk(t *testing.T) {
-	agent := pkiagent.NewAgent("01a0c4a0-b76e-7050-ab95-218317ecef57", "cluster-a", t.TempDir())
+	agent := pkiagent.NewAgent("01a0c4a0-b76e-7050-ab95-218317ecef57", "cluster-a", t.TempDir(), "")
 	if err := agent.GenerateAndPersist(); err != nil {
 		t.Fatalf("seed a leaf on disk: %v", err)
 	}
