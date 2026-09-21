@@ -48,12 +48,12 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering).
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs standalone.
-    - `node-id` (int, 1–63, optional, **deprecated**): Validated against this node's stored identity. Nodes assign their own identity.
+    - `node-id` (int, 1–63, optional, **deprecated**): Node identity. Deprecated, the node ID is now generated automatically.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
-    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must not use an unspecified IP, and must appear in `peers` when `peers` is set.
-    - `peers` (list of strings, optional, **deprecated**): `host:port` seed addresses, read only on this node's first boot. Host may be an IP or DNS name. When set, must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string. Required when `join-token` is set. Send seed addresses to `POST /api/v1/cluster/join` instead.
-    - `join-token` (string, optional, **deprecated**): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Requires `peers`. Consumed on first boot and ignored on subsequent starts. Send the token to `POST /api/v1/cluster/join` instead; the config file and every support bundle retain whatever is written here.
-    - `initial-suffrage` (string, optional, **deprecated**): `voter` or `nonvoter`. Defaults to `voter`. Set `suffrage` on the `POST /api/v1/cluster/join` request instead.
+    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`.
+    - `peers` (list of strings, optional, **deprecated**): `host:port` seed addresses. Deprecated, use the API or UI instead.
+    - `join-token` (string, optional, **deprecated**): Single-use token minted on the cluster leader. Deprecated, use the API or UI instead.
+    - `initial-suffrage` (string, optional, **deprecated**): `voter` or `nonvoter`. Defaults to `voter`. Deprecated, use the API or UI instead.
     - `join-timeout` (duration string, optional): How long a joining node keeps trying to reach a formed peer before it gives up and exits. Defaults to `2m`.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.

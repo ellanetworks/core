@@ -297,6 +297,13 @@ func awaitAPIJoin(ctx context.Context, pki *pkiState, dbInstance *db.Database) e
 		}
 
 		applyErr := applyJoinRequest(ctx, pki, dbInstance, req)
+		if applyErr == nil {
+			applyErr = dbInstance.StartDiscovery(ctx)
+		}
+
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 
 		coord.Report(applyErr)
 
@@ -320,13 +327,15 @@ func applyJoinRequest(ctx context.Context, pkiState *pkiState, dbInstance *db.Da
 		return nil
 	}
 
+	if pkiState.agent.HaveLeafOnDisk() {
+		return errors.New("this node already holds a cluster certificate; delete its data directory before adding it to a cluster")
+	}
+
 	joinCtx, cancel := context.WithTimeout(ctx, joinRequestTimeout)
 	defer cancel()
 
-	if !pkiState.agent.HaveLeafOnDisk() {
-		if err := runJoinFlow(joinCtx, pkiState.agent, req.SeedAddresses, req.Token); err != nil {
-			return err
-		}
+	if err := runJoinFlow(joinCtx, pkiState.agent, req.SeedAddresses, req.Token); err != nil {
+		return err
 	}
 
 	if err := pkiState.agent.Load(); err != nil {

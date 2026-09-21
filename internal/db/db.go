@@ -1472,16 +1472,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.adoptRaftManager(raftMgr)
 
-	// Ensure the FSM migration marker exists so future FSM.Restore
-	// calls know the new code is active and use the snapshot's
-	// lastApplied instead of preserving a potentially stale value.
-	migrationMarker := filepath.Join(dataDir, ".fsm_migrated")
-	if _, statErr := os.Stat(migrationMarker); os.IsNotExist(statErr) {
-		if wErr := os.WriteFile(migrationMarker, []byte("1"), 0o600); wErr != nil {
-			logger.DBLog.Warn("failed to create fsm migration marker", zap.Error(wErr))
-		}
-	}
-
 	db.migrationCheckCh = make(chan struct{}, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	db.migrationCheckCancel = workerCancel

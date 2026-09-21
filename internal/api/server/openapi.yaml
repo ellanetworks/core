@@ -3131,8 +3131,7 @@ paths:
       summary: Join this node to a cluster
       description: >-
         Joins a node that has no cluster state to an existing cluster.
-        Unauthenticated: the join token is the credential. Returns
-        immediately; poll `GET /api/v1/cluster/join` for the outcome.
+        Unauthenticated.
       security: []
       requestBody:
         required: true
