@@ -9,75 +9,27 @@ Ella Core can be deployed as a high-availability cluster to provide redundancy a
 ## Prerequisites
 
 - Three hosts meeting the standard [system requirements](../reference/system_reqs.md).
-- Ella Core installed on each host via the [Install](install.md) guide. Do **not** start the service yet.
-- A reachable TCP port on each host for inter-node traffic (this guide uses `7000`).
+- Ella Core installed on each host via the [Install](install.md) guide with `cluster.bind-address` set in the configuration file.
 
-## 1. Configure node 1
+## 1. Start node 1
 
-Put this in `core.yaml` on node 1. Adjust interface names, addresses, and ports to match the host.
+Start node 1, open a browser at the API address and initialize it normally.
 
-```yaml title="core.yaml (node 1)"
-logging:
-  system:
-    level: "info"
-    output: "stdout"
-  audit:
-    output: "stdout"
-db:
-  path: "/var/snap/ella-core/common/data/ella.db"
-interfaces:
-  n2:
-    address: "10.0.0.1"
-    ngap-port: 38412
-  n3:
-    name: "n3"
-  n6:
-    name: "eth0"
-  api:
-    address: "10.0.0.1"
-    port: 5002
-datapath:
-  attach-mode: "xdp-native"
-cluster:
-  bind-address: "10.0.0.1:7000"
-```
+## 2. Create a join token for node 2
 
-## 2. Start node 1
+Still in node 1, open the **Cluster** page and click **Add Node**, click **Mint Token**, then copy the token.
 
-```shell
-sudo snap start --enable ella-core.cored
-```
+## 3. Start node 2
 
-## 3. Create the admin user
+Start node 2, open a browser at the API address and click **Join an existing cluster instead**. Paste the token, enter node 1's cluster address, and click **Join**.
 
-Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
+## 4. Add node 3
 
-## 4. Add node 2
+Repeat steps 2 and 3 for node 3.
 
-On node 1, open the **Cluster** page and click **Add Node**, click **Mint Token**, then copy the token.
+## 5. Verify
 
-Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`:
-
-```yaml title="core.yaml (node 2, cluster block)"
-cluster:
-  bind-address: "10.0.0.2:7000"
-```
-
-Start node 2:
-
-```shell
-sudo snap start --enable ella-core.cored
-```
-
-Open `https://10.0.0.2:5002` in a browser. On the **Join a cluster** page, paste the token, enter node 1's cluster address `10.0.0.1:7000`, and click **Join**.
-
-## 5. Add node 3
-
-Repeat step 4 on node 3.
-
-## 6. Verify
-
-On the **Cluster** page, all three nodes appear as **Voter**, one as **Leader**, all **Healthy**.
+On the **Cluster** page, all three nodes appear as **Healthy**.
 
 <figure markdown="span">
   ![Ella Core HA Cluster](../images/ha_cluster.png){ width="800" }

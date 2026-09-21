@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -104,5 +105,77 @@ describe("Initialize page join affordance", () => {
       name: /Join an existing cluster instead/,
     });
     await waitFor(() => expect(button).toBeEnabled());
+  });
+});
+
+describe("Cluster join form", () => {
+  it("surfaces a join failure in the snackbar, not inside the card", async () => {
+    seedStatus(true);
+    api.get(JOIN, () => ({
+      state: "waiting",
+      error:
+        'peer 192.168.40.58:7000 rejected the join: server returned 500: {"error":"Failed to register cluster member"}',
+    }));
+
+    renderWithProviders(<ClusterJoin />, { auth: {} });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("rejected the join");
+
+    const card = screen.getByLabelText(/Join token/).closest("form, div");
+    expect(card?.contains(alert)).toBe(false);
+  });
+
+  it("collapses the token field once a token is pasted", async () => {
+    seedStatus(true);
+    api.get(JOIN, () => ({ state: "waiting" }));
+
+    const user = userEvent.setup();
+    renderWithProviders(<ClusterJoin />, { auth: {} });
+
+    const field = await screen.findByLabelText(/Join token/);
+    await user.click(field);
+    await user.paste("a".repeat(64) + "a4f2");
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/Join token/)).toBeNull(),
+    );
+    expect(screen.getByText(/Token pasted · ends in a4f2/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /Clear join token/ }));
+    expect(await screen.findByLabelText(/Join token/)).toBeTruthy();
+  });
+
+  it("rejects a cluster address that is not host:port", async () => {
+    seedStatus(true);
+    api.get(JOIN, () => ({ state: "waiting" }));
+
+    const user = userEvent.setup();
+    renderWithProviders(<ClusterJoin />, { auth: {} });
+
+    const token = await screen.findByLabelText(/Join token/);
+    await user.click(token);
+    await user.paste("a".repeat(68));
+
+    const address = screen.getByLabelText(/Cluster address/);
+    await user.type(address, "https://192.168.40.58:7000");
+    await user.tab();
+
+    expect(
+      await screen.findByText(/Enter a cluster address, not a URL/),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Join$/ })).toBeDisabled();
+
+    await user.clear(address);
+    await user.type(address, "192.168.40.58");
+    await user.tab();
+    expect(await screen.findByText(/cluster port is missing/)).toBeTruthy();
+
+    await user.clear(address);
+    await user.type(address, "192.168.40.58:7000");
+    await user.tab();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Join$/ })).toBeEnabled(),
+    );
   });
 });
