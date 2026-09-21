@@ -321,6 +321,10 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 
 	dc.ComposeCleanup(ctx)
 
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+	})
+
 	fail := func(err error) (string, []*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, nodeServices, true)
 		return "", nil, err

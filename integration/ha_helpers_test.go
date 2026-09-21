@@ -109,10 +109,6 @@ func bringUpHACluster(t *testing.T, ctx context.Context, dc *DockerClient) ([]*c
 // into each service as /cfg/core.yaml. This helper writes those files.
 // extraPeers lets callers with a larger peers list (scaleup) include
 // more addresses than the starting set of services.
-//
-// On any error return, captureClusterLogs is invoked so per-node container
-// logs are emitted (and persisted to INTEGRATION_LOG_DIR if set) BEFORE the
-// next test's ComposeCleanup tears the containers down.
 func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
 	t.Helper()
 
@@ -127,6 +123,10 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 	t.Helper()
 
 	dc.ComposeCleanup(ctx)
+
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, ComposeFile())
+	})
 
 	fail := func(err error) ([]*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, services, true)
@@ -1111,6 +1111,10 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	t.Helper()
 
 	dc.ComposeCleanup(ctx)
+
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+	})
 
 	fail := func(err error) ([]*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, services, true)
