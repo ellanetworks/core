@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,19 +18,7 @@ import (
 // same for compose.yaml / compose-ipv6.yaml / compose-dualstack.yaml.
 const haComposeProject = "ha"
 
-// TestIntegrationHAFreshClusterConcurrentBootstrap brings up a fresh
-// 3-node cluster with all nodes started concurrently and FQDN peers
-// (resolved via Docker's embedded DNS, mirroring an orchestrator's
-// stable per-pod DNS). Each node's peers list includes itself, the
-// natural shape when one config template ships to every replica.
-//
-// Phase A starts node 1 alone to mint join tokens for nodes 2 and 3.
-// Phase B stops node 1 and re-creates all three with a single
-// compose-up so they race to bind their listeners while dialing each
-// other. DisableRestart neutralises compose's unless-stopped policy
-// so a regression that crashes the joiner surfaces as a stuck cluster
-// rather than being papered over by compose retrying the container.
-func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
+func TestIntegrationHAConcurrentJoin(t *testing.T) {
 	suites.Require(t, suites.HA)
 
 	beginHATest(t)
@@ -67,7 +56,7 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	HALog(t, "phase A: starting node 1 as founder")
 
-	if err := writeNodeConfigOpts(composeDir, 1, fqdnPeers, "", "", true); err != nil {
+	if err := writeNodeConfigOpts(composeDir, 1, nil, "", "", true); err != nil {
 		t.Fatalf("write node 1 config: %v", err)
 	}
 
@@ -82,10 +71,6 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	node1, err := newInsecureClient(getHANodeURLs()[0])
 	if err != nil {
 		t.Fatalf("node 1 client: %v", err)
-	}
-
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		t.Fatalf("node 1 never became ready: %v", err)
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
@@ -109,11 +94,11 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 		t.Fatalf("mint token for node 3: %v", err)
 	}
 
-	if err := writeNodeConfigOpts(composeDir, 2, fqdnPeers, tok2.Token, "", true); err != nil {
+	if err := writeNodeConfigOpts(composeDir, 2, nil, "", "", true); err != nil {
 		t.Fatalf("write node 2 config: %v", err)
 	}
 
-	if err := writeNodeConfigOpts(composeDir, 3, fqdnPeers, tok3.Token, "", true); err != nil {
+	if err := writeNodeConfigOpts(composeDir, 3, nil, "", "", true); err != nil {
 		t.Fatalf("write node 3 config: %v", err)
 	}
 
@@ -135,6 +120,30 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	for _, svc := range []string{"ella-core-2", "ella-core-3"} {
 		if err := dc.DisableRestart(ctx, haComposeProject, svc); err != nil {
 			t.Fatalf("disable restart on %s: %v", svc, err)
+		}
+	}
+
+	seeds := []string{fqdnPeers[0]}
+
+	var joinWG sync.WaitGroup
+
+	joinErrs := make([]error, 2)
+
+	for i, tok := range []string{tok2.Token, tok3.Token} {
+		joinWG.Add(1)
+
+		go func() {
+			defer joinWG.Done()
+
+			joinErrs[i] = joinViaAPI(ctx, APIAddressForCluster(i+2), tok, seeds, "")
+		}()
+	}
+
+	joinWG.Wait()
+
+	for i, err := range joinErrs {
+		if err != nil {
+			t.Fatalf("join node %d: %v", i+2, err)
 		}
 	}
 

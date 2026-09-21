@@ -55,8 +55,8 @@ describe("AddNodeModal", () => {
     await user.click(button(/Mint Token/));
 
     await screen.findByText(/Token minted/);
-    expect(screen.getByText(/join-token: join-abc123/)).toBeInTheDocument();
-    expect(screen.queryByText(/node-id:/)).not.toBeInTheDocument();
+    expect(screen.getByText("join-abc123")).toBeInTheDocument();
+    expect(screen.getByText(/paste this token/i)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(
       within(dialog()).queryByRole("button", { name: /Mint Token/ }),

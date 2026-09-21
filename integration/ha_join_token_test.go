@@ -108,7 +108,7 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 		})
 	}
 
-	HALog(t, "both bad tokens were rejected; confirming a valid token still admits node 4")
+	HALog(t, "the bad token was rejected; confirming a valid token still admits node 4")
 
 	if err := stageAndStartJoiner(ctx, dc, leader, joinTokenComposeDir,
 		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {
@@ -125,17 +125,20 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 func assertJoinRejected(t *testing.T, ctx context.Context, dc *DockerClient, leader *client.Client, composeFile, token, wantFragment string) {
 	t.Helper()
 
-	if err := writeNodeConfig(joinTokenComposeDir, 4, []string{
-		ClusterAddressWithPort(1, 7000),
-		ClusterAddressWithPort(2, 7000),
-		ClusterAddressWithPort(3, 7000),
-		ClusterAddressWithPort(4, 7000),
-	}, token, "nonvoter"); err != nil {
+	if err := writeNodeConfig(joinTokenComposeDir, 4, nil, "", ""); err != nil {
 		t.Fatalf("write node 4 config: %v", err)
 	}
 
 	if err := dc.ComposeUpServicesWithFile(ctx, joinTokenComposeDir, composeFile, "ella-core-4"); err != nil {
 		t.Fatalf("start node 4: %v", err)
+	}
+
+	if err := joinViaAPI(ctx, APIAddressForCluster(4), token, []string{
+		ClusterAddressWithPort(1, 7000),
+		ClusterAddressWithPort(2, 7000),
+		ClusterAddressWithPort(3, 7000),
+	}, "nonvoter"); err != nil {
+		t.Fatalf("submit join instruction to node 4: %v", err)
 	}
 
 	t.Cleanup(func() {

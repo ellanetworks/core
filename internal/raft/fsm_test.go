@@ -305,8 +305,6 @@ func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 		t.Fatalf("seed destination lastApplied: %v", err)
 	}
 
-	markFSMMigrated(t, dstDir)
-
 	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -319,43 +317,6 @@ func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 	if got != snapshotLastApplied {
 		t.Fatalf("lastApplied after restore = %d, want %d (the snapshot's value); "+
 			"a higher local value would skip entries the node never applied", got, snapshotLastApplied)
-	}
-}
-
-func TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker(t *testing.T) {
-	const (
-		snapshotLastApplied uint64 = 42
-		staleLocalIndex     uint64 = 999
-	)
-
-	src := newTestApplier(t)
-	srcFSM := NewFSM(src, t.TempDir())
-
-	if err := srcFSM.writeLastApplied(snapshotLastApplied); err != nil {
-		t.Fatalf("seed source lastApplied: %v", err)
-	}
-
-	payload := persistSnapshot(t, srcFSM)
-
-	dst := newTestApplier(t)
-	dstFSM := NewFSM(dst, t.TempDir())
-
-	if err := dstFSM.writeLastApplied(staleLocalIndex); err != nil {
-		t.Fatalf("seed destination lastApplied: %v", err)
-	}
-
-	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
-		t.Fatalf("restore: %v", err)
-	}
-
-	got, err := dstFSM.readLastApplied()
-	if err != nil {
-		t.Fatalf("read lastApplied after restore: %v", err)
-	}
-
-	if got != staleLocalIndex {
-		t.Fatalf("lastApplied after markerless restore = %d, want %d (the preserved local value)",
-			got, staleLocalIndex)
 	}
 }
 
@@ -381,14 +342,6 @@ func persistSnapshot(t *testing.T, fsm *FSM) []byte {
 	}
 
 	return sink.buf.Bytes()
-}
-
-func markFSMMigrated(t *testing.T, dataDir string) {
-	t.Helper()
-
-	if err := os.WriteFile(filepath.Join(dataDir, ".fsm_migrated"), []byte("1"), 0o600); err != nil {
-		t.Fatalf("write fsm migration marker: %v", err)
-	}
 }
 
 // TestFSM_Snapshot_ProducesValidSQLite verifies the snapshot bytes can be
@@ -892,8 +845,6 @@ func TestFSM_Restore_RawSQLite(t *testing.T) {
 	if err := dstFSM.writeLastApplied(999); err != nil {
 		t.Fatalf("seed destination lastApplied: %v", err)
 	}
-
-	markFSMMigrated(t, dstDir)
 
 	rc := newReadCloser(raw)
 	if err := dstFSM.Restore(rc); err != nil {

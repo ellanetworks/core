@@ -13,6 +13,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { initialize } from "@/queries/initialize";
@@ -42,11 +43,14 @@ const InitializePage = () => {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
+  const [clusterEnabled, setClusterEnabled] = useState(false);
 
   useEffect(() => {
     const checkInitialization = async () => {
       try {
         const status = await getStatus();
+        setClusterEnabled(status?.cluster?.enabled ?? false);
+
         if (status?.initialized) {
           navigate("/dashboard");
         } else {
@@ -216,6 +220,26 @@ const InitializePage = () => {
             {loading ? <CircularProgress size={24} /> : "Create"}
           </Button>
         </form>
+
+        <Button
+          fullWidth
+          sx={{ mt: 2 }}
+          endIcon={<ArrowForwardIcon />}
+          onClick={() => navigate("/initialize/join")}
+          disabled={loading || !clusterEnabled}
+        >
+          Join an existing cluster instead
+        </Button>
+
+        {!clusterEnabled && (
+          <Typography
+            variant="caption"
+            color="textSecondary"
+            sx={{ mt: 1, display: "block", textAlign: "center" }}
+          >
+            The cluster bind address is not set in the config file.
+          </Typography>
+        )}
       </Box>
     </Box>
   );

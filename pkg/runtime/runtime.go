@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/drain"
+	"github.com/ellanetworks/core/internal/cluster/joinreq"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -190,6 +191,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		restoredFromBundle = restored
 
+		raftCfg.Bootstrap = restored
+
 		// cluster-id is unknown at construction; on a fresh first
 		// boot the agent gets it from the leader-init path; on a
 		// joining node it gets it from the join token's claims;
@@ -247,10 +250,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// --- Phase A: start the HTTP server with discovery-only routes so
 	// peers can probe /api/v1/status and POST /api/v1/cluster/members
 	// during Raft cluster formation. ---
-	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg)
+	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg, rc.EmbedFS)
 	if err != nil {
 		return fmt.Errorf("couldn't start API (discovery): %w", err)
 	}
+
+	server.SetJoinCoordinator(joinreq.Default())
 
 	if clusterLn != nil {
 		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn)
@@ -263,6 +268,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		if err := clusterLn.Start(ctx); err != nil {
 			return fmt.Errorf("cluster listener: %w", err)
+		}
+	}
+
+	if cfg.Cluster.Enabled && cfg.Cluster.JoinToken == "" && !raftCfg.Bootstrap && dbInstance.DiscoveryPending() {
+		if err := awaitAPIJoin(ctx, pki, dbInstance); err != nil {
+			if ctx.Err() != nil {
+				logger.EllaLog.Info("Shutdown signal received, exiting.")
+
+				return nil
+			}
+
+			return fmt.Errorf("await cluster join: %w", err)
 		}
 	}
 

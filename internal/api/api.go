@@ -108,12 +108,13 @@ type UpgradeConfig struct {
 // StartDiscovery creates and starts the HTTP server with only the routes
 // required for cluster discovery (status, cluster membership, metrics,
 // OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
-func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config) (*Server, error) {
+func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config, frontendFS fs.FS) (*Server, error) {
 	s := &Server{cfg: cfg}
 
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
-		DB:     dbInstance,
-		Config: cfg,
+		DB:         dbInstance,
+		Config:     cfg,
+		FrontendFS: frontendFS,
 	})
 
 	s.handler.set(discoveryHandler)

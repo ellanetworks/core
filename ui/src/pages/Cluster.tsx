@@ -562,7 +562,9 @@ const ClusterPage: React.FC = () => {
           primaryText="High availability is not enabled"
           secondaryText={
             <>
-              This node is running in standalone mode.{" "}
+              This node is running in standalone mode. Set the cluster bind
+              address in the config file and restart this node to enable
+              clustering.{" "}
               <MuiLink
                 href={PRODUCT.haDocsUrl}
                 target="_blank"

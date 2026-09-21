@@ -78,8 +78,8 @@ func TestClusterMemberReadsWorkAtPreV20Schema(t *testing.T) {
 		t.Fatalf("nodeID = %q, want %q", member.NodeID, "3")
 	}
 
-	if member.RaftAddress != "10.0.0.3:7000" {
-		t.Fatalf("raftAddress = %q, want %q", member.RaftAddress, "10.0.0.3:7000")
+	if member.APIAddress != "10.0.0.3:5002" {
+		t.Fatalf("apiAddress = %q, want %q", member.APIAddress, "10.0.0.3:5002")
 	}
 
 	if member.DrainState != DrainStateActive {
@@ -106,10 +106,8 @@ func TestUpsertClusterMemberAtPreV20SchemaKeepsLegacyTyping(t *testing.T) {
 
 	member := &ClusterMember{
 		NodeID:        "3",
-		RaftAddress:   "10.0.0.3:7000",
 		APIAddress:    "10.0.0.3:5002",
 		BinaryVersion: "v1.19.0",
-		Suffrage:      "voter",
 	}
 
 	if _, err := d.applyUpsertClusterMember(ctx, member); err != nil {
@@ -172,10 +170,8 @@ func TestUpsertClusterMemberAtPreV20SchemaRejectsUUIDIdentity(t *testing.T) {
 
 	member := &ClusterMember{
 		NodeID:        "01890000-0000-7000-8000-000000000001",
-		RaftAddress:   "10.0.0.4:7000",
 		APIAddress:    "10.0.0.4:5002",
 		BinaryVersion: "v1.19.0",
-		Suffrage:      "voter",
 	}
 
 	if _, err := d.applyUpsertClusterMember(ctx, member); err == nil {
@@ -191,14 +187,15 @@ func TestUpsertClusterMemberUUIDDefersUntilV20(t *testing.T) {
 	const uuidNodeID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec"
 
 	_, err := d.applyUpsertClusterMember(ctx, &ClusterMember{
-		NodeID: uuidNodeID, RaftAddress: "10.0.0.4:7000", APIAddress: "10.0.0.4:5002", Suffrage: "voter",
+		NodeID:     uuidNodeID,
+		APIAddress: "10.0.0.4:5002",
 	})
 	if !errors.Is(err, ErrMigrationPending) {
 		t.Fatalf("upsert of a UUID identity at schema 19: got %v, want ErrMigrationPending", err)
 	}
 
 	_, err = d.applyUpsertClusterMember(ctx, &ClusterMember{
-		NodeID: "8", RaftAddress: "10.0.0.8:7000", APIAddress: "10.0.0.8:5002", Suffrage: "voter",
+		NodeID: "8", APIAddress: "10.0.0.8:5002",
 	})
 	if err != nil {
 		t.Fatalf("upsert of a legacy identity at schema 19: %v", err)
@@ -233,7 +230,8 @@ func TestUpsertClusterMemberUUIDSucceedsAtLatestSchema(t *testing.T) {
 	const uuidNodeID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec"
 
 	if _, err := d.applyUpsertClusterMember(ctx, &ClusterMember{
-		NodeID: uuidNodeID, RaftAddress: "10.0.0.4:7000", APIAddress: "10.0.0.4:5002", Suffrage: "voter",
+		NodeID:     uuidNodeID,
+		APIAddress: "10.0.0.4:5002",
 	}); err != nil {
 		t.Fatalf("upsert of a UUID identity at the latest schema: %v", err)
 	}

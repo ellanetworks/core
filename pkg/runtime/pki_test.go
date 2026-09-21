@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/internal/cluster/joinreq"
+	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 )
 
 func TestRunJoinFlow_EmptyTokenIsNoOp(t *testing.T) {
@@ -57,5 +60,29 @@ func TestRunJoinFlow_RetriesUntilContextCancelled(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("runJoinFlow did not return within 5s of ctx cancel")
+	}
+}
+
+func TestApplyJoinRequest_RefusesWhenALeafIsAlreadyOnDisk(t *testing.T) {
+	agent := pkiagent.NewAgent("01a0c4a0-b76e-7050-ab95-218317ecef57", "cluster-a", t.TempDir(), "")
+	if err := agent.GenerateAndPersist(); err != nil {
+		t.Fatalf("seed a leaf on disk: %v", err)
+	}
+
+	if !agent.HaveLeafOnDisk() {
+		t.Fatal("test setup: expected a leaf on disk")
+	}
+
+	err := applyJoinRequest(context.Background(), &pkiState{agent: agent}, nil, joinreq.Request{
+		Mode:          joinreq.ModeJoin,
+		Token:         strings.Repeat("A", 96),
+		SeedAddresses: []string{"10.0.0.1:7000"},
+	})
+	if err == nil {
+		t.Fatal("a node holding a cluster certificate must not accept a join")
+	}
+
+	if !strings.Contains(err.Error(), "delete its data directory") {
+		t.Fatalf("error must tell the operator to clear the node, got %v", err)
 	}
 }

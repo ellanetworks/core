@@ -40,15 +40,15 @@ func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string)
 	return ErrMigrationPending
 }
 
-const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.raftAddress, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.suffrage, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
+const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
 
 const (
 	listClusterMembersStmtStr        = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
 	listClusterMembersPreV20StmtStr  = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s ORDER BY nodeID ASC"
 	getClusterMemberStmtStr          = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	getClusterMemberPreV20StmtStr    = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr       = "INSERT INTO %s (nodeID, amfPointer, displayName, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
-	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	upsertClusterMemberStmtStr       = "INSERT INTO %s (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.apiAddress, $ClusterMember.binaryVersion) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion"
+	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion) VALUES ($ClusterMember.nodeID, '', $ClusterMember.apiAddress, $ClusterMember.binaryVersion) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion"
 	deleteClusterMemberStmtStr       = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	setDrainStateStmtStr             = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
@@ -64,10 +64,8 @@ type ClusterMember struct {
 	NodeID         string `db:"nodeID"`
 	AMFPointer     int    `db:"amfPointer"`
 	DisplayName    string `db:"displayName"`
-	RaftAddress    string `db:"raftAddress"`
 	APIAddress     string `db:"apiAddress"`
 	BinaryVersion  string `db:"binaryVersion"`
-	Suffrage       string `db:"suffrage"`
 	DrainState     string `db:"drainState"`
 	DrainUpdatedAt int64  `db:"drainUpdatedAt"`
 }

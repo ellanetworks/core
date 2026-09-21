@@ -393,10 +393,6 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	_ = tmpFile.Close()
 
-	// Read lastApplied from the old database before it is replaced.
-	// Used below for a one-time migration check.
-	oldLastApplied, _ := f.readLastApplied()
-
 	// Preserve local-only tables (radio_events, flow_reports, etc.)
 	// across the file swap. These are per-node and not part of the
 	// replicated snapshot. fsm_state is intentionally NOT preserved:
@@ -440,38 +436,6 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	if err := f.applier.Reopen(ctx); err != nil {
 		return fmt.Errorf("reopen database after restore: %w", err)
-	}
-
-	// One-time migration: older code kept fsm_state in localOnlyTables,
-	// which preserved lastApplied across snapshot restores. If a previous
-	// restart cycle skipped entries (because the preserved lastApplied was
-	// higher than the snapshot's), later entries in the Raft log were
-	// captured against the divergent post-skip state. Replaying ALL entries
-	// now would hit changeset conflicts (NOTFOUND) because entries from
-	// before the skip and after the skip are incompatible.
-	//
-	// Detect the upgrade by checking for a marker file that the new code
-	// creates after every successful startup. If absent, this is the first
-	// restore with the new code; preserve the old lastApplied so entries
-	// from the buggy cycle remain skipped (they were captured against a
-	// divergent state anyway). Future restores (after a new snapshot is
-	// taken by the fixed code) use the snapshot's lastApplied normally.
-	migrationMarker := filepath.Join(f.dataDir, ".fsm_migrated")
-	if _, statErr := os.Stat(migrationMarker); os.IsNotExist(statErr) {
-		snapshotLastApplied, _ := f.readLastApplied()
-		if oldLastApplied > snapshotLastApplied {
-			if wErr := f.writeLastApplied(oldLastApplied); wErr != nil {
-				return fmt.Errorf("migration: preserve old lastApplied: %w", wErr)
-			}
-
-			logger.RaftLog.Warn("FSM: preserved lastApplied from pre-upgrade database (one-time migration)",
-				zap.Uint64("snapshot_last_applied", snapshotLastApplied),
-				zap.Uint64("preserved_last_applied", oldLastApplied))
-		}
-
-		if wErr := os.WriteFile(migrationMarker, []byte("1"), 0o600); wErr != nil {
-			logger.RaftLog.Warn("FSM: failed to write migration marker", zap.Error(wErr))
-		}
 	}
 
 	logger.RaftLog.Info("FSM: restored database from Raft snapshot")

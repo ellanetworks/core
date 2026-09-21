@@ -264,10 +264,6 @@ func bringUpHASnapshotCluster(t *testing.T, ctx context.Context, dc *DockerClien
 		return fail(err)
 	}
 
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		return fail(fmt.Errorf("node 1 never became ready: %w", err))
-	}
-
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
 		return fail(err)
@@ -369,15 +365,13 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: %q
   snapshot-interval: %q
   snapshot-threshold: %d
   trailing-logs: %d
   peers:
 %s%s%s`,
-		addr, addr, nodeID, ClusterAddressWithPort(nodeID, 7000),
+		addr, addr, ClusterAddressWithPort(nodeID, 7000),
 		cfg.Interval, cfg.Threshold, cfg.TrailingLogs,
 		peersYAML.String(), joinTokenLine, suffrageLine)
 

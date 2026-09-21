@@ -4,6 +4,7 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -108,10 +109,6 @@ func bringUpHACluster(t *testing.T, ctx context.Context, dc *DockerClient) ([]*c
 // into each service as /cfg/core.yaml. This helper writes those files.
 // extraPeers lets callers with a larger peers list (scaleup) include
 // more addresses than the starting set of services.
-//
-// On any error return, captureClusterLogs is invoked so per-node container
-// logs are emitted (and persisted to INTEGRATION_LOG_DIR if set) BEFORE the
-// next test's ComposeCleanup tears the containers down.
 func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
 	t.Helper()
 
@@ -126,6 +123,10 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 	t.Helper()
 
 	dc.ComposeCleanup(ctx)
+
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, ComposeFile())
+	})
 
 	fail := func(err error) ([]*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, services, true)
@@ -157,10 +158,6 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 	node1, err := newInsecureClient(getHANodeURLs()[0])
 	if err != nil {
 		return fail(err)
-	}
-
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		return fail(fmt.Errorf("node 1 never became ready: %w", err))
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
@@ -203,14 +200,29 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 	return clients, nil
 }
 
-// initializeAndGetAdminToken creates the first admin user on the leader
-// and mints a long-lived API token for driving the test.
 func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (string, error) {
-	if err := leader.Initialize(ctx, &client.InitializeOptions{
-		Email:    "admin@ellanetworks.com",
-		Password: "admin",
-	}); err != nil {
-		return "", fmt.Errorf("initialize: %w", err)
+	deadline := time.Now().Add(2 * time.Minute)
+
+	var initErr error
+
+	for time.Now().Before(deadline) {
+		initErr = leader.Initialize(ctx, &client.InitializeOptions{
+			Email:    "admin@ellanetworks.com",
+			Password: "admin",
+		})
+		if initErr == nil {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if initErr != nil {
+		return "", fmt.Errorf("initialize: %w", initErr)
+	}
+
+	if err := waitForNodeReady(ctx, leader); err != nil {
+		return "", fmt.Errorf("node never became ready after initialize: %w", err)
 	}
 
 	resp, err := leader.CreateMyAPIToken(ctx, &client.CreateAPITokenOptions{
@@ -224,9 +236,6 @@ func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (str
 	return resp.Token, nil
 }
 
-// stageAndStartJoiner mints a join token for nodeID, writes the node's
-// core.yaml with the token embedded, and brings the service up. Pass an
-// empty initialSuffrage to accept the daemon default ("voter").
 func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string, initialSuffrage string) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
 		TTLSeconds: 600,
@@ -235,11 +244,76 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 	}
 
-	if err := writeNodeConfig(composeDir, nodeID, peers, tok.Token, initialSuffrage); err != nil {
+	if err := writeNodeConfig(composeDir, nodeID, nil, "", ""); err != nil {
 		return err
 	}
 
-	return dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service)
+	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service); err != nil {
+		return err
+	}
+
+	return joinViaAPI(ctx, APIAddressForCluster(nodeID), tok.Token,
+		seedsExcluding(peers, ClusterAddressWithPort(nodeID, 7000)), initialSuffrage)
+}
+
+func seedsExcluding(peers []string, self string) []string {
+	seeds := make([]string, 0, len(peers))
+
+	for _, p := range peers {
+		if p != self {
+			seeds = append(seeds, p)
+		}
+	}
+
+	return seeds
+}
+
+func joinViaAPI(ctx context.Context, baseURL, token string, seeds []string, suffrage string) error {
+	payload := map[string]any{"token": token, "seedAddresses": seeds}
+	if suffrage != "" {
+		payload["suffrage"] = suffrage
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	deadline := time.Now().Add(2 * time.Minute)
+
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		req, rerr := http.NewRequestWithContext(ctx, http.MethodPost,
+			baseURL+"/api/v1/cluster/join", bytes.NewReader(body))
+		if rerr != nil {
+			return rerr
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, derr := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+		if derr != nil {
+			lastErr = derr
+
+			time.Sleep(500 * time.Millisecond)
+
+			continue
+		}
+
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+
+		if resp.StatusCode == http.StatusAccepted {
+			return nil
+		}
+
+		lastErr = fmt.Errorf("join returned %d: %s", resp.StatusCode, string(msg))
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("node at %s never accepted the join instruction: %w", baseURL, lastErr)
 }
 
 // stageAndStartLegacyJoiner mints a join token from a leader that still
@@ -317,9 +391,9 @@ func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToke
 		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
 	}
 
-	nodeIDLine := ""
+	legacyLines := ""
 	if legacyNodeID {
-		nodeIDLine = fmt.Sprintf("  node-id: %d\n", nodeID)
+		legacyLines = fmt.Sprintf("  enabled: true\n  node-id: %d\n", nodeID)
 	}
 
 	body := fmt.Sprintf(`logging:
@@ -344,10 +418,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
 %s  bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeIDLine, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, legacyLines, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -1027,11 +1100,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: "ella-core-%d:7000"
   peers:
-%s%s`, nodeID, nodeID, peersYAML.String(), joinTokenLine)
+%s%s`, nodeID, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -1041,6 +1112,10 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 
 	dc.ComposeCleanup(ctx)
 
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+	})
+
 	fail := func(err error) ([]*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, services, true)
 		return nil, err
@@ -1049,7 +1124,7 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	peers := fqdnPeers(services)
 	urls := fqdnHANodeURLs()
 
-	if err := writeFQDNNodeConfig(composeDir, 1, peers, ""); err != nil {
+	if err := writeFQDNNodeConfig(composeDir, 1, nil, ""); err != nil {
 		return fail(err)
 	}
 
@@ -1062,10 +1137,6 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 		return fail(err)
 	}
 
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		return fail(fmt.Errorf("node 1 never became ready: %w", err))
-	}
-
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
 		return fail(err)
@@ -1076,7 +1147,7 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	for i := 1; i < len(services); i++ {
 		nodeID := i + 1
 
-		if err := stageAndStartFQDNJoiner(ctx, dc, node1, composeDir, composeFile, services[i], nodeID, peers); err != nil {
+		if err := stageAndStartFQDNJoiner(ctx, dc, node1, composeDir, composeFile, services[i], nodeID, peers, urls[i]); err != nil {
 			return fail(err)
 		}
 	}
@@ -1100,7 +1171,7 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	return clients, nil
 }
 
-func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, composeFile, service string, nodeID int, peers []string) error {
+func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, composeFile, service string, nodeID int, peers []string, apiURL string) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
 		TTLSeconds: 600,
 	})
@@ -1108,11 +1179,16 @@ func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *clie
 		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 	}
 
-	if err := writeFQDNNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
+	if err := writeFQDNNodeConfig(composeDir, nodeID, nil, ""); err != nil {
 		return err
 	}
 
-	return dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, service)
+	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, service); err != nil {
+		return err
+	}
+
+	return joinViaAPI(ctx, apiURL, tok.Token,
+		seedsExcluding(peers, fmt.Sprintf("ella-core-%d:7000", nodeID)), "")
 }
 
 // mintLegacyJoinToken posts a mint request carrying a node-id, the shape

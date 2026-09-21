@@ -9,11 +9,6 @@ import (
 	"fmt"
 )
 
-// V20 retypes the raft node identity from INTEGER to TEXT everywhere it
-// is stored, gives cluster_members its own amfPointer column, and drops
-// cluster_join_tokens.nodeID now that a join token names no node. An
-// existing member keeps its identity as the decimal text it already had,
-// and its AMF Pointer is that same number.
 func migrateV20(ctx context.Context, tx *sql.Tx) error {
 	if err := migrateV20ClusterMembers(ctx, tx); err != nil {
 		return err
@@ -84,18 +79,16 @@ func migrateV20ClusterMembers(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
 		fmt.Sprintf(`CREATE TABLE %s_new (
 			nodeID            TEXT PRIMARY KEY,
-			raftAddress       TEXT NOT NULL,
 			apiAddress        TEXT NOT NULL,
 			binaryVersion     TEXT NOT NULL DEFAULT '',
-			suffrage          TEXT NOT NULL DEFAULT 'voter',
 			drainState        TEXT NOT NULL DEFAULT 'active'
 				CHECK (drainState IN ('active','draining','drained')),
 			drainUpdatedAt    INTEGER NOT NULL DEFAULT 0,
 			amfPointer        INTEGER NOT NULL DEFAULT 0,
 			displayName       TEXT NOT NULL DEFAULT ''
 		)`, ClusterMembersTableName),
-		fmt.Sprintf(`INSERT INTO %s_new (nodeID, raftAddress, apiAddress, binaryVersion, suffrage, amfPointer, drainState, drainUpdatedAt)
-			SELECT CAST(nodeID AS TEXT), raftAddress, apiAddress, binaryVersion, suffrage, nodeID, drainState, drainUpdatedAt FROM %s`,
+		fmt.Sprintf(`INSERT INTO %s_new (nodeID, apiAddress, binaryVersion, amfPointer, drainState, drainUpdatedAt)
+			SELECT CAST(nodeID AS TEXT), apiAddress, binaryVersion, nodeID, drainState, drainUpdatedAt FROM %s`,
 			ClusterMembersTableName, ClusterMembersTableName),
 		fmt.Sprintf("DROP TABLE %s", ClusterMembersTableName),
 		fmt.Sprintf("ALTER TABLE %s_new RENAME TO %s", ClusterMembersTableName, ClusterMembersTableName),

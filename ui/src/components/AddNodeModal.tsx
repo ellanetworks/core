@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Box,
@@ -71,11 +71,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
     }
   };
 
-  const configSnippet = useMemo(
-    () => `cluster:\n  join-token: ${token}`,
-    [token],
-  );
-
   const copy = async (text: string, label: string) => {
     if (!navigator.clipboard) {
       showSnackbar(
@@ -136,8 +131,8 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
             </Typography>
 
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Add the following to the new node&apos;s configuration file, then
-              start it:
+              Open the new node in a browser and paste this token into its Join
+              a cluster page.
             </Typography>
 
             <Box
@@ -160,26 +155,18 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
                   m: 0,
                 }}
               >
-                {configSnippet}
+                {token}
               </Typography>
-              <Tooltip title="Copy configuration">
+              <Tooltip title="Copy token">
                 <IconButton
                   size="small"
-                  onClick={() => copy(configSnippet, "Configuration")}
+                  onClick={() => copy(token, "Join token")}
                   sx={{ position: "absolute", top: 4, right: 4 }}
                 >
                   <ContentCopyIcon fontSize="inherit" />
                 </IconButton>
               </Tooltip>
             </Box>
-
-            <Button
-              size="small"
-              onClick={() => copy(token, "Join token")}
-              sx={{ mt: 1 }}
-            >
-              Copy token only
-            </Button>
           </>
         )}
       </DialogContent>

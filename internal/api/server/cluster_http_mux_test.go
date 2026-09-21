@@ -74,10 +74,8 @@ func TestRemovedNodeFence_AllowsCurrentMember(t *testing.T) {
 	testDB := newTestDB(t)
 
 	if err := testDB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:      "7",
-		RaftAddress: "127.0.0.1:9000",
-		APIAddress:  "127.0.0.1:9001",
-		Suffrage:    "voter",
+		NodeID:     "7",
+		APIAddress: "127.0.0.1:9001",
 	}); err != nil {
 		t.Fatalf("seed cluster member: %v", err)
 	}

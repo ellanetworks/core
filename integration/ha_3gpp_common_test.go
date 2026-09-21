@@ -321,6 +321,10 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 
 	dc.ComposeCleanup(ctx)
 
+	t.Cleanup(func() {
+		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+	})
+
 	fail := func(err error) (string, []*client.Client, error) {
 		captureClusterLogs(t, dc, composeDir, nodeServices, true)
 		return "", nil, err
@@ -339,10 +343,6 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 	node1, err := client.New(&client.Config{BaseURL: node1URL})
 	if err != nil {
 		return fail(fmt.Errorf("node 1 client: %w", err))
-	}
-
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		return fail(fmt.Errorf("node 1 never became ready: %w", err))
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
@@ -511,11 +511,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s`, clusterAddr, n3Addr, clusterAddr, nodeID, clusterBindHost, peersYAML.String(), joinTokenLine)
+%s%s`, clusterAddr, n3Addr, clusterAddr, clusterBindHost, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

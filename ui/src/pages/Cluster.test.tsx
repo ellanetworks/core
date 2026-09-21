@@ -12,6 +12,7 @@ import { PRODUCT } from "@/utils/product";
 const api = setupApiServer();
 
 const STATUS = "/api/v1/status";
+const JOIN = "/api/v1/cluster/join";
 const MEMBERS = "/api/v1/cluster/members";
 const AUTOPILOT = "/api/v1/cluster/autopilot";
 
@@ -34,8 +35,13 @@ const member = (o: MemberOverrides) => ({
   drainState: o.drainState ?? "active",
 });
 
-const seedStatus = (cluster: Record<string, unknown> = {}) =>
-  api.get(STATUS, () => ({
+const seedJoin = (state = "unavailable", error?: string) =>
+  api.get(JOIN, () => ({ state, ...(error ? { error } : {}) }));
+
+const seedStatus = (cluster: Record<string, unknown> = {}) => {
+  seedJoin();
+
+  return api.get(STATUS, () => ({
     initialized: true,
     ready: true,
     schemaVersion: 7,
@@ -51,6 +57,7 @@ const seedStatus = (cluster: Record<string, unknown> = {}) =>
       ...cluster,
     },
   }));
+};
 
 const seedAutopilot = (state: Record<string, unknown> = {}) =>
   api.get(AUTOPILOT, () => ({
@@ -82,24 +89,24 @@ const stateCard = () =>
     .closest(".MuiCard-root") as HTMLElement;
 
 describe("Cluster page standalone state", () => {
-  it("explains standalone mode and links out to the HA documentation", async () => {
+  const seedStandalone = () => {
     api.get(STATUS, () => ({
       initialized: true,
       ready: true,
       schemaVersion: 7,
       cluster: { enabled: false },
     }));
+    seedJoin();
+  };
+
+  it("explains standalone mode and links out to the HA documentation", async () => {
+    seedStandalone();
 
     await renderCluster();
 
-    expect(
-      screen.getByText("High-availability cluster members and health."),
-    ).toBeTruthy();
-
     expect(screen.getByText("High availability is not enabled")).toBeTruthy();
-
     expect(
-      screen.getByText(/This node is running in standalone mode/),
+      screen.getByText(/cluster bind address in the config file/),
     ).toBeTruthy();
 
     const learnMore = screen.getByRole("link", { name: /Learn more/ });

@@ -347,6 +347,7 @@ type Database struct {
 	// Field-injected so tests can stub them.
 	probeMemberSchema func(ctx context.Context, nodeID string, raftAddr string) (int, error)
 	raftMemberIDs     func() []string
+	raftServers       func() []ellaraft.Server
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -708,6 +709,38 @@ func (db *Database) AutopilotState() *autopilot.State {
 	return db.raftManager.AutopilotState()
 }
 
+func (db *Database) DiscoveryPending() bool {
+	if db.raftManager == nil {
+		return false
+	}
+
+	return db.raftManager.DiscoveryPending()
+}
+
+func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
+	db.raftManager = mgr
+	db.proposeTimeout = mgr.ProposeTimeout()
+	db.probeMemberSchema = mgr.ProbePeerSchemaVersion
+	db.raftMemberIDs = mgr.MemberIDs
+	db.raftServers = mgr.Servers
+}
+
+func (db *Database) SetBootstrap() {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetBootstrap()
+}
+
+func (db *Database) SetJoinSeeds(seeds []string, suffrage string) {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetJoinSeeds(seeds, suffrage)
+}
+
 // ClusterEnabled returns whether clustering is active.
 func (db *Database) ClusterEnabled() bool {
 	return db.clusterEnabled
@@ -897,7 +930,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	floor, laggard, _, err := db.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return err
 	}
@@ -913,6 +946,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 			zap.Int("binary_max", binaryMax),
 			zap.Int("member_floor", floor),
 			zap.String("laggard_node_id", laggard),
+			zap.String("reason", reason),
 		)
 
 		return nil
@@ -933,9 +967,10 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 // PendingMigrationStatus is a read-only snapshot of cluster
 // migration readiness; surfaced on /api/v1/status.
 const (
-	LaggardReasonSchemaBehind      = "schema_behind"
-	LaggardReasonNoMemberRow       = "no_member_row"
-	LaggardReasonCapabilityUnknown = "capability_unknown"
+	LaggardReasonSchemaBehind             = "schema_behind"
+	LaggardReasonNoMemberRow              = "no_member_row"
+	LaggardReasonCapabilityUnknown        = "capability_unknown"
+	LaggardReasonConfigurationUnavailable = "configuration_unavailable"
 )
 
 type PendingMigrationStatus struct {
@@ -1015,9 +1050,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 	}
 
 	if len(configuration) == 0 {
-		logger.From(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
-
-		return 0, "", "", nil
+		return 0, "", LaggardReasonConfigurationUnavailable, nil
 	}
 
 	rows := make(map[string]ClusterMember, len(members))
@@ -1042,21 +1075,21 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 			continue
 		}
 
-		m, ok := rows[nodeID]
-		if !ok {
-			logger.From(ctx, logger.DBLog).Warn("Migration gate: configuration member has no cluster_members row, deferring",
-				zap.String("node_id", nodeID),
-			)
-
+		if _, ok := rows[nodeID]; !ok {
 			return 0, nodeID, LaggardReasonNoMemberRow, nil
 		}
 
-		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
+		srv := db.RaftServer(nodeID)
+		if srv == nil {
+			return 0, nodeID, LaggardReasonNoMemberRow, nil
+		}
+
+		v, err := db.probeMemberSchema(ctx, nodeID, srv.Address)
 		if err != nil {
-			logger.From(ctx, logger.DBLog).Warn("Migration gate: member capability unknown, deferring",
+			logger.From(ctx, logger.DBLog).Debug("Migration gate: member capability probe failed",
 				zap.String("node_id", nodeID),
-				zap.String("raft_address", m.RaftAddress),
-				zap.String("suffrage", m.Suffrage),
+				zap.String("raft_address", srv.Address),
+				zap.String("suffrage", srv.Suffrage),
 				zap.Error(err),
 			)
 
@@ -1235,6 +1268,24 @@ func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID str
 	}
 }
 
+func (db *Database) RaftServers() []ellaraft.Server {
+	if db.raftServers == nil {
+		return nil
+	}
+
+	return db.raftServers()
+}
+
+func (db *Database) RaftServer(nodeID string) *ellaraft.Server {
+	for _, s := range db.RaftServers() {
+		if s.NodeID == nodeID {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 // IsRaftConfigurationMember reports whether nodeID is in the current Raft
 // configuration, regardless of whether it has a cluster_members row.
 func (db *Database) IsRaftConfigurationMember(nodeID string) bool {
@@ -1312,27 +1363,15 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 	return nil
 }
 
-// selfUpsertClusterMember writes the leader's own cluster_members row.
-// Idempotent. Addresses come from the raft manager (authoritative
-// post-bind); existing Suffrage is preserved so a non-voter rejoin is
-// not silently promoted.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
 	}
 
-	suffrage := "voter"
-
-	if existing, err := db.GetClusterMember(ctx, db.raftManager.RaftID()); err == nil && existing != nil && existing.Suffrage != "" {
-		suffrage = existing.Suffrage
-	}
-
 	member := &ClusterMember{
 		NodeID:        db.raftManager.RaftID(),
-		RaftAddress:   db.raftManager.RaftAddress(),
 		APIAddress:    db.raftManager.APIAddress(),
 		BinaryVersion: binaryVersion,
-		Suffrage:      suffrage,
 	}
 
 	if err := db.UpsertClusterMember(ctx, member); err != nil {
@@ -1443,20 +1482,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("failed to start raft manager: %w", err)
 	}
 
-	db.raftManager = raftMgr
-	db.proposeTimeout = raftMgr.ProposeTimeout()
-	db.probeMemberSchema = raftMgr.ProbePeerSchemaVersion
-	db.raftMemberIDs = raftMgr.MemberIDs
-
-	// Ensure the FSM migration marker exists so future FSM.Restore
-	// calls know the new code is active and use the snapshot's
-	// lastApplied instead of preserving a potentially stale value.
-	migrationMarker := filepath.Join(dataDir, ".fsm_migrated")
-	if _, statErr := os.Stat(migrationMarker); os.IsNotExist(statErr) {
-		if wErr := os.WriteFile(migrationMarker, []byte("1"), 0o600); wErr != nil {
-			logger.DBLog.Warn("failed to create fsm migration marker", zap.Error(wErr))
-		}
-	}
+	db.adoptRaftManager(raftMgr)
 
 	db.migrationCheckCh = make(chan struct{}, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
@@ -1484,7 +1510,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	// seeded on leadership, not here: Initialize proposes through Raft and
 	// no node is leader this early. HA mode seeds through runLeaderInit in
 	// pkg/runtime; standalone seeds through the callback registered below.
-	if !raftCfg.Enabled {
+	if !raftCfg.Enabled && raftMgr != nil {
 		if observer := raftMgr.LeaderObserver(); observer != nil {
 			observer.Register(newStandaloneInitializer(db, workerCtx))
 		}

@@ -21,23 +21,17 @@ import (
 // is zero when no leader is known or the leader's row is not yet
 // present.
 func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID pki.NodeID) {
-	raftAddr := dbInstance.LeaderAddress()
-	if raftAddr == "" {
+	_, leaderNodeID := dbInstance.LeaderAddressAndID()
+	if leaderNodeID == "" {
 		return "", ""
 	}
 
-	members, err := dbInstance.ListClusterMembers(context.Background())
-	if err != nil {
-		return "", ""
+	member, err := dbInstance.GetClusterMember(context.Background(), leaderNodeID)
+	if err != nil || member == nil {
+		return "", pki.NodeID(leaderNodeID)
 	}
 
-	for _, m := range members {
-		if m.RaftAddress == raftAddr {
-			return m.APIAddress, pki.NodeID(m.NodeID)
-		}
-	}
-
-	return "", ""
+	return member.APIAddress, pki.NodeID(leaderNodeID)
 }
 
 // PendingMigrationResponse is non-nil only during a rolling-upgrade

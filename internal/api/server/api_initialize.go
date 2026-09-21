@@ -4,12 +4,15 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/joinreq"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -28,7 +31,61 @@ type InitializeResponse struct {
 
 const (
 	InitializeAction = "initialize"
+
+	initClusterPollInterval = 250 * time.Millisecond
+	initClusterTimeout      = 2 * time.Minute
 )
+
+func foundClusterIfWaiting(ctx context.Context, dbInstance *db.Database) error {
+	coord := loadJoinCoordinator()
+	if coord == nil || coord.Status().State != joinreq.StateWaiting {
+		return nil
+	}
+
+	if err := coord.Submit(joinreq.Request{Mode: joinreq.ModeBootstrap}); err != nil {
+		return fmt.Errorf("found cluster: %w", err)
+	}
+
+	return waitForWritableCluster(ctx, dbInstance)
+}
+
+func waitForWritableCluster(ctx context.Context, dbInstance *db.Database) error {
+	ticker := time.NewTicker(initClusterPollInterval)
+	defer ticker.Stop()
+
+	deadline := time.Now().Add(initClusterTimeout)
+
+	for {
+		if dbInstance.HasLeader() && dbInstance.IsOperatorInitialized(ctx) {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return errors.New("the cluster did not become writable in time")
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func resolveJWTSecret(ctx context.Context, dbInstance *db.Database, jwtSecret *JWTSecret) error {
+	if len(jwtSecret.Get()) > 0 {
+		return nil
+	}
+
+	secret, err := dbInstance.GetJWTSecret(ctx)
+	if err != nil {
+		return fmt.Errorf("load jwt secret: %w", err)
+	}
+
+	jwtSecret.Set(secret)
+
+	return nil
+}
 
 func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +113,16 @@ func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool
 
 		initMu.Lock()
 		defer initMu.Unlock()
+
+		if err := foundClusterIfWaiting(r.Context(), dbInstance); err != nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "Failed to form the cluster", err, logger.APILog)
+			return
+		}
+
+		if err := resolveJWTSecret(r.Context(), dbInstance, jwtSecret); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
 
 		numUsers, err := dbInstance.CountUsers(r.Context())
 		if err != nil {

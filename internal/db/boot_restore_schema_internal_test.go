@@ -93,9 +93,8 @@ func seedRaftSnapshot(t *testing.T, dataDir string, nodeID string, addr string, 
 
 	configuration := raft.Configuration{
 		Servers: []raft.Server{{
-			Suffrage: raft.Voter,
-			ID:       raft.ServerID("1"),
-			Address:  raft.ServerAddress(addr),
+			ID:      raft.ServerID("1"),
+			Address: raft.ServerAddress(addr),
 		}},
 	}
 
