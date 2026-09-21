@@ -10,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // Cluster config v2 drops the operator-supplied TLS fields (cluster.tls.*)
@@ -275,5 +279,42 @@ func TestCluster_NoBindAddressDiscardsClusterSettings(t *testing.T) {
 
 	if cfg.Cluster.Enabled || cfg.Cluster.NodeID != 0 || len(cfg.Cluster.Peers) != 0 {
 		t.Errorf("without a cluster address the block must be discarded, got %+v", cfg.Cluster)
+	}
+}
+
+// A config that asks for HA but omits the bind address runs standalone, and
+// the operator has to be told which settings were ignored.
+func TestCluster_EnabledWithoutBindAddressIsWarnedAbout(t *testing.T) {
+	core, logs := observer.New(zapcore.WarnLevel)
+
+	restore := logger.EllaLog
+	logger.EllaLog = zap.New(core)
+
+	t.Cleanup(func() { logger.EllaLog = restore })
+
+	body := strings.Replace(baseConfigYAML, `bind-address: "127.0.0.1:7000"`, `bind-address: ""`, 1)
+
+	if _, err := config.Validate(writeConfig(t, body)); err != nil {
+		t.Fatalf("a node without a cluster address must still start: %v", err)
+	}
+
+	found := false
+
+	for _, entry := range logs.All() {
+		if strings.Contains(entry.Message, "cluster.bind-address is not set") {
+			found = true
+
+			if !strings.Contains(entry.Message, "cluster.enabled") {
+				t.Errorf("the warning must name cluster.enabled as ignored, got %q", entry.Message)
+			}
+
+			if strings.Contains(entry.Message, "node ID 1") {
+				t.Errorf("nodes mint their own identity; the warning must not promise node ID 1, got %q", entry.Message)
+			}
+		}
+	}
+
+	if !found {
+		t.Fatal("a config with cluster.enabled and no bind-address must warn")
 	}
 }

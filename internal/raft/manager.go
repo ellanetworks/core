@@ -960,8 +960,6 @@ func (m *Manager) LeadershipTransfer() error {
 	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
 }
 
-// MemberIDs returns the current Raft configuration, nonvoters included: they
-// apply committed entries too. Nil on error.
 // Server is one entry of the Raft configuration: the library's own
 // record of who is in the cluster and where to reach them.
 type Server struct {
@@ -998,6 +996,8 @@ func (m *Manager) Servers() []Server {
 	return out
 }
 
+// MemberIDs returns the current Raft configuration, nonvoters included: they
+// apply committed entries too. Nil on error.
 func (m *Manager) MemberIDs() []string {
 	future := m.raft.GetConfiguration()
 	if err := future.Error(); err != nil {

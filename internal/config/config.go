@@ -700,7 +700,11 @@ func GetInterfaceIPs(name string) ([]string, error) {
 const maxClusterNodeID = 63
 
 func warnUnclusteredSettings(c ClusterYaml) {
-	set := make([]string, 0, 4)
+	set := make([]string, 0, 5)
+
+	if c.Enabled {
+		set = append(set, "enabled")
+	}
 
 	if c.NodeID != 0 {
 		set = append(set, "node-id")
@@ -718,7 +722,7 @@ func warnUnclusteredSettings(c ClusterYaml) {
 		return
 	}
 
-	logger.EllaLog.Warn("cluster.bind-address is not set, so this node runs standalone with node ID 1 and these settings are ignored: cluster." +
+	logger.EllaLog.Warn("cluster.bind-address is not set, so this node runs standalone and these settings are ignored: cluster." +
 		strings.Join(set, ", cluster."))
 }
 
