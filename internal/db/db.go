@@ -708,6 +708,37 @@ func (db *Database) AutopilotState() *autopilot.State {
 	return db.raftManager.AutopilotState()
 }
 
+func (db *Database) DiscoveryPending() bool {
+	if db.raftManager == nil {
+		return false
+	}
+
+	return db.raftManager.DiscoveryPending()
+}
+
+func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
+	db.raftManager = mgr
+	db.proposeTimeout = mgr.ProposeTimeout()
+	db.probeMemberSchema = mgr.ProbePeerSchemaVersion
+	db.raftMemberIDs = mgr.MemberIDs
+}
+
+func (db *Database) SetBootstrap() {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetBootstrap()
+}
+
+func (db *Database) SetJoinSeeds(seeds []string, suffrage string) {
+	if db.raftManager == nil {
+		return
+	}
+
+	db.raftManager.SetJoinSeeds(seeds, suffrage)
+}
+
 // ClusterEnabled returns whether clustering is active.
 func (db *Database) ClusterEnabled() bool {
 	return db.clusterEnabled
@@ -1443,10 +1474,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("failed to start raft manager: %w", err)
 	}
 
-	db.raftManager = raftMgr
-	db.proposeTimeout = raftMgr.ProposeTimeout()
-	db.probeMemberSchema = raftMgr.ProbePeerSchemaVersion
-	db.raftMemberIDs = raftMgr.MemberIDs
+	db.adoptRaftManager(raftMgr)
 
 	// Ensure the FSM migration marker exists so future FSM.Restore
 	// calls know the new code is active and use the snapshot's
@@ -1484,7 +1512,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	// seeded on leadership, not here: Initialize proposes through Raft and
 	// no node is leader this early. HA mode seeds through runLeaderInit in
 	// pkg/runtime; standalone seeds through the callback registered below.
-	if !raftCfg.Enabled {
+	if !raftCfg.Enabled && raftMgr != nil {
 		if observer := raftMgr.LeaderObserver(); observer != nil {
 			observer.Register(newStandaloneInitializer(db, workerCtx))
 		}

@@ -58,10 +58,13 @@ type ClusterConfig struct {
 	Peers            []string
 
 	// HasJoinToken signals that a join-token was provided in config. A node
-	// with a join-token is a joiner and must never solo-bootstrap; a node
-	// without one is the founder and solo-bootstraps immediately when no
-	// formed peer is reachable.
+	// with a join-token is a joiner and must never solo-bootstrap.
 	HasJoinToken bool
+
+	// Bootstrap is the operator's affirmative declaration that this node
+	// founds a new cluster. Without it, a node that has no state and no
+	// join-token refuses to start rather than founding by inference.
+	Bootstrap bool
 
 	JoinTimeout       time.Duration
 	ProposeTimeout    time.Duration
@@ -363,6 +366,19 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		_ = boltStore.Close()
 
 		return nil, err
+	}
+
+	if !singleServer && hasState && !recovered {
+		realigned, err := maybeRealignSelfAddress(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
+		if err != nil {
+			closeTransport(transport)
+
+			_ = boltStore.Close()
+
+			return nil, err
+		}
+
+		recovered = recovered || realigned
 	}
 
 	// Timeouts depend on (hasState || recovered) — only apply once both are
@@ -792,6 +808,24 @@ func (m *Manager) RemoveServer(nodeID string) error {
 }
 
 // ClusterEnabled returns whether the manager was started in HA mode.
+func (m *Manager) DiscoveryPending() bool {
+	return m.discoveryPending.Load()
+}
+
+func (m *Manager) SetBootstrap() {
+	m.config.Bootstrap = true
+	m.config.HasJoinToken = false
+}
+
+func (m *Manager) SetJoinSeeds(seeds []string, suffrage string) {
+	m.config.Peers = seeds
+	m.config.HasJoinToken = true
+
+	if suffrage != "" {
+		m.config.InitialSuffrage = suffrage
+	}
+}
+
 func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
 }

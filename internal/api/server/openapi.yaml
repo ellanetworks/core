@@ -3124,6 +3124,49 @@ paths:
         "502":
           description: Target node unreachable (proxy failure).
 
+  /api/v1/cluster/join:
+    post:
+      operationId: clusterJoin
+      tags: [Cluster]
+      summary: Join this node to a cluster
+      description: >-
+        Joins a node that has no cluster state to an existing cluster.
+        Unauthenticated: the join token is the credential. Returns
+        immediately; poll `GET /api/v1/cluster/join` for the outcome.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClusterJoinRequest"
+      responses:
+        "202":
+          description: Join accepted and running. Poll this path to follow it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterJoinStatusEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Not waiting to join, or a join is already running.
+    get:
+      operationId: getClusterJoinStatus
+      tags: [Cluster]
+      summary: Read this node's join state
+      description: >-
+        Reports `waiting`, `joining`, `joined`, or `unavailable`. A failed
+        attempt returns to `waiting` and carries the reason in `error`.
+      security: []
+      responses:
+        "200":
+          description: Current join state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterJoinStatusEnvelope"
+
   /api/v1/cluster/pki/join-tokens:
     post:
       operationId: mintClusterJoinToken
@@ -3131,6 +3174,7 @@ paths:
       summary: Mint a cluster join token
       description: >-
         Mints a single-use token that admits one new node to the cluster.
+        Supply it to the joining node via `POST /api/v1/cluster/join`.
         Must be sent to the leader. Requires admin privileges.
       requestBody:
         required: true
@@ -6056,6 +6100,46 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/DrainResponse"
+
+    ClusterJoinRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: >-
+            Single-use token from `POST /api/v1/cluster/pki/join-tokens`
+            on the target cluster's leader. Must authorise this node's
+            node-id.
+        seedAddresses:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: >-
+            `host:port` cluster addresses of nodes already in the cluster.
+            Tried in order; one reachable address is enough.
+        suffrage:
+          type: string
+          enum: [voter, nonvoter]
+          description: Whether this node counts toward quorum. Defaults to voter.
+      required: [token, seedAddresses]
+
+    ClusterJoinStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [unavailable, waiting, joining, joined]
+        error:
+          type: string
+          description: Reason the most recent attempt failed, when one did.
+      required: [state]
+
+    ClusterJoinStatusEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ClusterJoinStatus"
 
     MintJoinTokenRequest:
       type: object

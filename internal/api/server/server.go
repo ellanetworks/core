@@ -259,6 +259,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	mux.HandleFunc("GET /api/v1/cluster/autopilot", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetAutopilotState(dbInstance))).ServeHTTP)
 
+	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/bootstrap", ClusterBootstrap().ServeHTTP)
+
 	// PKI admin endpoints. Handlers resolve the issuer service at
 	// request time (set by runtime after first-leader bootstrap), so
 	// these routes can be registered before the issuer is ready.
@@ -295,8 +299,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 // DiscoveryHandlerConfig holds the dependencies for the discovery-phase
 // HTTP handler that runs before cluster formation.
 type DiscoveryHandlerConfig struct {
-	DB     *db.Database
-	Config config.Config
+	DB         *db.Database
+	Config     config.Config
+	FrontendFS fs.FS
 }
 
 // NewDiscoveryHandler returns an HTTP handler serving only the routes
@@ -316,13 +321,29 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 
+	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/bootstrap", ClusterBootstrap().ServeHTTP)
+
 	// POST /api/v1/cluster/members is not served during discovery; in mTLS
 	// mode, join requests arrive on the cluster port (wired in a later step).
 
 	// Catch-all: anything not wired in this phase responds 503 with a
 	// Retry-After hint, so clients hitting a node mid-startup back off
 	// instead of misreading 404 as a permanent route error.
-	mux.HandleFunc("/", phaseAFallback)
+	mux.HandleFunc("/api/", phaseAFallback)
+
+	if cfg.FrontendFS != nil {
+		frontendHandler, err := newFrontendFileServer(cfg.FrontendFS)
+		if err != nil {
+			logger.APILog.Fatal("Failed to create frontend file server", zap.Error(err))
+			return nil
+		}
+
+		mux.Handle("/", frontendHandler)
+	} else {
+		mux.HandleFunc("/", phaseAFallback)
+	}
 
 	var handler http.Handler = mux
 

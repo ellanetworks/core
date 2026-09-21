@@ -159,6 +159,10 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 		return fail(err)
 	}
 
+	if err := foundCluster(ctx, getHANodeURLs()[0]); err != nil {
+		return fail(fmt.Errorf("found cluster on node 1: %w", err))
+	}
+
 	if err := waitForNodeReady(ctx, node1); err != nil {
 		return fail(fmt.Errorf("node 1 never became ready: %w", err))
 	}
@@ -201,6 +205,43 @@ func bringUpHAClusterMode(t *testing.T, ctx context.Context, dc *DockerClient, c
 	}
 
 	return clients, nil
+}
+
+// foundCluster tells a waiting node to create a cluster of its own, the
+// way the Initialize screen does. Retries while the node's API is still
+// coming up.
+func foundCluster(ctx context.Context, baseURL string) error {
+	deadline := time.Now().Add(2 * time.Minute)
+
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/v1/cluster/bootstrap", nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+		if err != nil {
+			lastErr = err
+
+			time.Sleep(500 * time.Millisecond)
+
+			continue
+		}
+
+		_ = resp.Body.Close()
+
+		if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusConflict {
+			return nil
+		}
+
+		lastErr = fmt.Errorf("status %d", resp.StatusCode)
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("node never accepted the bootstrap request: %w", lastErr)
 }
 
 // initializeAndGetAdminToken creates the first admin user on the leader
@@ -317,9 +358,9 @@ func writeNodeConfigBody(composeDir string, nodeID int, peers []string, joinToke
 		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
 	}
 
-	nodeIDLine := ""
+	legacyLines := ""
 	if legacyNodeID {
-		nodeIDLine = fmt.Sprintf("  node-id: %d\n", nodeID)
+		legacyLines = fmt.Sprintf("  enabled: true\n  node-id: %d\n", nodeID)
 	}
 
 	body := fmt.Sprintf(`logging:
@@ -344,10 +385,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
 %s  bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeIDLine, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, legacyLines, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -1027,11 +1067,9 @@ interfaces:
 datapath:
   attach-mode: "xdp-generic"
 cluster:
-  enabled: true
-  node-id: %d
   bind-address: "ella-core-%d:7000"
   peers:
-%s%s`, nodeID, nodeID, peersYAML.String(), joinTokenLine)
+%s%s`, nodeID, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

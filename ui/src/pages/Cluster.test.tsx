@@ -12,6 +12,7 @@ import { PRODUCT } from "@/utils/product";
 const api = setupApiServer();
 
 const STATUS = "/api/v1/status";
+const JOIN = "/api/v1/cluster/join";
 const MEMBERS = "/api/v1/cluster/members";
 const AUTOPILOT = "/api/v1/cluster/autopilot";
 
@@ -89,6 +90,7 @@ describe("Cluster page standalone state", () => {
       schemaVersion: 7,
       cluster: { enabled: false },
     }));
+    api.get(JOIN, () => ({ state: "unavailable" }));
 
     await renderCluster();
 

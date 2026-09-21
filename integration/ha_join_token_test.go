@@ -108,7 +108,7 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 		})
 	}
 
-	HALog(t, "both bad tokens were rejected; confirming a valid token still admits node 4")
+	HALog(t, "the bad token was rejected; confirming a valid token still admits node 4")
 
 	if err := stageAndStartJoiner(ctx, dc, leader, joinTokenComposeDir,
 		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {

@@ -17,6 +17,12 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
+import {
+  bootstrapCluster,
+  getClusterJoinStatus,
+  waitForClusterReady,
+} from "@/queries/cluster";
+import ClusterSetupCard from "@/components/ClusterSetupCard";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
@@ -42,6 +48,21 @@ const InitializePage = () => {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
+  const [awaitingSetup, setAwaitingSetup] = useState(false);
+  const [joining, setJoining] = useState(false);
+
+  useEffect(() => {
+    const checkJoinState = async () => {
+      try {
+        const join = await getClusterJoinStatus();
+        setAwaitingSetup(join.state === "waiting" || join.state === "joining");
+      } catch {
+        setAwaitingSetup(false);
+      }
+    };
+
+    void checkJoinState();
+  }, []);
 
   useEffect(() => {
     const checkInitialization = async () => {
@@ -92,6 +113,11 @@ const InitializePage = () => {
     setLoading(true);
 
     try {
+      if (awaitingSetup) {
+        await bootstrapCluster();
+        await waitForClusterReady();
+      }
+
       await initialize(email, password);
       navigate("/dashboard");
     } catch (err) {
@@ -216,6 +242,28 @@ const InitializePage = () => {
             {loading ? <CircularProgress size={24} /> : "Create"}
           </Button>
         </form>
+
+        {awaitingSetup && !joining && (
+          <Button
+            fullWidth
+            sx={{ mt: 2 }}
+            onClick={() => setJoining(true)}
+            disabled={loading}
+          >
+            Join an existing cluster instead
+          </Button>
+        )}
+
+        {awaitingSetup && joining && (
+          <Box sx={{ mt: 3 }}>
+            <ClusterSetupCard
+              state="waiting"
+              joinOnly
+              onSubmitted={() => navigate("/")}
+              onCancel={() => setJoining(false)}
+            />
+          </Box>
+        )}
       </Box>
     </Box>
   );

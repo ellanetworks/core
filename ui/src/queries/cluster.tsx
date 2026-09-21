@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { apiFetch, apiFetchVoid } from "@/queries/utils";
+import { ApiError, apiFetch, apiFetchVoid } from "@/queries/utils";
 import { NodeId } from "@/queries/nodeId";
 
 export type DrainState = "active" | "draining" | "drained";
@@ -125,4 +125,54 @@ export async function setClusterMemberDisplayName(
     authToken,
     body: { displayName },
   });
+}
+
+export type ClusterJoinState = "unavailable" | "waiting" | "joining" | "joined";
+
+export type ClusterJoinStatus = {
+  state: ClusterJoinState;
+  error?: string;
+};
+
+export async function getClusterJoinStatus(): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/join", {});
+}
+
+export async function joinCluster(
+  token: string,
+  seedAddresses: string[],
+): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/join", {
+    method: "POST",
+    body: { token, seedAddresses },
+  });
+}
+
+export async function bootstrapCluster(): Promise<ClusterJoinStatus> {
+  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/bootstrap", {
+    method: "POST",
+  });
+}
+
+export async function waitForClusterReady(
+  timeoutMs = 60000,
+  intervalMs = 500,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const status = await getClusterJoinStatus();
+      if (status.state === "joined") return;
+      if (status.state === "waiting" && status.error) {
+        throw new Error(status.error);
+      }
+    } catch (err) {
+      if (!(err instanceof ApiError) || !err.retryable) throw err;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error("The cluster did not finish forming in time");
 }
