@@ -240,7 +240,7 @@ const ClusterSetupCard = ({
             <TextField
               fullWidth
               label="Join token"
-              placeholder="Paste the token minted on a node already in the cluster"
+              placeholder="Paste the join token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               onPaste={(e) => {
@@ -252,8 +252,6 @@ const ClusterSetupCard = ({
               onBlur={() => commitToken(token)}
               disabled={busy}
               margin="normal"
-              multiline
-              rows={2}
             />
           ) : (
             <Box sx={{ mt: 2, mb: 1 }}>
