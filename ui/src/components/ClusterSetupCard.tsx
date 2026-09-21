@@ -14,12 +14,10 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  bootstrapCluster,
   getClusterJoinStatus,
   joinCluster,
   type ClusterJoinState,
 } from "@/queries/cluster";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { ApiError } from "@/queries/utils";
 
@@ -30,27 +28,23 @@ type Props = {
   disabledReason?: ReactNode;
   onSubmitted: () => void;
   onCancel?: () => void;
-  onJoinClick?: () => void;
 };
 
-type Pending = "join" | "create";
+type Pending = "join";
 
 const WATCH_INTERVAL_MS = 1000;
 const WATCH_TIMEOUT_MS = 180000;
 
 const TIMEOUT_MESSAGE: Record<Pending, string> = {
   join: "This node is still trying to join. Check that the cluster address is reachable and that the token was minted for this node.",
-  create: "This node is still trying to create the cluster.",
 };
 
 const PROGRESS_MESSAGE: Record<Pending, string> = {
   join: "Joining the cluster. This node is contacting the cluster address and copying its data, which can take a minute.",
-  create: "Creating the cluster on this node.",
 };
 
 const HEADING: Record<Pending, string> = {
   join: "Joining a cluster",
-  create: "Creating a cluster",
 };
 
 const ClusterSetupCard = ({
@@ -60,9 +54,7 @@ const ClusterSetupCard = ({
   disabledReason,
   onSubmitted,
   onCancel,
-  onJoinClick,
 }: Props) => {
-  const [mode, setMode] = useState<"idle" | "join">(joinOnly ? "join" : "idle");
   const [token, setToken] = useState("");
   const [seedAddress, setSeedAddress] = useState("");
   const [error, setError] = useState("");
@@ -182,28 +174,7 @@ const ClusterSetupCard = ({
         </Stack>
       )}
 
-      {pending === null && mode === "idle" && (
-        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-          <Button
-            variant="contained"
-            disabled={busy}
-            startIcon={working ? <CircularProgress size={16} /> : undefined}
-            onClick={() => void run("create", bootstrapCluster)}
-          >
-            Create a cluster
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={busy}
-            endIcon={<ArrowForwardIcon />}
-            onClick={() => (onJoinClick ? onJoinClick() : setMode("join"))}
-          >
-            Join an existing cluster
-          </Button>
-        </Stack>
-      )}
-
-      {pending === null && mode === "join" && (
+      {pending === null && (
         <Box sx={{ mt: 1 }}>
           <TextField
             fullWidth
@@ -246,7 +217,7 @@ const ClusterSetupCard = ({
             sx={{ mt: 2 }}
             startIcon={<ArrowBackIcon />}
             disabled={busy}
-            onClick={() => (joinOnly ? onCancel?.() : setMode("idle"))}
+            onClick={() => onCancel?.()}
           >
             Back
           </Button>

@@ -123,25 +123,6 @@ func ClusterJoin() http.Handler {
 	})
 }
 
-func ClusterBootstrap() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		coord := loadJoinCoordinator()
-		if coord == nil {
-			writeError(r.Context(), w, http.StatusConflict, joinreq.ErrNotAccepting.Error(), nil, logger.APILog)
-			return
-		}
-
-		if err := coord.Submit(joinreq.Request{Mode: joinreq.ModeBootstrap}); err != nil {
-			writeError(r.Context(), w, http.StatusConflict, err.Error(), err, logger.APILog)
-			return
-		}
-
-		logger.APILog.Info("Cluster bootstrap requested over the API")
-
-		writeResponse(r.Context(), w, statusResponse(coord), http.StatusAccepted, logger.APILog)
-	})
-}
-
 func GetClusterJoinStatus() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		coord := loadJoinCoordinator()

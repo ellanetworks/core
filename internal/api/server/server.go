@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type HandlerConfig struct {
@@ -261,7 +262,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/bootstrap", ClusterBootstrap().ServeHTTP)
 
 	// PKI admin endpoints. Handlers resolve the issuer service at
 	// request time (set by runtime after first-leader bootstrap), so
@@ -323,7 +323,11 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/bootstrap", ClusterBootstrap().ServeHTTP)
+
+	// Creating the first user founds the cluster, so init has to be
+	// reachable before one exists. The secret is empty here; the handler
+	// resolves it from the database once the cluster is writable.
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, NewJWTSecret(nil), secureCookie, bcrypt.DefaultCost).ServeHTTP)
 
 	// POST /api/v1/cluster/members is not served during discovery; in mTLS
 	// mode, join requests arrive on the cluster port (wired in a later step).

@@ -16,22 +16,6 @@ const BOOTSTRAP = "/api/v1/cluster/bootstrap";
 const TOKEN = "a".repeat(100);
 
 describe("ClusterSetupCard", () => {
-  it("founds a cluster from this node", async () => {
-    const user = userEvent.setup();
-    const onSubmitted = vi.fn();
-    api.post(BOOTSTRAP, () => ({ state: "joining" }));
-    api.get(JOIN, () => ({ state: "joined" }));
-
-    renderWithProviders(
-      <ClusterSetupCard state="waiting" onSubmitted={onSubmitted} />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Create a cluster/ }));
-
-    expect(api.lastRequest(BOOTSTRAP)).toBeDefined();
-    await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
-  });
-
   it("sends the token and seed address, and blocks Join until both are set", async () => {
     const user = userEvent.setup();
     api.post(JOIN, () => ({ state: "joining" }));
@@ -39,10 +23,6 @@ describe("ClusterSetupCard", () => {
 
     renderWithProviders(
       <ClusterSetupCard state="waiting" onSubmitted={vi.fn()} />,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: /Join an existing cluster/ }),
     );
 
     const join = screen.getByRole("button", { name: /^Join$/ });

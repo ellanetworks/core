@@ -149,12 +149,6 @@ export async function joinCluster(
   });
 }
 
-export async function bootstrapCluster(): Promise<ClusterJoinStatus> {
-  return apiFetch<ClusterJoinStatus>("/api/v1/cluster/bootstrap", {
-    method: "POST",
-  });
-}
-
 export async function waitForClusterReady(
   timeoutMs = 120000,
   intervalMs = 500,

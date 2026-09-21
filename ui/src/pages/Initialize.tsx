@@ -18,11 +18,6 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { initialize } from "@/queries/initialize";
 import { getStatus } from "@/queries/status";
-import {
-  bootstrapCluster,
-  getClusterJoinStatus,
-  waitForClusterReady,
-} from "@/queries/cluster";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
@@ -48,21 +43,7 @@ const InitializePage = () => {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
-  const [awaitingSetup, setAwaitingSetup] = useState(false);
   const [clusterEnabled, setClusterEnabled] = useState(false);
-
-  useEffect(() => {
-    const checkJoinState = async () => {
-      try {
-        const join = await getClusterJoinStatus();
-        setAwaitingSetup(join.state === "waiting" || join.state === "joining");
-      } catch {
-        setAwaitingSetup(false);
-      }
-    };
-
-    void checkJoinState();
-  }, []);
 
   useEffect(() => {
     const checkInitialization = async () => {
@@ -115,15 +96,6 @@ const InitializePage = () => {
     setLoading(true);
 
     try {
-      if (awaitingSetup) {
-        const join = await getClusterJoinStatus();
-        if (join.state === "waiting") {
-          await bootstrapCluster();
-        }
-
-        await waitForClusterReady();
-      }
-
       await initialize(email, password);
       navigate("/dashboard");
     } catch (err) {

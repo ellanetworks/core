@@ -99,66 +99,19 @@ describe("Cluster page standalone state", () => {
     seedJoin();
   };
 
-  it("offers the setup card and links out to the HA documentation", async () => {
+  it("explains standalone mode and links out to the HA documentation", async () => {
     seedStandalone();
 
     await renderCluster();
 
+    expect(screen.getByText("High availability is not enabled")).toBeTruthy();
     expect(
-      screen.getByText("High-availability cluster members and health."),
-    ).toBeTruthy();
-
-    expect(
-      await screen.findByText("This node is not part of a cluster"),
+      screen.getByText(/cluster bind address in the config file/),
     ).toBeTruthy();
 
     const learnMore = screen.getByRole("link", { name: /Learn more/ });
     expect(learnMore).toHaveAttribute("href", PRODUCT.haDocsUrl);
     expect(learnMore).toHaveAttribute("target", "_blank");
-  });
-
-  it("disables both actions and says the bind address is missing", async () => {
-    seedStandalone();
-
-    await renderCluster();
-
-    expect(
-      await screen.findByText(
-        /cluster bind address is not set in the config file/,
-      ),
-    ).toBeTruthy();
-    expect(screen.getByText(/restart this node/)).toBeTruthy();
-
-    expect(
-      screen.getByRole("button", { name: /Create a cluster/ }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: /Join an existing cluster/ }),
-    ).toBeDisabled();
-  });
-
-  it("offers the setup card on a node that has an address but no cluster yet", async () => {
-    api.get(STATUS, () => ({
-      initialized: true,
-      ready: true,
-      schemaVersion: 7,
-      cluster: { enabled: true, role: "Follower", nodeId: 1 },
-    }));
-    seedJoin("waiting");
-    api.get(MEMBERS, () => []);
-    seedAutopilot();
-
-    await renderCluster();
-
-    expect(
-      await screen.findByText("This node is not part of a cluster"),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /Create a cluster/ }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: /Join an existing cluster/ }),
-    ).toBeEnabled();
   });
 });
 

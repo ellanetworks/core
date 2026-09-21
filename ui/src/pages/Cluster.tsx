@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
@@ -32,6 +31,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { PRODUCT } from "@/utils/product";
+import EmptyState from "@/components/EmptyState";
 import { getStatus, type APIStatus } from "@/queries/status";
 import {
   listClusterMembers,
@@ -42,10 +42,7 @@ import {
   type AutopilotState,
   type DrainState,
   type DrainResponse,
-  getClusterJoinStatus,
-  type ClusterJoinStatus,
 } from "@/queries/cluster";
-import ClusterSetupCard from "@/components/ClusterSetupCard";
 import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
@@ -190,7 +187,6 @@ const ClusterPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
@@ -206,30 +202,17 @@ const ClusterPage: React.FC = () => {
 
   const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
 
-  const joinQuery = useQuery<ClusterJoinStatus>({
-    queryKey: ["cluster-join-status"],
-    queryFn: getClusterJoinStatus,
-    enabled: statusQuery.isSuccess && clusterEnabled,
-    refetchInterval: (query) => {
-      const state = query.state.data?.state;
-      return state === "waiting" || state === "joining" ? 2000 : false;
-    },
-  });
-
-  const joinState = joinQuery.data?.state ?? "unavailable";
-  const awaitingSetup = joinState === "waiting" || joinState === "joining";
-
   const membersQuery = useQuery<ClusterMember[]>({
     queryKey: ["cluster-members"],
     queryFn: () => listClusterMembers(accessToken || ""),
-    enabled: authReady && !!accessToken && clusterEnabled && !awaitingSetup,
+    enabled: authReady && !!accessToken && clusterEnabled,
     refetchInterval: 5000,
   });
 
   const autopilotQuery = useQuery<AutopilotState>({
     queryKey: ["cluster-autopilot"],
     queryFn: () => getAutopilotState(accessToken || ""),
-    enabled: authReady && !!accessToken && clusterEnabled && !awaitingSetup,
+    enabled: authReady && !!accessToken && clusterEnabled,
     refetchInterval: 2000,
     retry: false,
   });
@@ -559,7 +542,7 @@ const ClusterPage: React.FC = () => {
     );
   }
 
-  if (!clusterEnabled || awaitingSetup) {
+  if (!clusterEnabled) {
     return (
       <Box
         sx={{
@@ -575,32 +558,26 @@ const ClusterPage: React.FC = () => {
           {CLUSTER_PAGE_DESCRIPTION}
         </Typography>
 
-        <Box sx={{ mt: 3 }}>
-          <ClusterSetupCard
-            state={joinState}
-            failure={joinQuery.data?.error}
-            disabledReason={
-              clusterEnabled ? undefined : (
-                <>
-                  The cluster bind address is not set in the config file. Set it
-                  and restart this node to enable clustering.{" "}
-                  <MuiLink
-                    href={PRODUCT.haDocsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    underline="hover"
-                    sx={{ display: "inline-flex", alignItems: "center" }}
-                  >
-                    Learn more
-                    <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
-                  </MuiLink>
-                </>
-              )
-            }
-            onJoinClick={() => navigate("/cluster/join")}
-            onSubmitted={() => void joinQuery.refetch()}
-          />
-        </Box>
+        <EmptyState
+          primaryText="High availability is not enabled"
+          secondaryText={
+            <>
+              This node is running in standalone mode. Set the cluster bind
+              address in the config file and restart this node to enable
+              clustering.{" "}
+              <MuiLink
+                href={PRODUCT.haDocsUrl}
+                target="_blank"
+                rel="noreferrer"
+                underline="hover"
+                sx={{ display: "inline-flex", alignItems: "center" }}
+              >
+                Learn more
+                <OpenInNewIcon sx={{ fontSize: 16, ml: 0.5 }} />
+              </MuiLink>
+            </>
+          }
+        />
       </Box>
     );
   }
