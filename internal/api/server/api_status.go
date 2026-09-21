@@ -46,6 +46,7 @@ type PendingMigrationResponse struct {
 	CurrentSchema int        `json:"currentSchema"`
 	TargetSchema  int        `json:"targetSchema"`
 	LaggardNodeId pki.NodeID `json:"laggardNodeId,omitempty"`
+	LaggardReason string     `json:"laggardReason,omitempty"`
 }
 
 type ClusterStatusResponse struct {
@@ -150,6 +151,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 						CurrentSchema: pending.CurrentSchema,
 						TargetSchema:  pending.TargetSchema,
 						LaggardNodeId: pki.NodeID(pending.LaggardNodeID),
+						LaggardReason: pending.LaggardReason,
 					}
 				}
 			} else {

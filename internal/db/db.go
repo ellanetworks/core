@@ -897,7 +897,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	floor, laggard, err := db.minMemberSchemaSupport(ctx)
+	floor, laggard, _, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return err
 	}
@@ -932,11 +932,18 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 
 // PendingMigrationStatus is a read-only snapshot of cluster
 // migration readiness; surfaced on /api/v1/status.
+const (
+	LaggardReasonSchemaBehind      = "schema_behind"
+	LaggardReasonNoMemberRow       = "no_member_row"
+	LaggardReasonCapabilityUnknown = "capability_unknown"
+)
+
 type PendingMigrationStatus struct {
 	Pending       bool
 	CurrentSchema int
 	TargetSchema  int    // bounded by min(binaryMax, member floor); equals current when blocked
 	LaggardNodeID string // member holding target == current; empty when unblocked
+	LaggardReason string
 }
 
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
@@ -963,7 +970,7 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 		}, nil
 	}
 
-	floor, laggard, err := db.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return PendingMigrationStatus{}, err
 	}
@@ -985,6 +992,7 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 
 	if target == current {
 		status.LaggardNodeID = laggard
+		status.LaggardReason = reason
 	}
 
 	return status, nil
@@ -992,10 +1000,10 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 
 // minMemberSchemaSupport returns the minimum SchemaVersion across cluster
 // members and the laggard's nodeID.
-func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, error) {
+func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, string, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
-		return 0, "", fmt.Errorf("list cluster members: %w", err)
+		return 0, "", "", fmt.Errorf("list cluster members: %w", err)
 	}
 
 	// The configuration is the set of nodes that receive entries, so it decides
@@ -1009,7 +1017,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, er
 	if len(configuration) == 0 {
 		logger.From(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
 
-		return 0, "", nil
+		return 0, "", "", nil
 	}
 
 	rows := make(map[string]ClusterMember, len(members))
@@ -1036,29 +1044,29 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, er
 
 		m, ok := rows[nodeID]
 		if !ok {
-			logger.From(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
+			logger.From(ctx, logger.DBLog).Warn("Migration gate: configuration member has no cluster_members row, deferring",
 				zap.String("node_id", nodeID),
 			)
 
-			return 0, nodeID, nil
+			return 0, nodeID, LaggardReasonNoMemberRow, nil
 		}
 
 		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
-			logger.From(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
+			logger.From(ctx, logger.DBLog).Warn("Migration gate: member capability unknown, deferring",
 				zap.String("node_id", nodeID),
 				zap.String("raft_address", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
 			)
 
-			return 0, nodeID, nil
+			return 0, nodeID, LaggardReasonCapabilityUnknown, nil
 		}
 
 		consider(nodeID, v)
 	}
 
-	return floor, laggard, nil
+	return floor, laggard, LaggardReasonSchemaBehind, nil
 }
 
 // clusterCoordinator runs the migration gate on leadership transitions

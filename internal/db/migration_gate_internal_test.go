@@ -66,7 +66,7 @@ func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 	database.raftMemberIDs = func() []string { return []string{"1", "2", "3"} }
 	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10, "2": 9, "3": 11}}.probe
 
-	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
@@ -77,6 +77,10 @@ func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 
 	if laggard != "2" {
 		t.Fatalf("laggard: want 2, got %s", laggard)
+	}
+
+	if reason != LaggardReasonSchemaBehind {
+		t.Fatalf("reason: want %s, got %s", LaggardReasonSchemaBehind, reason)
 	}
 }
 
@@ -99,7 +103,7 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 		unreachable: map[string]bool{"2": true},
 	}.probe
 
-	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
@@ -110,6 +114,10 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 
 	if laggard != "2" {
 		t.Fatalf("laggard: want 2, got %s", laggard)
+	}
+
+	if reason != LaggardReasonCapabilityUnknown {
+		t.Fatalf("reason: want %s, got %s", LaggardReasonCapabilityUnknown, reason)
 	}
 }
 
@@ -137,7 +145,7 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 		return 3, nil
 	}
 
-	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	floor, laggard, _, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
@@ -174,7 +182,7 @@ func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 
 	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
-	floor, _, err := database.minMemberSchemaSupport(ctx)
+	floor, _, _, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
@@ -197,7 +205,7 @@ func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T
 	database.raftMemberIDs = func() []string { return []string{"1", "2"} }
 	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10}}.probe
 
-	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
@@ -208,6 +216,10 @@ func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T
 
 	if laggard != "2" {
 		t.Fatalf("laggard: want 2, got %s", laggard)
+	}
+
+	if reason != LaggardReasonNoMemberRow {
+		t.Fatalf("reason: want %s, got %s", LaggardReasonNoMemberRow, reason)
 	}
 }
 
@@ -224,7 +236,7 @@ func TestMinMemberSchemaSupport_UnavailableConfigurationBlocks(t *testing.T) {
 	database.raftMemberIDs = func() []string { return nil }
 	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
-	floor, _, err := database.minMemberSchemaSupport(ctx)
+	floor, _, _, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
