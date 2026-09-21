@@ -147,6 +147,9 @@ type Manager struct {
 	boltNoSync      bool
 	clusterListener *listener.Listener
 
+	soleVoterTimeouts raft.ReloadableConfig
+	clusterTimeouts   raft.ReloadableConfig
+
 	leaderClient *leaderHTTPClient
 
 	discoveryPending atomic.Bool
@@ -385,7 +388,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	// known, but before NewRaft spins up the internal loop that consumes them.
 	// RecoverCluster above only uses LocalID from raftConfig, so the order is
 	// safe.
-	applyTimeouts(raftConfig, cfg, singleServer)
+	baseHeartbeat, baseElection := applyTimeouts(raftConfig, cfg, singleServer)
 
 	r, err := raft.NewRaft(raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
 	if err != nil {
@@ -430,11 +433,27 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		boltNoSync:    false,
 		leaderBarrier: make(chan struct{}),
 		shutdownCh:    make(chan struct{}),
+		clusterTimeouts: raft.ReloadableConfig{
+			TrailingLogs:      raftConfig.TrailingLogs,
+			SnapshotInterval:  raftConfig.SnapshotInterval,
+			SnapshotThreshold: raftConfig.SnapshotThreshold,
+			HeartbeatTimeout:  raftConfig.HeartbeatTimeout,
+			ElectionTimeout:   raftConfig.ElectionTimeout,
+		},
+		soleVoterTimeouts: raft.ReloadableConfig{
+			TrailingLogs:      raftConfig.TrailingLogs,
+			SnapshotInterval:  raftConfig.SnapshotInterval,
+			SnapshotThreshold: raftConfig.SnapshotThreshold,
+			HeartbeatTimeout:  atLeast(baseHeartbeat, raftConfig.LeaderLeaseTimeout),
+			ElectionTimeout:   atLeast(baseElection, raftConfig.LeaderLeaseTimeout),
+		},
 	}
 
 	observer.Register(leaderBarrierCallback{m: m})
 
 	m.discoveryPending.Store(!singleServer && !hasState && !recovered)
+
+	m.relaxSoleVoterTimeouts()
 
 	m.attachClusterListener(options.clusterListener)
 
@@ -510,7 +529,12 @@ func resolveRaftIDForMode(cfg ClusterConfig, dataDir string) (string, error) {
 
 // applyTimeouts configures heartbeat / election / leader-lease / commit
 // timeouts.
-func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) {
+// applyTimeouts scales the raft timeouts by the performance multiplier and
+// returns the unmultiplied heartbeat and election timeouts, which a sole
+// voter reloads in place of the cluster values.
+func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) (time.Duration, time.Duration) {
+	baseHeartbeat, baseElection := rc.HeartbeatTimeout, rc.ElectionTimeout
+
 	multiplier := cfg.PerformanceMultiplier
 	if multiplier <= 0 {
 		multiplier = defaultPerformanceMultiplier
@@ -538,6 +562,16 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) {
 	if cfg.CommitTimeout > 0 {
 		rc.CommitTimeout = cfg.CommitTimeout
 	}
+
+	if cfg.HeartbeatTimeout > 0 {
+		baseHeartbeat = cfg.HeartbeatTimeout
+	}
+
+	if cfg.ElectionTimeout > 0 {
+		baseElection = cfg.ElectionTimeout
+	}
+
+	return baseHeartbeat, baseElection
 }
 
 // Propose serializes a command and applies it through Raft consensus.
@@ -778,6 +812,68 @@ func (m *Manager) LeaderObserver() *LeaderObserver {
 	return m.observer
 }
 
+// atLeast floors d at the leader-lease timeout. ReloadConfig cannot change
+// LeaderLeaseTimeout, and raft rejects a heartbeat shorter than the lease, so
+// the lease is the lowest a sole voter can go without rebuilding the node.
+func atLeast(d, floor time.Duration) time.Duration {
+	if d < floor {
+		return floor
+	}
+
+	return d
+}
+
+// relaxSoleVoterTimeouts drops the performance multiplier while this node is
+// the only server in the configuration. A lone voter has nobody to coordinate
+// with, so the scaled heartbeat only delays the first election; the cluster
+// values are restored as soon as a second server is added.
+func (m *Manager) relaxSoleVoterTimeouts() {
+	if !m.config.Enabled {
+		return
+	}
+
+	if m.countServers() != 1 {
+		return
+	}
+
+	if err := m.raft.ReloadConfig(m.soleVoterTimeouts); err != nil {
+		logger.RaftLog.Warn("Raft: could not relax timeouts for a sole voter", zap.Error(err))
+		return
+	}
+
+	logger.RaftLog.Info("Raft: relaxed election timeouts while this node is the only server",
+		zap.Duration("heartbeat_timeout", m.soleVoterTimeouts.HeartbeatTimeout),
+		zap.Duration("election_timeout", m.soleVoterTimeouts.ElectionTimeout),
+	)
+}
+
+// restoreClusterTimeouts puts the performance multiplier back once the
+// configuration holds more than this node.
+func (m *Manager) restoreClusterTimeouts() {
+	if !m.config.Enabled || m.countServers() < 2 {
+		return
+	}
+
+	if err := m.raft.ReloadConfig(m.clusterTimeouts); err != nil {
+		logger.RaftLog.Warn("Raft: could not restore cluster election timeouts", zap.Error(err))
+		return
+	}
+
+	logger.RaftLog.Info("Raft: restored cluster election timeouts",
+		zap.Duration("heartbeat_timeout", m.clusterTimeouts.HeartbeatTimeout),
+		zap.Duration("election_timeout", m.clusterTimeouts.ElectionTimeout),
+	)
+}
+
+func (m *Manager) countServers() int {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return 0
+	}
+
+	return len(future.Configuration().Servers)
+}
+
 // AddVoter adds a new node to the Raft cluster as a voting member. Only the
 // leader can add nodes. The nodeID and address identify the new server; if the
 // node already exists with a different address, it is updated.
@@ -789,6 +885,8 @@ func (m *Manager) AddVoter(nodeID string, address string) error {
 	if err := future.Error(); err != nil {
 		return fmt.Errorf("add voter %s at %s: %w", nodeID, address, err)
 	}
+
+	m.restoreClusterTimeouts()
 
 	return nil
 }
@@ -973,6 +1071,8 @@ func (m *Manager) AddNonvoter(nodeID string, address string) error {
 	if err := future.Error(); err != nil {
 		return fmt.Errorf("add nonvoter %s at %s: %w", nodeID, address, err)
 	}
+
+	m.restoreClusterTimeouts()
 
 	return nil
 }

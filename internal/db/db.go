@@ -928,7 +928,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	floor, laggard, _, err := db.minMemberSchemaSupport(ctx)
+	floor, laggard, reason, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return err
 	}
@@ -944,6 +944,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 			zap.Int("binary_max", binaryMax),
 			zap.Int("member_floor", floor),
 			zap.String("laggard_node_id", laggard),
+			zap.String("reason", reason),
 		)
 
 		return nil
@@ -964,9 +965,10 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 // PendingMigrationStatus is a read-only snapshot of cluster
 // migration readiness; surfaced on /api/v1/status.
 const (
-	LaggardReasonSchemaBehind      = "schema_behind"
-	LaggardReasonNoMemberRow       = "no_member_row"
-	LaggardReasonCapabilityUnknown = "capability_unknown"
+	LaggardReasonSchemaBehind             = "schema_behind"
+	LaggardReasonNoMemberRow              = "no_member_row"
+	LaggardReasonCapabilityUnknown        = "capability_unknown"
+	LaggardReasonConfigurationUnavailable = "configuration_unavailable"
 )
 
 type PendingMigrationStatus struct {
@@ -1046,9 +1048,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 	}
 
 	if len(configuration) == 0 {
-		logger.From(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
-
-		return 0, "", "", nil
+		return 0, "", LaggardReasonConfigurationUnavailable, nil
 	}
 
 	rows := make(map[string]ClusterMember, len(members))
@@ -1075,16 +1075,12 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 
 		m, ok := rows[nodeID]
 		if !ok {
-			logger.From(ctx, logger.DBLog).Warn("Migration gate: configuration member has no cluster_members row, deferring",
-				zap.String("node_id", nodeID),
-			)
-
 			return 0, nodeID, LaggardReasonNoMemberRow, nil
 		}
 
 		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
-			logger.From(ctx, logger.DBLog).Warn("Migration gate: member capability unknown, deferring",
+			logger.From(ctx, logger.DBLog).Debug("Migration gate: member capability probe failed",
 				zap.String("node_id", nodeID),
 				zap.String("raft_address", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),

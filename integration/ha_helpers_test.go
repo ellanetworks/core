@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -232,16 +233,51 @@ func foundCluster(ctx context.Context, baseURL string) error {
 
 		_ = resp.Body.Close()
 
-		if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusConflict {
+		if resp.StatusCode == http.StatusAccepted {
 			return nil
 		}
 
-		lastErr = fmt.Errorf("status %d", resp.StatusCode)
+		// 409 means the coordinator refused. That is expected on a node
+		// that is already a cluster (a converted standalone never opens
+		// one), and a regression on a node that should have been waiting,
+		// so only accept it once the node reports a working cluster.
+		if resp.StatusCode == http.StatusConflict {
+			clustered, cerr := nodeIsClustered(ctx, baseURL)
+			if clustered {
+				return nil
+			}
+
+			lastErr = fmt.Errorf("bootstrap refused with 409 and the node is not clustered: %w", cerr)
+		} else {
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+		}
 
 		time.Sleep(500 * time.Millisecond)
 	}
 
 	return fmt.Errorf("node never accepted the bootstrap request: %w", lastErr)
+}
+
+func nodeIsClustered(ctx context.Context, baseURL string) (bool, error) {
+	c, err := newInsecureClient(baseURL)
+	if err != nil {
+		return false, err
+	}
+
+	status, err := c.GetStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if !status.Cluster.Enabled {
+		return false, errors.New("clustering is not enabled on this node")
+	}
+
+	if !status.Ready {
+		return false, errors.New("node is not ready")
+	}
+
+	return true, nil
 }
 
 // initializeAndGetAdminToken creates the first admin user on the leader

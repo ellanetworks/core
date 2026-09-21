@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -19,14 +19,18 @@ import {
   joinCluster,
   type ClusterJoinState,
 } from "@/queries/cluster";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { ApiError } from "@/queries/utils";
 
 type Props = {
   state: ClusterJoinState;
   failure?: string;
   joinOnly?: boolean;
+  disabledReason?: ReactNode;
   onSubmitted: () => void;
   onCancel?: () => void;
+  onJoinClick?: () => void;
 };
 
 type Pending = "join" | "create";
@@ -53,8 +57,10 @@ const ClusterSetupCard = ({
   state,
   failure,
   joinOnly = false,
+  disabledReason,
   onSubmitted,
   onCancel,
+  onJoinClick,
 }: Props) => {
   const [mode, setMode] = useState<"idle" | "join">(joinOnly ? "join" : "idle");
   const [token, setToken] = useState("");
@@ -124,7 +130,9 @@ const ClusterSetupCard = ({
     };
   }, [pending]);
 
-  const busy = submitting || pending !== null || state === "joining";
+  const blocked = disabledReason !== undefined;
+  const working = submitting || pending !== null || state === "joining";
+  const busy = blocked || working;
 
   const run = async (what: Pending, fn: () => Promise<unknown>) => {
     setSubmitting(true);
@@ -140,103 +148,120 @@ const ClusterSetupCard = ({
     }
   };
 
-  return (
-    <Card variant="outlined" sx={{ maxWidth: 560 }}>
-      <CardContent>
+  const body = (
+    <>
+      {!(joinOnly && pending === null) && (
         <Typography variant="h6" gutterBottom>
           {pending === null
             ? "This node is not part of a cluster"
             : HEADING[pending]}
         </Typography>
+      )}
 
-        {pending === null && (error || failure) && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error || failure}
-          </Alert>
-        )}
+      {blocked && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {disabledReason}
+        </Alert>
+      )}
 
-        {pending !== null && (
-          <Stack
-            direction="row"
-            spacing={2}
-            sx={{ mt: 2, alignItems: "center" }}
-            component="output"
+      {pending === null && (error || failure) && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error || failure}
+        </Alert>
+      )}
+
+      {pending !== null && (
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ mt: 2, alignItems: "center" }}
+          component="output"
+        >
+          <CircularProgress size={20} />
+          <Typography variant="body2">{PROGRESS_MESSAGE[pending]}</Typography>
+        </Stack>
+      )}
+
+      {pending === null && mode === "idle" && (
+        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+          <Button
+            variant="contained"
+            disabled={busy}
+            startIcon={working ? <CircularProgress size={16} /> : undefined}
+            onClick={() => void run("create", bootstrapCluster)}
           >
-            <CircularProgress size={20} />
-            <Typography variant="body2">{PROGRESS_MESSAGE[pending]}</Typography>
-          </Stack>
-        )}
+            Create a cluster
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={busy}
+            endIcon={<ArrowForwardIcon />}
+            onClick={() => (onJoinClick ? onJoinClick() : setMode("join"))}
+          >
+            Join an existing cluster
+          </Button>
+        </Stack>
+      )}
 
-        {pending === null && mode === "idle" && (
-          <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-            <Button
-              variant="contained"
-              disabled={busy}
-              startIcon={busy ? <CircularProgress size={16} /> : undefined}
-              onClick={() => void run("create", bootstrapCluster)}
-            >
-              Create a cluster
-            </Button>
-            <Button
-              variant="outlined"
-              disabled={busy}
-              onClick={() => setMode("join")}
-            >
-              Join an existing cluster
-            </Button>
-          </Stack>
-        )}
+      {pending === null && mode === "join" && (
+        <Box sx={{ mt: 1 }}>
+          <TextField
+            fullWidth
+            label="Join token"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            disabled={busy}
+            margin="normal"
+            multiline
+            minRows={2}
+          />
+          <TextField
+            fullWidth
+            label="Cluster address"
+            placeholder="10.0.0.1:7000"
+            value={seedAddress}
+            onChange={(e) => setSeedAddress(e.target.value)}
+            disabled={busy}
+            margin="normal"
+          />
 
-        {pending === null && mode === "join" && (
-          <Box sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Join token"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              disabled={busy}
-              margin="normal"
-              multiline
-              minRows={2}
-            />
-            <TextField
-              fullWidth
-              label="Cluster address"
-              placeholder="10.0.0.1:7000"
-              value={seedAddress}
-              onChange={(e) => setSeedAddress(e.target.value)}
-              disabled={busy}
-              margin="normal"
-            />
+          <Button
+            variant="contained"
+            color="success"
+            fullWidth
+            sx={{ mt: 2 }}
+            disabled={busy || !token.trim() || !seedAddress.trim()}
+            startIcon={working ? <CircularProgress size={16} /> : undefined}
+            onClick={() =>
+              void run("join", () =>
+                joinCluster(token.trim(), [seedAddress.trim()]),
+              )
+            }
+          >
+            {working ? "Joining…" : "Join"}
+          </Button>
 
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              Everything on this node will be replaced by the cluster&apos;s
-              data.
-            </Alert>
+          <Button
+            fullWidth
+            sx={{ mt: 2 }}
+            startIcon={<ArrowBackIcon />}
+            disabled={busy}
+            onClick={() => (joinOnly ? onCancel?.() : setMode("idle"))}
+          >
+            Back
+          </Button>
+        </Box>
+      )}
+    </>
+  );
 
-            <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-              <Button
-                variant="contained"
-                disabled={busy || !token.trim() || !seedAddress.trim()}
-                startIcon={busy ? <CircularProgress size={16} /> : undefined}
-                onClick={() =>
-                  void run("join", () =>
-                    joinCluster(token.trim(), [seedAddress.trim()]),
-                  )
-                }
-              >
-                {busy ? "Joining…" : "Join"}
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() => (joinOnly ? onCancel?.() : setMode("idle"))}
-              >
-                Back
-              </Button>
-            </Stack>
-          </Box>
-        )}
-      </CardContent>
+  if (joinOnly) {
+    return body;
+  }
+
+  return (
+    <Card variant="outlined" sx={{ maxWidth: 560 }}>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 };

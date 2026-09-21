@@ -3,6 +3,7 @@
 
 import { ApiError, apiFetch, apiFetchVoid } from "@/queries/utils";
 import { NodeId } from "@/queries/nodeId";
+import { getStatus } from "@/queries/status";
 
 export type DrainState = "active" | "draining" | "drained";
 
@@ -155,18 +156,20 @@ export async function bootstrapCluster(): Promise<ClusterJoinStatus> {
 }
 
 export async function waitForClusterReady(
-  timeoutMs = 60000,
+  timeoutMs = 120000,
   intervalMs = 500,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     try {
-      const status = await getClusterJoinStatus();
-      if (status.state === "joined") return;
-      if (status.state === "waiting" && status.error) {
-        throw new Error(status.error);
+      const join = await getClusterJoinStatus();
+      if (join.state === "waiting" && join.error) {
+        throw new Error(join.error);
       }
+
+      const status = await getStatus();
+      if (status.ready) return;
     } catch (err) {
       if (!(err instanceof ApiError) || !err.retryable) throw err;
     }

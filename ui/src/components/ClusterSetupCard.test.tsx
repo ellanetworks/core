@@ -32,20 +32,6 @@ describe("ClusterSetupCard", () => {
     await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
   });
 
-  it("warns that joining replaces everything on the node", async () => {
-    const user = userEvent.setup();
-
-    renderWithProviders(
-      <ClusterSetupCard state="waiting" onSubmitted={vi.fn()} />,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: /Join an existing cluster/ }),
-    );
-
-    expect(screen.getByText(/replaced by the cluster/i)).toBeInTheDocument();
-  });
-
   it("sends the token and seed address, and blocks Join until both are set", async () => {
     const user = userEvent.setup();
     api.post(JOIN, () => ({ state: "joining" }));
@@ -68,7 +54,10 @@ describe("ClusterSetupCard", () => {
     expect(join).toBeEnabled();
     await user.click(join);
 
-    const posted = api.requests(JOIN).filter((r) => r.method === "POST").at(-1);
+    const posted = api
+      .requests(JOIN)
+      .filter((r) => r.method === "POST")
+      .at(-1);
     expect(posted?.body).toEqual({
       token: TOKEN,
       seedAddresses: ["10.0.0.1:7000"],
@@ -113,7 +102,9 @@ describe("ClusterSetupCard", () => {
     await user.click(screen.getByRole("button", { name: /^Join$/ }));
 
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(/Joining the cluster/),
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /Joining the cluster/,
+      ),
     );
     expect(onSubmitted).not.toHaveBeenCalled();
   });

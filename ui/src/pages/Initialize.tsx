@@ -13,6 +13,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { initialize } from "@/queries/initialize";
@@ -22,7 +23,6 @@ import {
   getClusterJoinStatus,
   waitForClusterReady,
 } from "@/queries/cluster";
-import ClusterSetupCard from "@/components/ClusterSetupCard";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
@@ -49,7 +49,7 @@ const InitializePage = () => {
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
   const [awaitingSetup, setAwaitingSetup] = useState(false);
-  const [joining, setJoining] = useState(false);
+  const [clusterEnabled, setClusterEnabled] = useState(false);
 
   useEffect(() => {
     const checkJoinState = async () => {
@@ -68,6 +68,8 @@ const InitializePage = () => {
     const checkInitialization = async () => {
       try {
         const status = await getStatus();
+        setClusterEnabled(status?.cluster?.enabled ?? false);
+
         if (status?.initialized) {
           navigate("/dashboard");
         } else {
@@ -114,7 +116,11 @@ const InitializePage = () => {
 
     try {
       if (awaitingSetup) {
-        await bootstrapCluster();
+        const join = await getClusterJoinStatus();
+        if (join.state === "waiting") {
+          await bootstrapCluster();
+        }
+
         await waitForClusterReady();
       }
 
@@ -243,26 +249,24 @@ const InitializePage = () => {
           </Button>
         </form>
 
-        {awaitingSetup && !joining && (
-          <Button
-            fullWidth
-            sx={{ mt: 2 }}
-            onClick={() => setJoining(true)}
-            disabled={loading}
-          >
-            Join an existing cluster instead
-          </Button>
-        )}
+        <Button
+          fullWidth
+          sx={{ mt: 2 }}
+          endIcon={<ArrowForwardIcon />}
+          onClick={() => navigate("/initialize/join")}
+          disabled={loading || !clusterEnabled}
+        >
+          Join an existing cluster instead
+        </Button>
 
-        {awaitingSetup && joining && (
-          <Box sx={{ mt: 3 }}>
-            <ClusterSetupCard
-              state="waiting"
-              joinOnly
-              onSubmitted={() => navigate("/")}
-              onCancel={() => setJoining(false)}
-            />
-          </Box>
+        {!clusterEnabled && (
+          <Typography
+            variant="caption"
+            color="textSecondary"
+            sx={{ mt: 1, display: "block", textAlign: "center" }}
+          >
+            The cluster bind address is not set in the config file.
+          </Typography>
         )}
       </Box>
     </Box>

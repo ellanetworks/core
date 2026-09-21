@@ -5954,11 +5954,12 @@ components:
             responsible.
         laggardReason:
           type: string
-          enum: [schema_behind, no_member_row, capability_unknown]
+          enum: [schema_behind, no_member_row, capability_unknown, configuration_unavailable]
           description: >-
-            Why the laggard blocks the migration: it runs an older schema, it
-            is in the Raft configuration with no cluster member record, or its
-            schema could not be probed.
+            Why the migration is held: a member runs an older schema, a member
+            is in the Raft configuration with no cluster member record, a
+            member's schema could not be probed, or the Raft configuration is
+            not available yet.
       required: [currentSchema, targetSchema]
 
     ClusterMember:

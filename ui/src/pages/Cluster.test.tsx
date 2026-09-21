@@ -35,8 +35,13 @@ const member = (o: MemberOverrides) => ({
   drainState: o.drainState ?? "active",
 });
 
-const seedStatus = (cluster: Record<string, unknown> = {}) =>
-  api.get(STATUS, () => ({
+const seedJoin = (state = "unavailable", error?: string) =>
+  api.get(JOIN, () => ({ state, ...(error ? { error } : {}) }));
+
+const seedStatus = (cluster: Record<string, unknown> = {}) => {
+  seedJoin();
+
+  return api.get(STATUS, () => ({
     initialized: true,
     ready: true,
     schemaVersion: 7,
@@ -52,6 +57,7 @@ const seedStatus = (cluster: Record<string, unknown> = {}) =>
       ...cluster,
     },
   }));
+};
 
 const seedAutopilot = (state: Record<string, unknown> = {}) =>
   api.get(AUTOPILOT, () => ({
@@ -83,14 +89,18 @@ const stateCard = () =>
     .closest(".MuiCard-root") as HTMLElement;
 
 describe("Cluster page standalone state", () => {
-  it("explains standalone mode and links out to the HA documentation", async () => {
+  const seedStandalone = () => {
     api.get(STATUS, () => ({
       initialized: true,
       ready: true,
       schemaVersion: 7,
       cluster: { enabled: false },
     }));
-    api.get(JOIN, () => ({ state: "unavailable" }));
+    seedJoin();
+  };
+
+  it("offers the setup card and links out to the HA documentation", async () => {
+    seedStandalone();
 
     await renderCluster();
 
@@ -98,15 +108,57 @@ describe("Cluster page standalone state", () => {
       screen.getByText("High-availability cluster members and health."),
     ).toBeTruthy();
 
-    expect(screen.getByText("High availability is not enabled")).toBeTruthy();
-
     expect(
-      screen.getByText(/This node is running in standalone mode/),
+      await screen.findByText("This node is not part of a cluster"),
     ).toBeTruthy();
 
     const learnMore = screen.getByRole("link", { name: /Learn more/ });
     expect(learnMore).toHaveAttribute("href", PRODUCT.haDocsUrl);
     expect(learnMore).toHaveAttribute("target", "_blank");
+  });
+
+  it("disables both actions and says the bind address is missing", async () => {
+    seedStandalone();
+
+    await renderCluster();
+
+    expect(
+      await screen.findByText(
+        /cluster bind address is not set in the config file/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/restart this node/)).toBeTruthy();
+
+    expect(
+      screen.getByRole("button", { name: /Create a cluster/ }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Join an existing cluster/ }),
+    ).toBeDisabled();
+  });
+
+  it("offers the setup card on a node that has an address but no cluster yet", async () => {
+    api.get(STATUS, () => ({
+      initialized: true,
+      ready: true,
+      schemaVersion: 7,
+      cluster: { enabled: true, role: "Follower", nodeId: 1 },
+    }));
+    seedJoin("waiting");
+    api.get(MEMBERS, () => []);
+    seedAutopilot();
+
+    await renderCluster();
+
+    expect(
+      await screen.findByText("This node is not part of a cluster"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Create a cluster/ }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /Join an existing cluster/ }),
+    ).toBeEnabled();
   });
 });
 

@@ -78,6 +78,8 @@ func (m *Manager) StartDiscovery(ctx context.Context) error {
 			return fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
 		}
 
+		m.relaxSoleVoterTimeouts()
+
 		m.discoveryPending.Store(false)
 
 		return nil

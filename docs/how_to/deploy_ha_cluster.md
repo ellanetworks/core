@@ -50,7 +50,7 @@ sudo snap start --enable ella-core.cored
 
 ## 3. Create the admin user
 
-Open `https://10.0.0.1:5002` in a browser, create the admin, and log in. Creating the admin founds the cluster on this node.
+Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 ## 4. Add node 2
 
