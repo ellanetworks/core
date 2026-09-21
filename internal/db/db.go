@@ -908,6 +908,31 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 	return nil
 }
 
+func (db *Database) assertCapturedSchema(ctx context.Context, captured int, label string) error {
+	if captured == 0 {
+		return nil
+	}
+
+	applied := db.cachedAppliedSchema()
+	if captured != applied {
+		v, err := db.CurrentSchemaVersion(ctx)
+		if err != nil {
+			return fmt.Errorf("apply gate: read schema version: %w", err)
+		}
+
+		db.appliedSchemaCache.Store(int64(v))
+
+		applied = v
+	}
+
+	if captured != applied {
+		return fmt.Errorf("apply gate: %s captured at schema %d, local applied %d",
+			label, captured, applied)
+	}
+
+	return nil
+}
+
 // CheckPendingMigrations proposes one CmdMigrateShared per missing migration,
 // up to the minimum SchemaVersion across cluster members. Nonvoters bind the
 // floor too: they run the same FSM over the same committed entries.

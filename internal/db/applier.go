@@ -46,6 +46,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
+		if err := db.assertCapturedSchema(ctx, payload.CapturedSchema, fmt.Sprintf("changeset %q", payload.Operation)); err != nil {
+			return nil, err
+		}
+
 		result, applyErr := db.applyChangeset(ctx, payload, logIndex)
 		if applyErr == nil {
 			if payload.Operation == "UpsertClusterMember" {
@@ -223,6 +227,7 @@ type (
 		Value          []byte `json:"value"`
 		Operation      string `json:"operation,omitempty"`
 		RequiredSchema int    `json:"requiredSchema,omitempty"`
+		CapturedSchema int    `json:"capturedSchema,omitempty"`
 	}
 	auditLogPayload struct {
 		ID        string `json:"id"`
