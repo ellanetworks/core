@@ -16,10 +16,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 // BackupManifestVersion is the on-disk version of the backup tar.gz
@@ -47,15 +45,6 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	}
 
 	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	if db.raftManager != nil {
-		if err := db.raftManager.Barrier(30 * time.Second); err != nil {
-			logger.From(ctx, logger.DBLog).Warn(
-				"Raft barrier before backup did not complete; backing up the state this node has already applied",
-				zap.Error(err),
-			)
-		}
-	}
 
 	dbTmp := filepath.Join(tmpDir, DBFilename)
 
