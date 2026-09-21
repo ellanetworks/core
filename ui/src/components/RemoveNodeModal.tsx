@@ -11,6 +11,7 @@ import {
 } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import NodeIdentity from "@/components/NodeIdentity";
 
 export type NodeHealth = "healthy" | "unhealthy" | "unknown";
 
@@ -75,6 +76,8 @@ const RemoveNodeModal: React.FC<Props> = ({
       }
       extra={
         <Box sx={{ mt: 2 }}>
+          <NodeIdentity nodeId={nodeId} />
+
           {forceRequired && (
             <FormControlLabel
               control={

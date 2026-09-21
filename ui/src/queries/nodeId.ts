@@ -13,7 +13,7 @@ export const sameNodeId = (
 export const shortNodeId = (id: NodeId | undefined): string => {
   const s = nodeIdKey(id);
 
-  return s.length > 12 ? s.slice(0, 8) : s;
+  return s.length > 12 ? s.slice(-12) : s;
 };
 
 export const nodeLabel = (

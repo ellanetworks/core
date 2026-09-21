@@ -6,6 +6,7 @@ import { NodeId } from "@/queries/nodeId";
 import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import NodeIdentity from "@/components/NodeIdentity";
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ const DrainNodeModal: React.FC<Props> = ({
           subscribers to the rest of the cluster.
         </>
       }
+      extra={<NodeIdentity nodeId={nodeId} />}
       confirmLabel="Drain"
       confirmingLabel="Draining…"
       confirmColor="warning"

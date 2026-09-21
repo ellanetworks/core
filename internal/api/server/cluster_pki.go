@@ -50,10 +50,13 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		if req.NodeID == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "node-id out of range", nil, logger.APILog)
+		normalizedNodeID, err := pki.NormalizeNodeID(string(req.NodeID))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "node-id must be a UUID or a legacy integer node id", err, logger.APILog)
 			return
 		}
+
+		req.NodeID = pki.NodeID(normalizedNodeID)
 
 		peerNodeID, hasPeer := peerNodeIDFromContext(r.Context())
 

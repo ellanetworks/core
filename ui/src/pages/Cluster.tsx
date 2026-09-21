@@ -272,8 +272,14 @@ const ClusterPage: React.FC = () => {
     [showSnackbar],
   );
 
-  const handleRemoveSuccess = (nodeId: NodeId) => {
-    showSnackbar(`Node ${shortNodeId(nodeId)} removed.`, "success");
+  const handleRemoveSuccess = (member: JoinedRow) => {
+    const id = nodeIdKey(member.nodeId);
+    showSnackbar(
+      member.displayName
+        ? `Node ${member.displayName} (${id}) removed.`
+        : `Node ${id} removed.`,
+      "success",
+    );
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
@@ -661,7 +667,7 @@ const ClusterPage: React.FC = () => {
           health={nodeHealth(removeTarget.autopilot)}
           isSelf={sameNodeId(removeTarget.nodeId, selfNodeId)}
           onClose={() => setRemoveTarget(null)}
-          onSuccess={() => handleRemoveSuccess(removeTarget.nodeId)}
+          onSuccess={() => handleRemoveSuccess(removeTarget)}
         />
       )}
     </Box>

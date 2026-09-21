@@ -97,10 +97,13 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if req.NodeID == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "nodeId must be a positive integer", nil, logger.APILog)
+		normalizedNodeID, err := pki.NormalizeNodeID(string(req.NodeID))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "nodeId must be a UUID or a legacy integer node id", err, logger.APILog)
 			return
 		}
+
+		req.NodeID = pki.NodeID(normalizedNodeID)
 
 		if req.RaftAddress == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "raftAddress is required", nil, logger.APILog)

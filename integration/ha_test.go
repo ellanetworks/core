@@ -972,6 +972,16 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	// db.path is "/data/ella.db", so dataDir = "/data" and raftDir = "/data/raft/".
 	const containerRaftDir = "/data/raft"
 
+	node1ID, err := nodeIDOf(ctx, clients[0])
+	if err != nil {
+		t.Fatalf("failed to resolve identity of ella-core-1: %v", err)
+	}
+
+	node2ID, err := nodeIDOf(ctx, clients[1])
+	if err != nil {
+		t.Fatalf("failed to resolve identity of ella-core-2: %v", err)
+	}
+
 	HALog(t, "stopping all 3 nodes (total quorum loss)")
 
 	for _, svc := range haNodeServices {
@@ -989,8 +999,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	peers := []recoveryPeer{
-		{ID: "1", Address: ClusterAddressWithPort(1, 7000)},
-		{ID: "2", Address: ClusterAddressWithPort(2, 7000)},
+		{ID: string(node1ID), Address: ClusterAddressWithPort(1, 7000)},
+		{ID: string(node2ID), Address: ClusterAddressWithPort(2, 7000)},
 	}
 
 	peersJSON, err := json.MarshalIndent(peers, "", "  ")

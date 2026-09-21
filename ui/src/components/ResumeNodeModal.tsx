@@ -6,6 +6,7 @@ import { NodeId } from "@/queries/nodeId";
 import { resumeClusterMember } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import NodeIdentity from "@/components/NodeIdentity";
 
 interface Props {
   open: boolean;
@@ -42,6 +43,7 @@ const ResumeNodeModal: React.FC<Props> = ({
           Clears drain state on <strong>node {nodeLabel}</strong>.
         </>
       }
+      extra={<NodeIdentity nodeId={nodeId} />}
       confirmLabel="Resume"
       confirmingLabel="Resuming…"
       confirmColor="primary"

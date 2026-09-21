@@ -5904,7 +5904,7 @@ components:
           type: integer
           description: Schema version the migration is moving to.
         laggardNodeId:
-          type: string
+          type: [string, integer]
           description: >-
             Node holding the migration back. Omitted when no single node is
             responsible.
