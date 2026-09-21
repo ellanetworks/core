@@ -64,6 +64,7 @@ func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return []string{"1", "2", "3"} }
+	database.raftServers = stubServers([]string{"1", "2", "3"})
 	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10, "2": 9, "3": 11}}.probe
 
 	floor, laggard, reason, err := database.minMemberSchemaSupport(ctx)
@@ -98,6 +99,7 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return []string{"1", "2"} }
+	database.raftServers = stubServers([]string{"1", "2"})
 	database.probeMemberSchema = stubProbe{
 		versions:    map[string]int{"1": 10},
 		unreachable: map[string]bool{"2": true},
@@ -137,6 +139,7 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return []string{self, "2"} }
+	database.raftServers = stubServers([]string{self, "2"})
 
 	probed := map[string]bool{}
 
@@ -179,6 +182,7 @@ func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return []string{self} }
+	database.raftServers = stubServers([]string{self})
 
 	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
@@ -203,6 +207,7 @@ func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T
 	}
 
 	database.raftMemberIDs = func() []string { return []string{"1", "2"} }
+	database.raftServers = stubServers([]string{"1", "2"})
 	database.probeMemberSchema = stubProbe{versions: map[string]int{"1": 10}}.probe
 
 	floor, laggard, reason, err := database.minMemberSchemaSupport(ctx)
@@ -234,6 +239,7 @@ func TestMinMemberSchemaSupport_UnavailableConfigurationBlocks(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return nil }
+	database.raftServers = stubServers(nil)
 	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
 	floor, _, _, err := database.minMemberSchemaSupport(ctx)
@@ -267,6 +273,7 @@ func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
 	}
 
 	database.raftMemberIDs = func() []string { return []string{"2"} }
+	database.raftServers = stubServers([]string{"2"})
 	database.probeMemberSchema = stubProbe{unreachable: map[string]bool{"2": true}}.probe
 
 	status, err := database.PendingMigrationInfo(ctx)
@@ -298,5 +305,20 @@ func TestRequireSchema(t *testing.T) {
 
 	if err := database.RequireSchema(ctx, applied+1); err != ErrMigrationPending {
 		t.Fatalf("RequireSchema(current+1): want ErrMigrationPending, got %v", err)
+	}
+}
+
+func stubServers(ids []string) func() []ellaraft.Server {
+	return func() []ellaraft.Server {
+		out := make([]ellaraft.Server, 0, len(ids))
+		for _, id := range ids {
+			out = append(out, ellaraft.Server{
+				NodeID:   id,
+				Address:  id + ":1",
+				Suffrage: "voter",
+			})
+		}
+
+		return out
 	}
 }

@@ -24,6 +24,7 @@ import (
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"go.etcd.io/bbolt"
+	bbolterrors "go.etcd.io/bbolt/errors"
 	"go.uber.org/zap"
 )
 
@@ -293,7 +294,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 			BoltOptions: &bbolt.Options{Timeout: boltOpenTimeout},
 		})
 		if bsErr != nil {
-			if errors.Is(bsErr, bbolt.ErrTimeout) {
+			if errors.Is(bsErr, bbolterrors.ErrTimeout) {
 				return fmt.Errorf("create bolt store at %s: timed out after %s waiting for the file lock: %w", boltPath, boltOpenTimeout, bsErr)
 			}
 
@@ -961,6 +962,42 @@ func (m *Manager) LeadershipTransfer() error {
 
 // MemberIDs returns the current Raft configuration, nonvoters included: they
 // apply committed entries too. Nil on error.
+// Server is one entry of the Raft configuration: the library's own
+// record of who is in the cluster and where to reach them.
+type Server struct {
+	NodeID   string
+	Address  string
+	Suffrage string
+}
+
+// Servers returns the Raft configuration. It is the source of truth for
+// a member's address and suffrage; cluster_members holds only the facts
+// Raft does not carry.
+func (m *Manager) Servers() []Server {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return nil
+	}
+
+	servers := future.Configuration().Servers
+	out := make([]Server, 0, len(servers))
+
+	for _, srv := range servers {
+		suffrage := "nonvoter"
+		if srv.Suffrage == raft.Voter {
+			suffrage = "voter"
+		}
+
+		out = append(out, Server{
+			NodeID:   string(srv.ID),
+			Address:  string(srv.Address),
+			Suffrage: suffrage,
+		})
+	}
+
+	return out
+}
+
 func (m *Manager) MemberIDs() []string {
 	future := m.raft.GetConfiguration()
 	if err := future.Error(); err != nil {

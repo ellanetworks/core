@@ -634,7 +634,7 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -647,7 +647,9 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
 
-	const voterID = "6"
+	// Suffrage comes from the Raft configuration, so the node under test
+	// has to be in it: this node is, as the sole bootstrapped voter.
+	voterID := env.DB.RaftID()
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
 		NodeID:      voterID,
@@ -665,6 +667,44 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 
 	if status != http.StatusConflict {
 		t.Fatalf("expected 409 on already-voter, got %d (body: %s)", status, body)
+	}
+}
+
+func TestPromoteClusterMember_NotInRaftConfiguration(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	const strayID = "6"
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:      strayID,
+		RaftAddress: "10.0.0.6:7000",
+		APIAddress:  "http://10.0.0.6:5000",
+		Suffrage:    "nonvoter",
+	}); err != nil {
+		t.Fatalf("upsert stray member: %s", err)
+	}
+
+	status, body, err := postPromote(env.Server.URL, c, token, strayID)
+	if err != nil {
+		t.Fatalf("promote request failed: %s", err)
+	}
+
+	if status != http.StatusNotFound {
+		t.Fatalf("a row without a Raft configuration entry must not be promotable, got %d (body: %s)", status, body)
 	}
 }
 

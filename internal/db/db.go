@@ -347,6 +347,7 @@ type Database struct {
 	// Field-injected so tests can stub them.
 	probeMemberSchema func(ctx context.Context, nodeID string, raftAddr string) (int, error)
 	raftMemberIDs     func() []string
+	raftServers       func() []ellaraft.Server
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -721,6 +722,7 @@ func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
 	db.proposeTimeout = mgr.ProposeTimeout()
 	db.probeMemberSchema = mgr.ProbePeerSchemaVersion
 	db.raftMemberIDs = mgr.MemberIDs
+	db.raftServers = mgr.Servers
 }
 
 func (db *Database) SetBootstrap() {
@@ -1073,17 +1075,21 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 			continue
 		}
 
-		m, ok := rows[nodeID]
-		if !ok {
+		if _, ok := rows[nodeID]; !ok {
 			return 0, nodeID, LaggardReasonNoMemberRow, nil
 		}
 
-		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
+		srv := db.RaftServer(nodeID)
+		if srv == nil {
+			return 0, nodeID, LaggardReasonNoMemberRow, nil
+		}
+
+		v, err := db.probeMemberSchema(ctx, nodeID, srv.Address)
 		if err != nil {
 			logger.From(ctx, logger.DBLog).Debug("Migration gate: member capability probe failed",
 				zap.String("node_id", nodeID),
-				zap.String("raft_address", m.RaftAddress),
-				zap.String("suffrage", m.Suffrage),
+				zap.String("raft_address", srv.Address),
+				zap.String("suffrage", srv.Suffrage),
 				zap.Error(err),
 			)
 
@@ -1262,6 +1268,27 @@ func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID str
 	}
 }
 
+// RaftServers returns the Raft configuration: the source of truth for a
+// member's address and suffrage.
+func (db *Database) RaftServers() []ellaraft.Server {
+	if db.raftServers == nil {
+		return nil
+	}
+
+	return db.raftServers()
+}
+
+// RaftServer returns the configuration entry for nodeID, or nil.
+func (db *Database) RaftServer(nodeID string) *ellaraft.Server {
+	for _, s := range db.RaftServers() {
+		if s.NodeID == nodeID {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 // IsRaftConfigurationMember reports whether nodeID is in the current Raft
 // configuration, regardless of whether it has a cluster_members row.
 func (db *Database) IsRaftConfigurationMember(nodeID string) bool {
@@ -1341,17 +1368,15 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 
 // selfUpsertClusterMember writes the leader's own cluster_members row.
 // Idempotent. Addresses come from the raft manager (authoritative
-// post-bind); existing Suffrage is preserved so a non-voter rejoin is
-// not silently promoted.
+// post-bind); suffrage mirrors the Raft configuration, which owns it.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
 	}
 
 	suffrage := "voter"
-
-	if existing, err := db.GetClusterMember(ctx, db.raftManager.RaftID()); err == nil && existing != nil && existing.Suffrage != "" {
-		suffrage = existing.Suffrage
+	if srv := db.RaftServer(db.raftManager.RaftID()); srv != nil {
+		suffrage = srv.Suffrage
 	}
 
 	member := &ClusterMember{

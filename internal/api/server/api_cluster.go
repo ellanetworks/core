@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +36,7 @@ type ClusterMemberResponse struct {
 	DrainUpdatedAt string     `json:"drainUpdatedAt,omitempty"`
 }
 
-func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
+func toClusterMemberResponse(m db.ClusterMember, srv *ellaraft.Server, leaderNodeID string) ClusterMemberResponse {
 	state := m.DrainState
 	if state == "" {
 		state = db.DrainStateActive
@@ -46,15 +47,23 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 		updated = time.Unix(m.DrainUpdatedAt, 0).UTC().Format(time.RFC3339)
 	}
 
+	raftAddress := ""
+	suffrage := ""
+
+	if srv != nil {
+		raftAddress = srv.Address
+		suffrage = srv.Suffrage
+	}
+
 	return ClusterMemberResponse{
 		NodeID:         pki.NodeID(m.NodeID),
 		DisplayName:    m.DisplayName,
 		AMFPointer:     m.AMFPointer,
-		RaftAddress:    m.RaftAddress,
+		RaftAddress:    raftAddress,
 		APIAddress:     m.APIAddress,
 		BinaryVersion:  m.BinaryVersion,
-		Suffrage:       m.Suffrage,
-		IsLeader:       leaderAddr != "" && m.RaftAddress == leaderAddr,
+		Suffrage:       suffrage,
+		IsLeader:       leaderNodeID != "" && m.NodeID == leaderNodeID,
 		DrainState:     state,
 		DrainUpdatedAt: updated,
 	}
@@ -78,11 +87,22 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		leaderAddr := dbInstance.LeaderAddress()
+		_, leaderNodeID := dbInstance.LeaderAddressAndID()
+
+		servers := make(map[string]ellaraft.Server, len(members))
+		for _, s := range dbInstance.RaftServers() {
+			servers[s.NodeID] = s
+		}
 
 		result := make([]ClusterMemberResponse, 0, len(members))
+
 		for _, m := range members {
-			result = append(result, toClusterMemberResponse(m, leaderAddr))
+			var srv *ellaraft.Server
+			if s, ok := servers[m.NodeID]; ok {
+				srv = &s
+			}
+
+			result = append(result, toClusterMemberResponse(m, srv, leaderNodeID))
 		}
 
 		writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
@@ -241,7 +261,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// Refuse to remove the current leader. The operator must drain and
 		// transfer leadership first; otherwise we disrupt writes and risk
 		// proxied callers losing the session mid-remove.
-		if leaderAddr := dbInstance.LeaderAddress(); leaderAddr != "" && member.RaftAddress == leaderAddr {
+		if _, leaderNodeID := dbInstance.LeaderAddressAndID(); leaderNodeID != "" && nodeID == leaderNodeID {
 			writeError(r.Context(), w, http.StatusConflict,
 				"Cannot remove the current leader; drain this node first so leadership transfers, then retry",
 				nil, logger.APILog)
@@ -346,26 +366,24 @@ func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
-		if err != nil {
+		if _, err := dbInstance.GetClusterMember(r.Context(), nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", err, logger.APILog)
 			return
 		}
 
-		if member.Suffrage == "voter" {
+		srv := dbInstance.RaftServer(nodeID)
+		if srv == nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found in the Raft configuration", nil, logger.APILog)
+			return
+		}
+
+		if srv.Suffrage == "voter" {
 			writeError(r.Context(), w, http.StatusConflict, "Node is already a voter", nil, logger.APILog)
 			return
 		}
 
-		if err := dbInstance.AddVoter(nodeID, member.RaftAddress); err != nil {
+		if err := dbInstance.AddVoter(nodeID, srv.Address); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to promote node to voter", err, logger.APILog)
-			return
-		}
-
-		member.Suffrage = "voter"
-
-		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update cluster member record", err, logger.APILog)
 			return
 		}
 
