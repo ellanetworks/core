@@ -37,11 +37,6 @@ type BackupManifest struct {
 	SourceNodeID pki.NodeID `json:"source_node_id"`
 }
 
-// Backup writes a tar.gz archive (manifest.json, ella.db) to dst. The source
-// database is VACUUM INTO'd into a temp file first to produce a consistent,
-// WAL-free image before streaming. Runs on any node: the Raft barrier is a
-// best-effort freshness step, and the manifest records the applied index the
-// archive actually contains.
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	ctx, span := tracer.Start(ctx, "db/backup", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
