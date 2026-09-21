@@ -1367,24 +1367,17 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 }
 
 // selfUpsertClusterMember writes the leader's own cluster_members row.
-// Idempotent. Addresses come from the raft manager (authoritative
-// post-bind); suffrage mirrors the Raft configuration, which owns it.
+// Idempotent. The API address comes from the raft manager; the Raft
+// address and suffrage live in the Raft configuration, not here.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
 	}
 
-	suffrage := "voter"
-	if srv := db.RaftServer(db.raftManager.RaftID()); srv != nil {
-		suffrage = srv.Suffrage
-	}
-
 	member := &ClusterMember{
 		NodeID:        db.raftManager.RaftID(),
-		RaftAddress:   db.raftManager.RaftAddress(),
 		APIAddress:    db.raftManager.APIAddress(),
 		BinaryVersion: binaryVersion,
-		Suffrage:      suffrage,
 	}
 
 	if err := db.UpsertClusterMember(ctx, member); err != nil {

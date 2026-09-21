@@ -37,9 +37,8 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	// Upsert a member
 	member1 := &db.ClusterMember{
-		NodeID:      "1",
-		RaftAddress: "10.0.0.1:8300",
-		APIAddress:  "10.0.0.1:8443",
+		NodeID:     "1",
+		APIAddress: "10.0.0.1:8443",
 	}
 
 	err = database.UpsertClusterMember(ctx, member1)
@@ -61,29 +60,19 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 		t.Fatalf("Expected nodeID 1, got %s", members[0].NodeID)
 	}
 
-	if members[0].RaftAddress != "10.0.0.1:8300" {
-		t.Fatalf("Expected raftAddress 10.0.0.1:8300, got %s", members[0].RaftAddress)
-	}
-
 	if members[0].APIAddress != "10.0.0.1:8443" {
 		t.Fatalf("Expected apiAddress 10.0.0.1:8443, got %s", members[0].APIAddress)
 	}
 
 	// Get member by ID
-	retrieved, err := database.GetClusterMember(ctx, "1")
-	if err != nil {
+	if _, err := database.GetClusterMember(ctx, "1"); err != nil {
 		t.Fatalf("Couldn't get cluster member: %s", err)
-	}
-
-	if retrieved.RaftAddress != "10.0.0.1:8300" {
-		t.Fatalf("Expected raftAddress 10.0.0.1:8300, got %s", retrieved.RaftAddress)
 	}
 
 	// Upsert same member with updated address (should update, not duplicate)
 	member1Updated := &db.ClusterMember{
-		NodeID:      "1",
-		RaftAddress: "10.0.0.1:9300",
-		APIAddress:  "10.0.0.1:9443",
+		NodeID:     "1",
+		APIAddress: "10.0.0.1:9443",
 	}
 
 	err = database.UpsertClusterMember(ctx, member1Updated)
@@ -102,13 +91,9 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 	}
 
 	// Verify updated address
-	retrieved, err = database.GetClusterMember(ctx, "1")
+	retrieved, err := database.GetClusterMember(ctx, "1")
 	if err != nil {
 		t.Fatalf("Couldn't get updated cluster member: %s", err)
-	}
-
-	if retrieved.RaftAddress != "10.0.0.1:9300" {
-		t.Fatalf("Expected updated raftAddress 10.0.0.1:9300, got %s", retrieved.RaftAddress)
 	}
 
 	if retrieved.APIAddress != "10.0.0.1:9443" {
@@ -117,9 +102,8 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 
 	// Add a second member
 	member2 := &db.ClusterMember{
-		NodeID:      "2",
-		RaftAddress: "10.0.0.2:8300",
-		APIAddress:  "10.0.0.2:8443",
+		NodeID:     "2",
+		APIAddress: "10.0.0.2:8443",
 	}
 
 	err = database.UpsertClusterMember(ctx, member2)

@@ -186,10 +186,8 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 		member := &db.ClusterMember{
 			NodeID:        string(req.NodeID),
-			RaftAddress:   req.RaftAddress,
 			APIAddress:    req.APIAddress,
 			BinaryVersion: req.BinaryVersion,
-			Suffrage:      suffrage,
 		}
 
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {

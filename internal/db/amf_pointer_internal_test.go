@@ -14,10 +14,8 @@ func upsertMember(t *testing.T, d *Database, nodeID string) int {
 
 	member := &ClusterMember{
 		NodeID:        nodeID,
-		RaftAddress:   nodeID + ":7000",
 		APIAddress:    nodeID + ":5002",
 		BinaryVersion: "test",
-		Suffrage:      "voter",
 	}
 
 	if _, err := d.applyUpsertClusterMember(context.Background(), member); err != nil {
@@ -109,10 +107,8 @@ func TestAllocateAMFPointerExhaustionIsAnError(t *testing.T) {
 	}
 
 	member := &ClusterMember{
-		NodeID:      "01890000-0000-7000-8000-ffffffffffff",
-		RaftAddress: "x:7000",
-		APIAddress:  "x:5002",
-		Suffrage:    "voter",
+		NodeID:     "01890000-0000-7000-8000-ffffffffffff",
+		APIAddress: "x:5002",
 	}
 
 	if _, err := d.applyUpsertClusterMember(context.Background(), member); err == nil {

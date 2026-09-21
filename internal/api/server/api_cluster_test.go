@@ -90,10 +90,8 @@ func TestListClusterMembers_IncludesHAFields(t *testing.T) {
 
 	member := &db.ClusterMember{
 		NodeID:        "7",
-		RaftAddress:   "10.0.0.7:7000",
 		APIAddress:    "10.0.0.7:8443",
 		BinaryVersion: "v1.2.3",
-		Suffrage:      "voter",
 	}
 
 	if err := env.DB.UpsertClusterMember(context.Background(), member); err != nil {
@@ -204,10 +202,8 @@ func TestRemoveClusterMember_RefusesLeader(t *testing.T) {
 
 	member := &db.ClusterMember{
 		NodeID:        env.DB.RaftID(),
-		RaftAddress:   leaderAddr,
 		APIAddress:    "http://127.0.0.1:0",
 		BinaryVersion: "test",
-		Suffrage:      "voter",
 	}
 
 	if err := env.DB.UpsertClusterMember(context.Background(), member); err != nil {
@@ -271,10 +267,8 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	// Using a distinct IP so the leader-removal guard doesn't fire.
 	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
 		NodeID:        removedNodeID,
-		RaftAddress:   "10.0.0.42:7000",
 		APIAddress:    "http://10.0.0.42:5000",
 		BinaryVersion: "test",
-		Suffrage:      "voter",
 	}); err != nil {
 		t.Fatalf("upsert cluster member: %s", err)
 	}
@@ -385,10 +379,8 @@ func TestRemoveClusterMember_RefusesUndrained(t *testing.T) {
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
 		NodeID:        targetID,
-		RaftAddress:   "10.0.0.77:7000",
 		APIAddress:    "http://10.0.0.77:5000",
 		BinaryVersion: "test",
-		Suffrage:      "voter",
 	}); err != nil {
 		t.Fatalf("upsert cluster member: %s", err)
 	}
@@ -442,10 +434,8 @@ func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
 
 	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
 		NodeID:        self,
-		RaftAddress:   env.DB.LeaderAddress(),
 		APIAddress:    "http://127.0.0.1:0",
 		BinaryVersion: "test",
-		Suffrage:      "voter",
 	}); err != nil {
 		t.Fatalf("upsert self: %s", err)
 	}
@@ -559,10 +549,8 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 	self := "1"
 
 	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
-		NodeID:      self,
-		RaftAddress: env.DB.LeaderAddress(),
-		APIAddress:  "http://127.0.0.1:0",
-		Suffrage:    "voter",
+		NodeID:     self,
+		APIAddress: "http://127.0.0.1:0",
 	}); err != nil {
 		t.Fatalf("upsert self: %s", err)
 	}
@@ -610,10 +598,8 @@ func TestDrainClusterMember_IgnoresDeadlineSeconds(t *testing.T) {
 	self := "1"
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:      self,
-		RaftAddress: env.DB.LeaderAddress(),
-		APIAddress:  "http://127.0.0.1:0",
-		Suffrage:    "voter",
+		NodeID:     self,
+		APIAddress: "http://127.0.0.1:0",
 	}); err != nil {
 		t.Fatalf("upsert self: %s", err)
 	}
@@ -652,10 +638,8 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 	voterID := env.DB.RaftID()
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:      voterID,
-		RaftAddress: "10.0.0.6:7000",
-		APIAddress:  "http://10.0.0.6:5000",
-		Suffrage:    "voter",
+		NodeID:     voterID,
+		APIAddress: "http://10.0.0.6:5000",
 	}); err != nil {
 		t.Fatalf("upsert voter: %s", err)
 	}
@@ -690,10 +674,8 @@ func TestPromoteClusterMember_NotInRaftConfiguration(t *testing.T) {
 	const strayID = "6"
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:      strayID,
-		RaftAddress: "10.0.0.6:7000",
-		APIAddress:  "http://10.0.0.6:5000",
-		Suffrage:    "nonvoter",
+		NodeID:     strayID,
+		APIAddress: "http://10.0.0.6:5000",
 	}); err != nil {
 		t.Fatalf("upsert stray member: %s", err)
 	}

@@ -13,10 +13,8 @@ func seedMembers(t *testing.T, database *Database, ctx context.Context, nodeIDs 
 
 	for _, id := range nodeIDs {
 		m := &ClusterMember{
-			NodeID:      id,
-			RaftAddress: "10.0.0.1:7000",
-			APIAddress:  "https://10.0.0.1:5000",
-			Suffrage:    "voter",
+			NodeID:     id,
+			APIAddress: "https://10.0.0.1:5000",
 		}
 		if err := database.UpsertClusterMember(ctx, m); err != nil {
 			t.Fatalf("seed member %s: %v", id, err)
