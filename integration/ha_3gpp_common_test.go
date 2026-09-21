@@ -36,7 +36,7 @@ func runHA3GPPFailover(t *testing.T, scenario string) {
 	runHA3GPPScenario(t, scenario, nil)
 }
 
-func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.Context, leader *client.Client, leaderNodeID int) error) {
+func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.Context, leader *client.Client, leaderNodeID client.NodeID) error) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -124,7 +124,7 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 			HALogf(t, "cluster members (from node %d):", i+1)
 
 			for _, m := range members {
-				HALogf(t, "  node=%d raft=%s api=%s suffrage=%s isLeader=%v",
+				HALogf(t, "  node=%s raft=%s api=%s suffrage=%s isLeader=%v",
 					m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader)
 			}
 
@@ -356,7 +356,6 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		nodeID := i + 1
 
 		tok, err := node1.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-			NodeID:     nodeID,
 			TTLSeconds: 600,
 		})
 		if err != nil {
@@ -610,14 +609,14 @@ func (w *markerWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func nodeIDOf(ctx context.Context, c *client.Client) (int, error) {
+func nodeIDOf(ctx context.Context, c *client.Client) (client.NodeID, error) {
 	status, err := c.GetStatus(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("get status: %w", err)
+		return "", fmt.Errorf("get status: %w", err)
 	}
 
 	if !status.Cluster.Enabled {
-		return 0, fmt.Errorf("node reports no cluster status")
+		return "", fmt.Errorf("node reports no cluster status")
 	}
 
 	return status.Cluster.NodeID, nil

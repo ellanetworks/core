@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +25,7 @@ const (
 	leaderResponseHeaderTimeout = 30 * time.Second
 )
 
-type peerDialFunc func(ctx context.Context, addr string, peerID int) (net.Conn, error)
+type peerDialFunc func(ctx context.Context, addr string, peerID string) (net.Conn, error)
 
 var ErrLeaderUnreachable = errors.New("leader unreachable")
 
@@ -48,8 +47,8 @@ func newLeaderHTTPClient(dial peerDialFunc) *leaderHTTPClient {
 	return &leaderHTTPClient{dial: dial}
 }
 
-func (c *leaderHTTPClient) clientFor(addr string, peerID int) *http.Client {
-	key := addr + "|" + strconv.Itoa(peerID)
+func (c *leaderHTTPClient) clientFor(addr string, peerID string) *http.Client {
+	key := addr + "|" + peerID
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -115,7 +114,7 @@ type LeaderHTTPResponse struct {
 	Body       []byte
 }
 
-func (c *leaderHTTPClient) do(ctx context.Context, addr string, peerID int, spec leaderHTTPRequest) (*LeaderHTTPResponse, error) {
+func (c *leaderHTTPClient) do(ctx context.Context, addr string, peerID string, spec leaderHTTPRequest) (*LeaderHTTPResponse, error) {
 	if spec.timeout > 0 {
 		var cancel context.CancelFunc
 

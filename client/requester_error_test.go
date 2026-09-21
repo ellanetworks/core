@@ -102,15 +102,15 @@ func TestClientMethodsPropagateRequesterErrors(t *testing.T) {
 			return err
 		}},
 		{"DrainClusterMember", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			_, err := c.DrainClusterMember(ctx, 1)
+			_, err := c.DrainClusterMember(ctx, "1")
 
 			return err
 		}},
 		{"PromoteClusterMember", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			return c.PromoteClusterMember(ctx, 99)
+			return c.PromoteClusterMember(ctx, "99")
 		}},
 		{"RemoveClusterMember", func(t *testing.T, ctx context.Context, c *client.Client) error {
-			return c.RemoveClusterMember(ctx, 2, false)
+			return c.RemoveClusterMember(ctx, "2", false)
 		}},
 		{"CreateDataNetwork", func(t *testing.T, ctx context.Context, c *client.Client) error {
 			createDataNetworkOpts := &client.CreateDataNetworkOptions{

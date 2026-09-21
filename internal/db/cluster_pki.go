@@ -50,7 +50,8 @@ const (
 	upsertNodeCertStmtStr       = "INSERT INTO %s (nodeID, fingerprint, certPEM, addedAt) VALUES ($ClusterNodeCert.nodeID, $ClusterNodeCert.fingerprint, $ClusterNodeCert.certPEM, $ClusterNodeCert.addedAt) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
 	deleteNodeCertByNodeStmtStr = "DELETE FROM %s WHERE nodeID=$ClusterNodeCert.nodeID"
 
-	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement
+	insertJoinTokenStmtStr       = "INSERT INTO %s (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, '')"           // #nosec G101 -- SQL statement
+	insertJoinTokenPreV20StmtStr = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, 0, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement
 	getJoinTokenStmtStr          = "SELECT &ClusterJoinToken.* FROM %s WHERE id=$ClusterJoinToken.id"
 	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0" // #nosec G101 -- SQL statement
 	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"                      // #nosec G101 -- SQL statement
@@ -63,7 +64,7 @@ const (
 // SHA-256. One row per nodeID. Inserted by the join flow; removed by
 // RemoveClusterMember.
 type ClusterNodeCert struct {
-	NodeID      int    `db:"nodeID"`
+	NodeID      string `db:"nodeID"`
 	Fingerprint string `db:"fingerprint"`
 	CertPEM     string `db:"certPEM"`
 	AddedAt     int64  `db:"addedAt"`
@@ -75,11 +76,10 @@ type ClusterNodeCert struct {
 // replays against a different voter fail.
 type ClusterJoinToken struct {
 	ID         string `db:"id"`
-	NodeID     int    `db:"nodeID"`
 	ClaimsJSON string `db:"claimsJSON"`
 	ExpiresAt  int64  `db:"expiresAt"`
 	ConsumedAt int64  `db:"consumedAt"`
-	ConsumedBy int    `db:"consumedBy"`
+	ConsumedBy string `db:"consumedBy"`
 }
 
 // ClusterJoinHMAC is the singleton row in cluster_join_hmac.
@@ -98,7 +98,7 @@ func (db *Database) applyUpsertNodeCert(ctx context.Context, r *ClusterNodeCert)
 	}
 
 	logger.DBLog.Debug("applied cluster_node_certs upsert",
-		zap.Int("node_id", r.NodeID),
+		zap.String("node_id", r.NodeID),
 		zap.String("fingerprint", r.Fingerprint))
 
 	return nil, nil
@@ -110,13 +110,18 @@ func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert)
 	}
 
 	logger.DBLog.Debug("applied cluster_node_certs delete",
-		zap.Int("node_id", r.NodeID))
+		zap.String("node_id", r.NodeID))
 
 	return nil, nil
 }
 
 func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
-	return nil, db.runner(ctx).Query(ctx, db.insertJoinTokenStmt, r).Run()
+	stmt := db.insertJoinTokenStmt
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		stmt = db.insertJoinTokenPreV20Stmt
+	}
+
+	return nil, db.runner(ctx).Query(ctx, stmt, r).Run()
 }
 
 func (db *Database) applyConsumeJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
@@ -139,10 +144,10 @@ func (db *Database) applyConsumeJoinToken(ctx context.Context, r *ClusterJoinTok
 }
 
 type redeemJoinTokenPayload struct {
-	TokenID     string `json:"token_id"`
-	NodeID      int    `json:"node_id"`
-	Fingerprint string `json:"fingerprint"`
-	CertPEM     string `json:"cert_pem"`
+	TokenID     string     `json:"token_id"`
+	NodeID      pki.NodeID `json:"node_id"`
+	Fingerprint string     `json:"fingerprint"`
+	CertPEM     string     `json:"cert_pem"`
 }
 
 type RedeemJoinTokenResult struct {
@@ -150,6 +155,10 @@ type RedeemJoinTokenResult struct {
 }
 
 func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinTokenPayload) (any, error) {
+	if err := db.requireIdentitySchemaFor(ctx, string(p.NodeID)); err != nil {
+		return nil, err
+	}
+
 	runner := db.runner(ctx)
 	now := time.Now().Unix()
 
@@ -162,20 +171,16 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return nil, fmt.Errorf("get join token: %w", err)
 	}
 
-	if token.NodeID != p.NodeID {
-		return nil, ErrJoinTokenNodeMismatch
-	}
-
 	if token.ExpiresAt < now-int64(pki.JoinTokenClockSkew.Seconds()) {
 		return nil, ErrJoinTokenExpired
 	}
 
 	if token.ConsumedAt != 0 {
-		if token.ConsumedBy != p.NodeID {
+		if token.ConsumedBy != string(p.NodeID) {
 			return nil, ErrJoinTokenAlreadyConsumed
 		}
 
-		existing := ClusterNodeCert{NodeID: p.NodeID}
+		existing := ClusterNodeCert{NodeID: string(p.NodeID)}
 		if err := runner.Query(ctx, db.getNodeCertByNodeStmt, existing).Get(&existing); err != nil {
 			return nil, ErrJoinTokenAlreadyConsumed
 		}
@@ -187,8 +192,13 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return db.pinSnapshot(ctx, runner)
 	}
 
+	bound := ClusterNodeCert{NodeID: string(p.NodeID)}
+	if err := runner.Query(ctx, db.getNodeCertByNodeStmt, bound).Get(&bound); err == nil && bound.Fingerprint != p.Fingerprint {
+		return nil, ErrNodeIdentityBound
+	}
+
 	token.ConsumedAt = now
-	token.ConsumedBy = p.NodeID
+	token.ConsumedBy = string(p.NodeID)
 
 	var outcome sqlair.Outcome
 	if err := runner.Query(ctx, db.consumeJoinTokenStmt, token).Get(&outcome); err != nil {
@@ -205,7 +215,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	}
 
 	cert := ClusterNodeCert{
-		NodeID:      p.NodeID,
+		NodeID:      string(p.NodeID),
 		Fingerprint: p.Fingerprint,
 		CertPEM:     p.CertPEM,
 		AddedAt:     now,
@@ -215,7 +225,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	}
 
 	logger.DBLog.Info("redeemed cluster join token",
-		zap.Int("node_id", p.NodeID),
+		zap.String("node_id", string(p.NodeID)),
 		zap.String("fingerprint", p.Fingerprint))
 
 	return db.pinSnapshot(ctx, runner)
@@ -334,7 +344,7 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 // DeleteClusterNodeCert removes a node's pin. Called from
 // RemoveClusterMember; once the deletion replicates, peers reject
 // the removed node's handshakes.
-func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID int) error {
+func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterNodeCertsTableName)
 
 	_, span := tracer.Start(
@@ -413,7 +423,7 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 // ConsumeJoinToken marks a token as consumed by the given nodeID. The
 // UPDATE only matches unconsumed rows, so a second caller on a different
 // voter (post-replication) finds nothing to update.
-func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int) error {
+func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s (consume)", "UPDATE", ClusterJoinTokensTableName)
 
 	_, span := tracer.Start(
@@ -438,7 +448,7 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	return err
 }
 
-func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
+func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
 	_, span := tracer.Start(ctx, "db/redeem_join_token",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -446,7 +456,7 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 
 	res, err := opRedeemJoinToken.Invoke(ctx, db, &redeemJoinTokenPayload{
 		TokenID:     tokenID,
-		NodeID:      nodeID,
+		NodeID:      pki.NodeID(nodeID),
 		Fingerprint: fingerprint,
 		CertPEM:     certPEM,
 	})

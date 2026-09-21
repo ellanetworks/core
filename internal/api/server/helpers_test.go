@@ -10,7 +10,7 @@ import (
 )
 
 func TestGetActorFromContext_ClusterPortUsesNodeID(t *testing.T) {
-	ctx := context.WithValue(context.Background(), peerNodeIDCtxKey{}, 5)
+	ctx := context.WithValue(context.Background(), peerNodeIDCtxKey{}, "5")
 	ctx = context.WithValue(ctx, contextKeyEmail, "alice@example.com")
 
 	req := httptest.NewRequestWithContext(ctx, "POST", "/cluster/members", nil)

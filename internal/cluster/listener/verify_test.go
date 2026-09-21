@@ -18,11 +18,11 @@ import (
 // listener_test/testutil/listener triangle. Any test that needs the
 // full PKI helper lives in the external listener_test package.
 type genCert struct {
-	NodeID  int
+	NodeID  string
 	CertPEM []byte
 }
 
-func mintForTest(t *testing.T, nodeID int) genCert {
+func mintForTest(t *testing.T, nodeID string) genCert {
 	t.Helper()
 
 	cert, _, err := pki.GenerateNodeCert(nodeID, "test", time.Hour)
@@ -34,13 +34,13 @@ func mintForTest(t *testing.T, nodeID int) genCert {
 }
 
 func pinFromCerts(certs ...genCert) PinFunc {
-	pins := make(map[string]int, len(certs))
+	pins := make(map[string]string, len(certs))
 	for _, c := range certs {
 		parsed, _ := pki.ParseCertPEM(c.CertPEM)
 		pins[pki.Fingerprint(parsed)] = c.NodeID
 	}
 
-	known := make([]int, 0, len(pins))
+	known := make([]string, 0, len(pins))
 	for _, n := range pins {
 		known = append(known, n)
 	}
@@ -84,7 +84,7 @@ func parseCerts(t *testing.T, certPEM []byte) []*x509.Certificate {
 }
 
 func TestVerifyConnection_HappyPath(t *testing.T) {
-	c := mintForTest(t, 1)
+	c := mintForTest(t, "1")
 
 	cb := verifyConnection(pinFromCerts(c))
 
@@ -119,8 +119,8 @@ func TestVerifyConnection_NonBootstrap_NoCertRejected(t *testing.T) {
 }
 
 func TestVerifyConnection_UnpinnedRejected(t *testing.T) {
-	known := mintForTest(t, 1)
-	stranger := mintForTest(t, 1)
+	known := mintForTest(t, "1")
+	stranger := mintForTest(t, "1")
 
 	cb := verifyConnection(pinFromCerts(known))
 
@@ -135,10 +135,10 @@ func TestVerifyConnection_UnpinnedRejected(t *testing.T) {
 }
 
 func TestVerifyConnection_NodeIDMismatch(t *testing.T) {
-	c := mintForTest(t, 2)
+	c := mintForTest(t, "2")
 
 	mismatched := func(_ string) PinResult {
-		return PinResult{Found: true, NodeID: 1}
+		return PinResult{Found: true, NodeID: "1"}
 	}
 
 	cb := verifyConnection(mismatched)
@@ -170,7 +170,7 @@ func TestRequiresClientCert(t *testing.T) {
 // Sanity-check that pki.Fingerprint matches what verifyConnection
 // computes — the contract this whole subsystem hinges on.
 func TestVerifyConnection_FingerprintMatchesPKIPackage(t *testing.T) {
-	c := mintForTest(t, 1)
+	c := mintForTest(t, "1")
 
 	cert := parseCerts(t, c.CertPEM)[0]
 

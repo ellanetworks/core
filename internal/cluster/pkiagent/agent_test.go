@@ -25,12 +25,12 @@ import (
 
 // newAgent returns an Agent with an initial self-signed cluster
 // cert generated for nodeID/clusterID.
-func newAgent(t *testing.T, nodeID int, clusterID string) *pkiagent.Agent {
+func newAgent(t *testing.T, nodeID string, clusterID string) *pkiagent.Agent {
 	t.Helper()
 
 	a := pkiagent.NewAgent(nodeID, clusterID, t.TempDir())
 	if err := a.GenerateAndPersist(); err != nil {
-		t.Fatalf("agent %d generate-and-persist: %v", nodeID, err)
+		t.Fatalf("agent %s generate-and-persist: %v", nodeID, err)
 	}
 
 	return a
@@ -115,7 +115,7 @@ func TestAgent_JoinFlow_ReusesIdentityAcrossRetries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	leader := newAgent(t, 1, "join-cluster")
+	leader := newAgent(t, "1", "join-cluster")
 
 	pinFn := func(fp string) listener.PinResult {
 		return listener.PinResult{Found: fp == pki.Fingerprint(leader.Leaf().Leaf), NodeID: leader.NodeID}
@@ -125,8 +125,8 @@ func TestAgent_JoinFlow_ReusesIdentityAcrossRetries(t *testing.T) {
 		ln.Register(listener.ALPNPKIBootstrap, alwaysFailRegisterHandler())
 	})
 
-	joiner := pkiagent.NewAgent(2, "", t.TempDir())
-	token := mintTestJoinToken(t, 2, "join-cluster", pki.Fingerprint(leader.Leaf().Leaf))
+	joiner := pkiagent.NewAgent("2", "", t.TempDir())
+	token := mintTestJoinToken(t, "join-cluster", pki.Fingerprint(leader.Leaf().Leaf))
 
 	joinCert := filepath.Join(joiner.DataDir, "cluster-tls", "join.crt")
 
@@ -157,7 +157,7 @@ func TestAgent_JoinFlow_ReusesIdentityAcrossRetries(t *testing.T) {
 	}
 }
 
-func mintTestJoinToken(t *testing.T, nodeID int, clusterID, leaderPin string) string {
+func mintTestJoinToken(t *testing.T, clusterID, leaderPin string) string {
 	t.Helper()
 
 	key := bytes.Repeat([]byte{0xAB}, 32)
@@ -165,7 +165,6 @@ func mintTestJoinToken(t *testing.T, nodeID int, clusterID, leaderPin string) st
 
 	token, err := pki.MintJoinToken(key, pki.JoinClaims{
 		TokenID:       "test-token",
-		NodeID:        nodeID,
 		IssuedAt:      now.Unix(),
 		ExpiresAt:     now.Add(time.Hour).Unix(),
 		LeaderCertPin: leaderPin,
@@ -183,7 +182,7 @@ func TestAgent_JoinFlow_DiscardsIdentityFromAnotherCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	leader := newAgent(t, 1, "cluster-b")
+	leader := newAgent(t, "1", "cluster-b")
 
 	pinFn := func(fp string) listener.PinResult {
 		return listener.PinResult{Found: fp == pki.Fingerprint(leader.Leaf().Leaf), NodeID: leader.NodeID}
@@ -193,10 +192,10 @@ func TestAgent_JoinFlow_DiscardsIdentityFromAnotherCluster(t *testing.T) {
 		ln.Register(listener.ALPNPKIBootstrap, alwaysFailRegisterHandler())
 	})
 
-	joiner := pkiagent.NewAgent(2, "", t.TempDir())
+	joiner := pkiagent.NewAgent("2", "", t.TempDir())
 	joinCert := filepath.Join(joiner.DataDir, "cluster-tls", "join.crt")
 
-	tokenA := mintTestJoinToken(t, 2, "cluster-a", pki.Fingerprint(leader.Leaf().Leaf))
+	tokenA := mintTestJoinToken(t, "cluster-a", pki.Fingerprint(leader.Leaf().Leaf))
 	if err := joiner.JoinFlow(ctx, leaderAddr, tokenA); err == nil {
 		t.Fatal("JoinFlow should have failed; leader returns 500")
 	}
@@ -208,7 +207,7 @@ func TestAgent_JoinFlow_DiscardsIdentityFromAnotherCluster(t *testing.T) {
 
 	joiner.ClusterID = ""
 
-	tokenB := mintTestJoinToken(t, 2, "cluster-b", pki.Fingerprint(leader.Leaf().Leaf))
+	tokenB := mintTestJoinToken(t, "cluster-b", pki.Fingerprint(leader.Leaf().Leaf))
 	if err := joiner.JoinFlow(ctx, leaderAddr, tokenB); err == nil {
 		t.Fatal("JoinFlow should have failed; leader returns 500")
 	}

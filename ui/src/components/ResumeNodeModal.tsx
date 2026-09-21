@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
+import { NodeId } from "@/queries/nodeId";
 import { resumeClusterMember } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import NodeIdentity from "@/components/NodeIdentity";
 
 interface Props {
   open: boolean;
-  nodeId: number;
+  nodeId: NodeId;
+  nodeLabel: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -16,6 +19,7 @@ interface Props {
 const ResumeNodeModal: React.FC<Props> = ({
   open,
   nodeId,
+  nodeLabel,
   onClose,
   onSuccess,
 }) => {
@@ -33,12 +37,13 @@ const ResumeNodeModal: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       onConfirm={handleConfirm}
-      title={`Resume node ${nodeId}?`}
+      title={`Resume node ${nodeLabel}?`}
       description={
         <>
-          Clears drain state on <strong>node {nodeId}</strong>.
+          Clears drain state on <strong>node {nodeLabel}</strong>.
         </>
       }
+      extra={<NodeIdentity nodeId={nodeId} />}
       confirmLabel="Resume"
       confirmingLabel="Resuming…"
       confirmColor="primary"

@@ -21,7 +21,7 @@ import (
 // table. It is satisfied by *db.Database but kept minimal so the bgp
 // package does not depend on the full db surface.
 type LeaseStore interface {
-	ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]Lease, error)
+	ListActiveLeasesByNode(ctx context.Context, nodeID string) ([]Lease, error)
 }
 
 // RIB is the narrow view the reconciler needs over the BGP service's
@@ -62,7 +62,7 @@ var tracer = otel.Tracer("ella-core/bgp")
 type Reconciler struct {
 	rib      RIB
 	store    LeaseStore
-	nodeID   int
+	nodeID   string
 	wakeup   <-chan struct{}
 	backstop time.Duration
 	log      *zap.Logger
@@ -76,7 +76,7 @@ type Reconciler struct {
 // cluster node id. wakeup is signalled by the caller when a relevant
 // replicated change has applied; nil is fine (then only the backstop
 // sweep fires). Start must be called explicitly.
-func NewReconciler(rib RIB, store LeaseStore, nodeID int, wakeup <-chan struct{}) *Reconciler {
+func NewReconciler(rib RIB, store LeaseStore, nodeID string, wakeup <-chan struct{}) *Reconciler {
 	return &Reconciler{
 		rib:      rib,
 		store:    store,

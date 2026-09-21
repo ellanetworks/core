@@ -5,6 +5,7 @@ package drain
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -52,17 +53,17 @@ func (f *fakeNF) RemainingOffloadable() int {
 
 type fakeStore struct {
 	mu      sync.Mutex
-	members map[int]*db.ClusterMember
-	self    int
+	members map[string]*db.ClusterMember
+	self    string
 	bgpOn   bool
 }
 
-func (s *fakeStore) NodeID() int          { return s.self }
+func (s *fakeStore) RaftID() string       { return s.self }
 func (s *fakeStore) ClusterEnabled() bool { return true }
 
 func (s *fakeStore) IsBGPEnabled(context.Context) (bool, error) { return s.bgpOn, nil }
 
-func (s *fakeStore) GetClusterMember(_ context.Context, id int) (*db.ClusterMember, error) {
+func (s *fakeStore) GetClusterMember(_ context.Context, id string) (*db.ClusterMember, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -88,7 +89,7 @@ func (s *fakeStore) ListClusterMembers(context.Context) ([]db.ClusterMember, err
 	return out, nil
 }
 
-func (s *fakeStore) SetDrainState(_ context.Context, id int, state string) error {
+func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -97,7 +98,7 @@ func (s *fakeStore) SetDrainState(_ context.Context, id int, state string) error
 	return nil
 }
 
-func (s *fakeStore) stateOf(id int) string {
+func (s *fakeStore) stateOf(id string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,12 +106,12 @@ func (s *fakeStore) stateOf(id int) string {
 }
 
 func newStore(selfState string, peerStates ...string) *fakeStore {
-	s := &fakeStore{self: 1, members: map[int]*db.ClusterMember{
-		1: {NodeID: 1, DrainState: selfState, DrainUpdatedAt: time.Now().Unix()},
+	s := &fakeStore{self: "1", members: map[string]*db.ClusterMember{
+		"1": {NodeID: "1", DrainState: selfState, DrainUpdatedAt: time.Now().Unix()},
 	}}
 
 	for i, st := range peerStates {
-		id := i + 2
+		id := strconv.Itoa(i + 2)
 		s.members[id] = &db.ClusterMember{NodeID: id, DrainState: st}
 	}
 
@@ -151,14 +152,14 @@ func TestSweepOffloadsAndCompletesTheDrain(t *testing.T) {
 
 	r.sweep(context.Background())
 
-	if got := store.stateOf(1); got != db.DrainStateDraining {
+	if got := store.stateOf("1"); got != db.DrainStateDraining {
 		t.Fatalf("state = %s, want still draining while UEs remain", got)
 	}
 
 	r.sweep(context.Background())
 	r.sweep(context.Background())
 
-	if got := store.stateOf(1); got != db.DrainStateDrained {
+	if got := store.stateOf("1"); got != db.DrainStateDrained {
 		t.Fatalf("state = %s, want drained once the node is empty", got)
 	}
 
@@ -169,7 +170,7 @@ func TestSweepOffloadsAndCompletesTheDrain(t *testing.T) {
 
 func TestSweepIgnoresTheBatchBoundPastTheDeadline(t *testing.T) {
 	store := newStore(db.DrainStateDraining, db.DrainStateActive)
-	store.members[1].DrainUpdatedAt = time.Now().Add(-2 * time.Hour).Unix()
+	store.members["1"].DrainUpdatedAt = time.Now().Add(-2 * time.Hour).Unix()
 
 	nf := &fakeNF{remaining: offloadBatchSize * 5}
 
@@ -190,7 +191,7 @@ func TestSweepDoesNotOffloadWithNoActivePeer(t *testing.T) {
 		t.Fatalf("off-loaded %d UEs with nowhere to send them", nf.offloaded)
 	}
 
-	if got := store.stateOf(1); got != db.DrainStateDraining {
+	if got := store.stateOf("1"); got != db.DrainStateDraining {
 		t.Fatalf("state = %s, want draining: the drain cannot complete", got)
 	}
 }

@@ -125,7 +125,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		logStore:  boltStore,
 		snaps:     snapshots,
 		config:    ClusterConfig{BindAddress: string(addr)},
-		nodeID:    1,
+		raftID:    "1",
 		dataDir:   dataDir,
 		observer:  observer,
 

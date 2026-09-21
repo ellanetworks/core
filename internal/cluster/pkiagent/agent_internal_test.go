@@ -12,7 +12,7 @@ import (
 )
 
 func TestHaveLeafOnDiskRejectsMismatchedPair(t *testing.T) {
-	a := NewAgent(1, "cluster-a", t.TempDir())
+	a := NewAgent("1", "cluster-a", t.TempDir())
 	if err := a.GenerateAndPersist(); err != nil {
 		t.Fatalf("generate-and-persist: %v", err)
 	}
@@ -21,7 +21,7 @@ func TestHaveLeafOnDiskRejectsMismatchedPair(t *testing.T) {
 		t.Fatal("a freshly persisted keypair must be reported as present")
 	}
 
-	other := NewAgent(1, "cluster-a", t.TempDir())
+	other := NewAgent("1", "cluster-a", t.TempDir())
 	if err := other.GenerateAndPersist(); err != nil {
 		t.Fatalf("generate-and-persist other: %v", err)
 	}

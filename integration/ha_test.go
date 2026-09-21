@@ -112,11 +112,11 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("autopilot did not report healthy: %v", err)
 	}
 
-	if apState.LeaderNodeID == 0 {
+	if apState.LeaderNodeID == "" {
 		t.Fatalf("autopilot reports unknown leader: %+v", apState)
 	}
 
-	HALogf(t, "autopilot healthy: leaderNodeId=%d failureTolerance=%d voters=%v",
+	HALogf(t, "autopilot healthy: leaderNodeId=%s failureTolerance=%d voters=%v",
 		apState.LeaderNodeID, apState.FailureTolerance, apState.Voters)
 
 	HALog(t, "creating subscriber on leader")
@@ -359,7 +359,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	leaderService := haNodeServices[leaderIdx]
-	HALogf(t, "stopping leader %s (node %d)", leaderService, stoppedNodeID)
+	HALogf(t, "stopping leader %s (node %s)", leaderService, stoppedNodeID)
 
 	err = dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
@@ -694,22 +694,51 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	HALog(t, "waiting for node 4 to appear as nonvoter")
 
-	err = waitForMemberSuffrage(ctx, leader, 4, "nonvoter")
+	err = waitForMemberSuffrage(ctx, leader, ClusterAddressWithPort(4, 7000), "nonvoter")
 	if err != nil {
 		t.Fatalf("node 4 did not join as nonvoter: %v", err)
 	}
 
 	HALog(t, "node 4 joined as nonvoter, promoting to voter")
 
-	err = leader.PromoteClusterMember(ctx, 4)
+	node4ID, err := memberIDAt(ctx, leader, ClusterAddressWithPort(4, 7000))
+	if err != nil {
+		t.Fatalf("resolve node 4 identity: %v", err)
+	}
+
+	err = leader.PromoteClusterMember(ctx, node4ID)
 	if err != nil {
 		t.Fatalf("failed to promote node 4: %v", err)
 	}
 
-	err = waitForMemberSuffrage(ctx, leader, 4, "voter")
+	err = waitForMemberSuffrage(ctx, leader, ClusterAddressWithPort(4, 7000), "voter")
 	if err != nil {
 		t.Fatalf("node 4 did not become voter: %v", err)
 	}
+
+	// A node added after formation must get its own AMF Pointer: the
+	// leader allocates it into the member row, and a duplicate would
+	// make two nodes issue GUTIs under the same GUAMI.
+	scaledMembers, err := leader.ListClusterMembers(ctx)
+	if err != nil {
+		t.Fatalf("list cluster members after scale-up: %v", err)
+	}
+
+	pointers := make(map[int]client.NodeID, len(scaledMembers))
+
+	for _, m := range scaledMembers {
+		if m.AMFPointer < 1 || m.AMFPointer > 63 {
+			t.Fatalf("node %s holds AMF Pointer %d, want a value in [1, 63]", m.NodeID, m.AMFPointer)
+		}
+
+		if prev, dup := pointers[m.AMFPointer]; dup {
+			t.Fatalf("nodes %s and %s share AMF Pointer %d after scale-up", prev, m.NodeID, m.AMFPointer)
+		}
+
+		pointers[m.AMFPointer] = m.NodeID
+	}
+
+	HALogf(t, "four members hold distinct AMF Pointers: %v", pointers)
 
 	HALog(t, "node 4 promoted to voter, writing subscriber on leader")
 
@@ -751,15 +780,15 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	// --- Scale down: drain and remove node 4 from the cluster (4 → 3) ---
 
-	if _, err := leader.DrainClusterMember(ctx, 4); err != nil {
+	if _, err := leader.DrainClusterMember(ctx, node4ID); err != nil {
 		t.Fatalf("failed to drain node 4: %v", err)
 	}
 
-	if err := waitForDrained(ctx, leader, 4); err != nil {
+	if err := waitForDrained(ctx, leader, node4ID); err != nil {
 		t.Fatalf("node 4 never completed its drain: %v", err)
 	}
 
-	err = leader.RemoveClusterMember(ctx, 4, false)
+	err = leader.RemoveClusterMember(ctx, node4ID, false)
 	if err != nil {
 		t.Fatalf("failed to remove node 4 from cluster: %v", err)
 	}
@@ -772,7 +801,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	}
 
 	for _, m := range members {
-		if m.NodeID == 4 {
+		if m.NodeID == node4ID {
 			t.Fatal("removed node 4 still present in cluster members")
 		}
 	}
@@ -807,7 +836,6 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	HALogf(t, "write via removed node correctly rejected: %v", err)
 
 	if _, err := node4Client.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     5,
 		TTLSeconds: 60,
 	}); err == nil {
 		t.Fatal("MintClusterJoinToken via removed node 4 succeeded; fence regression")
@@ -944,6 +972,16 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	// db.path is "/data/ella.db", so dataDir = "/data" and raftDir = "/data/raft/".
 	const containerRaftDir = "/data/raft"
 
+	node1ID, err := nodeIDOf(ctx, clients[0])
+	if err != nil {
+		t.Fatalf("failed to resolve identity of ella-core-1: %v", err)
+	}
+
+	node2ID, err := nodeIDOf(ctx, clients[1])
+	if err != nil {
+		t.Fatalf("failed to resolve identity of ella-core-2: %v", err)
+	}
+
 	HALog(t, "stopping all 3 nodes (total quorum loss)")
 
 	for _, svc := range haNodeServices {
@@ -961,8 +999,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	peers := []recoveryPeer{
-		{ID: "1", Address: ClusterAddressWithPort(1, 7000)},
-		{ID: "2", Address: ClusterAddressWithPort(2, 7000)},
+		{ID: string(node1ID), Address: ClusterAddressWithPort(1, 7000)},
+		{ID: string(node2ID), Address: ClusterAddressWithPort(2, 7000)},
 	}
 
 	peersJSON, err := json.MarshalIndent(peers, "", "  ")
@@ -1365,7 +1403,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		}
 	}
 
-	HALogf(t, "partitioning %s (node %d) on cluster port 7000", leaderService, isolatedNodeID)
+	HALogf(t, "partitioning %s (node %s) on cluster port 7000", leaderService, isolatedNodeID)
 
 	if err := partitionClusterPort(ctx, dockerClient, leaderContainer); err != nil {
 		t.Fatalf("apply partition: %v", err)
@@ -1396,11 +1434,11 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	}
 
 	if newLeaderStatus.Cluster.NodeID == isolatedNodeID {
-		t.Fatalf("new leader node-id %d matches isolated node; partition not effective",
+		t.Fatalf("new leader node-id %s matches isolated node; partition not effective",
 			isolatedNodeID)
 	}
 
-	HALogf(t, "new leader is node %d", newLeaderStatus.Cluster.NodeID)
+	HALogf(t, "new leader is node %s", newLeaderStatus.Cluster.NodeID)
 
 	const survivorIMSI = "001019756140001"
 

@@ -43,7 +43,7 @@ type bearerStore interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	// NodeID is the cluster node identity, used to make each HA node's MME Code
 	// (and hence its GUMMEI) distinct.
-	NodeID() int
+	AMFPointer() int
 }
 
 // S1apSecurityCapabilities maps a UE's EPS NAS algorithm support to the S1AP UE

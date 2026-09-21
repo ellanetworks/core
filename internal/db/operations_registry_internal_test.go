@@ -55,6 +55,7 @@ var pinnedChangesetOps = map[string]int{
 	"ReleaseIPLease":                   13,
 	"ReplaceFramedRoutes":              16,
 	"SetDefaultPolicy":                 14,
+	"SetDisplayName":                   20,
 	"SetDrainState":                    9,
 	"SetJWTSecret":                     1,
 	"SetRetentionPolicy":               1,

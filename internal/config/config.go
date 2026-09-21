@@ -704,8 +704,12 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, nil
 	}
 
-	if c.NodeID < 1 || c.NodeID > maxClusterNodeID {
+	if c.NodeID != 0 && (c.NodeID < 1 || c.NodeID > maxClusterNodeID) {
 		return Cluster{}, fmt.Errorf("cluster.node-id must be between 1 and %d (constrained by the 6-bit AMF Pointer field), got %d", maxClusterNodeID, c.NodeID)
+	}
+
+	if c.NodeID != 0 {
+		logger.EllaLog.Warn("cluster.node-id is deprecated and no longer sets this node's identity; a node generates its own on first boot")
 	}
 
 	if c.BindAddress == "" {

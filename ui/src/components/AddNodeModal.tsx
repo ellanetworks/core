@@ -18,9 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { useQuery } from "@tanstack/react-query";
-import { listClusterMembers, mintClusterJoinToken } from "@/queries/cluster";
-import ErrorAlert from "@/components/ErrorAlert";
+import { mintClusterJoinToken } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { formatDateTime } from "@/utils/formatters";
@@ -39,64 +37,33 @@ const TTL_OPTIONS: { label: string; seconds: number }[] = [
 ];
 
 const DEFAULT_TTL = 30 * 60;
-const MIN_NODE_ID = 1;
-const MAX_NODE_ID = 63;
 
 const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
   const { accessToken } = useAuth();
   const { showSnackbar } = useSnackbar();
 
-  const membersQuery = useQuery({
-    queryKey: ["cluster", "members"],
-    queryFn: () => listClusterMembers(accessToken!),
-    enabled: open && !!accessToken,
-  });
-
-  const members = membersQuery.data;
-
-  const suggestedNodeId = useMemo(() => {
-    const used = new Set((members ?? []).map((m) => m.nodeId));
-    for (let id = MIN_NODE_ID; id <= MAX_NODE_ID; id++) {
-      if (!used.has(id)) return id;
-    }
-    return MIN_NODE_ID;
-  }, [members]);
-
-  const [chosenNodeId, setChosenNodeId] = useState<number | null>(null);
-  const [mintedNodeId, setMintedNodeId] = useState<number | null>(null);
   const [ttlSeconds, setTtlSeconds] = useState<number>(DEFAULT_TTL);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState("");
   const [token, setToken] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<number>(0);
 
-  const nodeId = mintedNodeId ?? chosenNodeId ?? suggestedNodeId;
-
-  const nodeIdValid = nodeId >= MIN_NODE_ID && nodeId <= MAX_NODE_ID;
-  const nodeIdTaken = (members ?? []).some((m) => m.nodeId === nodeId);
-
   const handleClose = () => {
     setToken("");
     setExpiresAt(0);
     setAlert("");
     setTtlSeconds(DEFAULT_TTL);
-    setChosenNodeId(null);
-    setMintedNodeId(null);
     onClose();
   };
 
   const handleSubmit = async () => {
-    if (!accessToken || !nodeIdValid || nodeIdTaken) return;
+    if (!accessToken) return;
     setLoading(true);
     setAlert("");
     try {
-      const resp = await mintClusterJoinToken(accessToken, {
-        nodeID: nodeId,
-        ttlSeconds,
-      });
+      const resp = await mintClusterJoinToken(accessToken, { ttlSeconds });
       setToken(resp.token);
       setExpiresAt(resp.expiresAt);
-      setMintedNodeId(nodeId);
     } catch (err) {
       setAlert(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -105,8 +72,8 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
   };
 
   const configSnippet = useMemo(
-    () => `cluster:\n  node-id: ${nodeId}\n  join-token: ${token}`,
-    [nodeId, token],
+    () => `cluster:\n  join-token: ${token}`,
+    [token],
   );
 
   const copy = async (text: string, label: string) => {
@@ -137,35 +104,14 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
 
         {!token && (
           <>
-            {membersQuery.isLoadingError && (
-              <ErrorAlert
-                resource="cluster members"
-                error={membersQuery.error}
-                onRetry={() => void membersQuery.refetch()}
-                retrying={membersQuery.isFetching}
-              />
-            )}
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              This will mint a single-use token that admits one new node to the
+              cluster. The token must be copied and added to the new node.
+            </Typography>
 
             <TextField
               fullWidth
               autoFocus
-              label="Node ID"
-              type="number"
-              value={nodeId}
-              onChange={(e) => setChosenNodeId(Number(e.target.value))}
-              error={!nodeIdValid || nodeIdTaken}
-              helperText={
-                !nodeIdValid
-                  ? `Must be between ${MIN_NODE_ID} and ${MAX_NODE_ID}.`
-                  : nodeIdTaken
-                    ? "This ID is already in use by another node."
-                    : "A unique number identifying the new node in the cluster."
-              }
-              margin="normal"
-            />
-
-            <TextField
-              fullWidth
               select
               label="Token lifetime"
               value={ttlSeconds}
@@ -246,7 +192,7 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
             variant="contained"
             color="success"
             onClick={handleSubmit}
-            disabled={!nodeIdValid || nodeIdTaken || loading}
+            disabled={loading}
           >
             {loading ? "Minting…" : "Mint Token"}
           </Button>

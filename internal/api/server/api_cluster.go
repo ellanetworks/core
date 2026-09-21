@@ -8,28 +8,31 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
 const (
 	ClusterMemberAddAction    = "cluster_member_add"
 	ClusterMemberRemoveAction = "cluster_member_remove"
+	ClusterMemberRenameAction = "cluster_member_rename"
 )
 
 type ClusterMemberResponse struct {
-	NodeID         int    `json:"nodeId"`
-	RaftAddress    string `json:"raftAddress"`
-	APIAddress     string `json:"apiAddress"`
-	BinaryVersion  string `json:"binaryVersion"`
-	Suffrage       string `json:"suffrage"`
-	IsLeader       bool   `json:"isLeader"`
-	DrainState     string `json:"drainState"`
-	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
+	NodeID         pki.NodeID `json:"nodeId"`
+	DisplayName    string     `json:"displayName"`
+	AMFPointer     int        `json:"amfPointer"`
+	RaftAddress    string     `json:"raftAddress"`
+	APIAddress     string     `json:"apiAddress"`
+	BinaryVersion  string     `json:"binaryVersion"`
+	Suffrage       string     `json:"suffrage"`
+	IsLeader       bool       `json:"isLeader"`
+	DrainState     string     `json:"drainState"`
+	DrainUpdatedAt string     `json:"drainUpdatedAt,omitempty"`
 }
 
 func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
@@ -44,7 +47,9 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 	}
 
 	return ClusterMemberResponse{
-		NodeID:         m.NodeID,
+		NodeID:         pki.NodeID(m.NodeID),
+		DisplayName:    m.DisplayName,
+		AMFPointer:     m.AMFPointer,
 		RaftAddress:    m.RaftAddress,
 		APIAddress:     m.APIAddress,
 		BinaryVersion:  m.BinaryVersion,
@@ -56,13 +61,13 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 }
 
 type AddClusterMemberRequest struct {
-	NodeID        int    `json:"nodeId"`
-	RaftAddress   string `json:"raftAddress"`
-	APIAddress    string `json:"apiAddress"`
-	ClusterID     string `json:"clusterId,omitempty"`
-	SchemaVersion int    `json:"schemaVersion,omitempty"`
-	BinaryVersion string `json:"binaryVersion,omitempty"`
-	Suffrage      string `json:"suffrage,omitempty"`
+	NodeID        pki.NodeID `json:"nodeId"`
+	RaftAddress   string     `json:"raftAddress"`
+	APIAddress    string     `json:"apiAddress"`
+	ClusterID     string     `json:"clusterId,omitempty"`
+	SchemaVersion int        `json:"schemaVersion,omitempty"`
+	BinaryVersion string     `json:"binaryVersion,omitempty"`
+	Suffrage      string     `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -92,10 +97,13 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if req.NodeID <= 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "nodeId must be a positive integer", nil, logger.APILog)
+		normalizedNodeID, err := pki.NormalizeNodeID(string(req.NodeID))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "nodeId must be a UUID or a legacy integer node id", err, logger.APILog)
 			return
 		}
+
+		req.NodeID = pki.NodeID(normalizedNodeID)
 
 		if req.RaftAddress == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "raftAddress is required", nil, logger.APILog)
@@ -156,20 +164,8 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		if suffrage == "nonvoter" {
-			if err := dbInstance.AddNonvoter(req.NodeID, req.RaftAddress); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
-				return
-			}
-		} else {
-			if err := dbInstance.AddVoter(req.NodeID, req.RaftAddress); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
-				return
-			}
-		}
-
 		member := &db.ClusterMember{
-			NodeID:        req.NodeID,
+			NodeID:        string(req.NodeID),
 			RaftAddress:   req.RaftAddress,
 			APIAddress:    req.APIAddress,
 			BinaryVersion: req.BinaryVersion,
@@ -181,6 +177,18 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if suffrage == "nonvoter" {
+			if err := dbInstance.AddNonvoter(string(req.NodeID), req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
+				return
+			}
+		} else {
+			if err := dbInstance.AddVoter(string(req.NodeID), req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
+				return
+			}
+		}
+
 		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
@@ -188,7 +196,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberAddAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Added cluster member node %d at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
+			fmt.Sprintf("Added cluster member node %s at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member added"}, http.StatusCreated, logger.APILog)
@@ -197,9 +205,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nodeIDStr := r.PathValue("id")
-
-		nodeID, err := strconv.Atoi(nodeIDStr)
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
 			return
@@ -212,10 +218,18 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		force := r.URL.Query().Get("force") == "true"
+
 		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
+				if force && dbInstance.IsRaftConfigurationMember(nodeID) {
+					removeStrandedConfigurationMember(w, r, dbInstance, nodeID)
+					return
+				}
+
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+
 				return
 			}
 
@@ -238,10 +252,9 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// Drain precondition: refuse removal unless the node has been
 		// drained or the caller explicitly opts into force-remove.
 		// force=true skips the drain check but not the leader check.
-		force := r.URL.Query().Get("force") == "true"
 		if !force && member.DrainState != db.DrainStateDrained {
 			writeError(r.Context(), w, http.StatusConflict,
-				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%d/drain, or pass ?force=true to skip",
+				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%s/drain, or pass ?force=true to skip",
 					member.DrainState, nodeID),
 				nil, logger.APILog)
 
@@ -266,7 +279,7 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// can re-run cleanup later via a direct DB operation if needed.
 		if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
 			logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
-				zap.Int("node_id", nodeID), zap.Error(err))
+				zap.String("node_id", nodeID), zap.Error(err))
 		}
 
 		// Drop the removed node's pin from cluster_node_certs. The
@@ -284,20 +297,50 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberRemoveAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Removed cluster member node %d", nodeID),
+			fmt.Sprintf("Removed cluster member node %s", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
 	})
 }
 
+func removeStrandedConfigurationMember(w http.ResponseWriter, r *http.Request, dbInstance *db.Database, nodeID string) {
+	if _, leaderID := dbInstance.LeaderAddressAndID(); leaderID != "" && leaderID == nodeID {
+		writeError(r.Context(), w, http.StatusConflict,
+			"Cannot remove the current leader; drain this node first so leadership transfers, then retry",
+			nil, logger.APILog)
+
+		return
+	}
+
+	if err := dbInstance.RemoveServer(nodeID); err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove server from Raft cluster", err, logger.APILog)
+		return
+	}
+
+	if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
+		logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
+			zap.String("node_id", nodeID), zap.Error(err))
+	}
+
+	dropPinForRemovedNode(r.Context(), dbInstance, clusterListenerForPeerLookup, nodeID)
+
+	logger.LogAuditEvent(
+		r.Context(),
+		ClusterMemberRemoveAction,
+		getActorFromContext(r),
+		getClientIP(r),
+		fmt.Sprintf("Removed cluster member node %s (no cluster_members row; force)", nodeID),
+	)
+
+	writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
+}
+
 const ClusterMemberPromoteAction = "cluster_member_promote"
 
 func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nodeIDStr := r.PathValue("id")
-
-		nodeID, err := strconv.Atoi(nodeIDStr)
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
 			return
@@ -333,9 +376,60 @@ func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberPromoteAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Promoted cluster member node %d to voter", nodeID),
+			fmt.Sprintf("Promoted cluster member node %s to voter", nodeID),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member promoted to voter"}, http.StatusOK, logger.APILog)
+	})
+}
+
+type SetDisplayNameRequest struct {
+	DisplayName string `json:"displayName"`
+}
+
+// SetClusterMemberDisplayName handles PUT /api/v1/cluster/members/{id}/display-name.
+//
+// Runs on the Raft leader (followers forward).
+func SetClusterMemberDisplayName(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nodeID, err := pki.NormalizeNodeID(r.PathValue("id"))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
+			return
+		}
+
+		var req SetDisplayNameRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			return
+		}
+
+		if len(req.DisplayName) > db.MaxDisplayNameLength {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				fmt.Sprintf("displayName must be at most %d bytes", db.MaxDisplayNameLength), nil, logger.APILog)
+
+			return
+		}
+
+		if err := dbInstance.SetDisplayName(r.Context(), nodeID, req.DisplayName); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set display name", err, logger.APILog)
+
+			return
+		}
+
+		logger.LogAuditEvent(
+			r.Context(),
+			ClusterMemberRenameAction,
+			getActorFromContext(r),
+			getClientIP(r),
+			fmt.Sprintf("Set display name of node %s to %q", nodeID, req.DisplayName),
+		)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Display name updated"}, http.StatusOK, logger.APILog)
 	})
 }

@@ -126,7 +126,7 @@ type fakeLeaseStore struct {
 	calls  int
 }
 
-func (f *fakeLeaseStore) ListActiveLeasesByNode(_ context.Context, _ int) ([]Lease, error) {
+func (f *fakeLeaseStore) ListActiveLeasesByNode(_ context.Context, _ string) ([]Lease, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -157,7 +157,7 @@ func TestReconciler_PopulatesEmptyRIB(t *testing.T) {
 		{Address: netip.MustParseAddr("10.45.0.2"), IMSI: "imsi-2"},
 	}}
 
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -184,7 +184,7 @@ func TestReconciler_ConvergesAfterChurn(t *testing.T) {
 		{Address: netip.MustParseAddr("10.45.0.1"), IMSI: "imsi-1"},
 		{Address: netip.MustParseAddr("10.45.0.2"), IMSI: "imsi-2"},
 	}}
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("initial reconcile: %v", err)
@@ -220,7 +220,7 @@ func TestReconciler_WithdrawsWhenLeaseTableEmpty(t *testing.T) {
 	store := &fakeLeaseStore{leases: []Lease{
 		{Address: netip.MustParseAddr("10.45.0.1"), IMSI: "imsi-1"},
 	}}
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("initial reconcile: %v", err)
@@ -244,7 +244,7 @@ func TestReconciler_WithdrawsWhenLeaseTableEmpty(t *testing.T) {
 func TestReconciler_StoreErrorPropagates(t *testing.T) {
 	svc := newTestBGPServiceAdvertising(t)
 	store := &fakeLeaseStore{err: errors.New("boom")}
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	err := r.Reconcile(context.Background())
 	if err == nil {
@@ -265,7 +265,7 @@ func TestReconciler_AdvertisesFramedRoutes(t *testing.T) {
 			},
 		},
 	}}
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -295,7 +295,7 @@ func TestReconciler_AdvertisesFramedRoutes(t *testing.T) {
 func TestReconciler_StartStopIsIdempotent(t *testing.T) {
 	svc := newTestBGPServiceAdvertising(t)
 	store := &fakeLeaseStore{}
-	r := NewReconciler(svc, store, 1, nil)
+	r := NewReconciler(svc, store, "1", nil)
 
 	r.Start()
 	r.Start() // second call is a no-op

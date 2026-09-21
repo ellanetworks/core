@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
@@ -12,16 +12,10 @@ import type { BGPPeer } from "@/queries/bgp";
 
 const api = setupApiServer();
 
-const MEMBERS = "/api/v1/cluster/members";
 const JOIN_TOKENS = "/api/v1/cluster/pki/join-tokens";
 
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
-
-const seedMembers = (ids: number[]) =>
-  api.get(MEMBERS, () =>
-    ids.map((nodeId) => ({ nodeId, address: "10.0.0.1" })),
-  );
 
 const renderAddNode = () => {
   const onClose = vi.fn();
@@ -30,60 +24,39 @@ const renderAddNode = () => {
 };
 
 describe("AddNodeModal", () => {
-  it("names its dialog and suggests the lowest free node id", async () => {
-    seedMembers([1, 2]);
+  it("names its dialog and asks only for a token lifetime", async () => {
     renderAddNode();
 
     expect(dialog()).toHaveAccessibleName("Add a Node to the Cluster");
-    await waitFor(() =>
-      expect(screen.getByLabelText(/Node ID/)).toHaveValue(3),
-    );
+    await screen.findByRole("combobox", { name: /Token lifetime/ });
+    expect(screen.queryByLabelText(/Node ID/)).not.toBeInTheDocument();
+    expect(button(/Mint Token/)).toBeEnabled();
   });
 
-  it("blocks a node id that is already taken", async () => {
-    seedMembers([1, 2]);
-    renderAddNode();
-    await waitFor(() =>
-      expect(screen.getByLabelText(/Node ID/)).toHaveValue(3),
-    );
-
-    fireEvent.change(screen.getByLabelText(/Node ID/), {
-      target: { value: "2" },
-    });
-
-    await screen.findByText("This ID is already in use by another node.");
-    expect(button(/Mint Token/)).toBeDisabled();
-  });
-
-  it("blocks a node id outside the allowed range", async () => {
-    seedMembers([]);
-    renderAddNode();
-
-    fireEvent.change(screen.getByLabelText(/Node ID/), {
-      target: { value: "64" },
-    });
-
-    await screen.findByText("Must be between 1 and 63.");
-    expect(button(/Mint Token/)).toBeDisabled();
-  });
-
-  it("shows the minted token and config snippet, and keeps the dialog open", async () => {
+  it("mints without naming a node", async () => {
     const user = userEvent.setup();
-    seedMembers([1]);
+    api.post(JOIN_TOKENS, () => ({ token: "t", expiresAt: 4102444800 }));
+    renderAddNode();
+
+    await user.click(button(/Mint Token/));
+
+    await waitFor(() => expect(api.lastRequest(JOIN_TOKENS)).toBeTruthy());
+    expect(api.lastRequest(JOIN_TOKENS)?.body).not.toHaveProperty("nodeID");
+  });
+
+  it("shows the minted token and a config snippet carrying only the token", async () => {
+    const user = userEvent.setup();
     api.post(JOIN_TOKENS, () => ({
       token: "join-abc123",
       expiresAt: 4102444800,
     }));
     const { onClose } = renderAddNode();
 
-    await waitFor(() =>
-      expect(screen.getByLabelText(/Node ID/)).toHaveValue(2),
-    );
     await user.click(button(/Mint Token/));
 
     await screen.findByText(/Token minted/);
     expect(screen.getByText(/join-token: join-abc123/)).toBeInTheDocument();
-    expect(screen.getByText(/node-id: 2/)).toBeInTheDocument();
+    expect(screen.queryByText(/node-id:/)).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(
       within(dialog()).queryByRole("button", { name: /Mint Token/ }),
@@ -93,7 +66,6 @@ describe("AddNodeModal", () => {
 
   it("sends the selected token lifetime", async () => {
     const user = userEvent.setup();
-    seedMembers([]);
     api.post(JOIN_TOKENS, () => ({ token: "t", expiresAt: 4102444800 }));
     renderAddNode();
 
@@ -110,7 +82,6 @@ describe("AddNodeModal", () => {
 
   it("reports a mint failure and stays on the form", async () => {
     const user = userEvent.setup();
-    seedMembers([]);
     api.post(JOIN_TOKENS, () => httpError(500, "pki unavailable"));
     const { onClose } = renderAddNode();
 
@@ -119,13 +90,6 @@ describe("AddNodeModal", () => {
     await screen.findByText(/pki unavailable/);
     expect(onClose).not.toHaveBeenCalled();
     expect(button(/Mint Token/)).toBeEnabled();
-  });
-
-  it("surfaces a members load failure without blocking minting", async () => {
-    api.get(MEMBERS, () => httpError(500, "members unavailable"));
-    renderAddNode();
-
-    await screen.findByText(/cluster members/i);
   });
 });
 

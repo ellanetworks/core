@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
+import { NodeId } from "@/queries/nodeId";
 
 export type DrainState = "active" | "draining" | "drained";
 
 export type ClusterMember = {
-  nodeId: number;
+  nodeId: NodeId;
+  displayName: string;
+  amfPointer: number;
   raftAddress: string;
   apiAddress: string;
   binaryVersion: string;
@@ -17,7 +20,7 @@ export type ClusterMember = {
 };
 
 export type AutopilotServer = {
-  nodeId: number;
+  nodeId: NodeId;
   raftAddress: string;
   nodeStatus: string;
   healthy: boolean;
@@ -29,8 +32,8 @@ export type AutopilotServer = {
 export type AutopilotState = {
   healthy: boolean;
   failureTolerance: number;
-  leaderNodeId: number;
-  voters: number[];
+  leaderNodeId: NodeId;
+  voters: NodeId[];
   servers: AutopilotServer[];
 };
 
@@ -46,7 +49,7 @@ export async function listClusterMembers(
 
 export async function removeClusterMember(
   authToken: string,
-  nodeId: number,
+  nodeId: NodeId,
   force = false,
 ): Promise<void> {
   const query = force ? "?force=true" : "";
@@ -58,7 +61,7 @@ export async function removeClusterMember(
 
 export async function promoteClusterMember(
   authToken: string,
-  nodeId: number,
+  nodeId: NodeId,
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/cluster/members/${nodeId}/promote`, {
     method: "POST",
@@ -68,7 +71,7 @@ export async function promoteClusterMember(
 
 export async function drainClusterMember(
   authToken: string,
-  nodeId: number,
+  nodeId: NodeId,
 ): Promise<DrainResponse> {
   return apiFetch<DrainResponse>(`/api/v1/cluster/members/${nodeId}/drain`, {
     method: "POST",
@@ -78,7 +81,7 @@ export async function drainClusterMember(
 
 export async function resumeClusterMember(
   authToken: string,
-  nodeId: number,
+  nodeId: NodeId,
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/cluster/members/${nodeId}/resume`, {
     method: "POST",
@@ -93,7 +96,6 @@ export async function getAutopilotState(
 }
 
 export type MintJoinTokenParams = {
-  nodeID: number;
   ttlSeconds?: number;
 };
 
@@ -110,5 +112,17 @@ export async function mintClusterJoinToken(
     method: "POST",
     authToken,
     body: params,
+  });
+}
+
+export async function setClusterMemberDisplayName(
+  authToken: string,
+  nodeId: NodeId,
+  displayName: string,
+): Promise<void> {
+  await apiFetchVoid(`/api/v1/cluster/members/${nodeId}/display-name`, {
+    method: "PUT",
+    authToken,
+    body: { displayName },
   });
 }

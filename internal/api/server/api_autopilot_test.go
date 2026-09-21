@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 )
@@ -27,8 +28,8 @@ func TestMapAutopilotState_Nil(t *testing.T) {
 		t.Errorf("expected FailureTolerance=0, got %d", resp.FailureTolerance)
 	}
 
-	if resp.LeaderNodeID != 0 {
-		t.Errorf("expected LeaderNodeID=0, got %d", resp.LeaderNodeID)
+	if resp.LeaderNodeID != "" {
+		t.Errorf("expected empty LeaderNodeID, got %q", resp.LeaderNodeID)
 	}
 
 	if resp.Voters == nil {
@@ -109,12 +110,12 @@ func TestMapAutopilotState_Populated(t *testing.T) {
 		t.Errorf("expected FailureTolerance=1, got %d", resp.FailureTolerance)
 	}
 
-	if resp.LeaderNodeID != 1 {
-		t.Errorf("expected LeaderNodeID=1, got %d", resp.LeaderNodeID)
+	if resp.LeaderNodeID != "1" {
+		t.Errorf("expected LeaderNodeID 1, got %q", resp.LeaderNodeID)
 	}
 
 	// Voters must be sorted and integer-decoded.
-	if got := resp.Voters; !intSliceEqual(got, []int{1, 2, 3}) {
+	if got := resp.Voters; !idSliceEqual(got, []pki.NodeID{"1", "2", "3"}) {
 		t.Errorf("expected Voters=[1 2 3], got %v", got)
 	}
 
@@ -123,9 +124,9 @@ func TestMapAutopilotState_Populated(t *testing.T) {
 		t.Fatalf("expected 3 servers, got %d", len(resp.Servers))
 	}
 
-	for i, want := range []int{1, 2, 3} {
+	for i, want := range []pki.NodeID{"1", "2", "3"} {
 		if resp.Servers[i].NodeID != want {
-			t.Errorf("server[%d]: expected NodeID=%d, got %d", i, want, resp.Servers[i].NodeID)
+			t.Errorf("server[%d]: expected NodeID=%s, got %s", i, want, resp.Servers[i].NodeID)
 		}
 	}
 
@@ -148,32 +149,38 @@ func TestMapAutopilotState_Populated(t *testing.T) {
 	}
 }
 
-func TestMapAutopilotState_SkipsMalformedIDs(t *testing.T) {
+func TestMapAutopilotState_CarriesUUIDIdentities(t *testing.T) {
+	const uuidID = "0199c0de-0000-7000-8000-00000000beef"
+
 	state := &autopilot.State{
-		Leader: raft.ServerID("not-a-number"),
-		Voters: []raft.ServerID{"1", "not-a-number", "2"},
+		Leader: raft.ServerID(uuidID),
+		Voters: []raft.ServerID{"1", raft.ServerID(uuidID)},
 		Servers: map[raft.ServerID]*autopilot.ServerState{
-			"not-a-number": {
-				Server: autopilot.Server{ID: raft.ServerID("not-a-number")},
+			raft.ServerID(uuidID): {
+				Server: autopilot.Server{ID: raft.ServerID(uuidID), IsLeader: true},
 			},
 			"1": {
-				Server: autopilot.Server{ID: raft.ServerID("1"), IsLeader: true},
+				Server: autopilot.Server{ID: raft.ServerID("1")},
 			},
 		},
 	}
 
 	resp := mapAutopilotState(state)
 
-	if resp.LeaderNodeID != 0 {
-		t.Errorf("expected LeaderNodeID=0 for malformed id, got %d", resp.LeaderNodeID)
+	if resp.LeaderNodeID != uuidID {
+		t.Errorf("expected LeaderNodeID %s, got %q", uuidID, resp.LeaderNodeID)
 	}
 
-	if !intSliceEqual(resp.Voters, []int{1, 2}) {
-		t.Errorf("expected malformed voter dropped, got %v", resp.Voters)
+	if !idSliceEqual(resp.Voters, []pki.NodeID{pki.NodeID(uuidID), "1"}) {
+		t.Errorf("a UUID voter must survive the mapping, got %v", resp.Voters)
 	}
 
-	if len(resp.Servers) != 1 || resp.Servers[0].NodeID != 1 {
-		t.Errorf("expected single server row for node 1, got %+v", resp.Servers)
+	if len(resp.Servers) != 2 {
+		t.Fatalf("expected both servers, got %+v", resp.Servers)
+	}
+
+	if resp.Servers[0].NodeID != pki.NodeID(uuidID) || resp.Servers[1].NodeID != "1" {
+		t.Errorf("servers must sort by identity, got %+v", resp.Servers)
 	}
 }
 
@@ -187,7 +194,7 @@ func contains(s, substr string) bool {
 	return false
 }
 
-func intSliceEqual(a, b []int) bool {
+func idSliceEqual(a, b []pki.NodeID) bool {
 	if len(a) != len(b) {
 		return false
 	}

@@ -58,7 +58,7 @@ func seedMultiServerRaftState(t testing.TB, dataDir string) {
 		t.Fatalf("close bolt store: %v", err)
 	}
 
-	if err := writeNodeIDFile(filepath.Join(dataDir, nodeIDFilename), 1); err != nil {
+	if err := os.WriteFile(filepath.Join(dataDir, nodeIDFilename), []byte("1\n"), 0o600); err != nil {
 		t.Fatalf("write node-id: %v", err)
 	}
 }

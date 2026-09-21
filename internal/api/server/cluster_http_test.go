@@ -18,19 +18,20 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
 	"github.com/ellanetworks/core/internal/db"
+	ellapki "github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestClusterHTTP_Status(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 2})
+	pki := testutil.GenTestPKI(t, []string{"1", "2"})
 
 	serverLn := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           1,
+		NodeID:           "1",
 		Pin:              pki.PinFunc(),
 
-		Leaf: pki.LeafFunc(1),
+		Leaf: pki.LeafFunc("1"),
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -60,16 +61,16 @@ func TestClusterHTTP_Status(t *testing.T) {
 	clientLn := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           2,
+		NodeID:           "2",
 		Pin:              pki.PinFunc(),
 
-		Leaf: pki.LeafFunc(2),
+		Leaf: pki.LeafFunc("2"),
 	})
 
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return clientLn.Dial(ctx, addr, 1, listener.ALPNHTTP, 5*time.Second)
+				return clientLn.Dial(ctx, addr, "1", listener.ALPNHTTP, 5*time.Second)
 			},
 		},
 		Timeout: 5 * time.Second,
@@ -95,9 +96,9 @@ func TestClusterHTTP_Status(t *testing.T) {
 	var body struct {
 		Result struct {
 			Cluster struct {
-				Role          string `json:"role"`
-				NodeID        int    `json:"nodeId"`
-				SchemaVersion int    `json:"schemaVersion"`
+				Role          string         `json:"role"`
+				NodeID        ellapki.NodeID `json:"nodeId"`
+				SchemaVersion int            `json:"schemaVersion"`
 			} `json:"cluster"`
 		} `json:"result"`
 	}
@@ -125,9 +126,9 @@ func TestClusterHTTP_Status(t *testing.T) {
 // in clusterTestServer. Hardcoded because every test wires the peer
 // trust the same way; if a test ever needs a different server node-id,
 // this becomes a parameter again.
-const clusterTestServerNodeID = 1
+const clusterTestServerNodeID = "1"
 
-func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serverAddr string, clients map[int]*http.Client, cleanup func()) {
+func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []string) (serverAddr string, clients map[string]*http.Client, cleanup func()) {
 	t.Helper()
 
 	serverLn := listener.New(listener.Config{
@@ -162,7 +163,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 
 	serverAddr = serverLn.BoundAddress()
 
-	clients = make(map[int]*http.Client, len(peerNodeIDs))
+	clients = make(map[string]*http.Client, len(peerNodeIDs))
 
 	for _, id := range peerNodeIDs {
 		clientLn := listener.New(listener.Config{
@@ -197,9 +198,9 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 // cert CN encodes node-id 5 cannot register as node-id 3 via
 // POST /cluster/members on the cluster port.
 func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 5})
+	pki := testutil.GenTestPKI(t, []string{"1", "5"})
 
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5"})
 	defer cleanup()
 
 	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001"}`
@@ -212,7 +213,7 @@ func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := clients[5].Do(req)
+	resp, err := clients["5"].Do(req)
 	if err != nil {
 		t.Fatalf("POST /cluster/members: %v", err)
 	}
@@ -237,9 +238,9 @@ func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 // implicitly by the existing TestProbePeer_* tests reading the schema
 // field; the integration suite catches end-to-end mismatches.
 func TestClusterHTTP_AddMemberRejectsStaleSchema(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1, 5})
+	pki := testutil.GenTestPKI(t, []string{"1", "5"})
 
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5"})
 	defer cleanup()
 
 	staleSchema := db.SchemaVersion() - 1
@@ -260,7 +261,7 @@ func TestClusterHTTP_AddMemberRejectsStaleSchema(t *testing.T) {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := clients[5].Do(req)
+	resp, err := clients["5"].Do(req)
 	if err != nil {
 		t.Fatalf("POST /cluster/members: %v", err)
 	}

@@ -252,6 +252,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/cluster/members/{id}/display-name", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, SetClusterMemberDisplayName(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainClusterMember(dbInstance, amfInstance, mmeInstance, bgpService, cfg.ClusterListener))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ResumeClusterMember(dbInstance, mmeInstance, bgpService, cfg.ClusterListener))).ServeHTTP)

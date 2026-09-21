@@ -15,7 +15,7 @@ import (
 )
 
 func TestGenerateNodeCert_RoundTrip(t *testing.T) {
-	cert, key, err := pki.GenerateNodeCert(2, "test-cluster", time.Hour)
+	cert, key, err := pki.GenerateNodeCert("2", "test-cluster", time.Hour)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -29,8 +29,8 @@ func TestGenerateNodeCert_RoundTrip(t *testing.T) {
 		t.Fatalf("identity: %v", err)
 	}
 
-	if clusterID != "test-cluster" || nodeID != 2 {
-		t.Errorf("identity = (%q, %d), want (test-cluster, 2)", clusterID, nodeID)
+	if clusterID != "test-cluster" || nodeID != "2" {
+		t.Errorf("identity = (%q, %q), want (test-cluster, 2)", clusterID, nodeID)
 	}
 
 	// Self-signed: issuer == subject.
@@ -52,7 +52,7 @@ func TestGenerateNodeCert_RoundTrip(t *testing.T) {
 }
 
 func TestFingerprint_Stable(t *testing.T) {
-	cert, _, err := pki.GenerateNodeCert(1, "c", time.Hour)
+	cert, _, err := pki.GenerateNodeCert("1", "c", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestFingerprint_Stable(t *testing.T) {
 }
 
 func TestIdentityFromCert_RoundTrip(t *testing.T) {
-	cert, _, err := pki.GenerateNodeCert(5, "abc", time.Hour)
+	cert, _, err := pki.GenerateNodeCert("5", "abc", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,21 +88,21 @@ func TestIdentityFromCert_RoundTrip(t *testing.T) {
 		t.Fatalf("identity: %v", err)
 	}
 
-	if cid != "abc" || nid != 5 {
-		t.Errorf("got (%s, %d) want (abc, 5)", cid, nid)
+	if cid != "abc" || nid != "5" {
+		t.Errorf("got (%s, %s) want (abc, 5)", cid, nid)
 	}
 }
 
 func TestGenerateNodeCert_Bounds(t *testing.T) {
-	if _, _, err := pki.GenerateNodeCert(0, "c", time.Hour); err == nil {
+	if _, _, err := pki.GenerateNodeCert("0", "c", time.Hour); err == nil {
 		t.Error("expected error for nodeID=0")
 	}
 
-	if _, _, err := pki.GenerateNodeCert(64, "c", time.Hour); err == nil {
+	if _, _, err := pki.GenerateNodeCert("64", "c", time.Hour); err == nil {
 		t.Error("expected error for nodeID=64")
 	}
 
-	if _, _, err := pki.GenerateNodeCert(1, "", time.Hour); err == nil {
+	if _, _, err := pki.GenerateNodeCert("1", "", time.Hour); err == nil {
 		t.Error("expected error for empty clusterID")
 	}
 }

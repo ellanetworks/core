@@ -141,15 +141,20 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 
 	node4Client.SetToken(clients[0].GetToken())
 
-	if err := waitForMemberSuffrage(ctx, leader, 4, "nonvoter"); err != nil {
+	if err := waitForMemberSuffrage(ctx, leader, ClusterAddressWithPort(4, 7000), "nonvoter"); err != nil {
 		t.Fatalf("node 4 did not join as nonvoter: %v", err)
 	}
 
-	if err := leader.PromoteClusterMember(ctx, 4); err != nil {
+	node4ID, err := memberIDAt(ctx, leader, ClusterAddressWithPort(4, 7000))
+	if err != nil {
+		t.Fatalf("resolve node 4 identity: %v", err)
+	}
+
+	if err := leader.PromoteClusterMember(ctx, node4ID); err != nil {
 		t.Fatalf("promote node 4: %v", err)
 	}
 
-	if err := waitForMemberSuffrage(ctx, leader, 4, "voter"); err != nil {
+	if err := waitForMemberSuffrage(ctx, leader, ClusterAddressWithPort(4, 7000), "voter"); err != nil {
 		t.Fatalf("node 4 did not become voter: %v", err)
 	}
 
@@ -297,7 +302,6 @@ func bringUpHASnapshotCluster(t *testing.T, ctx context.Context, dc *DockerClien
 
 func stageAndStartJoinerWithSnapshotConfig(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string, initialSuffrage string, cfg snapshotTunables) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
-		NodeID:     nodeID,
 		TTLSeconds: 600,
 	})
 	if err != nil {

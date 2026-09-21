@@ -115,7 +115,7 @@ type DBer interface {
 	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
-	NodeID() int
+	AMFPointer() int
 }
 
 type NASHandler interface {

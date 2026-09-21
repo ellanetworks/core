@@ -210,7 +210,7 @@ func (d operatorOnlyDB) GetOperator(context.Context) (*db.Operator, error) {
 	return d.operator, nil
 }
 
-func (d operatorOnlyDB) NodeID() int { return 0 }
+func (d operatorOnlyDB) AMFPointer() int { return 1 }
 
 func TestUpdateLocationN3IWF(t *testing.T) {
 	c := &UeConn{amf: &AMF{DBInstance: operatorOnlyDB{operator: &db.Operator{

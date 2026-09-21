@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -60,20 +59,21 @@ var (
 )
 
 // SpiffeID builds the URI SAN that every cluster cert carries.
-func SpiffeID(clusterID string, nodeID int) *url.URL {
+func SpiffeID(clusterID string, nodeID string) *url.URL {
 	return &url.URL{
 		Scheme: "spiffe",
 		Host:   SpiffeTrustDomain,
-		Path:   fmt.Sprintf("/%s/node/%d", clusterID, nodeID),
+		Path:   fmt.Sprintf("/%s/node/%s", clusterID, nodeID),
 	}
 }
 
 // GenerateNodeCert produces a fresh ECDSA P-256 self-signed certificate
 // for nodeID under clusterID, valid for ttl. Returns the parsed cert
 // and the signer; PEM-encode via EncodeCertPEM / EncodePrivateKeyPEM.
-func GenerateNodeCert(nodeID int, clusterID string, ttl time.Duration) (*x509.Certificate, crypto.Signer, error) {
-	if nodeID < MinNodeID || nodeID > MaxNodeID {
-		return nil, nil, fmt.Errorf("node-id %d outside [%d, %d]", nodeID, MinNodeID, MaxNodeID)
+func GenerateNodeCert(nodeID string, clusterID string, ttl time.Duration) (*x509.Certificate, crypto.Signer, error) {
+	nodeID, err := NormalizeNodeID(nodeID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if clusterID == "" {
@@ -103,7 +103,7 @@ func GenerateNodeCert(nodeID int, clusterID string, ttl time.Duration) (*x509.Ce
 
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: fmt.Sprintf("ella-node-%d", nodeID)},
+		Subject:               pkix.Name{CommonName: fmt.Sprintf("ella-node-%s", nodeID)},
 		URIs:                  []*url.URL{SpiffeID(clusterID, nodeID)},
 		NotBefore:             now,
 		NotAfter:              now.Add(ttl + time.Minute),
@@ -191,50 +191,44 @@ func EncodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
 
 // IdentityFromCert validates the SPIFFE URI SAN of a cluster cert
 // and returns its (clusterID, nodeID).
-func IdentityFromCert(cert *x509.Certificate) (clusterID string, nodeID int, err error) {
+func IdentityFromCert(cert *x509.Certificate) (clusterID string, nodeID string, err error) {
 	if cert == nil {
-		return "", 0, fmt.Errorf("nil cert")
+		return "", "", fmt.Errorf("nil cert")
 	}
 
 	if len(cert.URIs) != 1 {
-		return "", 0, fmt.Errorf("cluster cert must carry exactly one URI SAN, got %d", len(cert.URIs))
+		return "", "", fmt.Errorf("cluster cert must carry exactly one URI SAN, got %d", len(cert.URIs))
 	}
 
 	u := cert.URIs[0]
 	if u.Scheme != "spiffe" || u.Host != SpiffeTrustDomain {
-		return "", 0, fmt.Errorf("URI SAN %q is not a valid SPIFFE URI for %s", u, SpiffeTrustDomain)
+		return "", "", fmt.Errorf("URI SAN %q is not a valid SPIFFE URI for %s", u, SpiffeTrustDomain)
 	}
 
 	path := strings.TrimPrefix(u.Path, "/")
 
 	cid, rest, ok := strings.Cut(path, "/")
 	if !ok || cid == "" || !strings.HasPrefix(rest, "node/") {
-		return "", 0, fmt.Errorf("URI SAN path %q is not in the form /<clusterID>/node/<n>", u.Path)
+		return "", "", fmt.Errorf("URI SAN path %q is not in the form /<clusterID>/node/<n>", u.Path)
 	}
 
 	suffix := rest[len("node/"):]
 	if suffix == "" {
-		return "", 0, fmt.Errorf("URI SAN path %q has empty node segment", u.Path)
+		return "", "", fmt.Errorf("URI SAN path %q has empty node segment", u.Path)
 	}
 
-	// Canonical unsigned decimal — reject "+5", "-5", "05".
-	n, err := strconv.ParseUint(suffix, 10, 31)
+	id, err := NormalizeNodeID(suffix)
 	if err != nil {
-		return "", 0, fmt.Errorf("URI SAN node segment %q: %w", suffix, err)
+		return "", "", fmt.Errorf("URI SAN node segment %q: %w", suffix, err)
 	}
 
-	if strconv.FormatUint(n, 10) != suffix {
-		return "", 0, fmt.Errorf("URI SAN node segment %q is not in canonical form", suffix)
+	if id != suffix {
+		return "", "", fmt.Errorf("URI SAN node segment %q is not in canonical form", suffix)
 	}
 
-	id := int(n)
-	if id < MinNodeID || id > MaxNodeID {
-		return "", 0, fmt.Errorf("URI SAN node-id %d outside [%d, %d]", id, MinNodeID, MaxNodeID)
-	}
-
-	wantCN := fmt.Sprintf("ella-node-%d", id)
+	wantCN := fmt.Sprintf("ella-node-%s", id)
 	if cert.Subject.CommonName != wantCN {
-		return "", 0, fmt.Errorf("cert CN %q does not match URI-SAN node %d", cert.Subject.CommonName, id)
+		return "", "", fmt.Errorf("cert CN %q does not match URI-SAN node %s", cert.Subject.CommonName, id)
 	}
 
 	return cid, id, nil

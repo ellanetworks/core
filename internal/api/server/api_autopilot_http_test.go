@@ -7,23 +7,25 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 type autopilotServerItem struct {
-	NodeID          int    `json:"nodeId"`
-	RaftAddress     string `json:"raftAddress"`
-	NodeStatus      string `json:"nodeStatus"`
-	Healthy         bool   `json:"healthy"`
-	IsLeader        bool   `json:"isLeader"`
-	HasVotingRights bool   `json:"hasVotingRights"`
-	StableSince     string `json:"stableSince,omitempty"`
+	NodeID          pki.NodeID `json:"nodeId"`
+	RaftAddress     string     `json:"raftAddress"`
+	NodeStatus      string     `json:"nodeStatus"`
+	Healthy         bool       `json:"healthy"`
+	IsLeader        bool       `json:"isLeader"`
+	HasVotingRights bool       `json:"hasVotingRights"`
+	StableSince     string     `json:"stableSince,omitempty"`
 }
 
 type autopilotStateResult struct {
 	Healthy          bool                  `json:"healthy"`
 	FailureTolerance int                   `json:"failureTolerance"`
-	LeaderNodeID     int                   `json:"leaderNodeId"`
-	Voters           []int                 `json:"voters"`
+	LeaderNodeID     pki.NodeID            `json:"leaderNodeId"`
+	Voters           []pki.NodeID          `json:"voters"`
 	Servers          []autopilotServerItem `json:"servers"`
 }
 
@@ -60,8 +62,8 @@ func TestGetAutopilotState_NoCluster(t *testing.T) {
 		t.Errorf("expected failureTolerance=0, got %d", body.Result.FailureTolerance)
 	}
 
-	if body.Result.LeaderNodeID != 0 {
-		t.Errorf("expected leaderNodeId=0, got %d", body.Result.LeaderNodeID)
+	if body.Result.LeaderNodeID != "" {
+		t.Errorf("expected empty leaderNodeId, got %q", body.Result.LeaderNodeID)
 	}
 
 	// Slices must be present (not nil) so the UI can iterate without guards.

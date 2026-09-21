@@ -12,7 +12,9 @@ import (
 )
 
 type ClusterMember struct {
-	NodeID         int    `json:"nodeId"`
+	NodeID         NodeID `json:"nodeId"`
+	DisplayName    string `json:"displayName"`
+	AMFPointer     int    `json:"amfPointer"`
 	RaftAddress    string `json:"raftAddress"`
 	APIAddress     string `json:"apiAddress"`
 	BinaryVersion  string `json:"binaryVersion"`
@@ -28,7 +30,7 @@ type DrainResponse struct {
 
 // AutopilotServer is the live per-peer health reported by raft-autopilot.
 type AutopilotServer struct {
-	NodeID          int    `json:"nodeId"`
+	NodeID          NodeID `json:"nodeId"`
 	RaftAddress     string `json:"raftAddress"`
 	NodeStatus      string `json:"nodeStatus"`
 	Healthy         bool   `json:"healthy"`
@@ -42,8 +44,8 @@ type AutopilotServer struct {
 type AutopilotState struct {
 	Healthy          bool              `json:"healthy"`
 	FailureTolerance int               `json:"failureTolerance"`
-	LeaderNodeID     int               `json:"leaderNodeId"`
-	Voters           []int             `json:"voters"`
+	LeaderNodeID     NodeID            `json:"leaderNodeId"`
+	Voters           []NodeID          `json:"voters"`
 	Servers          []AutopilotServer `json:"servers"`
 }
 
@@ -89,11 +91,11 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
-func (c *Client) DrainClusterMember(ctx context.Context, nodeID int) (*DrainResponse, error) {
+func (c *Client) DrainClusterMember(ctx context.Context, nodeID NodeID) (*DrainResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d/drain", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/drain", nodeID),
 	})
 	if err != nil {
 		return nil, err
@@ -109,11 +111,11 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID int) (*DrainResp
 	return &drainResp, nil
 }
 
-func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
+func (c *Client) ResumeClusterMember(ctx context.Context, nodeID NodeID) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d/resume", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/resume", nodeID),
 	})
 
 	return err
@@ -123,11 +125,30 @@ func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
 // Autopilot also promotes stable non-voters automatically after a short
 // stabilization window; use this call when you need promotion without
 // waiting.
-func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
+func (c *Client) SetClusterMemberDisplayName(ctx context.Context, nodeID NodeID, displayName string) error {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(map[string]string{"displayName": displayName}); err != nil {
+		return fmt.Errorf("marshal display name: %w", err)
+	}
+
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/display-name", nodeID),
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) PromoteClusterMember(ctx context.Context, nodeID NodeID) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d/promote", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s/promote", nodeID),
 	})
 	if err != nil {
 		return err
@@ -141,7 +162,7 @@ func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
 // (use sparingly — skipping drain leaves the node's dynamic IP leases and
 // RAN connections uncleaned until the removal itself triggers the usual
 // post-remove purge).
-func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool) error {
+func (c *Client) RemoveClusterMember(ctx context.Context, nodeID NodeID, force bool) error {
 	var query url.Values
 
 	if force {
@@ -151,7 +172,7 @@ func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d", nodeID),
+		Path:   fmt.Sprintf("api/v1/cluster/members/%s", nodeID),
 		Query:  query,
 	})
 	if err != nil {
@@ -163,7 +184,6 @@ func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool
 
 // MintJoinTokenOptions is the body for MintClusterJoinToken.
 type MintJoinTokenOptions struct {
-	NodeID     int `json:"nodeID"`
 	TTLSeconds int `json:"ttlSeconds,omitempty"`
 }
 

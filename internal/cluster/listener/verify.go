@@ -20,9 +20,9 @@ import (
 // diagnose.
 type PinResult struct {
 	Found        bool
-	NodeID       int
+	NodeID       string
 	CacheSize    int
-	KnownNodeIDs []int
+	KnownNodeIDs []string
 }
 
 // PinFunc resolves a peer cert's fingerprint against the local
@@ -62,7 +62,7 @@ func verifyConnection(pinFn PinFunc) func(tls.ConnectionState) error {
 		}
 
 		if certNodeID != res.NodeID {
-			return fmt.Errorf("cluster TLS: cert URI nodeID %d != pin owner %d", certNodeID, res.NodeID)
+			return fmt.Errorf("cluster TLS: cert URI nodeID %s != pin owner %s", certNodeID, res.NodeID)
 		}
 
 		return nil
@@ -72,29 +72,29 @@ func verifyConnection(pinFn PinFunc) func(tls.ConnectionState) error {
 // PeerNodeID returns the peer's nodeID by parsing the SPIFFE URI
 // SAN of its leaf. The leaf has already been pinned by
 // verifyConnection during the handshake, so no DB lookup is needed.
-func PeerNodeID(conn net.Conn) (int, error) {
+func PeerNodeID(conn net.Conn) (string, error) {
 	tlsConn, ok := TLSConn(conn)
 	if !ok {
-		return 0, fmt.Errorf("cluster TLS: connection is not a cluster TLS connection")
+		return "", fmt.Errorf("cluster TLS: connection is not a cluster TLS connection")
 	}
 
 	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
-		return 0, fmt.Errorf("cluster TLS: no peer certificates after handshake")
+		return "", fmt.Errorf("cluster TLS: no peer certificates after handshake")
 	}
 
 	return peerNodeIDFromCert(state.PeerCertificates[0])
 }
 
-func peerNodeIDFromCert(cert *x509.Certificate) (int, error) {
+func peerNodeIDFromCert(cert *x509.Certificate) (string, error) {
 	_, nodeID, err := pki.IdentityFromCert(cert)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	return nodeID, nil
 }
 
-func (l *Listener) PeerNodeID(conn net.Conn) (int, error) {
+func (l *Listener) PeerNodeID(conn net.Conn) (string, error) {
 	return PeerNodeID(conn)
 }

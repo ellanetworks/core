@@ -1083,7 +1083,7 @@ func TestAllocateIPLease_PrefersStatic(t *testing.T) {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
 
-	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease: %s", err)
 	}
@@ -1097,13 +1097,13 @@ func TestAllocateIPLease_PrefersStatic(t *testing.T) {
 		t.Fatalf("GetLeaseBySession: %s", err)
 	}
 
-	if bound.Type != "static" || bound.NodeID != 1 {
-		t.Fatalf("expected static lease bound to node 1, got type=%s node=%d", bound.Type, bound.NodeID)
+	if bound.Type != "static" || bound.NodeID != "1" {
+		t.Fatalf("expected static lease bound to node 1, got type=%s node=%s", bound.Type, bound.NodeID)
 	}
 
 	// Failover: the same session re-establishing on another node keeps the
 	// pinned address and updates the owning node.
-	got2, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
+	got2, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "2")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (failover): %s", err)
 	}
@@ -1117,8 +1117,8 @@ func TestAllocateIPLease_PrefersStatic(t *testing.T) {
 		t.Fatalf("GetLeaseBySession after failover: %s", err)
 	}
 
-	if rebound.NodeID != 2 || rebound.SessionID == nil || *rebound.SessionID != 7 {
-		t.Fatalf("expected re-bind to node 2 session 7, got node=%d session=%v", rebound.NodeID, rebound.SessionID)
+	if rebound.NodeID != "2" || rebound.SessionID == nil || *rebound.SessionID != 7 {
+		t.Fatalf("expected re-bind to node 2 session 7, got node=%s session=%v", rebound.NodeID, rebound.SessionID)
 	}
 }
 
@@ -1126,12 +1126,12 @@ func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
 	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
-	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, 1)
+	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 5): %s", err)
 	}
 
-	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 6, 1)
+	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 6, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 6): %s", err)
 	}
@@ -1154,7 +1154,7 @@ func TestAllocateIPLease_MultipleSessionsSameDNGetDistinctIPs(t *testing.T) {
 		t.Fatalf("session→lease mismatch: 5=%s (want %s), 6=%s (want %s)", l5.Address(), first, l6.Address(), second)
 	}
 
-	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, 1)
+	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 5, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 5 retry): %s", err)
 	}
@@ -1172,7 +1172,7 @@ func TestAllocateIPLease_StaticHeldByOtherSessionFallsToDynamic(t *testing.T) {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
 
-	pinned, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	pinned, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 7): %s", err)
 	}
@@ -1181,7 +1181,7 @@ func TestAllocateIPLease_StaticHeldByOtherSessionFallsToDynamic(t *testing.T) {
 		t.Fatalf("expected pinned 192.168.1.50, got %s", pinned)
 	}
 
-	other, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, 1)
+	other, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 8, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (session 8): %s", err)
 	}
@@ -1204,7 +1204,7 @@ func TestAllocateIPLease_DynamicSkipsReservedStatic(t *testing.T) {
 	createExtraSubscriber(t, database, imsi2, profileID)
 
 	// Even unbound, the reservation must be skipped by dynamic allocation.
-	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi2, 3, 1)
+	got, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi2, 3, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease: %s", err)
 	}
@@ -1226,13 +1226,13 @@ func TestReleaseIPLease_IgnoresLeaseReboundToAnotherNode(t *testing.T) {
 	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
-	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (node 1): %s", err)
 	}
 
 	// The UE re-attaches on node 2 while node 1 still holds the session.
-	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
+	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "2")
 	if err != nil {
 		t.Fatalf("AllocateIPLease (node 2): %s", err)
 	}
@@ -1241,7 +1241,7 @@ func TestReleaseIPLease_IgnoresLeaseReboundToAnotherNode(t *testing.T) {
 		t.Fatalf("failover changed the address: node1=%s node2=%s", first, second)
 	}
 
-	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("ReleaseIPLease (stale, node 1): %s", err)
 	}
@@ -1255,12 +1255,12 @@ func TestReleaseIPLease_IgnoresLeaseReboundToAnotherNode(t *testing.T) {
 		t.Fatalf("lease serving node 2 was deleted by node 1's stale release: %s", err)
 	}
 
-	if bound.NodeID != 2 {
-		t.Errorf("lease owner = node %d, want node 2", bound.NodeID)
+	if bound.NodeID != "2" {
+		t.Errorf("lease owner = node %s, want node 2", bound.NodeID)
 	}
 
 	// Node 2's own release still frees it.
-	released2, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
+	released2, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, "2")
 	if err != nil {
 		t.Fatalf("ReleaseIPLease (node 2): %s", err)
 	}
@@ -1284,11 +1284,11 @@ func TestReleaseIPLease_StaticKeepsRow(t *testing.T) {
 		t.Fatalf("CreateStaticLease: %s", err)
 	}
 
-	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1); err != nil {
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1"); err != nil {
 		t.Fatalf("AllocateIPLease: %s", err)
 	}
 
-	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("ReleaseIPLease: %s", err)
 	}
@@ -1302,7 +1302,7 @@ func TestReleaseIPLease_StaticKeepsRow(t *testing.T) {
 	}
 
 	// Reserved, not gone: allocating again pins the same address.
-	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("AllocateIPLease after release: %s", err)
 	}
@@ -1318,7 +1318,7 @@ func TestReleaseIPLease_MissingIsNoOp(t *testing.T) {
 	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
-	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, "1")
 	if err != nil {
 		t.Fatalf("ReleaseIPLease on an absent lease: %s", err)
 	}

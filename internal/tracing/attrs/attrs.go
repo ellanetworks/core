@@ -60,7 +60,7 @@ func SMContextRef(val string) attribute.KeyValue {
 	return attribute.String("smf.sm_context_ref", val)
 }
 
-func NodeID(val int) attribute.KeyValue { return attribute.Int("cluster.node_id", val) }
+func NodeID(val string) attribute.KeyValue { return attribute.String("cluster.node_id", val) }
 
 func LeaseIPv4(val string) attribute.KeyValue { return attribute.String("ip_lease.ipv4", val) }
 

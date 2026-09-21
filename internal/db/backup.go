@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -27,11 +28,11 @@ const BackupManifestVersion = 1
 // BackupManifest is the JSON document embedded as manifest.json inside every
 // backup tar.gz.
 type BackupManifest struct {
-	Version      int       `json:"version"`
-	CreatedAt    time.Time `json:"created_at"`
-	RaftIndex    uint64    `json:"raft_index"`
-	RaftTerm     uint64    `json:"raft_term"`
-	SourceNodeID int       `json:"source_node_id"`
+	Version      int        `json:"version"`
+	CreatedAt    time.Time  `json:"created_at"`
+	RaftIndex    uint64     `json:"raft_index"`
+	RaftTerm     uint64     `json:"raft_term"`
+	SourceNodeID pki.NodeID `json:"source_node_id"`
 }
 
 // Backup writes a tar.gz archive (manifest.json, ella.db) to dst. The source
@@ -63,7 +64,7 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	manifest := BackupManifest{
 		Version:      BackupManifestVersion,
 		CreatedAt:    time.Now().UTC(),
-		SourceNodeID: db.NodeID(),
+		SourceNodeID: pki.NodeID(db.RaftID()),
 	}
 
 	if db.raftManager != nil {

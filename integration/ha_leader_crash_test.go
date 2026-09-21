@@ -86,7 +86,7 @@ func TestIntegrationHALeaderCrash(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	HALogf(t, "SIGKILLing leader %s (node %d)", leaderService, crashedNodeID)
+	HALogf(t, "SIGKILLing leader %s (node %s)", leaderService, crashedNodeID)
 
 	if err := composeKill(ctx, haComposeDir, composeFile, leaderService); err != nil {
 		t.Fatalf("kill %s: %v", leaderService, err)

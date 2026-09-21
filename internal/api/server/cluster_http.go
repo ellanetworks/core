@@ -139,7 +139,7 @@ func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
 // peerNodeIDFromContext returns the peer node-id set by
 // peerNodeIDConnContext. The boolean is false when the request did not
 // originate on the cluster port.
-func peerNodeIDFromContext(ctx context.Context) (int, bool) {
-	v, ok := ctx.Value(peerNodeIDCtxKey{}).(int)
+func peerNodeIDFromContext(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(peerNodeIDCtxKey{}).(string)
 	return v, ok
 }

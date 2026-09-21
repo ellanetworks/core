@@ -23,12 +23,12 @@ import (
 type PKI struct {
 	ClusterID string
 
-	Nodes map[int]NodeCert
+	Nodes map[string]NodeCert
 }
 
 // NodeCert holds a parsed cert and the matching tls.Certificate.
 type NodeCert struct {
-	NodeID  int
+	NodeID  string
 	Cert    *x509.Certificate
 	Key     crypto.Signer
 	TLSCert tls.Certificate
@@ -39,12 +39,12 @@ type NodeCert struct {
 // PinFunc returns a listener.Config.Pin closure that resolves any
 // fingerprint registered in the test PKI to its owner.
 func (p *PKI) PinFunc() listener.PinFunc {
-	pins := make(map[string]int, len(p.Nodes))
+	pins := make(map[string]string, len(p.Nodes))
 	for _, n := range p.Nodes {
 		pins[pki.Fingerprint(n.Cert)] = n.NodeID
 	}
 
-	known := make([]int, 0, len(pins))
+	known := make([]string, 0, len(pins))
 	for _, n := range pins {
 		known = append(known, n)
 	}
@@ -63,10 +63,10 @@ func (p *PKI) PinFunc() listener.PinFunc {
 
 // LeafFunc returns a listener.Config.Leaf closure for nodeID.
 // Panics if nodeID is not in the PKI.
-func (p *PKI) LeafFunc(nodeID int) func() *tls.Certificate {
+func (p *PKI) LeafFunc(nodeID string) func() *tls.Certificate {
 	n, ok := p.Nodes[nodeID]
 	if !ok {
-		panic(fmt.Sprintf("testutil: node %d not in PKI", nodeID))
+		panic(fmt.Sprintf("testutil: node %s not in PKI", nodeID))
 	}
 
 	c := n.TLSCert
@@ -77,28 +77,28 @@ func (p *PKI) LeafFunc(nodeID int) func() *tls.Certificate {
 // GenTestPKI creates a self-signed cert per node-id, valid for one
 // hour. Sufficient for unit tests; avoids minting decade-long
 // artifacts during runs.
-func GenTestPKI(t testing.TB, nodeIDs []int) *PKI {
+func GenTestPKI(t testing.TB, nodeIDs []string) *PKI {
 	t.Helper()
 
 	clusterID := "test-cluster"
-	p := &PKI{ClusterID: clusterID, Nodes: make(map[int]NodeCert, len(nodeIDs))}
+	p := &PKI{ClusterID: clusterID, Nodes: make(map[string]NodeCert, len(nodeIDs))}
 
 	for _, id := range nodeIDs {
 		cert, key, err := pki.GenerateNodeCert(id, clusterID, time.Hour)
 		if err != nil {
-			t.Fatalf("generate cert for node %d: %v", id, err)
+			t.Fatalf("generate cert for node %s: %v", id, err)
 		}
 
 		certPEM := pki.EncodeCertPEM(cert)
 
 		keyPEM, err := pki.EncodePrivateKeyPEM(key)
 		if err != nil {
-			t.Fatalf("encode key for node %d: %v", id, err)
+			t.Fatalf("encode key for node %s: %v", id, err)
 		}
 
 		tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
-			t.Fatalf("X509KeyPair for node %d: %v", id, err)
+			t.Fatalf("X509KeyPair for node %s: %v", id, err)
 		}
 
 		p.Nodes[id] = NodeCert{

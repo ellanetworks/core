@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { apiFetch } from "@/queries/utils";
+import { NodeId } from "@/queries/nodeId";
 
 export type PendingMigration = {
   currentSchema: number;
   targetSchema: number;
-  laggardNodeId?: number;
+  laggardNodeId?: NodeId;
 };
 
 export type ClusterStatus =
@@ -14,6 +15,7 @@ export type ClusterStatus =
       enabled: false;
       role?: undefined;
       nodeId?: undefined;
+      displayName?: undefined;
       isLeader?: undefined;
       leaderNodeId?: undefined;
       leaderAPIAddress?: undefined;
@@ -25,9 +27,10 @@ export type ClusterStatus =
   | {
       enabled: true;
       role: string;
-      nodeId: number;
+      nodeId: NodeId;
+      displayName: string;
       isLeader: boolean;
-      leaderNodeId: number;
+      leaderNodeId: NodeId;
       leaderAPIAddress?: string;
       appliedIndex: number;
       clusterId?: string;

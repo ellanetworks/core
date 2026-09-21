@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -25,17 +26,44 @@ const (
 	DrainStateDrained  = "drained"
 )
 
+const clusterMemberIdentitySchema = 20
+
+func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string) error {
+	if db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		return nil
+	}
+
+	if _, ok := pki.LegacyNodeID(nodeID); ok {
+		return nil
+	}
+
+	return ErrMigrationPending
+}
+
+const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.raftAddress, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.suffrage, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
+
 const (
-	listClusterMembersStmtStr  = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
-	getClusterMemberStmtStr    = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
-	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+	listClusterMembersStmtStr        = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
+	listClusterMembersPreV20StmtStr  = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s ORDER BY nodeID ASC"
+	getClusterMemberStmtStr          = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	getClusterMemberPreV20StmtStr    = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	upsertClusterMemberStmtStr       = "INSERT INTO %s (nodeID, amfPointer, displayName, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	deleteClusterMemberStmtStr       = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
+	countClusterMembersStmtStr       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	setDrainStateStmtStr             = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
+	setDisplayNameStmtStr            = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
+)
+
+const (
+	DefaultAMFPointer = 1
+	MaxAMFPointer     = 63
 )
 
 type ClusterMember struct {
-	NodeID         int    `db:"nodeID"`
+	NodeID         string `db:"nodeID"`
+	AMFPointer     int    `db:"amfPointer"`
+	DisplayName    string `db:"displayName"`
 	RaftAddress    string `db:"raftAddress"`
 	APIAddress     string `db:"apiAddress"`
 	BinaryVersion  string `db:"binaryVersion"`
@@ -76,7 +104,12 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 
 	var members []ClusterMember
 
-	err := db.conn().Query(ctx, db.listClusterMembersStmt).GetAll(&members)
+	stmt := db.listClusterMembersStmt
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		stmt = db.listClusterMembersPreV20Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt).GetAll(&members)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -95,7 +128,7 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 	return members, nil
 }
 
-func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterMember, error) {
+func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*ClusterMember, error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
 
 	ctx, span := tracer.Start(
@@ -118,7 +151,12 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterM
 
 	row := ClusterMember{NodeID: nodeID}
 
-	err := db.conn().Query(ctx, db.getClusterMemberStmt, row).Get(&row)
+	stmt := db.getClusterMemberStmt
+	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		stmt = db.getClusterMemberPreV20Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -172,7 +210,7 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 	return nil
 }
 
-func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
+func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName)
 
 	_, span := tracer.Start(
@@ -193,7 +231,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "delete").Inc()
 
-	_, err := opDeleteClusterMember.Invoke(ctx, db, &intPayload{Value: nodeID})
+	_, err := opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -208,7 +246,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 // SetDrainState persists the drain state for a cluster member and
 // stamps drainUpdatedAt. Returns ErrNotFound if no row exists for nodeID.
-func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string) error {
+func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) error {
 	if !IsValidDrainState(state) {
 		return fmt.Errorf("invalid drain state %q", state)
 	}
@@ -286,4 +324,48 @@ func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
+}
+
+// MaxDisplayNameLength bounds the operator-facing name.
+const MaxDisplayNameLength = 63
+
+// SetDisplayName sets a cluster member's operator-facing name. The name
+// is free text; lookups and destructive operations take the identity.
+func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name string) error {
+	if len(name) > MaxDisplayNameLength {
+		return fmt.Errorf("display name is %d bytes, over the %d-byte limit", len(name), MaxDisplayNameLength)
+	}
+
+	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
+
+	_, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection.name", ClusterMembersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
+
+	member := &ClusterMember{NodeID: nodeID, DisplayName: name}
+
+	if _, err := opSetDisplayName.Invoke(ctx, db, member); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }

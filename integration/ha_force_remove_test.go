@@ -55,12 +55,11 @@ func TestIntegrationHAForceRemoveUnreachableMember(t *testing.T) {
 		t.Fatalf("nodes not ready: %v", err)
 	}
 
-	doomedID, _, err := findFollower(ctx, clients)
+	doomedIdx, doomedID, _, err := findFollower(ctx, clients)
 	if err != nil {
 		t.Fatalf("find follower: %v", err)
 	}
 
-	doomedIdx := doomedID - 1
 	doomedService := haNodeServices[doomedIdx]
 
 	survivors := make([]*client.Client, 0, len(clients)-1)
@@ -71,7 +70,7 @@ func TestIntegrationHAForceRemoveUnreachableMember(t *testing.T) {
 		}
 	}
 
-	HALogf(t, "stopping follower %s (node %d) so it can no longer be drained", doomedService, doomedID)
+	HALogf(t, "stopping follower %s (node %s) so it can no longer be drained", doomedService, doomedID)
 
 	if err := dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, doomedService); err != nil {
 		t.Fatalf("stop %s: %v", doomedService, err)
@@ -97,10 +96,10 @@ func TestIntegrationHAForceRemoveUnreachableMember(t *testing.T) {
 		t.Fatalf("refused removal still changed membership: got %d members, want 3", len(members))
 	}
 
-	HALogf(t, "membership intact after refusal; force-removing node %d", doomedID)
+	HALogf(t, "membership intact after refusal; force-removing node %s", doomedID)
 
 	if err := leader.RemoveClusterMember(ctx, doomedID, true); err != nil {
-		t.Fatalf("force RemoveClusterMember(%d): %v", doomedID, err)
+		t.Fatalf("force RemoveClusterMember(%s): %v", doomedID, err)
 	}
 
 	if err := waitForMemberCount(ctx, leader, 2, 60*time.Second); err != nil {
@@ -114,7 +113,7 @@ func TestIntegrationHAForceRemoveUnreachableMember(t *testing.T) {
 
 	for _, m := range members {
 		if m.NodeID == doomedID {
-			t.Fatalf("force-removed node %d is still present in cluster members", doomedID)
+			t.Fatalf("force-removed node %s is still present in cluster members", doomedID)
 		}
 	}
 

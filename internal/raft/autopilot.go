@@ -6,7 +6,6 @@ package raft
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -56,7 +55,7 @@ func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft
 
 	parsed := parseRaftStats(d.manager.raft.Stats())
 	ft := d.manager.followerTracker
-	localID := raft.ServerID(strconv.Itoa(d.manager.nodeID))
+	localID := raft.ServerID(d.manager.raftID)
 	isLocalLeader := d.manager.raft.State() == raft.Leader
 
 	for id := range servers {
@@ -99,7 +98,7 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 	}
 
 	ft := d.manager.followerTracker
-	localID := raft.ServerID(strconv.Itoa(d.manager.nodeID))
+	localID := raft.ServerID(d.manager.raftID)
 
 	servers := make(map[raft.ServerID]*autopilot.Server, len(future.Configuration().Servers))
 	for _, srv := range future.Configuration().Servers {

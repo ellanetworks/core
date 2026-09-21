@@ -57,8 +57,13 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 	}
 
 	followerIdx := (leaderIdx + 1) % len(clients)
-	followerNodeID := followerIdx + 1
 	followerService := haNodeServices[followerIdx]
+
+	followerNodeID, err := nodeIDOf(ctx, clients[followerIdx])
+	if err != nil {
+		t.Fatalf("resolve follower identity: %v", err)
+	}
+
 	expectedRaftAddr := fmt.Sprintf("%s:7000", followerService)
 
 	container, err := dc.ResolveComposeContainer(ctx, haComposeProject, followerService)
@@ -75,7 +80,7 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 		t.Fatalf("follower already at rebind target %s; pick a different IP", rebindIPv4)
 	}
 
-	HALogf(t, "rebinding %s (node %d) from %s to %s on %s",
+	HALogf(t, "rebinding %s (node %s) from %s to %s on %s",
 		followerService, followerNodeID, oldIP, rebindIPv4, networkName)
 
 	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, followerService); err != nil {
@@ -130,7 +135,7 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 	}
 
 	if got != expectedRaftAddr {
-		t.Fatalf("node %d raftAddress = %q, want %q (persisted address must remain the FQDN across IP changes)",
+		t.Fatalf("node %s raftAddress = %q, want %q (an address change must leave the identity and the persisted FQDN alone)",
 			followerNodeID, got, expectedRaftAddr)
 	}
 

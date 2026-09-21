@@ -33,7 +33,7 @@ func newMintTestIssuer(t *testing.T) (*pkiissuer.Service, func()) {
 		t.Fatalf("set cluster id: %v", err)
 	}
 
-	cert, _, err := pki.GenerateNodeCert(1, mintTestClusterID, time.Hour)
+	cert, _, err := pki.GenerateNodeCert("1", mintTestClusterID, time.Hour)
 	if err != nil {
 		_ = testdb.Close()
 
@@ -49,7 +49,7 @@ func newMintTestIssuer(t *testing.T) (*pkiissuer.Service, func()) {
 			return
 		}
 
-		if _, _, err := svc.RegisterCert(ctx, 1, pki.EncodeCertPEM(cert)); err != nil {
+		if _, _, err := svc.RegisterCert(ctx, "1", pki.EncodeCertPEM(cert)); err != nil {
 			t.Errorf("register leader cert: %v", err)
 		}
 	}
@@ -62,7 +62,7 @@ func newMintTestIssuer(t *testing.T) (*pkiissuer.Service, func()) {
 func TestMintWhenReady_WaitsForLeaderInit(t *testing.T) {
 	svc, leaderInit := newMintTestIssuer(t)
 
-	if _, err := svc.MintJoinToken(context.Background(), 5, 10*time.Minute); !errors.Is(err, pkiissuer.ErrNotReady) {
+	if _, err := svc.MintJoinToken(context.Background(), 10*time.Minute); !errors.Is(err, pkiissuer.ErrNotReady) {
 		t.Fatalf("mint before leader init: got %v, want ErrNotReady", err)
 	}
 
@@ -71,7 +71,7 @@ func TestMintWhenReady_WaitsForLeaderInit(t *testing.T) {
 		leaderInit()
 	}()
 
-	token, err := mintWhenReady(context.Background(), svc, 5, 10*time.Minute)
+	token, err := mintWhenReady(context.Background(), svc, 10*time.Minute)
 	if err != nil {
 		t.Fatalf("mintWhenReady: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestMintWhenReady_GivesUpAsNotReady(t *testing.T) {
 
 	t.Cleanup(func() { mintReadyWait = previous })
 
-	_, err := mintWhenReady(context.Background(), svc, 5, 10*time.Minute)
+	_, err := mintWhenReady(context.Background(), svc, 10*time.Minute)
 	if !errors.Is(err, pkiissuer.ErrNotReady) {
 		t.Fatalf("mintWhenReady with no leader init: got %v, want ErrNotReady", err)
 	}

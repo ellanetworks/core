@@ -83,7 +83,7 @@ func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.
 	return d.policies, d.polErr
 }
 
-func (d *configTestDB) NodeID() int { return 0 }
+func (d *configTestDB) AMFPointer() int { return 1 }
 
 func mustSUPI(t *testing.T) etsi.SUPI {
 	t.Helper()
@@ -319,9 +319,11 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 		setID    int
 		wantAmf  string
 	}{
-		{"defaults", 1, 1, "810040"},
-		{"region_255_set_1023_pointer_0", 255, 1023, "ffffc0"},
-		{"region_0_set_0_pointer_0", 0, 0, "800000"},
+		// configTestDB reports AMF Pointer 1, so the low six bits of the
+		// third octet carry 1.
+		{"defaults", 1, 1, "810041"},
+		{"region_255_set_1023_pointer_1", 255, 1023, "ffffc1"},
+		{"region_0_set_0_pointer_1", 0, 0, "800001"},
 	}
 
 	for _, tt := range tests {

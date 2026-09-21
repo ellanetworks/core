@@ -101,7 +101,7 @@ func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Po
 	return nil, nil
 }
 
-func (f *fakeDBInstance) NodeID() int { return 0 }
+func (f *fakeDBInstance) AMFPointer() int { return 1 }
 
 type fakeSmf struct {
 	mu              sync.Mutex

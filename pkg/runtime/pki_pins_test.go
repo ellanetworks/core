@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func newPinState(bootstrap map[string]int) *pkiState {
+func newPinState(bootstrap map[string]string) *pkiState {
 	p := &pkiState{}
 	if bootstrap != nil {
 		p.bootstrapPins.Store(&bootstrap)
@@ -32,7 +32,7 @@ func TestRefreshPinsDoesNotWipeBootstrapPins(t *testing.T) {
 
 	defer func() { _ = database.Close() }()
 
-	p := newPinState(map[string]int{"leader-fp": 1, "self-fp": 2})
+	p := newPinState(map[string]string{"leader-fp": "1", "self-fp": "2"})
 
 	if err := p.RefreshPins(ctx, database); err != nil {
 		t.Fatalf("RefreshPins: %v", err)
@@ -43,17 +43,17 @@ func TestRefreshPinsDoesNotWipeBootstrapPins(t *testing.T) {
 		t.Fatal("bootstrap pin was destroyed by a refresh against a table that has not replicated yet")
 	}
 
-	if got.NodeID != 1 {
-		t.Errorf("NodeID = %d, want 1", got.NodeID)
+	if got.NodeID != "1" {
+		t.Errorf("NodeID = %s, want 1", got.NodeID)
 	}
 }
 
 func TestReplicatedPinsSupersedeBootstrap(t *testing.T) {
 	t.Parallel()
 
-	p := newPinState(map[string]int{"revoked-fp": 9})
+	p := newPinState(map[string]string{"revoked-fp": "9"})
 
-	replicated := map[string]int{"live-fp": 1}
+	replicated := map[string]string{"live-fp": "1"}
 	p.pins.Store(&replicated)
 
 	if p.PinFunc()("revoked-fp").Found {

@@ -23,6 +23,7 @@ var (
 	ErrMigrationPending         = errors.New("schema migration pending")
 	ErrJoinTokenAlreadyConsumed = errors.New("join token already consumed")
 	ErrJoinTokenNodeMismatch    = errors.New("join token is not registered to this node")
+	ErrNodeIdentityBound        = errors.New("node identity is already bound to a different certificate")
 	ErrJoinTokenExpired         = errors.New("join token expired")
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
 	ErrRetiredOperation         = errors.New("forwarded operation is retired")

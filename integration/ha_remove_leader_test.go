@@ -104,7 +104,7 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 
 	if err := newLeader.RemoveClusterMember(ctx, leaderNodeID, false); err != nil {
 		writer.stop()
-		t.Fatalf("RemoveClusterMember(%d): %v", leaderNodeID, err)
+		t.Fatalf("RemoveClusterMember(%s): %v", leaderNodeID, err)
 	}
 
 	if err := waitForMemberCount(ctx, newLeader, 2, 60*time.Second); err != nil {

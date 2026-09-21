@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
@@ -40,10 +41,10 @@ const (
 
 // statusClusterBlock mirrors the cluster block of the status API response.
 type statusClusterBlock struct {
-	Role          string `json:"role"`
-	NodeID        int    `json:"nodeId"`
-	ClusterID     string `json:"clusterId"`
-	SchemaVersion int    `json:"schemaVersion"`
+	Role          string     `json:"role"`
+	NodeID        pki.NodeID `json:"nodeId"`
+	ClusterID     string     `json:"clusterId"`
+	SchemaVersion int        `json:"schemaVersion"`
 }
 
 type statusResult struct {
@@ -66,7 +67,7 @@ func (m *Manager) StartDiscovery(ctx context.Context) error {
 
 	if !m.config.HasJoinToken {
 		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
-			zap.Int("node_id", m.nodeID),
+			zap.String("node_id", m.raftID),
 		)
 
 		if err := m.bootstrapCluster(); err != nil {
@@ -94,7 +95,7 @@ func (m *Manager) joinExistingCluster(parent context.Context) error {
 	}
 
 	logger.RaftLog.Info("Starting cluster discovery",
-		zap.Int("node_id", m.nodeID),
+		zap.String("node_id", m.raftID),
 		zap.Int("peer_count", len(m.config.Peers)),
 		zap.Duration("give_up_after", giveUpAfter),
 	)
@@ -125,7 +126,7 @@ func (m *Manager) joinExistingCluster(parent context.Context) error {
 				lastErrLog = time.Now()
 
 				logger.RaftLog.Error("Cluster discovery attempt failed; retrying",
-					zap.Int("node_id", m.nodeID),
+					zap.String("node_id", m.raftID),
 					zap.Error(err),
 				)
 			}
@@ -133,7 +134,7 @@ func (m *Manager) joinExistingCluster(parent context.Context) error {
 
 		if err == nil && joined {
 			logger.RaftLog.Info("Cluster formation complete",
-				zap.Int("node_id", m.nodeID),
+				zap.String("node_id", m.raftID),
 				zap.Duration("took", time.Since(started)),
 			)
 
@@ -170,8 +171,8 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		if nodeID > 0 && nodeID == m.nodeID {
-			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", ErrDiscoveryFatal, peerAddr, nodeID)
+		if nodeID != "" && nodeID == m.raftID {
+			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%s) as this node; its data directory was copied from this one", ErrDiscoveryFatal, peerAddr, nodeID)
 		}
 
 		if state != peerFormed {
@@ -210,16 +211,16 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 
 // clusterHTTPDo dials a peer's cluster port over mTLS and performs a
 // single HTTP request. Pass nil body for GET-style requests. When
-// expectedPeerID is non-zero the dial verifies the peer's leaf CN
-// resolves to that node-id; pass 0 only from discovery paths that are
-// still learning the peer's identity.
-func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, expectedPeerID int, path string, body io.Reader) (*http.Response, error) {
+// expectedPeerID is non-empty the dial verifies the peer's leaf CN
+// resolves to that node-id; pass an empty string only from discovery
+// paths that are still learning the peer's identity.
+func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, expectedPeerID string, path string, body io.Reader) (*http.Response, error) {
 	var (
 		conn net.Conn
 		err  error
 	)
 
-	if expectedPeerID == 0 {
+	if expectedPeerID == "" {
 		conn, err = m.clusterListener.DialAnyPeer(ctx, peerAddr, listener.ALPNHTTP, discoveryHTTPTimeout)
 	} else {
 		conn, err = m.clusterListener.Dial(ctx, peerAddr, expectedPeerID, listener.ALPNHTTP, discoveryHTTPTimeout)
@@ -272,28 +273,28 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 	return resp, nil
 }
 
-func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, int, string, int) {
-	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, 0, "/cluster/status", nil)
+func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, string, string, int) {
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, "", "/cluster/status", nil)
 	if err != nil {
-		return peerUnreachable, 0, "", 0
+		return peerUnreachable, "", "", 0
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return peerUnreachable, 0, "", 0
+		return peerUnreachable, "", "", 0
 	}
 
 	var status statusResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
-		return peerUnreachable, 0, "", 0
+		return peerUnreachable, "", "", 0
 	}
 
 	if status.Result.Cluster == nil {
-		return peerForming, 0, "", 0
+		return peerForming, "", "", 0
 	}
 
-	nodeID := status.Result.Cluster.NodeID
+	nodeID := string(status.Result.Cluster.NodeID)
 	role := status.Result.Cluster.Role
 	clusterID := status.Result.Cluster.ClusterID
 	schemaVersion := status.Result.Cluster.SchemaVersion
@@ -307,8 +308,8 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 
 // ProbePeerSchemaVersion reads the peer's reported Schema Version from
 // its /cluster/status endpoint.
-func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, peerAddr string) (int, error) {
-	if peerNodeID <= 0 {
+func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID string, peerAddr string) (int, error) {
+	if peerNodeID == "" {
 		return 0, fmt.Errorf("peer node id required")
 	}
 
@@ -345,17 +346,17 @@ func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, pe
 	return v, nil
 }
 
-func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID int, clusterID string) error {
+func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID string, clusterID string) error {
 	payload := struct {
-		NodeID        int    `json:"nodeId"`
-		RaftAddress   string `json:"raftAddress"`
-		APIAddress    string `json:"apiAddress"`
-		ClusterID     string `json:"clusterId"`
-		SchemaVersion int    `json:"schemaVersion"`
-		BinaryVersion string `json:"binaryVersion,omitempty"`
-		Suffrage      string `json:"suffrage,omitempty"`
+		NodeID        pki.NodeID `json:"nodeId"`
+		RaftAddress   string     `json:"raftAddress"`
+		APIAddress    string     `json:"apiAddress"`
+		ClusterID     string     `json:"clusterId"`
+		SchemaVersion int        `json:"schemaVersion"`
+		BinaryVersion string     `json:"binaryVersion,omitempty"`
+		Suffrage      string     `json:"suffrage,omitempty"`
 	}{
-		NodeID:        m.nodeID,
+		NodeID:        pki.NodeID(m.raftID),
 		RaftAddress:   string(m.transport.LocalAddr()),
 		APIAddress:    m.config.APIAddress,
 		ClusterID:     clusterID,
@@ -383,7 +384,7 @@ func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID i
 
 	logger.RaftLog.Info("Joined existing cluster via peer",
 		zap.String("peer", peerAddr),
-		zap.Int("node_id", m.nodeID),
+		zap.String("node_id", m.raftID),
 	)
 
 	return nil
@@ -394,7 +395,7 @@ func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID i
 func (m *Manager) bootstrapCluster() error {
 	cfg := raft.Configuration{
 		Servers: []raft.Server{{
-			ID:      raft.ServerID(fmt.Sprintf("%d", m.nodeID)),
+			ID:      raft.ServerID(m.raftID),
 			Address: m.transport.LocalAddr(),
 		}},
 	}

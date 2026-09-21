@@ -9,8 +9,11 @@ import { setupApiServer, httpError } from "@/test/apiServer";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import DrainNodeModal from "./DrainNodeModal";
 import ResumeNodeModal from "./ResumeNodeModal";
+import RemoveNodeModal from "./RemoveNodeModal";
 
 const api = setupApiServer();
+
+const NODE_UUID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec";
 
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
@@ -76,6 +79,7 @@ describe("DrainNodeModal", () => {
       <DrainNodeModal
         open
         nodeId={2}
+        nodeLabel="2"
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -118,6 +122,22 @@ describe("DrainNodeModal", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(button(/^Drain$/)).toBeEnabled();
   });
+
+  it("shows the full node identity alongside the display name", () => {
+    renderWithProviders(
+      <DrainNodeModal
+        open
+        nodeId={NODE_UUID}
+        nodeLabel="core-1"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+      { auth: {} },
+    );
+
+    expect(dialog()).toHaveAccessibleName("Drain node core-1?");
+    expect(within(dialog()).getByText(NODE_UUID)).toBeVisible();
+  });
 });
 
 describe("ResumeNodeModal", () => {
@@ -133,6 +153,7 @@ describe("ResumeNodeModal", () => {
       <ResumeNodeModal
         open
         nodeId={3}
+        nodeLabel="3"
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -145,5 +166,42 @@ describe("ResumeNodeModal", () => {
     await user.click(button(/^Resume$/));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the full node identity alongside the display name", () => {
+    renderWithProviders(
+      <ResumeNodeModal
+        open
+        nodeId={NODE_UUID}
+        nodeLabel="core-1"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+      { auth: {} },
+    );
+
+    expect(dialog()).toHaveAccessibleName("Resume node core-1?");
+    expect(within(dialog()).getByText(NODE_UUID)).toBeVisible();
+  });
+});
+
+describe("RemoveNodeModal", () => {
+  it("shows the full node identity alongside the display name", () => {
+    renderWithProviders(
+      <RemoveNodeModal
+        open
+        nodeId={NODE_UUID}
+        nodeLabel="core-1"
+        drainState="drained"
+        health="healthy"
+        isSelf={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+      { auth: {} },
+    );
+
+    expect(dialog()).toHaveAccessibleName("Remove node core-1?");
+    expect(within(dialog()).getByText(NODE_UUID)).toBeVisible();
   });
 });

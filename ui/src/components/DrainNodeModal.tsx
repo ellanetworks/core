@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
+import { NodeId } from "@/queries/nodeId";
 import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import NodeIdentity from "@/components/NodeIdentity";
 
 interface Props {
   open: boolean;
-  nodeId: number;
+  nodeId: NodeId;
+  nodeLabel: string;
   onClose: () => void;
   onSuccess: (result: DrainResponse) => void;
 }
@@ -16,6 +19,7 @@ interface Props {
 const DrainNodeModal: React.FC<Props> = ({
   open,
   nodeId,
+  nodeLabel,
   onClose,
   onSuccess,
 }) => {
@@ -33,13 +37,14 @@ const DrainNodeModal: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       onConfirm={handleConfirm}
-      title={`Drain node ${nodeId}?`}
+      title={`Drain node ${nodeLabel}?`}
       description={
         <>
-          Stops new traffic on <strong>node {nodeId}</strong> and moves its
+          Stops new traffic on <strong>node {nodeLabel}</strong> and moves its
           subscribers to the rest of the cluster.
         </>
       }
+      extra={<NodeIdentity nodeId={nodeId} />}
       confirmLabel="Drain"
       confirmingLabel="Draining…"
       confirmColor="warning"

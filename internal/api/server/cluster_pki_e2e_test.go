@@ -47,14 +47,14 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 	// Leader's own cert generated and pre-pinned. MintJoinToken
 	// embeds this fingerprint so the joiner pins the bootstrap TLS
 	// handshake.
-	leaderAgent := pkiagent.NewAgent(1, clusterID, t.TempDir())
+	leaderAgent := pkiagent.NewAgent("1", clusterID, t.TempDir())
 	if err := leaderAgent.GenerateAndPersist(); err != nil {
 		t.Fatalf("leader generate: %v", err)
 	}
 
 	leaderLeaf := leaderAgent.Leaf().Leaf
 	if err := leaderDB.UpsertClusterNodeCert(ctx, &db.ClusterNodeCert{
-		NodeID:      1,
+		NodeID:      "1",
 		Fingerprint: pki.Fingerprint(leaderLeaf),
 		CertPEM:     string(pki.EncodeCertPEM(leaderLeaf)),
 		AddedAt:     time.Now().Unix(),
@@ -95,14 +95,14 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 	t.Cleanup(leaderLn.Stop)
 
 	// Mint a token for nodeID 2 (the joiner). Leader is nodeID 1.
-	token, err := issuer.MintJoinToken(ctx, 2, 5*time.Minute)
+	token, err := issuer.MintJoinToken(ctx, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("mint join token: %v", err)
 	}
 
 	// Fresh joiner agent. ClusterID intentionally left empty —
 	// JoinFlow is responsible for pulling it from the token.
-	joiner := pkiagent.NewAgent(2, "", t.TempDir())
+	joiner := pkiagent.NewAgent("2", "", t.TempDir())
 
 	if err := joiner.JoinFlow(ctx, leaderAddr, token); err != nil {
 		t.Fatalf("join flow: %v", err)
@@ -122,13 +122,13 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 		t.Fatalf("registered pin not found: %v", err)
 	}
 
-	if row.NodeID != 2 {
-		t.Fatalf("registered pin has nodeID %d, want 2", row.NodeID)
+	if row.NodeID != "2" {
+		t.Fatalf("registered pin has nodeID %s, want 2", row.NodeID)
 	}
 
 	// Replay protection: a second JoinFlow with the same token
 	// must fail (single-use).
-	replay := pkiagent.NewAgent(2, "", t.TempDir())
+	replay := pkiagent.NewAgent("2", "", t.TempDir())
 	if err := replay.JoinFlow(ctx, leaderAddr, token); err == nil {
 		t.Fatal("second JoinFlow with the same token should fail")
 	}
@@ -144,7 +144,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 
 	t.Cleanup(joinerLn.Stop)
 
-	conn, err := joinerLn.Dial(ctx, leaderAddr, 1, listener.ALPNHTTP, 5*time.Second)
+	conn, err := joinerLn.Dial(ctx, leaderAddr, "1", listener.ALPNHTTP, 5*time.Second)
 	if err != nil {
 		t.Fatalf("post-join mTLS dial failed: %v", err)
 	}
