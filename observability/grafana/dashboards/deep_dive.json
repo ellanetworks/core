@@ -209,8 +209,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-pyroscope-datasource",
-        "uid": "${DS_PYROSCOPE}"
+        "type": "prometheus",
+        "uid": "${DS_MIMIR}"
       },
       "description": "Current heap memory in use by Ella Core. High values may indicate memory leaks or inefficient allocations.",
       "fieldConfig": {
@@ -268,12 +268,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-pyroscope-datasource",
-            "uid": "${DS_PYROSCOPE}"
+            "type": "prometheus",
+            "uid": "${DS_MIMIR}"
           },
-          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
-          "profileTypeId": "memory:inuse_space:bytes:space:bytes",
-          "queryType": "metrics",
+          "editorMode": "code",
+          "expr": "go_memstats_heap_inuse_bytes{job=~\"$job\",instance=~\"$instance\"}",
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -282,8 +283,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-pyroscope-datasource",
-        "uid": "${DS_PYROSCOPE}"
+        "type": "prometheus",
+        "uid": "${DS_MIMIR}"
       },
       "description": "Number of active goroutines. A steadily increasing count may indicate goroutine leaks.",
       "fieldConfig": {
@@ -341,12 +342,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-pyroscope-datasource",
-            "uid": "${DS_PYROSCOPE}"
+            "type": "prometheus",
+            "uid": "${DS_MIMIR}"
           },
-          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
-          "profileTypeId": "goroutine:goroutine:count:goroutine:count",
-          "queryType": "metrics",
+          "editorMode": "code",
+          "expr": "go_goroutines{job=~\"$job\",instance=~\"$instance\"}",
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -977,8 +979,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-pyroscope-datasource",
-        "uid": "${DS_PYROSCOPE}"
+        "type": "prometheus",
+        "uid": "${DS_MIMIR}"
       },
       "description": "Heap memory usage over time. Correlate spikes with specific operations using the flame graph.",
       "fieldConfig": {
@@ -1061,12 +1063,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-pyroscope-datasource",
-            "uid": "${DS_PYROSCOPE}"
+            "type": "prometheus",
+            "uid": "${DS_MIMIR}"
           },
-          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
-          "profileTypeId": "memory:inuse_space:bytes:space:bytes",
-          "queryType": "metrics",
+          "editorMode": "code",
+          "expr": "go_memstats_heap_inuse_bytes{job=~\"$job\",instance=~\"$instance\"}",
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -1524,7 +1527,7 @@
             "type": "tempo",
             "uid": "${DS_TEMPO}"
           },
-          "query": "{resource.service.name = \"${trace_service}\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server} | max_over_time(span:duration)",
+          "query": "{resource.service.name = \"${trace_service}\" && resource.service.instance.id = \"$instance\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server} | max_over_time(span:duration)",
           "queryType": "traceql",
           "refId": "A"
         }
@@ -1618,7 +1621,7 @@
             "uid": "${DS_TEMPO}"
           },
           "limit": 50,
-          "query": "{resource.service.name = \"${trace_service}\" && rootName !~ \".*pprof.*\" && rootName !~ \".*metrics.*\"}",
+          "query": "{resource.service.name = \"${trace_service}\" && resource.service.instance.id = \"$instance\" && rootName !~ \".*pprof.*\" && rootName !~ \".*metrics.*\"}",
           "queryType": "traceql",
           "refId": "A"
         }
@@ -1764,7 +1767,7 @@
             "uid": "${DS_TEMPO}"
           },
           "limit": 50,
-          "query": "{resource.service.name = \"${trace_service}\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server && duration > 1ms}",
+          "query": "{resource.service.name = \"${trace_service}\" && resource.service.instance.id = \"$instance\" && span.network.protocol.name =~ \"ngap|s1ap\" && kind = server && duration > 1ms}",
           "queryType": "traceql",
           "refId": "A",
           "spss": 1
@@ -1893,7 +1896,7 @@
             "type": "grafana-pyroscope-datasource",
             "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\", instance=\"$instance\"}",
           "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
           "queryType": "profile",
           "refId": "A"
@@ -1922,7 +1925,7 @@
             "type": "grafana-pyroscope-datasource",
             "uid": "${DS_PYROSCOPE}"
           },
-          "labelSelector": "{service_name=\"${pyroscope_service}\"}",
+          "labelSelector": "{service_name=\"${pyroscope_service}\", instance=\"$instance\"}",
           "profileTypeId": "memory:inuse_space:bytes:space:bytes",
           "queryType": "profile",
           "refId": "A"
@@ -2080,25 +2083,6 @@
           }
         ],
         "query": "ella-core",
-        "type": "textbox"
-      },
-      {
-        "current": {
-          "text": "",
-          "value": ""
-        },
-        "description": "Optional: Filter traces by tag (e.g., host.name=raspberrypi). Leave empty for all traces.",
-        "hide": 2,
-        "label": "Trace Filter",
-        "name": "trace_host",
-        "options": [
-          {
-            "selected": true,
-            "text": "",
-            "value": ""
-          }
-        ],
-        "query": "",
         "type": "textbox"
       },
       {

@@ -49,11 +49,32 @@ prometheus.remote_write "default" {
 // Loki Logs - Capture from systemd journal and push to Loki
 // ============================================================================
 
+loki.relabel "journal_units" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    regex         = "ella-core(@.*)?\\.service"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "ella-core"
+  }
+}
+
 loki.source.journal "ella_core" {
   format_as_json = true
   max_age        = "12h"
   path           = "/var/log/journal"
   matches        = "_SYSTEMD_UNIT=ella-core.service"
+  relabel_rules  = loki.relabel.journal_units.rules
   labels         = {
     job      = "ella-core",
     instance = "127.0.0.1:5002",
@@ -131,6 +152,21 @@ otelcol.receiver.otlp "default" {
   http {
     endpoint = "0.0.0.0:4318"
   }
+  output {
+    traces = [otelcol.processor.transform.instance_id.input]
+  }
+}
+
+otelcol.processor.transform "instance_id" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context    = "resource"
+    statements = [
+      `set(attributes["service.instance.id"], "127.0.0.1:5002")`,
+    ]
+  }
+
   output {
     traces = [otelcol.processor.batch.default.input]
   }
