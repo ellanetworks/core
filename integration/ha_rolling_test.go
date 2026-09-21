@@ -166,8 +166,19 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		if !isLast && targetSchema > baselineSchema {
 			expectedLaggards := remainingBaselineNodes(upgradeOrder, step+1)
 
-			HALogf(t, "intermediate: expecting applied=%d, laggard ∈ %v",
-				baselineSchema, expectedLaggards)
+			expectedLaggardIDs := make([]client.NodeID, 0, len(expectedLaggards))
+
+			for _, laggardNum := range expectedLaggards {
+				id, err := nodeIDOf(ctx, clients[laggardNum-1])
+				if err != nil {
+					t.Fatalf("resolve identity of node %d: %v", laggardNum, err)
+				}
+
+				expectedLaggardIDs = append(expectedLaggardIDs, id)
+			}
+
+			HALogf(t, "intermediate: expecting applied=%d, laggard ∈ %v (%v)",
+				baselineSchema, expectedLaggards, expectedLaggardIDs)
 
 			waitForPending := func(c *client.Client, label string) {
 				if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
@@ -191,9 +202,9 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 							return fmt.Errorf("pending.targetSchema=%d, want <= %d", pending.TargetSchema, targetSchema)
 						}
 
-						if !contains(expectedLaggards, pending.LaggardNodeId) {
-							return fmt.Errorf("pending.laggardNodeId=%d not in %v",
-								pending.LaggardNodeId, expectedLaggards)
+						if !contains(expectedLaggardIDs, pending.LaggardNodeId) {
+							return fmt.Errorf("pending.laggardNodeId=%s not in %v",
+								pending.LaggardNodeId, expectedLaggardIDs)
 						}
 
 						return nil
@@ -391,7 +402,7 @@ func remainingBaselineNodes(upgradeOrder []int, upgradedSoFar int) []int {
 	return out
 }
 
-func contains(xs []int, v int) bool {
+func contains[T comparable](xs []T, v T) bool {
 	for _, x := range xs {
 		if x == v {
 			return true

@@ -105,8 +105,8 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
         {!token && (
           <>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              This will mint a single-use token that admits one new node to the cluster.
-              The token must be copied and added to the new node.
+              This will mint a single-use token that admits one new node to the
+              cluster. The token must be copied and added to the new node.
             </Typography>
 
             <TextField

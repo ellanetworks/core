@@ -749,7 +749,7 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 			appliedSchema = status.Cluster.AppliedSchemaVersion
 
 			if p := status.Cluster.PendingMigration; p != nil {
-				pending = fmt.Sprintf(" pending={current=%d target=%d laggard=%d}",
+				pending = fmt.Sprintf(" pending={current=%d target=%d laggard=%s}",
 					p.CurrentSchema, p.TargetSchema, p.LaggardNodeId)
 			}
 		}
