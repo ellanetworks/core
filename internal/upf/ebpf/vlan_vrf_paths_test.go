@@ -137,7 +137,9 @@ func TestVLANVRFInjection(t *testing.T) {
 		for _, outer6 := range []bool{false, true} {
 			t.Run(fmt.Sprintf("buffered=%t/outer6=%t", buffered, outer6), func(t *testing.T) {
 				f := setupVLANVRF(t, true, false, false, false)
-				addVethPair(t, vethInjDev, vethInjPeer)
+				addVethPair(t, vethInjDev, vethInjPeer, func() {
+					_ = writeSysctl("net.ipv6.conf."+vethInjPeer+".disable_ipv6", "1")
+				})
 				ipCmdOK(t, "link", "set", vethInjDev, "master", "ellvvrf")
 				inj := ifByName(t, vethInjDev)
 				prog := f.obj.VethXdpFunc
