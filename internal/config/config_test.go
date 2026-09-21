@@ -4,6 +4,7 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -116,6 +117,9 @@ func TestValidConfigSuccess(t *testing.T) {
 			config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
 				return nil, nil
 			}
+			config.VRFDeviceForInterfaceFunc = func(name string) (string, error) {
+				return "", nil
+			}
 
 			originalContent, err := os.ReadFile(tc.file)
 			if err != nil {
@@ -199,6 +203,7 @@ func TestValidConfigNoTLSSuccess(t *testing.T) {
 	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
 		return nil, nil
 	}
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
 
 	confFilePath := "testdata/valid_no_tls.yaml"
 
@@ -263,6 +268,7 @@ func TestN2PortResolution(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
 	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
 	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
 
 	const tmpl = `logging:
   system:
@@ -361,6 +367,7 @@ func TestBadConfigFail(t *testing.T) {
 func TestAttachModeResolution(t *testing.T) {
 	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
 	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
 
 	const tmpl = `logging:
   system:
@@ -439,6 +446,78 @@ interfaces:
 			// has to resolve the subinterface at config time.
 			if vlanRead != tc.wantVLANRead {
 				t.Errorf("VLAN resolution ran = %v, want %v", vlanRead, tc.wantVLANRead)
+			}
+		})
+	}
+}
+
+func TestUserPlaneVRFConsistency(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+datapath:
+  attach-mode: "xdp-native"
+`
+
+	cases := []struct {
+		name         string
+		vrfs         map[string]string
+		lookupErr    error
+		wantErrParts string
+	}{
+		{"both in the main table", map[string]string{}, nil, ""},
+		{"same vrf", map[string]string{InterfaceName: "up-vrf", "enp6s0": "up-vrf"}, nil, ""},
+		{"different vrfs", map[string]string{InterfaceName: "up-vrf", "enp6s0": "down-vrf"}, nil, "must be in the same VRF"},
+		{"only n3 in a vrf", map[string]string{InterfaceName: "up-vrf"}, nil, "must be in the same VRF"},
+		{"only n6 in a vrf", map[string]string{"enp6s0": "up-vrf"}, nil, "must be in the same VRF"},
+		{"lookup failure", nil, errors.New("netlink: dump failed"), "cannot resolve VRF"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			config.VRFDeviceForInterfaceFunc = func(name string) (string, error) {
+				if tc.lookupErr != nil {
+					return "", tc.lookupErr
+				}
+
+				return tc.vrfs[name], nil
+			}
+
+			path := filepath.Join(t.TempDir(), "core.yaml")
+			if err := os.WriteFile(path, []byte(tmpl), 0o600); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+
+			_, err := config.Validate(path)
+			if tc.wantErrParts != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErrParts, err)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}

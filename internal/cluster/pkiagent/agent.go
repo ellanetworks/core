@@ -42,9 +42,10 @@ const (
 
 // Agent manages the local node's cluster cert.
 type Agent struct {
-	NodeID    string
-	ClusterID string
-	DataDir   string
+	NodeID      string
+	ClusterID   string
+	DataDir     string
+	BindAddress string
 
 	current atomic.Pointer[tls.Certificate]
 }
@@ -52,11 +53,12 @@ type Agent struct {
 // NewAgent returns an unloaded agent. Callers must invoke Load,
 // JoinFlow, or GenerateAndPersist before Leaf returns a usable
 // certificate.
-func NewAgent(nodeID string, clusterID, dataDir string) *Agent {
+func NewAgent(nodeID string, clusterID, dataDir, bindAddress string) *Agent {
 	return &Agent{
-		NodeID:    nodeID,
-		ClusterID: clusterID,
-		DataDir:   dataDir,
+		NodeID:      nodeID,
+		ClusterID:   clusterID,
+		DataDir:     dataDir,
+		BindAddress: bindAddress,
 	}
 }
 
@@ -243,7 +245,12 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		return fmt.Errorf("prepare cert: %w", err)
 	}
 
-	client, err := bootstrapHTTPClient(pins)
+	device, err := listener.ResolveBindDevice(ctx, a.BindAddress)
+	if err != nil {
+		return fmt.Errorf("resolve cluster bootstrap bind %s: %w", a.BindAddress, err)
+	}
+
+	client, err := bootstrapHTTPClient(pins, device)
 	if err != nil {
 		return err
 	}
@@ -503,7 +510,7 @@ func syncDir(dir string) error {
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap
 // ALPN without a client cert and pins the server cert to any
 // fingerprint in expectedFingerprints.
-func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
+func bootstrapHTTPClient(expectedFingerprints []string, device string) (*http.Client, error) {
 	raws := make([][]byte, 0, len(expectedFingerprints))
 
 	for _, fp := range expectedFingerprints {
@@ -545,6 +552,7 @@ func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig:       tlsCfg,
+			DialContext:           listener.DialContextTCPFromDevice(device),
 			ForceAttemptHTTP2:     false,
 			ResponseHeaderTimeout: 10 * time.Second,
 		},

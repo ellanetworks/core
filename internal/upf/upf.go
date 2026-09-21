@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel/attribute"
@@ -133,7 +134,19 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
+	n3RoutingIface, err := net.InterfaceByName(n3Interface.Name)
+	if err != nil {
+		return nil, fmt.Errorf("lookup N3 routing interface %s: %w", n3Interface.Name, err)
+	}
+
+	n6RoutingIface, err := net.InterfaceByName(n6Interface.Name)
+	if err != nil {
+		return nil, fmt.Errorf("lookup N6 routing interface %s: %w", n6Interface.Name, err)
+	}
+
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
+	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -163,6 +176,14 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session engine: %w", err)
 	}
+
+	n3VRFDevice, err := netutil.VRFDeviceForInterface(n3Interface.Name)
+	if err != nil {
+		logger.UpfLog.Warn("failed to resolve N3 VRF device, gNB neighbours will be resolved against the main routing table",
+			zap.String("n3_interface", n3Interface.Name), zap.Error(err))
+	}
+
+	se.SetN3VRFDevice(n3VRFDevice)
 
 	notificationReader, err := ringbuf.NewReader(bpfObjects.NocpMap)
 	if err != nil {
@@ -222,6 +243,12 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	} else {
 		upf.bufferResponder = bufferResponder
 		se.SetDownlinkBuffer(bufferResponder)
+	}
+
+	if err := enslaveVethPairsToReferenceVRF(n3Interface.Name); err != nil {
+		upf.Close(ctx)
+
+		return nil, fmt.Errorf("failed to enslave veth pairs to the N3 VRF: %w", err)
 	}
 
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped

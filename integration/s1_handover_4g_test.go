@@ -25,7 +25,7 @@ import (
 // ACKNOWLEDGE → COMMAND → STATUS TRANSFER → NOTIFY) and switched the UPF downlink
 // to the target eNB only at notify (TS 36.413 §8.4, TS 23.401 §5.5.1.2.2).
 func TestIntegration4GS1Handover(t *testing.T) {
-	suites.Require(t, suites.Handover4G)
+	suites.RequireAll(t, suites.Handover4G, suites.Handover4GVRF)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration4GS1Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -38,7 +38,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 
 	scenariosToRun := []string{"s1enb/s1_handover", "s1enb/s1_handover_indirect_forwarding", "s1enb/s1_handover_ping_pong"}
 
-	composeFile := HandoverComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, HandoverComposeFile())
 	coreAPI := APIAddress()
 	coreN2 := HandoverCoreN2Address()
 
@@ -51,7 +51,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 
 	dc.ComposeCleanup(ctx)
 
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up: %v", err)
 	}
 
@@ -61,7 +61,7 @@ func TestIntegration4GS1Handover(t *testing.T) {
 
 		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
-		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(cleanupCtx, composeDir, composeFiles...)
 	})
 
 	coreClient, err := client.New(&client.Config{BaseURLs: []string{coreAPI}})

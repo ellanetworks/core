@@ -12,7 +12,7 @@ import (
 // TestIntegration5GBGP runs the shared BGP suite (runBGPSuite in
 // bgp_common_test.go) with a 5G PDU session holding the advertised UE route.
 func TestIntegration5GBGP(t *testing.T) {
-	suites.Require(t, suites.BGP5G)
+	suites.RequireAll(t, suites.BGP5G, suites.BGP5GVRF)
 
 	runBGPSuite(t, "gnb/session_hold")
 }

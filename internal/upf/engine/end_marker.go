@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
 )
@@ -74,7 +76,7 @@ type endMarkerSockets struct {
 	closed bool
 }
 
-func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
+func (s *endMarkerSockets) get(local netip.Addr, device string) (*net.UDPConn, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -86,9 +88,22 @@ func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
 		return sock, nil
 	}
 
-	sock, err := net.ListenUDP("udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, gtpuPort)))
+	lc := net.ListenConfig{}
+
+	if device != "" {
+		lc.Control = netutil.BindToDeviceControl(device)
+	}
+
+	conn, err := lc.ListenPacket(context.Background(), "udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, gtpuPort)).String())
 	if err != nil {
 		return nil, fmt.Errorf("bind %s for GTP-U End Markers: %w", local, err)
+	}
+
+	sock, ok := conn.(*net.UDPConn)
+	if !ok {
+		_ = conn.Close()
+
+		return nil, fmt.Errorf("bind %s for GTP-U End Markers: not a UDP socket", local)
 	}
 
 	if err := sock.SetReadBuffer(endMarkerReadBuffer); err != nil {
@@ -136,13 +151,13 @@ func (s *endMarkerSockets) Close() error {
 	return firstErr
 }
 
-func (s *endMarkerSockets) send(t endMarkerTarget, count int) error {
+func (s *endMarkerSockets) send(t endMarkerTarget, count int, device string) error {
 	local := t.local
 	if !local.IsValid() || local.Is4() != t.peer.Is4() {
 		return fmt.Errorf("no local address matching peer %s to source an End Marker from", t.peer)
 	}
 
-	sock, err := s.get(local)
+	sock, err := s.get(local, device)
 	if err != nil {
 		return err
 	}
@@ -160,8 +175,10 @@ func (s *endMarkerSockets) send(t endMarkerTarget, count int) error {
 }
 
 func (conn *SessionEngine) sendEndMarkers(targets []endMarkerTarget) {
+	device := conn.N3VRFDevice()
+
 	for _, t := range targets {
-		if err := conn.endMarkers.send(t, endMarkersPerSwitch); err != nil {
+		if err := conn.endMarkers.send(t, endMarkersPerSwitch, device); err != nil {
 			logger.UpfLog.Warn("failed to send GTP-U End Marker",
 				logger.TEID(t.teid), zap.String("peer", t.peer.String()), zap.Error(err))
 

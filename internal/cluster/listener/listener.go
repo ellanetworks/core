@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
@@ -101,6 +102,11 @@ type Listener struct {
 	// connections from a peer whose pin has been removed.
 	connMu sync.Mutex
 	conns  map[*tls.Conn]struct{}
+
+	bindMu       sync.Mutex
+	bindResolved bool
+	bindAddr     string
+	bindDevice   string
 }
 
 // New creates a Listener from the given config. Register ALPN handlers
@@ -177,17 +183,57 @@ func (l *Listener) Deregister(alpn string) {
 	delete(l.handlers, alpn)
 }
 
+func (l *Listener) bindTarget(ctx context.Context) (string, string, error) {
+	l.bindMu.Lock()
+	defer l.bindMu.Unlock()
+
+	if l.bindResolved {
+		return l.bindAddr, l.bindDevice, nil
+	}
+
+	addr, device, err := bindAddressAndDevice(ctx, l.cfg.BindAddress)
+	if err != nil {
+		return "", "", err
+	}
+
+	l.bindAddr = addr
+	l.bindDevice = device
+	l.bindResolved = true
+
+	return l.bindAddr, l.bindDevice, nil
+}
+
+func (l *Listener) setBindTarget(addr, device string) {
+	l.bindMu.Lock()
+	defer l.bindMu.Unlock()
+
+	l.bindAddr = addr
+	l.bindDevice = device
+	l.bindResolved = true
+}
+
 // Start binds the TCP socket and begins accepting and dispatching
 // connections in the background. Returns immediately after the socket
 // is bound (or with an error if binding fails). Cancel ctx or call
 // Stop to shut down the accept loop.
 func (l *Listener) Start(ctx context.Context) error {
+	bindAddr, device, err := bindAddressAndDevice(ctx, l.cfg.BindAddress)
+	if err != nil {
+		return fmt.Errorf("resolve cluster listener bind %s: %w", l.cfg.BindAddress, err)
+	}
+
 	lc := net.ListenConfig{}
 
-	tcpLn, err := lc.Listen(ctx, "tcp", l.cfg.BindAddress)
+	if device != "" {
+		lc.Control = netutil.BindToDeviceControl(device)
+	}
+
+	tcpLn, err := lc.Listen(ctx, "tcp", bindAddr)
 	if err != nil {
 		return fmt.Errorf("cluster listener bind %s: %w", l.cfg.BindAddress, err)
 	}
+
+	l.setBindTarget(bindAddr, device)
 
 	tlsLn := tls.NewListener(tcpLn, l.tlsConfig)
 

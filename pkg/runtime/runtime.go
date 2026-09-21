@@ -198,7 +198,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// joining node it gets it from the join token's claims;
 		// across restarts it's recovered from the on-disk leaf's
 		// SPIFFE URI.
-		pki = newPKIState(raftID, "", dataDir)
+		pki = newPKIState(raftID, "", dataDir, cfg.Cluster.BindAddress)
 
 		// Join-token path runs before the listener comes up so raft
 		// can mTLS-handshake as soon as it forms.
@@ -371,6 +371,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		bgp.WithKernel(realKernel),
 		bgp.WithImportPrefixStore(importStore),
 		bgp.WithRouteFilter(routeFilter),
+		bgp.WithN6Interface(cfg.Interfaces.N6.Name),
 	)
 
 	bgpSettings, err := dbInstance.GetBGPSettings(ctx)

@@ -136,12 +136,27 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 
 	var listener *Listener
 
+	var bindDevice string
+
 	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, isTransient, func() error {
 		if err := bind(); err != nil {
 			return err
 		}
 
-		l, err := serverSocketConfig.Listen("sctp", laddr)
+		cfg := serverSocketConfig
+
+		device, err := netutil.VRFBindDevice(interfaceName, address)
+		if err != nil {
+			return err
+		}
+
+		bindDevice = device
+
+		if bindDevice != "" {
+			cfg.Control = netutil.BindToDeviceControl(bindDevice)
+		}
+
+		l, err := cfg.Listen("sctp", laddr)
 		if err != nil {
 			return fmt.Errorf("failed to listen on %s: %w", laddr, err)
 		}
@@ -155,6 +170,7 @@ func Listen(ctx context.Context, address string, port int, interfaceName string)
 	}
 
 	listener.ifaceName = interfaceName
+	listener.bindDevice = bindDevice
 	listener.reqAddr = &SCTPAddr{IPAddrs: laddr.IPAddrs, Port: listener.laddr.Port}
 
 	return listener, nil
@@ -172,6 +188,10 @@ func (s *Server) Serve(ctx context.Context, ln *Listener) {
 	logFields := []zap.Field{zap.String("listener", s.cfg.Name), zap.String("address", addr.String())}
 	if ln.ifaceName != "" {
 		logFields = append(logFields, zap.String("interface_name", ln.ifaceName))
+	}
+
+	if ln.bindDevice != "" {
+		logFields = append(logFields, zap.String("vrf", ln.bindDevice))
 	}
 
 	s.cfg.Logger.Info("SCTP server started", logFields...)

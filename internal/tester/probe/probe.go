@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/ellanetworks/core/internal/netutil"
 )
 
 type Protocol string
@@ -106,23 +108,8 @@ func RunFromAddr(ctx context.Context, srcAddr, dst string, ipv6 bool) error {
 	return nil
 }
 
-func bindToDeviceControl(tun string) func(network, address string, c syscall.RawConn) error {
-	return func(_, _ string, c syscall.RawConn) error {
-		var sockErr error
-
-		ctrlErr := c.Control(func(fd uintptr) {
-			sockErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, tun)
-		})
-		if ctrlErr != nil {
-			return ctrlErr
-		}
-
-		return sockErr
-	}
-}
-
 func reusableBindToDeviceControl(tun string) func(network, address string, c syscall.RawConn) error {
-	bind := bindToDeviceControl(tun)
+	bind := netutil.BindToDeviceControl(tun)
 
 	return func(network, address string, c syscall.RawConn) error {
 		if err := bind(network, address, c); err != nil {
@@ -145,7 +132,7 @@ func reusableBindToDeviceControl(tun string) func(network, address string, c sys
 // SendUDPOneWay sends a single datagram from a UE's TUN device and returns
 // without waiting for a reply.
 func SendUDPOneWay(ctx context.Context, tun, dst string, port int, payload []byte) error {
-	dialer := net.Dialer{Control: bindToDeviceControl(tun)}
+	dialer := net.Dialer{Control: netutil.BindToDeviceControl(tun)}
 
 	conn, err := dialer.DialContext(ctx, "udp", net.JoinHostPort(dst, strconv.Itoa(port)))
 	if err != nil {
@@ -166,7 +153,7 @@ func SendUDPOneWay(ctx context.Context, tun, dst string, port int, payload []byt
 func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
-		Control: bindToDeviceControl(tun),
+		Control: netutil.BindToDeviceControl(tun),
 	}
 
 	conn, err := dialer.DialContext(ctx, "udp", net.JoinHostPort(dst, strconv.Itoa(port)))
@@ -218,7 +205,7 @@ func SendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 func sendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte, srcPortBase int) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
-		Control: bindToDeviceControl(tun),
+		Control: netutil.BindToDeviceControl(tun),
 	}
 
 	ok := 0

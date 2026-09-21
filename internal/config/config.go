@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
 )
@@ -364,6 +365,10 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n6.name is empty")
 	}
 
+	if err := validateUserPlaneVRF(n3InterfaceName, c.Interfaces.N6.Name); err != nil {
+		return Config{}, err
+	}
+
 	if c.Interfaces.API == (APIInterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.api is empty")
 	}
@@ -638,6 +643,35 @@ func resolveAttachMode(x XDPYaml, d DatapathYaml) (string, error) {
 	}
 
 	return "", errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
+}
+
+var VRFDeviceForInterfaceFunc = netutil.VRFDeviceForInterface
+
+func vrfDomainName(vrf string) string {
+	if vrf == "" {
+		return "the main routing table"
+	}
+
+	return fmt.Sprintf("VRF %q", vrf)
+}
+
+func validateUserPlaneVRF(n3Name, n6Name string) error {
+	n3VRF, err := VRFDeviceForInterfaceFunc(n3Name)
+	if err != nil {
+		return fmt.Errorf("cannot resolve VRF for interfaces.n3 (%s): %w", n3Name, err)
+	}
+
+	n6VRF, err := VRFDeviceForInterfaceFunc(n6Name)
+	if err != nil {
+		return fmt.Errorf("cannot resolve VRF for interfaces.n6 (%s): %w", n6Name, err)
+	}
+
+	if n3VRF != n6VRF {
+		return fmt.Errorf("interfaces.n3 (%s) is in %s but interfaces.n6 (%s) is in %s; n3 and n6 must be in the same VRF",
+			n3Name, vrfDomainName(n3VRF), n6Name, vrfDomainName(n6VRF))
+	}
+
+	return nil
 }
 
 var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {

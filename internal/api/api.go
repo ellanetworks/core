@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -139,34 +138,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	s.httpServer = srv
 
 	go func() {
-		lc := net.ListenConfig{}
-		if cfg.Interfaces.API.Name != "" {
-			lc.Control = func(network, address string, c syscall.RawConn) error {
-				var setSockOptErr error
-
-				if err := c.Control(func(fd uintptr) {
-					setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, cfg.Interfaces.API.Name)
-				}); err != nil {
-					return err
-				}
-
-				return setSockOptErr
-			}
-		}
-
-		// A bind can transiently fail while a shared N2/N3 interface flaps; retry.
-		var ln net.Listener
-
-		listenErr := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, netutil.IsAddrNotAvailable, func() error {
-			l, err := lc.Listen(ctx, "tcp", httpAddr)
-			if err != nil {
-				return err
-			}
-
-			ln = l
-
-			return nil
-		})
+		ln, bindDevice, listenErr := listenAPI(ctx, cfg.Interfaces.API, httpAddr)
 		if listenErr != nil {
 			logger.APILog.Fatal("couldn't create listener", zap.Error(listenErr))
 			return
@@ -178,6 +150,10 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		}
 		if cfg.Interfaces.API.Name != "" {
 			logFields = append(logFields, zap.String("interface", cfg.Interfaces.API.Name))
+		}
+
+		if bindDevice != "" && bindDevice != cfg.Interfaces.API.Name {
+			logFields = append(logFields, zap.String("vrf", bindDevice))
 		}
 
 		logger.APILog.Info("API server started", logFields...)
@@ -377,6 +353,52 @@ func (s *Server) Handler() http.Handler {
 // Shutdown gracefully shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+func listenAPI(ctx context.Context, api config.APIInterface, addr string) (net.Listener, string, error) {
+	var (
+		ln         net.Listener
+		bindDevice string
+	)
+
+	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, netutil.IsAddrNotAvailable, func() error {
+		lc := net.ListenConfig{}
+
+		bindDevice = apiBindDevice(api)
+		if bindDevice != "" {
+			lc.Control = netutil.BindToDeviceControl(bindDevice)
+		}
+
+		l, err := lc.Listen(ctx, "tcp", addr)
+		if err != nil {
+			return err
+		}
+
+		ln = l
+
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	return ln, bindDevice, nil
+}
+
+func apiBindDevice(api config.APIInterface) string {
+	if api.Name != "" {
+		return api.Name
+	}
+
+	device, err := netutil.VRFDeviceForAddress(api.Address)
+	if err != nil {
+		logger.APILog.Warn("could not resolve VRF device for API listener, running without VRF binding",
+			zap.String("address", api.Address), zap.Error(err))
+
+		return ""
+	}
+
+	return device
 }
 
 func resolveScheme(cfg config.Config) Scheme {

@@ -300,8 +300,10 @@ const (
 	N3N6EntrypointTcVarLocalSwitch         = "local_switch"
 	N3N6EntrypointTcVarMasquerade          = "masquerade"
 	N3N6EntrypointTcVarN3Ifindex           = "n3_ifindex"
+	N3N6EntrypointTcVarN3RoutingIfindex    = "n3_routing_ifindex"
 	N3N6EntrypointTcVarN3Vlan              = "n3_vlan"
 	N3N6EntrypointTcVarN6Ifindex           = "n6_ifindex"
+	N3N6EntrypointTcVarN6RoutingIfindex    = "n6_routing_ifindex"
 	N3N6EntrypointTcVarN6Vlan              = "n6_vlan"
 	N3N6EntrypointTcVarNatPortMax          = "nat_port_max"
 	N3N6EntrypointTcVarNatPortMin          = "nat_port_min"
@@ -401,8 +403,10 @@ type N3N6EntrypointTcVariableSpecs struct {
 	LocalSwitch       *ebpf.VariableSpec `ebpf:"local_switch"`
 	Masquerade        *ebpf.VariableSpec `ebpf:"masquerade"`
 	N3Ifindex         *ebpf.VariableSpec `ebpf:"n3_ifindex"`
+	N3RoutingIfindex  *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
 	N3Vlan            *ebpf.VariableSpec `ebpf:"n3_vlan"`
 	N6Ifindex         *ebpf.VariableSpec `ebpf:"n6_ifindex"`
+	N6RoutingIfindex  *ebpf.VariableSpec `ebpf:"n6_routing_ifindex"`
 	N6Vlan            *ebpf.VariableSpec `ebpf:"n6_vlan"`
 	NatPortMax        *ebpf.VariableSpec `ebpf:"nat_port_max"`
 	NatPortMin        *ebpf.VariableSpec `ebpf:"nat_port_min"`
@@ -502,8 +506,10 @@ type N3N6EntrypointTcVariables struct {
 	LocalSwitch       *ebpf.Variable `ebpf:"local_switch"`
 	Masquerade        *ebpf.Variable `ebpf:"masquerade"`
 	N3Ifindex         *ebpf.Variable `ebpf:"n3_ifindex"`
+	N3RoutingIfindex  *ebpf.Variable `ebpf:"n3_routing_ifindex"`
 	N3Vlan            *ebpf.Variable `ebpf:"n3_vlan"`
 	N6Ifindex         *ebpf.Variable `ebpf:"n6_ifindex"`
+	N6RoutingIfindex  *ebpf.Variable `ebpf:"n6_routing_ifindex"`
 	N6Vlan            *ebpf.Variable `ebpf:"n6_vlan"`
 	NatPortMax        *ebpf.Variable `ebpf:"nat_port_max"`
 	NatPortMin        *ebpf.Variable `ebpf:"nat_port_min"`

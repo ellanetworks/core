@@ -18,7 +18,7 @@ import (
 
 // TS 23.502 §4.9.1.3.3
 func TestIntegration5GN2Handover(t *testing.T) {
-	suites.Require(t, suites.Handover5G)
+	suites.RequireAll(t, suites.Handover5G, suites.Handover5GVRF)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration5GN2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -29,7 +29,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 
 	const composeDir = "compose/n2-handover/"
 
-	composeFile := HandoverComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, HandoverComposeFile())
 	coreAPI := APIAddress()
 	coreN2 := HandoverCoreN2Address()
 
@@ -44,7 +44,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	dc.ComposeCleanup(ctx)
 
 	// Bring up the stack.
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestIntegration5GN2Handover(t *testing.T) {
 
 		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
-		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(cleanupCtx, composeDir, composeFiles...)
 	})
 
 	// Wait for core readiness.
