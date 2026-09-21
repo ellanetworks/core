@@ -16,6 +16,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -347,16 +348,26 @@ func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, toke
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) // #nosec G107 -- url built from operator-configured peer or Raft-tracked leader
+	// #nosec G107 -- the seed address is caller-supplied, so the dial
+	// outcome is deliberately not echoed back to the caller below.
+	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("POST %s: %w", url, err)
+		logger.EllaLog.Warn("cluster PKI register request failed",
+			zap.String("url", url), zap.Error(err))
+
+		return errors.New("could not reach the cluster address")
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%s returned %d: %s", url, resp.StatusCode, string(msg))
+
+		logger.EllaLog.Warn("cluster PKI register request rejected",
+			zap.String("url", url), zap.Int("status", resp.StatusCode),
+			zap.String("body", string(msg)))
+
+		return fmt.Errorf("the cluster rejected this node's registration (status %d)", resp.StatusCode)
 	}
 
 	var out RegisterResponse

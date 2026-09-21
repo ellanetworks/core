@@ -142,3 +142,36 @@ func TestClusterJoinStatusIsPollable(t *testing.T) {
 		t.Fatalf("status must carry the failure back to the operator, got %s", body)
 	}
 }
+
+func TestValidateClusterJoinRequest_RejectsUnroutableSeeds(t *testing.T) {
+	token := strings.Repeat("A", 96)
+
+	for _, addr := range []string{
+		"169.254.169.254:7000",
+		"0.0.0.0:7000",
+		"224.0.0.1:7000",
+		"[fe80::1]:7000",
+	} {
+		req := &ClusterJoinRequest{Token: token, SeedAddresses: []string{addr}}
+		if err := validateClusterJoinRequest(req); err == nil {
+			t.Errorf("seed %q must be rejected: a cluster peer never lives there", addr)
+		}
+	}
+}
+
+func TestValidateClusterJoinRequest_AcceptsRoutableSeeds(t *testing.T) {
+	token := strings.Repeat("A", 96)
+
+	for _, addr := range []string{
+		"10.100.0.11:7000",
+		"192.168.1.5:7000",
+		"127.0.0.1:7000",
+		"ella-core-2:7000",
+		"[2001:db8::1]:7000",
+	} {
+		req := &ClusterJoinRequest{Token: token, SeedAddresses: []string{addr}}
+		if err := validateClusterJoinRequest(req); err != nil {
+			t.Errorf("seed %q must be accepted, got %v", addr, err)
+		}
+	}
+}

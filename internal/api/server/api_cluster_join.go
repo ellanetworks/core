@@ -65,12 +65,17 @@ func validateClusterJoinRequest(req *ClusterJoinRequest) error {
 	}
 
 	for i, addr := range req.SeedAddresses {
-		if _, _, err := net.SplitHostPort(addr); err != nil {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
 			if strings.Contains(addr, "://") {
 				return fmt.Errorf("seedAddresses[%d] %q looks like a URL; seed addresses must be host:port (e.g. 10.0.0.1:7000)", i, addr)
 			}
 
 			return fmt.Errorf("seedAddresses[%d] %q is not a valid host:port: %w", i, addr, err)
+		}
+
+		if err := checkSeedHost(host); err != nil {
+			return fmt.Errorf("seedAddresses[%d] %q: %w", i, addr, err)
 		}
 	}
 
@@ -78,6 +83,28 @@ func validateClusterJoinRequest(req *ClusterJoinRequest) error {
 	case "", "voter", "nonvoter":
 	default:
 		return fmt.Errorf("suffrage must be \"voter\" or \"nonvoter\", got %q", req.Suffrage)
+	}
+
+	return nil
+}
+
+// checkSeedHost rejects addresses a cluster peer never legitimately has.
+// This endpoint takes its seeds from an unauthenticated request body, so
+// without this a caller could aim a node's outbound dial at link-local
+// space, which is where cloud instance metadata lives.
+func checkSeedHost(host string) error {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+
+	switch {
+	case ip.IsUnspecified():
+		return errors.New("must not be an unspecified address")
+	case ip.IsLinkLocalUnicast(), ip.IsLinkLocalMulticast():
+		return errors.New("must not be a link-local address")
+	case ip.IsMulticast():
+		return errors.New("must not be a multicast address")
 	}
 
 	return nil
