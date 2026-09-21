@@ -24,7 +24,7 @@ import (
 // proves the MME's path-switch handler reprogrammed the UPF downlink to the
 // target eNB (TS 36.413 §8.4.4).
 func TestIntegration4GX2Handover(t *testing.T) {
-	suites.Require(t, suites.Handover4G)
+	suites.RequireAll(t, suites.Handover4G, suites.Handover4GVRF)
 
 	if DetectIPFamily() == DualStack {
 		t.Skipf("skipping: TestIntegration4GX2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
@@ -38,7 +38,7 @@ func TestIntegration4GX2Handover(t *testing.T) {
 		scenario   = "s1enb/x2_handover_connectivity"
 	)
 
-	composeFile := HandoverComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, HandoverComposeFile())
 	coreAPI := APIAddress()
 	coreN2 := HandoverCoreN2Address()
 
@@ -51,7 +51,7 @@ func TestIntegration4GX2Handover(t *testing.T) {
 
 	dc.ComposeCleanup(ctx)
 
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up: %v", err)
 	}
 
@@ -61,7 +61,7 @@ func TestIntegration4GX2Handover(t *testing.T) {
 
 		captureServiceLogs(t, dc, composeDir, []string{"ella-core", "ella-core-tester"})
 
-		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(cleanupCtx, composeDir, composeFiles...)
 	})
 
 	coreClient, err := client.New(&client.Config{BaseURLs: []string{coreAPI}})

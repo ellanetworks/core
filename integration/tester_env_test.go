@@ -67,10 +67,11 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	const composeDir = "compose/core-tester/"
 
 	composeFile := ComposeFile()
+	composeFiles := withVRFOverlay(ctx, t, composeFile)
 
 	dc.ComposeCleanup(ctx)
 
-	if err := dc.ComposeUpWithFile(ctx, composeDir, composeFile); err != nil {
+	if err := dc.ComposeUpWithFiles(ctx, composeDir, composeFiles...); err != nil {
 		t.Fatalf("compose up (%s): %v", composeFile, err)
 	}
 
@@ -90,7 +91,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 			}
 		}
 
-		dc.ComposeDownWithFile(ctx, composeDir, composeFile)
+		dc.ComposeDownWithFiles(ctx, composeDir, composeFiles...)
 	})
 
 	cl, err := client.New(&client.Config{BaseURL: APIAddress()})

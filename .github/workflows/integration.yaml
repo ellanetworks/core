@@ -71,6 +71,7 @@ jobs:
       - name: Run ${{ matrix.suite }}
         env:
           INTEGRATION: "1"
+          VRF: ${{ matrix.topology == 'vrf' && '1' || '' }}
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
           INTEGRATION_LOG_DIR: ${{ runner.temp }}/integration-logs

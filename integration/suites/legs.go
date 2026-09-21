@@ -21,6 +21,7 @@ type Leg struct {
 	Setup          string `json:"setup"`
 	Run            string `json:"run"`
 	Skip           string `json:"skip"`
+	Topology       string `json:"topology,omitempty"`
 	Cell
 }
 
@@ -80,6 +81,7 @@ func BuildLegs(decls []Declaration, subtreePrefixes []string) ([]Leg, error) {
 				Setup:          def.Setup,
 				Run:            run,
 				Skip:           skip,
+				Topology:       def.Topology,
 				Cell:           c,
 			})
 		}

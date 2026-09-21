@@ -68,6 +68,7 @@ nav:
     - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Use VLANs: how_to/vlan.md
+    - Use VRFs: how_to/vrf.md
     - Use native XDP with veth: how_to/native_xdp_veth.md
     - Disable Merged Packets: how_to/disable_merged_packets.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
@@ -121,6 +122,7 @@ nav:
     - Advertising and receiving routes via BGP: explanation/bgp.md
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
+    - Ella Core and VRFs: explanation/vrf.md
 plugins:
   - search
   - glightbox

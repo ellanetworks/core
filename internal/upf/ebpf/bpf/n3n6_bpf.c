@@ -175,6 +175,7 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 
 	struct packet_context context = {
 		.ctx_buff = ctx,
+		.routing_ifindex = routing_ingress_ifindex(ctx, INTERFACE_N3),
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
@@ -259,6 +260,7 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 
 	struct packet_context context = {
 		.ctx_buff = ctx,
+		.routing_ifindex = routing_ingress_ifindex(ctx, INTERFACE_N3),
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
@@ -295,6 +297,7 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 
 	struct packet_context context = {
 		.ctx_buff = ctx,
+		.routing_ifindex = routing_ingress_ifindex(ctx, INTERFACE_N6),
 		.statistics = statistics,
 		.interface = INTERFACE_N6,
 	};
@@ -329,6 +332,7 @@ int upf_local_switch_func(struct __ctx_buff *ctx)
 
 	struct packet_context context = {
 		.ctx_buff = ctx,
+		.routing_ifindex = routing_ingress_ifindex(ctx, INTERFACE_N3),
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
@@ -447,6 +451,24 @@ int upf_entry_func(struct __ctx_buff *ctx)
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 
+	int expected_vlan = 0;
+	if (index == UPF_CALL_UPLINK && n3_routing_ifindex != (__u32)n3_ifindex)
+		expected_vlan = n3_vlan;
+	if (index == UPF_CALL_DOWNLINK && n6_routing_ifindex != (__u32)n6_ifindex)
+		expected_vlan = n6_vlan;
+	if (expected_vlan) {
+		__u16 ingress_vlan = 0;
+#if CTX_INBAND_VLAN
+		if (context.vlan && (const void *)(context.vlan + 1) <= context.data_end)
+			ingress_vlan = bpf_ntohs(context.vlan->h_vlan_TCI) & 0x0fff;
+#else
+		if (ctx->vlan_present)
+			ingress_vlan = ctx->vlan_tci & 0x0fff;
+#endif
+		if (ingress_vlan != expected_vlan)
+			return ctx_verdict(DEFAULT_CTX_ACTION);
+	}
+
 	bpf_tail_call(ctx, &upf_calls, index);
 
 	/* Only reached if the stage program is not populated in upf_calls. */
@@ -507,6 +529,7 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 
 	struct packet_context pkt_ctx = {
 		.ctx_buff = ctx,
+		.routing_ifindex = ctx_ingress_ifindex(ctx),
 		.interface = INTERFACE_N6,
 		.eth = eth,
 		.ip6 = ip6,

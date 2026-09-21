@@ -106,6 +106,22 @@ func Require(t *testing.T, suite Name) {
 	}
 }
 
+func RequireAll(t *testing.T, suites ...Name) {
+	t.Helper()
+
+	decls := make([]Declaration, 0, len(suites))
+
+	for _, suite := range suites {
+		decls = append(decls, Declaration{Test: t.Name(), Suite: string(suite)})
+	}
+
+	record(t, decls...)
+
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+}
+
 func RequireSplit(t *testing.T, prefix string, matching, rest Name) {
 	t.Helper()
 	DeclareSplit(t, prefix, matching, rest)
