@@ -5,16 +5,13 @@ package engine
 
 import (
 	"encoding/hex"
-	"errors"
 	"net"
 	"net/netip"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -25,7 +22,7 @@ func senderOrSkip(t *testing.T, local netip.Addr) *endMarkerSockets {
 
 	t.Cleanup(func() { _ = socks.Close() })
 
-	if _, err := socks.get(local); err != nil {
+	if _, err := socks.get(local, ""); err != nil {
 		t.Skipf("cannot bind %s:%d to send End Markers: %v", local, gtpuPort, err)
 	}
 
@@ -126,7 +123,7 @@ func TestEndMarkerSocketsSendToMultiplePeers(t *testing.T) {
 
 	for i, peer := range peers {
 		target := endMarkerTarget{teid: uint32(0x1000 + i), local: local, peer: peer}
-		if err := socks.send(target, 1); err != nil {
+		if err := socks.send(target, 1, ""); err != nil {
 			t.Fatalf("send to %s: %v", peer, err)
 		}
 	}
@@ -153,12 +150,16 @@ func TestEndMarkerSocketsReuseOneBinding(t *testing.T) {
 
 	socks := senderOrSkip(t, local)
 
-	first, err := socks.get(local)
+	first, err := socks.get(local, "")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 
-	second, err := socks.get(local)
+	if dev := boundDevice(t, first); dev != "" {
+		t.Errorf("End Marker socket bound to %q without a VRF device, want unbound", dev)
+	}
+
+	second, err := socks.get(local, "")
 	if err != nil {
 		t.Fatalf("second get: %v", err)
 	}
@@ -167,7 +168,7 @@ func TestEndMarkerSocketsReuseOneBinding(t *testing.T) {
 		t.Error("a second End Marker send rebound the port instead of reusing the socket")
 	}
 
-	if err := socks.send(endMarkerTarget{teid: 1, local: local, peer: peer}, 2); err != nil {
+	if err := socks.send(endMarkerTarget{teid: 1, local: local, peer: peer}, 2, ""); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 }
@@ -181,7 +182,7 @@ func TestEndMarkerSendRejectsMismatchedFamily(t *testing.T) {
 
 	var socks endMarkerSockets
 
-	if err := socks.send(target, 1); err == nil {
+	if err := socks.send(target, 1, ""); err == nil {
 		t.Error("sending an End Marker across address families should fail")
 	}
 }
@@ -196,38 +197,9 @@ func TestEndMarkerSocketsRefuseSendAfterClose(t *testing.T) {
 	}
 
 	target := endMarkerTarget{teid: 1, local: local, peer: netip.MustParseAddr("127.0.0.5")}
-	if err := socks.send(target, 1); err == nil {
+	if err := socks.send(target, 1, ""); err == nil {
 		t.Error("a send after shutdown reopened a socket nothing will close")
 	}
-}
-
-func nonLoopbackIPv4(t *testing.T) netip.Addr {
-	t.Helper()
-
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		t.Skipf("cannot list host addresses: %v", err)
-	}
-
-	for _, a := range addrs {
-		ipNet, ok := a.(*net.IPNet)
-		if !ok {
-			continue
-		}
-
-		ip, ok := netip.AddrFromSlice(ipNet.IP)
-		if !ok {
-			continue
-		}
-
-		if ip = ip.Unmap(); ip.Is4() && !ip.IsLoopback() {
-			return ip
-		}
-	}
-
-	t.Skip("no non-loopback IPv4 address on this host")
-
-	return netip.Addr{}
 }
 
 func boundDevice(t *testing.T, sock *net.UDPConn) string {
@@ -256,66 +228,20 @@ func boundDevice(t *testing.T, sock *net.UDPConn) string {
 	return strings.TrimRight(device, "\x00")
 }
 
-func stubEndMarkerVRF(t *testing.T, local netip.Addr, addrListErr error) {
-	t.Helper()
+func TestEndMarkerSocketBindsToProvidedVRFDevice(t *testing.T) {
+	local := netip.MustParseAddr("127.0.0.1")
 
-	oldAddrList, oldLinkByIndex := netutil.AddrList, netutil.LinkByIndex
+	socks := &endMarkerSockets{}
 
-	t.Cleanup(func() {
-		netutil.AddrList, netutil.LinkByIndex = oldAddrList, oldLinkByIndex
-	})
+	t.Cleanup(func() { _ = socks.Close() })
 
-	netutil.AddrList = func(link netlink.Link, family int) ([]netlink.Addr, error) {
-		if addrListErr != nil {
-			return nil, addrListErr
-		}
-
-		return []netlink.Addr{{
-			IPNet:     &net.IPNet{IP: local.AsSlice(), Mask: net.CIDRMask(24, 32)},
-			LinkIndex: 2,
-		}}, nil
-	}
-
-	netutil.LinkByIndex = func(index int) (netlink.Link, error) {
-		if index == 2 {
-			return &netlink.Vrf{LinkAttrs: netlink.LinkAttrs{Name: "lo", Index: 2}, Table: 1001}, nil
-		}
-
-		return nil, errors.New("no such index")
-	}
-}
-
-func TestEndMarkerSocketBindsToResolvedVRFDevice(t *testing.T) {
-	local := nonLoopbackIPv4(t)
-
-	stubEndMarkerVRF(t, local, nil)
-
-	socks := senderOrSkip(t, local)
-
-	sock, err := socks.get(local)
+	sock, err := socks.get(local, "lo")
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Skipf("cannot bind %s:%d with SO_BINDTODEVICE=lo: %v", local, gtpuPort, err)
 	}
 
 	if dev := boundDevice(t, sock); dev != "lo" {
-		t.Errorf("End Marker socket bound to %q, want the resolved VRF device lo", dev)
-	}
-}
-
-func TestEndMarkerSocketFallsBackWhenVRFResolutionFails(t *testing.T) {
-	local := nonLoopbackIPv4(t)
-
-	stubEndMarkerVRF(t, local, errors.New("netlink: dump failed"))
-
-	socks := senderOrSkip(t, local)
-
-	sock, err := socks.get(local)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-
-	if dev := boundDevice(t, sock); dev != "" {
-		t.Errorf("End Marker socket bound to %q, want unbound fallback on resolution error", dev)
+		t.Errorf("End Marker socket bound to %q, want the provided VRF device lo", dev)
 	}
 }
 
@@ -350,7 +276,7 @@ func TestEndMarkerSocketDrainsInboundGTPU(t *testing.T) {
 
 	socks := senderOrSkip(t, local)
 
-	sock, err := socks.get(local)
+	sock, err := socks.get(local, "")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

@@ -76,7 +76,7 @@ type endMarkerSockets struct {
 	closed bool
 }
 
-func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
+func (s *endMarkerSockets) get(local netip.Addr, device string) (*net.UDPConn, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -90,11 +90,7 @@ func (s *endMarkerSockets) get(local netip.Addr) (*net.UDPConn, error) {
 
 	lc := net.ListenConfig{}
 
-	device, err := netutil.VRFDeviceForAddress(local.String())
-	if err != nil {
-		logger.UpfLog.Warn("could not resolve VRF device for End Marker socket, running without VRF binding",
-			zap.String("local", local.String()), zap.Error(err))
-	} else if device != "" {
+	if device != "" {
 		lc.Control = netutil.BindToDeviceControl(device)
 	}
 
@@ -155,13 +151,13 @@ func (s *endMarkerSockets) Close() error {
 	return firstErr
 }
 
-func (s *endMarkerSockets) send(t endMarkerTarget, count int) error {
+func (s *endMarkerSockets) send(t endMarkerTarget, count int, device string) error {
 	local := t.local
 	if !local.IsValid() || local.Is4() != t.peer.Is4() {
 		return fmt.Errorf("no local address matching peer %s to source an End Marker from", t.peer)
 	}
 
-	sock, err := s.get(local)
+	sock, err := s.get(local, device)
 	if err != nil {
 		return err
 	}
@@ -179,8 +175,10 @@ func (s *endMarkerSockets) send(t endMarkerTarget, count int) error {
 }
 
 func (conn *SessionEngine) sendEndMarkers(targets []endMarkerTarget) {
+	device := conn.N3VRFDevice()
+
 	for _, t := range targets {
-		if err := conn.endMarkers.send(t, endMarkersPerSwitch); err != nil {
+		if err := conn.endMarkers.send(t, endMarkersPerSwitch, device); err != nil {
 			logger.UpfLog.Warn("failed to send GTP-U End Marker",
 				logger.TEID(t.teid), zap.String("peer", t.peer.String()), zap.Error(err))
 

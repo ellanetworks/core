@@ -244,7 +244,12 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		return fmt.Errorf("prepare cert: %w", err)
 	}
 
-	client, err := bootstrapHTTPClient(pins, a.BindAddress)
+	device, err := listener.ResolveBindDevice(ctx, a.BindAddress)
+	if err != nil {
+		return fmt.Errorf("resolve cluster bootstrap bind %s: %w", a.BindAddress, err)
+	}
+
+	client, err := bootstrapHTTPClient(pins, device)
 	if err != nil {
 		return err
 	}
@@ -494,7 +499,7 @@ func syncDir(dir string) error {
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap
 // ALPN without a client cert and pins the server cert to any
 // fingerprint in expectedFingerprints.
-func bootstrapHTTPClient(expectedFingerprints []string, bindAddress string) (*http.Client, error) {
+func bootstrapHTTPClient(expectedFingerprints []string, device string) (*http.Client, error) {
 	raws := make([][]byte, 0, len(expectedFingerprints))
 
 	for _, fp := range expectedFingerprints {
@@ -536,7 +541,7 @@ func bootstrapHTTPClient(expectedFingerprints []string, bindAddress string) (*ht
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig:       tlsCfg,
-			DialContext:           listener.DialContextTCPFrom(bindAddress),
+			DialContext:           listener.DialContextTCPFromDevice(device),
 			ForceAttemptHTTP2:     false,
 			ResponseHeaderTimeout: 10 * time.Second,
 		},

@@ -28,11 +28,11 @@ func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout t
 	return l.dial(ctx, addr, "", alpn, timeout)
 }
 
-func DialContextTCPFrom(bindAddress string) func(ctx context.Context, network, addr string) (net.Conn, error) {
+func DialContextTCPFromDevice(device string) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := &net.Dialer{}
 
-		if device := vrfDeviceForBindAddress(ctx, bindAddress); device != "" {
+		if device != "" {
 			dialer.Control = netutil.BindToDeviceControl(device)
 		}
 
@@ -57,7 +57,9 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID string,
 		defer cancel()
 	}
 
-	if device := vrfDeviceForBindAddress(ctx, l.cfg.BindAddress); device != "" {
+	if _, device, err := l.bindTarget(ctx); err != nil {
+		return nil, fmt.Errorf("resolve cluster dial bind %s: %w", l.cfg.BindAddress, err)
+	} else if device != "" {
 		dialer.NetDialer.Control = netutil.BindToDeviceControl(device)
 	}
 
