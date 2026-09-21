@@ -35,9 +35,6 @@ type BackupManifest struct {
 	SourceNodeID pki.NodeID `json:"source_node_id"`
 }
 
-// Backup writes a tar.gz archive (manifest.json, ella.db) to dst. The source
-// database is VACUUM INTO'd into a temp file first to produce a consistent,
-// WAL-free image before streaming.
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	ctx, span := tracer.Start(ctx, "db/backup", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
@@ -48,12 +45,6 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	}
 
 	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	if db.raftManager != nil {
-		if err := db.raftManager.Barrier(30 * time.Second); err != nil {
-			return fmt.Errorf("raft barrier before backup: %w", err)
-		}
-	}
 
 	dbTmp := filepath.Join(tmpDir, DBFilename)
 
