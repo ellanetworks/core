@@ -24,6 +24,7 @@ import (
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"go.etcd.io/bbolt"
+	bbolterrors "go.etcd.io/bbolt/errors"
 	"go.uber.org/zap"
 )
 
@@ -287,7 +288,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 			BoltOptions: &bbolt.Options{Timeout: boltOpenTimeout},
 		})
 		if bsErr != nil {
-			if errors.Is(bsErr, bbolt.ErrTimeout) {
+			if errors.Is(bsErr, bbolterrors.ErrTimeout) {
 				return fmt.Errorf("create bolt store at %s: timed out after %s waiting for the file lock: %w", boltPath, boltOpenTimeout, bsErr)
 			}
 
