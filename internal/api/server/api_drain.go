@@ -29,16 +29,9 @@ type DrainResponse struct {
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
 //
-// Runs on the Raft leader (followers forward).
+// Runs on the leader.
 func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
-			writeError(r.Context(), w, http.StatusMisdirectedRequest,
-				"not the leader; retry against the current leader", nil, logger.APILog)
-
-			return
-		}
-
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", nil, logger.APILog)
@@ -106,13 +99,6 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 // Runs on the leader.
 func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
-			writeError(r.Context(), w, http.StatusMisdirectedRequest,
-				"not the leader; retry against the current leader", nil, logger.APILog)
-
-			return
-		}
-
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", nil, logger.APILog)
