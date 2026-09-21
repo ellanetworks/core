@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,28 @@ import (
 )
 
 const vlanVRFPayload = "vlan-vrf regression payload"
+
+var (
+	vrfSupportOnce sync.Once
+	vrfSupportErr  error
+)
+
+func requireVRFSupport(t *testing.T) {
+	t.Helper()
+
+	vrfSupportOnce.Do(func() {
+		if out, err := ipCmd("link", "add", "ellvrfprobe", "type", "vrf", "table", "65534"); err != nil {
+			vrfSupportErr = fmt.Errorf("%s: %w", out, err)
+			return
+		}
+
+		_, _ = ipCmd("link", "del", "ellvrfprobe")
+	})
+
+	if vrfSupportErr != nil {
+		t.Skipf("kernel does not support VRF devices: %v", vrfSupportErr)
+	}
+}
 
 func setupVLANVRF(t *testing.T, shared, masquerade, localSwitch, attachVLAN bool) *t2 {
 	t.Helper()
@@ -40,6 +63,8 @@ func setupVLANVRF(t *testing.T, shared, masquerade, localSwitch, attachVLAN bool
 
 		t.Skip("VLAN VRF tests require an isolated network namespace; run with unshare --net")
 	}
+
+	requireVRFSupport(t)
 
 	const (
 		vrf = "ellvvrf"
