@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -180,5 +181,69 @@ func TestUpsertClusterMemberAtPreV20SchemaRejectsUUIDIdentity(t *testing.T) {
 	if _, err := d.applyUpsertClusterMember(ctx, member); err == nil {
 		t.Fatal("applyUpsertClusterMember accepted a UUID identity at schema 19; " +
 			"nodeID is an INTEGER PRIMARY KEY until v20, so the leader must migrate before writing its row")
+	}
+}
+
+func TestUpsertClusterMemberUUIDDefersUntilV20(t *testing.T) {
+	ctx := context.Background()
+	d := newClusterDatabaseAtV19(t)
+
+	const uuidNodeID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec"
+
+	_, err := d.applyUpsertClusterMember(ctx, &ClusterMember{
+		NodeID: uuidNodeID, RaftAddress: "10.0.0.4:7000", APIAddress: "10.0.0.4:5002", Suffrage: "voter",
+	})
+	if !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("upsert of a UUID identity at schema 19: got %v, want ErrMigrationPending", err)
+	}
+
+	_, err = d.applyUpsertClusterMember(ctx, &ClusterMember{
+		NodeID: "8", RaftAddress: "10.0.0.8:7000", APIAddress: "10.0.0.8:5002", Suffrage: "voter",
+	})
+	if err != nil {
+		t.Fatalf("upsert of a legacy identity at schema 19: %v", err)
+	}
+}
+
+func TestRedeemJoinTokenUUIDDefersUntilV20(t *testing.T) {
+	ctx := context.Background()
+	d := newClusterDatabaseAtV19(t)
+
+	const uuidNodeID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec"
+
+	_, err := d.applyRedeemJoinToken(ctx, &redeemJoinTokenPayload{
+		TokenID: "token", NodeID: uuidNodeID, Fingerprint: "sha256:aa", CertPEM: "pem",
+	})
+	if !errors.Is(err, ErrMigrationPending) {
+		t.Fatalf("redeem with a UUID identity at schema 19: got %v, want ErrMigrationPending", err)
+	}
+
+	_, err = d.applyRedeemJoinToken(ctx, &redeemJoinTokenPayload{
+		TokenID: "token", NodeID: "8", Fingerprint: "sha256:bb", CertPEM: "pem",
+	})
+	if errors.Is(err, ErrMigrationPending) {
+		t.Fatal("redeem with a legacy identity at schema 19 must not be gated on the v20 migration")
+	}
+}
+
+func TestUpsertClusterMemberUUIDSucceedsAtLatestSchema(t *testing.T) {
+	ctx := context.Background()
+	d := newStandaloneDB(t)
+
+	const uuidNodeID = "0199c4f1-2ab3-7c1d-9f2a-6fe8422da1ec"
+
+	if _, err := d.applyUpsertClusterMember(ctx, &ClusterMember{
+		NodeID: uuidNodeID, RaftAddress: "10.0.0.4:7000", APIAddress: "10.0.0.4:5002", Suffrage: "voter",
+	}); err != nil {
+		t.Fatalf("upsert of a UUID identity at the latest schema: %v", err)
+	}
+
+	member, err := d.GetClusterMember(ctx, uuidNodeID)
+	if err != nil {
+		t.Fatalf("GetClusterMember: %v", err)
+	}
+
+	if member.NodeID != uuidNodeID {
+		t.Fatalf("nodeID = %q, want %q", member.NodeID, uuidNodeID)
 	}
 }

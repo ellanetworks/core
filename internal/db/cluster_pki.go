@@ -155,6 +155,10 @@ type RedeemJoinTokenResult struct {
 }
 
 func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinTokenPayload) (any, error) {
+	if err := db.requireIdentitySchemaFor(ctx, string(p.NodeID)); err != nil {
+		return nil, err
+	}
+
 	runner := db.runner(ctx)
 	now := time.Now().Unix()
 

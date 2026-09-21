@@ -28,6 +28,18 @@ const (
 
 const clusterMemberIdentitySchema = 20
 
+func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string) error {
+	if db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		return nil
+	}
+
+	if _, ok := pki.LegacyNodeID(nodeID); ok {
+		return nil
+	}
+
+	return ErrMigrationPending
+}
+
 const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.raftAddress, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.suffrage, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
 
 const (

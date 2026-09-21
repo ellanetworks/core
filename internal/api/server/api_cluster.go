@@ -164,18 +164,6 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		if suffrage == "nonvoter" {
-			if err := dbInstance.AddNonvoter(string(req.NodeID), req.RaftAddress); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
-				return
-			}
-		} else {
-			if err := dbInstance.AddVoter(string(req.NodeID), req.RaftAddress); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
-				return
-			}
-		}
-
 		member := &db.ClusterMember{
 			NodeID:        string(req.NodeID),
 			RaftAddress:   req.RaftAddress,
@@ -187,6 +175,18 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to register cluster member", err, logger.APILog)
 			return
+		}
+
+		if suffrage == "nonvoter" {
+			if err := dbInstance.AddNonvoter(string(req.NodeID), req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
+				return
+			}
+		} else {
+			if err := dbInstance.AddVoter(string(req.NodeID), req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
+				return
+			}
 		}
 
 		actor := getActorFromContext(r)
@@ -218,10 +218,18 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		force := r.URL.Query().Get("force") == "true"
+
 		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
+				if force && dbInstance.IsRaftConfigurationMember(nodeID) {
+					removeStrandedConfigurationMember(w, r, dbInstance, nodeID)
+					return
+				}
+
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+
 				return
 			}
 
@@ -244,7 +252,6 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		// Drain precondition: refuse removal unless the node has been
 		// drained or the caller explicitly opts into force-remove.
 		// force=true skips the drain check but not the leader check.
-		force := r.URL.Query().Get("force") == "true"
 		if !force && member.DrainState != db.DrainStateDrained {
 			writeError(r.Context(), w, http.StatusConflict,
 				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%s/drain, or pass ?force=true to skip",
@@ -295,6 +302,38 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
 	})
+}
+
+func removeStrandedConfigurationMember(w http.ResponseWriter, r *http.Request, dbInstance *db.Database, nodeID string) {
+	if _, leaderID := dbInstance.LeaderAddressAndID(); leaderID != "" && leaderID == nodeID {
+		writeError(r.Context(), w, http.StatusConflict,
+			"Cannot remove the current leader; drain this node first so leadership transfers, then retry",
+			nil, logger.APILog)
+
+		return
+	}
+
+	if err := dbInstance.RemoveServer(nodeID); err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove server from Raft cluster", err, logger.APILog)
+		return
+	}
+
+	if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
+		logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
+			zap.String("node_id", nodeID), zap.Error(err))
+	}
+
+	dropPinForRemovedNode(r.Context(), dbInstance, clusterListenerForPeerLookup, nodeID)
+
+	logger.LogAuditEvent(
+		r.Context(),
+		ClusterMemberRemoveAction,
+		getActorFromContext(r),
+		getClientIP(r),
+		fmt.Sprintf("Removed cluster member node %s (no cluster_members row; force)", nodeID),
+	)
+
+	writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
 }
 
 const ClusterMemberPromoteAction = "cluster_member_promote"

@@ -1227,6 +1227,22 @@ func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID str
 	}
 }
 
+// IsRaftConfigurationMember reports whether nodeID is in the current Raft
+// configuration, regardless of whether it has a cluster_members row.
+func (db *Database) IsRaftConfigurationMember(nodeID string) bool {
+	if db.raftMemberIDs == nil {
+		return false
+	}
+
+	for _, id := range db.raftMemberIDs() {
+		if id == nodeID {
+			return true
+		}
+	}
+
+	return false
+}
+
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.
 func (db *Database) RemoveServer(nodeID string) error {
 	if db.raftManager == nil {

@@ -1508,6 +1508,10 @@ func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any,
 // reversing it would renumber live nodes.
 func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
+		if err := db.requireIdentitySchemaFor(ctx, m.NodeID); err != nil {
+			return nil, err
+		}
+
 		if err := db.runner(ctx).Query(ctx, db.upsertClusterMemberPreV20Stmt, m).Run(); err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
