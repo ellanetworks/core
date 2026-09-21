@@ -16,8 +16,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // BackupManifestVersion is the on-disk version of the backup tar.gz
@@ -37,7 +39,9 @@ type BackupManifest struct {
 
 // Backup writes a tar.gz archive (manifest.json, ella.db) to dst. The source
 // database is VACUUM INTO'd into a temp file first to produce a consistent,
-// WAL-free image before streaming.
+// WAL-free image before streaming. Runs on any node: the Raft barrier is a
+// best-effort freshness step, and the manifest records the applied index the
+// archive actually contains.
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	ctx, span := tracer.Start(ctx, "db/backup", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
@@ -51,7 +55,10 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	if db.raftManager != nil {
 		if err := db.raftManager.Barrier(30 * time.Second); err != nil {
-			return fmt.Errorf("raft barrier before backup: %w", err)
+			logger.From(ctx, logger.DBLog).Warn(
+				"Raft barrier before backup did not complete; backing up the state this node has already applied",
+				zap.Error(err),
+			)
 		}
 	}
 
