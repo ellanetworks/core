@@ -443,10 +443,16 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 		return applyResult, nil
 	}
 
+	capturedSchema, err := db.CurrentSchemaVersion(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read schema version for %s: %w", operation, err)
+	}
+
 	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{
 		Value:          changeset,
 		Operation:      operation,
 		RequiredSchema: minSchema,
+		CapturedSchema: capturedSchema,
 	})
 	if err != nil {
 		return nil, err
@@ -571,10 +577,16 @@ func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string
 		return &ellaraft.ProposeResult{Value: applyResult}, nil
 	}
 
+	capturedSchema, err := db.CurrentSchemaVersion(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read schema version for %s: %w", opName, err)
+	}
+
 	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{
 		Value:          changeset,
 		Operation:      opName,
 		RequiredSchema: h.minSchema,
+		CapturedSchema: capturedSchema,
 	})
 	if err != nil {
 		return nil, err
