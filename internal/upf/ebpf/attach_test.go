@@ -137,7 +137,7 @@ func (f *t2) injectDownlink(t *testing.T, frame []byte) { inject(t, f.n6Peer.Ind
 func (f *t2) captureN6(t *testing.T) int { return openCapture(t, f.n6Peer.Index) }
 func (f *t2) captureN3(t *testing.T) int { return openCapture(t, f.n3Peer.Index) }
 
-func addVethPair(t *testing.T, dev, peer string) {
+func addVethPair(t *testing.T, dev, peer string, beforeUp ...func()) {
 	t.Helper()
 
 	if out, err := ipCmd("link", "add", dev, "address", vethMAC(dev),
@@ -147,6 +147,10 @@ func addVethPair(t *testing.T, dev, peer string) {
 	}
 
 	t.Cleanup(func() { _, _ = ipCmd("link", "del", dev) })
+
+	for _, fn := range beforeUp {
+		fn()
+	}
 
 	for _, d := range []string{dev, peer} {
 		if out, err := ipCmd("link", "set", d, "mtu", t2VethMTU, "up"); err != nil {
