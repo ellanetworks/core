@@ -121,16 +121,12 @@ func TestIntegrationHAStandaloneGrowsIntoCluster(t *testing.T) {
 		ClusterAddressWithPort(3, 7000),
 	}
 
-	if err := writeNodeConfig(haComposeDir, 1, peers, "", ""); err != nil {
+	if err := writeNodeConfig(haComposeDir, 1, nil, "", ""); err != nil {
 		t.Fatalf("write cluster config for node 1: %v", err)
 	}
 
 	if err := dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, haNodeServices[0]); err != nil {
 		t.Fatalf("restart node 1 as founder: %v", err)
-	}
-
-	if err := foundCluster(ctx, getHANodeURLs()[0]); err != nil {
-		t.Fatalf("found cluster on the converted node: %v", err)
 	}
 
 	t.Cleanup(func() {

@@ -1195,7 +1195,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		ClusterAddressWithPort(3, 7000),
 	}
 
-	if err := writeNodeConfig(haComposeDir, 1, peers, "", ""); err != nil {
+	if err := writeNodeConfig(haComposeDir, 1, nil, "", ""); err != nil {
 		t.Fatalf("write node 1 config: %v", err)
 	}
 

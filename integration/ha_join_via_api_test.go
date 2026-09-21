@@ -177,7 +177,7 @@ func TestIntegrationHAJoinViaAPI(t *testing.T) {
 	composeFile := ComposeFile()
 	seeds := []string{ClusterAddressWithPort(1, 7000)}
 
-	if err := writeNodeConfig(haComposeDir, 1, []string{ClusterAddressWithPort(1, 7000)}, "", ""); err != nil {
+	if err := writeNodeConfig(haComposeDir, 1, nil, "", ""); err != nil {
 		t.Fatalf("write node 1 config: %v", err)
 	}
 
@@ -193,14 +193,6 @@ func TestIntegrationHAJoinViaAPI(t *testing.T) {
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices[:2], []*client.Client{node1})
 	})
-
-	if err := foundCluster(ctx, getHANodeURLs()[0]); err != nil {
-		t.Fatalf("found cluster on node 1: %v", err)
-	}
-
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		t.Fatalf("node 1 never became ready: %v", err)
-	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {

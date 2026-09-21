@@ -58,13 +58,8 @@ type ClusterConfig struct {
 	APIAddress       string
 	Peers            []string
 
-	// HasJoinToken signals that a join-token was provided in config. A node
-	// with a join-token is a joiner and must never solo-bootstrap.
 	HasJoinToken bool
 
-	// Bootstrap is the operator's affirmative declaration that this node
-	// founds a new cluster. Without it, a node that has no state and no
-	// join-token refuses to start rather than founding by inference.
 	Bootstrap bool
 
 	JoinTimeout       time.Duration
@@ -530,9 +525,6 @@ func resolveRaftIDForMode(cfg ClusterConfig, dataDir string) (string, error) {
 
 // applyTimeouts configures heartbeat / election / leader-lease / commit
 // timeouts.
-// applyTimeouts scales the raft timeouts by the performance multiplier and
-// returns the unmultiplied heartbeat and election timeouts, which a sole
-// voter reloads in place of the cluster values.
 func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) (time.Duration, time.Duration) {
 	baseHeartbeat, baseElection := rc.HeartbeatTimeout, rc.ElectionTimeout
 
@@ -824,10 +816,6 @@ func atLeast(d, floor time.Duration) time.Duration {
 	return d
 }
 
-// relaxSoleVoterTimeouts drops the performance multiplier while this node is
-// the only server in the configuration. A lone voter has nobody to coordinate
-// with, so the scaled heartbeat only delays the first election; the cluster
-// values are restored as soon as a second server is added.
 func (m *Manager) relaxSoleVoterTimeouts() {
 	if !m.config.Enabled {
 		return
@@ -848,8 +836,6 @@ func (m *Manager) relaxSoleVoterTimeouts() {
 	)
 }
 
-// restoreClusterTimeouts puts the performance multiplier back once the
-// configuration holds more than this node.
 func (m *Manager) restoreClusterTimeouts() {
 	if !m.config.Enabled || m.countServers() < 2 {
 		return
@@ -960,17 +946,12 @@ func (m *Manager) LeadershipTransfer() error {
 	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
 }
 
-// Server is one entry of the Raft configuration: the library's own
-// record of who is in the cluster and where to reach them.
 type Server struct {
 	NodeID   string
 	Address  string
 	Suffrage string
 }
 
-// Servers returns the Raft configuration. It is the source of truth for
-// a member's address and suffrage; cluster_members holds only the facts
-// Raft does not carry.
 func (m *Manager) Servers() []Server {
 	future := m.raft.GetConfiguration()
 	if err := future.Error(); err != nil {

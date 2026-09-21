@@ -633,8 +633,6 @@ func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
 
-	// Suffrage comes from the Raft configuration, so the node under test
-	// has to be in it: this node is, as the sole bootstrapped voter.
 	voterID := env.DB.RaftID()
 
 	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{

@@ -264,10 +264,6 @@ func bringUpHASnapshotCluster(t *testing.T, ctx context.Context, dc *DockerClien
 		return fail(err)
 	}
 
-	if err := waitForNodeReady(ctx, node1); err != nil {
-		return fail(fmt.Errorf("node 1 never became ready: %w", err))
-	}
-
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
 		return fail(err)

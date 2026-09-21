@@ -16,12 +16,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// Cluster config v2 drops the operator-supplied TLS fields (cluster.tls.*)
-// in favour of the in-band PKI bootstrapped at first-leader election, and
-// leaves cluster formation to the API. The tests below exercise the
-// remaining surface: node-id range, bind address format, peers list,
-// suffrage, timeouts.
-
 const baseConfigYAML = `
 db:
   path: /tmp/ella.db
@@ -282,8 +276,6 @@ func TestCluster_NoBindAddressDiscardsClusterSettings(t *testing.T) {
 	}
 }
 
-// A config that asks for HA but omits the bind address runs standalone, and
-// the operator has to be told which settings were ignored.
 func TestCluster_EnabledWithoutBindAddressIsWarnedAbout(t *testing.T) {
 	core, logs := observer.New(zapcore.WarnLevel)
 

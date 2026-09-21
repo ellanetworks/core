@@ -11,7 +11,6 @@ import ClusterSetupCard from "./ClusterSetupCard";
 const api = setupApiServer();
 
 const JOIN = "/api/v1/cluster/join";
-const BOOTSTRAP = "/api/v1/cluster/bootstrap";
 
 const TOKEN = "a".repeat(100);
 

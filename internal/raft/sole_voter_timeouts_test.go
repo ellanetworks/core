@@ -20,8 +20,6 @@ func TestSoleVoterTimeoutsReloadCleanly(t *testing.T) {
 
 	advertise := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 
-	// Production timeout shape: the library defaults scaled by the cluster
-	// performance multiplier, with no per-field overrides.
 	cfg := ClusterConfig{
 		Enabled:          true,
 		BindAddress:      advertise,
@@ -47,8 +45,6 @@ func TestSoleVoterTimeoutsReloadCleanly(t *testing.T) {
 			m.clusterTimeouts.HeartbeatTimeout, m.soleVoterTimeouts.HeartbeatTimeout)
 	}
 
-	// ReloadConfig cannot lower LeaderLeaseTimeout, so a heartbeat below the
-	// lease is rejected outright and the relax silently does nothing.
 	if err := m.raft.ReloadConfig(m.soleVoterTimeouts); err != nil {
 		t.Fatalf("sole-voter timeouts must be reloadable: %v", err)
 	}
@@ -93,7 +89,6 @@ func TestRelaxAndRestoreTrackServerCount(t *testing.T) {
 		t.Fatalf("sole voter never led: %v", err)
 	}
 
-	// A sole voter must not have the cluster values restored under it.
 	m.restoreClusterTimeouts()
 
 	if got := m.countServers(); got != 1 {

@@ -1268,8 +1268,6 @@ func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID str
 	}
 }
 
-// RaftServers returns the Raft configuration: the source of truth for a
-// member's address and suffrage.
 func (db *Database) RaftServers() []ellaraft.Server {
 	if db.raftServers == nil {
 		return nil
@@ -1278,7 +1276,6 @@ func (db *Database) RaftServers() []ellaraft.Server {
 	return db.raftServers()
 }
 
-// RaftServer returns the configuration entry for nodeID, or nil.
 func (db *Database) RaftServer(nodeID string) *ellaraft.Server {
 	for _, s := range db.RaftServers() {
 		if s.NodeID == nodeID {
@@ -1366,9 +1363,6 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 	return nil
 }
 
-// selfUpsertClusterMember writes the leader's own cluster_members row.
-// Idempotent. The API address comes from the raft manager; the Raft
-// address and suffrage live in the Raft configuration, not here.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil

@@ -191,6 +191,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		restoredFromBundle = restored
 
+		raftCfg.Bootstrap = restored
+
 		// cluster-id is unknown at construction; on a fresh first
 		// boot the agent gets it from the leader-init path; on a
 		// joining node it gets it from the join token's claims;
@@ -269,7 +271,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	if cfg.Cluster.Enabled && cfg.Cluster.JoinToken == "" && dbInstance.DiscoveryPending() {
+	if cfg.Cluster.Enabled && cfg.Cluster.JoinToken == "" && !raftCfg.Bootstrap && dbInstance.DiscoveryPending() {
 		if err := awaitAPIJoin(ctx, pki, dbInstance); err != nil {
 			if ctx.Err() != nil {
 				logger.EllaLog.Info("Shutdown signal received, exiting.")

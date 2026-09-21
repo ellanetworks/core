@@ -9,12 +9,6 @@ import (
 	"fmt"
 )
 
-// V20 retypes the raft node identity from INTEGER to TEXT everywhere it
-// is stored, gives cluster_members its own amfPointer column, drops
-// cluster_members.raftAddress and suffrage (the Raft configuration owns
-// both), and drops cluster_join_tokens.nodeID now that a join token
-// names no node. An existing member keeps its identity as the decimal
-// text it already had, and its AMF Pointer is that same number.
 func migrateV20(ctx context.Context, tx *sql.Tx) error {
 	if err := migrateV20ClusterMembers(ctx, tx); err != nil {
 		return err

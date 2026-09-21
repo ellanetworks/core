@@ -324,9 +324,6 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
 
-	// Creating the first user founds the cluster, so init has to be
-	// reachable before one exists. The secret is empty here; the handler
-	// resolves it from the database once the cluster is writable.
 	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, NewJWTSecret(nil), secureCookie, bcrypt.DefaultCost).ServeHTTP)
 
 	// POST /api/v1/cluster/members is not served during discovery; in mTLS
