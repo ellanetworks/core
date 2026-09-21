@@ -122,6 +122,7 @@ nav:
     - Advertising and receiving routes via BGP: explanation/bgp.md
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
+    - Ella Core and VRFs: explanation/vrf.md
 plugins:
   - search
   - glightbox

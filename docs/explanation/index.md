@@ -10,3 +10,4 @@ The following explanations provide context and clarification on key-topics relat
 - [Obtaining a PLMN ID for a Private Network](obtaining_plmn_id.md)
 - [Managing SIM Cards](managing_sim_cards.md)
 - [Advertising and receiving routes via BGP](bgp.md)
+- [Ella Core and VRFs](vrf.md)
