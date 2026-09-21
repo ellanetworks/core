@@ -9,9 +9,9 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
 	github.com/hashicorp/go-hclog v1.6.3
-	github.com/hashicorp/raft v1.7.3
+	github.com/hashicorp/raft v1.8.0
 	github.com/hashicorp/raft-autopilot v0.3.0
-	github.com/hashicorp/raft-boltdb/v2 v2.3.1
+	github.com/hashicorp/raft-boltdb/v2 v2.4.2
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/moby/moby/client v0.6.0
 	github.com/osrg/gobgp/v4 v4.9.0
@@ -54,7 +54,7 @@ require (
 	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
-	github.com/fatih/color v1.13.0 // indirect
+	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gaissmai/bart v0.26.1 // indirect
@@ -65,15 +65,15 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
-	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
-	github.com/hashicorp/go-metrics v0.5.4 // indirect
-	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-metrics v0.7.0 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/golang-lru v0.5.0 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/k-sone/critbitgo v1.4.0 // indirect
-	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
@@ -84,7 +84,7 @@ require (
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.70.1 // indirect
+	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
