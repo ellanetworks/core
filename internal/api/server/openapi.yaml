@@ -3074,14 +3074,7 @@ paths:
       tags: [Cluster]
       summary: Get a summary of cluster health
       description: >-
-        Returns a small, role-readable summary of cluster health: whether
-        clustering is enabled, whether a leader is known, the healthy and
-        total voter counts, and `failureTolerance`. Unlike
-        `/api/v1/cluster/autopilot` it exposes no per-node identities or
-        addresses, so it is readable by every role. Always answers 200: when
-        the leader cannot be reached the response reports
-        `hasLeader: false` rather than failing, so callers can render a
-        degraded state.
+        Returns a summary of cluster health.
       responses:
         "200":
           description: Cluster health summary.

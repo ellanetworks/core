@@ -145,9 +145,7 @@ None
 
 ## Get Cluster Health
 
-This path returns a summary of cluster health. Unlike `/api/v1/cluster/autopilot`, it exposes no per-node identities or addresses and is readable by every role.
-
-This path always returns `200`. When no leader is known, or the leader cannot be reached, the response reports `hasLeader: false` instead of failing, so callers can render a degraded state.
+This path returns a summary of cluster health.
 
 | Method | Path                      |
 | ------ | ------------------------- |
