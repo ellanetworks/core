@@ -43,6 +43,7 @@ var apiMatrixHAResources = map[string]apiMatrixHARunner{
 	"nat":                        runNATHAMatrix,
 	"flow_accounting":            runFlowAccountingHAMatrix,
 	"audit_logs":                 runAuditLogsHAMatrix,
+	"cluster_routing":            runClusterRoutingHAMatrix,
 }
 
 func TestAPIMatrixHA(t *testing.T) {

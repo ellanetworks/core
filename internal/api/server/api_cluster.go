@@ -184,14 +184,12 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		member := &db.ClusterMember{
-			NodeID:        string(req.NodeID),
-			APIAddress:    req.APIAddress,
-			BinaryVersion: req.BinaryVersion,
-		}
+		if err := peerReachableForJoin(r.Context(), string(req.NodeID), req.RaftAddress); err != nil {
+			writeError(r.Context(), w, http.StatusBadGateway,
+				fmt.Sprintf("Cannot reach node %s at the cluster address %s it asked to be registered under; check that node's cluster bind and advertise addresses and that it is reachable from this node",
+					req.NodeID, req.RaftAddress),
+				err, logger.APILog)
 
-		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to register cluster member", err, logger.APILog)
 			return
 		}
 
@@ -205,6 +203,17 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
 				return
 			}
+		}
+
+		member := &db.ClusterMember{
+			NodeID:        string(req.NodeID),
+			APIAddress:    req.APIAddress,
+			BinaryVersion: req.BinaryVersion,
+		}
+
+		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to register cluster member", err, logger.APILog)
+			return
 		}
 
 		actor := getActorFromContext(r)

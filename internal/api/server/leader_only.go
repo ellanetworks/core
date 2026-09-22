@@ -5,11 +5,15 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
+	"github.com/ellanetworks/core/internal/raft"
+	"go.uber.org/zap"
 )
 
 type clusterLeadership interface {
@@ -26,22 +30,45 @@ func LeaderOnly(dbInstance clusterLeadership, next http.Handler) http.Handler {
 			return
 		}
 
-		writeError(r.Context(), w, http.StatusMisdirectedRequest,
-			notLeaderMessage(r.Context(), dbInstance), nil, logger.APILog)
+		resp := notLeaderBody(r.Context(), dbInstance)
+
+		body, err := json.Marshal(&resp)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to marshal response", err, logger.APILog)
+			return
+		}
+
+		logger.From(r.Context(), logger.APILog).Warn(resp.Error,
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+		)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMisdirectedRequest)
+
+		if _, err := w.Write(body); err != nil {
+			logger.APILog.Error("Failed to write response", zap.Error(err))
+		}
 	})
 }
 
-func notLeaderMessage(ctx context.Context, dbInstance clusterLeadership) string {
+func notLeaderBody(ctx context.Context, dbInstance clusterLeadership) raft.NotLeaderBody {
 	const prefix = "This node is not the cluster leader"
 
-	_, leaderNodeID := dbInstance.LeaderAddressAndID()
+	leaderAddr, leaderNodeID := dbInstance.LeaderAddressAndID()
 	if leaderNodeID == "" {
-		return prefix + "; no leader is currently elected, retry shortly"
+		return raft.NotLeaderBody{Error: prefix + "; no leader is currently elected, retry shortly"}
+	}
+
+	resp := raft.NotLeaderBody{
+		Error:         fmt.Sprintf("%s; retry against node %s", prefix, leaderNodeID),
+		LeaderNodeID:  pki.NodeID(leaderNodeID),
+		LeaderAddress: leaderAddr,
 	}
 
 	member, err := dbInstance.GetClusterMember(ctx, leaderNodeID)
 	if err != nil || member == nil {
-		return fmt.Sprintf("%s; retry against node %s", prefix, leaderNodeID)
+		return resp
 	}
 
 	target := leaderNodeID
@@ -50,8 +77,12 @@ func notLeaderMessage(ctx context.Context, dbInstance clusterLeadership) string 
 	}
 
 	if member.APIAddress == "" {
-		return fmt.Sprintf("%s; retry against node %s", prefix, target)
+		resp.Error = fmt.Sprintf("%s; retry against node %s", prefix, target)
+		return resp
 	}
 
-	return fmt.Sprintf("%s; retry against node %s at %s", prefix, target, member.APIAddress)
+	resp.Error = fmt.Sprintf("%s; retry against node %s at %s", prefix, target, member.APIAddress)
+	resp.LeaderAPIAddress = member.APIAddress
+
+	return resp
 }

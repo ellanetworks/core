@@ -161,7 +161,7 @@ var (
 var (
 	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9))
-	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
+	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
 )
 

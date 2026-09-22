@@ -1579,9 +1579,24 @@ func (db *Database) applySetDisplayName(ctx context.Context, m *ClusterMember) (
 }
 
 func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (any, error) {
+	current := ClusterMember{NodeID: m.NodeID}
+
+	err := db.runner(ctx).Query(ctx, db.getDrainStateStmt, current).Get(&current)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("read drain state: %w", err)
+	}
+
+	if !drainTransitionAllowed(current.DrainState, m.DrainState) {
+		return normalizeDrainState(current.DrainState), nil
+	}
+
 	var outcome sqlair.Outcome
 
-	err := db.runner(ctx).Query(ctx, db.setDrainStateStmt, m).Get(&outcome)
+	err = db.runner(ctx).Query(ctx, db.setDrainStateStmt, m).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1595,7 +1610,7 @@ func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (a
 		return nil, ErrNotFound
 	}
 
-	return nil, nil
+	return m.DrainState, nil
 }
 
 func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayload) (any, error) {

@@ -70,6 +70,22 @@ type opaqueConn struct {
 // bundle. Swapped in by StartClusterHTTP before the server starts.
 var clusterListenerForPeerLookup *listener.Listener
 
+const joinReachabilityTimeout = 2 * time.Second
+
+func peerReachableForJoin(ctx context.Context, nodeID string, raftAddress string) error {
+	ln := clusterListenerForPeerLookup
+	if ln == nil {
+		return nil
+	}
+
+	conn, err := ln.Dial(ctx, raftAddress, nodeID, listener.ALPNHTTP, joinReachabilityTimeout)
+	if err != nil {
+		return err
+	}
+
+	return conn.Close()
+}
+
 // StartClusterHTTP registers the ALPNHTTP handler on the cluster
 // listener and starts an HTTP server serving the cluster-internal mux.
 // The returned function shuts down the server.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -222,6 +223,90 @@ func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected 403 for nodeId mismatch, got %d", resp.StatusCode)
+	}
+}
+
+func postClusterMember(t *testing.T, client *http.Client, serverAddr string, body string) (int, string) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	return resp.StatusCode, string(raw)
+}
+
+func TestClusterHTTP_AddMemberRejectsUnreachableJoiner(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []string{"1", "5"})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5"})
+	defer cleanup()
+
+	body := fmt.Sprintf(
+		`{"nodeId":5,"raftAddress":"127.0.0.1:1","apiAddress":"127.0.0.1:9001","schemaVersion":%d}`,
+		db.SchemaVersion(),
+	)
+
+	status, respBody := postClusterMember(t, clients["5"], serverAddr, body)
+
+	if status != http.StatusBadGateway {
+		t.Fatalf("expected 502 for an unreachable joiner, got %d (body: %s)", status, respBody)
+	}
+
+	if !strings.Contains(respBody, "Cannot reach node") {
+		t.Errorf("body = %s, want the unreachable-joiner message", respBody)
+	}
+}
+
+func TestClusterHTTP_AddMemberProbesBeforeTouchingRaft(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []string{"1", "5"})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5"})
+	defer cleanup()
+
+	joinerLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "5",
+		Pin:              pki.PinFunc(),
+
+		Leaf: pki.LeafFunc("5"),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := joinerLn.Start(ctx); err != nil {
+		t.Fatalf("start joiner listener: %v", err)
+	}
+
+	defer joinerLn.Stop()
+
+	body := fmt.Sprintf(
+		`{"nodeId":5,"raftAddress":%q,"apiAddress":"127.0.0.1:9001","schemaVersion":%d}`,
+		joinerLn.BoundAddress(), db.SchemaVersion(),
+	)
+
+	status, respBody := postClusterMember(t, clients["5"], serverAddr, body)
+
+	if status == http.StatusBadGateway || strings.Contains(respBody, "Cannot reach node") {
+		t.Fatalf("a reachable joiner was rejected by the reachability probe: %d (body: %s)", status, respBody)
 	}
 }
 

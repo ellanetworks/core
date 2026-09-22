@@ -47,6 +47,28 @@ type statusClusterBlock struct {
 	SchemaVersion int        `json:"schemaVersion"`
 }
 
+type peerProbe struct {
+	state         peerState
+	nodeID        string
+	clusterID     string
+	schemaVersion int
+}
+
+type NotLeaderBody struct {
+	Error            string     `json:"error"`
+	LeaderNodeID     pki.NodeID `json:"leaderNodeId,omitempty"`
+	LeaderAddress    string     `json:"leaderAddress,omitempty"`
+	LeaderAPIAddress string     `json:"leaderAPIAddress,omitempty"`
+}
+
+type notLeaderError struct {
+	message       string
+	leaderNodeID  string
+	leaderAddress string
+}
+
+func (e *notLeaderError) Error() string { return e.message }
+
 type statusResult struct {
 	Cluster *statusClusterBlock `json:"cluster"`
 }
@@ -171,39 +193,69 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		state, nodeID, clusterID, peerSchema := m.probePeer(ctx, peerAddr)
+		probe := m.probePeer(ctx, peerAddr)
 
-		if state == peerUnreachable {
+		if probe.state == peerUnreachable {
 			continue
 		}
 
-		if nodeID != "" && nodeID == m.raftID {
-			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%s) as this node; its data directory was copied from this one", ErrDiscoveryFatal, peerAddr, nodeID)
+		if probe.nodeID != "" && probe.nodeID == m.raftID {
+			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%s) as this node; its data directory was copied from this one", ErrDiscoveryFatal, peerAddr, probe.nodeID)
 		}
 
-		if state != peerFormed {
+		if probe.state != peerFormed {
 			continue
 		}
 
-		if m.config.SchemaVersion < peerSchema {
+		if m.config.SchemaVersion < probe.schemaVersion {
 			logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
 				zap.String("peer", peerAddr),
 				zap.Int("local_schema", m.config.SchemaVersion),
-				zap.Int("remote_schema", peerSchema),
+				zap.Int("remote_schema", probe.schemaVersion),
 			)
 
-			skipped = fmt.Errorf("peer %s runs schema %d, newer than this node's %d", peerAddr, peerSchema, m.config.SchemaVersion)
+			skipped = fmt.Errorf("peer %s runs schema %d, newer than this node's %d", peerAddr, probe.schemaVersion, m.config.SchemaVersion)
 
 			continue
 		}
 
-		if err := m.joinCluster(ctx, peerAddr, nodeID, clusterID); err != nil {
-			logger.RaftLog.Warn("Failed to join cluster via peer",
+		target := peerAddr
+
+		err := m.joinCluster(ctx, peerAddr, probe.nodeID, probe.clusterID)
+
+		var notLeader *notLeaderError
+		if errors.As(err, &notLeader) {
+			leaderAddr, leaderID := notLeader.leaderAddress, notLeader.leaderNodeID
+
+			if leaderAddr == "" || leaderID == "" {
+				skipped = fmt.Errorf("peer %s is not the cluster leader and named no leader to retry against: %w", peerAddr, notLeader)
+
+				continue
+			}
+
+			if leaderID == m.raftID {
+				skipped = fmt.Errorf("peer %s names this node (%s) as the cluster leader; if this node's data directory was copied from the leader's, wipe it before joining", peerAddr, m.raftID)
+
+				continue
+			}
+
+			logger.RaftLog.Info("Peer is not the cluster leader, retrying the join against the leader",
 				zap.String("peer", peerAddr),
+				zap.String("leader", leaderAddr),
+				zap.String("leader_node_id", leaderID),
+			)
+
+			target = leaderAddr
+			err = m.joinCluster(ctx, leaderAddr, leaderID, probe.clusterID)
+		}
+
+		if err != nil {
+			logger.RaftLog.Warn("Failed to join cluster via peer",
+				zap.String("peer", target),
 				zap.Error(err),
 			)
 
-			skipped = fmt.Errorf("peer %s rejected the join: %w", peerAddr, err)
+			skipped = fmt.Errorf("peer %s rejected the join: %w", target, err)
 
 			continue
 		}
@@ -279,37 +331,40 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 	return resp, nil
 }
 
-func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, string, string, int) {
+func (m *Manager) probePeer(ctx context.Context, peerAddr string) peerProbe {
 	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, "", "/cluster/status", nil)
 	if err != nil {
-		return peerUnreachable, "", "", 0
+		return peerProbe{state: peerUnreachable}
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return peerUnreachable, "", "", 0
+		return peerProbe{state: peerUnreachable}
 	}
 
 	var status statusResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
-		return peerUnreachable, "", "", 0
+		return peerProbe{state: peerUnreachable}
 	}
 
 	if status.Result.Cluster == nil {
-		return peerForming, "", "", 0
+		return peerProbe{state: peerForming}
 	}
 
-	nodeID := string(status.Result.Cluster.NodeID)
+	probe := peerProbe{
+		state:         peerForming,
+		nodeID:        string(status.Result.Cluster.NodeID),
+		clusterID:     status.Result.Cluster.ClusterID,
+		schemaVersion: status.Result.Cluster.SchemaVersion,
+	}
+
 	role := status.Result.Cluster.Role
-	clusterID := status.Result.Cluster.ClusterID
-	schemaVersion := status.Result.Cluster.SchemaVersion
-
-	if clusterID != "" && (role == "Leader" || role == "Follower") {
-		return peerFormed, nodeID, clusterID, schemaVersion
+	if probe.clusterID != "" && (role == "Leader" || role == "Follower") {
+		probe.state = peerFormed
 	}
 
-	return peerForming, nodeID, clusterID, schemaVersion
+	return probe
 }
 
 // ProbePeerSchemaVersion reads the peer's reported Schema Version from
@@ -385,6 +440,11 @@ func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID s
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
+		if resp.StatusCode == http.StatusMisdirectedRequest {
+			return parseNotLeader(respBody)
+		}
+
 		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -411,4 +471,23 @@ func (m *Manager) bootstrapCluster() error {
 	}
 
 	return nil
+}
+
+func parseNotLeader(body []byte) error {
+	var payload NotLeaderBody
+
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return fmt.Errorf("server returned %d: %s", http.StatusMisdirectedRequest, string(body))
+	}
+
+	message := payload.Error
+	if message == "" {
+		message = "peer is not the cluster leader"
+	}
+
+	return &notLeaderError{
+		message:       message,
+		leaderNodeID:  string(payload.LeaderNodeID),
+		leaderAddress: payload.LeaderAddress,
+	}
 }

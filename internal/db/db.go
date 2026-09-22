@@ -317,6 +317,7 @@ type Database struct {
 	insertJoinTokenPreV20Stmt     *sqlair.Statement
 	deleteClusterMemberStmt       *sqlair.Statement
 	countClusterMembersStmt       *sqlair.Statement
+	getDrainStateStmt             *sqlair.Statement
 	setDrainStateStmt             *sqlair.Statement
 	setDisplayNameStmt            *sqlair.Statement
 
@@ -746,15 +747,59 @@ func (db *Database) ClusterEnabled() bool {
 	return db.clusterEnabled
 }
 
-// LeadershipTransfer triggers a leadership transfer to another voter. The raft
-// library picks the most up-to-date follower (highest replicated nextIndex)
-// excluding self.
+var ErrNoTransferTarget = ellaraft.ErrNoTransferTarget
+
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
 
-	return db.raftManager.LeadershipTransfer()
+	eligible, excluded := db.transferCandidates()
+
+	if len(eligible) == 0 {
+		return ellaraft.ErrNoTransferTarget
+	}
+
+	if !excluded {
+		return db.raftManager.LeadershipTransfer()
+	}
+
+	return db.raftManager.LeadershipTransferTo(eligible)
+}
+
+func (db *Database) transferCandidates() ([]ellaraft.Server, bool) {
+	members, err := db.ListClusterMembers(context.Background())
+	if err != nil {
+		logger.DBLog.Warn("could not read cluster members while choosing a leadership transfer target; falling back to any voter",
+			zap.Error(err))
+
+		members = nil
+	}
+
+	draining := make(map[string]bool, len(members))
+	for _, m := range members {
+		draining[m.NodeID] = normalizeDrainState(m.DrainState) != DrainStateActive
+	}
+
+	self := db.raftManager.RaftID()
+	excluded := false
+
+	var eligible []ellaraft.Server
+
+	for _, srv := range db.raftManager.Servers() {
+		if srv.NodeID == self || srv.Suffrage != "voter" {
+			continue
+		}
+
+		if draining[srv.NodeID] {
+			excluded = true
+			continue
+		}
+
+		eligible = append(eligible, srv)
+	}
+
+	return eligible, excluded
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.
@@ -1874,6 +1919,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
+		{&db.getDrainStateStmt, fmt.Sprintf(getDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.setDisplayNameStmt, fmt.Sprintf(setDisplayNameStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.listClusterMembersPreV20Stmt, fmt.Sprintf(listClusterMembersPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},

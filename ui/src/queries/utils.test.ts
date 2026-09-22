@@ -81,6 +81,7 @@ describe("HTTPStatus", () => {
     [401, "Unauthorized"],
     [403, "Forbidden"],
     [409, "Conflict"],
+    [421, "Misdirected Request"],
     [500, "Internal Server Error"],
   ])("%i -> %s", (code, text) => {
     expect(HTTPStatus(code)).toBe(text);
@@ -105,6 +106,21 @@ describe("apiFetch error mapping", () => {
     await expect(apiFetch("/api/v1/policies")).rejects.toThrow(
       /exceeds the 10 Gbps ceiling/,
     );
+  });
+
+  it("surfaces the not-leader hint from a 421", async () => {
+    stubFetch(async () =>
+      jsonResponse(421, {
+        error:
+          "This node is not the cluster leader; retry against node node-a (11111111-1111-1111-1111-111111111111) at 10.0.0.1:5002",
+        leaderNodeId: "11111111-1111-1111-1111-111111111111",
+        leaderAPIAddress: "10.0.0.1:5002",
+      }),
+    );
+
+    await expect(
+      apiFetch("/api/v1/cluster/members/2222/promote", { method: "POST" }),
+    ).rejects.toThrow(/retry against node node-a .* at 10\.0\.0\.1:5002/);
   });
 
   it.each([
