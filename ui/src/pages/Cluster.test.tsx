@@ -79,7 +79,7 @@ const row = (nodeId: number | string) =>
   screen.getByRole("row", { name: new RegExp(`^${nodeId}\\b`) });
 
 const removeButton = (nodeId: number | string) =>
-  within(row(nodeId)).getByRole("menuitem", { name: /Remove from Cluster/ });
+  within(row(nodeId)).getByLabelText("Remove from Cluster");
 
 const dialog = () => screen.getByRole("dialog");
 
@@ -460,9 +460,7 @@ describe("Cluster page node identity", () => {
       "[role='row']",
     ) as HTMLElement;
 
-    await user.click(
-      within(uuidRow).getByRole("menuitem", { name: /Rename this node/ }),
-    );
+    await user.click(within(uuidRow).getByLabelText("Rename this node"));
 
     const input = await screen.findByLabelText(/Display name/);
     await user.clear(input);

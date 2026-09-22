@@ -111,7 +111,7 @@ export function renderWithProviders(
               <TestAuthProvider auth={auth}>{children}</TestAuthProvider>
             </>
           ) : (
-            children
+            <SnackbarProvider>{children}</SnackbarProvider>
           )}
         </MemoryRouter>
       </ThemeProvider>
