@@ -231,7 +231,7 @@ func ExtractForRestore(bundlePath, dbPath string) error {
 		return fmt.Errorf("install restored database: %w", err)
 	}
 
-	if dir, err := os.Open(destDir); err == nil {
+	if dir, err := os.Open(destDir); err == nil { // #nosec: G304 — destDir is the configured database directory, opened only to fsync the rename
 		_ = dir.Sync()
 		_ = dir.Close()
 	}
