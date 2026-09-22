@@ -9,7 +9,9 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 
 const (
 	manifestArchiveName = "manifest.json"
+	partialSuffix       = ".partial"
 	// maxBackupMemberSize caps a single tar member at 2 GiB; combined with
 	// maxBackupTotalSize this defends against decompression bombs.
 	maxBackupMemberSize = 2 << 30
@@ -71,6 +74,8 @@ func extractBackupArchive(r io.Reader, dbDestPath string) error {
 		sawManifest    bool
 		sawDB          bool
 		totalExtracted int64
+		manifestSum    string
+		dbHasher       = sha256.New()
 	)
 
 	for {
@@ -122,6 +127,7 @@ func extractBackupArchive(r io.Reader, dbDestPath string) error {
 				return fmt.Errorf("unsupported backup manifest version %d", m.Version)
 			}
 
+			manifestSum = m.DBSHA256
 			sawManifest = true
 
 		case DBFilename:
@@ -129,7 +135,7 @@ func extractBackupArchive(r io.Reader, dbDestPath string) error {
 				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
 			}
 
-			if err := writeArchiveMember(dbDestPath, tarReader, hdr.Size); err != nil {
+			if err := writeArchiveMember(dbDestPath, io.TeeReader(tarReader, dbHasher), hdr.Size); err != nil {
 				return fmt.Errorf("failed to write %s: %w", DBFilename, err)
 			}
 
@@ -146,6 +152,28 @@ func extractBackupArchive(r io.Reader, dbDestPath string) error {
 
 	if !sawDB {
 		return fmt.Errorf("backup is missing %s", DBFilename)
+	}
+
+	if manifestSum != "" {
+		actual := hex.EncodeToString(dbHasher.Sum(nil))
+		if actual != manifestSum {
+			return fmt.Errorf("%s digest mismatch: manifest declares %s, archive contains %s", DBFilename, manifestSum, actual)
+		}
+	}
+
+	return concludeArchiveRead(gzReader)
+}
+
+func concludeArchiveRead(gzReader *gzip.Reader) error {
+	trailing, err := io.ReadAll(gzReader)
+	if err != nil {
+		return fmt.Errorf("backup archive is truncated or corrupt: %w", err)
+	}
+
+	for _, b := range trailing {
+		if b != 0 {
+			return fmt.Errorf("backup archive has %d unexpected trailing bytes", len(trailing))
+		}
 	}
 
 	return nil
@@ -173,11 +201,52 @@ func ExtractForRestore(bundlePath, dbPath string) error {
 		return fmt.Errorf("mkdir %s: %w", destDir, err)
 	}
 
-	if err := extractBackupArchive(f, dbPath); err != nil {
+	partialPath := dbPath + partialSuffix
+
+	if err := removeSQLiteFile(partialPath); err != nil {
+		return fmt.Errorf("clear stale %s: %w", partialPath, err)
+	}
+
+	defer func() { _ = removeSQLiteFile(partialPath) }()
+
+	if err := extractBackupArchive(f, partialPath); err != nil {
 		return err
 	}
 
-	return resetFSMStateInRestoredDB(dbPath)
+	ctx := context.Background()
+
+	if err := validateSQLiteFile(ctx, partialPath); err != nil {
+		return fmt.Errorf("backup bundle is not a valid SQLite database: %w", err)
+	}
+
+	if err := resetFSMStateInRestoredDB(partialPath); err != nil {
+		return err
+	}
+
+	for _, suffix := range []string{"-wal", "-shm"} {
+		_ = os.Remove(partialPath + suffix)
+	}
+
+	if err := os.Rename(partialPath, dbPath); err != nil {
+		return fmt.Errorf("install restored database: %w", err)
+	}
+
+	if dir, err := os.Open(destDir); err == nil { // #nosec: G304 — destDir is the configured database directory, opened only to fsync the rename
+		_ = dir.Sync()
+		_ = dir.Close()
+	}
+
+	return nil
+}
+
+func removeSQLiteFile(path string) error {
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.Remove(path + suffix); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // resetFSMStateInRestoredDB opens the extracted ella.db with a

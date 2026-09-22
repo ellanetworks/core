@@ -9,6 +9,8 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,6 +35,7 @@ type BackupManifest struct {
 	RaftIndex    uint64     `json:"raft_index"`
 	RaftTerm     uint64     `json:"raft_term"`
 	SourceNodeID pki.NodeID `json:"source_node_id"`
+	DBSHA256     string     `json:"db_sha256,omitempty"`
 }
 
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
@@ -52,10 +55,16 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 		return fmt.Errorf("failed to VACUUM INTO backup file: %w", err)
 	}
 
+	dbSum, err := sha256File(dbTmp)
+	if err != nil {
+		return fmt.Errorf("failed to hash backup file: %w", err)
+	}
+
 	manifest := BackupManifest{
 		Version:      BackupManifestVersion,
 		CreatedAt:    time.Now().UTC(),
 		SourceNodeID: pki.NodeID(db.RaftID()),
+		DBSHA256:     dbSum,
 	}
 
 	if db.raftManager != nil {
@@ -96,6 +105,23 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	}
 
 	return nil
+}
+
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path) // #nosec: G304 — path is the staged backup under the data directory
+	if err != nil {
+		return "", err
+	}
+
+	defer func() { _ = f.Close() }()
+
+	h := sha256.New()
+
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func writeTarFile(tw *tar.Writer, name string, data []byte, modTime time.Time) error {
