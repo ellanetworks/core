@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"context"
+	"encoding/binary"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -60,12 +61,14 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 	// against it (a pure check, not committed here) (TS 24.301 §4.4.4.3). An unverified
 	// message cannot move the UE; the NAS layer re-decodes against the bound context to
 	// commit the uplink NAS COUNT, so this hint is not authoritative.
-	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
-		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
-			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
-				c.Log(ctx).Debug("Initial UE Message: resuming held context",
-					zap.Uint32("m_tmsi", uint32(msg.STMSI.MTMSI)))
-				m.AttachUeConn(ctx, ue, c)
+	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) {
+		if mtmsi, ok := resumeMTMSI(ctx, m, msg.STMSI, nas); ok {
+			if ue, ok := m.LookupUeByMTMSI(mtmsi); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
+				if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
+					c.Log(ctx).Debug("Initial UE Message: resuming held context",
+						zap.Uint32("m_tmsi", mtmsi), zap.Bool("from_old_guti", msg.STMSI == nil))
+					m.AttachUeConn(ctx, ue, c)
+				}
 			}
 		}
 	}
@@ -100,6 +103,46 @@ func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		logger.ENBUeS1apID(uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
+}
+
+func resumeMTMSI(ctx context.Context, m *mme.MME, stmsi *s1ap.STMSI, nas []byte) (uint32, bool) {
+	if stmsi != nil {
+		return uint32(stmsi.MTMSI), true
+	}
+
+	return ownOldGUTIMTMSI(ctx, m, nas)
+}
+
+func ownOldGUTIMTMSI(ctx context.Context, m *mme.MME, nas []byte) (uint32, bool) {
+	if !isTrackingAreaUpdate(nas) || nas[0]>>4 == uint8(eps.SHTPlain) {
+		return 0, false
+	}
+
+	req, err := eps.ParseTrackingAreaUpdateRequest(nas[6:])
+	if err != nil || req.OldGUTI.GUTI == nil {
+		return 0, false
+	}
+
+	if req.OldGUTIType != nil && *req.OldGUTIType != eps.GUTITypeNative {
+		return 0, false
+	}
+
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		return 0, false
+	}
+
+	group, code, err := m.MmeIdentity(ctx)
+	if err != nil {
+		return 0, false
+	}
+
+	guti := req.OldGUTI.GUTI
+	if guti.PLMN.MCC != plmn.Mcc || guti.PLMN.MNC != plmn.Mnc || guti.MMEGroupID != group || guti.MMECode != code {
+		return 0, false
+	}
+
+	return binary.BigEndian.Uint32(guti.TMSI[:]), true
 }
 
 func isTrackingAreaUpdate(nas []byte) bool {

@@ -157,6 +157,128 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 	}
 }
 
+func loadBalancingTAU(t *testing.T, m *mme.MME, ue *mme.UeContext, oldGUTI eps.EPSMobileIdentity) (*captureConn, error) {
+	t.Helper()
+
+	tau, err := (&eps.TrackingAreaUpdateRequest{EPSUpdateType: 0, OldGUTI: oldGUTI}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := eps.Protect(tau, eps.SHTIntegrityProtected, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plmnID := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+	initialUE := &s1ap.InitialUEMessage{
+		ENBUES1APID:           1001,
+		NASPDU:                s1ap.NASPDU(wire),
+		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
+	}
+
+	im, err := initialUE.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	conn := &captureConn{}
+	HandleInitialUEMessage(context.Background(), m, mme.NewRadioForTest(conn), initiatingValue(t, im))
+
+	return conn, nil
+}
+
+// TS 23.401 §4.3.7.3
+func TestInitialUEMessageLoadBalancingTAUResumesByOwnOldGUTI(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	plmn, err := m.OperatorPLMN(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := loadBalancingTAU(t, m, ue, guti)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !m.UeConnected(ue) {
+		t.Fatal("UE not connected after a load-balancing TAU citing this MME's GUTI")
+	}
+
+	if got := ue.Conn().ENBUES1APID(); got != 1001 {
+		t.Fatalf("resumed connection eNB-UE-S1AP-ID = %d, want 1001", got)
+	}
+
+	if conn.count() > 0 {
+		dl := decodeDownlinkNAS(t, conn.sent[0])
+		if len(dl) > 0 && dl[0]>>4 == uint8(eps.SHTPlain) {
+			if _, err := eps.ParseTrackingAreaUpdateReject(dl); err == nil {
+				t.Fatal("load-balancing TAU was rejected; expected it to resume the held context")
+			}
+		}
+	}
+}
+
+// TS 24.301 §5.5.3.2.5
+func TestInitialUEMessageLoadBalancingTAUForeignOldGUTIRejects(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	plmn, err := m.OperatorPLMN(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	guti.GUTI.MMECode = code + 1
+
+	conn, err := loadBalancingTAU(t, m, ue, guti)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c := ue.Conn(); c != nil && c.ENBUES1APID() == 1001 {
+		t.Fatal("UE bound from a GUTI another MME assigned")
+	}
+
+	if conn.count() != 2 {
+		t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", conn.count())
+	}
+
+	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, conn.sent[0]))
+	if err != nil {
+		t.Fatalf("parse TAU Reject: %v", err)
+	}
+
+	if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
+		t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
+	}
+}
+
 func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	t.Helper()
 
