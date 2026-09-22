@@ -245,9 +245,6 @@ type response struct {
 	LeaderAPIAddress string          `json:"leaderAPIAddress"`
 }
 
-// NotLeaderError reports a request that reached a node which is not the
-// cluster leader. LeaderNodeID and LeaderAPIAddress name the node to
-// retry against; both are empty when no leader is currently elected.
 type NotLeaderError struct {
 	StatusCode       int
 	Message          string

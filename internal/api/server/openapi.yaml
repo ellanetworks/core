@@ -3584,9 +3584,7 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     NotLeader:
       description: >-
-        This node is not the cluster leader. Re-send the request to the node
-        named by `leaderNodeId` at `leaderAPIAddress`; both fields are absent
-        while no leader is elected, in which case retry shortly.
+        This node is not the cluster leader. Re-send the request to the leader node.
       content:
         application/json:
           schema:
