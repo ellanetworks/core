@@ -55,7 +55,7 @@ Restoring a backup will overwrite all existing data in your Ella Core installati
     3. Drop the backup archive into the data directory as `restore.bundle`:
 
         ```shell
-        sudo mv backup.tar.gz /var/snap/ella-core/common/data/restore.bundle
+        sudo cp backup.tar.gz /var/snap/ella-core/common/data/restore.bundle
         sudo chmod 600 /var/snap/ella-core/common/data/restore.bundle
         ```
 
