@@ -16,15 +16,15 @@ func runClusterHealthMatrix(ctx context.Context, t *testing.T, c *client.Client)
 		t.Fatalf("get cluster health: %v", err)
 	}
 
-	if got.Enabled {
-		t.Fatalf("Enabled: got true, want false on a standalone node")
+	if got.State != client.ClusterHealthHealthy {
+		t.Fatalf("State: got %q, want %q", got.State, client.ClusterHealthHealthy)
 	}
 
-	if got.TotalVoters != 0 {
-		t.Fatalf("TotalVoters: got %d, want 0", got.TotalVoters)
+	if got.TotalVoters != 1 {
+		t.Fatalf("TotalVoters: got %d, want 1 on a single-server node", got.TotalVoters)
 	}
 
-	if got.HealthyVoters > got.TotalVoters {
-		t.Fatalf("HealthyVoters %d exceeds TotalVoters %d", got.HealthyVoters, got.TotalVoters)
+	if got.HealthyVoters == nil || *got.HealthyVoters != 1 {
+		t.Fatalf("HealthyVoters: got %v, want 1", got.HealthyVoters)
 	}
 }

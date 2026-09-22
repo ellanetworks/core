@@ -91,13 +91,18 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
+const (
+	ClusterHealthHealthy  = "healthy"
+	ClusterHealthDegraded = "degraded"
+	ClusterHealthNoLeader = "no_leader"
+	ClusterHealthUnknown  = "unknown"
+)
+
 type ClusterHealth struct {
-	Enabled          bool `json:"enabled"`
-	HasLeader        bool `json:"hasLeader"`
-	Healthy          bool `json:"healthy"`
-	HealthyVoters    int  `json:"healthyVoters"`
-	TotalVoters      int  `json:"totalVoters"`
-	FailureTolerance int  `json:"failureTolerance"`
+	State            string `json:"state"`
+	TotalVoters      int    `json:"totalVoters"`
+	HealthyVoters    *int   `json:"healthyVoters,omitempty"`
+	FailureTolerance *int   `json:"failureTolerance,omitempty"`
 }
 
 func (c *Client) GetClusterHealth(ctx context.Context) (*ClusterHealth, error) {

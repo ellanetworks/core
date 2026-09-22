@@ -12,37 +12,87 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
+const (
+	ClusterHealthHealthy  = "healthy"
+	ClusterHealthDegraded = "degraded"
+	ClusterHealthNoLeader = "no_leader"
+	ClusterHealthUnknown  = "unknown"
+)
+
 type ClusterHealthResponse struct {
-	Enabled          bool `json:"enabled"`
-	HasLeader        bool `json:"hasLeader"`
-	Healthy          bool `json:"healthy"`
-	HealthyVoters    int  `json:"healthyVoters"`
-	TotalVoters      int  `json:"totalVoters"`
-	FailureTolerance int  `json:"failureTolerance"`
+	State            string `json:"state"`
+	TotalVoters      int    `json:"totalVoters"`
+	HealthyVoters    *int   `json:"healthyVoters,omitempty"`
+	FailureTolerance *int   `json:"failureTolerance,omitempty"`
 }
 
 func GetClusterHealth(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !dbInstance.ClusterEnabled() {
-			writeResponse(r.Context(), w, ClusterHealthResponse{}, http.StatusOK, logger.APILog)
-
-			return
-		}
-
-		state, ok := readAutopilotState(r.Context(), dbInstance)
-		if !ok || state.LeaderNodeID == "" {
-			writeResponse(r.Context(), w, ClusterHealthResponse{Enabled: true}, http.StatusOK, logger.APILog)
-
-			return
-		}
-
-		writeResponse(r.Context(), w, summarizeClusterHealth(state), http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, clusterHealth(r.Context(), dbInstance), http.StatusOK, logger.APILog)
 	})
+}
+
+func clusterHealth(ctx context.Context, dbInstance *db.Database) ClusterHealthResponse {
+	totalVoters := configuredVoters(dbInstance)
+
+	if !dbInstance.HasLeader() {
+		return ClusterHealthResponse{
+			State:       ClusterHealthNoLeader,
+			TotalVoters: totalVoters,
+		}
+	}
+
+	if !dbInstance.ClusterEnabled() {
+		return singleServerHealth(totalVoters)
+	}
+
+	state, ok := readAutopilotState(ctx, dbInstance)
+	if !ok {
+		return ClusterHealthResponse{
+			State:       ClusterHealthUnknown,
+			TotalVoters: totalVoters,
+		}
+	}
+
+	return summarizeClusterHealth(state, totalVoters)
+}
+
+func singleServerHealth(totalVoters int) ClusterHealthResponse {
+	if totalVoters < 1 {
+		totalVoters = 1
+	}
+
+	healthy := totalVoters
+	failureTolerance := 0
+
+	return ClusterHealthResponse{
+		State:            ClusterHealthHealthy,
+		TotalVoters:      totalVoters,
+		HealthyVoters:    &healthy,
+		FailureTolerance: &failureTolerance,
+	}
+}
+
+func configuredVoters(dbInstance *db.Database) int {
+	voters := 0
+
+	for _, srv := range dbInstance.RaftServers() {
+		if srv.Suffrage == "voter" {
+			voters++
+		}
+	}
+
+	return voters
 }
 
 func readAutopilotState(ctx context.Context, dbInstance *db.Database) (AutopilotStateResponse, bool) {
 	if dbInstance.IsLeader() {
-		return mapAutopilotState(dbInstance.AutopilotState()), true
+		state := dbInstance.AutopilotState()
+		if state == nil {
+			return AutopilotStateResponse{}, false
+		}
+
+		return mapAutopilotState(state), true
 	}
 
 	leaderResp, err := dbInstance.DoLeaderRequest(ctx, http.MethodGet, InternalAutopilotPath, nil, "")
@@ -58,7 +108,7 @@ func readAutopilotState(ctx context.Context, dbInstance *db.Database) (Autopilot
 	return state, true
 }
 
-func summarizeClusterHealth(state AutopilotStateResponse) ClusterHealthResponse {
+func summarizeClusterHealth(state AutopilotStateResponse, totalVoters int) ClusterHealthResponse {
 	voters := make(map[string]struct{}, len(state.Voters))
 	for _, id := range state.Voters {
 		voters[string(id)] = struct{}{}
@@ -76,12 +126,21 @@ func summarizeClusterHealth(state AutopilotStateResponse) ClusterHealthResponse 
 		}
 	}
 
+	if len(state.Voters) > 0 {
+		totalVoters = len(state.Voters)
+	}
+
+	resultState := ClusterHealthHealthy
+	if !state.Healthy {
+		resultState = ClusterHealthDegraded
+	}
+
+	failureTolerance := state.FailureTolerance
+
 	return ClusterHealthResponse{
-		Enabled:          true,
-		HasLeader:        true,
-		Healthy:          state.Healthy,
-		HealthyVoters:    healthy,
-		TotalVoters:      len(state.Voters),
-		FailureTolerance: state.FailureTolerance,
+		State:            resultState,
+		TotalVoters:      totalVoters,
+		HealthyVoters:    &healthy,
+		FailureTolerance: &failureTolerance,
 	}
 }

@@ -27,8 +27,11 @@ import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStatusQuery } from "@/hooks/useStatus";
-import { getClusterHealth, type ClusterHealth } from "@/queries/cluster";
+import {
+  getClusterHealth,
+  type ClusterHealth,
+  type ClusterHealthState,
+} from "@/queries/cluster";
 import { getMetrics } from "@/queries/metrics";
 import {
   listSubscribers,
@@ -201,24 +204,29 @@ function KpiCard({
   return CardInner;
 }
 
-const NO_LEADER_HINT =
-  "No node holds leadership. The cluster cannot accept writes until enough voters recover.";
+const HA_HINTS: Record<ClusterHealthState, string> = {
+  healthy: "Healthy voters out of the cluster's total.",
+  degraded: "At least one node is unhealthy.",
+  no_leader:
+    "No node holds leadership. The cluster cannot accept writes until enough voters recover.",
+  unknown: "Cluster health could not be read from this node.",
+};
+
+const UNKNOWN_HA_HINT = HA_HINTS.unknown;
 
 const ClusterHealthValue: React.FC<{
-  clusterEnabled: boolean;
   loading: boolean;
-  error: boolean;
   health?: ClusterHealth;
-}> = ({ clusterEnabled, loading, error, health }) => {
+}> = ({ loading, health }) => {
   if (loading) {
     return <Skeleton width={120} height={40} />;
   }
 
-  if (!clusterEnabled) {
-    return <Typography variant="h4">Standalone</Typography>;
+  if (!health || health.state === "unknown") {
+    return <Chip label="Unknown" size="small" />;
   }
 
-  if (error || !health?.hasLeader) {
+  if (health.state === "no_leader") {
     return <Chip label="No leader" size="small" color="error" />;
   }
 
@@ -238,13 +246,10 @@ const Dashboard = () => {
   const theme = useTheme();
   const { accessToken, authReady, role } = useAuth();
 
-  const statusQuery = useStatusQuery();
-  const clusterEnabled = statusQuery.data?.cluster.enabled ?? false;
-
   const clusterHealthQuery = useQuery<ClusterHealth>({
     queryKey: ["dashboardClusterHealth"],
     queryFn: () => getClusterHealth(accessToken!),
-    enabled: authReady && !!accessToken && clusterEnabled,
+    enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
@@ -334,11 +339,9 @@ const Dashboard = () => {
   const upSince = m?.processStart ? new Date(m.processStart * 1000) : null;
 
   const clusterHealth = clusterHealthQuery.data;
-  const haCardHint = !clusterEnabled
-    ? "This node is not part of a cluster."
-    : clusterHealthQuery.error || !clusterHealth?.hasLeader
-      ? NO_LEADER_HINT
-      : "Healthy voters out of the cluster's total.";
+  const haCardHint = clusterHealth
+    ? HA_HINTS[clusterHealth.state]
+    : UNKNOWN_HA_HINT;
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;
@@ -458,12 +461,8 @@ const Dashboard = () => {
                 }
               >
                 <ClusterHealthValue
-                  clusterEnabled={clusterEnabled}
-                  loading={
-                    statusQuery.isLoading || clusterHealthQuery.isLoading
-                  }
-                  error={!!clusterHealthQuery.error}
-                  health={clusterHealthQuery.data}
+                  loading={clusterHealthQuery.isLoading}
+                  health={clusterHealth}
                 />
               </KpiCard>
             </Box>

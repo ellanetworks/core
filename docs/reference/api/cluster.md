@@ -155,20 +155,29 @@ This path returns a summary of cluster health.
 
 None
 
+### States
+
+| `state` | Meaning |
+| ------- | ------- |
+| `healthy` | Every node is healthy. |
+| `degraded` | At least one node is unhealthy. |
+| `no_leader` | No leader. The cluster cannot accept writes. |
+| `unknown` | The leader's view could not be read from this node. |
+
 ### Sample Response
 
 ```json
 {
     "result": {
-        "enabled": true,
-        "hasLeader": true,
-        "healthy": true,
-        "healthyVoters": 3,
+        "state": "healthy",
         "totalVoters": 3,
+        "healthyVoters": 3,
         "failureTolerance": 1
     }
 }
 ```
+
+`healthyVoters` and `failureTolerance` are omitted when unknown.
 
 ## Drain Cluster Member
 

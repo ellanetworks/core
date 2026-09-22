@@ -52,16 +52,20 @@ const card = (title: string) =>
   screen.getByText(title).closest(".MuiCard-root") as HTMLElement;
 
 describe("Dashboard high availability card", () => {
-  it("reports a standalone node", async () => {
+  it("reports a single-server node as a healthy cluster of one", async () => {
     seedDashboard();
     api.get(STATUS, () => standalone);
+    api.get(HEALTH, () => ({
+      state: "healthy",
+      totalVoters: 1,
+      healthyVoters: 1,
+      failureTolerance: 0,
+    }));
 
     renderWithProviders(<Dashboard />, { auth: {} });
 
     await waitFor(() =>
-      expect(
-        within(card("High Availability")).getByText("Standalone"),
-      ).toBeTruthy(),
+      expect(within(card("High Availability")).getByText("1/1")).toBeTruthy(),
     );
   });
 
@@ -69,11 +73,9 @@ describe("Dashboard high availability card", () => {
     seedDashboard();
     api.get(STATUS, () => clustered);
     api.get(HEALTH, () => ({
-      enabled: true,
-      hasLeader: true,
-      healthy: true,
-      healthyVoters: 3,
+      state: "healthy",
       totalVoters: 3,
+      healthyVoters: 3,
       failureTolerance: 1,
     }));
 
@@ -88,11 +90,9 @@ describe("Dashboard high availability card", () => {
     seedDashboard();
     api.get(STATUS, () => clustered);
     api.get(HEALTH, () => ({
-      enabled: true,
-      hasLeader: true,
-      healthy: false,
-      healthyVoters: 2,
+      state: "degraded",
       totalVoters: 3,
+      healthyVoters: 2,
       failureTolerance: 0,
     }));
 
@@ -106,21 +106,27 @@ describe("Dashboard high availability card", () => {
   it("says so when no leader is known, rather than showing a ratio", async () => {
     seedDashboard();
     api.get(STATUS, () => clustered);
-    api.get(HEALTH, () => ({
-      enabled: true,
-      hasLeader: false,
-      healthy: false,
-      healthyVoters: 0,
-      totalVoters: 0,
-      failureTolerance: 0,
-    }));
+    api.get(HEALTH, () => ({ state: "no_leader", totalVoters: 3 }));
 
     renderWithProviders(<Dashboard />, { auth: {} });
 
     const ha = await waitFor(() => card("High Availability"));
 
     await waitFor(() => expect(within(ha).getByText("No leader")).toBeTruthy());
-    expect(within(ha).queryByText("0/0")).toBeNull();
+    expect(within(ha).queryByText(/\d+\/\d+/)).toBeNull();
+  });
+
+  it("distinguishes an unreadable view from a leaderless cluster", async () => {
+    seedDashboard();
+    api.get(STATUS, () => clustered);
+    api.get(HEALTH, () => ({ state: "unknown", totalVoters: 3 }));
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    const ha = await waitFor(() => card("High Availability"));
+
+    await waitFor(() => expect(within(ha).getByText("Unknown")).toBeTruthy());
+    expect(within(ha).queryByText("No leader")).toBeNull();
   });
 });
 
@@ -128,6 +134,12 @@ describe("Dashboard system cards", () => {
   it("shows Up Since and no longer shows Routines", async () => {
     seedDashboard();
     api.get(STATUS, () => standalone);
+    api.get(HEALTH, () => ({
+      state: "healthy",
+      totalVoters: 1,
+      healthyVoters: 1,
+      failureTolerance: 0,
+    }));
     api.get("/api/v1/metrics", () =>
       rawBody("process_start_time_seconds 1700000000\ngo_goroutines 42\n", {
         "Content-Type": "text/plain",

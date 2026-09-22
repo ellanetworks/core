@@ -10,12 +10,10 @@ import (
 )
 
 type clusterHealthResult struct {
-	Enabled          bool `json:"enabled"`
-	HasLeader        bool `json:"hasLeader"`
-	Healthy          bool `json:"healthy"`
-	HealthyVoters    int  `json:"healthyVoters"`
-	TotalVoters      int  `json:"totalVoters"`
-	FailureTolerance int  `json:"failureTolerance"`
+	State            string `json:"state"`
+	TotalVoters      int    `json:"totalVoters"`
+	HealthyVoters    *int   `json:"healthyVoters,omitempty"`
+	FailureTolerance *int   `json:"failureTolerance,omitempty"`
 }
 
 type clusterHealthResponse struct {
@@ -27,7 +25,7 @@ func getClusterHealth(url string, client *http.Client, token string) (int, *clus
 	return apiDo[clusterHealthResponse](client, "GET", url+"/api/v1/cluster/health", token, nil)
 }
 
-func TestGetClusterHealth_NoCluster(t *testing.T) {
+func TestGetClusterHealth_SingleServer(t *testing.T) {
 	env, client, token := newAuthedTestEnv(t)
 
 	status, body, err := getClusterHealth(env.Server.URL, client, token)
@@ -39,12 +37,20 @@ func TestGetClusterHealth_NoCluster(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %+v", status, body)
 	}
 
-	if body.Result.Enabled {
-		t.Errorf("expected enabled=false on a standalone node")
+	if body.Result.State != "healthy" {
+		t.Errorf("expected state=healthy, got %q", body.Result.State)
 	}
 
-	if body.Result.TotalVoters != 0 {
-		t.Errorf("expected totalVoters=0, got %d", body.Result.TotalVoters)
+	if body.Result.TotalVoters != 1 {
+		t.Errorf("expected totalVoters=1, got %d", body.Result.TotalVoters)
+	}
+
+	if body.Result.HealthyVoters == nil || *body.Result.HealthyVoters != 1 {
+		t.Errorf("expected healthyVoters=1, got %v", body.Result.HealthyVoters)
+	}
+
+	if body.Result.FailureTolerance == nil || *body.Result.FailureTolerance != 0 {
+		t.Errorf("expected failureTolerance=0, got %v", body.Result.FailureTolerance)
 	}
 }
 

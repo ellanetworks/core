@@ -6131,36 +6131,22 @@ components:
 
     ClusterHealth:
       type: object
-      description: >-
-        Role-readable summary of cluster health, derived from the same
-        autopilot state as `/api/v1/cluster/autopilot` but without
-        per-node identities.
       properties:
-        enabled:
-          type: boolean
-          description: True when clustering is enabled on this node.
-        hasLeader:
-          type: boolean
-          description: >-
-            True when a leader is known and its autopilot state was read.
-            False during an election, or when the leader is unreachable.
-        healthy:
-          type: boolean
-          description: True when every voter is healthy.
-        healthyVoters:
-          type: integer
-          description: Number of voters autopilot currently reports as healthy.
+        state:
+          type: string
+          enum: [healthy, degraded, no_leader, unknown]
         totalVoters:
           type: integer
-          description: >-
-            Number of voting members. Nonvoters are excluded from both
-            counts.
+          description: Voting members in the local Raft configuration.
+        healthyVoters:
+          type: integer
+          description: Voters reported healthy. Omitted when unknown.
         failureTolerance:
           type: integer
           description: >-
-            Number of voter failures the cluster can absorb without losing
-            quorum. Zero means any additional failure stalls writes.
-      required: [enabled, hasLeader, healthy, healthyVoters, totalVoters, failureTolerance]
+            Voter failures survivable without losing quorum. Omitted when
+            unknown.
+      required: [state, totalVoters]
 
     ClusterHealthResponseEnvelope:
       type: object
