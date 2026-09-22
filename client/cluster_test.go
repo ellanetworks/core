@@ -202,3 +202,91 @@ func TestMintClusterJoinToken_NilOpts(t *testing.T) {
 		t.Fatal("expected error on nil opts")
 	}
 }
+
+func TestGetClusterHealth_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"state":"healthy","totalVoters":3,"healthyVoters":3,"failureTolerance":1}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	health, err := c.GetClusterHealth(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if health.State != client.ClusterHealthHealthy {
+		t.Errorf("expected a healthy cluster, got %+v", health)
+	}
+
+	if health.HealthyVoters == nil || *health.HealthyVoters != 3 || health.TotalVoters != 3 {
+		t.Errorf("expected 3/3 voters, got %+v", health)
+	}
+
+	if health.FailureTolerance == nil || *health.FailureTolerance != 1 {
+		t.Errorf("expected failure tolerance 1, got %+v", health.FailureTolerance)
+	}
+
+	if fake.lastOpts.Method != "GET" {
+		t.Errorf("expected GET, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/cluster/health" {
+		t.Errorf("unexpected path: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestGetClusterHealth_NoLeader(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"state":"no_leader","totalVoters":3}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	health, err := c.GetClusterHealth(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if health.State != client.ClusterHealthNoLeader {
+		t.Errorf("expected a leaderless cluster, got %+v", health)
+	}
+
+	if health.TotalVoters != 3 {
+		t.Errorf("expected the voter count to survive leader loss, got %d", health.TotalVoters)
+	}
+
+	if health.HealthyVoters != nil || health.FailureTolerance != nil {
+		t.Errorf("expected the leader-only counts to be absent, got %+v", health)
+	}
+}
+
+func TestGetClusterHealth_SingleServer(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"state":"healthy","totalVoters":1,"healthyVoters":1,"failureTolerance":0}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	health, err := c.GetClusterHealth(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if health.State != client.ClusterHealthHealthy || health.TotalVoters != 1 {
+		t.Errorf("expected a healthy cluster of one, got %+v", health)
+	}
+
+	if health.FailureTolerance == nil || *health.FailureTolerance != 0 {
+		t.Errorf("expected failure tolerance 0, got %v", health.FailureTolerance)
+	}
+}

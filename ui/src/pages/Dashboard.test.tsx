@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, rawBody } from "@/test/apiServer";
 import Dashboard from "./Dashboard";
@@ -46,60 +46,112 @@ const clustered = {
   },
 };
 
-describe("Dashboard deployment identity", () => {
-  it("reports standalone mode next to the version", async () => {
+const HEALTH = "/api/v1/cluster/health";
+
+const card = (title: string) =>
+  screen.getByText(title).closest(".MuiCard-root") as HTMLElement;
+
+describe("Dashboard high availability card", () => {
+  it("reports a single-server node as a healthy cluster of one", async () => {
     seedDashboard();
     api.get(STATUS, () => standalone);
+    api.get(HEALTH, () => ({
+      state: "healthy",
+      totalVoters: 1,
+      healthyVoters: 1,
+      failureTolerance: 0,
+    }));
 
     renderWithProviders(<Dashboard />, { auth: {} });
-
-    const mode = await screen.findByRole("link", { name: "Standalone" });
-    expect(mode).toHaveAttribute("href", "/cluster");
-    expect(mode.parentElement).toHaveTextContent("v1.18.0 · Standalone");
-  });
-
-  it("reports the node identity in a cluster", async () => {
-    seedDashboard();
-    api.get(STATUS, () => clustered);
-
-    renderWithProviders(<Dashboard />, { auth: {} });
-
-    const mode = await screen.findByRole("link", { name: "Cluster node 2" });
-    expect(mode.parentElement).toHaveTextContent("v1.18.0 · Cluster node 2");
-    expect(screen.queryByText("Standalone")).toBeNull();
-  });
-
-  it("does not link non-admins to the admin-only cluster page", async () => {
-    seedDashboard();
-    api.get(STATUS, () => clustered);
-
-    renderWithProviders(<Dashboard />, { auth: { role: "Read Only" } });
-
-    await screen.findByText(/Cluster node 2/);
-    expect(screen.queryByRole("link", { name: "Cluster node 2" })).toBeNull();
-  });
-
-  it("shows no mode until the status response arrives", async () => {
-    let release: (() => void) | undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-
-    seedDashboard();
-    api.get(STATUS, async () => {
-      await gate;
-      return clustered;
-    });
-
-    renderWithProviders(<Dashboard />, { auth: {} });
-
-    expect(screen.queryByText("Standalone")).toBeNull();
-    expect(screen.queryByText(/Cluster node/)).toBeNull();
-
-    release?.();
 
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Cluster node 2" })).toBeTruthy(),
+      expect(within(card("High Availability")).getByText("1/1")).toBeTruthy(),
     );
+  });
+
+  it("reports the healthy voter ratio", async () => {
+    seedDashboard();
+    api.get(STATUS, () => clustered);
+    api.get(HEALTH, () => ({
+      state: "healthy",
+      totalVoters: 3,
+      healthyVoters: 3,
+      failureTolerance: 1,
+    }));
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    const ha = await waitFor(() => card("High Availability"));
+
+    await waitFor(() => expect(within(ha).getByText("3/3")).toBeTruthy());
+  });
+
+  it("reports a degraded voter ratio", async () => {
+    seedDashboard();
+    api.get(STATUS, () => clustered);
+    api.get(HEALTH, () => ({
+      state: "degraded",
+      totalVoters: 3,
+      healthyVoters: 2,
+      failureTolerance: 0,
+    }));
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    const ha = await waitFor(() => card("High Availability"));
+
+    await waitFor(() => expect(within(ha).getByText("2/3")).toBeTruthy());
+  });
+
+  it("says so when no leader is known, rather than showing a ratio", async () => {
+    seedDashboard();
+    api.get(STATUS, () => clustered);
+    api.get(HEALTH, () => ({ state: "no_leader", totalVoters: 3 }));
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    const ha = await waitFor(() => card("High Availability"));
+
+    await waitFor(() => expect(within(ha).getByText("No leader")).toBeTruthy());
+    expect(within(ha).queryByText(/\d+\/\d+/)).toBeNull();
+  });
+
+  it("distinguishes an unreadable view from a leaderless cluster", async () => {
+    seedDashboard();
+    api.get(STATUS, () => clustered);
+    api.get(HEALTH, () => ({ state: "unknown", totalVoters: 3 }));
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    const ha = await waitFor(() => card("High Availability"));
+
+    await waitFor(() => expect(within(ha).getByText("Unknown")).toBeTruthy());
+    expect(within(ha).queryByText("No leader")).toBeNull();
+  });
+});
+
+describe("Dashboard system cards", () => {
+  it("shows Up Since and no longer shows Routines", async () => {
+    seedDashboard();
+    api.get(STATUS, () => standalone);
+    api.get(HEALTH, () => ({
+      state: "healthy",
+      totalVoters: 1,
+      healthyVoters: 1,
+      failureTolerance: 0,
+    }));
+    api.get("/api/v1/metrics", () =>
+      rawBody("process_start_time_seconds 1700000000\ngo_goroutines 42\n", {
+        "Content-Type": "text/plain",
+      }),
+    );
+
+    renderWithProviders(<Dashboard />, { auth: {} });
+
+    await screen.findByText("Up Since");
+
+    expect(screen.queryByText("Routines")).toBeNull();
+    expect(screen.queryByText("42")).toBeNull();
+    expect(within(card("Up Since")).queryByText("N/A")).toBeNull();
   });
 });

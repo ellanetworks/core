@@ -91,6 +91,40 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
+const (
+	ClusterHealthHealthy  = "healthy"
+	ClusterHealthDegraded = "degraded"
+	ClusterHealthNoLeader = "no_leader"
+	ClusterHealthUnknown  = "unknown"
+)
+
+type ClusterHealth struct {
+	State            string `json:"state"`
+	TotalVoters      int    `json:"totalVoters"`
+	HealthyVoters    *int   `json:"healthyVoters,omitempty"`
+	FailureTolerance *int   `json:"failureTolerance,omitempty"`
+}
+
+func (c *Client) GetClusterHealth(ctx context.Context) (*ClusterHealth, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/cluster/health",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var health ClusterHealth
+
+	err = resp.DecodeResult(&health)
+	if err != nil {
+		return nil, err
+	}
+
+	return &health, nil
+}
+
 func (c *Client) DrainClusterMember(ctx context.Context, nodeID NodeID) (*DrainResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

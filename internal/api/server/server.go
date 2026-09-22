@@ -250,7 +250,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateCellPosition, UpdateCellPosition(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/beta/cell-positions/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteCellPosition, DeleteCellPosition(dbInstance))).ServeHTTP)
 
-	// Cluster (Authenticated, admin only)
+	// Cluster (Authenticated; admin only except the health read)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, RemoveClusterMember(dbInstance)))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/cluster/members/{id}/display-name", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, SetClusterMemberDisplayName(dbInstance))).ServeHTTP)
@@ -259,6 +259,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ResumeClusterMember(dbInstance))).ServeHTTP)
 
 	mux.HandleFunc("GET /api/v1/cluster/autopilot", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetAutopilotState(dbInstance))).ServeHTTP)
+
+	mux.HandleFunc("GET /api/v1/cluster/health", Authenticate(jwtSecret, dbInstance, Authorize(PermReadClusterHealth, GetClusterHealth(dbInstance))).ServeHTTP)
 
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)

@@ -63,7 +63,10 @@ type ClusterStatusResponse struct {
 
 func (c ClusterStatusResponse) MarshalJSON() ([]byte, error) {
 	if !c.Enabled {
-		return []byte(`{"enabled":false}`), nil
+		return json.Marshal(struct {
+			Enabled bool       `json:"enabled"`
+			NodeID  pki.NodeID `json:"nodeId"`
+		}{Enabled: false, NodeID: c.NodeID})
 	}
 
 	type alias ClusterStatusResponse
@@ -110,6 +113,8 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 		if datapathMode != nil {
 			statusResponse.DatapathAttachMode = datapathMode()
 		}
+
+		statusResponse.Cluster.NodeID = pki.NodeID(dbInstance.RaftID())
 
 		if dbInstance.ClusterEnabled() {
 			role := dbInstance.RaftState()

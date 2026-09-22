@@ -29,10 +29,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStatusQuery } from "@/hooks/useStatus";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { PRODUCT } from "@/utils/product";
 import EmptyState from "@/components/EmptyState";
-import { getStatus, type APIStatus } from "@/queries/status";
 import {
   listClusterMembers,
   getAutopilotState,
@@ -194,11 +194,7 @@ const ClusterPage: React.FC = () => {
   const [removeTarget, setRemoveTarget] = useState<JoinedRow | null>(null);
   const [renameTarget, setRenameTarget] = useState<JoinedRow | null>(null);
 
-  const statusQuery = useQuery<APIStatus>({
-    queryKey: ["status"],
-    queryFn: getStatus,
-    refetchInterval: 5000,
-  });
+  const statusQuery = useStatusQuery();
 
   const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
 

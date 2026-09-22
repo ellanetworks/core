@@ -143,6 +143,42 @@ None
 }
 ```
 
+## Get Cluster Health
+
+This path returns a summary of cluster health.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| GET    | `/api/v1/cluster/health`  |
+
+### Parameters
+
+None
+
+### States
+
+| `state` | Meaning |
+| ------- | ------- |
+| `healthy` | Every node is healthy. |
+| `degraded` | At least one node is unhealthy. |
+| `no_leader` | No leader. The cluster cannot accept writes. |
+| `unknown` | The leader's view could not be read from this node. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "state": "healthy",
+        "totalVoters": 3,
+        "healthyVoters": 3,
+        "failureTolerance": 1
+    }
+}
+```
+
+`healthyVoters` and `failureTolerance` are omitted when unknown.
+
 ## Drain Cluster Member
 
 This path drains a node, moving its subscribers to the rest of the cluster so it can be restarted, upgraded, or removed. Requires admin privileges.

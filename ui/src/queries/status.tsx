@@ -14,7 +14,7 @@ export type ClusterStatus =
   | {
       enabled: false;
       role?: undefined;
-      nodeId?: undefined;
+      nodeId: NodeId;
       displayName?: undefined;
       isLeader?: undefined;
       leaderNodeId?: undefined;

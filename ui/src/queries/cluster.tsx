@@ -96,6 +96,22 @@ export async function getAutopilotState(
   return apiFetch<AutopilotState>("/api/v1/cluster/autopilot", { authToken });
 }
 
+export type ClusterHealthState =
+  "healthy" | "degraded" | "no_leader" | "unknown";
+
+export type ClusterHealth = {
+  state: ClusterHealthState;
+  totalVoters: number;
+  healthyVoters?: number;
+  failureTolerance?: number;
+};
+
+export async function getClusterHealth(
+  authToken: string,
+): Promise<ClusterHealth> {
+  return apiFetch<ClusterHealth>("/api/v1/cluster/health", { authToken });
+}
+
 export type MintJoinTokenParams = {
   ttlSeconds?: number;
 };

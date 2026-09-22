@@ -86,7 +86,15 @@ describe("Initialize page join affordance", () => {
     });
     expect(button).toBeDisabled();
     expect(
-      screen.getByText(/cluster bind address is not set in the config file/),
+      screen.queryByText(/cluster bind address is not set in the config file/),
+    ).toBeNull();
+
+    await userEvent.hover(button.parentElement!);
+
+    expect(
+      await screen.findByText(
+        /cluster bind address is not set in the config file/,
+      ),
     ).toBeTruthy();
   });
 
