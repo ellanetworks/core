@@ -1054,15 +1054,15 @@ func (m *Manager) Shutdown() error {
 		return fmt.Errorf("raft shutdown: %w", err)
 	}
 
-	if closer, ok := m.logStore.(interface{ Close() error }); ok {
-		if err := closer.Close(); err != nil {
-			return fmt.Errorf("close log store: %w", err)
-		}
-	}
-
 	if tc, ok := m.transport.(io.Closer); ok {
 		if err := tc.Close(); err != nil {
 			return fmt.Errorf("close transport: %w", err)
+		}
+	}
+
+	if closer, ok := m.logStore.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("close log store: %w", err)
 		}
 	}
 
