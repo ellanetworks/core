@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -317,6 +318,7 @@ type Database struct {
 	insertJoinTokenPreV20Stmt     *sqlair.Statement
 	deleteClusterMemberStmt       *sqlair.Statement
 	countClusterMembersStmt       *sqlair.Statement
+	getDrainStateStmt             *sqlair.Statement
 	setDrainStateStmt             *sqlair.Statement
 	setDisplayNameStmt            *sqlair.Statement
 
@@ -746,15 +748,70 @@ func (db *Database) ClusterEnabled() bool {
 	return db.clusterEnabled
 }
 
-// LeadershipTransfer triggers a leadership transfer to another voter. The raft
-// library picks the most up-to-date follower (highest replicated nextIndex)
-// excluding self.
+var ErrNoTransferTarget = ellaraft.ErrNoTransferTarget
+
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
 
-	return db.raftManager.LeadershipTransfer()
+	return db.raftManager.LeadershipTransferTo(db.leadershipTransferCandidates())
+}
+
+func (db *Database) leadershipTransferCandidates() []ellaraft.Server {
+	members, err := db.ListClusterMembers(context.Background())
+	if err != nil {
+		logger.DBLog.Warn("could not read cluster members while choosing a leadership transfer target; falling back to any voter",
+			zap.Error(err))
+
+		members = nil
+	}
+
+	health := make(map[string]bool)
+
+	if state := db.raftManager.AutopilotState(); state != nil {
+		for id, srv := range state.Servers {
+			health[string(id)] = srv.Health.Healthy
+		}
+	}
+
+	return rankTransferCandidates(db.raftManager.RaftID(), db.raftManager.Servers(), members, health)
+}
+
+func rankTransferCandidates(self string, servers []ellaraft.Server, members []ClusterMember, health map[string]bool) []ellaraft.Server {
+	draining := make(map[string]bool, len(members))
+	for _, m := range members {
+		draining[m.NodeID] = NormalizeDrainState(m.DrainState) != DrainStateActive
+	}
+
+	var healthy, unjudged, unhealthy []ellaraft.Server
+
+	for _, srv := range servers {
+		if srv.NodeID == self || srv.Suffrage != "voter" || draining[srv.NodeID] {
+			continue
+		}
+
+		ok, judged := health[srv.NodeID]
+
+		switch {
+		case !judged:
+			unjudged = append(unjudged, srv)
+		case ok:
+			healthy = append(healthy, srv)
+		default:
+			unhealthy = append(unhealthy, srv)
+		}
+	}
+
+	byNodeID := func(s []ellaraft.Server) {
+		sort.Slice(s, func(i, j int) bool { return s[i].NodeID < s[j].NodeID })
+	}
+
+	byNodeID(healthy)
+	byNodeID(unjudged)
+	byNodeID(unhealthy)
+
+	return append(append(healthy, unjudged...), unhealthy...)
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.
@@ -1874,6 +1931,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
+		{&db.getDrainStateStmt, fmt.Sprintf(getDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.setDisplayNameStmt, fmt.Sprintf(setDisplayNameStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.listClusterMembersPreV20Stmt, fmt.Sprintf(listClusterMembersPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},

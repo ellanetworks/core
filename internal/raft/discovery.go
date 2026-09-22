@@ -221,7 +221,7 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			leaderAddr, leaderID := notLeader.leaderAddress, notLeader.leaderNodeID
 
 			if leaderAddr == "" || leaderID == "" {
-				skipped = fmt.Errorf("peer %s is not the cluster leader and names no leader yet", peerAddr)
+				skipped = fmt.Errorf("peer %s is not the cluster leader and named no leader to retry against: %w", peerAddr, notLeader)
 
 				continue
 			}

@@ -60,6 +60,7 @@ type fakeStore struct {
 	leader      bool
 	transfers   int
 	transferErr error
+	staleReads  map[string]string
 }
 
 func (s *fakeStore) RaftID() string       { return s.self }
@@ -107,6 +108,10 @@ func (s *fakeStore) GetClusterMember(_ context.Context, id string) (*db.ClusterM
 
 	c := *m
 
+	if stale, ok := s.staleReads[id]; ok {
+		c.DrainState = stale
+	}
+
 	return &c, nil
 }
 
@@ -122,13 +127,22 @@ func (s *fakeStore) ListClusterMembers(context.Context) ([]db.ClusterMember, err
 	return out, nil
 }
 
-func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) error {
+func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.members[id].DrainState = state
+	member, ok := s.members[id]
+	if !ok {
+		return "", db.ErrNotFound
+	}
 
-	return nil
+	if !db.DrainTransitionAllowed(member.DrainState, state) {
+		return db.NormalizeDrainState(member.DrainState), nil
+	}
+
+	member.DrainState = state
+
+	return state, nil
 }
 
 func (s *fakeStore) stateOf(id string) string {
@@ -198,6 +212,23 @@ func TestSweepOffloadsAndCompletesTheDrain(t *testing.T) {
 
 	if nf.offloaded != offloadBatchSize+3 {
 		t.Fatalf("off-loaded %d UEs, want %d", nf.offloaded, offloadBatchSize+3)
+	}
+}
+
+func TestSweepDoesNotClobberAResumeRacingTheOffload(t *testing.T) {
+	store := newStore(db.DrainStateActive, db.DrainStateActive)
+	store.staleReads = map[string]string{"1": db.DrainStateDraining}
+
+	nf := &fakeNF{remaining: 0}
+
+	New(store, nil, nil, nf).sweep(context.Background())
+
+	if got := store.stateOf(store.self); got != db.DrainStateActive {
+		t.Fatalf("state = %s, want the node to stay active after a resume", got)
+	}
+
+	if got := store.stateOf("2"); got != db.DrainStateActive {
+		t.Fatalf("peer state = %s, want the sweep to leave peers alone", got)
 	}
 }
 

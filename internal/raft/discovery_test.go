@@ -410,6 +410,219 @@ func TestDiscoveryTick_JoinsThroughTheLeader(t *testing.T) {
 	}
 }
 
+func TestDiscoveryTick_LeaderSchemaGuardGovernsAfterRedirect(t *testing.T) {
+	testPKI := testutil.GenTestPKI(t, []string{"1", "2", "3"})
+
+	leaderAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+	seedAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+
+	var mu sync.Mutex
+
+	leaderAsked := false
+
+	statusBlock := func(role, nodeID string, schema int) *statusClusterBlock {
+		return &statusClusterBlock{
+			Role:          role,
+			NodeID:        pki.NodeID(nodeID),
+			ClusterID:     "cluster-1",
+			SchemaVersion: schema,
+		}
+	}
+
+	handlerFor := func(block *statusClusterBlock, members http.HandlerFunc) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/cluster/status":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(statusResponse{Result: statusResult{Cluster: block}})
+			case "/cluster/members":
+				members(w, r)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+	}
+
+	serve := func(nodeID, addr string, h http.Handler) {
+		ln := listener.New(listener.Config{
+			BindAddress:      addr,
+			AdvertiseAddress: addr,
+			NodeID:           nodeID,
+			Pin:              testPKI.PinFunc(),
+			Leaf:             testPKI.LeafFunc(nodeID),
+		})
+
+		startTestClusterHTTP(t, ln, h)
+
+		if err := ln.Start(t.Context()); err != nil {
+			t.Fatalf("start listener %s: %v", nodeID, err)
+		}
+
+		t.Cleanup(ln.Stop)
+	}
+
+	serve("1", leaderAddr, handlerFor(statusBlock("Leader", "1", 12), func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		leaderAsked = true
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "Schema version mismatch: node has 9, cluster has 12",
+		})
+	}))
+
+	serve("2", seedAddr, handlerFor(statusBlock("Follower", "2", 9), func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMisdirectedRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":         "this node is not the cluster leader",
+			"leaderNodeId":  "1",
+			"leaderAddress": leaderAddr,
+		})
+	}))
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "3",
+		Pin:              testPKI.PinFunc(),
+		Leaf:             testPKI.LeafFunc("3"),
+	})
+
+	_, transport := raft.NewInmemTransport("127.0.0.1:9999")
+
+	m := &Manager{
+		raftID:          "3",
+		clusterListener: clientLn,
+		transport:       transport,
+		config: ClusterConfig{
+			Peers:            []string{seedAddr},
+			AdvertiseAddress: "127.0.0.1:9999",
+			HasJoinToken:     true,
+			SchemaVersion:    9,
+		},
+	}
+
+	joined, err := m.discoveryTick(t.Context())
+
+	if joined {
+		t.Fatal("joined a cluster whose leader runs a newer schema")
+	}
+
+	if err == nil {
+		t.Fatal("expected the leader's rejection to surface")
+	}
+
+	if !strings.Contains(err.Error(), leaderAddr) {
+		t.Errorf("error %q does not name the leader %s", err, leaderAddr)
+	}
+
+	if !strings.Contains(err.Error(), "Schema version mismatch: node has 9, cluster has 12") {
+		t.Errorf("error %q does not carry the leader's schema verdict", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if !leaderAsked {
+		t.Fatal("the joiner never reached the leader; the seed's schema decided the outcome")
+	}
+}
+
+func TestDiscoveryTick_KeepsTheMessageWhenTheRedirectNamesNoLeader(t *testing.T) {
+	const legacyMessage = "This node is not the cluster leader; retry against node node-a (11111111-1111-1111-1111-111111111111) at 10.0.0.1:5002"
+
+	for _, tc := range []struct {
+		name string
+		body map[string]string
+	}{
+		{
+			name: "legacy envelope carries only prose",
+			body: map[string]string{"error": legacyMessage},
+		},
+		{
+			name: "no leader elected yet",
+			body: map[string]string{"error": "this node is not the cluster leader"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testPKI := testutil.GenTestPKI(t, []string{"1", "2"})
+
+			seedAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/cluster/status":
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(statusResponse{Result: statusResult{Cluster: &statusClusterBlock{
+						Role: "Follower", NodeID: "1", ClusterID: "cluster-1", SchemaVersion: 9,
+					}}})
+				case "/cluster/members":
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusMisdirectedRequest)
+					_ = json.NewEncoder(w).Encode(tc.body)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
+
+			seedLn := listener.New(listener.Config{
+				BindAddress:      seedAddr,
+				AdvertiseAddress: seedAddr,
+				NodeID:           "1",
+				Pin:              testPKI.PinFunc(),
+				Leaf:             testPKI.LeafFunc("1"),
+			})
+
+			startTestClusterHTTP(t, seedLn, handler)
+
+			if err := seedLn.Start(t.Context()); err != nil {
+				t.Fatalf("start listener: %v", err)
+			}
+
+			t.Cleanup(seedLn.Stop)
+
+			clientLn := listener.New(listener.Config{
+				BindAddress:      "127.0.0.1:0",
+				AdvertiseAddress: "127.0.0.1:0",
+				NodeID:           "2",
+				Pin:              testPKI.PinFunc(),
+				Leaf:             testPKI.LeafFunc("2"),
+			})
+
+			_, transport := raft.NewInmemTransport("127.0.0.1:9999")
+
+			m := &Manager{
+				raftID:          "2",
+				clusterListener: clientLn,
+				transport:       transport,
+				config: ClusterConfig{
+					Peers:            []string{seedAddr},
+					AdvertiseAddress: "127.0.0.1:9999",
+					HasJoinToken:     true,
+					SchemaVersion:    9,
+				},
+			}
+
+			joined, err := m.discoveryTick(t.Context())
+
+			if joined {
+				t.Fatal("joined through a peer that refused the join")
+			}
+
+			if err == nil {
+				t.Fatal("expected the peer's refusal to surface")
+			}
+
+			if !strings.Contains(err.Error(), tc.body["error"]) {
+				t.Errorf("error %q dropped the peer's message %q", err, tc.body["error"])
+			}
+		})
+	}
+}
+
 func TestDiscoveryTick_SkipsPeerThatNamesThisNodeAsLeader(t *testing.T) {
 	testPKI := testutil.GenTestPKI(t, []string{"1", "2"})
 

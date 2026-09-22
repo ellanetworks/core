@@ -70,6 +70,7 @@ export const HTTPStatus = (code: number): string => {
     404: "Not Found",
     409: "Conflict",
     413: "Payload Too Large",
+    421: "Misdirected Request",
     422: "Unprocessable Entity",
     429: "Too Many Requests",
     500: "Internal Server Error",

@@ -5,6 +5,7 @@ package drain
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -50,7 +51,7 @@ type Store interface {
 	IsBGPEnabled(ctx context.Context) (bool, error)
 	GetClusterMember(ctx context.Context, nodeID string) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
-	SetDrainState(ctx context.Context, nodeID string, state string) error
+	SetDrainState(ctx context.Context, nodeID string, state string) (string, error)
 }
 
 type Reconciler struct {
@@ -161,6 +162,10 @@ func (r *Reconciler) yieldLeadership() {
 	}
 
 	if err := r.store.LeadershipTransfer(); err != nil {
+		if errors.Is(err, db.ErrNoTransferTarget) {
+			return
+		}
+
 		logger.EllaLog.Warn("drain reconcile: leadership transfer failed, retrying on the next pass",
 			zap.Error(err))
 
@@ -253,8 +258,16 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	if err := r.store.SetDrainState(ctx, r.store.RaftID(), db.DrainStateDrained); err != nil {
+	state, err := r.store.SetDrainState(ctx, r.store.RaftID(), db.DrainStateDrained)
+	if err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not mark drain complete", zap.Error(err))
+		return
+	}
+
+	if state != db.DrainStateDrained {
+		logger.EllaLog.Info("drain reconcile: drain was cancelled while off-loading; leaving the node in its current state",
+			zap.String("drain_state", state))
+
 		return
 	}
 

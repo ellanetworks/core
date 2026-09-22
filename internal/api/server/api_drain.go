@@ -31,27 +31,13 @@ func DrainClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		state, err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
-
-			return
-		}
-
-		if member.DrainState == db.DrainStateDraining || member.DrainState == db.DrainStateDrained {
-			writeResponse(r.Context(), w, DrainResponse{
-				DrainState: member.DrainState,
-			}, http.StatusOK, logger.APILog)
-
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to persist drain state", err, logger.APILog)
 
@@ -69,7 +55,7 @@ func DrainClusterMember(dbInstance *db.Database) http.Handler {
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
-			DrainState: db.DrainStateDraining,
+			DrainState: state,
 		}, http.StatusOK, logger.APILog)
 	})
 }
@@ -83,24 +69,12 @@ func ResumeClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
-		if err != nil {
+		if _, err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
-
-			return
-		}
-
-		if member.DrainState == db.DrainStateActive {
-			writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to clear drain state", err, logger.APILog)
 

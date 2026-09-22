@@ -70,6 +70,38 @@ type opaqueConn struct {
 // bundle. Swapped in by StartClusterHTTP before the server starts.
 var clusterListenerForPeerLookup *listener.Listener
 
+// joinReachabilityTimeout bounds the pre-AddVoter dial back to a
+// joining node. It stays well inside the joiner's own 5s client
+// timeout on the join POST so the leader answers before the joiner
+// gives up.
+const joinReachabilityTimeout = 2 * time.Second
+
+// peerReachableForJoin dials a joining node at the Raft address it
+// asked to be registered under, over the same cluster listener Raft
+// replication uses, and enforces that the node answering is the one
+// claiming the address.
+//
+// This must pass before the node enters the Raft configuration.
+// hashicorp/raft commits an AddVoter entry under the *old* quorum and
+// only then raises quorum to include the new voter, so adding a voter
+// the leader cannot reach succeeds, and the next write loses quorum
+// and the cluster with it. A leader that cannot dial the joiner now
+// will not be able to replicate to it either, so refusing the join is
+// the only outcome that leaves the cluster writable.
+func peerReachableForJoin(ctx context.Context, nodeID string, raftAddress string) error {
+	ln := clusterListenerForPeerLookup
+	if ln == nil {
+		return nil
+	}
+
+	conn, err := ln.Dial(ctx, raftAddress, nodeID, listener.ALPNHTTP, joinReachabilityTimeout)
+	if err != nil {
+		return err
+	}
+
+	return conn.Close()
+}
+
 // StartClusterHTTP registers the ALPNHTTP handler on the cluster
 // listener and starts an HTTP server serving the cluster-internal mux.
 // The returned function shuts down the server.
