@@ -923,6 +923,33 @@ func (m *Manager) BoltNoSync() bool {
 	return m.boltNoSync
 }
 
+// LeadershipTransfer hands leadership to whichever voter Raft judges most
+// up to date. Callers that must keep leadership away from a particular
+// voter use LeadershipTransferTo instead.
+func (m *Manager) LeadershipTransfer() error {
+	var lastErr error
+
+	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
+		err := m.raft.LeadershipTransfer().Error()
+		if err == nil {
+			return nil
+		}
+
+		if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
+			return err
+		}
+
+		lastErr = err
+
+		logger.RaftLog.Warn("Leadership transfer attempt failed",
+			zap.Int("attempt", attempt),
+			zap.Int("attempts", leadershipTransferAttempts),
+			zap.Error(err))
+	}
+
+	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
+}
+
 func (m *Manager) LeadershipTransferTo(candidates []Server) error {
 	if len(candidates) == 0 {
 		return ErrNoTransferTarget

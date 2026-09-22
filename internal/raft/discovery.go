@@ -54,6 +54,18 @@ type peerProbe struct {
 	schemaVersion int
 }
 
+// NotLeaderBody is the 421 body every leader-only route returns. It is
+// shared so the HTTP layer that writes it and the discovery code that
+// reads it cannot drift. LeaderAddress is the Raft transport address
+// (what a peer dials over the cluster listener); LeaderAPIAddress is the
+// operator-facing API address (what a human or the UI retries against).
+type NotLeaderBody struct {
+	Error            string     `json:"error"`
+	LeaderNodeID     pki.NodeID `json:"leaderNodeId,omitempty"`
+	LeaderAddress    string     `json:"leaderAddress,omitempty"`
+	LeaderAPIAddress string     `json:"leaderAPIAddress,omitempty"`
+}
+
 type notLeaderError struct {
 	message       string
 	leaderNodeID  string
@@ -467,11 +479,7 @@ func (m *Manager) bootstrapCluster() error {
 }
 
 func parseNotLeader(body []byte) error {
-	var payload struct {
-		Error         string     `json:"error"`
-		LeaderNodeID  pki.NodeID `json:"leaderNodeId"`
-		LeaderAddress string     `json:"leaderAddress"`
-	}
+	var payload NotLeaderBody
 
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("server returned %d: %s", http.StatusMisdirectedRequest, string(body))

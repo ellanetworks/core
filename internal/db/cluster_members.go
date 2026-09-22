@@ -243,7 +243,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) erro
 	return nil
 }
 
-func NormalizeDrainState(s string) string {
+func normalizeDrainState(s string) string {
 	if s == "" {
 		return DrainStateActive
 	}
@@ -251,14 +251,14 @@ func NormalizeDrainState(s string) string {
 	return s
 }
 
-func DrainTransitionAllowed(current string, target string) bool {
+func drainTransitionAllowed(current string, target string) bool {
 	switch target {
 	case DrainStateDraining:
-		return NormalizeDrainState(current) == DrainStateActive
+		return normalizeDrainState(current) == DrainStateActive
 	case DrainStateDrained:
-		return NormalizeDrainState(current) == DrainStateDraining
+		return normalizeDrainState(current) == DrainStateDraining
 	case DrainStateActive:
-		return NormalizeDrainState(current) != DrainStateActive
+		return normalizeDrainState(current) != DrainStateActive
 	default:
 		return false
 	}

@@ -5,8 +5,8 @@ package integration_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -45,25 +45,23 @@ func assertNamesTheLeader(ctx context.Context, t *testing.T, h *haMatrixEnv, cal
 		follower, leader := leaderAndFollower(ctx, t, h)
 
 		err := call(follower)
-
-		var notLeader *client.NotLeaderError
-		if !errors.As(err, &notLeader) {
-			t.Logf("attempt %d: got %v, want a NotLeaderError; leadership may have moved, retrying", attempt+1, err)
+		if err == nil || !strings.Contains(err.Error(), "not the cluster leader") {
+			t.Logf("attempt %d: got %v, want a not-leader rejection; leadership may have moved, retrying", attempt+1, err)
 			continue
 		}
 
-		if notLeader.LeaderNodeID != leader.NodeID {
-			t.Fatalf("leaderNodeId = %q, want %q", notLeader.LeaderNodeID, leader.NodeID)
+		if !strings.Contains(err.Error(), string(leader.NodeID)) {
+			t.Fatalf("rejection %q does not name the leader %s", err, leader.NodeID)
 		}
 
-		if notLeader.LeaderAPIAddress != leader.APIAddress {
-			t.Fatalf("leaderAPIAddress = %q, want %q", notLeader.LeaderAPIAddress, leader.APIAddress)
+		if !strings.Contains(err.Error(), leader.APIAddress) {
+			t.Fatalf("rejection %q does not name the leader's API address %s", err, leader.APIAddress)
 		}
 
 		return
 	}
 
-	t.Fatalf("no NotLeaderError after %d attempts", notLeaderAttempts)
+	t.Fatalf("no not-leader rejection after %d attempts", notLeaderAttempts)
 }
 
 func runClusterRoutingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
@@ -78,12 +76,12 @@ func runClusterRoutingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv
 		})
 	})
 
-	t.Run("mint_join_token_names_the_leader", func(t *testing.T) {
-		assertNamesTheLeader(ctx, t, h, func(follower *client.Client) error {
-			_, err := follower.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{TTLSeconds: 600})
+	t.Run("mint_join_token_works_on_a_follower", func(t *testing.T) {
+		follower, _ := leaderAndFollower(ctx, t, h)
 
-			return err
-		})
+		if _, err := follower.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{TTLSeconds: 600}); err != nil {
+			t.Fatalf("MintClusterJoinToken on a follower: %v", err)
+		}
 	})
 
 	t.Run("autopilot_reads_proxy_to_the_leader", func(t *testing.T) {

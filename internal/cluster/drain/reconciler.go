@@ -65,6 +65,12 @@ type Reconciler struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
+
+	// drainingSince is when this node first observed itself draining,
+	// read from the local clock. The replicated drainUpdatedAt is stamped
+	// by whichever node proposed the drain, so comparing it against this
+	// node's clock would make the deadline depend on two clocks agreeing.
+	drainingSince time.Time
 }
 
 func New(store Store, bgp BGPSpeaker, wakeup <-chan struct{}, nfs ...Eligibility) *Reconciler {
@@ -229,7 +235,12 @@ func (r *Reconciler) sweep(ctx context.Context) {
 
 	member, err := r.store.GetClusterMember(ctx, r.store.RaftID())
 	if err != nil || member.DrainState != db.DrainStateDraining {
+		r.drainingSince = time.Time{}
 		return
+	}
+
+	if r.drainingSince.IsZero() {
+		r.drainingSince = time.Now()
 	}
 
 	if !r.hasSomewhereToGo(ctx) {
@@ -237,7 +248,7 @@ func (r *Reconciler) sweep(ctx context.Context) {
 	}
 
 	batch := offloadBatchSize
-	if r.pastDeadline(member) {
+	if r.pastDeadline() {
 		batch = 0
 	}
 
@@ -274,12 +285,12 @@ func (r *Reconciler) sweep(ctx context.Context) {
 	logger.EllaLog.Info("drain complete; no subscribers left to off-load")
 }
 
-func (r *Reconciler) pastDeadline(member *db.ClusterMember) bool {
-	if member.DrainUpdatedAt == 0 {
+func (r *Reconciler) pastDeadline() bool {
+	if r.drainingSince.IsZero() {
 		return false
 	}
 
-	return time.Since(time.Unix(member.DrainUpdatedAt, 0)) >= r.deadline
+	return time.Since(r.drainingSince) >= r.deadline
 }
 
 func (r *Reconciler) hasSomewhereToGo(ctx context.Context) bool {

@@ -6,7 +6,7 @@ description: Step-by-step instructions to backup and restore Ella Core.
 
 Ella Core stores all persistent data in an embedded database. You can create backups of this database to protect your data and restore it in case of data loss.
 
-## Backup 
+## Backup
 
 1. Open Ella Core in your web browser.
 2. Navigate to the **Backup and Restore** tab in the left-hand menu.
@@ -14,7 +14,7 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 4. The backup file will be downloaded to your computer. It contains sensitive data, store and transfer it encrypted.
 
 !!! note
-    This operation can also be done using the API. Please see the [restore API documentation](../reference/api/restore.md) for more information.
+    This operation can also be done using the API. Please see the [backup API documentation](../reference/api/backup.md) for more information.
 
 ## Restore
 
@@ -38,19 +38,19 @@ Restoring a backup will overwrite all existing data in your Ella Core installati
 
     1. Stop the daemon on every node in the cluster:
 
-    ```shell
-    sudo snap stop ella-core.cored
-    ```
+        ```shell
+        sudo snap stop ella-core.cored
+        ```
 
     2. On the node you seed from the backup, delete the old cluster state:
 
-    ```shell
-    sudo rm -rf /var/snap/ella-core/common/data/ella.db \
-                /var/snap/ella-core/common/data/ella.db-wal \
-                /var/snap/ella-core/common/data/ella.db-shm \
-                /var/snap/ella-core/common/data/raft \
-                /var/snap/ella-core/common/data/cluster-tls
-    ```
+        ```shell
+        sudo rm -rf /var/snap/ella-core/common/data/ella.db \
+                    /var/snap/ella-core/common/data/ella.db-wal \
+                    /var/snap/ella-core/common/data/ella.db-shm \
+                    /var/snap/ella-core/common/data/raft \
+                    /var/snap/ella-core/common/data/cluster-tls
+        ```
 
     3. Drop the backup archive into the data directory as `restore.bundle`:
 

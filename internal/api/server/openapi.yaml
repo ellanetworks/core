@@ -3198,8 +3198,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "421":
-          $ref: "#/components/responses/NotLeader"
         "503":
           description: PKI issuer not yet available (pre-bootstrap).
 
@@ -3605,6 +3603,8 @@ components:
         error:
           type: string
         leaderNodeId:
+          type: string
+        leaderAddress:
           type: string
         leaderAPIAddress:
           type: string

@@ -108,10 +108,6 @@ func (s *Service) MintJoinToken(ctx context.Context, ttl time.Duration) (string,
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
 	}
 
-	if !s.store.IsLeader() {
-		return "", fmt.Errorf("not leader")
-	}
-
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {

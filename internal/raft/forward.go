@@ -23,9 +23,7 @@ import (
 // Write-path parity between the entry points Ella Core has to the
 // replicated FSM:
 //
-//   1. Operator HTTP writes are caught by LeaderProxyMiddleware and
-//      re-issued against the leader's /cluster/proxy/ mount.
-//   2. In-process replicated writes (NF code, audit logs, bulk deletes,
+//   1. In-process replicated writes (NF code, audit logs, bulk deletes,
 //      migrations) call typed-op Invoke helpers in internal/db. On a
 //      follower, the helper forwards (operation name, payload JSON)
 //      to the leader's /cluster/internal/propose endpoint. The
@@ -186,11 +184,7 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 		case http.StatusConflict:
 			return nil, err
 
-		case http.StatusMisdirectedRequest:
-			lastErr = hraft.ErrNotLeader
-			continue
-
-		case http.StatusServiceUnavailable:
+		case http.StatusMisdirectedRequest, http.StatusServiceUnavailable:
 			lastErr = hraft.ErrNotLeader
 
 			if err := waitOrDone(ctx, noLeaderBackoff); err != nil {

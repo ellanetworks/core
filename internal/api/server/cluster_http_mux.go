@@ -53,8 +53,8 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /cluster/status", ClusterStatus(dbInstance).ServeHTTP)
-	mux.Handle("POST /cluster/members", clusterLeaderOnly(dbInstance, selfRegistrationGuard(AddClusterMember(dbInstance))))
-	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, clusterLeaderOnly(dbInstance, ClusterAutopilotState(dbInstance))))
+	mux.Handle("POST /cluster/members", LeaderOnly(dbInstance, selfRegistrationGuard(AddClusterMember(dbInstance))))
+	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, LeaderOnly(dbInstance, ClusterAutopilotState(dbInstance))))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer

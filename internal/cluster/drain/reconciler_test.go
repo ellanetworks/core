@@ -136,8 +136,13 @@ func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) (s
 		return "", db.ErrNotFound
 	}
 
-	if !db.DrainTransitionAllowed(member.DrainState, state) {
-		return db.NormalizeDrainState(member.DrainState), nil
+	current := member.DrainState
+	if current == "" {
+		current = db.DrainStateActive
+	}
+
+	if current == state || (state == db.DrainStateDrained && current != db.DrainStateDraining) {
+		return current, nil
 	}
 
 	member.DrainState = state
@@ -234,14 +239,49 @@ func TestSweepDoesNotClobberAResumeRacingTheOffload(t *testing.T) {
 
 func TestSweepIgnoresTheBatchBoundPastTheDeadline(t *testing.T) {
 	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	nf := &fakeNF{remaining: offloadBatchSize * 5}
+
+	r := New(store, nil, nil, nf)
+	r.drainingSince = time.Now().Add(-2 * time.Hour)
+
+	r.sweep(context.Background())
+
+	if nf.remaining != 0 {
+		t.Fatalf("%d UEs left after the deadline pass, want 0", nf.remaining)
+	}
+}
+
+func TestSweepDeadlineIgnoresAPeerClock(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
 	store.members["1"].DrainUpdatedAt = time.Now().Add(-2 * time.Hour).Unix()
 
 	nf := &fakeNF{remaining: offloadBatchSize * 5}
 
 	New(store, nil, nil, nf).sweep(context.Background())
 
-	if nf.remaining != 0 {
-		t.Fatalf("%d UEs left after the deadline pass, want 0", nf.remaining)
+	if nf.remaining != offloadBatchSize*4 {
+		t.Fatalf("%d UEs left, want %d; a peer's clock decided this node's drain deadline",
+			nf.remaining, offloadBatchSize*4)
+	}
+}
+
+func TestSweepDeadlineResetsWhenDrainStops(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	nf := &fakeNF{remaining: offloadBatchSize}
+
+	r := New(store, nil, nil, nf)
+	r.drainingSince = time.Now().Add(-2 * time.Hour)
+
+	store.mu.Lock()
+	store.members["1"].DrainState = db.DrainStateActive
+	store.mu.Unlock()
+
+	r.sweep(context.Background())
+
+	if !r.drainingSince.IsZero() {
+		t.Fatal("drainingSince survived the node leaving the draining state")
 	}
 }
 

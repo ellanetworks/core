@@ -6,13 +6,43 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
-import ClusterSetupCard from "./ClusterSetupCard";
+import ClusterSetupCard, { validateSeedAddress } from "./ClusterSetupCard";
 
 const api = setupApiServer();
 
 const JOIN = "/api/v1/cluster/join";
 
 const TOKEN = "a".repeat(100);
+
+describe("validateSeedAddress", () => {
+  it.each([
+    ["192.168.40.58:7000"],
+    ["host.example.com:7000"],
+    ["[2001:db8::1]:7000"],
+    ["[fe80::1]:7000"],
+    ["10.0.0.1:1"],
+    ["10.0.0.1:65535"],
+    [""],
+  ])("accepts %s", (address) => {
+    expect(validateSeedAddress(address)).toBe("");
+  });
+
+  it.each([
+    ["fe80::1", /brackets/],
+    ["2001:db8::1:7000", /brackets/],
+    ["[2001:db8::1:7000", /Close the bracket/],
+    ["[2001:db8::1]", /port is missing/],
+    ["192.168.40.58", /port is missing/],
+    ["192.168.40.58:", /port is missing/],
+    [":7000", /port is missing/],
+    ["https://10.0.0.1:7000", /not a URL/],
+    ["10.0.0.1:0", /between 1 and 65535/],
+    ["10.0.0.1:65536", /between 1 and 65535/],
+    ["10.0.0.1:http", /between 1 and 65535/],
+  ])("rejects %s", (address, expected) => {
+    expect(validateSeedAddress(address)).toMatch(expected);
+  });
+});
 
 describe("ClusterSetupCard", () => {
   it("sends the token and seed address, and blocks Join until both are set", async () => {

@@ -59,6 +59,8 @@ const HEADING: Record<Pending, string> = {
 
 const ADDRESS_EXAMPLE = "Use host:port, for example 192.168.40.58:7000.";
 
+const IPV6_EXAMPLE = "Use [address]:port, for example [2001:db8::1]:7000.";
+
 export const validateSeedAddress = (value: string): string => {
   const address = value.trim();
   if (!address) return "";
@@ -67,12 +69,33 @@ export const validateSeedAddress = (value: string): string => {
     return `Enter a cluster address, not a URL. ${ADDRESS_EXAMPLE}`;
   }
 
-  const separator = address.lastIndexOf(":");
-  if (separator <= 0 || separator === address.length - 1) {
+  let rest: string;
+
+  if (address.startsWith("[")) {
+    const close = address.indexOf("]");
+    if (close < 0) {
+      return `Close the bracket around the IPv6 address. ${IPV6_EXAMPLE}`;
+    }
+
+    rest = address.slice(close + 1);
+  } else {
+    const separator = address.lastIndexOf(":");
+    if (separator <= 0) {
+      return `The cluster port is missing. ${ADDRESS_EXAMPLE}`;
+    }
+
+    if (address.slice(0, separator).includes(":")) {
+      return `Wrap an IPv6 address in brackets. ${IPV6_EXAMPLE}`;
+    }
+
+    rest = address.slice(separator);
+  }
+
+  if (!rest.startsWith(":") || rest.length < 2) {
     return `The cluster port is missing. ${ADDRESS_EXAMPLE}`;
   }
 
-  const port = address.slice(separator + 1);
+  const port = rest.slice(1);
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
     return "The port must be a number between 1 and 65535.";
   }

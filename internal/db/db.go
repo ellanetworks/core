@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -750,15 +749,33 @@ func (db *Database) ClusterEnabled() bool {
 
 var ErrNoTransferTarget = ellaraft.ErrNoTransferTarget
 
+// LeadershipTransfer hands leadership to another voter. A draining node is
+// never chosen: it is on its way out of service and would only hand
+// leadership on again. When no voter is draining there is nothing to
+// exclude, so the choice is left to Raft, which picks the most up-to-date
+// follower by replication index - a better signal than anything this layer
+// has. Returns ErrNoTransferTarget when no eligible voter exists.
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
 
-	return db.raftManager.LeadershipTransferTo(db.leadershipTransferCandidates())
+	eligible, excluded := db.transferCandidates()
+
+	if len(eligible) == 0 {
+		return ellaraft.ErrNoTransferTarget
+	}
+
+	if !excluded {
+		return db.raftManager.LeadershipTransfer()
+	}
+
+	return db.raftManager.LeadershipTransferTo(eligible)
 }
 
-func (db *Database) leadershipTransferCandidates() []ellaraft.Server {
+// transferCandidates returns the voters that may take over from this node,
+// and whether any voter was excluded for draining.
+func (db *Database) transferCandidates() ([]ellaraft.Server, bool) {
 	members, err := db.ListClusterMembers(context.Background())
 	if err != nil {
 		logger.DBLog.Warn("could not read cluster members while choosing a leadership transfer target; falling back to any voter",
@@ -767,51 +784,30 @@ func (db *Database) leadershipTransferCandidates() []ellaraft.Server {
 		members = nil
 	}
 
-	health := make(map[string]bool)
-
-	if state := db.raftManager.AutopilotState(); state != nil {
-		for id, srv := range state.Servers {
-			health[string(id)] = srv.Health.Healthy
-		}
-	}
-
-	return rankTransferCandidates(db.raftManager.RaftID(), db.raftManager.Servers(), members, health)
-}
-
-func rankTransferCandidates(self string, servers []ellaraft.Server, members []ClusterMember, health map[string]bool) []ellaraft.Server {
 	draining := make(map[string]bool, len(members))
 	for _, m := range members {
-		draining[m.NodeID] = NormalizeDrainState(m.DrainState) != DrainStateActive
+		draining[m.NodeID] = normalizeDrainState(m.DrainState) != DrainStateActive
 	}
 
-	var healthy, unjudged, unhealthy []ellaraft.Server
+	self := db.raftManager.RaftID()
+	excluded := false
 
-	for _, srv := range servers {
-		if srv.NodeID == self || srv.Suffrage != "voter" || draining[srv.NodeID] {
+	var eligible []ellaraft.Server
+
+	for _, srv := range db.raftManager.Servers() {
+		if srv.NodeID == self || srv.Suffrage != "voter" {
 			continue
 		}
 
-		ok, judged := health[srv.NodeID]
-
-		switch {
-		case !judged:
-			unjudged = append(unjudged, srv)
-		case ok:
-			healthy = append(healthy, srv)
-		default:
-			unhealthy = append(unhealthy, srv)
+		if draining[srv.NodeID] {
+			excluded = true
+			continue
 		}
+
+		eligible = append(eligible, srv)
 	}
 
-	byNodeID := func(s []ellaraft.Server) {
-		sort.Slice(s, func(i, j int) bool { return s[i].NodeID < s[j].NodeID })
-	}
-
-	byNodeID(healthy)
-	byNodeID(unjudged)
-	byNodeID(unhealthy)
-
-	return append(append(healthy, unjudged...), unhealthy...)
+	return eligible, excluded
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.

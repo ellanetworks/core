@@ -266,9 +266,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// PKI admin endpoints. Handlers resolve the issuer service at
 	// request time (set by runtime after first-leader bootstrap), so
 	// these routes can be registered before the issuer is ready.
-	mux.HandleFunc("POST /api/v1/cluster/pki/join-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
+	mux.HandleFunc("POST /api/v1/cluster/pki/join-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
 		return PKIMintJoinToken(svc)
-	})))).ServeHTTP)
+	}))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)

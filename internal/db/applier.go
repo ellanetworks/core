@@ -1590,8 +1590,8 @@ func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (a
 		return nil, fmt.Errorf("read drain state: %w", err)
 	}
 
-	if !DrainTransitionAllowed(current.DrainState, m.DrainState) {
-		return NormalizeDrainState(current.DrainState), nil
+	if !drainTransitionAllowed(current.DrainState, m.DrainState) {
+		return normalizeDrainState(current.DrainState), nil
 	}
 
 	var outcome sqlair.Outcome

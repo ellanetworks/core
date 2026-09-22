@@ -11,35 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestDrainTransitionAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		current string
-		target  string
-		want    bool
-	}{
-		{"", db.DrainStateDraining, true},
-		{db.DrainStateActive, db.DrainStateDraining, true},
-		{db.DrainStateDraining, db.DrainStateDraining, false},
-		{db.DrainStateDrained, db.DrainStateDraining, false},
-
-		{db.DrainStateDraining, db.DrainStateDrained, true},
-		{"", db.DrainStateDrained, false},
-		{db.DrainStateActive, db.DrainStateDrained, false},
-		{db.DrainStateDrained, db.DrainStateDrained, false},
-
-		{db.DrainStateDraining, db.DrainStateActive, true},
-		{db.DrainStateDrained, db.DrainStateActive, true},
-		{"", db.DrainStateActive, false},
-		{db.DrainStateActive, db.DrainStateActive, false},
-	} {
-		t.Run(tc.current+"_to_"+tc.target, func(t *testing.T) {
-			if got := db.DrainTransitionAllowed(tc.current, tc.target); got != tc.want {
-				t.Fatalf("DrainTransitionAllowed(%q, %q) = %v, want %v", tc.current, tc.target, got, tc.want)
-			}
-		})
-	}
-}
-
 func drainStateOf(ctx context.Context, t *testing.T, database *db.Database, nodeID string) db.ClusterMember {
 	t.Helper()
 
