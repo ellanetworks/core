@@ -3068,6 +3068,23 @@ paths:
             No leader is currently available, or leadership changed while the
             read was in flight; try again.
 
+  /api/v1/cluster/health:
+    get:
+      operationId: getClusterHealth
+      tags: [Cluster]
+      summary: Get a summary of cluster health
+      description: >-
+        Returns a summary of cluster health.
+      responses:
+        "200":
+          description: Cluster health summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterHealthResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/cluster/members/{id}/drain:
     post:
       operationId: drainClusterMember
@@ -5914,7 +5931,10 @@ components:
           properties:
             enabled:
               const: false
-          required: [enabled]
+            nodeId:
+              type: [string, integer]
+              description: Identity of this node.
+          required: [enabled, nodeId]
           additionalProperties: false
         - title: Clustered
           type: object
@@ -6111,6 +6131,31 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/AutopilotState"
+
+    ClusterHealth:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [healthy, degraded, no_leader, unknown]
+        totalVoters:
+          type: integer
+          description: Voting members in the local Raft configuration.
+        healthyVoters:
+          type: integer
+          description: Voters reported healthy. Omitted when unknown.
+        failureTolerance:
+          type: integer
+          description: >-
+            Voter failures survivable without losing quorum. Omitted when
+            unknown.
+      required: [state, totalVoters]
+
+    ClusterHealthResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ClusterHealth"
 
     DrainResponse:
       type: object

@@ -9,6 +9,7 @@ import {
   IconButton,
   InputAdornment,
   TextField,
+  Tooltip,
   Typography,
   CircularProgress,
 } from "@mui/material";
@@ -221,25 +222,25 @@ const InitializePage = () => {
           </Button>
         </form>
 
-        <Button
-          fullWidth
-          sx={{ mt: 2 }}
-          endIcon={<ArrowForwardIcon />}
-          onClick={() => navigate("/initialize/join")}
-          disabled={loading || !clusterEnabled}
+        <Tooltip
+          title={
+            clusterEnabled
+              ? ""
+              : "The cluster bind address is not set in the config file."
+          }
         >
-          Join an existing cluster instead
-        </Button>
-
-        {!clusterEnabled && (
-          <Typography
-            variant="caption"
-            color="textSecondary"
-            sx={{ mt: 1, display: "block", textAlign: "center" }}
-          >
-            The cluster bind address is not set in the config file.
-          </Typography>
-        )}
+          <Box component="span" sx={{ display: "block" }}>
+            <Button
+              fullWidth
+              sx={{ mt: 2 }}
+              endIcon={<ArrowForwardIcon />}
+              onClick={() => navigate("/initialize/join")}
+              disabled={loading || !clusterEnabled}
+            >
+              Join an existing cluster instead
+            </Button>
+          </Box>
+        </Tooltip>
       </Box>
     </Box>
   );

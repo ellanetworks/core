@@ -19,12 +19,11 @@ import {
   DialogContentText,
   DialogActions,
 } from "@mui/material";
-import { useQuery } from "@tanstack/react-query";
 import { backup, restore } from "@/queries/backup";
-import { getStatus, type APIStatus } from "@/queries/status";
 import QueryState from "@/components/QueryState";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStatusQuery } from "@/hooks/useStatus";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import type { Theme } from "@mui/material/styles";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -50,11 +49,7 @@ const BackupRestore = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const statusQuery = useQuery<APIStatus>({
-    queryKey: ["status"],
-    queryFn: getStatus,
-    enabled: authReady && !!accessToken,
-  });
+  const statusQuery = useStatusQuery();
 
   const pageDescription = `Take regular backups of ${PRODUCT.name} so you can recover your data after a hardware failure or data loss.`;
 

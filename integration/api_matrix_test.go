@@ -44,6 +44,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"support_bundle":    runSupportBundleMatrix,
 	"location":          runLocationMatrix,
 	"openapi":           runOpenAPISpecMatrix,
+	"cluster_health":    runClusterHealthMatrix,
 	"auth":              runAuthMatrix,
 }
 
