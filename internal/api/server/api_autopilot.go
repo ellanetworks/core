@@ -64,6 +64,13 @@ func GetAutopilotState(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if leaderResp.StatusCode == http.StatusMisdirectedRequest {
+			w.Header().Set("Retry-After", "1")
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "Leadership changed while reading autopilot state, retry shortly", nil, logger.APILog)
+
+			return
+		}
+
 		if leaderResp.StatusCode != http.StatusOK {
 			writeError(r.Context(), w, http.StatusBadGateway, "Leader returned non-OK status reading autopilot state", errors.New(http.StatusText(leaderResp.StatusCode)), logger.APILog)
 			return
@@ -85,11 +92,6 @@ func GetAutopilotState(dbInstance *db.Database) http.Handler {
 // so the follower can re-wrap it in its own response envelope.
 func ClusterAutopilotState(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !dbInstance.IsLeader() {
-			http.Error(w, "not the leader", http.StatusMisdirectedRequest)
-			return
-		}
-
 		state := dbInstance.AutopilotState()
 		resp := mapAutopilotState(state)
 

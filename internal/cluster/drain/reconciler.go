@@ -5,6 +5,7 @@ package drain
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -45,10 +46,12 @@ type BGPSpeaker interface {
 type Store interface {
 	RaftID() string
 	ClusterEnabled() bool
+	IsLeader() bool
+	LeadershipTransfer() error
 	IsBGPEnabled(ctx context.Context) (bool, error)
 	GetClusterMember(ctx context.Context, nodeID string) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
-	SetDrainState(ctx context.Context, nodeID string, state string) error
+	SetDrainState(ctx context.Context, nodeID string, state string) (string, error)
 }
 
 type Reconciler struct {
@@ -59,9 +62,10 @@ type Reconciler struct {
 	backstop time.Duration
 	deadline time.Duration
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
+	mu            sync.Mutex
+	cancel        context.CancelFunc
+	done          chan struct{}
+	drainingSince time.Time
 }
 
 func New(store Store, bgp BGPSpeaker, wakeup <-chan struct{}, nfs ...Eligibility) *Reconciler {
@@ -147,6 +151,29 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	}
 
 	r.reconcileBGP(ctx, eligible)
+
+	if !eligible {
+		r.yieldLeadership()
+	}
+}
+
+func (r *Reconciler) yieldLeadership() {
+	if !r.store.ClusterEnabled() || !r.store.IsLeader() {
+		return
+	}
+
+	if err := r.store.LeadershipTransfer(); err != nil {
+		if errors.Is(err, db.ErrNoTransferTarget) {
+			return
+		}
+
+		logger.EllaLog.Warn("drain reconcile: leadership transfer failed, retrying on the next pass",
+			zap.Error(err))
+
+		return
+	}
+
+	logger.EllaLog.Info("drain reconcile: leadership transferred away from this draining node")
 }
 
 func (r *Reconciler) localState(ctx context.Context) (string, bool) {
@@ -203,7 +230,12 @@ func (r *Reconciler) sweep(ctx context.Context) {
 
 	member, err := r.store.GetClusterMember(ctx, r.store.RaftID())
 	if err != nil || member.DrainState != db.DrainStateDraining {
+		r.drainingSince = time.Time{}
 		return
+	}
+
+	if r.drainingSince.IsZero() {
+		r.drainingSince = time.Now()
 	}
 
 	if !r.hasSomewhereToGo(ctx) {
@@ -211,7 +243,7 @@ func (r *Reconciler) sweep(ctx context.Context) {
 	}
 
 	batch := offloadBatchSize
-	if r.pastDeadline(member) {
+	if r.pastDeadline() {
 		batch = 0
 	}
 
@@ -232,20 +264,28 @@ func (r *Reconciler) sweep(ctx context.Context) {
 		return
 	}
 
-	if err := r.store.SetDrainState(ctx, r.store.RaftID(), db.DrainStateDrained); err != nil {
+	state, err := r.store.SetDrainState(ctx, r.store.RaftID(), db.DrainStateDrained)
+	if err != nil {
 		logger.EllaLog.Warn("drain reconcile: could not mark drain complete", zap.Error(err))
+		return
+	}
+
+	if state != db.DrainStateDrained {
+		logger.EllaLog.Info("drain reconcile: drain was cancelled while off-loading; leaving the node in its current state",
+			zap.String("drain_state", state))
+
 		return
 	}
 
 	logger.EllaLog.Info("drain complete; no subscribers left to off-load")
 }
 
-func (r *Reconciler) pastDeadline(member *db.ClusterMember) bool {
-	if member.DrainUpdatedAt == 0 {
+func (r *Reconciler) pastDeadline() bool {
+	if r.drainingSince.IsZero() {
 		return false
 	}
 
-	return time.Since(time.Unix(member.DrainUpdatedAt, 0)) >= r.deadline
+	return time.Since(r.drainingSince) >= r.deadline
 }
 
 func (r *Reconciler) hasSomewhereToGo(ctx context.Context) bool {

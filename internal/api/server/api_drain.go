@@ -8,14 +8,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/bgp"
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/pki"
-	"go.uber.org/zap"
 )
 
 const (
@@ -28,9 +23,7 @@ type DrainResponse struct {
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
-//
-// Runs on the leader.
-func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func DrainClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
@@ -38,44 +31,17 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 			return
 		}
 
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		state, err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
-
-			return
-		}
-
-		if member.DrainState == db.DrainStateDraining || member.DrainState == db.DrainStateDrained {
-			writeResponse(r.Context(), w, DrainResponse{
-				DrainState: member.DrainState,
-			}, http.StatusOK, logger.APILog)
-
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to persist drain state", err, logger.APILog)
 
 			return
-		}
-
-		// Leadership transfer is the last local step: transferring earlier
-		// would strand subsequent replicated writes on a now-follower.
-		transferred := false
-
-		if nodeID == dbInstance.RaftID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
-			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.APILog.Warn("leadership transfer failed during self-drain; drain state is already draining",
-					zap.Error(err))
-			} else {
-				transferred = true
-			}
 		}
 
 		actor := getActorFromContext(r)
@@ -85,19 +51,17 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 			DrainAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %s drain, leadership_transferred=%v", nodeID, transferred),
+			fmt.Sprintf("Node %s drain", nodeID),
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
-			DrainState: db.DrainStateDraining,
+			DrainState: state,
 		}, http.StatusOK, logger.APILog)
 	})
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
-//
-// Runs on the leader.
-func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func ResumeClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
@@ -105,24 +69,12 @@ func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpServi
 			return
 		}
 
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
-		if err != nil {
+		if _, err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
-
-			return
-		}
-
-		if member.DrainState == db.DrainStateActive {
-			writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"Failed to clear drain state", err, logger.APILog)
 

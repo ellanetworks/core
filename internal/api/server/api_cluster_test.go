@@ -314,7 +314,11 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	seedLease("10.45.0.12", "001010000000003", "static")
 
 	// Mark the node drained so the remove precondition is satisfied.
-	if err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDrained); err != nil {
+	if _, err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDraining); err != nil {
+		t.Fatalf("set drain state: %s", err)
+	}
+
+	if _, err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDrained); err != nil {
 		t.Fatalf("set drain state: %s", err)
 	}
 
@@ -555,7 +559,7 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 		t.Fatalf("upsert self: %s", err)
 	}
 
-	if err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
+	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
 		t.Fatalf("seed drained state: %s", err)
 	}
 
@@ -570,6 +574,89 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 
 	if !strings.Contains(body, `"drainState":"draining"`) {
 		t.Errorf("expected drainState=draining in body, got %s", body)
+	}
+}
+
+func TestDrainClusterMember_DoesNotRestartAFinishedDrain(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+	self := "1"
+
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:     self,
+		APIAddress: "http://127.0.0.1:0",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
+		t.Fatalf("seed draining state: %s", err)
+	}
+
+	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDrained); err != nil {
+		t.Fatalf("seed drained state: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 draining an already drained node, got %d (body: %s)", status, body)
+	}
+
+	if !strings.Contains(body, `"drainState":"drained"`) {
+		t.Errorf("expected drainState=drained in body, got %s", body)
+	}
+
+	member, err := env.DB.GetClusterMember(ctx, self)
+	if err != nil {
+		t.Fatalf("get cluster member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateDrained {
+		t.Errorf("stored state = %q, want %q", member.DrainState, db.DrainStateDrained)
+	}
+}
+
+func TestDrainClusterMember_UnknownNode(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, "99999999-9999-9999-9999-999999999999", 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusNotFound {
+		t.Fatalf("expected 404 draining an unknown node, got %d (body: %s)", status, body)
 	}
 }
 

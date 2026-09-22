@@ -18,28 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// Follower→leader forwarding for in-process replicated writes.
-//
-// Write-path parity between the entry points Ella Core has to the
-// replicated FSM:
-//
-//   1. Operator HTTP writes are caught by LeaderProxyMiddleware and
-//      re-issued against the leader's /cluster/proxy/ mount.
-//   2. In-process replicated writes (NF code, audit logs, bulk deletes,
-//      migrations) call typed-op Invoke helpers in internal/db. On a
-//      follower, the helper forwards (operation name, payload JSON)
-//      to the leader's /cluster/internal/propose endpoint. The
-//      leader's handler dispatches to the same apply function a local
-//      caller would, captures the resulting SQLite changeset against
-//      leader state, and proposes it through Raft.
-//
-// The follower never captures: captures encode row-level deltas against
-// a specific base state (auto-increment IDs, UPDATE before-images,
-// UPSERT-resolved values, default-expression results), and those deltas
-// are only valid when applied against the state that produced them.
-// Shipping the operation intent (a typed command) rather than the
-// captured bytes keeps replication correct under leader changes,
-// cross-version skew, and fresh-boot state divergence.
+// Follower-to-leader forwarding preserves write-path parity by sending typed
+// operation intent to the leader, which applies the command, captures the
+// resulting SQLite changeset, and proposes it through Raft. Followers never
+// capture changesets because row-level deltas depend on the exact base state
+// that produced them.
 
 const (
 	// ProposeForwardPath is the cluster HTTP endpoint a follower POSTs
@@ -186,11 +169,7 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 		case http.StatusConflict:
 			return nil, err
 
-		case http.StatusMisdirectedRequest:
-			lastErr = hraft.ErrNotLeader
-			continue
-
-		case http.StatusServiceUnavailable:
+		case http.StatusMisdirectedRequest, http.StatusServiceUnavailable:
 			lastErr = hraft.ErrNotLeader
 
 			if err := waitOrDone(ctx, noLeaderBackoff); err != nil {

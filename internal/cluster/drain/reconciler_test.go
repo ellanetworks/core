@@ -5,6 +5,7 @@ package drain
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -52,14 +53,47 @@ func (f *fakeNF) RemainingOffloadable() int {
 }
 
 type fakeStore struct {
-	mu      sync.Mutex
-	members map[string]*db.ClusterMember
-	self    string
-	bgpOn   bool
+	mu          sync.Mutex
+	members     map[string]*db.ClusterMember
+	self        string
+	bgpOn       bool
+	leader      bool
+	transfers   int
+	transferErr error
+	staleReads  map[string]string
 }
 
 func (s *fakeStore) RaftID() string       { return s.self }
 func (s *fakeStore) ClusterEnabled() bool { return true }
+
+func (s *fakeStore) IsLeader() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.leader
+}
+
+func (s *fakeStore) LeadershipTransfer() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.transfers++
+
+	if s.transferErr != nil {
+		return s.transferErr
+	}
+
+	s.leader = false
+
+	return nil
+}
+
+func (s *fakeStore) transferCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.transfers
+}
 
 func (s *fakeStore) IsBGPEnabled(context.Context) (bool, error) { return s.bgpOn, nil }
 
@@ -73,6 +107,10 @@ func (s *fakeStore) GetClusterMember(_ context.Context, id string) (*db.ClusterM
 	}
 
 	c := *m
+
+	if stale, ok := s.staleReads[id]; ok {
+		c.DrainState = stale
+	}
 
 	return &c, nil
 }
@@ -89,13 +127,27 @@ func (s *fakeStore) ListClusterMembers(context.Context) ([]db.ClusterMember, err
 	return out, nil
 }
 
-func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) error {
+func (s *fakeStore) SetDrainState(_ context.Context, id string, state string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.members[id].DrainState = state
+	member, ok := s.members[id]
+	if !ok {
+		return "", db.ErrNotFound
+	}
 
-	return nil
+	current := member.DrainState
+	if current == "" {
+		current = db.DrainStateActive
+	}
+
+	if current == state || (state == db.DrainStateDrained && current != db.DrainStateDraining) {
+		return current, nil
+	}
+
+	member.DrainState = state
+
+	return state, nil
 }
 
 func (s *fakeStore) stateOf(id string) string {
@@ -168,7 +220,39 @@ func TestSweepOffloadsAndCompletesTheDrain(t *testing.T) {
 	}
 }
 
+func TestSweepDoesNotClobberAResumeRacingTheOffload(t *testing.T) {
+	store := newStore(db.DrainStateActive, db.DrainStateActive)
+	store.staleReads = map[string]string{"1": db.DrainStateDraining}
+
+	nf := &fakeNF{remaining: 0}
+
+	New(store, nil, nil, nf).sweep(context.Background())
+
+	if got := store.stateOf(store.self); got != db.DrainStateActive {
+		t.Fatalf("state = %s, want the node to stay active after a resume", got)
+	}
+
+	if got := store.stateOf("2"); got != db.DrainStateActive {
+		t.Fatalf("peer state = %s, want the sweep to leave peers alone", got)
+	}
+}
+
 func TestSweepIgnoresTheBatchBoundPastTheDeadline(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	nf := &fakeNF{remaining: offloadBatchSize * 5}
+
+	r := New(store, nil, nil, nf)
+	r.drainingSince = time.Now().Add(-2 * time.Hour)
+
+	r.sweep(context.Background())
+
+	if nf.remaining != 0 {
+		t.Fatalf("%d UEs left after the deadline pass, want 0", nf.remaining)
+	}
+}
+
+func TestSweepDeadlineIgnoresAPeerClock(t *testing.T) {
 	store := newStore(db.DrainStateDraining, db.DrainStateActive)
 	store.members["1"].DrainUpdatedAt = time.Now().Add(-2 * time.Hour).Unix()
 
@@ -176,8 +260,28 @@ func TestSweepIgnoresTheBatchBoundPastTheDeadline(t *testing.T) {
 
 	New(store, nil, nil, nf).sweep(context.Background())
 
-	if nf.remaining != 0 {
-		t.Fatalf("%d UEs left after the deadline pass, want 0", nf.remaining)
+	if nf.remaining != offloadBatchSize*4 {
+		t.Fatalf("%d UEs left, want %d; a peer's clock decided this node's drain deadline",
+			nf.remaining, offloadBatchSize*4)
+	}
+}
+
+func TestSweepDeadlineResetsWhenDrainStops(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	nf := &fakeNF{remaining: offloadBatchSize}
+
+	r := New(store, nil, nil, nf)
+	r.drainingSince = time.Now().Add(-2 * time.Hour)
+
+	store.mu.Lock()
+	store.members["1"].DrainState = db.DrainStateActive
+	store.mu.Unlock()
+
+	r.sweep(context.Background())
+
+	if !r.drainingSince.IsZero() {
+		t.Fatal("drainingSince survived the node leaving the draining state")
 	}
 }
 
@@ -203,5 +307,60 @@ func TestSweepIgnoresANodeThatIsNotDraining(t *testing.T) {
 
 	if nf.offloaded != 0 {
 		t.Fatalf("off-loaded %d UEs on an active node", nf.offloaded)
+	}
+}
+
+func TestReconcileYieldsLeadershipWhenDraining(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+	store.leader = true
+
+	r := New(store, nil, nil, &fakeNF{eligible: true})
+
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 1 {
+		t.Fatalf("leadership transfers = %d, want 1", store.transferCount())
+	}
+
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 1 {
+		t.Fatalf("leadership transfers = %d, want no retry once leadership moved", store.transferCount())
+	}
+}
+
+func TestReconcileRetriesAFailedLeadershipTransfer(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+	store.leader = true
+	store.transferErr = errors.New("no eligible voter")
+
+	r := New(store, nil, nil, &fakeNF{eligible: true})
+
+	r.Reconcile(context.Background())
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 2 {
+		t.Fatalf("leadership transfers = %d, want a retry on the next pass", store.transferCount())
+	}
+}
+
+func TestReconcileKeepsLeadershipWhenActive(t *testing.T) {
+	store := newStore(db.DrainStateActive, db.DrainStateActive)
+	store.leader = true
+
+	New(store, nil, nil, &fakeNF{}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("leadership transfers = %d, want none on an active node", store.transferCount())
+	}
+}
+
+func TestReconcileOnADrainingFollowerDoesNotTransfer(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	New(store, nil, nil, &fakeNF{eligible: true}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("leadership transfers = %d, want none on a follower", store.transferCount())
 	}
 }

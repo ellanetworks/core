@@ -2965,6 +2965,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "421":
+          $ref: "#/components/responses/NotLeader"
 
   /api/v1/cluster/members/{id}/display-name:
     put:
@@ -3033,6 +3035,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "421":
+          $ref: "#/components/responses/NotLeader"
 
   /api/v1/cluster/autopilot:
     get:
@@ -3060,7 +3064,9 @@ paths:
         "502":
           description: Proxy to leader failed; try again.
         "503":
-          description: No leader is currently available; try again.
+          description: >-
+            No leader is currently available, or leadership changed while the
+            read was in flight; try again.
 
   /api/v1/cluster/members/{id}/drain:
     post:
@@ -3574,6 +3580,13 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    NotLeader:
+      description: >-
+        This node is not the cluster leader. Re-send the request to the leader node.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/NotLeaderResponse"
 
   schemas:
     # -- Common ----------------------------------------------------------
@@ -3581,6 +3594,19 @@ components:
       type: object
       properties:
         error:
+          type: string
+      required: [error]
+
+    NotLeaderResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        leaderNodeId:
+          type: string
+        leaderAddress:
+          type: string
+        leaderAPIAddress:
           type: string
       required: [error]
 

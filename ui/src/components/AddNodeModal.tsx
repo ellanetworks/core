@@ -131,8 +131,9 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
             </Typography>
 
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Open the new node in a browser and paste this token into its Join
-              a cluster page.
+              Open the new node in a browser, click{" "}
+              <strong>Join an existing cluster instead</strong> and paste this
+              token.
             </Typography>
 
             <Box

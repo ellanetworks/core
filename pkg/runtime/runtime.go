@@ -690,10 +690,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
 			logger.EllaLog.Info("Transferring Raft leadership before shutdown")
 
-			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.EllaLog.Warn("Leadership transfer failed", zap.Error(err))
-			} else {
+			switch err := dbInstance.LeadershipTransfer(); {
+			case err == nil:
 				logger.EllaLog.Info("Leadership transferred successfully")
+			case errors.Is(err, db.ErrNoTransferTarget):
+				logger.EllaLog.Info("No peer is eligible to take over leadership; shutting down without transferring")
+			default:
+				logger.EllaLog.Warn("Leadership transfer failed", zap.Error(err))
 			}
 		}
 

@@ -51,6 +51,7 @@ const (
 	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion) VALUES ($ClusterMember.nodeID, '', $ClusterMember.apiAddress, $ClusterMember.binaryVersion) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion"
 	deleteClusterMemberStmtStr       = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	getDrainStateStmtStr             = "SELECT &ClusterMember.drainState FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	setDrainStateStmtStr             = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
 	setDisplayNameStmtStr            = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
 )
@@ -242,11 +243,30 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) erro
 	return nil
 }
 
-// SetDrainState persists the drain state for a cluster member and
-// stamps drainUpdatedAt. Returns ErrNotFound if no row exists for nodeID.
-func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) error {
+func normalizeDrainState(s string) string {
+	if s == "" {
+		return DrainStateActive
+	}
+
+	return s
+}
+
+func drainTransitionAllowed(current string, target string) bool {
+	switch target {
+	case DrainStateDraining:
+		return normalizeDrainState(current) == DrainStateActive
+	case DrainStateDrained:
+		return normalizeDrainState(current) == DrainStateDraining
+	case DrainStateActive:
+		return normalizeDrainState(current) != DrainStateActive
+	default:
+		return false
+	}
+}
+
+func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) (string, error) {
 	if !IsValidDrainState(state) {
-		return fmt.Errorf("invalid drain state %q", state)
+		return "", fmt.Errorf("invalid drain state %q", state)
 	}
 
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
@@ -275,17 +295,17 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID string, state stri
 		DrainUpdatedAt: time.Now().Unix(),
 	}
 
-	_, err := opSetDrainState.Invoke(ctx, db, member)
+	effective, err := opSetDrainState.Invoke(ctx, db, member)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
-		return err
+		return "", err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return nil
+	return effective, nil
 }
 
 func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
