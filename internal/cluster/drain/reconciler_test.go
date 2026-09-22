@@ -5,6 +5,7 @@ package drain
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -52,14 +53,46 @@ func (f *fakeNF) RemainingOffloadable() int {
 }
 
 type fakeStore struct {
-	mu      sync.Mutex
-	members map[string]*db.ClusterMember
-	self    string
-	bgpOn   bool
+	mu          sync.Mutex
+	members     map[string]*db.ClusterMember
+	self        string
+	bgpOn       bool
+	leader      bool
+	transfers   int
+	transferErr error
 }
 
 func (s *fakeStore) RaftID() string       { return s.self }
 func (s *fakeStore) ClusterEnabled() bool { return true }
+
+func (s *fakeStore) IsLeader() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.leader
+}
+
+func (s *fakeStore) LeadershipTransfer() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.transfers++
+
+	if s.transferErr != nil {
+		return s.transferErr
+	}
+
+	s.leader = false
+
+	return nil
+}
+
+func (s *fakeStore) transferCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.transfers
+}
 
 func (s *fakeStore) IsBGPEnabled(context.Context) (bool, error) { return s.bgpOn, nil }
 
@@ -203,5 +236,60 @@ func TestSweepIgnoresANodeThatIsNotDraining(t *testing.T) {
 
 	if nf.offloaded != 0 {
 		t.Fatalf("off-loaded %d UEs on an active node", nf.offloaded)
+	}
+}
+
+func TestReconcileYieldsLeadershipWhenDraining(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+	store.leader = true
+
+	r := New(store, nil, nil, &fakeNF{eligible: true})
+
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 1 {
+		t.Fatalf("leadership transfers = %d, want 1", store.transferCount())
+	}
+
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 1 {
+		t.Fatalf("leadership transfers = %d, want no retry once leadership moved", store.transferCount())
+	}
+}
+
+func TestReconcileRetriesAFailedLeadershipTransfer(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+	store.leader = true
+	store.transferErr = errors.New("no eligible voter")
+
+	r := New(store, nil, nil, &fakeNF{eligible: true})
+
+	r.Reconcile(context.Background())
+	r.Reconcile(context.Background())
+
+	if store.transferCount() != 2 {
+		t.Fatalf("leadership transfers = %d, want a retry on the next pass", store.transferCount())
+	}
+}
+
+func TestReconcileKeepsLeadershipWhenActive(t *testing.T) {
+	store := newStore(db.DrainStateActive, db.DrainStateActive)
+	store.leader = true
+
+	New(store, nil, nil, &fakeNF{}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("leadership transfers = %d, want none on an active node", store.transferCount())
+	}
+}
+
+func TestReconcileOnADrainingFollowerDoesNotTransfer(t *testing.T) {
+	store := newStore(db.DrainStateDraining, db.DrainStateActive)
+
+	New(store, nil, nil, &fakeNF{eligible: true}).Reconcile(context.Background())
+
+	if store.transferCount() != 0 {
+		t.Fatalf("leadership transfers = %d, want none on a follower", store.transferCount())
 	}
 }

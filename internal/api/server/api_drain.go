@@ -8,14 +8,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/bgp"
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/pki"
-	"go.uber.org/zap"
 )
 
 const (
@@ -28,9 +23,7 @@ type DrainResponse struct {
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
-//
-// Runs on the leader.
-func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func DrainClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {
@@ -65,19 +58,6 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 			return
 		}
 
-		// Leadership transfer is the last local step: transferring earlier
-		// would strand subsequent replicated writes on a now-follower.
-		transferred := false
-
-		if nodeID == dbInstance.RaftID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
-			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.APILog.Warn("leadership transfer failed during self-drain; drain state is already draining",
-					zap.Error(err))
-			} else {
-				transferred = true
-			}
-		}
-
 		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
@@ -85,7 +65,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 			DrainAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %s drain, leadership_transferred=%v", nodeID, transferred),
+			fmt.Sprintf("Node %s drain", nodeID),
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
@@ -95,9 +75,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstan
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
-//
-// Runs on the leader.
-func ResumeClusterMember(dbInstance *db.Database, mmeInstance *mme.MME, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
+func ResumeClusterMember(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nodeID, ok := parseMemberIDPath(r)
 		if !ok {

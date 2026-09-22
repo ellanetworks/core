@@ -239,16 +239,41 @@ func decodeInto(reader io.Reader, v any) error {
 
 // response is the common structure produced by the REST API.
 type response struct {
-	Result json.RawMessage `json:"result"`
-	Error  string          `json:"error"`
+	Result           json.RawMessage `json:"result"`
+	Error            string          `json:"error"`
+	LeaderNodeID     NodeID          `json:"leaderNodeId"`
+	LeaderAPIAddress string          `json:"leaderAPIAddress"`
+}
+
+// NotLeaderError reports a request that reached a node which is not the
+// cluster leader. LeaderNodeID and LeaderAPIAddress name the node to
+// retry against; both are empty when no leader is currently elected.
+type NotLeaderError struct {
+	StatusCode       int
+	Message          string
+	LeaderNodeID     NodeID
+	LeaderAPIAddress string
+}
+
+func (e *NotLeaderError) Error() string {
+	return fmt.Sprintf("server error %d: %s", e.StatusCode, e.Message)
 }
 
 func (rsp *response) err(statusCode int) error {
-	if rsp.Error != "" {
-		return fmt.Errorf("server error %d: %s", statusCode, rsp.Error)
+	if rsp.Error == "" {
+		return nil
 	}
 
-	return nil
+	if statusCode == http.StatusMisdirectedRequest {
+		return &NotLeaderError{
+			StatusCode:       statusCode,
+			Message:          rsp.Error,
+			LeaderNodeID:     rsp.LeaderNodeID,
+			LeaderAPIAddress: rsp.LeaderAPIAddress,
+		}
+	}
+
+	return fmt.Errorf("server error %d: %s", statusCode, rsp.Error)
 }
 
 type defaultRequester struct {

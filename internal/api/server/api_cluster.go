@@ -184,17 +184,6 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		member := &db.ClusterMember{
-			NodeID:        string(req.NodeID),
-			APIAddress:    req.APIAddress,
-			BinaryVersion: req.BinaryVersion,
-		}
-
-		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to register cluster member", err, logger.APILog)
-			return
-		}
-
 		if suffrage == "nonvoter" {
 			if err := dbInstance.AddNonvoter(string(req.NodeID), req.RaftAddress); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
@@ -205,6 +194,17 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
 				return
 			}
+		}
+
+		member := &db.ClusterMember{
+			NodeID:        string(req.NodeID),
+			APIAddress:    req.APIAddress,
+			BinaryVersion: req.BinaryVersion,
+		}
+
+		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to register cluster member", err, logger.APILog)
+			return
 		}
 
 		actor := getActorFromContext(r)

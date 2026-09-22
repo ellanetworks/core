@@ -45,6 +45,8 @@ type BGPSpeaker interface {
 type Store interface {
 	RaftID() string
 	ClusterEnabled() bool
+	IsLeader() bool
+	LeadershipTransfer() error
 	IsBGPEnabled(ctx context.Context) (bool, error)
 	GetClusterMember(ctx context.Context, nodeID string) (*db.ClusterMember, error)
 	ListClusterMembers(ctx context.Context) ([]db.ClusterMember, error)
@@ -147,6 +149,25 @@ func (r *Reconciler) Reconcile(ctx context.Context) {
 	}
 
 	r.reconcileBGP(ctx, eligible)
+
+	if !eligible {
+		r.yieldLeadership()
+	}
+}
+
+func (r *Reconciler) yieldLeadership() {
+	if !r.store.ClusterEnabled() || !r.store.IsLeader() {
+		return
+	}
+
+	if err := r.store.LeadershipTransfer(); err != nil {
+		logger.EllaLog.Warn("drain reconcile: leadership transfer failed, retrying on the next pass",
+			zap.Error(err))
+
+		return
+	}
+
+	logger.EllaLog.Info("drain reconcile: leadership transferred away from this draining node")
 }
 
 func (r *Reconciler) localState(ctx context.Context) (string, bool) {

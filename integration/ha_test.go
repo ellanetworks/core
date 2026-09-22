@@ -661,7 +661,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		dumpClusterDiagnostics(t, ctx, dockerClient, scaleUpComposeDir, haNodeServices, clients)
 	})
 
-	_, leader, err := findLeader(ctx, clients)
+	leaderIdx, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
 	}
@@ -670,16 +670,18 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	HALog(t, "3-node cluster ready, staging + starting 4th node as nonvoter")
-
-	fullPeers := []string{
-		ClusterAddressWithPort(1, 7000),
-		ClusterAddressWithPort(2, 7000),
-		ClusterAddressWithPort(3, 7000),
-		ClusterAddressWithPort(4, 7000),
+	followerNode := 1
+	if leaderIdx == 0 {
+		followerNode = 2
 	}
+
+	followerSeed := []string{ClusterAddressWithPort(followerNode, 7000)}
+
+	HALogf(t, "3-node cluster ready (leader is node %d), staging + starting 4th node as nonvoter seeded with follower node %d",
+		leaderIdx+1, followerNode)
+
 	if err := stageAndStartJoiner(ctx, dockerClient, leader, scaleUpComposeDir,
-		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {
+		"ella-core-4", 4, followerSeed, "nonvoter"); err != nil {
 		t.Fatalf("stage + start node 4: %v", err)
 	}
 

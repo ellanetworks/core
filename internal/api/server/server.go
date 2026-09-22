@@ -255,8 +255,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, RemoveClusterMember(dbInstance)))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/cluster/members/{id}/display-name", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, SetClusterMemberDisplayName(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, PromoteClusterMember(dbInstance)))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/members/{id}/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, DrainClusterMember(dbInstance, amfInstance, mmeInstance, bgpService, cfg.ClusterListener)))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, ResumeClusterMember(dbInstance, mmeInstance, bgpService, cfg.ClusterListener)))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/members/{id}/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainClusterMember(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ResumeClusterMember(dbInstance))).ServeHTTP)
 
 	mux.HandleFunc("GET /api/v1/cluster/autopilot", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetAutopilotState(dbInstance))).ServeHTTP)
 

@@ -96,12 +96,12 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("follower returned %q, expected %q", sub.Imsi, postResumeIMSI)
 	}
 
-	if err := drainAndAssert(ctx, leader, followerID); err != nil {
-		t.Fatalf("second drain: %v", err)
+	if err := drainAndAssert(ctx, follower, followerID); err != nil {
+		t.Fatalf("second drain, sent to a follower: %v", err)
 	}
 
-	if err := resumeAndAssert(ctx, leader, followerID); err != nil {
-		t.Fatalf("second resume: %v", err)
+	if err := resumeAndAssert(ctx, follower, followerID); err != nil {
+		t.Fatalf("second resume, sent to a follower: %v", err)
 	}
 
 	if err := leader.ResumeClusterMember(ctx, followerID); err != nil {
@@ -142,8 +142,8 @@ func findFollower(ctx context.Context, clients []*client.Client) (int, client.No
 	return 0, "", nil, fmt.Errorf("no follower found")
 }
 
-func drainAndAssert(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
-	resp, err := leader.DrainClusterMember(ctx, nodeID)
+func drainAndAssert(ctx context.Context, c *client.Client, nodeID client.NodeID) error {
+	resp, err := c.DrainClusterMember(ctx, nodeID)
 	if err != nil {
 		return fmt.Errorf("DrainClusterMember(%s): %w", nodeID, err)
 	}
@@ -152,18 +152,18 @@ func drainAndAssert(ctx context.Context, leader *client.Client, nodeID client.No
 		return fmt.Errorf("drainState = %q, want draining or drained", resp.DrainState)
 	}
 
-	return waitForDrained(ctx, leader, nodeID)
+	return waitForDrained(ctx, c, nodeID)
 }
 
 const drainCompletionTimeout = 90 * time.Second
 
-func waitForDrained(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
+func waitForDrained(ctx context.Context, c *client.Client, nodeID client.NodeID) error {
 	deadline := time.Now().Add(drainCompletionTimeout)
 
 	var last string
 
 	for time.Now().Before(deadline) {
-		state, err := drainStateOf(ctx, leader, nodeID)
+		state, err := drainStateOf(ctx, c, nodeID)
 		if err == nil {
 			last = state
 			if state == "drained" {
@@ -177,12 +177,12 @@ func waitForDrained(ctx context.Context, leader *client.Client, nodeID client.No
 	return fmt.Errorf("node %s did not reach drained within %s (last state %q)", nodeID, drainCompletionTimeout, last)
 }
 
-func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID client.NodeID) error {
-	if err := leader.ResumeClusterMember(ctx, nodeID); err != nil {
+func resumeAndAssert(ctx context.Context, c *client.Client, nodeID client.NodeID) error {
+	if err := c.ResumeClusterMember(ctx, nodeID); err != nil {
 		return fmt.Errorf("ResumeClusterMember(%s): %w", nodeID, err)
 	}
 
-	state, err := drainStateOf(ctx, leader, nodeID)
+	state, err := drainStateOf(ctx, c, nodeID)
 	if err != nil {
 		return err
 	}
@@ -194,8 +194,8 @@ func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID client.N
 	return nil
 }
 
-func drainStateOf(ctx context.Context, leader *client.Client, nodeID client.NodeID) (string, error) {
-	members, err := leader.ListClusterMembers(ctx)
+func drainStateOf(ctx context.Context, c *client.Client, nodeID client.NodeID) (string, error) {
+	members, err := c.ListClusterMembers(ctx)
 	if err != nil {
 		return "", fmt.Errorf("list members: %w", err)
 	}

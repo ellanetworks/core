@@ -6,14 +6,18 @@ package raft
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	"github.com/ellanetworks/core/internal/pki"
+	"github.com/hashicorp/raft"
 )
 
 // testConnListener is a channel-backed net.Listener for feeding accepted
@@ -190,22 +194,22 @@ func TestProbePeer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m, serverAddr := newProbePeerHarness(t, tt.handler)
 
-			state, nodeID, clusterID, schema := m.probePeer(t.Context(), serverAddr)
+			probe := m.probePeer(t.Context(), serverAddr)
 
-			if state != tt.wantState {
-				t.Errorf("state = %d, want %d", state, tt.wantState)
+			if probe.state != tt.wantState {
+				t.Errorf("state = %d, want %d", probe.state, tt.wantState)
 			}
 
-			if nodeID != tt.wantNodeID {
-				t.Errorf("nodeID = %s, want %s", nodeID, tt.wantNodeID)
+			if probe.nodeID != tt.wantNodeID {
+				t.Errorf("nodeID = %s, want %s", probe.nodeID, tt.wantNodeID)
 			}
 
-			if clusterID != tt.wantClusterID {
-				t.Errorf("clusterID = %q, want %q", clusterID, tt.wantClusterID)
+			if probe.clusterID != tt.wantClusterID {
+				t.Errorf("clusterID = %q, want %q", probe.clusterID, tt.wantClusterID)
 			}
 
-			if schema != tt.wantSchema {
-				t.Errorf("schema = %d, want %d", schema, tt.wantSchema)
+			if probe.schemaVersion != tt.wantSchema {
+				t.Errorf("schema = %d, want %d", probe.schemaVersion, tt.wantSchema)
 			}
 		})
 	}
@@ -295,5 +299,190 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 				t.Fatalf("joined should be false when duplicate node-id is detected")
 			}
 		})
+	}
+}
+
+// TestDiscoveryTick_JoinsThroughTheLeader verifies that a joiner pointed at a
+// follower follows the leader hint the follower returns and completes its join
+// there. Only the leader can commit the Raft configuration change.
+func TestDiscoveryTick_JoinsThroughTheLeader(t *testing.T) {
+	testPKI := testutil.GenTestPKI(t, []string{"1", "2", "3"})
+
+	leaderAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+	seedAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+
+	var mu sync.Mutex
+
+	var joinedAt string
+
+	statusBlock := func(role, nodeID string) *statusClusterBlock {
+		return &statusClusterBlock{Role: role, NodeID: pki.NodeID(nodeID), ClusterID: "cluster-1", SchemaVersion: 9}
+	}
+
+	handlerFor := func(block *statusClusterBlock, members http.HandlerFunc) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/cluster/status":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(statusResponse{Result: statusResult{Cluster: block}})
+			case "/cluster/members":
+				members(w, r)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+	}
+
+	serve := func(nodeID, addr string, h http.Handler) {
+		ln := listener.New(listener.Config{
+			BindAddress:      addr,
+			AdvertiseAddress: addr,
+			NodeID:           nodeID,
+			Pin:              testPKI.PinFunc(),
+			Leaf:             testPKI.LeafFunc(nodeID),
+		})
+
+		startTestClusterHTTP(t, ln, h)
+
+		if err := ln.Start(t.Context()); err != nil {
+			t.Fatalf("start listener %s: %v", nodeID, err)
+		}
+
+		t.Cleanup(ln.Stop)
+	}
+
+	serve("1", leaderAddr, handlerFor(statusBlock("Leader", "1"), func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		joinedAt = "leader"
+		mu.Unlock()
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	serve("2", seedAddr, handlerFor(statusBlock("Follower", "2"), func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		joinedAt = "seed"
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMisdirectedRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":         "this node is not the cluster leader",
+			"leaderNodeId":  "1",
+			"leaderAddress": leaderAddr,
+		})
+	}))
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "3",
+		Pin:              testPKI.PinFunc(),
+		Leaf:             testPKI.LeafFunc("3"),
+	})
+
+	_, transport := raft.NewInmemTransport("127.0.0.1:9999")
+
+	m := &Manager{
+		raftID:          "3",
+		clusterListener: clientLn,
+		transport:       transport,
+		config: ClusterConfig{
+			Peers:            []string{seedAddr},
+			AdvertiseAddress: "127.0.0.1:9999",
+			HasJoinToken:     true,
+			SchemaVersion:    9,
+		},
+	}
+
+	joined, err := m.discoveryTick(t.Context())
+	if err != nil {
+		t.Fatalf("discoveryTick: %v", err)
+	}
+
+	if !joined {
+		t.Fatal("expected the joiner to report success")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if joinedAt != "leader" {
+		t.Fatalf("join completed at %q, want the leader", joinedAt)
+	}
+}
+
+func TestDiscoveryTick_SkipsPeerThatNamesThisNodeAsLeader(t *testing.T) {
+	testPKI := testutil.GenTestPKI(t, []string{"1", "2"})
+
+	seedAddr := fmt.Sprintf("127.0.0.1:%d", discoveryFreePort(t))
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cluster/status":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(statusResponse{Result: statusResult{Cluster: &statusClusterBlock{
+				Role: "Follower", NodeID: "1", ClusterID: "cluster-1", SchemaVersion: 9,
+			}}})
+		case "/cluster/members":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMisdirectedRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error":         "this node is not the cluster leader",
+				"leaderNodeId":  "2",
+				"leaderAddress": "127.0.0.1:1",
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	ln := listener.New(listener.Config{
+		BindAddress:      seedAddr,
+		AdvertiseAddress: seedAddr,
+		NodeID:           "1",
+		Pin:              testPKI.PinFunc(),
+		Leaf:             testPKI.LeafFunc("1"),
+	})
+
+	startTestClusterHTTP(t, ln, handler)
+
+	if err := ln.Start(t.Context()); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	t.Cleanup(ln.Stop)
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "2",
+		Pin:              testPKI.PinFunc(),
+		Leaf:             testPKI.LeafFunc("2"),
+	})
+
+	_, transport := raft.NewInmemTransport("127.0.0.1:9999")
+
+	m := &Manager{
+		raftID:          "2",
+		clusterListener: clientLn,
+		transport:       transport,
+		config: ClusterConfig{
+			Peers:            []string{seedAddr},
+			AdvertiseAddress: "127.0.0.1:9999",
+			HasJoinToken:     true,
+			SchemaVersion:    9,
+		},
+	}
+
+	joined, err := m.discoveryTick(t.Context())
+	if joined {
+		t.Fatal("expected the joiner not to join")
+	}
+
+	if errors.Is(err, ErrDiscoveryFatal) {
+		t.Fatalf("stale leader information must not be fatal, got %v", err)
+	}
+
+	if err == nil || !strings.Contains(err.Error(), "names this node") {
+		t.Fatalf("err = %v, want a retryable skip naming this node", err)
 	}
 }
