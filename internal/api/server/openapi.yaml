@@ -5931,7 +5931,10 @@ components:
           properties:
             enabled:
               const: false
-          required: [enabled]
+            nodeId:
+              type: [string, integer]
+              description: Identity of this node.
+          required: [enabled, nodeId]
           additionalProperties: false
         - title: Clustered
           type: object

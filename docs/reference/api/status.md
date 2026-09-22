@@ -30,7 +30,11 @@ When clustering is enabled, the response includes an `X-Ella-Role` header with t
         "initialized": true,
         "ready": true,
         "schemaVersion": 9,
-        "datapathAttachMode": "xdp-native"
+        "datapathAttachMode": "xdp-native",
+        "cluster": {
+            "enabled": false,
+            "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d"
+        }
     }
 }
 ```

@@ -16,7 +16,10 @@ const standalone = {
   ready: true,
   version: "v1.18.0",
   schemaVersion: 19,
-  cluster: { enabled: false },
+  cluster: {
+    enabled: false,
+    nodeId: "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
+  },
 };
 
 const clustered = {
@@ -28,6 +31,7 @@ const clustered = {
     enabled: true,
     role: "Follower",
     nodeId: 2,
+    displayName: "core-mtl-a",
     isLeader: false,
     leaderNodeId: 1,
     appliedIndex: 42,
@@ -36,35 +40,46 @@ const clustered = {
 };
 
 describe("DeploymentIdentity", () => {
-  it("reports standalone mode next to the version", async () => {
+  it("names the node on a standalone deployment", async () => {
     api.get(STATUS, () => standalone);
 
     renderWithProviders(<DeploymentIdentity />, { auth: {} });
 
-    const mode = await screen.findByRole("link", { name: "Standalone" });
-    expect(mode).toHaveAttribute("href", "/cluster");
-    expect(mode.parentElement).toHaveTextContent("v1.18.0 · Standalone");
+    await screen.findByText("v1.18.0 · Node 1f2e3a4b5c6d");
+    expect(screen.queryByText(/Standalone/)).toBeNull();
   });
 
-  it("reports the node identity in a cluster", async () => {
+  it("prefers the display name in a cluster", async () => {
     api.get(STATUS, () => clustered);
 
     renderWithProviders(<DeploymentIdentity />, { auth: {} });
 
-    const mode = await screen.findByRole("link", { name: "Cluster node 2" });
-    expect(mode.parentElement).toHaveTextContent("v1.18.0 · Cluster node 2");
-    expect(screen.queryByText("Standalone")).toBeNull();
+    await screen.findByText("v1.18.0 · Node core-mtl-a");
+    expect(screen.queryByText(/Cluster node/)).toBeNull();
   });
 
-  it("does not link non-admins to the admin-only cluster page", async () => {
+  it("renders the identity as plain text, not a link", async () => {
     api.get(STATUS, () => clustered);
 
-    renderWithProviders(<DeploymentIdentity />, {
-      auth: { role: "Read Only" },
-    });
+    renderWithProviders(<DeploymentIdentity />, { auth: {} });
 
-    await screen.findByText(/Cluster node 2/);
-    expect(screen.queryByRole("link", { name: "Cluster node 2" })).toBeNull();
+    await screen.findByText("v1.18.0 · Node core-mtl-a");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("falls back to the version alone when no identity is reported", async () => {
+    api.get(STATUS, () => ({
+      initialized: true,
+      ready: true,
+      version: "v1.18.0",
+      schemaVersion: 19,
+      cluster: { enabled: false },
+    }));
+
+    renderWithProviders(<DeploymentIdentity />, { auth: {} });
+
+    await screen.findByText("v1.18.0");
+    expect(screen.queryByText(/Node/)).toBeNull();
   });
 
   it("shows nothing until the status response arrives", async () => {
@@ -80,13 +95,12 @@ describe("DeploymentIdentity", () => {
 
     renderWithProviders(<DeploymentIdentity />, { auth: {} });
 
-    expect(screen.queryByText("Standalone")).toBeNull();
-    expect(screen.queryByText(/Cluster node/)).toBeNull();
+    expect(screen.queryByText(/Node/)).toBeNull();
 
     release?.();
 
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Cluster node 2" })).toBeTruthy(),
+      expect(screen.getByText("v1.18.0 · Node core-mtl-a")).toBeTruthy(),
     );
   });
 
@@ -96,6 +110,6 @@ describe("DeploymentIdentity", () => {
     renderWithProviders(<DeploymentIdentity compact />, { auth: {} });
 
     await screen.findByText("v1.18.0");
-    expect(screen.queryByText(/Cluster node/)).toBeNull();
+    expect(screen.queryByText(/Node/)).toBeNull();
   });
 });
