@@ -1049,15 +1049,15 @@ func (m *Manager) Shutdown() error {
 		m.followerTracker.stop()
 	}
 
-	future := m.raft.Shutdown()
-	if err := future.Error(); err != nil {
-		return fmt.Errorf("raft shutdown: %w", err)
-	}
-
 	if tc, ok := m.transport.(io.Closer); ok {
 		if err := tc.Close(); err != nil {
 			return fmt.Errorf("close transport: %w", err)
 		}
+	}
+
+	future := m.raft.Shutdown()
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("raft shutdown: %w", err)
 	}
 
 	if closer, ok := m.logStore.(interface{ Close() error }); ok {
