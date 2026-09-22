@@ -44,6 +44,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
 import ProductTitle from "@/components/ProductTitle";
+import DeploymentIdentity from "@/components/DeploymentIdentity";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -230,6 +231,10 @@ export default function DrawerLayout({
           <ProductTitle />
 
           <Box sx={{ flexGrow: 1 }} />
+
+          <Box sx={{ mr: 2, minWidth: 0 }}>
+            <DeploymentIdentity compact={isMobile} />
+          </Box>
 
           <IconButton
             size="large"

@@ -17,6 +17,8 @@ vi.mock("@/queries/auth", () => ({ logout: vi.fn() }));
 
 vi.mock("./SupportModal", () => ({ default: () => null }));
 
+vi.mock("./DeploymentIdentity", () => ({ default: () => null }));
+
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>

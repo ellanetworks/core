@@ -5,8 +5,7 @@ import React, { useMemo } from "react";
 import {
   Box,
   Typography,
-  CircularProgress,
-  Link as MuiLink,
+  Chip,
   Card,
   CardHeader,
   CardContent,
@@ -28,7 +27,8 @@ import { PieChart } from "@mui/x-charts/PieChart";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { getStatus, type APIStatus } from "@/queries/status";
+import { useStatusQuery } from "@/hooks/useStatus";
+import { getClusterHealth, type ClusterHealth } from "@/queries/cluster";
 import { getMetrics } from "@/queries/metrics";
 import {
   listSubscribers,
@@ -56,7 +56,6 @@ import {
   formatProtocol,
   buildProtocolColorMap,
 } from "@/utils/formatters";
-import { nodeLabel } from "@/queries/nodeId";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import {
   DAILY_RANGES,
@@ -67,48 +66,6 @@ import {
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
 
-const DeploymentIdentity: React.FC<{
-  loading: boolean;
-  status?: APIStatus;
-}> = ({ loading, status }) => {
-  const { role } = useAuth();
-
-  if (loading) {
-    return <CircularProgress size={16} />;
-  }
-
-  if (!status) {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        —
-      </Typography>
-    );
-  }
-
-  const mode = status.cluster.enabled
-    ? `Cluster node ${nodeLabel(status.cluster.displayName, status.cluster.nodeId)}`
-    : "Standalone";
-
-  return (
-    <Typography variant="body2" color="text.secondary">
-      {status.version ?? "—"}
-      {" · "}
-      {role === "Admin" ? (
-        <MuiLink
-          component={Link}
-          to="/cluster"
-          color="inherit"
-          underline="hover"
-        >
-          {mode}
-        </MuiLink>
-      ) : (
-        mode
-      )}
-    </Typography>
-  );
-};
-
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
@@ -118,7 +75,6 @@ type ParsedMetrics = {
   datapathMemoryBytes: number | null;
   processMemoryBytes: number | null;
   databaseSizeBytes: number | null;
-  routines: number | null;
   allocatedIPs: number | null;
   totalIPs: number | null;
   processStart: number | null;
@@ -150,7 +106,6 @@ const parseMetrics = (raw: string): ParsedMetrics => {
     datapathMemoryBytes: sumByPrefix("app_upf_bpf_map_memory_bytes{"),
     processMemoryBytes: g("process_resident_memory_bytes "),
     databaseSizeBytes: g("app_database_storage_bytes "),
-    routines: g("go_goroutines "),
     allocatedIPs:
       g("app_ip_addresses_allocated ") != null
         ? Math.round(g("app_ip_addresses_allocated ")!)
@@ -246,6 +201,34 @@ function KpiCard({
   return CardInner;
 }
 
+const NO_LEADER_HINT =
+  "No node holds leadership. The cluster cannot accept writes until enough voters recover.";
+
+const ClusterHealthValue: React.FC<{
+  clusterEnabled: boolean;
+  loading: boolean;
+  error: boolean;
+  health?: ClusterHealth;
+}> = ({ clusterEnabled, loading, error, health }) => {
+  if (loading) {
+    return <Skeleton width={120} height={40} />;
+  }
+
+  if (!clusterEnabled) {
+    return <Typography variant="h4">Standalone</Typography>;
+  }
+
+  if (error || !health?.hasLeader) {
+    return <Chip label="No leader" size="small" color="error" />;
+  }
+
+  return (
+    <Typography variant="h4">
+      {`${health.healthyVoters}/${health.totalVoters}`}
+    </Typography>
+  );
+};
+
 const TOP_USERS = 10;
 
 const DEFAULT_RANGE: TimeRangeFilter = { relative: "7d" };
@@ -253,12 +236,15 @@ const DEFAULT_RANGE: TimeRangeFilter = { relative: "7d" };
 const Dashboard = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken, authReady, role } = useAuth();
 
-  const statusQuery = useQuery<APIStatus>({
-    queryKey: ["dashboardStatus"],
-    queryFn: () => getStatus(),
-    enabled: authReady,
+  const statusQuery = useStatusQuery();
+  const clusterEnabled = statusQuery.data?.cluster.enabled ?? false;
+
+  const clusterHealthQuery = useQuery<ClusterHealth>({
+    queryKey: ["dashboardClusterHealth"],
+    queryFn: () => getClusterHealth(accessToken!),
+    enabled: authReady && !!accessToken && clusterEnabled,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
@@ -338,16 +324,21 @@ const Dashboard = () => {
   const radiosLoading = radiosQuery.isLoading;
   const subscribersLoading = subscribersQuery.isLoading;
   const eventsLoading = radioEventsQuery.isLoading;
-  const statusLoading = statusQuery.isLoading;
 
   const activeSessions = m?.pduSessions ?? null;
   const datapathMemory = m?.datapathMemoryBytes ?? null;
   const processMemory = m?.processMemoryBytes ?? null;
   const databaseSize = m?.databaseSizeBytes ?? null;
-  const routines = m?.routines ?? null;
   const allocatedIPs = m?.allocatedIPs ?? null;
   const totalIPs = m?.totalIPs ?? null;
   const upSince = m?.processStart ? new Date(m.processStart * 1000) : null;
+
+  const clusterHealth = clusterHealthQuery.data;
+  const haCardHint = !clusterEnabled
+    ? "This node is not part of a cluster."
+    : clusterHealthQuery.error || !clusterHealth?.hasLeader
+      ? NO_LEADER_HINT
+      : "Healthy voters out of the cluster's total.";
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;
@@ -397,18 +388,8 @@ const Dashboard = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box
-        sx={{
-          mb: 3,
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 2,
-        }}
-      >
+      <Box sx={{ mb: 3 }}>
         <PageTitle title={PRODUCT.name} documentTitle="Dashboard" />
-        <DeploymentIdentity loading={statusLoading} status={statusQuery.data} />
       </Box>
 
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
@@ -468,14 +449,23 @@ const Dashboard = () => {
           </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip title="Time when the core process was started" arrow>
+          <Tooltip title={haCardHint} arrow>
             <Box>
               <KpiCard
-                title="Up Since"
-                loading={metricsLoading}
-                error={!!metricsQuery.error}
-                value={upSince ? formatDateTime(upSince.toISOString()) : "N/A"}
-              />
+                title="High Availability"
+                onClick={
+                  role === "Admin" ? () => navigate("/cluster") : undefined
+                }
+              >
+                <ClusterHealthValue
+                  clusterEnabled={clusterEnabled}
+                  loading={
+                    statusQuery.isLoading || clusterHealthQuery.isLoading
+                  }
+                  error={!!clusterHealthQuery.error}
+                  health={clusterHealthQuery.data}
+                />
+              </KpiCard>
             </Box>
           </Tooltip>
         </Grid>
@@ -885,16 +875,13 @@ const Dashboard = () => {
           </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip
-            title="Number of concurrent tasks currently running in the process"
-            arrow
-          >
+          <Tooltip title="Time when the core process was started" arrow>
             <Box>
               <KpiCard
-                title="Routines"
+                title="Up Since"
                 loading={metricsLoading}
                 error={!!metricsQuery.error}
-                value={routines != null ? `${routines}` : "N/A"}
+                value={upSince ? formatDateTime(upSince.toISOString()) : "N/A"}
               />
             </Box>
           </Tooltip>

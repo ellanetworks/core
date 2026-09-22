@@ -3068,6 +3068,30 @@ paths:
             No leader is currently available, or leadership changed while the
             read was in flight; try again.
 
+  /api/v1/cluster/health:
+    get:
+      operationId: getClusterHealth
+      tags: [Cluster]
+      summary: Get a summary of cluster health
+      description: >-
+        Returns a small, role-readable summary of cluster health: whether
+        clustering is enabled, whether a leader is known, the healthy and
+        total voter counts, and `failureTolerance`. Unlike
+        `/api/v1/cluster/autopilot` it exposes no per-node identities or
+        addresses, so it is readable by every role. Always answers 200: when
+        the leader cannot be reached the response reports
+        `hasLeader: false` rather than failing, so callers can render a
+        degraded state.
+      responses:
+        "200":
+          description: Cluster health summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterHealthResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/cluster/members/{id}/drain:
     post:
       operationId: drainClusterMember
@@ -6111,6 +6135,45 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/AutopilotState"
+
+    ClusterHealth:
+      type: object
+      description: >-
+        Role-readable summary of cluster health, derived from the same
+        autopilot state as `/api/v1/cluster/autopilot` but without
+        per-node identities.
+      properties:
+        enabled:
+          type: boolean
+          description: True when clustering is enabled on this node.
+        hasLeader:
+          type: boolean
+          description: >-
+            True when a leader is known and its autopilot state was read.
+            False during an election, or when the leader is unreachable.
+        healthy:
+          type: boolean
+          description: True when every voter is healthy.
+        healthyVoters:
+          type: integer
+          description: Number of voters autopilot currently reports as healthy.
+        totalVoters:
+          type: integer
+          description: >-
+            Number of voting members. Nonvoters are excluded from both
+            counts.
+        failureTolerance:
+          type: integer
+          description: >-
+            Number of voter failures the cluster can absorb without losing
+            quorum. Zero means any additional failure stalls writes.
+      required: [enabled, hasLeader, healthy, healthyVoters, totalVoters, failureTolerance]
+
+    ClusterHealthResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ClusterHealth"
 
     DrainResponse:
       type: object

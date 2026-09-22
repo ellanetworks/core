@@ -202,3 +202,59 @@ func TestMintClusterJoinToken_NilOpts(t *testing.T) {
 		t.Fatal("expected error on nil opts")
 	}
 }
+
+func TestGetClusterHealth_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"enabled":true,"hasLeader":true,"healthy":true,"healthyVoters":3,"totalVoters":3,"failureTolerance":1}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	health, err := c.GetClusterHealth(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !health.Enabled || !health.HasLeader || !health.Healthy {
+		t.Errorf("expected an enabled, led, healthy cluster, got %+v", health)
+	}
+
+	if health.HealthyVoters != 3 || health.TotalVoters != 3 {
+		t.Errorf("expected 3/3 voters, got %d/%d", health.HealthyVoters, health.TotalVoters)
+	}
+
+	if health.FailureTolerance != 1 {
+		t.Errorf("expected failure tolerance 1, got %d", health.FailureTolerance)
+	}
+
+	if fake.lastOpts.Method != "GET" {
+		t.Errorf("expected GET, got %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/cluster/health" {
+		t.Errorf("unexpected path: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestGetClusterHealth_Standalone(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"enabled":false,"hasLeader":false,"healthy":false,"healthyVoters":0,"totalVoters":0,"failureTolerance":0}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	health, err := c.GetClusterHealth(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if health.Enabled {
+		t.Errorf("expected a standalone node, got %+v", health)
+	}
+}

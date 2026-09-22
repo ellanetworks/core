@@ -143,6 +143,35 @@ None
 }
 ```
 
+## Get Cluster Health
+
+This path returns a summary of cluster health. Unlike `/api/v1/cluster/autopilot`, it exposes no per-node identities or addresses and is readable by every role.
+
+This path always returns `200`. When no leader is known, or the leader cannot be reached, the response reports `hasLeader: false` instead of failing, so callers can render a degraded state.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| GET    | `/api/v1/cluster/health`  |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true,
+        "hasLeader": true,
+        "healthy": true,
+        "healthyVoters": 3,
+        "totalVoters": 3,
+        "failureTolerance": 1
+    }
+}
+```
+
 ## Drain Cluster Member
 
 This path drains a node, moving its subscribers to the rest of the cluster so it can be restarted, upgraded, or removed. Requires admin privileges.

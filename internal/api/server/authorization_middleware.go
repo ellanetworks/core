@@ -43,6 +43,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadLocation,
 		PermReadPositioningSessions,
 		PermListCellPositions, PermReadCellPosition,
+		PermReadClusterHealth,
 	},
 
 	RoleNetworkManager: {
@@ -69,6 +70,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadLocation,
 		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
 		PermListCellPositions, PermReadCellPosition, PermCreateCellPosition, PermUpdateCellPosition, PermDeleteCellPosition,
+		PermReadClusterHealth,
 	},
 }
 
@@ -221,7 +223,8 @@ const (
 	PermDeleteNetworkRule = "network_rule:delete"
 
 	// Cluster permissions
-	PermManageCluster = "cluster:manage"
+	PermManageCluster     = "cluster:manage"
+	PermReadClusterHealth = "cluster:read_health"
 
 	// Location permissions
 	PermReadLocation = "location:read"
