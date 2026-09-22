@@ -923,9 +923,6 @@ func (m *Manager) BoltNoSync() bool {
 	return m.boltNoSync
 }
 
-// LeadershipTransfer hands leadership to whichever voter Raft judges most
-// up to date. Callers that must keep leadership away from a particular
-// voter use LeadershipTransferTo instead.
 func (m *Manager) LeadershipTransfer() error {
 	var lastErr error
 

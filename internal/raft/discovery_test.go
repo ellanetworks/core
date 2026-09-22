@@ -302,9 +302,6 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 	}
 }
 
-// TestDiscoveryTick_JoinsThroughTheLeader verifies that a joiner pointed at a
-// follower follows the leader hint the follower returns and completes its join
-// there. Only the leader can commit the Raft configuration change.
 func TestDiscoveryTick_JoinsThroughTheLeader(t *testing.T) {
 	testPKI := testutil.GenTestPKI(t, []string{"1", "2", "3"})
 

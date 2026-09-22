@@ -62,14 +62,9 @@ type Reconciler struct {
 	backstop time.Duration
 	deadline time.Duration
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
-
-	// drainingSince is when this node first observed itself draining,
-	// read from the local clock. The replicated drainUpdatedAt is stamped
-	// by whichever node proposed the drain, so comparing it against this
-	// node's clock would make the deadline depend on two clocks agreeing.
+	mu            sync.Mutex
+	cancel        context.CancelFunc
+	done          chan struct{}
 	drainingSince time.Time
 }
 

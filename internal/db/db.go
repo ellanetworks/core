@@ -749,12 +749,6 @@ func (db *Database) ClusterEnabled() bool {
 
 var ErrNoTransferTarget = ellaraft.ErrNoTransferTarget
 
-// LeadershipTransfer hands leadership to another voter. A draining node is
-// never chosen: it is on its way out of service and would only hand
-// leadership on again. When no voter is draining there is nothing to
-// exclude, so the choice is left to Raft, which picks the most up-to-date
-// follower by replication index - a better signal than anything this layer
-// has. Returns ErrNoTransferTarget when no eligible voter exists.
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
@@ -773,8 +767,6 @@ func (db *Database) LeadershipTransfer() error {
 	return db.raftManager.LeadershipTransferTo(eligible)
 }
 
-// transferCandidates returns the voters that may take over from this node,
-// and whether any voter was excluded for draining.
 func (db *Database) transferCandidates() ([]ellaraft.Server, bool) {
 	members, err := db.ListClusterMembers(context.Background())
 	if err != nil {
