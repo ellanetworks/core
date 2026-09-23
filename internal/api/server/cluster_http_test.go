@@ -310,6 +310,56 @@ func TestClusterHTTP_AddMemberProbesBeforeTouchingRaft(t *testing.T) {
 	}
 }
 
+func TestClusterHTTP_AddMemberRejectsAddressHeldByAnotherNode(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []string{"1", "5", "6"})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5", "6"})
+	defer cleanup()
+
+	joinerLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           "5",
+		Pin:              pki.PinFunc(),
+
+		Leaf: pki.LeafFunc("5"),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := joinerLn.Start(ctx); err != nil {
+		t.Fatalf("start joiner listener: %v", err)
+	}
+
+	defer joinerLn.Stop()
+
+	body := fmt.Sprintf(
+		`{"nodeId":5,"raftAddress":%q,"apiAddress":"127.0.0.1:9001","schemaVersion":%d,"suffrage":"nonvoter"}`,
+		joinerLn.BoundAddress(), db.SchemaVersion(),
+	)
+
+	status, respBody := postClusterMember(t, clients["5"], serverAddr, body)
+	if status < 200 || status >= 300 {
+		t.Fatalf("registering node 5: got %d (body: %s)", status, respBody)
+	}
+
+	body = fmt.Sprintf(
+		`{"nodeId":6,"raftAddress":%q,"apiAddress":"127.0.0.1:9002","schemaVersion":%d}`,
+		joinerLn.BoundAddress(), db.SchemaVersion(),
+	)
+
+	status, respBody = postClusterMember(t, clients["6"], serverAddr, body)
+
+	if status != http.StatusConflict {
+		t.Fatalf("expected 409 for an address held by another node, got %d (body: %s)", status, respBody)
+	}
+
+	if !strings.Contains(respBody, "already in use by node 5") {
+		t.Errorf("body = %s, want it to name node 5", respBody)
+	}
+}
+
 // TestClusterHTTP_AddMemberRejectsStaleSchema verifies the leader-side
 // half of the schema handshake at api_cluster.go: a joiner POSTing to
 // /cluster/members with a schemaVersion lower than the leader's binary

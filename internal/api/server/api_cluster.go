@@ -184,6 +184,16 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		for _, srv := range dbInstance.RaftServers() {
+			if srv.Address == req.RaftAddress && srv.NodeID != string(req.NodeID) {
+				writeError(r.Context(), w, http.StatusConflict,
+					fmt.Sprintf("Raft address %s is already in use by node %s", req.RaftAddress, srv.NodeID),
+					nil, logger.APILog)
+
+				return
+			}
+		}
+
 		if err := peerReachableForJoin(r.Context(), string(req.NodeID), req.RaftAddress); err != nil {
 			writeError(r.Context(), w, http.StatusBadGateway,
 				fmt.Sprintf("Cannot reach node %s at the cluster address %s it asked to be registered under; check that node's cluster bind and advertise addresses and that it is reachable from this node",
