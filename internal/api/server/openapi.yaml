@@ -2,30 +2,20 @@ openapi: "3.1.0"
 info:
   title: Ella Core API
   description: |
-    RESTful API for managing a 5G private mobile network powered by Ella Core.
-
-    Manage subscribers, QoS policies, data networks, network routes,
-    operator configuration, radios, and observability data.
+    Ella Core REST API.
 
     ## Authentication
 
-    Most endpoints require a Bearer token in the `Authorization` header.
-    The token can be either:
-
-    - A **JWT** obtained from the login endpoint (short-lived, 15 minutes).
-    - An **API token** (prefix `ellacore_`) created via the API tokens endpoint (long-lived, optional expiry).
-
-    Example: `Authorization: Bearer ellacore_abc123_secretpart`
+    `Authorization: Bearer <token>`, where the token is a JWT or an API token (prefix `ellacore_`).
 
     ## Response Envelope
 
-    All JSON responses are wrapped:
     - Success: `{"result": <payload>}`
     - Error: `{"error": "message"}`
 
     ## Pagination
 
-    List endpoints accept `page` (default 1) and `per_page` (default 25, max 100) query parameters.
+    List endpoints accept `page` (default 1) and `per_page` (default 25, max 100).
     Responses include `items`, `page`, `per_page`, and `total_count`.
   version: "1.0.0"
   license:
@@ -50,55 +40,55 @@ tags:
   - name: Metrics
     description: Prometheus metrics endpoint (unauthenticated).
   - name: Profiling
-    description: Runtime profiling endpoints (pprof) for diagnostics. Requires admin privileges.
+    description: Runtime profiling (pprof).
   - name: Initialization
-    description: First-time setup to create the initial admin user (unauthenticated).
+    description: First-time setup (unauthenticated).
   - name: Authentication
     description: Login, token refresh, logout, and token validation.
   - name: Users
     description: Manage user accounts and API tokens.
   - name: Subscribers
-    description: Provision and manage 5G subscribers on the network. Each subscriber is assigned to a profile.
+    description: Manage subscribers.
   - name: Subscriber Usage
-    description: Monitor and manage subscriber data usage records.
+    description: Subscriber data usage.
   - name: Profiles
-    description: Manage subscriber profiles that define UE-level aggregate maximum bit rates (UE-AMBR).
+    description: Manage subscriber profiles.
   - name: Slices
-    description: Manage network slices (S-NSSAI). Each slice defines a Slice Service Type (SST) and optional Slice Differentiator (SD). Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session.
+    description: Manage network slices (S-NSSAI).
   - name: Policies
-    description: Define QoS policies (session AMBR, 5QI, ARP) that bind a profile to a slice and data network.
+    description: Manage QoS policies.
   - name: Operator
-    description: Configure the mobile network operator identity, slice, tracking areas, cryptographic keys, and network name (SPN).
+    description: Operator configuration.
   - name: Data Networks
-    description: Manage data networks (DNNs/APNs) that subscribers connect through.
+    description: Manage data networks (DNNs/APNs).
   - name: Routes
-    description: Manage static IP routes on the network interfaces.
+    description: Manage static routes.
   - name: NAT
-    description: Enable or disable Network Address Translation on the user plane.
+    description: NAT settings.
   - name: Flow Accounting
-    description: Enable or disable per-flow traffic accounting on the user plane.
+    description: Flow accounting settings.
   - name: Interfaces
-    description: View and configure network interface settings (N2, N3, N6, API).
+    description: Network interface settings.
   - name: Radios
-    description: View connected radio base stations (gNBs) and their configuration.
+    description: Radio base stations.
   - name: Radio Events
-    description: View and manage NGAP protocol events between the core and radios.
+    description: NGAP and S1AP events.
   - name: Flow Reports
-    description: View and manage per-flow traffic reports collected by the user plane.
+    description: Per-flow traffic reports.
   - name: Audit Logs
-    description: View audit log entries that record administrative actions.
+    description: Audit logs.
   - name: Cluster
-    description: Manage cluster membership for high-availability deployments. Only available when clustering is enabled.
+    description: High-availability cluster management.
   - name: Backup & Restore
-    description: Create and restore full database backups.
+    description: Database backup and restore.
   - name: Support Bundle
-    description: Generate a diagnostic support bundle for troubleshooting.
+    description: Diagnostic support bundle.
   - name: Location
-    description: "Beta: Look up a subscriber's physical location. Served under `/api/beta`; the path and payloads are experimental and may change."
+    description: "Beta: Subscriber location."
   - name: Positioning Sessions
-    description: "Beta: Inspect and cancel deferred (periodic/triggered) positioning sessions."
+    description: "Beta: Deferred positioning sessions."
   - name: Cell Positions
-    description: "Beta: Provision the geographic positions of cell antennas that Cell ID location lookups resolve a subscriber's serving cell to."
+    description: "Beta: Cell antenna positions."
 
 paths:
   # -- Status --------------------------------------------------------------
@@ -107,15 +97,11 @@ paths:
       operationId: getStatus
       tags: [Status]
       summary: Get system status
-      description: Returns the software version, git revision, and whether the system has been initialized with a first user.
+      description: Returns the version, revision, initialization, and cluster status.
       security: []
       responses:
         "200":
-          description: |
-            System status. When clustering is enabled, the response includes an
-            `X-Ella-Role` header (`Leader`, `Follower`, `Candidate`,
-            `Shutdown`, or `Unknown`) that load balancers can use to direct
-            write traffic to the leader node.
+          description: System status.
           headers:
             X-Ella-Role:
               description: Raft role of the responding node. Only present when clustering is enabled.
@@ -150,7 +136,7 @@ paths:
       operationId: getPprofIndex
       tags: [Profiling]
       summary: Get pprof index
-      description: Returns an HTML index page listing available runtime profiling endpoints.
+      description: Returns the pprof HTML index.
       responses:
         "200":
           description: Pprof index page.
@@ -193,7 +179,7 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: Duration of profile capture in seconds. Defaults to Go's pprof default.
+          description: Capture duration in seconds.
       responses:
         "200":
           description: CPU profile data.
@@ -228,7 +214,7 @@ paths:
       operationId: postPprofSymbol
       tags: [Profiling]
       summary: Resolve posted program counters
-      description: Accepts posted program counters and resolves them to function names.
+      description: Resolves posted program counters to function names.
       requestBody:
         required: false
         content:
@@ -259,7 +245,7 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: Duration of trace capture in seconds. Defaults to Go's pprof default.
+          description: Capture duration in seconds.
       responses:
         "200":
           description: Trace data.
@@ -349,7 +335,7 @@ paths:
           schema:
             type: integer
             enum: [0, 1]
-          description: Set to 1 to run garbage collection before taking the heap profile.
+          description: Set to 1 to run GC first.
       responses:
         "200":
           description: Heap profile data.
@@ -401,10 +387,7 @@ paths:
       operationId: initialize
       tags: [Initialization]
       summary: Initialize the system
-      description: |
-        Creates the first admin user. This endpoint only works when the system
-        has zero users (i.e., `GET /api/v1/status` returns `initialized: false`).
-        Returns a JWT and sets a session cookie.
+      description: Creates the first admin user. Only available when no users exist.
       security: []
       requestBody:
         required: true
@@ -432,7 +415,7 @@ paths:
       operationId: login
       tags: [Authentication]
       summary: Log in
-      description: Authenticates a user with email and password. Returns a JWT and sets a session cookie for token refresh.
+      description: Returns a JWT and sets a session cookie.
       security: []
       requestBody:
         required: true
@@ -459,7 +442,7 @@ paths:
       operationId: refreshToken
       tags: [Authentication]
       summary: Refresh JWT
-      description: Issues a new JWT using the session cookie set during login. No request body needed.
+      description: Issues a new JWT from the session cookie.
       security: []
       responses:
         "200":
@@ -478,18 +461,18 @@ paths:
       operationId: logout
       tags: [Authentication]
       summary: Log out
-      description: Deletes the server-side session and clears the session cookie.
+      description: Deletes the session and clears the session cookie.
       security: []
       responses:
         "204":
-          description: Logged out successfully. No body returned.
+          description: Logged out.
 
   /api/v1/auth/lookup-token:
     post:
       operationId: lookupToken
       tags: [Authentication]
       summary: Validate a token
-      description: Checks whether the Bearer token in the Authorization header is valid.
+      description: Checks whether the Bearer token is valid.
       responses:
         "200":
           description: Token validity result.
@@ -505,10 +488,7 @@ paths:
       operationId: rotateSecret
       tags: [Authentication]
       summary: Rotate the JWT secret
-      description: |
-        Generates a new JWT signing secret. All existing user sessions are
-        immediately invalidated - users must re-authenticate. API tokens
-        (prefixed `ellacore_`) are not affected. Requires admin role.
+      description: Rotates the JWT signing secret, invalidating all JWTs.
       responses:
         "200":
           description: Secret rotated successfully.
@@ -527,7 +507,7 @@ paths:
       operationId: getLoggedInUser
       tags: [Users]
       summary: Get current user
-      description: Returns the email and role of the currently authenticated user.
+      description: Returns the current user.
       responses:
         "200":
           description: Current user info.
@@ -543,9 +523,7 @@ paths:
       operationId: updateMyPassword
       tags: [Users]
       summary: Update own password
-      description: |
-        Change the password of the currently authenticated user.
-        Requires the current password for verification.
+      description: Changes the current user's password.
       requestBody:
         required: true
         content:
@@ -565,7 +543,7 @@ paths:
       operationId: listMyAPITokens
       tags: [Users]
       summary: List my API tokens
-      description: Returns a paginated list of API tokens belonging to the current user. Token secrets are never returned.
+      description: Lists the current user's API tokens.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -582,10 +560,7 @@ paths:
       operationId: createMyAPIToken
       tags: [Users]
       summary: Create an API token
-      description: |
-        Creates a new API token for the current user. The full token string
-        (prefixed with `ellacore_`) is returned once and cannot be retrieved again.
-        Maximum 12 tokens per user.
+      description: Creates an API token for the current user. The token is returned only once.
       requestBody:
         required: true
         content:
@@ -594,7 +569,7 @@ paths:
               $ref: "#/components/schemas/CreateAPITokenParams"
       responses:
         "201":
-          description: Token created. The full token is in the response - store it securely.
+          description: Token created.
           content:
             application/json:
               schema:
@@ -611,14 +586,14 @@ paths:
       operationId: deleteMyAPIToken
       tags: [Users]
       summary: Delete an API token
-      description: Revokes and deletes one of the current user's API tokens by its token ID.
+      description: Deletes one of the current user's API tokens.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: The token ID (not the full token string).
+          description: Token ID.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -634,7 +609,7 @@ paths:
       operationId: listUsers
       tags: [Users]
       summary: List users
-      description: Returns a paginated list of all user accounts. Requires admin privileges.
+      description: Lists users.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -651,7 +626,7 @@ paths:
       operationId: createUser
       tags: [Users]
       summary: Create a user
-      description: Creates a new user account. Maximum 50 users. Requires admin privileges.
+      description: Creates a user.
       requestBody:
         required: true
         content:
@@ -673,7 +648,7 @@ paths:
       operationId: getUser
       tags: [Users]
       summary: Get a user
-      description: Returns the email and role of a specific user.
+      description: Returns a user.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       responses:
@@ -691,7 +666,7 @@ paths:
       operationId: updateUser
       tags: [Users]
       summary: Update a user's role
-      description: Changes the role of an existing user. Requires admin privileges.
+      description: Changes a user's role.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       requestBody:
@@ -713,7 +688,7 @@ paths:
       operationId: deleteUser
       tags: [Users]
       summary: Delete a user
-      description: Permanently deletes a user account and all associated API tokens.
+      description: Deletes a user and their API tokens.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       responses:
@@ -729,7 +704,7 @@ paths:
       operationId: updateUserPassword
       tags: [Users]
       summary: Update a user's password (admin)
-      description: Resets the password of any user. Requires admin privileges.
+      description: Sets a user's password.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       requestBody:
@@ -753,7 +728,7 @@ paths:
       operationId: listUserAPITokens
       tags: [Users]
       summary: List a user's API tokens (admin)
-      description: Returns a paginated list of API tokens belonging to the specified user. Requires admin privileges.
+      description: Lists a user's API tokens.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
         - $ref: "#/components/parameters/Page"
@@ -773,10 +748,7 @@ paths:
       operationId: createUserAPIToken
       tags: [Users]
       summary: Create an API token for a user (admin)
-      description: |
-        Creates a new API token for the specified user. The full token string
-        (prefixed with `ellacore_`) is returned once and cannot be retrieved again.
-        Maximum 12 tokens per user. Requires admin privileges.
+      description: Creates an API token for a user. The token is returned only once.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       requestBody:
@@ -787,7 +759,7 @@ paths:
               $ref: "#/components/schemas/CreateAPITokenParams"
       responses:
         "201":
-          description: Token created. The full token is in the response - store it securely.
+          description: Token created.
           content:
             application/json:
               schema:
@@ -806,7 +778,7 @@ paths:
       operationId: deleteUserAPIToken
       tags: [Users]
       summary: Delete a user's API token (admin)
-      description: Revokes and deletes one of the specified user's API tokens by its token ID. Requires admin privileges.
+      description: Deletes one of a user's API tokens.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
         - name: id
@@ -814,7 +786,7 @@ paths:
           required: true
           schema:
             type: string
-          description: The token ID (not the full token string).
+          description: Token ID.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -829,10 +801,7 @@ paths:
       operationId: listSubscribers
       tags: [Subscribers]
       summary: List subscribers
-      description: |
-        Returns a paginated list of all provisioned 5G subscribers, ordered by IMSI.
-        Each entry includes the IMSI, assigned profile, and connection status
-        (whether the device is currently registered on the network and its IP address).
+      description: Lists subscribers, ordered by IMSI.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -840,25 +809,18 @@ paths:
           in: query
           schema:
             type: string
-          description: >-
-            Filter to registered subscribers whose last-seen radio is this one, so an
-            idle subscriber still matches the radio that last served it.
+          description: Filter by last-seen radio.
         - name: data_network
           in: query
           schema:
             type: string
-          description: Filter subscribers whose profile reaches the named data network.
+          description: Filter by data network reachable through the subscriber's profile.
         - name: search
           in: query
           schema:
             type: string
             maxLength: 254
-          description: |
-            Filter subscribers whose IMSI or description contains this
-            substring. The value is treated as literal text, not a pattern.
-            Matching ignores case for ASCII letters only, so `reception`
-            finds `Reception` but `réception` does not find `Réception`.
-            Combines with the other filters.
+          description: Substring match on IMSI or description, ASCII case-insensitive.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -874,11 +836,7 @@ paths:
       operationId: createSubscriber
       tags: [Subscribers]
       summary: Provision a subscriber
-      description: |
-        Registers a new 5G subscriber on the network. Requires the IMSI, permanent key (K),
-        sequence number, and an existing profile name. Optionally provide the OPc
-        value - if omitted, it is derived from the operator code.
-        Maximum 1000 subscribers.
+      description: Provisions a subscriber.
       requestBody:
         required: true
         content:
@@ -902,10 +860,7 @@ paths:
       operationId: getSubscriber
       tags: [Subscribers]
       summary: Get subscriber details
-      description: |
-        Returns full details of a subscriber including connection status,
-        IMEI of the connected device, negotiated ciphering/integrity algorithms,
-        last-seen radio information, and minimal PDU session information.
+      description: Returns a subscriber with its registrations and sessions.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -923,7 +878,7 @@ paths:
       operationId: updateSubscriber
       tags: [Subscribers]
       summary: Update a subscriber
-      description: Updates the profile assigned to a subscriber.
+      description: Updates a subscriber.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       requestBody:
@@ -945,7 +900,7 @@ paths:
       operationId: deleteSubscriber
       tags: [Subscribers]
       summary: Delete a subscriber
-      description: Deregisters the 5G subscriber from the network and removes it from the database. If the device is currently connected, its session is terminated.
+      description: Deletes a subscriber.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -961,10 +916,7 @@ paths:
       operationId: getSubscriberCredentials
       tags: [Subscribers]
       summary: Get subscriber credentials
-      description: |
-        Returns the authentication credentials (permanent key, OPc, and sequence number)
-        for a subscriber. Requires the `subscriber:read_credentials` permission,
-        which is granted only to Admin and Network Manager roles.
+      description: Returns a subscriber's K, OPc, and sequence number.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -987,9 +939,7 @@ paths:
       operationId: getSubscriberUsage
       tags: [Subscriber Usage]
       summary: Get subscriber usage data
-      description: |
-        Returns subscriber data usage (uplink, downlink, total bytes), grouped by day or by subscriber.
-        Supports date range filtering and filtering by specific subscriber IMSI.
+      description: Returns subscriber data usage, grouped by day or subscriber.
       parameters:
         - name: group_by
           in: query
@@ -997,7 +947,7 @@ paths:
           schema:
             type: string
             enum: [day, subscriber]
-          description: Group results by date or by subscriber IMSI.
+          description: Grouping.
         - name: start
           in: query
           schema:
@@ -1009,12 +959,12 @@ paths:
           schema:
             type: string
             format: date-time
-          description: Exclusive upper bound (RFC 3339). Defaults to now. With group_by=day, spans longer than 11000 days return 400.
+          description: Exclusive upper bound (RFC 3339). Defaults to now.
         - name: subscriber
           in: query
           schema:
             type: string
-          description: Filter to a specific subscriber IMSI.
+          description: Filter by IMSI.
       responses:
         "200":
           description: Usage data grouped by the requested dimension.
@@ -1030,7 +980,7 @@ paths:
       operationId: clearSubscriberUsage
       tags: [Subscriber Usage]
       summary: Clear all usage data
-      description: Permanently deletes all subscriber usage records.
+      description: Deletes all usage data.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1042,7 +992,7 @@ paths:
       operationId: getSubscriberUsageRetention
       tags: [Subscriber Usage]
       summary: Get usage retention policy
-      description: Returns the number of days subscriber usage data is retained before automatic deletion.
+      description: Returns the usage retention period in days.
       responses:
         "200":
           description: Retention policy.
@@ -1056,7 +1006,7 @@ paths:
       operationId: updateSubscriberUsageRetention
       tags: [Subscriber Usage]
       summary: Update usage retention policy
-      description: Sets the number of days to retain subscriber usage data.
+      description: Sets the usage retention period in days.
       requestBody:
         required: true
         content:
@@ -1077,7 +1027,7 @@ paths:
       operationId: listProfiles
       tags: [Profiles]
       summary: List profiles
-      description: Returns a paginated list of all profiles. Profiles define UE-level aggregate maximum bit rates (UE-AMBR).
+      description: Lists profiles.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1094,9 +1044,7 @@ paths:
       operationId: createProfile
       tags: [Profiles]
       summary: Create a profile
-      description: |
-        Creates a new profile with UE-AMBR settings.
-        Maximum 12 profiles.
+      description: Creates a profile.
       requestBody:
         required: true
         content:
@@ -1118,7 +1066,7 @@ paths:
       operationId: getProfile
       tags: [Profiles]
       summary: Get a profile
-      description: Returns the details of a specific profile.
+      description: Returns a profile.
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       responses:
@@ -1136,7 +1084,7 @@ paths:
       operationId: updateProfile
       tags: [Profiles]
       summary: Update a profile
-      description: Updates the UE-AMBR settings of a profile.
+      description: Updates a profile.
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       requestBody:
@@ -1158,7 +1106,7 @@ paths:
       operationId: deleteProfile
       tags: [Profiles]
       summary: Delete a profile
-      description: Deletes a profile. Fails if any policies reference this profile.
+      description: Deletes a profile.
       parameters:
         - $ref: "#/components/parameters/ProfileNamePath"
       responses:
@@ -1177,7 +1125,7 @@ paths:
       operationId: listSlices
       tags: [Slices]
       summary: List slices
-      description: Returns a paginated list of all network slices. Each slice defines an S-NSSAI (SST and optional SD).
+      description: Lists network slices.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1194,9 +1142,7 @@ paths:
       operationId: createSlice
       tags: [Slices]
       summary: Create a slice
-      description: |
-        Creates a new network slice with the given SST and optional SD.
-        The maximum number of slices is 8 (3GPP AllowedNSSAI limit).
+      description: Creates a network slice.
       requestBody:
         required: true
         content:
@@ -1218,7 +1164,7 @@ paths:
       operationId: getSlice
       tags: [Slices]
       summary: Get a slice
-      description: Returns the details of a specific network slice.
+      description: Returns a network slice.
       parameters:
         - $ref: "#/components/parameters/SliceNamePath"
       responses:
@@ -1236,7 +1182,7 @@ paths:
       operationId: updateSlice
       tags: [Slices]
       summary: Update a slice
-      description: Updates the SST and SD of a network slice.
+      description: Updates a network slice.
       parameters:
         - $ref: "#/components/parameters/SliceNamePath"
       requestBody:
@@ -1258,7 +1204,7 @@ paths:
       operationId: deleteSlice
       tags: [Slices]
       summary: Delete a slice
-      description: Deletes a network slice. Fails if any policies reference this slice.
+      description: Deletes a network slice.
       parameters:
         - $ref: "#/components/parameters/SliceNamePath"
       responses:
@@ -1277,7 +1223,7 @@ paths:
       operationId: listPolicies
       tags: [Policies]
       summary: List policies
-      description: Returns a paginated list of all QoS policies. Policies bind a profile to a slice and data network, defining session AMBR, 5QI class, and allocation/retention priority.
+      description: Lists QoS policies.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1294,12 +1240,7 @@ paths:
       operationId: createPolicy
       tags: [Policies]
       summary: Create a policy
-      description: |
-        Creates a new QoS policy. Requires a unique name, an existing profile, slice, and data network,
-        session AMBR uplink/downlink limits, a 5QI value, and an ARP priority.
-        Optionally supports an initial set of network rules organized by direction (uplink/downlink).
-        Rules are created in the order they are provided.
-        Maximum 12 policies.
+      description: Creates a QoS policy.
       requestBody:
         required: true
         content:
@@ -1323,7 +1264,7 @@ paths:
       operationId: getPolicy
       tags: [Policies]
       summary: Get a policy
-      description: Returns the details of a specific QoS policy.
+      description: Returns a QoS policy.
       parameters:
         - $ref: "#/components/parameters/PolicyNamePath"
       responses:
@@ -1341,14 +1282,7 @@ paths:
       operationId: updatePolicy
       tags: [Policies]
       summary: Update a policy
-      description: |
-        Updates all fields of a QoS policy. Existing network rules are always replaced.
-
-        - **Omit `rules`**: all existing rules are deleted.
-        - **Provide `rules`**: existing rules are deleted and replaced with the new ones in the order given.
-        - **Provide empty arrays**: all existing rules are deleted and no new rules are created.
-
-        To keep existing rules you must explicitly include them in the request body.
+      description: Replaces a QoS policy, including its rules.
       parameters:
         - $ref: "#/components/parameters/PolicyNamePath"
       requestBody:
@@ -1389,7 +1323,7 @@ paths:
       operationId: getOperator
       tags: [Operator]
       summary: Get operator configuration
-      description: Returns the full operator configuration including PLMN ID (MCC/MNC), network slice (SST/SD), tracking area codes, home network public keys, NAS security algorithms, and the Service Provider Name (SPN).
+      description: Returns the operator configuration.
       responses:
         "200":
           description: Operator configuration.
@@ -1406,9 +1340,7 @@ paths:
       tags: [Operator]
       summary: Get tracking areas
       deprecated: true
-      description: |
-        **Deprecated** - use `GET /api/v1/operator` instead, which returns the full operator configuration including tracking data.
-        This endpoint will be removed after 2026-04-01.
+      description: Deprecated. Use `GET /api/v1/operator`.
       responses:
         "200":
           description: Tracking area configuration.
@@ -1422,7 +1354,7 @@ paths:
       operationId: updateOperatorTracking
       tags: [Operator]
       summary: Update tracking areas
-      description: Sets the list of supported Tracking Area Codes. Maximum 12 TACs. Each TAC is a 6-character hex string.
+      description: Sets the supported Tracking Area Codes.
       requestBody:
         required: true
         content:
@@ -1443,9 +1375,7 @@ paths:
       tags: [Operator]
       summary: Get PLMN ID
       deprecated: true
-      description: |
-        **Deprecated** - use `GET /api/v1/operator` instead, which returns the full operator configuration including the PLMN ID.
-        This endpoint will be removed after 2026-04-01.
+      description: Deprecated. Use `GET /api/v1/operator`.
       responses:
         "200":
           description: PLMN ID.
@@ -1459,7 +1389,7 @@ paths:
       operationId: updateOperatorId
       tags: [Operator]
       summary: Update PLMN ID
-      description: Changes the MCC and MNC. Cannot be changed while subscribers exist - delete all subscribers first.
+      description: Sets the MCC and MNC. Cannot be changed while subscribers exist.
       requestBody:
         required: true
         content:
@@ -1479,7 +1409,7 @@ paths:
       operationId: updateOperatorCode
       tags: [Operator]
       summary: Update operator code
-      description: Sets the operator code (OP). Cannot be changed while subscribers exist. The OPc for each subscriber is derived from this value and the subscriber's permanent key.
+      description: Sets the operator code (OP). Cannot be changed while subscribers exist.
       requestBody:
         required: true
         content:
@@ -1499,10 +1429,7 @@ paths:
       operationId: createHomeNetworkKey
       tags: [Operator]
       summary: Create a home network key
-      description: |
-        Adds a new home network key for SUCI de-concealment. The key is
-        identified by a (keyIdentifier, scheme) pair. Profile A keys use
-        Curve25519 (X25519); Profile B keys use NIST P-256. Maximum 12 keys.
+      description: Adds a home network key for SUCI de-concealment.
       requestBody:
         required: true
         content:
@@ -1524,7 +1451,7 @@ paths:
       operationId: deleteHomeNetworkKey
       tags: [Operator]
       summary: Delete a home network key
-      description: Removes a home network key. UEs using this key will no longer be able to register.
+      description: Deletes a home network key.
       parameters:
         - name: id
           in: path
@@ -1545,10 +1472,7 @@ paths:
       operationId: getHomeNetworkKeyPrivateKey
       tags: [Operator]
       summary: Get a home network key's private key
-      description: |
-        Returns the private key for a home network key. This is a sensitive
-        operation and is recorded in the audit log. Only administrators and
-        network managers can access this endpoint.
+      description: Returns a home network key's private key.
       parameters:
         - name: id
           in: path
@@ -1558,7 +1482,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: The private key for the home network key.
+          description: Private key.
           content:
             application/json:
               schema:
@@ -1580,12 +1504,7 @@ paths:
       operationId: updateOperatorNASSecurity
       tags: [Operator]
       summary: Update NAS security algorithms
-      description: |
-        Sets the preferred NAS security algorithm order for ciphering and integrity
-        protection. Each list must contain between 1 and 3 unique algorithm names.
-        Allowed ciphering algorithms: NULL, SNOW3G, AES.
-        Allowed integrity algorithms: NULL, SNOW3G, AES.
-        The order determines preference during UE security capability negotiation.
+      description: Sets the NAS ciphering and integrity algorithm preference order.
       requestBody:
         required: true
         content:
@@ -1605,10 +1524,7 @@ paths:
       operationId: updateOperatorSPN
       tags: [Operator]
       summary: Update Service Provider Name (SPN)
-      description: |
-        Sets the full and short network names (Service Provider Name) displayed on
-        connected devices. Both names are encoded in GSM 7-bit alphabet in the NAS
-        Configuration Update Command. Changes take effect for the next UE registration.
+      description: Sets the full and short network names.
       requestBody:
         required: true
         content:
@@ -1629,7 +1545,7 @@ paths:
       operationId: listDataNetworks
       tags: [Data Networks]
       summary: List data networks
-      description: Returns a paginated list of data networks (DNNs). Each data network defines an IP pool, DNS server, and MTU for subscriber sessions.
+      description: Lists data networks.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1646,9 +1562,7 @@ paths:
       operationId: createDataNetwork
       tags: [Data Networks]
       summary: Create a data network
-      description: |
-        Creates a new data network (DNN/APN). The name must be a valid DNN
-        format (lowercase alphanumeric, hyphens, dots). Maximum 12 data networks.
+      description: Creates a data network.
       requestBody:
         required: true
         content:
@@ -1670,7 +1584,7 @@ paths:
       operationId: getDataNetwork
       tags: [Data Networks]
       summary: Get a data network
-      description: Returns the configuration and active session count for a specific data network.
+      description: Returns a data network.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       responses:
@@ -1688,7 +1602,7 @@ paths:
       operationId: updateDataNetwork
       tags: [Data Networks]
       summary: Update a data network
-      description: Updates the IP pool, DNS, and MTU settings of a data network.
+      description: Updates a data network.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       requestBody:
@@ -1710,7 +1624,7 @@ paths:
       operationId: deleteDataNetwork
       tags: [Data Networks]
       summary: Delete a data network
-      description: Deletes a data network. Fails if any QoS policies reference this data network.
+      description: Deletes a data network.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       responses:
@@ -1728,7 +1642,7 @@ paths:
       operationId: listIPv4Allocations
       tags: [Data Networks]
       summary: List IPv4 allocations for a data network
-      description: Returns a paginated list of IPv4 address allocations (leases) for the specified data network.
+      description: Lists IPv4 address allocations.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/Page"
@@ -1752,7 +1666,7 @@ paths:
       operationId: listIPv6Allocations
       tags: [Data Networks]
       summary: List IPv6 prefix allocations for a data network
-      description: Returns a paginated list of IPv6 prefix allocations (leases) for the specified data network. Only available if the data network has an IPv6 pool configured.
+      description: Lists IPv6 prefix allocations.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/Page"
@@ -1776,7 +1690,7 @@ paths:
       operationId: listDataNetworkStaticIps
       tags: [Data Networks]
       summary: List static IP reservations for a data network
-      description: Returns the static IP reservations (both families) for the specified data network.
+      description: Lists static IP reservations.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       responses:
@@ -1794,7 +1708,7 @@ paths:
       operationId: createDataNetworkStaticIp
       tags: [Data Networks]
       summary: Create a static IP reservation
-      description: Pins an address to a subscriber on the data network. The IP version is inferred from the address family; IPv6 addresses must be /64-aligned. If the subscriber has a live session, it is released so the UE re-establishes on the reserved address.
+      description: Reserves an address for a subscriber.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       requestBody:
@@ -1820,7 +1734,7 @@ paths:
       operationId: updateDataNetworkStaticIp
       tags: [Data Networks]
       summary: Repin a static IP reservation
-      description: Changes the reserved address. A change to a live session releases it so the UE re-establishes on the new address.
+      description: Changes the reserved address.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"
@@ -1846,7 +1760,7 @@ paths:
       operationId: deleteDataNetworkStaticIp
       tags: [Data Networks]
       summary: Delete a static IP reservation
-      description: Removes the reservation. A change to a live session releases it so the UE re-establishes on a dynamic address.
+      description: Deletes a static IP reservation.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"
@@ -1866,7 +1780,7 @@ paths:
       operationId: listDataNetworkFramedRoutes
       tags: [Data Networks]
       summary: List framed routes for a data network
-      description: Returns the framed routes on the data network, grouped by subscriber.
+      description: Lists framed routes, grouped by subscriber.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       responses:
@@ -1884,7 +1798,7 @@ paths:
       operationId: createDataNetworkFramedRoute
       tags: [Data Networks]
       summary: Create a subscriber's framed routes
-      description: Sets the framed-route set (IPv4 and/or IPv6 prefixes routed toward the subscriber's session, TS 23.501 §5.6.14) on the data network. Rejected if the subscriber already has framed routes here (use PUT to replace), if NAT is enabled, if a prefix overlaps a UE pool, a route, or another subscriber's framed route, or if the subscriber's profile does not bind the data network.
+      description: Sets a subscriber's framed routes. Unavailable while NAT is enabled.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
       requestBody:
@@ -1910,7 +1824,7 @@ paths:
       operationId: updateDataNetworkFramedRoute
       tags: [Data Networks]
       summary: Replace a subscriber's framed routes
-      description: Replaces the subscriber's entire framed-route set on the data network; an empty set clears it. The same overlap and NAT rules as create apply. A change to a live session releases it for re-establishment.
+      description: Replaces a subscriber's framed routes.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"
@@ -1935,7 +1849,7 @@ paths:
       operationId: deleteDataNetworkFramedRoute
       tags: [Data Networks]
       summary: Delete a subscriber's framed routes
-      description: Removes all framed routes for the subscriber on the data network.
+      description: Deletes a subscriber's framed routes.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/ImsiPath"
@@ -1953,7 +1867,7 @@ paths:
       operationId: listRoutes
       tags: [Routes]
       summary: List routes
-      description: Returns a paginated list of routes including both user-configured static routes and BGP-learned routes. Each route has a `source` field (`static` or `bgp`) indicating its origin.
+      description: Lists static and BGP-learned routes.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1970,9 +1884,7 @@ paths:
       operationId: createRoute
       tags: [Routes]
       summary: Create a route
-      description: |
-        Adds a static IP route to both the database and the Linux kernel routing table.
-        Maximum 12 routes. The interface must be `n3` or `n6`.
+      description: Creates a static route.
       requestBody:
         required: true
         content:
@@ -1996,7 +1908,7 @@ paths:
       operationId: getRoute
       tags: [Routes]
       summary: Get a route
-      description: Returns the details of a specific static route.
+      description: Returns a static route.
       parameters:
         - $ref: "#/components/parameters/RouteIdPath"
       responses:
@@ -2014,7 +1926,7 @@ paths:
       operationId: deleteRoute
       tags: [Routes]
       summary: Delete a route
-      description: Removes a static route from the database and the Linux kernel routing table.
+      description: Deletes a static route.
       parameters:
         - $ref: "#/components/parameters/RouteIdPath"
       responses:
@@ -2031,7 +1943,7 @@ paths:
       operationId: getNATInfo
       tags: [NAT]
       summary: Get NAT status
-      description: Returns whether NAT (Network Address Translation) is currently enabled on the user plane.
+      description: Returns whether NAT is enabled.
       responses:
         "200":
           description: NAT status.
@@ -2045,7 +1957,7 @@ paths:
       operationId: updateNATInfo
       tags: [NAT]
       summary: Enable or disable NAT
-      description: Enables or disables NAT on the user plane. When enabled, subscriber traffic is NATed before leaving the N6 interface.
+      description: Enables or disables NAT.
       requestBody:
         required: true
         content:
@@ -2066,7 +1978,7 @@ paths:
       operationId: getBGPSettings
       tags: [BGP]
       summary: Get BGP settings
-      description: Returns the current BGP configuration.
+      description: Returns the BGP settings.
       responses:
         "200":
           description: BGP settings and status.
@@ -2080,12 +1992,7 @@ paths:
       operationId: updateBGPSettings
       tags: [BGP]
       summary: Update BGP settings
-      description: >-
-        Updates the BGP configuration. Enabling BGP starts the embedded BGP
-        speaker; disabling it stops the speaker and withdraws all routes.
-        Changing the local AS or router ID triggers a full restart. BGP and NAT
-        can coexist - when NAT is enabled, the speaker runs but does not
-        advertise subscriber routes.
+      description: Updates the BGP settings.
       requestBody:
         required: true
         content:
@@ -2105,7 +2012,7 @@ paths:
       operationId: listBGPPeers
       tags: [BGP]
       summary: List BGP peers
-      description: Returns the paginated list of configured BGP peers with live session status.
+      description: Lists BGP peers.
       parameters:
         - name: page
           in: query
@@ -2133,9 +2040,7 @@ paths:
       operationId: createBGPPeer
       tags: [BGP]
       summary: Create a BGP peer
-      description: >-
-        Adds a new BGP peer. If the BGP speaker is running, the peer is added
-        to the live session immediately. A maximum of 5 peers are allowed.
+      description: Creates a BGP peer.
       requestBody:
         required: true
         content:
@@ -2157,7 +2062,7 @@ paths:
       operationId: getBGPPeer
       tags: [BGP]
       summary: Get a BGP peer
-      description: Returns a single BGP peer by ID with live session status and import prefix configuration.
+      description: Returns a BGP peer.
       parameters:
         - name: id
           in: path
@@ -2179,9 +2084,7 @@ paths:
       operationId: updateBGPPeer
       tags: [BGP]
       summary: Update a BGP peer
-      description: >-
-        Updates a BGP peer by ID. If the BGP speaker is running, the peer is
-        reconfigured in the live session immediately.
+      description: Updates a BGP peer.
       parameters:
         - name: id
           in: path
@@ -2209,9 +2112,7 @@ paths:
       operationId: deleteBGPPeer
       tags: [BGP]
       summary: Delete a BGP peer
-      description: >-
-        Removes a BGP peer by ID. If the BGP speaker is running, the peer is
-        removed from the live session immediately.
+      description: Deletes a BGP peer.
       parameters:
         - name: id
           in: path
@@ -2231,7 +2132,7 @@ paths:
       operationId: getBGPAdvertisedRoutes
       tags: [BGP]
       summary: Get advertised BGP routes
-      description: Returns the list of routes currently advertised to BGP peers. These are /32 host routes derived from active PDU sessions.
+      description: Lists routes advertised to BGP peers.
       responses:
         "200":
           description: Advertised routes.
@@ -2247,7 +2148,7 @@ paths:
       operationId: getBGPLearnedRoutes
       tags: [BGP]
       summary: Get learned BGP routes
-      description: Returns the list of routes learned from BGP peers and installed in the kernel routing table.
+      description: Lists routes learned from BGP peers.
       responses:
         "200":
           description: Learned routes.
@@ -2264,7 +2165,7 @@ paths:
       operationId: getFlowAccountingInfo
       tags: [Flow Accounting]
       summary: Get flow accounting status
-      description: Returns whether per-flow traffic accounting is currently enabled on the user plane.
+      description: Returns whether flow accounting is enabled.
       responses:
         "200":
           description: Flow accounting status.
@@ -2278,7 +2179,7 @@ paths:
       operationId: updateFlowAccountingInfo
       tags: [Flow Accounting]
       summary: Enable or disable flow accounting
-      description: Enables or disables per-flow traffic accounting. When enabled, the user plane records per-flow traffic statistics accessible via the flow reports endpoints.
+      description: Enables or disables flow accounting.
       requestBody:
         required: true
         content:
@@ -2299,7 +2200,7 @@ paths:
       operationId: getLocalSwitchInfo
       tags: [Local Switch]
       summary: Get local switch status
-      description: Returns whether UE-to-UE local switching is currently enabled on the user plane.
+      description: Returns whether UE-to-UE local switching is enabled.
       responses:
         "200":
           description: Local switch status.
@@ -2313,7 +2214,7 @@ paths:
       operationId: updateLocalSwitchInfo
       tags: [Local Switch]
       summary: Enable or disable local switch
-      description: Enables or disables UE-to-UE local switching. When enabled, uplink traffic destined for another UE on the same UPF is forwarded locally instead of routed to N6.
+      description: Enables or disables UE-to-UE local switching.
       requestBody:
         required: true
         content:
@@ -2334,7 +2235,7 @@ paths:
       operationId: listNetworkInterfaces
       tags: [Interfaces]
       summary: List network interfaces
-      description: Returns the configuration of all network interfaces (N2 for control plane, N3 for user plane ingress, N6 for user plane egress, and the API interface).
+      description: Returns the N2, N3, N6, and API interface settings.
       responses:
         "200":
           description: Interface configuration.
@@ -2350,7 +2251,7 @@ paths:
       operationId: updateN3Interface
       tags: [Interfaces]
       summary: Update N3 interface settings
-      description: Updates the external/advertised address of the N3 (GTP-U) interface. Set to empty string to use the default address.
+      description: Sets the N3 external address.
       requestBody:
         required: true
         content:
@@ -2371,11 +2272,7 @@ paths:
       operationId: listRadios
       tags: [Radios]
       summary: List radios
-      description: >-
-        Returns a paginated list of radio base stations known to this node: those currently
-        associated, and those that completed NG/S1 Setup and have since disconnected, which
-        remain listed as offline until they are forgotten or their retention window elapses.
-        Presence is the serving node's view; a radio associates with one cluster node.
+      description: Lists online and offline radios known to this node.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -2385,7 +2282,7 @@ paths:
           schema:
             type: string
             enum: [online, offline]
-          description: Return only radios with this presence status.
+          description: Filter by status.
       responses:
         "200":
           description: Paginated list of radios.
@@ -2403,7 +2300,7 @@ paths:
       operationId: getRadio
       tags: [Radios]
       summary: Get a radio
-      description: Returns the details of a radio base station, connected or offline.
+      description: Returns a radio.
       parameters:
         - $ref: "#/components/parameters/RadioRef"
       responses:
@@ -2424,9 +2321,7 @@ paths:
       operationId: forgetRadio
       tags: [Radios]
       summary: Forget an offline radio
-      description: >-
-        Drops an offline radio from the list. A connected radio is rejected with 409, and a
-        forgotten radio is listed again if it reconnects.
+      description: Removes an offline radio from the list.
       parameters:
         - $ref: "#/components/parameters/RadioRef"
       responses:
@@ -2451,7 +2346,7 @@ paths:
       operationId: listRadioEvents
       tags: [Radio Events]
       summary: List radio events
-      description: Returns a paginated, filterable list of NGAP protocol events between the core network and radio base stations.
+      description: Lists radio events.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -2475,7 +2370,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by NGAP message type.
+          description: Filter by message type.
         - name: start
           in: query
           schema:
@@ -2501,7 +2396,7 @@ paths:
       operationId: clearRadioEvents
       tags: [Radio Events]
       summary: Clear all radio events
-      description: Permanently deletes all recorded radio events.
+      description: Deletes all radio events.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2513,7 +2408,7 @@ paths:
       operationId: getRadioEventRetention
       tags: [Radio Events]
       summary: Get radio event retention policy
-      description: Returns the number of days radio events are retained before automatic deletion.
+      description: Returns the radio event retention period in days.
       responses:
         "200":
           description: Retention policy.
@@ -2527,7 +2422,7 @@ paths:
       operationId: updateRadioEventRetention
       tags: [Radio Events]
       summary: Update radio event retention policy
-      description: Sets the number of days to retain radio events.
+      description: Sets the radio event retention period in days.
       requestBody:
         required: true
         content:
@@ -2547,7 +2442,7 @@ paths:
       operationId: getRadioEvent
       tags: [Radio Events]
       summary: Get a radio event
-      description: Returns the raw bytes and decoded NGAP (5G) or S1AP (4G) message of a specific radio event.
+      description: Returns a radio event with its raw and decoded message.
       parameters:
         - name: id
           in: path
@@ -2557,7 +2452,7 @@ paths:
           description: Radio event ID.
       responses:
         "200":
-          description: Radio event with decoded NGAP (5G) or S1AP (4G) payload.
+          description: Radio event.
           content:
             application/json:
               schema:
@@ -2573,10 +2468,7 @@ paths:
       operationId: listFlowReports
       tags: [Flow Reports]
       summary: List flow reports
-      description: |
-        Returns per-flow traffic reports collected by the user plane. Supports filtering
-        by subscriber, protocol, source/destination IP or port, direction, and date range.
-        Can optionally group results by day or by subscriber.
+      description: Lists flow reports, optionally grouped by day or subscriber.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -2585,7 +2477,7 @@ paths:
           schema:
             type: string
             enum: [day, subscriber]
-          description: Optionally group results by date or subscriber.
+          description: Grouping.
         - name: subscriber_id
           in: query
           schema:
@@ -2619,9 +2511,7 @@ paths:
           schema:
             type: string
             enum: [allow, drop]
-          description: >
-            Filter by flow action. `allow` returns only accepted flows,
-            `drop` returns only dropped flows. When omitted, all flows are returned.
+          description: Filter by flow action.
         - name: start
           in: query
           schema:
@@ -2649,7 +2539,7 @@ paths:
       operationId: clearFlowReports
       tags: [Flow Reports]
       summary: Clear all flow reports
-      description: Permanently deletes all flow report records.
+      description: Deletes all flow reports.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2661,7 +2551,7 @@ paths:
       operationId: getFlowReportsRetention
       tags: [Flow Reports]
       summary: Get flow reports retention policy
-      description: Returns the number of days flow reports are retained before automatic deletion.
+      description: Returns the flow report retention period in days.
       responses:
         "200":
           description: Retention policy.
@@ -2675,7 +2565,7 @@ paths:
       operationId: updateFlowReportsRetention
       tags: [Flow Reports]
       summary: Update flow reports retention policy
-      description: Sets the number of days to retain flow reports.
+      description: Sets the flow report retention period in days.
       requestBody:
         required: true
         content:
@@ -2695,7 +2585,7 @@ paths:
       operationId: getFlowReportStats
       tags: [Flow Reports]
       summary: Get flow report statistics
-      description: Returns aggregated statistics including top protocols and top uplink destination IPs. Accepts the same filters as the list endpoint.
+      description: Returns top protocols and top uplink destinations.
       parameters:
         - name: subscriber_id
           in: query
@@ -2723,9 +2613,7 @@ paths:
           schema:
             type: string
             enum: [allow, drop]
-          description: >
-            Filter by flow action. `allow` returns only accepted flows,
-            `drop` returns only dropped flows. When omitted, all flows are returned.
+          description: Filter by flow action.
         - name: start
           in: query
           schema:
@@ -2754,7 +2642,7 @@ paths:
       operationId: listAuditLogs
       tags: [Audit Logs]
       summary: List audit logs
-      description: Returns a paginated list of audit log entries recording administrative actions (user logins, configuration changes, etc.).
+      description: Lists audit log entries.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -2763,13 +2651,13 @@ paths:
           required: false
           schema:
             type: string
-          description: Filter audit logs by user email. When omitted, all audit logs are returned.
+          description: Filter by user email.
         - name: action
           in: query
           required: false
           schema:
             type: string
-          description: Filter audit logs by action identifier (e.g. create_subscriber, auth_login). When omitted, all actions are returned.
+          description: Filter by action (e.g. `create_subscriber`).
         - name: start
           in: query
           schema:
@@ -2797,7 +2685,7 @@ paths:
       operationId: getAuditLogRetention
       tags: [Audit Logs]
       summary: Get audit log retention policy
-      description: Returns the number of days audit logs are retained before automatic deletion.
+      description: Returns the audit log retention period in days.
       responses:
         "200":
           description: Retention policy.
@@ -2811,7 +2699,7 @@ paths:
       operationId: updateAuditLogRetention
       tags: [Audit Logs]
       summary: Update audit log retention policy
-      description: Sets the number of days to retain audit logs.
+      description: Sets the audit log retention period in days.
       requestBody:
         required: true
         content:
@@ -2832,13 +2720,7 @@ paths:
       operationId: createBackup
       tags: [Backup & Restore]
       summary: Create a database backup
-      description: |
-        Downloads a complete backup of the Ella Core database as a gzipped tar
-        archive (`.tar.gz`) containing `ella.db` and a `manifest.json`
-        describing the backup format version.
-
-        The archive contains sensitive secrets. Store and transfer it
-        encrypted, and treat it as an admin credential.
+      description: Downloads a database backup archive. The archive contains secrets.
       responses:
         "200":
           description: Database backup archive.
@@ -2856,16 +2738,8 @@ paths:
       tags: [Backup & Restore]
       summary: Restore from backup (standalone only)
       description: |
-        Restores the Ella Core database from an uploaded `.tar.gz` archive
-        produced by `POST /api/v1/backup`. The archive must contain `ella.db`
-        and `manifest.json`. The database is swapped atomically: a safety
-        copy of the live database is taken before the swap, and a failure
-        at any step rolls the file back. Maximum upload size: 256 MB.
-
-        Only available in standalone deployments. Clustered deployments
-        reject this endpoint with `409 Conflict`; operators recover via
-        the offline `restore.bundle` drop-in path described in the
-        backup and restore documentation.
+        Restores the Ella Core database from an uploaded archive.
+        Only available in standalone deployments.
       requestBody:
         required: true
         content:
@@ -2877,7 +2751,7 @@ paths:
                 backup:
                   type: string
                   format: binary
-                  description: The database backup tar.gz archive.
+                  description: The database backup archive.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2898,7 +2772,7 @@ paths:
       operationId: createSupportBundle
       tags: [Support Bundle]
       summary: Generate a support bundle
-      description: Generates and downloads a gzipped tar archive containing diagnostic information for troubleshooting.
+      description: Downloads a diagnostic support bundle.
       responses:
         "200":
           description: Support bundle archive.
@@ -2916,9 +2790,7 @@ paths:
       operationId: listClusterMembers
       tags: [Cluster]
       summary: List cluster members
-      description: >-
-        Returns all registered cluster members. Returns an empty array
-        when clustering is disabled. Requires admin privileges.
+      description: Lists cluster members. Empty when clustering is disabled.
       responses:
         "200":
           description: List of cluster members.
@@ -2934,26 +2806,20 @@ paths:
       operationId: removeClusterMember
       tags: [Cluster]
       summary: Remove a cluster member
-      description: >-
-        Removes a node from the Raft cluster and deletes its cluster_members
-        record. The node must be drained first (`drainState == "drained"`)
-        or the caller must pass `force=true`. The node should be shut down
-        after removal. Requires admin privileges.
+      description: Removes a node from the cluster. The node must be drained unless `force=true`.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: Node ID of the cluster member to remove.
+          description: Node ID.
         - name: force
           in: query
           required: false
           schema:
             type: boolean
-          description: >-
-            Bypass the drain precondition. Use only when the drain endpoint
-            cannot reach the target (e.g. the node is already down).
+          description: Skip the drain requirement.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2973,17 +2839,14 @@ paths:
       operationId: setClusterMemberDisplayName
       tags: [Cluster]
       summary: Set a cluster member's display name
-      description: >-
-        Sets the operator-facing name shown for a cluster member. The name
-        is free text and is not required to be unique. Requires admin
-        privileges.
+      description: Sets a cluster member's display name.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: Node identity of the cluster member to rename.
+          description: Node ID.
       requestBody:
         required: true
         content:
@@ -2994,7 +2857,7 @@ paths:
                 displayName:
                   type: string
                   maxLength: 63
-                  description: The new name, or an empty string to clear it.
+                  description: Display name. Empty clears it.
               required: [displayName]
       responses:
         "200":
@@ -3011,19 +2874,14 @@ paths:
       operationId: promoteClusterMember
       tags: [Cluster]
       summary: Promote a nonvoter to voter
-      description: >-
-        Promotes a nonvoter cluster member to a full voter in the Raft cluster.
-        Autopilot also promotes stable non-voters automatically after the
-        server stabilization window (10 seconds); this endpoint lets
-        operators promote immediately without waiting. Requires admin
-        privileges.
+      description: Promotes a nonvoter cluster member to voter.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: Node ID of the cluster member to promote.
+          description: Node ID.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -3043,15 +2901,7 @@ paths:
       operationId: getAutopilotState
       tags: [Cluster]
       summary: Get the current autopilot state
-      description: >-
-        Returns the live autopilot view of the cluster: per-peer health and
-        replication lag, voter/nonvoter roster, and cluster-wide
-        `failureTolerance`. Autopilot runs only on the leader, so requests
-        on a follower are proxied to the leader over the cluster port.
-        Immediately after a leadership change, the leader may return an
-        empty state for a short window (typically under one second) until
-        its first autopilot tick publishes a state. Requires admin
-        privileges.
+      description: Returns the cluster autopilot state.
       responses:
         "200":
           description: Autopilot state.
@@ -3062,19 +2912,16 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "502":
-          description: Proxy to leader failed; try again.
+          description: Proxy to leader failed.
         "503":
-          description: >-
-            No leader is currently available, or leadership changed while the
-            read was in flight; try again.
+          description: No leader available.
 
   /api/v1/cluster/health:
     get:
       operationId: getClusterHealth
       tags: [Cluster]
       summary: Get a summary of cluster health
-      description: >-
-        Returns a summary of cluster health.
+      description: Returns a summary of cluster health.
       responses:
         "200":
           description: Cluster health summary.
@@ -3090,18 +2937,14 @@ paths:
       operationId: drainClusterMember
       tags: [Cluster]
       summary: Drain a specific cluster member
-      description: >-
-        Drains the target node. Runs the
-        node-local drain side-effects: signals RANs that the node's GUAMI
-        is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the
-        current leader.
+      description: Drains a cluster member.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: Node ID of the cluster member to drain.
+          description: Node ID.
       responses:
         "200":
           description: Drain result.
@@ -3116,27 +2959,21 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "502":
-          description: Target node unreachable (proxy failure).
+          description: Target node unreachable.
 
   /api/v1/cluster/members/{id}/resume:
     post:
       operationId: resumeClusterMember
       tags: [Cluster]
       summary: Resume a drained cluster member
-      description: >-
-        Reverses drain on the target node: restarts the local BGP speaker
-        (if BGP is globally enabled) and clears `drainState` back to
-        `"active"`. Does not reverse AMF Status Indication (a new NG Setup
-        on RAN reconnection re-establishes the GUAMI) and does not reclaim
-        Raft leadership transferred during drain. Idempotent: resuming a
-        non-drained node is a no-op. Requires admin privileges.
+      description: Resumes a drained cluster member.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
-          description: Node ID of the cluster member to resume.
+          description: Node ID.
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -3145,16 +2982,14 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "502":
-          description: Target node unreachable (proxy failure).
+          description: Target node unreachable.
 
   /api/v1/cluster/join:
     post:
       operationId: clusterJoin
       tags: [Cluster]
       summary: Join this node to a cluster
-      description: >-
-        Joins a node that has no cluster state to an existing cluster.
-        Unauthenticated.
+      description: Joins this node to an existing cluster.
       security: []
       requestBody:
         required: true
@@ -3164,7 +2999,7 @@ paths:
               $ref: "#/components/schemas/ClusterJoinRequest"
       responses:
         "202":
-          description: Join accepted and running. Poll this path to follow it.
+          description: Join started.
           content:
             application/json:
               schema:
@@ -3177,9 +3012,7 @@ paths:
       operationId: getClusterJoinStatus
       tags: [Cluster]
       summary: Read this node's join state
-      description: >-
-        Reports `waiting`, `joining`, `joined`, or `unavailable`. A failed
-        attempt returns to `waiting` and carries the reason in `error`.
+      description: Returns this node's join state.
       security: []
       responses:
         "200":
@@ -3194,10 +3027,7 @@ paths:
       operationId: mintClusterJoinToken
       tags: [Cluster]
       summary: Mint a cluster join token
-      description: >-
-        Mints a single-use token that admits one new node to the cluster.
-        Supply it to the joining node via `POST /api/v1/cluster/join`.
-        Must be sent to the leader. Requires admin privileges.
+      description: Mints a single-use cluster join token. Must be sent to the leader.
       requestBody:
         required: true
         content:
@@ -3216,7 +3046,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "503":
-          description: PKI issuer not yet available (pre-bootstrap).
+          description: PKI issuer not available.
 
   # -- Location (beta) -----------------------------------------------------
   /api/beta/location:
@@ -3224,23 +3054,7 @@ paths:
       operationId: getSubscriberLocation
       tags: [Location]
       summary: Locate a subscriber
-      description: |
-        Requests the current location of a subscriber identified by SUPI.
-        **Beta**: this endpoint is served under `/api/beta` and its request
-        and response schemas may change.
-
-        The behaviour depends on `request_type`:
-
-        - `immediate` returns a location estimate synchronously. The `cell_id`
-          method resolves the subscriber's serving cell to its provisioned
-          position; the `ecid` method runs an E-CID measurement exchange
-          before responding.
-        - `periodic` and `triggered` create a deferred positioning session and
-          return its identifier; results are retrieved later through the
-          positioning sessions endpoints.
-        - `cancel` terminates the session named by `session_id`.
-
-        Every call is recorded in the audit log.
+      description: "Beta: Locates a subscriber, or creates or cancels a deferred positioning session."
       parameters:
         - name: verbose
           in: query
@@ -3248,7 +3062,7 @@ paths:
           schema:
             type: boolean
             default: false
-          description: When true, attach the non-standard `supplementaryMeasurements` block (raw NRPPa measurements) to the response.
+          description: Include `supplementaryMeasurements`.
       requestBody:
         required: true
         content:
@@ -3312,7 +3126,7 @@ paths:
       operationId: getPositioningSession
       tags: [Positioning Sessions]
       summary: Get a positioning session
-      description: "Beta: Returns a positioning session including its most recent location result."
+      description: "Beta: Returns a positioning session and its last result."
       parameters:
         - $ref: "#/components/parameters/PositioningSessionIdPath"
       responses:
@@ -3347,7 +3161,7 @@ paths:
       operationId: listCellPositions
       tags: [Cell Positions]
       summary: List cell positions
-      description: "Beta: Returns all provisioned cell antenna positions."
+      description: "Beta: Lists cell positions."
       responses:
         "200":
           description: Cell positions.
@@ -3363,7 +3177,7 @@ paths:
       operationId: createCellPosition
       tags: [Cell Positions]
       summary: Create a cell position
-      description: "Beta: Provisions the geographic position of a cell antenna. Cell ID location lookups resolve a subscriber's serving cell to this position."
+      description: "Beta: Creates a cell position."
       requestBody:
         required: true
         content:
@@ -3387,7 +3201,7 @@ paths:
       operationId: getCellPosition
       tags: [Cell Positions]
       summary: Get a cell position
-      description: "Beta: Returns a provisioned cell antenna position."
+      description: "Beta: Returns a cell position."
       parameters:
         - $ref: "#/components/parameters/CellPositionIdPath"
       responses:
@@ -3405,7 +3219,7 @@ paths:
       operationId: updateCellPosition
       tags: [Cell Positions]
       summary: Update a cell position
-      description: "Beta: Updates a provisioned cell antenna position."
+      description: "Beta: Updates a cell position."
       parameters:
         - $ref: "#/components/parameters/CellPositionIdPath"
       requestBody:
@@ -3427,7 +3241,7 @@ paths:
       operationId: deleteCellPosition
       tags: [Cell Positions]
       summary: Delete a cell position
-      description: "Beta: Deletes a provisioned cell antenna position."
+      description: "Beta: Deletes a cell position."
       parameters:
         - $ref: "#/components/parameters/CellPositionIdPath"
       responses:
@@ -3470,11 +3284,7 @@ components:
       schema:
         type: string
         pattern: "^[^:]+:[^:]+(:[^:]+)?:[^:]+$"
-      description: >-
-        The radio's identity, as reported in its `ref` field:
-        `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example
-        `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. The PLMN is `-` on a radio
-        that reported none; an SNPN carries its 11-digit NID as a third field.
+      description: "Radio `ref`, e.g. `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`."
     EmailPath:
       name: email
       in: path
@@ -3490,7 +3300,7 @@ components:
       schema:
         type: string
         pattern: "^[0-9]{6,15}$"
-      description: "IMSI (International Mobile Subscriber Identity), 6 to 15 digits."
+      description: "IMSI, 6 to 15 digits."
     PolicyNamePath:
       name: name
       in: path
@@ -3598,8 +3408,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     NotLeader:
-      description: >-
-        This node is not the cluster leader. Re-send the request to the leader node.
+      description: This node is not the cluster leader.
       content:
         application/json:
           schema:
@@ -3682,17 +3491,14 @@ components:
           description: True if the system has at least one user.
         ready:
           type: boolean
-          description: True if the node has completed full startup and can serve the complete API.
+          description: True once startup has completed.
         schemaVersion:
           type: integer
-          description: >-
-            Shared-database schema version this node's binary expects.
-            Reported in both standalone and HA modes.
+          description: Database schema version this node expects.
         datapathAttachMode:
           type: string
           enum: [xdp-native, tcx, xdp-generic]
-          description: >-
-            Mechanism the data plane attached with.
+          description: Data plane attach mode.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
       required: [version, revision, initialized, ready, schemaVersion, cluster]
@@ -3721,7 +3527,7 @@ components:
           type: string
         token:
           type: string
-          description: JWT token.
+          description: JWT.
       required: [message, token]
 
     InitializeResponseEnvelope:
@@ -3748,7 +3554,7 @@ components:
           type: string
         token:
           type: string
-          description: JWT token (15-minute expiry).
+          description: JWT.
       required: [message, token]
 
     LoginResponseEnvelope:
@@ -3871,22 +3677,22 @@ components:
       properties:
         current_password:
           type: string
-          description: The user's current password, required for verification.
+          description: Current password.
         password:
           type: string
-          description: The new password to set.
+          description: New password.
 
     APIToken:
       type: object
       properties:
         id:
           type: string
-          description: Token ID (not the secret).
+          description: Token ID.
         name:
           type: string
         expires_at:
           type: string
-          description: Expiration time (RFC 3339) or empty if no expiry.
+          description: Expiration time (RFC 3339). Empty if none.
       required: [id, name]
 
     ListAPITokensResponse:
@@ -3918,18 +3724,18 @@ components:
           type: string
           minLength: 3
           maxLength: 50
-          description: A human-readable name for the token.
+          description: Token name.
         expires_at:
           type: string
           format: date-time
-          description: Optional expiration time (RFC 3339). Must be in the future.
+          description: Expiration time (RFC 3339).
 
     CreateAPITokenResponse:
       type: object
       properties:
         token:
           type: string
-          description: "Full API token string (prefixed `ellacore_`). Store securely - it cannot be retrieved again."
+          description: "API token (prefixed `ellacore_`)."
       required: [token]
 
     CreateAPITokenResponseEnvelope:
@@ -3944,7 +3750,7 @@ components:
       properties:
         registered:
           type: boolean
-          description: Whether the device is currently registered on the network.
+          description: Whether the subscriber is registered.
         connection_state:
           type: string
           enum: ["idle", "connected"]
@@ -3954,17 +3760,17 @@ components:
           items:
             type: string
             enum: ["5G", "4G"]
-          description: "Systems the core holds a context for, 5G first. Absent when it holds none."
+          description: "Systems holding a context, 5G first. Absent when none."
         num_sessions:
           type: integer
-          description: "Number of active sessions across every system."
+          description: "Active sessions across all systems."
         last_seen_at:
           type: string
           format: date-time
-          description: "Timestamp when the subscriber was last seen (RFC 3339). Absent when never seen."
+          description: "Last seen time (RFC 3339). Absent when never seen."
         last_seen_radio:
           type: string
-          description: "Radio that last served the device. Absent when never seen."
+          description: "Last serving radio. Absent when never seen."
       required: [registered, num_sessions]
 
     Subscriber:
@@ -3972,14 +3778,14 @@ components:
       properties:
         imsi:
           type: string
-          description: "International Mobile Subscriber Identity, 6 to 15 digits."
+          description: "IMSI, 6 to 15 digits."
         profile_name:
           type: string
           description: Name of the assigned profile.
         description:
           type: string
           maxLength: 64
-          description: Free-text operator note. Absent when unset.
+          description: Free-text note. Absent when unset.
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -4007,7 +3813,7 @@ components:
 
     UEConnection:
       type: object
-      description: "Identity pair of a registration's UE-associated logical connection. Only the pair of the registration's system is present."
+      description: "UE-associated logical connection IDs for the registration's system."
       properties:
         amf_ue_ngap_id:
           type: integer
@@ -4016,7 +3822,7 @@ components:
         ran_ue_ngap_id:
           type: integer
           format: int64
-          description: "RAN UE NGAP ID (5G). INTEGER (0..2^32-1). Absent until the radio allocates one."
+          description: "RAN UE NGAP ID (5G). INTEGER (0..2^32-1)."
         mme_ue_s1ap_id:
           type: integer
           format: int64
@@ -4024,43 +3830,43 @@ components:
         enb_ue_s1ap_id:
           type: integer
           format: int64
-          description: "eNB UE S1AP ID (4G). INTEGER (0..2^24-1). Absent until the radio allocates one."
+          description: "eNB UE S1AP ID (4G). INTEGER (0..2^24-1)."
 
     Registration:
       type: object
-      description: "One mobility-management context the core holds or remembers for a subscriber."
+      description: "Mobility-management context for a subscriber."
       properties:
         system:
           type: string
           enum: ["5G", "4G"]
-          description: "The core holding this registration."
+          description: "System of this registration."
         registered:
           type: boolean
-          description: "RM state in 5G, EMM state in 4G. False on an entry the core only remembers."
+          description: "RM state (5G) or EMM state (4G)."
         connection_state:
           type: ["string", "null"]
           enum: ["idle", "connected", null]
-          description: "CM state in 5G, ECM state in 4G. Null on an entry the core only remembers."
+          description: "CM state (5G) or ECM state (4G)."
         radio:
           type: string
-          description: "Radio serving this registration, or the last one that did. Absent when never seen."
+          description: "Current or last serving radio. Absent when never seen."
         last_seen_at:
           type: string
-          description: "Timestamp of last activity in this system (RFC 3339). Absent when never seen."
+          description: "Last activity time (RFC 3339). Absent when never seen."
         imei:
           type: string
-          description: "IMEI of the device (15 digits). Absent when the core does not hold it."
+          description: "IMEI (15 digits). Absent when unknown."
         ciphering_algorithm:
           type: string
-          description: "NAS ciphering algorithm: NEA0 / 128-NEA1..3 in 5G, EEA0 / 128-EEA1..3 in 4G. Absent when none is established."
+          description: "NAS ciphering algorithm (NEAx or EEAx). Absent when none."
         integrity_algorithm:
           type: string
-          description: "NAS integrity algorithm: NIA0 / 128-NIA1..3 in 5G, EIA0 / 128-EIA1..3 in 4G. Absent when none is established."
+          description: "NAS integrity algorithm (NIAx or EIAx). Absent when none."
         connection:
           oneOf:
             - $ref: "#/components/schemas/UEConnection"
             - type: "null"
-          description: "UE-associated logical connection. Null when the device holds none."
+          description: "UE-associated logical connection. Null when none."
       required: [system, registered, connection_state, connection]
 
     SubscriberDetail:
@@ -4073,15 +3879,15 @@ components:
         description:
           type: string
           maxLength: 64
-          description: Free-text operator note. Absent when unset.
+          description: Free-text note. Absent when unset.
         registrations:
           type: array
-          description: "Mobility-management contexts the core holds or remembers, 5G first."
+          description: "Mobility-management contexts, 5G first."
           items:
             $ref: "#/components/schemas/Registration"
         sessions:
           type: array
-          description: "Active sessions for this subscriber (5G PDU sessions / 4G PDN connections)."
+          description: "Active PDU sessions (5G) and PDN connections (4G)."
           items:
             $ref: "#/components/schemas/Session"
       required: [imsi, profile_name, registrations, sessions]
@@ -4114,7 +3920,7 @@ components:
 
     SNSSAI:
       type: object
-      description: "5G network slice identifier (S-NSSAI). Absent for 4G sessions."
+      description: "S-NSSAI. Absent for 4G sessions."
       properties:
         sst:
           type: integer
@@ -4126,7 +3932,7 @@ components:
 
     Session:
       type: object
-      description: "A UE data session — a 5G PDU session or a 4G PDN connection."
+      description: "5G PDU session or 4G PDN connection."
       properties:
         system:
           type: string
@@ -4134,7 +3940,7 @@ components:
           description: "The system holding this session."
         id:
           type: integer
-          description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
+          description: "PDU Session ID (5G) or linked EPS Bearer ID (4G)."
         status:
           type: string
           description: "Session status (e.g. active, inactive)."
@@ -4168,7 +3974,7 @@ components:
         imsi:
           type: string
           pattern: "^[0-9]{6,15}$"
-          description: "IMSI of 6 to 15 digits. Must start with the operator's MCC+MNC."
+          description: "IMSI, 6 to 15 digits, starting with the operator MCC and MNC."
         key:
           type: string
           pattern: "^[0-9a-fA-F]{32}$"
@@ -4176,7 +3982,7 @@ components:
         opc:
           type: string
           pattern: "^[0-9a-fA-F]{32}$"
-          description: "32-character hex OPc. If omitted, derived from the operator code."
+          description: "32-character hex OPc. Derived from the operator code if omitted."
         sequenceNumber:
           type: string
           description: "6-byte hex sequence number."
@@ -4186,7 +3992,7 @@ components:
         description:
           type: string
           maxLength: 64
-          description: "Free-text operator note. Surrounding whitespace is trimmed; omit or send an empty string to leave it unset."
+          description: "Free-text note."
 
     UpdateSubscriberParams:
       type: object
@@ -4198,7 +4004,7 @@ components:
         description:
           type: string
           maxLength: 64
-          description: "Free-text operator note. Surrounding whitespace is trimmed; the update is a full replace, so omitting it clears the stored value."
+          description: "Free-text note. Omitting it clears the value."
 
     # -- Subscriber Usage ------------------------------------------------
     DailySubscriberUsage:
@@ -4240,7 +4046,7 @@ components:
       properties:
         result:
           type: array
-          description: "With group_by=day, DailySubscriberUsage ordered oldest first. With group_by=subscriber, PerSubscriberUsage ordered by total bytes descending."
+          description: "`DailySubscriberUsage` (oldest first) for group_by=day; `PerSubscriberUsage` (by total bytes, descending) for group_by=subscriber."
           items:
             oneOf:
               - $ref: "#/components/schemas/DailySubscriberUsage"
@@ -4276,12 +4082,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PolicyRule"
-          description: "List of uplink rules in order."
+          description: "Uplink rules, in order."
         downlink:
           type: array
           items:
             $ref: "#/components/schemas/PolicyRule"
-          description: "List of downlink rules in order."
+          description: "Downlink rules, in order."
 
     Policy:
       type: object
@@ -4290,34 +4096,34 @@ components:
           type: string
         profile_name:
           type: string
-          description: Name of the profile this policy belongs to.
+          description: Profile name.
         slice_name:
           type: string
-          description: Name of the network slice this policy applies to.
+          description: Slice name.
         session_ambr_uplink:
           type: string
-          description: "Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Example: \"100 Mbps\"."
+          description: "Session AMBR uplink (e.g. \"100 Mbps\")."
         session_ambr_downlink:
           type: string
-          description: "Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Example: \"200 Mbps\"."
+          description: "Session AMBR downlink (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
-          description: "5G QoS Identifier. Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority). Non-GBR values only."
+          description: "5G QoS Identifier (non-GBR)."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1-15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once admitted."
+          description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
         data_network_name:
           type: string
-          description: Name of the data network this policy applies to.
+          description: Data network name.
         rules:
           $ref: "#/components/schemas/PolicyRules"
-          description: "Optional network rules organized by direction (uplink/downlink)."
+          description: "Network rules by direction."
         default:
           type: boolean
-          description: "Whether this binding is the profile's default APN/DNN (used for the 4G default bearer and as the 5G fallback)."
+          description: "Whether this is the profile's default DNN/APN."
       required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, data_network_name]
 
     PolicyResponseEnvelope:
@@ -4371,19 +4177,19 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier. Signaled to the radio for scheduling. Non-GBR values only."
+          description: "5G QoS Identifier (non-GBR)."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1-15). Admission control at session setup."
+          description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
         rules:
           $ref: "#/components/schemas/PolicyRules"
-          description: "Optional network rules to be created with the policy."
+          description: "Network rules by direction."
         default:
           type: boolean
-          description: "Make this the profile's default APN/DNN binding. The first policy in a profile becomes default regardless."
+          description: "Make this the profile's default DNN/APN. A profile's first policy is always the default."
 
     UpdatePolicyParams:
       type: object
@@ -4406,22 +4212,19 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
-          description: "5G QoS Identifier. Signaled to the radio for scheduling. Non-GBR values only."
+          description: "5G QoS Identifier (non-GBR)."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1-15). Admission control at session setup."
+          description: "Allocation and Retention Priority."
           minimum: 1
           maximum: 15
         rules:
           $ref: "#/components/schemas/PolicyRules"
-          description: |
-            Network rules to set on the policy. Existing rules are always deleted first.
-            If this field is omitted, all existing rules are deleted.
-            To keep existing rules, you must re-supply them in every update request.
+          description: "Replaces all existing rules. Omitting it deletes all rules."
         default:
           type: boolean
-          description: "Make this the profile's default APN/DNN binding (clears the previous default). Omitted/false leaves it unchanged."
+          description: "Make this the profile's default DNN/APN. False leaves it unchanged."
 
     # -- Profiles --------------------------------------------------------
     Profile:
@@ -4431,16 +4234,16 @@ components:
           type: string
         ue_ambr_uplink:
           type: string
-          description: "Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Example: \"1 Gbps\"."
+          description: "UE-AMBR uplink (e.g. \"1 Gbps\")."
         ue_ambr_downlink:
           type: string
-          description: "Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Example: \"1 Gbps\"."
+          description: "UE-AMBR downlink (e.g. \"1 Gbps\")."
         allow_4g:
           type: boolean
-          description: "Whether subscribers on this profile may use 4G/EPC (Core Network type restriction, TS 23.501 §5.3.4). Default true."
+          description: "Allow 4G access. Defaults to true."
         allow_5g:
           type: boolean
-          description: "Whether subscribers on this profile may use 5G/5GC. Default true."
+          description: "Allow 5G access. Defaults to true."
       required: [name, ue_ambr_uplink, ue_ambr_downlink]
 
     ProfileResponseEnvelope:
@@ -4485,10 +4288,10 @@ components:
           description: "e.g. \"1 Gbps\""
         allow_4g:
           type: boolean
-          description: "Permit 4G/EPC access. Omitted defaults to true."
+          description: "Allow 4G access. Defaults to true."
         allow_5g:
           type: boolean
-          description: "Permit 5G/5GC access. Omitted defaults to true."
+          description: "Allow 5G access. Defaults to true."
 
     UpdateProfileParams:
       type: object
@@ -4502,10 +4305,10 @@ components:
           description: "e.g. \"1 Gbps\""
         allow_4g:
           type: boolean
-          description: "Permit 4G/EPC access. Omitted leaves the current value unchanged."
+          description: "Allow 4G access. Unchanged if omitted."
         allow_5g:
           type: boolean
-          description: "Permit 5G/5GC access. Omitted leaves the current value unchanged."
+          description: "Allow 5G access. Unchanged if omitted."
 
     # -- Slices ----------------------------------------------------------
     Slice:
@@ -4515,12 +4318,12 @@ components:
           type: string
         sst:
           type: integer
-          description: "Slice/Service Type (0-255)."
+          description: "Slice/Service Type."
           minimum: 0
           maximum: 255
         sd:
           type: string
-          description: "Slice Differentiator (up to 6 hex chars). Omitted when empty."
+          description: "Slice Differentiator (hex). Absent when unset."
       required: [name, sst]
 
     SliceResponseEnvelope:
@@ -4564,7 +4367,7 @@ components:
         sd:
           type: string
           maxLength: 6
-          description: "Optional Slice Differentiator (hex)."
+          description: "Slice Differentiator (hex)."
 
     UpdateSliceParams:
       type: object
@@ -4577,7 +4380,7 @@ components:
         sd:
           type: string
           maxLength: 6
-          description: "Optional Slice Differentiator (hex)."
+          description: "Slice Differentiator (hex)."
 
     # -- Operator --------------------------------------------------------
     OperatorID:
@@ -4674,19 +4477,19 @@ components:
         id:
           type: string
           format: uuid
-          description: Internal UUIDv7 database ID.
+          description: Key ID.
         keyIdentifier:
           type: integer
           minimum: 0
           maximum: 255
-          description: Home Network Public Key Identifier (as used in SUCI).
+          description: Home Network Public Key Identifier.
         scheme:
           type: string
           enum: [A, B]
-          description: '"A" for Curve25519 (X25519), "B" for NIST P-256.'
+          description: "`A` (X25519) or `B` (P-256)."
         publicKey:
           type: string
-          description: Derived public key in hex. Profile A = 64 chars, Profile B = 66 chars (compressed).
+          description: Public key (hex).
 
     CreateHomeNetworkKeyParams:
       type: object
@@ -4702,7 +4505,7 @@ components:
         privateKey:
           type: string
           pattern: "^[0-9a-fA-F]{64}$"
-          description: "64-character hex private key. Curve25519 for scheme A, P-256 for scheme B."
+          description: "64-character hex private key."
 
     HomeNetworkKeyPrivateKeyResponse:
       type: object
@@ -4723,7 +4526,7 @@ components:
           items:
             type: string
             enum: [NULL, SNOW3G, AES]
-          description: "Preferred ciphering algorithm order."
+          description: "Ciphering algorithms, in preference order."
         integrity:
           type: array
           minItems: 1
@@ -4732,7 +4535,7 @@ components:
           items:
             type: string
             enum: [NULL, SNOW3G, AES]
-          description: "Preferred integrity algorithm order."
+          description: "Integrity algorithms, in preference order."
 
     OperatorNASSecurity:
       type: object
@@ -4742,23 +4545,23 @@ components:
           items:
             type: string
             enum: [NULL, SNOW3G, AES]
-          description: "Current ciphering algorithm preference order."
+          description: "Ciphering algorithms, in preference order."
         integrity:
           type: array
           items:
             type: string
             enum: [NULL, SNOW3G, AES]
-          description: "Current integrity algorithm preference order."
+          description: "Integrity algorithms, in preference order."
 
     OperatorSPN:
       type: object
       properties:
         fullName:
           type: string
-          description: "Full network name shown on UE displays."
+          description: "Full network name."
         shortName:
           type: string
-          description: "Abbreviated network name shown on UE displays."
+          description: "Short network name."
 
     UpdateOperatorSPNParams:
       type: object
@@ -4768,12 +4571,12 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-          description: "Full network name. Must be printable ASCII (GSM 7-bit compatible)."
+          description: "Full network name (printable ASCII)."
         shortName:
           type: string
           minLength: 1
           maxLength: 50
-          description: "Abbreviated network name. Must be printable ASCII (GSM 7-bit compatible)."
+          description: "Short network name (printable ASCII)."
 
     # -- Data Networks ---------------------------------------------------
     DataNetworkStatus:
@@ -4781,7 +4584,7 @@ components:
       properties:
         sessions:
           type: integer
-          description: Number of active PDU sessions on this data network.
+          description: Active sessions.
       required: [sessions]
 
     DataNetworkIPAllocation:
@@ -4789,13 +4592,13 @@ components:
       properties:
         pool_size:
           type: integer
-          description: Total number of usable IP addresses in the pool.
+          description: Usable addresses in the pool.
         allocated:
           type: integer
-          description: Number of currently allocated (leased) addresses.
+          description: Allocated addresses.
         available:
           type: integer
-          description: Number of addresses still available for allocation.
+          description: Available addresses.
       required: [pool_size, allocated, available]
 
     DataNetwork:
@@ -4814,15 +4617,15 @@ components:
           description: DNS server IP address.
         mtu:
           type: integer
-          description: "Maximum Transmission Unit (0-65535)."
+          description: "MTU."
         status:
           $ref: "#/components/schemas/DataNetworkStatus"
         ip_allocation:
           $ref: "#/components/schemas/DataNetworkIPAllocation"
-          description: IPv4 pool utilization statistics. Present only in the detail response.
+          description: IPv4 pool usage. Detail response only.
         ipv6_allocation:
           $ref: "#/components/schemas/DataNetworkIPAllocation"
-          description: IPv6 pool utilization statistics. Present only in the detail response.
+          description: IPv6 pool usage. Detail response only.
       required: [name, ipv4_pool, dns, mtu, status]
 
     DataNetworkResponseEnvelope:
@@ -4858,7 +4661,7 @@ components:
       properties:
         name:
           type: string
-          description: "Valid DNN format (lowercase alphanumeric, hyphens, dots)."
+          description: "DNN (lowercase alphanumeric, hyphens, dots)."
         ipv4_pool:
           type: string
           description: "IPv4 CIDR notation (e.g. \"10.0.0.0/24\")."
@@ -4899,13 +4702,13 @@ components:
           description: "Allocated IPv4 address (e.g. \"10.45.0.3\") or IPv6 /64 prefix (e.g. \"2001:db8::/64\")."
         imsi:
           type: string
-          description: IMSI of the subscriber holding the lease.
+          description: Subscriber IMSI.
         type:
           type: string
           description: "Lease type (e.g. \"dynamic\")."
         session_id:
           type: ["integer", "null"]
-          description: PDU session ID, or null if the lease is not tied to an active session.
+          description: Session ID. Null when not in use.
       required: [address, imsi, type, session_id]
 
     ListIPAllocationsResponse:
@@ -4934,7 +4737,7 @@ components:
       properties:
         imsi:
           type: string
-          description: IMSI of the subscriber holding the reservation.
+          description: Subscriber IMSI.
         data_network:
           type: string
           description: Data network name (DNN).
@@ -4947,10 +4750,10 @@ components:
         status:
           type: string
           enum: [reserved, active]
-          description: "\"active\" when bound to a session, otherwise \"reserved\"."
+          description: "`active` when bound to a session."
         session_id:
           type: ["integer", "null"]
-          description: PDU session ID when active, or null when reserved.
+          description: Session ID. Null when reserved.
       required: [imsi, data_network, ip_version, address, status, session_id]
 
     StaticIPList:
@@ -4980,10 +4783,10 @@ components:
       properties:
         imsi:
           type: string
-          description: "IMSI of the subscriber to pin, 6 to 15 digits."
+          description: "IMSI, 6 to 15 digits."
         address:
           type: string
-          description: "IPv4 address or /64-aligned IPv6 prefix within the data network pool."
+          description: "IPv4 address or /64 IPv6 prefix in the data network pool."
 
     UpdateStaticIPParams:
       type: object
@@ -4991,14 +4794,14 @@ components:
       properties:
         address:
           type: string
-          description: "New IPv4 address or /64-aligned IPv6 prefix within the data network pool."
+          description: "IPv4 address or /64 IPv6 prefix in the data network pool."
 
     FramedRoute:
       type: object
       properties:
         imsi:
           type: string
-          description: IMSI of the subscriber holding the routes.
+          description: Subscriber IMSI.
         ipv4:
           type: array
           items:
@@ -5038,17 +4841,17 @@ components:
       properties:
         imsi:
           type: string
-          description: "IMSI of the subscriber, 6 to 15 digits."
+          description: "IMSI, 6 to 15 digits."
         ipv4:
           type: array
           items:
             type: string
-          description: "IPv4 framed-route prefixes (CIDR), at most 8, masked to network form, non-overlapping."
+          description: "IPv4 prefixes (CIDR), at most 8."
         ipv6:
           type: array
           items:
             type: string
-          description: "IPv6 framed-route prefixes (CIDR), at most 8, masked to network form, non-overlapping."
+          description: "IPv6 prefixes (CIDR), at most 8."
 
     UpdateFramedRouteParams:
       type: object
@@ -5057,12 +4860,12 @@ components:
           type: array
           items:
             type: string
-          description: "Replacement IPv4 framed-route prefixes (CIDR); empty clears the IPv4 set."
+          description: "IPv4 prefixes (CIDR). Empty clears them."
         ipv6:
           type: array
           items:
             type: string
-          description: "Replacement IPv6 framed-route prefixes (CIDR); empty clears the IPv6 set."
+          description: "IPv6 prefixes (CIDR). Empty clears them."
 
     # -- Routes ----------------------------------------------------------
     Route:
@@ -5071,7 +4874,7 @@ components:
         id:
           type: integer
           format: int64
-          description: Route ID. Zero for BGP-learned routes.
+          description: Route ID. 0 for BGP-learned routes.
         destination:
           type: string
           description: "Destination in CIDR notation."
@@ -5080,13 +4883,11 @@ components:
           description: Gateway IPv4 or IPv6 address.
         interface:
           type: string
-          description: "Network interface: `n3` or `n6`."
           enum: [n3, n6]
         metric:
           type: integer
         source:
           type: string
-          description: "Route source: `static` for user-configured routes, `bgp` for BGP-learned routes."
           enum: [static, bgp]
       required: [id, destination, gateway, interface, metric, source]
 
@@ -5175,9 +4976,7 @@ components:
           type: string
         rejectedPrefixes:
           type: array
-          description: |
-            Read-only safety filters automatically derived from the infrastructure configuration.
-            Any learned BGP route that overlaps these prefixes is rejected to protect internal traffic.
+          description: Read-only prefixes rejected from BGP peers.
           items:
             $ref: "#/components/schemas/RejectedPrefix"
       required: [enabled, localAS, routerID, listenAddress, rejectedPrefixes]
@@ -5206,10 +5005,10 @@ components:
       properties:
         prefix:
           type: string
-          description: CIDR prefix (e.g. "0.0.0.0/0", "10.100.0.0/16").
+          description: CIDR prefix.
         maxLength:
           type: integer
-          description: Maximum prefix length to accept. Must be between the prefix length and 32.
+          description: Maximum accepted prefix length.
       required: [prefix, maxLength]
 
     BGPPeer:
@@ -5225,29 +5024,29 @@ components:
           type: integer
         hasPassword:
           type: boolean
-          description: Whether the peer has an MD5 authentication password configured.
+          description: Whether an MD5 password is set.
         description:
           type: string
         importPrefixes:
           type: array
           items:
             $ref: "#/components/schemas/BGPImportPrefix"
-          description: Import prefix list. Routes from this peer are only accepted if they match an entry. Empty means accept nothing (RFC 8212).
+          description: Accepted prefixes. Empty accepts nothing.
         state:
           type: string
-          description: Live session state (e.g. "established", "active", "idle"). Empty when BGP is off.
+          description: Session state. Empty when BGP is disabled.
         uptime:
           type: string
-          description: Session uptime (e.g. "5m30s"). Only present when state is "established".
+          description: Session uptime. Present when established.
         prefixesSent:
           type: integer
-          description: Number of prefixes advertised to this peer.
+          description: Prefixes sent.
         prefixesReceived:
           type: integer
-          description: Number of prefixes received from this peer (from GoBGP counters).
+          description: Prefixes received.
         prefixesAccepted:
           type: integer
-          description: Number of prefixes accepted and installed in the kernel from this peer.
+          description: Prefixes accepted.
       required: [id, address, remoteAS, holdTime, hasPassword, description, importPrefixes]
 
     BGPPeerResponseEnvelope:
@@ -5283,26 +5082,26 @@ components:
       properties:
         address:
           type: string
-          description: IPv4 or IPv6 address of the peer.
+          description: Peer IP address.
         remoteAS:
           type: integer
-          description: Remote autonomous system number.
+          description: Remote AS number.
         holdTime:
           type: integer
           default: 90
           minimum: 3
           maximum: 65535
-          description: BGP hold timer in seconds. Keepalive is derived as holdTime / 3.
+          description: Hold time in seconds.
         password:
           type: string
-          description: MD5 authentication password. Omit for no authentication.
+          description: MD5 password.
         description:
           type: string
         importPrefixes:
           type: array
           items:
             $ref: "#/components/schemas/BGPImportPrefix"
-          description: Import prefix list for routes received from this peer.
+          description: Accepted prefixes.
 
     UpdateBGPPeerParams:
       type: object
@@ -5310,26 +5109,26 @@ components:
       properties:
         address:
           type: string
-          description: IPv4 or IPv6 address of the peer.
+          description: Peer IP address.
         remoteAS:
           type: integer
-          description: Remote autonomous system number.
+          description: Remote AS number.
         holdTime:
           type: integer
           default: 90
           minimum: 3
           maximum: 65535
-          description: BGP hold timer in seconds. Keepalive is derived as holdTime / 3.
+          description: Hold time in seconds.
         password:
           type: string
-          description: MD5 authentication password. Omit for no authentication.
+          description: MD5 password.
         description:
           type: string
         importPrefixes:
           type: array
           items:
             $ref: "#/components/schemas/BGPImportPrefix"
-          description: Import prefix list for routes received from this peer.
+          description: Accepted prefixes.
 
     BGPRoute:
       type: object
@@ -5366,7 +5165,7 @@ components:
           type: string
         peer:
           type: string
-          description: Address of the peer that advertised this route.
+          description: Advertising peer address.
       required: [prefix, nextHop, peer]
 
     BGPLearnedRoutesResponse:
@@ -5389,14 +5188,14 @@ components:
       properties:
         prefix:
           type: string
-          description: The CIDR prefix that is rejected.
+          description: Rejected prefix (CIDR).
         source:
           type: string
           enum: [builtin, data_network, interface]
-          description: Origin of the filter rule.
+          description: Origin of the filter.
         description:
           type: string
-          description: Human-readable explanation of the filter.
+          description: Reason for the filter.
       required: [prefix, source, description]
 
     # -- Flow Accounting -------------------------------------------------
@@ -5525,7 +5324,7 @@ components:
       properties:
         external_address:
           type: string
-          description: "External/advertised IP address: an IPv4 address, an IPv6 address, or one of each separated by a comma. Empty string to use default."
+          description: "IPv4 address, IPv6 address, or one of each comma-separated. Empty uses the default."
 
     # -- Radios ----------------------------------------------------------
     PlmnID:
@@ -5571,10 +5370,10 @@ components:
           type: string
         ref:
           type: string
-          description: The radio's identity, and the path segment that addresses it. Empty on a radio that has not completed setup.
+          description: Radio identity. Empty before setup completes.
         id:
           type: string
-          description: Node identifier of the Global RAN Node ID, without the PLMN.
+          description: Global RAN Node ID, without the PLMN.
         plmn:
           $ref: "#/components/schemas/PlmnID"
         bit_length:
@@ -5584,41 +5383,40 @@ components:
           description: Bit length of the gNB ID. Present on gNBs only.
         address:
           type: string
-          description: SCTP remote address (IP:port). On an offline radio, the last known address.
+          description: SCTP remote address (IP:port).
         type:
           type: string
           enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
-          description: Type of the RAN node.
+          description: RAN node type.
         status:
           type: string
           enum: [online, offline]
-          description: Whether the radio is currently associated with this node.
+          description: Whether the radio is associated with this node.
         connected_at:
           type: string
           format: date-time
-          description: When the radio associated (RFC 3339). On an offline radio, when it last associated.
+          description: Association time (RFC 3339).
         last_seen_at:
           type: string
           format: date-time
-          description: Timestamp of the last message received from the radio (RFC 3339).
+          description: Last message time (RFC 3339).
         disconnected_at:
           type: string
           format: date-time
-          description: When the radio's association dropped (RFC 3339). Empty while the radio is online.
+          description: Disconnection time (RFC 3339). Empty while online.
       required: [name, ref, id, address, type, status, connected_at, last_seen_at, disconnected_at]
 
     RadioDetail:
       type: object
-      description: Detailed information about a radio base station, connected or offline.
       properties:
         name:
           type: string
         ref:
           type: string
-          description: The radio's identity, and the path segment that addresses it. Empty on a radio that has not completed setup.
+          description: Radio identity. Empty before setup completes.
         id:
           type: string
-          description: Node identifier of the Global RAN Node ID, without the PLMN.
+          description: Global RAN Node ID, without the PLMN.
         plmn:
           $ref: "#/components/schemas/PlmnID"
         bit_length:
@@ -5628,27 +5426,27 @@ components:
           description: Bit length of the gNB ID. Present on gNBs only.
         address:
           type: string
-          description: SCTP remote address (IP:port). On an offline radio, the last known address.
+          description: SCTP remote address (IP:port).
         status:
           type: string
           enum: [online, offline]
-          description: Whether the radio is currently associated with this node.
+          description: Whether the radio is associated with this node.
         connected_at:
           type: string
           format: date-time
-          description: When the radio associated (RFC 3339). On an offline radio, when it last associated.
+          description: Association time (RFC 3339).
         last_seen_at:
           type: string
           format: date-time
-          description: Timestamp of the last NGAP message received from the radio (RFC 3339).
+          description: Last message time (RFC 3339).
         disconnected_at:
           type: string
           format: date-time
-          description: When the radio's association dropped (RFC 3339). Empty while the radio is online.
+          description: Disconnection time (RFC 3339). Empty while online.
         type:
           type: string
           enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
-          description: Type of the RAN node.
+          description: RAN node type.
         supported_tais:
           type: array
           items:
@@ -5699,14 +5497,14 @@ components:
           enum: [inbound, outbound]
         radio:
           type: string
-          description: Name of the radio base station.
+          description: Radio name.
         address:
           type: string
-          description: Network address of the radio.
+          description: Radio address.
         raw:
           type: string
           format: byte
-          description: Base64-encoded raw message bytes.
+          description: Raw message (base64).
         details:
           type: string
       required: [id, timestamp, protocol, message_type, direction, radio, address]
@@ -5738,14 +5536,14 @@ components:
         raw:
           type: string
           format: byte
-          description: Base64-encoded raw NGAP (5G) or S1AP (4G) message bytes.
+          description: Raw NGAP or S1AP message (base64).
         decoded:
           type: object
-          description: Decoded NGAP (5G) or S1AP (4G) message structure. The shape depends on the PDU type.
+          description: Decoded NGAP or S1AP message.
           properties:
             pdu_type:
               type: string
-              description: "PDU type (e.g. InitiatingMessage, SuccessfulOutcome, UnsuccessfulOutcome)."
+              description: "PDU type."
             procedure_code:
               type: object
               description: "NGAP/S1AP procedure code."
@@ -5760,10 +5558,10 @@ components:
                   type: boolean
             summary:
               type: string
-              description: "One-line summary of the decoded message (e.g. InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest)."
+              description: "One-line message summary."
             criticality:
               type: object
-              description: "NGAP criticality."
+              description: "Criticality."
               properties:
                 type:
                   type: string
@@ -5775,7 +5573,7 @@ components:
                   type: boolean
             value:
               type: object
-              description: "Decoded NGAP message payload. Structure varies by message type."
+              description: "Decoded message payload."
               additionalProperties: true
           additionalProperties: true
 
@@ -5819,7 +5617,7 @@ components:
         action:
           type: string
           enum: [allow, drop]
-          description: Flow action - whether the flow was accepted or dropped by the UPF.
+          description: Whether the flow was allowed or dropped.
       required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action]
 
     ListFlowReportsResponse:
@@ -5889,10 +5687,10 @@ components:
           type: string
         user:
           type: string
-          description: Email of the user who performed the action.
+          description: User email.
         action:
           type: string
-          description: Action identifier (e.g. create_subscriber, delete_route).
+          description: Action (e.g. `create_subscriber`).
         ip:
           type: string
           description: Client IP address.
@@ -5923,8 +5721,7 @@ components:
 
     # -- Cluster ---------------------------------------------------------
     ClusterStatus:
-      description: >-
-        Cluster information.
+      description: Cluster information.
       oneOf:
         - title: Standalone
           type: object
@@ -5943,7 +5740,7 @@ components:
               const: true
             role:
               type: string
-              description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
+              description: "Raft role."
             nodeId:
               type: [string, integer]
               description: Identity of this node.
@@ -5952,59 +5749,44 @@ components:
               description: Operator-set name for this node. Empty when unset.
             isLeader:
               type: boolean
-              description: True when this node is the current Raft leader.
+              description: True when this node is the leader.
             leaderNodeId:
               type: [string, integer]
-              description: Identity of the current leader. Empty when the leader is unknown.
+              description: Leader node ID. Empty when unknown.
             appliedIndex:
               type: integer
               format: uint64
               description: Last applied Raft log index.
             clusterId:
               type: string
-              description: Cluster ID from the operator configuration. Omitted when not set.
+              description: Cluster ID. Omitted when unset.
             leaderAPIAddress:
               type: string
-              description: >-
-                HTTP API URL of the current Raft leader (e.g.
-                `https://10.0.0.1:5000`). Empty when the leader is unknown.
-                The Raft transport address is available on
-                `/api/v1/cluster/members` as `raftAddress`.
+              description: Leader API URL. Empty when unknown.
             appliedSchemaVersion:
               type: integer
-              description: >-
-                Shared-database schema version the cluster has committed. The
-                top-level `schemaVersion` is what this binary supports; the two
-                differ only during a rolling upgrade.
+              description: Schema version committed by the cluster.
             pendingMigration:
               $ref: "#/components/schemas/PendingMigration"
           required: [enabled, role, nodeId, isLeader, leaderNodeId, appliedIndex, appliedSchemaVersion]
 
     PendingMigration:
       type: object
-      description: >-
-        Present only during a rolling-upgrade window, while the cluster has not
-        yet committed the schema version this binary expects.
+      description: Present while the cluster has not committed this node's schema version.
       properties:
         currentSchema:
           type: integer
-          description: Schema version the cluster has committed.
+          description: Committed schema version.
         targetSchema:
           type: integer
-          description: Schema version the migration is moving to.
+          description: Target schema version.
         laggardNodeId:
           type: [string, integer]
-          description: >-
-            Node holding the migration back. Omitted when no single node is
-            responsible.
+          description: Node blocking the migration. Omitted when none.
         laggardReason:
           type: string
           enum: [schema_behind, no_member_row, capability_unknown, configuration_unavailable]
-          description: >-
-            Why the migration is held: a member runs an older schema, a member
-            is in the Raft configuration with no cluster member record, a
-            member's schema could not be probed, or the Raft configuration is
-            not available yet.
+          description: Why the migration is blocked.
       required: [currentSchema, targetSchema]
 
     ClusterMember:
@@ -6020,23 +5802,23 @@ components:
           type: integer
           minimum: 1
           maximum: 63
-          description: AMF Pointer allocated to this node, stamped into the GUTIs it issues.
+          description: AMF Pointer allocated to this node.
         raftAddress:
           type: string
-          description: "Address used for Raft consensus (host:port)."
+          description: "Raft address (host:port)."
         apiAddress:
           type: string
-          description: "API address for proxying requests (host:port)."
+          description: "API address (host:port)."
         binaryVersion:
           type: string
-          description: Software version reported by this member.
+          description: Software version.
         suffrage:
           type: string
           enum: [voter, nonvoter]
-          description: Whether this member participates in leader election.
+          description: Raft suffrage.
         isLeader:
           type: boolean
-          description: True when this member is the current Raft leader.
+          description: True when this member is the leader.
         drainState:
           type: string
           enum: [active, draining, drained]
@@ -6044,9 +5826,7 @@ components:
         drainUpdatedAt:
           type: string
           format: date-time
-          description: >-
-            RFC 3339 timestamp of the last drainState change. Empty when the
-            node has never been drained.
+          description: Last drainState change (RFC 3339). Empty if never drained.
       required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, isLeader, drainState]
 
     ListClusterMembersResponseEnvelope:
@@ -6059,61 +5839,43 @@ components:
 
     AutopilotServer:
       type: object
-      description: Live autopilot view of a single cluster peer.
       properties:
         nodeId:
           type: [string, integer]
           description: Identity of the node.
         raftAddress:
           type: string
-          description: "Raft transport address of this peer (host:port)."
+          description: "Raft address (host:port)."
         nodeStatus:
           type: string
-          description: >-
-            Autopilot lifecycle state for this peer (e.g. `alive`, `left`,
-            `failed`). A node goes `left` once it has missed heartbeats for
-            longer than the configured LastContactThreshold.
+          description: "Autopilot node status (e.g. `alive`, `left`, `failed`)."
         healthy:
           type: boolean
-          description: >-
-            Autopilot's health verdict for this peer, combining
-            last-contact, last-term, and log-lag checks against the
-            autopilot configuration.
+          description: Autopilot health verdict.
         isLeader:
           type: boolean
-          description: True when this peer is the current Raft leader.
+          description: True when this peer is the leader.
         hasVotingRights:
           type: boolean
-          description: True when this peer is a voter or leader (not a nonvoter).
+          description: True when this peer is a voter.
         stableSince:
           type: string
           format: date-time
-          description: >-
-            UTC timestamp of the last time this peer's `healthy` value
-            changed. For an unhealthy peer this is when contact was lost.
-            Omitted when unknown.
+          description: Last change of `healthy` (UTC). Omitted when unknown.
       required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights]
 
     AutopilotState:
       type: object
-      description: >-
-        Live cluster health produced by raft-autopilot on the leader.
-        Complements `/api/v1/cluster/members` (static configuration) by
-        answering operational questions like "is the cluster actually
-        healthy" and "how many more failures can it survive."
       properties:
         healthy:
           type: boolean
           description: True when every voter is healthy.
         failureTolerance:
           type: integer
-          description: >-
-            Number of voter failures the cluster can currently absorb
-            without losing quorum. Zero means any additional failure
-            stalls writes.
+          description: Voter failures survivable without losing quorum.
         leaderNodeId:
           type: [string, integer]
-          description: Identity of the current leader. Empty when unknown.
+          description: Leader node ID. Empty when unknown.
         voters:
           type: array
           items:
@@ -6140,15 +5902,13 @@ components:
           enum: [healthy, degraded, no_leader, unknown]
         totalVoters:
           type: integer
-          description: Voting members in the local Raft configuration.
+          description: Voters in the Raft configuration.
         healthyVoters:
           type: integer
           description: Voters reported healthy. Omitted when unknown.
         failureTolerance:
           type: integer
-          description: >-
-            Voter failures survivable without losing quorum. Omitted when
-            unknown.
+          description: Voter failures survivable without losing quorum. Omitted when unknown.
       required: [state, totalVoters]
 
     ClusterHealthResponseEnvelope:
@@ -6177,22 +5937,17 @@ components:
       properties:
         token:
           type: string
-          description: >-
-            Single-use token from `POST /api/v1/cluster/pki/join-tokens`
-            on the target cluster's leader. Must authorise this node's
-            node-id.
+          description: "Join token from `POST /api/v1/cluster/pki/join-tokens`."
         seedAddresses:
           type: array
           minItems: 1
           items:
             type: string
-          description: >-
-            `host:port` cluster addresses of nodes already in the cluster.
-            Tried in order; one reachable address is enough.
+          description: "Cluster addresses (`host:port`) of existing members, tried in order."
         suffrage:
           type: string
           enum: [voter, nonvoter]
-          description: Whether this node counts toward quorum. Defaults to voter.
+          description: Defaults to voter.
       required: [token, seedAddresses]
 
     ClusterJoinStatus:
@@ -6203,7 +5958,7 @@ components:
           enum: [unavailable, waiting, joining, joined]
         error:
           type: string
-          description: Reason the most recent attempt failed, when one did.
+          description: Reason the last attempt failed.
       required: [state]
 
     ClusterJoinStatusEnvelope:
@@ -6224,14 +5979,11 @@ components:
       properties:
         token:
           type: string
-          description: >-
-            Opaque HMAC-signed token. Carries the cluster root
-            fingerprint embedded in its claims; the joining node
-            extracts it to pin the TLS handshake.
+          description: Join token.
         expiresAt:
           type: integer
           format: int64
-          description: Unix seconds at which the token expires.
+          description: Expiry time (Unix seconds).
       required: [token, expiresAt]
 
     MintJoinTokenResponseEnvelope:
@@ -6255,20 +6007,20 @@ components:
         method:
           type: string
           enum: [cell_id, ecid]
-          description: Positioning method. Defaults to `cell_id` when omitted.
+          description: Positioning method. Defaults to `cell_id`.
         session_id:
           type: string
           description: Session to terminate. Required when `request_type` is `cancel`.
         qos_response_time_ms:
           type: integer
-          description: Requested response-time budget, in milliseconds.
+          description: Response time, in milliseconds.
         qos_horizontal_accuracy_m:
           type: integer
-          description: Requested horizontal accuracy, in metres.
+          description: Horizontal accuracy, in metres.
 
     LocationData:
       type: object
-      description: Spec-shaped location estimate modelled on the TS 29.572 Nlmf_Location LocationData type.
+      description: Location estimate (TS 29.572 LocationData).
       properties:
         locationEstimate:
           $ref: "#/components/schemas/GeographicArea"
@@ -6305,7 +6057,7 @@ components:
           $ref: "#/components/schemas/GeographicalCoord"
         uncertainty:
           type: number
-          description: Radius of the circular uncertainty region, in metres.
+          description: Uncertainty radius, in metres.
         altitude:
           type: number
 
@@ -6364,7 +6116,7 @@ components:
 
     SupplementaryMeasurements:
       type: object
-      description: "Non-standard vendor extension carrying raw NRPPa measurements. Returned only when `verbose=true`."
+      description: "Raw NRPPa measurements. Only with `verbose=true`."
       properties:
         rsrp:
           type: integer
@@ -6411,7 +6163,7 @@ components:
       properties:
         id:
           type: string
-          description: Identifier of the created positioning session.
+          description: Session ID.
       required: [id]
 
     PositioningSessionCreatedEnvelope:
@@ -6532,7 +6284,7 @@ components:
           description: Orientation of the semi-major axis, in degrees.
         confidence:
           type: integer
-          description: Confidence that the antenna lies within the uncertainty region, in percent.
+          description: Confidence, in percent.
 
     CellPosition:
       type: object
