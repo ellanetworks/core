@@ -45,3 +45,38 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 		t.Errorf("5GMM cause = 0x%02x, want #96 (invalid mandatory information)", pdu[3])
 	}
 }
+
+// TS 24.501 §5.3.1.3
+func TestHandleInitialUEMessage_RejectedServiceRequest_ReleasedThroughRAN(t *testing.T) {
+	amfInstance := newTestAMF()
+	amfInstance.NAS = &realNASAdapter{amf: amfInstance}
+
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
+		RANUENGAPID: 1,
+		NASPDU:      ngap.NASPDU{0x7e, 0x00, 0x4c},
+	})
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("want 1 UE Context Release Command after the SERVICE REJECT, got %d", len(sender.SentUEContextReleaseCommands))
+	}
+
+	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
+	if ueConn == nil {
+		t.Fatal("bare connection dropped before the RAN answered the UE Context Release Command")
+	}
+
+	amfID := ngap.AMFUENGAPID(ueConn.AmfUeNgapID)
+	ranID := ngap.RANUENGAPID(1)
+
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, &ngap.UEContextReleaseComplete{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+	})
+
+	if amfInstance.FindUEByRanUeNgapID(ran, 1) != nil {
+		t.Fatal("bare connection not removed after UE Context Release Complete")
+	}
+}

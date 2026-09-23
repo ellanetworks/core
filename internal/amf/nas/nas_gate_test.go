@@ -46,6 +46,14 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	if pdu[3] != 0x09 {
 		t.Errorf("5GMM cause = 0x%02x, want #9 (UE identity cannot be derived by the network)", pdu[3])
 	}
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
+		t.Fatalf("expected a UE Context Release Command after the SERVICE REJECT, got %d", len(ngapSender.SentUEContextReleaseCommand))
+	}
+
+	if !amfInstance.ReleaseClaimed(ueConn) {
+		t.Fatal("bare connection not marked as releasing; the NGAP layer would drop it before the Release Complete")
+	}
 }
 
 // TS 24.501 §5.6.1.8

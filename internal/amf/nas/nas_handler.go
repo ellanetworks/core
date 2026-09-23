@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -240,8 +241,8 @@ func initialGmmBody(payload []byte) ([]byte, bool) {
 }
 
 // rejectBareServiceRequest answers a SERVICE REQUEST the AMF cannot accept with a SERVICE
-// REJECT carrying cause, sent on the bare connection (no context is minted or mutated). The
-// NGAP layer releases the connection afterwards (TS 24.501 §5.6.1.5, §5.6.1.8).
+// REJECT carrying cause, sent on the bare connection (no context is minted or mutated), then
+// orders the RAN to release the connection (TS 24.501 §5.3.1.3, §5.6.1.5, §5.6.1.8).
 func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause fgs.GMMCause) {
 	pdu, err := amf.BuildServiceReject(cause)
 	if err != nil {
@@ -252,6 +253,8 @@ func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause fgs.GMM
 	if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send service reject for uncontextualized service request", zap.Error(err))
 	}
+
+	ue.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 }
 
 // fetchUeContextWithMobileIdentity resolves an existing UE context from the GUTI
