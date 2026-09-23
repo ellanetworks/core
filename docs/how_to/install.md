@@ -97,7 +97,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
             audit:
               output: "stdout"
           db:
-            path: "data"
+            path: "/data/ella.db"
           interfaces:
             n2:
               address: "10.3.0.2"
@@ -121,6 +121,8 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
         restart: unless-stopped
         entrypoint: /bin/core --config /core.yaml
         privileged: true
+        volumes:
+          - ella-data:/data
         ports:
           - "5002:5002"
         networks:
@@ -138,12 +140,15 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
         ipam:
           config:
             - subnet: 10.3.0.0/24
+
+    volumes:
+      ella-data:
     ```
 
     Edit the file to match your network interfaces and desired configuration.
 
     !!! note
-        This example uses `tcx` mode, which works on the veth interfaces containers get. Use `xdp-native` if your host supports it.
+        This example uses `tcx` mode. To use `xdp-native`, run the container with `network_mode: host` and set `n3` and `n6` to host NICs with native XDP support.
 
     Start the Ella Core container:
 
