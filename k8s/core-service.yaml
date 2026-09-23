@@ -11,7 +11,3 @@ spec:
     protocol: TCP
     port: 5002
     targetPort: 5002
-  - name: ngapp
-    protocol: SCTP
-    port: 38412
-    targetPort: 38412

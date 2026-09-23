@@ -155,6 +155,16 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
     Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
 
+    Download the Ella Core manifests:
+
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s?ref=v1.19.0 -n ella
+    git clone --depth 1 --branch v1.19.0 https://github.com/ellanetworks/core.git
+    ```
+
+    Edit `core/k8s/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios, and set the N2/N3 address. Use the same address for `interfaces.n2.address` in `core/k8s/core-configmap.yaml`.
+
+    Deploy Ella Core:
+
+    ```bash
+    kubectl apply -k core/k8s
     ```

@@ -6,7 +6,7 @@ data:
   config.yaml: |
     logging:
       system:
-        level: "debug"
+        level: "info"
         output: "stdout"
       audit:
         output: "stdout"
@@ -14,11 +14,11 @@ data:
       path: /core/data/ella.db
     interfaces:
       n2:
-        address: "192.168.253.3"
+        address: "192.168.252.3"
       n3:
         name: "n3"
       n6:
-        name: "n6"
+        name: "eth0"
       api:
         address: "0.0.0.0"
         port: 5002

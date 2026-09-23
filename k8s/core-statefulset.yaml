@@ -1,9 +1,10 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: ella-core
 spec:
   replicas: 1
+  serviceName: ella-core
   selector:
     matchLabels:
       app: ella-core
@@ -14,35 +15,32 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/networks: |
           [
-            {"name": "core-n2", "interface": "n2"},
-            {"name": "core-n3", "interface": "n3"},
-            {"name": "core-n6", "interface": "n6"}
+            {"name": "core-ran", "interface": "n3"}
           ]
     spec:
       containers:
       - name: core
         image: ghcr.io/ellanetworks/ella-core:v1.19.0
-        imagePullPolicy: Always
         command: ["core"]
         args: ["--config", "/config/config.yaml"]
         securityContext:
           privileged: true
-          capabilities:
-            add:
-              - NET_ADMIN
-              - SYS_ADMIN
         volumeMounts:
         - name: config-volume
           mountPath: /config
-        - name: data-volume
+        - name: data
           mountPath: /core/data
         ports:
         - containerPort: 5002
-        - containerPort: 38412
       volumes:
       - name: config-volume
         configMap:
           name: core-config
-      - name: data-volume
-        emptyDir:
-          sizeLimit: 500Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
