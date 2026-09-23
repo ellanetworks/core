@@ -68,6 +68,7 @@ type Server struct {
 	handler    handlerRef
 	cfg        config.Config
 	ready      atomic.Bool
+	upgraded   chan struct{}
 }
 
 // handlerRef is a concurrency-safe swappable HTTP handler.
@@ -109,12 +110,13 @@ type UpgradeConfig struct {
 // required for cluster discovery (status, cluster membership, metrics,
 // OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
 func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config, frontendFS fs.FS) (*Server, error) {
-	s := &Server{cfg: cfg}
+	s := &Server{cfg: cfg, upgraded: make(chan struct{})}
 
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
-		DB:         dbInstance,
-		Config:     cfg,
-		FrontendFS: frontendFS,
+		DB:          dbInstance,
+		Config:      cfg,
+		FrontendFS:  frontendFS,
+		APIUpgraded: s.upgraded,
 	})
 
 	s.handler.set(discoveryHandler)
@@ -235,6 +237,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 
 	s.handler.set(fullHandler)
 	s.ready.Store(true)
+	close(s.upgraded)
 
 	reconcile := routeReconciler
 
