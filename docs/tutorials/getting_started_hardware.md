@@ -43,7 +43,6 @@ Install the Ella Core snap and connect the required interfaces:
 sudo snap install ella-core
 sudo snap connect ella-core:network-control
 sudo snap connect ella-core:process-control
-sudo snap connect ella-core:system-observe
 sudo snap connect ella-core:firewall-control
 sudo snap connect ella-core:mount-observe
 ```

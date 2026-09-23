@@ -32,7 +32,6 @@ apps:
       - network-bind
       - network-control
       - process-control
-      - system-observe
       - firewall-control
       - mount-observe
 

@@ -384,7 +384,7 @@ func LogNetworkEvent(
 
 	log := From(ctx, NetworkLog)
 
-	log.Info("network_event",
+	log.Debug("network_event",
 		zap.String("protocol", string(protocol)),
 		MessageType(messageType),
 		Direction(string(dir)),
