@@ -29,7 +29,7 @@ None
             "amfPointer": 1,
             "raftAddress": "10.0.0.1:7000",
             "apiAddress": "https://10.0.0.1:5000",
-            "binaryVersion": "v1.18.0",
+            "binaryVersion": "v1.19.0",
             "suffrage": "voter",
             "isLeader": true,
             "drainState": "active"
@@ -40,7 +40,7 @@ None
             "amfPointer": 2,
             "raftAddress": "10.0.0.2:7000",
             "apiAddress": "https://10.0.0.2:5000",
-            "binaryVersion": "v1.18.0",
+            "binaryVersion": "v1.19.0",
             "suffrage": "voter",
             "isLeader": false,
             "drainState": "active"
