@@ -15,7 +15,7 @@ HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): a
 
 ## Failure tolerance
 
-A cluster keeps accepting writes as long as a majority of its *voters* — the nodes that count toward quorum — are alive. Deploy an odd number of nodes. We recommend 3 or 5, since an even count adds a node without adding tolerance.
+A cluster keeps accepting writes as long as a majority of its *voters* are alive. Deploy an odd number of nodes. We recommend 3 or 5, since an even count adds a node without adding tolerance.
 
 | Voters | Quorum | Failures tolerated |
 | ------ | ------ | ------------------ |
@@ -24,16 +24,11 @@ A cluster keeps accepting writes as long as a majority of its *voters* — the n
 
 Within those bounds, surviving voters keep accepting writes, radio traffic, and operator changes with no manual intervention.
 
-Two things HA does not handle automatically:
-
-- **Loss of quorum.** If a majority of voters is lost, the cluster loses quorum and writes stall until enough nodes return or the cluster is restored from backup via [Disaster recovery](#disaster-recovery).
-- **In-flight UE sessions.** Sessions on a dead node drop; those UEs re-register on a surviving node, as described in [Failover](#failover).
-
 ## What replicates, and what does not
 
 Network-wide resources (subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, the operator configuration) replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
-Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns. To configure these on an HA cluster, hit each node's API directly.
+Per-node configuration (local data-plane and routing settings) does not replicate. Configure those settings on every node.
 
 Runtime state tied to a specific connection or session also does not replicate: SCTP associations with radios, UE contexts, active sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
 

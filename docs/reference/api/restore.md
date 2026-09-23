@@ -28,13 +28,3 @@ This path restores the database from a provided backup file. The backup file mus
     }
 }
 ```
-
-### Error Responses
-
-- `409 Conflict` — returned in HA mode. Body:
-
-```json
-{
-    "error": "Online restore is disabled in HA mode. Stop the cluster and seed a fresh node from the backup archive via the restore.bundle drop-in path; see the backup and restore docs."
-}
-```
