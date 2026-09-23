@@ -89,7 +89,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/rotate-secret", Authenticate(jwtSecret, dbInstance, Authorize(PermRotateSecret, RotateSecret(dbInstance, jwtSecret))).ServeHTTP)
 
 	// Initialization (Unauthenticated)
-	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, jwtSecret, secureCookie, bcryptCost).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, jwtSecret, secureCookie, bcryptCost, nil).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)
 	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, Authorize(PermReadMyUser, GetLoggedInUser(dbInstance))).ServeHTTP)
@@ -301,9 +301,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 // DiscoveryHandlerConfig holds the dependencies for the discovery-phase
 // HTTP handler that runs before cluster formation.
 type DiscoveryHandlerConfig struct {
-	DB         *db.Database
-	Config     config.Config
-	FrontendFS fs.FS
+	DB          *db.Database
+	Config      config.Config
+	FrontendFS  fs.FS
+	APIUpgraded <-chan struct{}
 }
 
 // NewDiscoveryHandler returns an HTTP handler serving only the routes
@@ -326,7 +327,7 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/cluster/join", ClusterJoin().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/cluster/join", GetClusterJoinStatus().ServeHTTP)
 
-	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, NewJWTSecret(nil), secureCookie, bcrypt.DefaultCost).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, NewJWTSecret(nil), secureCookie, bcrypt.DefaultCost, cfg.APIUpgraded).ServeHTTP)
 
 	// POST /api/v1/cluster/members is not served during discovery; in mTLS
 	// mode, join requests arrive on the cluster port (wired in a later step).
