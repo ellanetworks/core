@@ -262,8 +262,8 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Service Reject and UE Context Release Command, got %d S1AP messages", len(cc.sent))
 	}
 
 	mt, err := eps.PeekMessageType(decodeDownlinkNAS(t, cc.sent[0]))
@@ -273,6 +273,11 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 
 	if mt != eps.MsgServiceReject {
 		t.Fatalf("expected Service Reject, got message type %#x", mt)
+	}
+
+	cmd := parseUEContextReleaseCommand(t, cc.sent[1])
+	if cmd.UES1APIDs.ENBUES1APID != msg.ENBUES1APID {
+		t.Fatalf("release eNB-UE-S1AP-ID = %d, want %d", cmd.UES1APIDs.ENBUES1APID, msg.ENBUES1APID)
 	}
 }
 
@@ -296,9 +301,11 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		t.Fatal("UE reconnected despite a bad short MAC")
 	}
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Service Reject and UE Context Release Command, got %d S1AP messages", len(cc.sent))
 	}
+
+	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 
 // TS 24.301 §5.6.1.7
@@ -317,9 +324,11 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected Service Reject and UE Context Release Command, got %d S1AP messages", len(cc.sent))
 	}
+
+	parseUEContextReleaseCommand(t, cc.sent[1])
 
 	plain := decodeDownlinkNAS(t, cc.sent[0])
 
