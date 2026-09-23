@@ -408,6 +408,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+        "503":
+          description: API not ready.
 
   # -- Authentication ------------------------------------------------------
   /api/v1/auth/login:

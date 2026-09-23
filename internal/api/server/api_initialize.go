@@ -72,6 +72,24 @@ func waitForWritableCluster(ctx context.Context, dbInstance *db.Database) error 
 	}
 }
 
+func waitForAPIUpgrade(ctx context.Context, apiUpgraded <-chan struct{}) error {
+	if apiUpgraded == nil {
+		return nil
+	}
+
+	timer := time.NewTimer(initClusterTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-apiUpgraded:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return errors.New("the full API did not become available in time")
+	}
+}
+
 func resolveJWTSecret(ctx context.Context, dbInstance *db.Database, jwtSecret *JWTSecret) error {
 	if len(jwtSecret.Get()) > 0 {
 		return nil
@@ -87,7 +105,7 @@ func resolveJWTSecret(ctx context.Context, dbInstance *db.Database, jwtSecret *J
 	return nil
 }
 
-func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, bcryptCost int) http.Handler {
+func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, bcryptCost int, apiUpgraded <-chan struct{}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newUser InitializeParams
 
@@ -116,6 +134,13 @@ func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool
 
 		if err := foundClusterIfWaiting(r.Context(), dbInstance); err != nil {
 			writeError(r.Context(), w, http.StatusServiceUnavailable, "Failed to form the cluster", err, logger.APILog)
+			return
+		}
+
+		if err := waitForAPIUpgrade(r.Context(), apiUpgraded); err != nil {
+			w.Header().Set("Retry-After", "1")
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "API server is not ready", err, logger.APILog)
+
 			return
 		}
 
