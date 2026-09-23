@@ -136,7 +136,7 @@ func sendServiceReject(ctx context.Context, m *mme.MME, conn mme.S1APWriter, enb
 		return
 	}
 
-	defer m.ReleaseBareConn(c)
-
 	c.SendDownlinkMessage(ctx, &eps.ServiceReject{Cause: cause})
+
+	m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
 }

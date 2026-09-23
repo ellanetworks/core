@@ -301,6 +301,13 @@ func (amf *AMF) claimRelease(ueConn *UeConn) bool {
 	return true
 }
 
+func (amf *AMF) ReleaseClaimed(ueConn *UeConn) bool {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	return ueConn.releasing
+}
+
 func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext) {
 	// Defuse idle-mode supervision so a mobile-reachable/implicit-dereg callback
 	// cannot fire against a UE being torn down (e.g. network-initiated

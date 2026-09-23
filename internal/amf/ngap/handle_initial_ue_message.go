@@ -50,11 +50,11 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
 
 	// A NAS message that never established a UE context (undecodable, no usable mobile
-	// identity, not a registration request, or a service request the AMF has no context
-	// for) leaves a bare RAN connection; release it so an unauthenticated peer cannot
-	// exhaust RAN-UE-NGAP-IDs. A message that bound a context is torn down on its own
-	// registration path.
-	if ueConn.UeContext() == nil {
+	// identity, or not a registration request) leaves a bare RAN connection; release it so
+	// an unauthenticated peer cannot exhaust RAN-UE-NGAP-IDs. A message that bound a context
+	// is torn down on its own registration path, and a rejected service request is released
+	// through the RAN.
+	if ueConn.UeContext() == nil && !amfInstance.ReleaseClaimed(ueConn) {
 		if rerr := amfInstance.RemoveUeConn(ctx, ueConn); rerr != nil {
 			ueConn.Log(ctx).Error("failed to release bare RAN UE", zap.Error(rerr))
 		}
