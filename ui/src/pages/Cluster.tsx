@@ -202,14 +202,14 @@ const ClusterPage: React.FC = () => {
     queryKey: ["cluster-members"],
     queryFn: () => listClusterMembers(accessToken || ""),
     enabled: authReady && !!accessToken && clusterEnabled,
-    refetchInterval: 500,
+    refetchInterval: 5000,
   });
 
   const autopilotQuery = useQuery<AutopilotState>({
     queryKey: ["cluster-autopilot"],
     queryFn: () => getAutopilotState(accessToken || ""),
     enabled: authReady && !!accessToken && clusterEnabled,
-    refetchInterval: 500,
+    refetchInterval: 2000,
     retry: false,
   });
 
