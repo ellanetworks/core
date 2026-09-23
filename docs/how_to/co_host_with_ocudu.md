@@ -11,6 +11,9 @@ Ella Core can be hosted with radio software like [OCUDU](https://ocudu.org/) (pr
   <figcaption>Co-host Ella Core with OCUDU</figcaption>
 </figure>
 
+!!! note
+   The same instructions can be used to co-host Ella Core with [srsRAN 4G](https://docs.srsran.com/en/latest/4g/).
+
 ## Pre-requisites
 
 To follow this guide, you will need:
@@ -19,7 +22,7 @@ To follow this guide, you will need:
 - A host with a network interface
 - An OCUDU-compatible SDR
 
-The instructions below were written for a Raspberry Pi 5 running Ubuntu 24.04 as the host and the Ettus Research B205-mini as the SDR. Please adapt the interface names and SDR configuration as needed for your setup.
+The instructions below were written for a Raspberry Pi 5 running Ubuntu 24.04 and the Ettus Research B205-mini SDR. Please adapt the interface names and SDR configuration as needed for your setup.
 
 !!! tip
     OCUDU requires some performance tuning for stable operation, especially on resource-constrained hosts like a Raspberry Pi. We recommend the following optimizations for OCUDU performance:
@@ -43,7 +46,6 @@ Install the OCUDU performance script:
 sudo curl -o /usr/local/bin/ocudu_performance https://gitlab.com/ocudu/ocudu/-/raw/dev/scripts/ocudu_performance
 sudo chmod +x /usr/local/bin/ocudu_performance
 ```
-
 
 Create `/etc/systemd/system/n3ns.service`:
 
@@ -82,8 +84,6 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now n3ns.service
 ```
 
-`tcx` mode requires both interfaces to deliver unmerged packets — see [Disable merged packets](disable_merged_packets.md).
-
 Make sure `eth0` is not optional in `/etc/netplan/50-cloud-init.yaml`:
 
 ```yaml
@@ -95,7 +95,7 @@ network:
       optional: false
 ```
 
-Then apply the Netplan configuration:
+Apply the Netplan configuration:
 
 ```shell
 sudo netplan apply
@@ -132,7 +132,7 @@ telemetry:
 ```
 
 !!! note
-    We use `tcx` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `xdp-native` and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
+    We use `tcx` mode here because the Raspberry Pi 5 does not support native XDP. Use `xdp-native` if you can and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
 
 Create the override file `/etc/systemd/system/snap.ella-core.cored.service.d/override.conf`:
 
@@ -143,7 +143,7 @@ Wants=network-online.target
 After=n3ns.service network-online.target
 ```
 
-Then reload systemd and start Ella Core:
+Reload systemd and start Ella Core:
 
 ```shell
 sudo systemctl daemon-reload
