@@ -12,7 +12,7 @@ Ella Core can be hosted with radio software like [OCUDU](https://ocudu.org/) (pr
 </figure>
 
 !!! note
-   The same instructions can be used to co-host Ella Core with [srsRAN 4G](https://docs.srsran.com/en/latest/4g/).
+   The same instructions can be used to co-host Ella Core with [srsRAN 4G](https://www.srsran.com/4g).
 
 ## Pre-requisites
 
