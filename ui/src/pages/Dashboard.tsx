@@ -250,7 +250,7 @@ const Dashboard = () => {
     queryKey: ["dashboardClusterHealth"],
     queryFn: () => getClusterHealth(accessToken!),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -259,7 +259,7 @@ const Dashboard = () => {
     queryKey: ["dashboardSubscribers"],
     queryFn: () => listSubscribers(accessToken!, 1, 1),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -268,7 +268,7 @@ const Dashboard = () => {
     queryKey: ["dashboardRadios"],
     queryFn: () => listRadios(accessToken!, 1, 1),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -276,7 +276,7 @@ const Dashboard = () => {
   const metricsQuery = useQuery<ParsedMetrics>({
     queryKey: ["dashboardMetrics"],
     queryFn: async () => parseMetrics(await getMetrics()),
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -285,7 +285,7 @@ const Dashboard = () => {
     queryKey: ["dashboardRadioEvents"],
     queryFn: () => listRadioEvents(accessToken!, 1, 10),
     enabled: authReady && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -301,7 +301,7 @@ const Dashboard = () => {
       return getFlowReportStats(accessToken!, { start: from, end: to });
     },
     enabled: authReady && !!accessToken,
-    refetchInterval: 10000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
@@ -316,7 +316,7 @@ const Dashboard = () => {
       return getUsage(accessToken!, from, to, "", "subscriber", TOP_USERS);
     },
     enabled: authReady && !!accessToken,
-    refetchInterval: 10000,
+    refetchInterval: 500,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
