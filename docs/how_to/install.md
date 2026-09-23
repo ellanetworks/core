@@ -168,3 +168,6 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     ```bash
     kubectl apply -k core/k8s
     ```
+
+    !!! note
+        These manifests use `tcx` mode. To use `xdp-native`, move physical N3 and N6 NICs with native XDP support into the pod (e.g. with `host-device`) instead of using macvlan and `eth0`, and put both in a VRF.
