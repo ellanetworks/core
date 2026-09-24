@@ -136,20 +136,20 @@ func TestSetupTestCluster_LeaderFailover(t *testing.T) {
 				continue
 			}
 
-			// Gate on the LeaderObserver rather than Manager.IsLeader() because
-			// the observer is the signal downstream subscribers (and the
-			// assertion below) actually see. Manager.IsLeader() reads
-			// raft.State() directly and flips before the observer goroutine
-			// has drained raft.LeaderCh(), which races this test.
-			if n.LeaderObserver().IsLeader() {
+			// Gate on the leader loop rather than Manager.IsLeader() because
+			// the loop is the signal leader hooks (and the assertion below)
+			// actually see. Manager.IsLeader() reads raft.State() directly and
+			// flips before the loop has drained raft.LeaderCh(), which races
+			// this test.
+			if n.leadershipEstablished() {
 				newLeader = n
 				break
 			}
 		}
 	}
 
-	if !newLeader.LeaderObserver().IsLeader() {
-		t.Fatal("new leader's observer does not report IsLeader()")
+	if !newLeader.leadershipEstablished() {
+		t.Fatal("new leader's leader loop has not established leadership")
 	}
 
 	// Propose on the new leader.

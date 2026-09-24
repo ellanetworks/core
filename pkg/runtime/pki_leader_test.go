@@ -17,26 +17,11 @@ var errLeaderInitBoom = errors.New("boom")
 type fakeLeaderDB struct {
 	mu sync.Mutex
 
-	leader      bool
 	restoreErr  error
 	transferErr error
 
 	restores  int
 	transfers int
-}
-
-func (f *fakeLeaderDB) IsLeader() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.leader
-}
-
-func (f *fakeLeaderDB) SetLeader(v bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.leader = v
 }
 
 func (f *fakeLeaderDB) SetRestoreErr(err error) {
@@ -60,10 +45,6 @@ func (f *fakeLeaderDB) LeadershipTransfer() error {
 	defer f.mu.Unlock()
 
 	f.transfers++
-
-	if f.transferErr == nil {
-		f.leader = false
-	}
 
 	return f.transferErr
 }
@@ -94,13 +75,6 @@ func shortBackoff(t *testing.T) {
 	})
 }
 
-func (c *pkiLeaderCallback) termDoneCh() chan struct{} {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.termDone
-}
-
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 
@@ -116,29 +90,48 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition not met before deadline")
 }
 
+func runInBackground(ctx context.Context, l *pkiLeader) <-chan struct{} {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		l.run(ctx)
+	}()
+
+	return done
+}
+
+func waitDone(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("leader hook did not return before deadline")
+	}
+}
+
 func TestSelfRestoreFailureKeepsLeadershipAndRetries(t *testing.T) {
 	shortBackoff(t)
 
-	fdb := &fakeLeaderDB{leader: true, restoreErr: errLeaderInitBoom}
+	fdb := &fakeLeaderDB{restoreErr: errLeaderInitBoom}
 
 	var inits atomic.Int32
 
-	c := &pkiLeaderCallback{
-		ctx:             context.Background(),
-		db:              fdb,
-		needsDRSnapshot: true,
+	l := &pkiLeader{
+		db: fdb,
 		runInit: func(context.Context) error {
 			inits.Add(1)
 
 			return nil
 		},
 	}
+	l.needsDRSnapshot.Store(true)
 
-	c.OnBecameLeader()
+	done := runInBackground(t.Context(), l)
 
-	if transfers := fdb.transferCount(); transfers != 0 {
-		t.Fatalf("self-restore failure yielded leadership: %d transfers", transfers)
-	}
+	waitFor(t, func() bool { return fdb.restoreCount() >= 1 })
 
 	if inits.Load() != 0 {
 		t.Fatal("leader init ran before the DR baseline was installed")
@@ -146,37 +139,34 @@ func TestSelfRestoreFailureKeepsLeadershipAndRetries(t *testing.T) {
 
 	fdb.SetRestoreErr(nil)
 
-	waitFor(t, func() bool { return inits.Load() == 1 })
+	waitDone(t, done)
+
+	if inits.Load() != 1 {
+		t.Fatalf("expected leader init to run once after self-restore recovered, got %d", inits.Load())
+	}
 
 	if restores := fdb.restoreCount(); restores < 2 {
 		t.Fatalf("expected the retry loop to re-run self-restore, got %d calls", restores)
 	}
 
-	<-c.termDoneCh()
-
-	c.mu.Lock()
-	pending := c.needsDRSnapshot
-	c.mu.Unlock()
-
-	if pending {
+	if l.needsDRSnapshot.Load() {
 		t.Fatal("needsDRSnapshot still set after a successful self-restore")
 	}
 
 	if transfers := fdb.transferCount(); transfers != 0 {
-		t.Fatalf("self-restore retry yielded leadership: %d transfers", transfers)
+		t.Fatalf("self-restore failure yielded leadership: %d transfers", transfers)
 	}
 }
 
 func TestLeaderInitFailureYieldsLeadershipWithoutRetrying(t *testing.T) {
 	shortBackoff(t)
 
-	fdb := &fakeLeaderDB{leader: true}
+	fdb := &fakeLeaderDB{}
 
 	var inits atomic.Int32
 
-	c := &pkiLeaderCallback{
-		ctx: context.Background(),
-		db:  fdb,
+	l := &pkiLeader{
+		db: fdb,
 		runInit: func(context.Context) error {
 			inits.Add(1)
 
@@ -184,17 +174,11 @@ func TestLeaderInitFailureYieldsLeadershipWithoutRetrying(t *testing.T) {
 		},
 	}
 
-	c.OnBecameLeader()
+	waitDone(t, runInBackground(t.Context(), l))
 
 	if transfers := fdb.transferCount(); transfers != 1 {
 		t.Fatalf("expected one leadership transfer, got %d", transfers)
 	}
-
-	if done := c.termDoneCh(); done != nil {
-		t.Fatal("retry goroutine started after a successful leadership transfer")
-	}
-
-	time.Sleep(20 * time.Millisecond)
 
 	if inits.Load() != 1 {
 		t.Fatalf("leader init ran %d times after yielding leadership", inits.Load())
@@ -204,13 +188,12 @@ func TestLeaderInitFailureYieldsLeadershipWithoutRetrying(t *testing.T) {
 func TestLeaderInitRetriesWhenLeadershipTransferFails(t *testing.T) {
 	shortBackoff(t)
 
-	fdb := &fakeLeaderDB{leader: true, transferErr: errLeaderInitBoom}
+	fdb := &fakeLeaderDB{transferErr: errLeaderInitBoom}
 
 	var inits atomic.Int32
 
-	c := &pkiLeaderCallback{
-		ctx: context.Background(),
-		db:  fdb,
+	l := &pkiLeader{
+		db: fdb,
 		runInit: func(context.Context) error {
 			if inits.Add(1) < 3 {
 				return errLeaderInitBoom
@@ -220,9 +203,7 @@ func TestLeaderInitRetriesWhenLeadershipTransferFails(t *testing.T) {
 		},
 	}
 
-	c.OnBecameLeader()
-
-	<-c.termDoneCh()
+	waitDone(t, runInBackground(t.Context(), l))
 
 	if inits.Load() != 3 {
 		t.Fatalf("expected the retry loop to run init until it recovered, got %d calls", inits.Load())
@@ -232,13 +213,12 @@ func TestLeaderInitRetriesWhenLeadershipTransferFails(t *testing.T) {
 func TestLeaderInitRetryStopsWhenLeadershipIsLost(t *testing.T) {
 	shortBackoff(t)
 
-	fdb := &fakeLeaderDB{leader: true, transferErr: errLeaderInitBoom}
+	fdb := &fakeLeaderDB{transferErr: errLeaderInitBoom}
 
 	var inits atomic.Int32
 
-	c := &pkiLeaderCallback{
-		ctx: context.Background(),
-		db:  fdb,
+	l := &pkiLeader{
+		db: fdb,
 		runInit: func(context.Context) error {
 			inits.Add(1)
 
@@ -246,13 +226,15 @@ func TestLeaderInitRetryStopsWhenLeadershipIsLost(t *testing.T) {
 		},
 	}
 
-	c.OnBecameLeader()
+	ctx, cancel := context.WithCancel(t.Context())
+
+	done := runInBackground(ctx, l)
 
 	waitFor(t, func() bool { return inits.Load() > 1 })
 
-	fdb.SetLeader(false)
+	cancel()
 
-	<-c.termDoneCh()
+	waitDone(t, done)
 
 	settled := inits.Load()
 
@@ -260,43 +242,5 @@ func TestLeaderInitRetryStopsWhenLeadershipIsLost(t *testing.T) {
 
 	if inits.Load() != settled {
 		t.Fatal("retry loop kept running after leadership was lost")
-	}
-}
-
-func TestLeaderTermsDoNotOverlap(t *testing.T) {
-	shortBackoff(t)
-
-	fdb := &fakeLeaderDB{leader: true, transferErr: errLeaderInitBoom}
-
-	var (
-		inFlight   atomic.Int32
-		overlapped atomic.Bool
-	)
-
-	c := &pkiLeaderCallback{
-		ctx: context.Background(),
-		db:  fdb,
-		runInit: func(context.Context) error {
-			if inFlight.Add(1) > 1 {
-				overlapped.Store(true)
-			}
-
-			time.Sleep(2 * time.Millisecond)
-			inFlight.Add(-1)
-
-			return errLeaderInitBoom
-		},
-	}
-
-	for range 20 {
-		c.OnBecameLeader()
-		time.Sleep(time.Millisecond)
-	}
-
-	c.OnLostLeadership()
-	<-c.termDoneCh()
-
-	if overlapped.Load() {
-		t.Fatal("two leader sequences ran concurrently")
 	}
 }

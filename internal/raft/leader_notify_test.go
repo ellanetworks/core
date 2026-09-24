@@ -30,7 +30,8 @@ func TestWaitForLeaderDoesNotConsumeLeaderCh(t *testing.T) {
 
 	t.Cleanup(func() { _ = mgr.Shutdown() })
 
-	mgr.LeaderObserver().Stop()
+	mgr.shutdownOnce.Do(func() { close(mgr.shutdownCh) })
+	<-mgr.leaderLoopDone
 
 	if err := mgr.WaitForLeader(ctx); err != nil {
 		t.Fatalf("WaitForLeader: %v", err)
@@ -42,6 +43,6 @@ func TestWaitForLeaderDoesNotConsumeLeaderCh(t *testing.T) {
 			t.Fatal("expected the pending notification to report leadership")
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("waitForLeader took the transition off raft.LeaderCh(); raft delivers each value to exactly one receiver, so LeaderObserver must be its sole consumer or leadership callbacks are lost")
+		t.Fatal("waitForLeader took the transition off raft.LeaderCh(); raft delivers each value to exactly one receiver, so the leader loop must be its sole consumer or leadership hooks are lost")
 	}
 }

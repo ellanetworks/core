@@ -215,7 +215,7 @@ func TestForwardPropose_FollowerRetriesOnLeaderChange(t *testing.T) {
 				continue
 			}
 
-			if m.LeaderObserver().IsLeader() {
+			if m.leadershipEstablished() {
 				newLeader = m
 				break
 			}

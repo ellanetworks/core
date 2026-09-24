@@ -64,7 +64,7 @@ func TestCluster_ConstructsHAWiring(t *testing.T) {
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if leader := tc.Leader(); leader != nil {
-			if st := leader.autopilot.State(); st != nil && len(st.Servers) == 3 {
+			if st := leader.autopilot.GetState(); st != nil && len(st.Servers) == 3 {
 				return
 			}
 		}

@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -24,37 +24,32 @@ var (
 var errDRRestorePending = errors.New("post-DR self-restore pending")
 
 type leaderDB interface {
-	IsLeader() bool
 	LeadershipTransfer() error
 	SelfRestore(ctx context.Context) error
 }
 
-type pkiLeaderCallback struct {
-	ctx     context.Context
+type pkiLeader struct {
 	db      leaderDB
 	runInit func(context.Context) error
 
-	mu              sync.Mutex
-	needsDRSnapshot bool
-	leaderCancel    context.CancelFunc
-	termDone        chan struct{}
+	needsDRSnapshot atomic.Bool
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, nodeID string, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
-	return &pkiLeaderCallback{
-		ctx: ctx,
-		db:  dbInstance,
+func newPKILeader(state *pkiState, dbInstance *db.Database, nodeID string, binaryVersion string, needsDRSnapshot bool) *pkiLeader {
+	l := &pkiLeader{
+		db: dbInstance,
 		runInit: func(leaderCtx context.Context) error {
 			return runLeaderInit(leaderCtx, state, dbInstance, nodeID, binaryVersion)
 		},
-		needsDRSnapshot: needsDRSnapshot,
 	}
+
+	l.needsDRSnapshot.Store(needsDRSnapshot)
+
+	return l
 }
 
-func (c *pkiLeaderCallback) OnBecameLeader() {
-	leaderCtx := c.beginLeaderTerm()
-
-	err := c.runLeaderSequence(leaderCtx)
+func (l *pkiLeader) run(ctx context.Context) {
+	err := l.runLeaderSequence(ctx)
 	if err == nil {
 		return
 	}
@@ -63,94 +58,34 @@ func (c *pkiLeaderCallback) OnBecameLeader() {
 		logger.EllaLog.Error("post-DR self-restore failed; keeping leadership and retrying, the restored state is not the cluster baseline yet",
 			zap.Error(err))
 
-		c.startRetry(leaderCtx)
+		l.retryLeaderInit(ctx)
 
 		return
 	}
 
 	logger.EllaLog.Warn("leader init failed; yielding leadership", zap.Error(err))
 
-	if transferErr := c.yieldLeadership(); transferErr != nil {
+	if transferErr := l.db.LeadershipTransfer(); transferErr != nil {
 		logger.EllaLog.Error("leadership transfer after init failure; staying leader and retrying",
 			zap.Error(transferErr))
 
-		c.startRetry(leaderCtx)
+		l.retryLeaderInit(ctx)
 	}
 }
 
-func (c *pkiLeaderCallback) OnLostLeadership() {
-	c.mu.Lock()
-	cancel := c.leaderCancel
-	c.leaderCancel = nil
-	c.mu.Unlock()
-
-	if cancel != nil {
-		cancel()
-	}
-}
-
-func (c *pkiLeaderCallback) beginLeaderTerm() context.Context {
-	c.mu.Lock()
-	prevCancel := c.leaderCancel
-	prevDone := c.termDone
-	c.leaderCancel = nil
-	c.termDone = nil
-	c.mu.Unlock()
-
-	if prevCancel != nil {
-		prevCancel()
-	}
-
-	if prevDone != nil {
-		<-prevDone
-	}
-
-	leaderCtx, cancel := context.WithCancel(c.ctx)
-
-	c.mu.Lock()
-	c.leaderCancel = cancel
-	c.mu.Unlock()
-
-	return leaderCtx
-}
-
-func (c *pkiLeaderCallback) startRetry(ctx context.Context) {
-	done := make(chan struct{})
-
-	c.mu.Lock()
-	c.termDone = done
-	c.mu.Unlock()
-
-	go func() {
-		defer close(done)
-
-		c.retryLeaderInit(ctx)
-	}()
-}
-
-func (c *pkiLeaderCallback) yieldLeadership() error {
-	return c.db.LeadershipTransfer()
-}
-
-func (c *pkiLeaderCallback) runLeaderSequence(ctx context.Context) error {
-	c.mu.Lock()
-	needsRestore := c.needsDRSnapshot
-	c.mu.Unlock()
-
-	if needsRestore {
-		if err := c.db.SelfRestore(ctx); err != nil {
+func (l *pkiLeader) runLeaderSequence(ctx context.Context) error {
+	if l.needsDRSnapshot.Load() {
+		if err := l.db.SelfRestore(ctx); err != nil {
 			return fmt.Errorf("%w: %w", errDRRestorePending, err)
 		}
 
-		c.mu.Lock()
-		c.needsDRSnapshot = false
-		c.mu.Unlock()
+		l.needsDRSnapshot.Store(false)
 	}
 
-	return c.runInit(ctx)
+	return l.runInit(ctx)
 }
 
-func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
+func (l *pkiLeader) retryLeaderInit(ctx context.Context) {
 	backoff := leaderInitInitialBackoff
 
 	for {
@@ -160,13 +95,7 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 		case <-time.After(backoff):
 		}
 
-		if !c.db.IsLeader() {
-			logger.EllaLog.Info("leader init retry stopping; no longer leader")
-
-			return
-		}
-
-		err := c.runLeaderSequence(ctx)
+		err := l.runLeaderSequence(ctx)
 		if err == nil {
 			logger.EllaLog.Info("leader init recovered after retry")
 
