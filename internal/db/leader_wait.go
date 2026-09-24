@@ -43,7 +43,7 @@ func (db *Database) WaitUntilReady(ctx context.Context) error {
 	defer cancel()
 
 	if db.raftManager != nil {
-		if err := db.raftManager.HoldForLeader(ctx, readyWaitTimeout); err != nil {
+		if err := db.raftManager.WaitForLeader(ctx); err != nil {
 			return fmt.Errorf("wait for raft leader: %w", err)
 		}
 	}
@@ -65,7 +65,10 @@ func (db *Database) holdForLeader(ctx context.Context) error {
 		timeout = defaultHoldForLeaderTimeout
 	}
 
-	if err := db.raftManager.HoldForLeader(ctx, timeout); err != nil {
+	holdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if err := db.raftManager.WaitForLeader(holdCtx); err != nil {
 		return fmt.Errorf("%w: no raft leader: %v", ErrProposeTimeout, err)
 	}
 

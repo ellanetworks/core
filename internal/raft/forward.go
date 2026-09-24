@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -32,11 +31,6 @@ const (
 	// ProposeForwardContentType identifies the body as a
 	// ProposeForwardRequest JSON envelope.
 	ProposeForwardContentType = "application/json"
-
-	// HeaderAppliedIndex mirrors the X-Ella-Applied-Index header the
-	// operator-API proxy uses. The leader sets it to the committed log
-	// index so the forwarder can wait for local apply before returning.
-	HeaderAppliedIndex = "X-Ella-Applied-Index"
 
 	// MaxProposeForwardBodyBytes caps the request body accepted by the
 	// /cluster/internal/propose handler. Sized for bulk-payload ops
@@ -170,6 +164,10 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 			return nil, err
 
 		case http.StatusMisdirectedRequest, http.StatusServiceUnavailable:
+			if ForwardErrorCode(err) != "" {
+				return nil, err
+			}
+
 			lastErr = hraft.ErrNotLeader
 
 			if err := waitOrDone(ctx, noLeaderBackoff); err != nil {
@@ -341,7 +339,7 @@ func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body [
 }
 
 // WriteProposeForwardResponse serialises a successful ProposeResult as the
-// /cluster/internal/propose success body and sets the applied-index header.
+// /cluster/internal/propose success body.
 func WriteProposeForwardResponse(w http.ResponseWriter, result *ProposeResult) error {
 	env := ProposeForwardResponse{Index: result.Index}
 
@@ -355,7 +353,6 @@ func WriteProposeForwardResponse(w http.ResponseWriter, result *ProposeResult) e
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set(HeaderAppliedIndex, strconv.FormatUint(env.Index, 10))
 	w.WriteHeader(http.StatusOK)
 
 	return json.NewEncoder(w).Encode(env)

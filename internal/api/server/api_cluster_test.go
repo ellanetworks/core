@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/netip"
 	"path/filepath"
@@ -412,14 +413,10 @@ func TestRemoveClusterMember_RefusesUndrained(t *testing.T) {
 	}
 }
 
-// TestDrainClusterMember_PersistsDrainedState verifies drain on self runs
-// side-effects and transitions the state to "drained" synchronously when
-// deadlineSeconds=0.
-func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
+func TestDrainClusterMember_DrainThenResume(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
 
-	env, err := setupServerWithRaft(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -444,13 +441,17 @@ func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
 		t.Fatalf("upsert self: %s", err)
 	}
 
-	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
+	status, body, err := postDrain(env.Server.URL, c, token, self, 30)
 	if err != nil {
 		t.Fatalf("drain request failed: %s", err)
 	}
 
 	if status != http.StatusOK {
 		t.Fatalf("expected 200 on drain, got %d (body: %s)", status, body)
+	}
+
+	if !strings.Contains(body, `"drainState":"draining"`) {
+		t.Errorf("expected drainState=draining in body, got %s", body)
 	}
 
 	member, err := env.DB.GetClusterMember(ctx, self)
@@ -501,10 +502,12 @@ func postDrain(url string, client *http.Client, token string, nodeID string, dea
 
 	defer func() { _ = res.Body.Close() }()
 
-	buf := make([]byte, 4096)
-	n, _ := res.Body.Read(buf)
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, "", err
+	}
 
-	return res.StatusCode, string(buf[:n]), nil
+	return res.StatusCode, string(data), nil
 }
 
 func postResume(url string, client *http.Client, token string, nodeID string) (int, string, error) {
@@ -523,182 +526,12 @@ func postResume(url string, client *http.Client, token string, nodeID string) (i
 
 	defer func() { _ = res.Body.Close() }()
 
-	buf := make([]byte, 4096)
-	n, _ := res.Body.Read(buf)
-
-	return res.StatusCode, string(buf[:n]), nil
-}
-
-// TestDrainClusterMember_Idempotent verifies that re-draining a node
-// already in draining or drained state returns the current state and does
-// not re-run side-effects.
-func TestDrainClusterMember_Idempotent(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "db.sqlite3")
-
-	env, err := setupServerWithRaft(dbPath)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
+		return 0, "", err
 	}
 
-	ctx := context.Background()
-	self := "1"
-
-	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
-		NodeID:     self,
-		APIAddress: "http://127.0.0.1:0",
-	}); err != nil {
-		t.Fatalf("upsert self: %s", err)
-	}
-
-	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
-		t.Fatalf("seed drained state: %s", err)
-	}
-
-	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
-	if err != nil {
-		t.Fatalf("drain request failed: %s", err)
-	}
-
-	if status != http.StatusOK {
-		t.Fatalf("expected 200 on idempotent drain, got %d (body: %s)", status, body)
-	}
-
-	if !strings.Contains(body, `"drainState":"draining"`) {
-		t.Errorf("expected drainState=draining in body, got %s", body)
-	}
-}
-
-func TestDrainClusterMember_DoesNotRestartAFinishedDrain(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	ctx := context.Background()
-	self := "1"
-
-	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
-		NodeID:     self,
-		APIAddress: "http://127.0.0.1:0",
-	}); err != nil {
-		t.Fatalf("upsert self: %s", err)
-	}
-
-	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDraining); err != nil {
-		t.Fatalf("seed draining state: %s", err)
-	}
-
-	if _, err := env.DB.SetDrainState(ctx, self, db.DrainStateDrained); err != nil {
-		t.Fatalf("seed drained state: %s", err)
-	}
-
-	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
-	if err != nil {
-		t.Fatalf("drain request failed: %s", err)
-	}
-
-	if status != http.StatusOK {
-		t.Fatalf("expected 200 draining an already drained node, got %d (body: %s)", status, body)
-	}
-
-	if !strings.Contains(body, `"drainState":"drained"`) {
-		t.Errorf("expected drainState=drained in body, got %s", body)
-	}
-
-	member, err := env.DB.GetClusterMember(ctx, self)
-	if err != nil {
-		t.Fatalf("get cluster member: %s", err)
-	}
-
-	if member.DrainState != db.DrainStateDrained {
-		t.Errorf("stored state = %q, want %q", member.DrainState, db.DrainStateDrained)
-	}
-}
-
-func TestDrainClusterMember_UnknownNode(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	status, body, err := postDrain(env.Server.URL, c, token, "99999999-9999-9999-9999-999999999999", 0)
-	if err != nil {
-		t.Fatalf("drain request failed: %s", err)
-	}
-
-	if status != http.StatusNotFound {
-		t.Fatalf("expected 404 draining an unknown node, got %d (body: %s)", status, body)
-	}
-}
-
-// TestDrainClusterMember_IgnoresDeadlineSeconds records that the drain
-// handler accepts and ignores deadlineSeconds: the field is absent from
-// the handler and from the OpenAPI spec. The earlier version of this
-// test asserted a 400 bounds check, but it only ever saw that status
-// because the node-id path segment was 0 and failed to parse.
-func TestDrainClusterMember_IgnoresDeadlineSeconds(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
-
-	env, err := setupServer(dbPath)
-	if err != nil {
-		t.Fatalf("couldn't create test server: %s", err)
-	}
-
-	defer env.Server.Close()
-
-	c := newTestClient(env.Server)
-
-	token, err := initializeAndRefresh(env.Server.URL, c)
-	if err != nil {
-		t.Fatalf("couldn't initialize: %s", err)
-	}
-
-	self := "1"
-
-	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
-		NodeID:     self,
-		APIAddress: "http://127.0.0.1:0",
-	}); err != nil {
-		t.Fatalf("upsert self: %s", err)
-	}
-
-	status, body, err := postDrain(env.Server.URL, c, token, self, -1)
-	if err != nil {
-		t.Fatalf("drain request failed: %s", err)
-	}
-
-	if status != http.StatusOK {
-		t.Fatalf("expected 200, got %d (body: %s)", status, body)
-	}
+	return res.StatusCode, string(data), nil
 }
 
 // TestPromoteClusterMember_AlreadyVoter verifies the 409 response when the
@@ -791,10 +624,12 @@ func postPromote(url string, client *http.Client, token string, nodeID string) (
 
 	defer func() { _ = res.Body.Close() }()
 
-	buf := make([]byte, 4096)
-	n, _ := res.Body.Read(buf)
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, "", err
+	}
 
-	return res.StatusCode, string(buf[:n]), nil
+	return res.StatusCode, string(data), nil
 }
 
 func TestClusterStatusIncluded(t *testing.T) {

@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,25 +54,6 @@ func buildBaselineSnapshotPayload(t *testing.T) []byte {
 	}
 
 	return payload
-}
-
-func freeLoopbackAddress(t *testing.T) string {
-	t.Helper()
-
-	var lc net.ListenConfig
-
-	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve loopback port: %v", err)
-	}
-
-	addr := ln.Addr().String()
-
-	if err := ln.Close(); err != nil {
-		t.Fatalf("release loopback port: %v", err)
-	}
-
-	return addr
 }
 
 func seedRaftSnapshot(t *testing.T, dataDir string, nodeID string, addr string, payload []byte) {
@@ -127,7 +107,7 @@ func TestBootSnapshotRestoreRespectsBaselineInClusterMode(t *testing.T) {
 	dataDir := t.TempDir()
 	dbPath := filepath.Join(dataDir, "ella.db")
 
-	addr := freeLoopbackAddress(t)
+	const addr = "127.0.0.1:0"
 
 	payload := buildBaselineSnapshotPayload(t)
 	seedRaftSnapshot(t, dataDir, "1", addr, payload)

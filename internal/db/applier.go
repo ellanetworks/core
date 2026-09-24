@@ -56,7 +56,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 				db.signalMigrationCheck()
 			}
 
-			db.publishOpTopics(topicsForChangesetOp(payload.Operation), logIndex)
+			db.publishOpTopics(topicsForChangesetOp(payload.Operation))
 		}
 
 		return result, applyErr
@@ -76,7 +76,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		applyErr := db.applyDeleteOldDailyUsage(ctx, payload)
 		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
 		}
 
 		return nil, applyErr
@@ -88,7 +88,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		applyErr := db.applyDeleteAllDynamicLeases(ctx)
 		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
 		}
 
 		return nil, applyErr
@@ -105,7 +105,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		result, applyErr := db.applyDeleteExpiredSessions(ctx, payload)
 		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
 		}
 
 		return result, applyErr
@@ -135,13 +135,13 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 // publishOpTopics fans out wakeup events for every topic an op
 // declared via AffectsTopic. Safe to call with a nil/empty slice.
-func (db *Database) publishOpTopics(topics []Topic, index uint64) {
+func (db *Database) publishOpTopics(topics []Topic) {
 	if db.changefeed == nil || len(topics) == 0 {
 		return
 	}
 
 	for _, t := range topics {
-		db.changefeed.Publish(t, index)
+		db.changefeed.Publish(t)
 	}
 }
 

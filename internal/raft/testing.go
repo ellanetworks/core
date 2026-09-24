@@ -116,8 +116,6 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		t.Fatalf("bootstrap: %v", err)
 	}
 
-	observer := NewLeaderObserver()
-
 	m := &Manager{
 		raft:      r,
 		fsm:       fsm,
@@ -127,13 +125,11 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		config:    ClusterConfig{BindAddress: string(addr)},
 		raftID:    "1",
 		dataDir:   dataDir,
-		observer:  observer,
 
-		leaderBarrier: make(chan struct{}),
-		shutdownCh:    make(chan struct{}),
+		leaderLoopDone: make(chan struct{}),
+		leaderChanged:  make(chan struct{}),
+		shutdownCh:     make(chan struct{}),
 	}
-
-	observer.Register(leaderBarrierCallback{m: m})
 
 	if err := waitForLeaderTest(t, m); err != nil {
 		_ = r.Shutdown().Error()
@@ -142,7 +138,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		t.Fatalf("wait for leader: %v", err)
 	}
 
-	go observer.Run(r)
+	go m.monitorLeadership()
 
 	var (
 		once        sync.Once

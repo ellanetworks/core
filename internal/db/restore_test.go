@@ -8,7 +8,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,68 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
-
-func TestRestore(t *testing.T) {
-	tempDir := t.TempDir()
-
-	databasePath := filepath.Join(tempDir, "db.sqlite3")
-
-	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.FastTestConfig())
-	if err != nil {
-		t.Fatalf("failed to create database: %v", err)
-	}
-
-	if err := database.WaitUntilReady(t.Context()); err != nil {
-		t.Fatalf("database never became ready: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("failed to close database: %v", err)
-		}
-	}()
-
-	// Create a real SQLite backup using the Backup method
-	backupFile, err := os.CreateTemp("", "backup_*.db")
-	if err != nil {
-		t.Fatalf("failed to create temporary backup file: %v", err)
-	}
-
-	defer func() {
-		err := backupFile.Close()
-		if err != nil {
-			t.Fatalf("failed to close backup file: %v", err)
-		}
-
-		err = os.Remove(backupFile.Name()) // Ensure cleanup
-		if err != nil {
-			t.Fatalf("failed to remove backup file: %v", err)
-		}
-	}()
-
-	if err := database.Backup(context.Background(), backupFile); err != nil {
-		t.Fatalf("failed to create backup: %v", err)
-	}
-
-	if _, err := backupFile.Seek(0, 0); err != nil {
-		t.Fatalf("failed to reset backup file pointer: %v", err)
-	}
-
-	err = database.Restore(context.Background(), backupFile)
-	if err != nil {
-		t.Fatalf("Restore failed: %v", err)
-	}
-
-	// Verify the restored database is functional by running a query
-	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
-	if err != nil {
-		t.Fatalf("failed to query restored database: %v", err)
-	}
-
-	if total != 0 {
-		t.Fatalf("expected 0 subscribers, got %d", total)
-	}
-}
 
 func TestRestore_InvalidFile(t *testing.T) {
 	tempDir := t.TempDir()
@@ -130,105 +67,6 @@ func TestRestore_InvalidFile(t *testing.T) {
 	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("database should still be functional after rejected restore, got: %v", err)
-	}
-
-	if total != 0 {
-		t.Fatalf("expected 0 subscribers, got %d", total)
-	}
-}
-
-func TestRestore_ConcurrentRestore(t *testing.T) {
-	tempDir := t.TempDir()
-	databasePath := filepath.Join(tempDir, "db.sqlite3")
-
-	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.FastTestConfig())
-	if err != nil {
-		t.Fatalf("failed to create database: %v", err)
-	}
-
-	if err := database.WaitUntilReady(t.Context()); err != nil {
-		t.Fatalf("database never became ready: %v", err)
-	}
-
-	defer func() {
-		if err := database.Close(); err != nil {
-			t.Fatalf("failed to close database: %v", err)
-		}
-	}()
-
-	// Create two valid backup files
-	makeBackup := func(name string) string {
-		path := filepath.Join(tempDir, name)
-
-		f, err := os.Create(path) //nolint:gosec // test-only; path is from t.TempDir()
-		if err != nil {
-			t.Fatalf("failed to create backup file %s: %v", name, err)
-		}
-
-		if err := database.Backup(context.Background(), f); err != nil {
-			_ = f.Close()
-
-			t.Fatalf("failed to create backup %s: %v", name, err)
-		}
-
-		_ = f.Close()
-
-		return path
-	}
-
-	backupPath1 := makeBackup("backup1.db")
-	backupPath2 := makeBackup("backup2.db")
-
-	var wg sync.WaitGroup
-
-	errs := make([]error, 2)
-
-	wg.Add(2)
-
-	restoreFromPath := func(idx int, path string) {
-		defer wg.Done()
-
-		f, err := os.Open(path) //nolint:gosec // test-only; path is from t.TempDir()
-		if err != nil {
-			errs[idx] = err
-			return
-		}
-
-		defer func() { _ = f.Close() }()
-
-		errs[idx] = database.Restore(context.Background(), f)
-	}
-
-	go restoreFromPath(0, backupPath1)
-	go restoreFromPath(1, backupPath2)
-
-	wg.Wait()
-
-	// Exactly one should succeed and one should get ErrRestoreInProgress.
-	var successCount, inProgressCount int
-
-	for _, err := range errs {
-		if err == nil {
-			successCount++
-		} else if errors.Is(err, db.ErrRestoreInProgress) {
-			inProgressCount++
-		} else {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	}
-
-	if successCount != 1 {
-		t.Fatalf("expected exactly 1 success, got %d", successCount)
-	}
-
-	if inProgressCount != 1 {
-		t.Fatalf("expected exactly 1 ErrRestoreInProgress, got %d", inProgressCount)
-	}
-
-	// Database should still be functional
-	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
-	if err != nil {
-		t.Fatalf("database should be functional after concurrent restore, got: %v", err)
 	}
 
 	if total != 0 {

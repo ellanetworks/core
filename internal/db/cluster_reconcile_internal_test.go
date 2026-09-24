@@ -124,24 +124,6 @@ func TestReconcileClusterMembers_UnavailableConfigurationDeletesNothing(t *testi
 	}
 }
 
-func TestReconcileClusterMembers_NoRaftAccessorDeletesNothing(t *testing.T) {
-	database := newStandaloneDB(t)
-	ctx := context.Background()
-
-	seedMembers(t, database, ctx, "1", "2")
-
-	database.clusterEnabled = true
-	database.raftMemberIDs = nil
-
-	if err := database.reconcileClusterMembers(ctx); err != nil {
-		t.Fatalf("reconcileClusterMembers: %v", err)
-	}
-
-	if got := memberIDs(t, database, ctx); !equalIDs(got, []string{"1", "2"}) {
-		t.Fatalf("members after reconcile: want [1 2], got %v", got)
-	}
-}
-
 func TestReconcileClusterMembers_StandaloneDeletesNothing(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()

@@ -148,14 +148,7 @@ func parseRaftStats(stats map[string]string) *autopilot.ServerStats {
 	return s
 }
 
-// autopilotRunner wraps the autopilot.Autopilot lifecycle, starting it when
-// this node becomes leader and stopping it when leadership is lost.
-// Implements LeaderCallback.
-type autopilotRunner struct {
-	ap *autopilot.Autopilot
-}
-
-func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
+func newAutopilot(r *raft.Raft, m *Manager) *autopilot.Autopilot {
 	delegate := &autopilotDelegate{manager: m}
 
 	opts := []autopilot.Option{
@@ -171,28 +164,5 @@ func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
 		opts = append(opts, autopilot.WithUpdateInterval(m.config.Autopilot.UpdateInterval))
 	}
 
-	ap := autopilot.New(r, delegate, opts...)
-
-	return &autopilotRunner{ap: ap}
-}
-
-func (a *autopilotRunner) OnBecameLeader() {
-	a.ap.Start(context.Background())
-}
-
-func (a *autopilotRunner) OnLostLeadership() {
-	a.ap.Stop()
-}
-
-// State returns the current autopilot state snapshot. The state is only
-// continuously updated while this node is leader; callers should check
-// Manager.IsLeader() to decide whether to trust it. Returns nil when
-// autopilot has not yet produced a first state (cold start window
-// immediately after becoming leader).
-func (a *autopilotRunner) State() *autopilot.State {
-	if a == nil {
-		return nil
-	}
-
-	return a.ap.GetState()
+	return autopilot.New(r, delegate, opts...)
 }

@@ -94,33 +94,6 @@ func newAtomicTestDB(t testing.TB) *Database {
 	return database
 }
 
-// TestApplyChangeset_AdvancesLastAppliedOnSuccess pins the contract
-// that a successful changeset apply advances fsm_state.lastApplied to
-// the supplied logIndex in the same SQLite transaction as the apply.
-func TestApplyChangeset_AdvancesLastAppliedOnSuccess(t *testing.T) {
-	database := newAtomicTestDB(t)
-	ctx := context.Background()
-
-	bytes := captureSliceChangeset(t, database)
-
-	setLastApplied(t, database, 7)
-
-	if _, err := database.applyChangeset(ctx, &bytesPayload{
-		Value:     bytes,
-		Operation: "CreateNetworkSlice",
-	}, 42); err != nil {
-		t.Fatalf("applyChangeset: %v", err)
-	}
-
-	if got := countSlices(t, database); got != 1 {
-		t.Fatalf("network_slices count: want 1, got %d", got)
-	}
-
-	if got := readLastApplied(t, database); got != 42 {
-		t.Fatalf("lastApplied: want 42, got %d", got)
-	}
-}
-
 // TestApplyChangeset_RollsBackBothOnConflict pins the failure-path
 // half of the same contract: when sqlite3changeset_apply fails, the
 // fsm_state.lastApplied write must roll back too. Re-applying the same
@@ -146,6 +119,10 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 	}
 
 	// Sanity-check: post-success state.
+	if got := countSlices(t, database); got != 1 {
+		t.Fatalf("after first apply: network_slices count want 1, got %d", got)
+	}
+
 	if got := readLastApplied(t, database); got != 42 {
 		t.Fatalf("after first apply: lastApplied want 42, got %d", got)
 	}

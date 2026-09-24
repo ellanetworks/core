@@ -25,26 +25,23 @@ func TestApplyCommand_PublishesTopicForOp(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	sub := dbInstance.Changefeed().Subscribe(db.TopicNATSettings)
-	defer sub.Close()
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicNATSettings)
+	defer stop()
 
 	if err := dbInstance.UpdateNATSettings(context.Background(), true); err != nil {
 		t.Fatalf("UpdateNATSettings: %v", err)
 	}
 
 	select {
-	case ev := <-sub.Events:
-		if ev.Topic != db.TopicNATSettings {
-			t.Fatalf("expected topic %q, got %q", db.TopicNATSettings, ev.Topic)
-		}
+	case <-wakeup:
 	case <-time.After(time.Second):
 		t.Fatal("did not receive nat-settings change event")
 	}
 }
 
-// TestApplyCommand_DoesNotPublishForUnannotatedOps verifies that ops
-// without AffectsTopic produce no events. Initialize() seeds operator
-// row (which is unannotated) and must not wake nat-settings subscribers.
+// TestApplyCommand_DoesNotPublishForUnannotatedOps verifies that an op
+// does not wake subscribers of topics it did not declare: a nat-settings
+// update must not wake flow-accounting subscribers.
 func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -55,8 +52,8 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	sub := dbInstance.Changefeed().Subscribe(db.TopicFlowAccountingSettings)
-	defer sub.Close()
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicFlowAccountingSettings)
+	defer stop()
 
 	// Update an unrelated topic; subscriber should see nothing.
 	if err := dbInstance.UpdateNATSettings(context.Background(), true); err != nil {
@@ -64,8 +61,8 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	}
 
 	select {
-	case ev := <-sub.Events:
-		t.Fatalf("did not expect event, got %+v", ev)
+	case <-wakeup:
+		t.Fatal("did not expect a wakeup")
 	case <-time.After(100 * time.Millisecond):
 	}
 }
@@ -82,18 +79,15 @@ func TestApplyCommand_PublishesFlowAccountingEvent(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	sub := dbInstance.Changefeed().Subscribe(db.TopicFlowAccountingSettings)
-	defer sub.Close()
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicFlowAccountingSettings)
+	defer stop()
 
 	if err := dbInstance.UpdateFlowAccountingSettings(context.Background(), true); err != nil {
 		t.Fatalf("UpdateFlowAccountingSettings: %v", err)
 	}
 
 	select {
-	case ev := <-sub.Events:
-		if ev.Topic != db.TopicFlowAccountingSettings {
-			t.Fatalf("expected topic %q, got %q", db.TopicFlowAccountingSettings, ev.Topic)
-		}
+	case <-wakeup:
 	case <-time.After(time.Second):
 		t.Fatal("did not receive flow-accounting change event")
 	}

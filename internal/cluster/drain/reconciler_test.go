@@ -364,3 +364,45 @@ func TestReconcileOnADrainingFollowerDoesNotTransfer(t *testing.T) {
 		t.Fatalf("leadership transfers = %d, want none on a follower", store.transferCount())
 	}
 }
+
+func TestLoopReconcilesOnWakeup(t *testing.T) {
+	store := newStore(db.DrainStateActive, db.DrainStateActive)
+	nf := &fakeNF{}
+	wakeup := make(chan struct{})
+
+	r := New(store, nil, wakeup, nf)
+	r.backstop = time.Hour
+
+	r.Start()
+	defer r.Stop()
+
+	eligible := func() bool {
+		nf.mu.Lock()
+		defer nf.mu.Unlock()
+
+		return nf.eligible
+	}
+
+	waitUntil(t, eligible)
+
+	store.mu.Lock()
+	store.members["1"].DrainState = db.DrainStateDraining
+	store.mu.Unlock()
+
+	wakeup <- struct{}{}
+
+	waitUntil(t, func() bool { return !eligible() })
+}
+
+func waitUntil(t *testing.T, cond func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not met before deadline")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+}

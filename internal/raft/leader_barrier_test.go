@@ -5,7 +5,7 @@ package raft
 
 import (
 	"context"
-	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -61,7 +61,7 @@ func TestStandaloneRestartBarriersBeforeReadsAreServed(t *testing.T) {
 	}
 }
 
-func TestBarrierForLeadershipAbortsOnShutdown(t *testing.T) {
+func TestShutdownCancelsLeaderHooksAndWaitsForThem(t *testing.T) {
 	t.Parallel()
 
 	applier := newTestApplier(t)
@@ -74,32 +74,83 @@ func TestBarrierForLeadershipAbortsOnShutdown(t *testing.T) {
 		t.Fatalf("NewManager: %v", err)
 	}
 
+	started := make(chan struct{})
+
+	var returned atomic.Bool
+
+	mgr.OnLeadership(func(ctx context.Context) {
+		close(started)
+		<-ctx.Done()
+		time.Sleep(50 * time.Millisecond)
+		returned.Store(true)
+	})
+
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("leader hook never started")
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- mgr.Shutdown() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not complete; a leader hook blocked on its context was never cancelled")
+	}
+
+	if !returned.Load() {
+		t.Fatal("Shutdown returned before the leader hook did")
+	}
+}
+
+func TestLeaderHooksRunAfterTheTermBarrier(t *testing.T) {
+	t.Parallel()
+
+	applier := newTestApplier(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	mgr, err := NewManager(ctx, FastTestConfig(), applier, t.TempDir())
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	t.Cleanup(func() { _ = mgr.Shutdown() })
+
+	barriered := make(chan bool, 2)
+
+	check := func(context.Context) {
+		term, _ := mgr.barrierState()
+		barriered <- term != 0 && term == mgr.raft.CurrentTerm()
+	}
+
+	mgr.OnLeadership(check)
+
 	if err := mgr.WaitForLeaderBarrier(ctx); err != nil {
 		t.Fatalf("barrier: %v", err)
 	}
 
-	mgr.barrieredTerm.Store(0)
+	mgr.OnLeadership(check)
 
-	mgr.barrierMu.Lock()
-	mgr.barrier = &barrierAttempt{term: mgr.raft.CurrentTerm(), done: make(chan struct{})}
-	mgr.barrierMu.Unlock()
-
-	done := make(chan error, 1)
-
-	go func() { done <- mgr.barrierForLeadership() }()
-
-	time.Sleep(200 * time.Millisecond)
-
-	if err := mgr.Shutdown(); err != nil {
-		t.Fatalf("shutdown: %v", err)
+	for range 2 {
+		select {
+		case ok := <-barriered:
+			if !ok {
+				t.Fatal("leader hook ran before this term's barrier completed")
+			}
+		case <-ctx.Done():
+			t.Fatal("leader hook never ran")
+		}
 	}
 
-	select {
-	case err := <-done:
-		if !errors.Is(err, errShuttingDown) {
-			t.Fatalf("want errShuttingDown, got %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("barrier ignored shutdown; Manager.Shutdown stops the observer first, so this deadlocks shutdown")
+	if err := mgr.WriteBarrier(time.Second); err != nil {
+		t.Fatalf("WriteBarrier after the term barrier: %v", err)
 	}
 }

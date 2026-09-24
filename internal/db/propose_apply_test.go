@@ -5,6 +5,7 @@ package db_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -113,7 +114,7 @@ func TestProposeApply_ApplierErrorSurfacesToCaller(t *testing.T) {
 		Name:     "dup",
 		IPv4Pool: "10.0.0.0/24",
 	})
-	if err == nil {
-		t.Fatal("expected duplicate create to fail")
+	if !errors.Is(err, db.ErrAlreadyExists) {
+		t.Fatalf("duplicate create err = %v, want db.ErrAlreadyExists", err)
 	}
 }
