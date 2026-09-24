@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { setClusterMemberDisplayName } from "@/queries/cluster";
-import { NodeId } from "@/queries/nodeId";
+import { NodeId, nodeLabel } from "@/queries/nodeId";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
@@ -59,7 +59,7 @@ const RenameNodeModal: React.FC<Props> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title="Rename node"
-      description={`Sets the name shown for ${nodeId} across the UI.`}
+      description={`Sets the name shown for node ${nodeLabel(initialDisplayName, nodeId)} across the UI.`}
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to set display name"

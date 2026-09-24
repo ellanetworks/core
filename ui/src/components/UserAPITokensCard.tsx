@@ -26,7 +26,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloseIcon from "@mui/icons-material/Close";
-import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import type { APIToken } from "@/queries/api_tokens";
 import { formatDate } from "@/utils/formatters";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -48,28 +48,12 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
   onTokenCreated,
   targetEmail,
 }) => {
-  const { showSnackbar } = useSnackbar();
+  const copy = useCopyToClipboard();
   const now = useNow(30_000);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<APIToken | null>(null);
-
-  const copyToken = async () => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(newToken ?? "");
-      showSnackbar("Copied to clipboard.", "success");
-    } catch {
-      showSnackbar("Failed to copy API token.", "error");
-    }
-  };
 
   const handleDeleteClick = (token: APIToken) => {
     setSelectedToken(token);
@@ -144,7 +128,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                   <IconButton
                     aria-label="copy token"
                     size="small"
-                    onClick={copyToken}
+                    onClick={() => copy(newToken ?? "", "API token")}
                     title="Copy"
                   >
                     <ContentCopyIcon fontSize="inherit" />

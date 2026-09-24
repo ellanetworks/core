@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { ApiError } from "@/queries/utils";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 interface ErrorAlertProps {
   resource: string;
@@ -43,8 +44,10 @@ const ErrorAlert: React.FC<ErrorAlertProps> = ({
   const [showDetail, setShowDetail] = useState(false);
   const detail = technicalDetail(error);
 
+  const copy = useCopyToClipboard();
+
   const copyDetail = () => {
-    if (detail) void navigator.clipboard.writeText(detail);
+    if (detail) void copy(detail, "Error details");
   };
 
   return (

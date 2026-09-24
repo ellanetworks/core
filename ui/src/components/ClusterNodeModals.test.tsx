@@ -17,9 +17,12 @@ const JOIN_TOKENS = "/api/v1/cluster/pki/join-tokens";
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
 
-const renderAddNode = () => {
+const renderAddNode = (clusterAddress?: string) => {
   const onClose = vi.fn();
-  renderWithProviders(<AddNodeModal open onClose={onClose} />, { auth: {} });
+  renderWithProviders(
+    <AddNodeModal open clusterAddress={clusterAddress} onClose={onClose} />,
+    { auth: {} },
+  );
   return { onClose };
 };
 
@@ -62,6 +65,37 @@ describe("AddNodeModal", () => {
       within(dialog()).queryByRole("button", { name: /Mint Token/ }),
     ).not.toBeInTheDocument();
     expect(button(/^Close$/)).toBeInTheDocument();
+  });
+
+  it("shows this node's cluster address next to the minted token", async () => {
+    const user = userEvent.setup();
+    api.post(JOIN_TOKENS, () => ({ token: "t", expiresAt: 4102444800 }));
+    renderAddNode("10.100.0.11:7000");
+
+    await user.click(button(/Mint Token/));
+
+    expect(await screen.findByText("10.100.0.11:7000")).toBeInTheDocument();
+    expect(
+      screen.getByText(/paste this token and cluster address/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Copy cluster address"));
+
+    await waitFor(async () =>
+      expect(await navigator.clipboard.readText()).toBe("10.100.0.11:7000"),
+    );
+  });
+
+  it("leaves out the cluster address when it is not known", async () => {
+    const user = userEvent.setup();
+    api.post(JOIN_TOKENS, () => ({ token: "t", expiresAt: 4102444800 }));
+    renderAddNode();
+
+    await user.click(button(/Mint Token/));
+
+    await screen.findByText(/Token minted/);
+    expect(screen.queryByText("Cluster address")).not.toBeInTheDocument();
+    expect(screen.queryByText(/and cluster address/)).not.toBeInTheDocument();
   });
 
   it("sends the selected token lifetime", async () => {

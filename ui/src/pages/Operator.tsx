@@ -44,6 +44,7 @@ import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { MAX_WIDTH, PAGE_PADDING_X, TABLE_CONTAINER_SX } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 
@@ -116,6 +117,7 @@ const Operator = () => {
   const isLoading = operatorQuery.isLoading && !operator;
 
   const { showSnackbar } = useSnackbar();
+  const copy = useCopyToClipboard();
 
   const canEdit = role === "Admin" || role === "Network Manager";
 
@@ -183,22 +185,6 @@ const Operator = () => {
   const handleEditOperatorSPNSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Network name (SPN) updated successfully.", "success");
-  };
-
-  const handleCopyToClipboard = async (publicKey: string) => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(publicKey);
-      showSnackbar("Copied to clipboard.", "success");
-    } catch {
-      showSnackbar("Failed to copy to clipboard.", "error");
-    }
   };
 
   const clearPrivateKey = (keyId: number) => {
@@ -693,7 +679,7 @@ const Operator = () => {
                         <Tooltip title="Copy public key" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleCopyToClipboard(key.publicKey)}
+                            onClick={() => copy(key.publicKey, "Public key")}
                             aria-label="Copy public key"
                           >
                             <CopyIcon fontSize="small" color="primary" />
@@ -727,8 +713,9 @@ const Operator = () => {
                               <IconButton
                                 size="small"
                                 onClick={() =>
-                                  handleCopyToClipboard(
+                                  copy(
                                     visiblePrivateKeys[key.id],
+                                    "Private key",
                                   )
                                 }
                                 aria-label="Copy private key"

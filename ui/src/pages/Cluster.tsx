@@ -8,14 +8,13 @@ import {
   Button,
   Chip,
   CircularProgress,
-  IconButton,
   Link as MuiLink,
+  ListItemText,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   type GridColDef,
@@ -23,16 +22,12 @@ import {
   GridActionsCellItem,
 } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatusQuery } from "@/hooks/useStatus";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { PRODUCT } from "@/utils/product";
 import EmptyState from "@/components/EmptyState";
+import QueryState from "@/components/QueryState";
 import {
   listClusterMembers,
   getAutopilotState,
@@ -53,7 +48,6 @@ import { formatDateTime } from "@/utils/formatters";
 import PageTitle from "@/components/PageTitle";
 import RenameNodeModal from "@/components/RenameNodeModal";
 import {
-  NodeId,
   nodeIdKey,
   nodeLabel,
   sameNodeId,
@@ -67,14 +61,6 @@ type JoinedRow = ClusterMember & {
 
 const CLUSTER_PAGE_DESCRIPTION =
   "High-availability cluster members and health.";
-
-const ActionSlot = React.forwardRef<
-  HTMLSpanElement,
-  React.ComponentPropsWithoutRef<"span"> & { touchRippleRef?: unknown }
->(function ActionSlot({ touchRippleRef, ...props }, ref) {
-  void touchRippleRef;
-  return <span ref={ref} {...props} />;
-});
 
 // MUI top-aligns renderCell output; vertical centering requires a full-height flex container.
 const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
@@ -119,69 +105,13 @@ function drainStateChip(state: DrainState, updatedAt?: string) {
   return <Chip label="Active" size="small" variant="outlined" />;
 }
 
-async function copyToClipboard(
-  text: string,
-  showSnackbar: (msg: string, sev: "success" | "error") => void,
-) {
-  if (!navigator.clipboard) {
-    showSnackbar(
-      "Clipboard API not available. Please use HTTPS or try a different browser.",
-      "error",
-    );
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    showSnackbar("Copied to clipboard.", "success");
-  } catch {
-    showSnackbar("Failed to copy.", "error");
-  }
-}
-
-const CopyableText: React.FC<{ value: string }> = ({ value }) => {
-  const { showSnackbar } = useSnackbar();
-  if (!value) {
-    return (
-      <CenteredCell>
-        <Typography variant="body2">—</Typography>
-      </CenteredCell>
-    );
-  }
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.5,
-        minWidth: 0,
-        width: "100%",
-        height: "100%",
-      }}
-    >
-      <Typography
-        variant="body2"
-        sx={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-        title={value}
-      >
-        {value}
-      </Typography>
-      <Tooltip title="Copy">
-        <IconButton
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            copyToClipboard(value, showSnackbar);
-          }}
-        >
-          <ContentCopyIcon fontSize="inherit" />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
-};
+const TruncatedText: React.FC<{ value: string }> = ({ value }) => (
+  <CenteredCell>
+    <Typography variant="body2" noWrap title={value || undefined}>
+      {value || "—"}
+    </Typography>
+  </CenteredCell>
+);
 
 const ClusterPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
@@ -214,7 +144,10 @@ const ClusterPage: React.FC = () => {
   });
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
-  const autopilot = autopilotQuery.data;
+  const autopilotError = autopilotQuery.isError
+    ? autopilotQuery.error
+    : undefined;
+  const autopilot = autopilotError ? undefined : autopilotQuery.data;
 
   const rows: JoinedRow[] = useMemo(() => {
     const apByNode = new Map<string, AutopilotServer>();
@@ -256,18 +189,6 @@ const ClusterPage: React.FC = () => {
     [accessToken, showSnackbar, queryClient],
   );
 
-  const handleCopyNodeId = useCallback(
-    (nodeId: NodeId) => {
-      navigator.clipboard
-        .writeText(nodeIdKey(nodeId))
-        .then(() => showSnackbar("Node identity copied.", "success"))
-        .catch(() =>
-          showSnackbar("Could not copy the node identity.", "error"),
-        );
-    },
-    [showSnackbar],
-  );
-
   const handleRemoveSuccess = (member: JoinedRow) => {
     const id = nodeIdKey(member.nodeId);
     showSnackbar(
@@ -280,8 +201,14 @@ const ClusterPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
 
-  const handleDrainSuccess = (result: DrainResponse) => {
-    showSnackbar(`Drain ${result.drainState}.`, "success");
+  const handleDrainSuccess = (member: ClusterMember, result: DrainResponse) => {
+    const label = nodeLabel(member.displayName, member.nodeId);
+    showSnackbar(
+      result.drainState === "drained"
+        ? `Node ${label} drained.`
+        : `Node ${label} is draining. Subscribers are being moved.`,
+      "success",
+    );
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
@@ -301,58 +228,84 @@ const ClusterPage: React.FC = () => {
       {
         field: "nodeId",
         headerName: "Node",
-        width: 320,
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: "center", height: "100%" }}
-          >
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: p.row.isLeader ? 700 : 400 }}
+        flex: 1.5,
+        minWidth: 260,
+        renderCell: (p: GridRenderCellParams<JoinedRow>) => {
+          const isLeader = sameNodeId(p.row.nodeId, currentLeaderNodeId);
+          return (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", height: "100%", minWidth: 0 }}
             >
-              {nodeLabel(p.row.displayName, p.row.nodeId)}
-            </Typography>
-            {p.row.displayName !== "" && (
               <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", fontFamily: "monospace" }}
+                variant="body2"
+                noWrap
+                title={
+                  p.row.displayName
+                    ? `${p.row.displayName} (${nodeIdKey(p.row.nodeId)})`
+                    : nodeIdKey(p.row.nodeId)
+                }
+                sx={{ fontWeight: isLeader ? 700 : 400, minWidth: 0 }}
               >
-                {shortNodeId(p.row.nodeId)}
+                {nodeLabel(p.row.displayName, p.row.nodeId)}
+                {p.row.displayName !== "" && (
+                  <Typography
+                    component="span"
+                    variant="caption"
+                    sx={{
+                      ml: 1,
+                      color: "text.secondary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                    }}
+                  >
+                    {shortNodeId(p.row.nodeId)}
+                  </Typography>
+                )}
               </Typography>
-            )}
-            <Tooltip title={`Copy ${nodeIdKey(p.row.nodeId)}`}>
-              <IconButton
-                size="small"
-                aria-label="Copy node identity"
-                onClick={() => handleCopyNodeId(p.row.nodeId)}
-              >
-                <ContentCopyIcon fontSize="inherit" />
-              </IconButton>
-            </Tooltip>
-            {p.row.isLeader && (
-              <Chip label="Leader" color="primary" size="small" />
-            )}
-            {sameNodeId(p.row.nodeId, selfNodeId) && (
-              <Chip label="This node" size="small" variant="outlined" />
-            )}
-          </Stack>
+              {isLeader && (
+                <Chip
+                  label="Leader"
+                  color="primary"
+                  size="small"
+                  sx={{ flexShrink: 0 }}
+                />
+              )}
+              {sameNodeId(p.row.nodeId, selfNodeId) && (
+                <Chip
+                  label="This node"
+                  size="small"
+                  variant="outlined"
+                  sx={{ flexShrink: 0 }}
+                />
+              )}
+            </Stack>
+          );
+        },
+      },
+      {
+        field: "raftAddress",
+        headerName: "Cluster Address",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
+          <TruncatedText value={p.row.raftAddress} />
         ),
       },
       {
         field: "apiAddress",
         headerName: "API Address",
         flex: 1,
-        minWidth: 200,
+        minWidth: 190,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <CopyableText value={p.row.apiAddress} />
+          <TruncatedText value={p.row.apiAddress} />
         ),
       },
       {
         field: "suffrage",
         headerName: "Suffrage",
-        width: 110,
+        width: 100,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <CenteredCell>
             <Chip
@@ -367,7 +320,7 @@ const ClusterPage: React.FC = () => {
       {
         field: "drainState",
         headerName: "Drain",
-        width: 110,
+        width: 100,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <CenteredCell>
             {drainStateChip(p.row.drainState, p.row.drainUpdatedAt)}
@@ -377,7 +330,7 @@ const ClusterPage: React.FC = () => {
       {
         field: "binaryVersion",
         headerName: "Version",
-        width: 130,
+        width: 100,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
           if (!p.row.binaryVersion)
             return (
@@ -401,13 +354,19 @@ const ClusterPage: React.FC = () => {
       {
         field: "healthy",
         headerName: "Healthy",
-        width: 110,
+        width: 100,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
           const ap = p.row.autopilot;
           if (!ap) {
             return (
               <CenteredCell>
-                <Tooltip title="The leader has not reported on this node yet.">
+                <Tooltip
+                  title={
+                    autopilotError
+                      ? `Health could not be read: ${autopilotError instanceof Error ? autopilotError.message : "unknown error"}`
+                      : "The leader has not reported on this node yet."
+                  }
+                >
                   <Chip label="—" size="small" variant="outlined" />
                 </Tooltip>
               </CenteredCell>
@@ -428,94 +387,68 @@ const ClusterPage: React.FC = () => {
         field: "actions",
         headerName: "Actions",
         type: "actions",
-        width: 170,
+        width: 90,
         sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: JoinedRow }) => {
           const isCurrentLeader = sameNodeId(p.row.nodeId, currentLeaderNodeId);
           const state = p.row.drainState;
-          const canDrain = state === "active";
-          const canResume = state !== "active";
-          const canRemove = !isCurrentLeader;
-          const canPromote = p.row.suffrage === "nonvoter";
 
-          const promoteTitle = canPromote
-            ? "Promote this non-voter to a full voting member."
-            : "Already a voter.";
-
-          const drainTitle = canDrain
-            ? "Drain this node."
-            : "Node is drained; use Resume to reverse or Remove to delete.";
-
-          const resumeTitle = canResume ? "Resume." : "Node is already active.";
-
-          const removeTitle = isCurrentLeader
-            ? "Cannot remove the current leader. Drain it first, then retry."
-            : "Remove this node from the cluster.";
-
-          return [
-            <Tooltip key="rename" title="Set this node's display name.">
-              <ActionSlot>
-                <GridActionsCellItem
-                  icon={<EditIcon color="primary" />}
-                  label="Rename this node"
-                  onClick={() => setRenameTarget(p.row)}
-                />
-              </ActionSlot>
-            </Tooltip>,
-            <Tooltip key="promote" title={promoteTitle}>
-              <ActionSlot>
-                <GridActionsCellItem
-                  icon={
-                    <ArrowUpwardIcon
-                      color={canPromote ? "primary" : "disabled"}
-                    />
-                  }
-                  label="Promote to Voter"
-                  disabled={!canPromote}
-                  onClick={() => handlePromote(p.row)}
-                />
-              </ActionSlot>
-            </Tooltip>,
-            <Tooltip key="drain" title={drainTitle}>
-              <ActionSlot>
-                <GridActionsCellItem
-                  icon={
-                    <PowerSettingsNewIcon
-                      color={canDrain ? "warning" : "disabled"}
-                    />
-                  }
-                  label="Drain this node"
-                  disabled={!canDrain}
-                  onClick={() => setDrainTarget(p.row)}
-                />
-              </ActionSlot>
-            </Tooltip>,
-            <Tooltip key="resume" title={resumeTitle}>
-              <ActionSlot>
-                <GridActionsCellItem
-                  icon={
-                    <PlayArrowIcon color={canResume ? "success" : "disabled"} />
-                  }
-                  label="Resume this node"
-                  disabled={!canResume}
-                  onClick={() => setResumeTarget(p.row)}
-                />
-              </ActionSlot>
-            </Tooltip>,
-            <Tooltip key="remove" title={removeTitle}>
-              <ActionSlot>
-                <GridActionsCellItem
-                  icon={
-                    <DeleteIcon color={canRemove ? "primary" : "disabled"} />
-                  }
-                  label="Remove from Cluster"
-                  disabled={!canRemove}
-                  onClick={() => setRemoveTarget(p.row)}
-                />
-              </ActionSlot>
-            </Tooltip>,
+          const actions = [
+            <GridActionsCellItem
+              key="rename"
+              showInMenu
+              label="Rename this node"
+              onClick={() => setRenameTarget(p.row)}
+            />,
           ];
+
+          if (p.row.suffrage === "nonvoter") {
+            actions.push(
+              <GridActionsCellItem
+                key="promote"
+                showInMenu
+                label="Promote to Voter"
+                onClick={() => handlePromote(p.row)}
+              />,
+            );
+          }
+
+          actions.push(
+            state === "active" ? (
+              <GridActionsCellItem
+                key="drain"
+                showInMenu
+                label="Drain this node"
+                onClick={() => setDrainTarget(p.row)}
+              />
+            ) : (
+              <GridActionsCellItem
+                key="resume"
+                showInMenu
+                label="Resume this node"
+                onClick={() => setResumeTarget(p.row)}
+              />
+            ),
+            <GridActionsCellItem
+              key="remove"
+              showInMenu
+              label={
+                isCurrentLeader ? (
+                  <ListItemText
+                    primary="Remove from Cluster"
+                    secondary="Drain the leader first."
+                  />
+                ) : (
+                  "Remove from Cluster"
+                )
+              }
+              disabled={isCurrentLeader}
+              onClick={() => setRemoveTarget(p.row)}
+            />,
+          );
+
+          return actions;
         },
       } as GridColDef<JoinedRow>,
     ],
@@ -524,7 +457,7 @@ const ClusterPage: React.FC = () => {
       selfNodeId,
       currentLeaderNodeId,
       handlePromote,
-      handleCopyNodeId,
+      autopilotError,
     ],
   );
 
@@ -608,20 +541,37 @@ const ClusterPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      <ClusterStateCard status={statusQuery.data} autopilot={autopilot} />
+      <ClusterStateCard
+        status={statusQuery.data}
+        autopilot={autopilot}
+        autopilotError={autopilotError}
+        members={members}
+      />
 
       <Typography variant="h6" sx={{ mb: 1.5 }}>
         Nodes
       </Typography>
 
-      <EntityGrid<JoinedRow>
-        rows={rows}
-        columns={columns}
-        hideFooter
-        defaultPageSize={100}
-      />
+      <QueryState query={membersQuery} resource="cluster members">
+        {() => (
+          <EntityGrid<JoinedRow>
+            rows={rows}
+            columns={columns}
+            hideFooter
+            defaultPageSize={100}
+          />
+        )}
+      </QueryState>
 
-      {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}
+      {isMintOpen && (
+        <AddNodeModal
+          open
+          clusterAddress={
+            members.find((m) => sameNodeId(m.nodeId, selfNodeId))?.raftAddress
+          }
+          onClose={() => setMintOpen(false)}
+        />
+      )}
 
       {renameTarget && (
         <RenameNodeModal
@@ -641,8 +591,17 @@ const ClusterPage: React.FC = () => {
           open
           nodeId={drainTarget.nodeId}
           nodeLabel={nodeLabel(drainTarget.displayName, drainTarget.nodeId)}
+          isLastActive={
+            !members.some(
+              (m) =>
+                !sameNodeId(m.nodeId, drainTarget.nodeId) &&
+                m.drainState === "active",
+            )
+          }
+          isLeader={sameNodeId(drainTarget.nodeId, currentLeaderNodeId)}
+          isSelf={sameNodeId(drainTarget.nodeId, selfNodeId)}
           onClose={() => setDrainTarget(null)}
-          onSuccess={handleDrainSuccess}
+          onSuccess={(result) => handleDrainSuccess(drainTarget, result)}
         />
       )}
 

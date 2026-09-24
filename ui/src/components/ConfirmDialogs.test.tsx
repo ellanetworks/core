@@ -72,7 +72,13 @@ describe("DeleteConfirmationModal", () => {
 describe("DrainNodeModal", () => {
   const PATH = "/api/v1/cluster/members/:id/drain";
 
-  const render = () => {
+  const render = (
+    flags: {
+      isLastActive?: boolean;
+      isLeader?: boolean;
+      isSelf?: boolean;
+    } = {},
+  ) => {
     const onClose = vi.fn();
     const onSuccess = vi.fn();
     renderWithProviders(
@@ -80,6 +86,9 @@ describe("DrainNodeModal", () => {
         open
         nodeId={2}
         nodeLabel="2"
+        isLastActive={flags.isLastActive ?? false}
+        isLeader={flags.isLeader ?? false}
+        isSelf={flags.isSelf ?? false}
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -95,6 +104,30 @@ describe("DrainNodeModal", () => {
     expect(
       screen.getByText(/moves its subscribers to the rest of the cluster/),
     ).toBeVisible();
+  });
+
+  it("adds no warnings for an ordinary follower", () => {
+    render();
+
+    expect(within(dialog()).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("warns that draining the last active node will not finish", () => {
+    render({ isLastActive: true });
+
+    expect(screen.getByText(/subscribers have nowhere to move/)).toBeVisible();
+  });
+
+  it("says leadership moves when draining the leader", () => {
+    render({ isLeader: true });
+
+    expect(screen.getByText(/Leadership will move/)).toBeVisible();
+  });
+
+  it("reassures that draining the serving node keeps the session", () => {
+    render({ isSelf: true });
+
+    expect(screen.getByText(/your session is unaffected/)).toBeVisible();
   });
 
   it("passes the drain result to onSuccess and closes", async () => {
@@ -129,6 +162,9 @@ describe("DrainNodeModal", () => {
         open
         nodeId={NODE_UUID}
         nodeLabel="core-1"
+        isLastActive={false}
+        isLeader={false}
+        isSelf={false}
         onClose={vi.fn()}
         onSuccess={vi.fn()}
       />,

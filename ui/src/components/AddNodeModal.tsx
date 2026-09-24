@@ -20,11 +20,12 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { mintClusterJoinToken } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatDateTime } from "@/utils/formatters";
 
 interface Props {
   open: boolean;
+  clusterAddress?: string;
   onClose: () => void;
 }
 
@@ -38,9 +39,55 @@ const TTL_OPTIONS: { label: string; seconds: number }[] = [
 
 const DEFAULT_TTL = 30 * 60;
 
-const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
+const CopyBlock: React.FC<{
+  label: string;
+  value: string;
+  onCopy: () => void;
+}> = ({ label, value, onCopy }) => (
+  <Box sx={{ mb: 2 }}>
+    <Typography variant="caption" color="textSecondary">
+      {label}
+    </Typography>
+    <Box
+      sx={{
+        position: "relative",
+        mt: 0.5,
+        p: 1.5,
+        pr: 5,
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        bgcolor: "background.default",
+      }}
+    >
+      <Typography
+        component="pre"
+        variant="body2"
+        sx={{
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+          m: 0,
+        }}
+      >
+        {value}
+      </Typography>
+      <Tooltip title={`Copy ${label.toLowerCase()}`}>
+        <IconButton
+          size="small"
+          aria-label={`Copy ${label.toLowerCase()}`}
+          onClick={onCopy}
+          sx={{ position: "absolute", top: 4, right: 4 }}
+        >
+          <ContentCopyIcon fontSize="inherit" />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  </Box>
+);
+
+const AddNodeModal: React.FC<Props> = ({ open, clusterAddress, onClose }) => {
   const { accessToken } = useAuth();
-  const { showSnackbar } = useSnackbar();
+  const copy = useCopyToClipboard();
 
   const [ttlSeconds, setTtlSeconds] = useState<number>(DEFAULT_TTL);
   const [loading, setLoading] = useState(false);
@@ -68,22 +115,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
       setAlert(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const copy = async (text: string, label: string) => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      showSnackbar(`${label} copied to clipboard.`, "success");
-    } catch {
-      showSnackbar("Failed to copy.", "error");
     }
   };
 
@@ -130,44 +161,25 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
               {formatDateTime(new Date(expiresAt * 1000).toISOString())}.
             </Typography>
 
-            <Typography variant="body2" sx={{ mb: 1 }}>
+            <Typography variant="body2" sx={{ mb: 2 }}>
               Open the new node in a browser, click{" "}
               <strong>Join an existing cluster instead</strong> and paste this
-              token.
+              token{clusterAddress ? " and cluster address" : ""}.
             </Typography>
 
-            <Box
-              sx={{
-                position: "relative",
-                p: 1.5,
-                pr: 5,
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 1,
-                bgcolor: "background.default",
-              }}
-            >
-              <Typography
-                component="pre"
-                variant="body2"
-                sx={{
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                  m: 0,
-                }}
-              >
-                {token}
-              </Typography>
-              <Tooltip title="Copy token">
-                <IconButton
-                  size="small"
-                  onClick={() => copy(token, "Join token")}
-                  sx={{ position: "absolute", top: 4, right: 4 }}
-                >
-                  <ContentCopyIcon fontSize="inherit" />
-                </IconButton>
-              </Tooltip>
-            </Box>
+            <CopyBlock
+              label="Join token"
+              value={token}
+              onCopy={() => copy(token, "Join token")}
+            />
+
+            {clusterAddress && (
+              <CopyBlock
+                label="Cluster address"
+                value={clusterAddress}
+                onCopy={() => copy(clusterAddress, "Cluster address")}
+              />
+            )}
           </>
         )}
       </DialogContent>

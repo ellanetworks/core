@@ -18,6 +18,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Link as MuiLink,
 } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import QueryState from "@/components/QueryState";
@@ -266,8 +267,16 @@ const BackupRestore = () => {
                           drop-in path.
                         </Alert>
                         <Typography variant="body2" color="textSecondary">
-                          See the backup and restore documentation for the
-                          step-by-step disaster-recovery procedure.
+                          See the{" "}
+                          <MuiLink
+                            href={PRODUCT.backupRestoreDocsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            underline="hover"
+                          >
+                            backup and restore documentation
+                          </MuiLink>{" "}
+                          for the step-by-step disaster-recovery procedure.
                         </Typography>
                         <Box sx={{ flexGrow: 1 }} />
                       </>

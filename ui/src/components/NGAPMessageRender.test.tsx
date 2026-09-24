@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NGAPMessageView } from "./NGAPMessageRender";
 import type { DecodedNGAPMessage } from "@/queries/radio_events";
+import { SnackbarProvider } from "@/contexts/SnackbarContext";
+
+const render = (ui: React.ReactElement) =>
+  rtlRender(ui, { wrapper: SnackbarProvider });
 
 const rawHex = "ab".repeat(1358);
 

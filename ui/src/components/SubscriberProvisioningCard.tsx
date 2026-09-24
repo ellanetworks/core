@@ -14,7 +14,7 @@ import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import type { Theme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
 import ErrorAlert from "@/components/ErrorAlert";
@@ -123,7 +123,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   onEditProfile,
   onEditDescription,
 }) => {
-  const { showSnackbar } = useSnackbar();
+  const copy = useCopyToClipboard();
   const { role, accessToken, authReady } = useAuth();
   const [credentialsVisible, setCredentialsVisible] = useState(false);
 
@@ -145,22 +145,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
       setCredentialsRequested(true);
     }
     setCredentialsVisible((v) => !v);
-  };
-
-  const handleCopy = async (value: string, label: string) => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value);
-      showSnackbar("Copied to clipboard.", "success");
-    } catch {
-      showSnackbar(`Failed to copy ${label}.`, "error");
-    }
   };
 
   return (
@@ -220,7 +204,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={
             canViewCredentials && credentialsVisible && !!credentials?.key
           }
-          onCopy={() => handleCopy(credentials?.key ?? "", "Key")}
+          onCopy={() => copy(credentials?.key ?? "", "Key")}
           obfuscated={!credentialsVisible}
         />
         <FieldRow
@@ -229,7 +213,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           copyable={
             canViewCredentials && credentialsVisible && !!credentials?.opc
           }
-          onCopy={() => handleCopy(credentials?.opc ?? "", "OPc")}
+          onCopy={() => copy(credentials?.opc ?? "", "OPc")}
           obfuscated={!credentialsVisible}
         />
         <FieldRow
@@ -241,7 +225,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             !!credentials?.sequenceNumber
           }
           onCopy={() =>
-            handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
+            copy(credentials?.sequenceNumber ?? "", "Sequence Number")
           }
           obfuscated={!credentialsVisible}
         />

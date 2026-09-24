@@ -78,8 +78,18 @@ const renderCluster = async () => {
 const row = (nodeId: number | string) =>
   screen.getByRole("row", { name: new RegExp(`^${nodeId}\\b`) });
 
-const removeButton = (nodeId: number | string) =>
-  within(row(nodeId)).getByLabelText("Remove from Cluster");
+const openActions = async (rowEl: HTMLElement) => {
+  await userEvent.click(within(rowEl).getByRole("button", { name: /more/i }));
+  return screen.findByRole("menu");
+};
+
+const actionItem = async (rowEl: HTMLElement, name: RegExp) =>
+  within(await openActions(rowEl)).getByRole("menuitem", { name });
+
+const removeItem = async (nodeId: number | string) =>
+  actionItem(await waitFor(() => row(nodeId)), /Remove from Cluster/);
+
+const closeMenu = () => userEvent.keyboard("{Escape}");
 
 const dialog = () => screen.getByRole("dialog");
 
@@ -159,6 +169,25 @@ describe("Cluster page State section", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("reports a leaderless cluster whose node identities are UUIDs", async () => {
+    seedStatus({
+      nodeId: "0199c0de-0000-7000-8000-00000000beef",
+      leaderNodeId: "",
+      isLeader: false,
+      role: "Follower",
+    });
+    api.get(AUTOPILOT, () => httpError(503, "no leader"));
+    api.get(MEMBERS, () => [
+      member({ nodeId: "0199c0de-0000-7000-8000-00000000beef" }),
+    ]);
+
+    await renderCluster();
+
+    expect(
+      await within(stateCard()).findByText("No leader"),
+    ).toBeInTheDocument();
+  });
+
   it("renders an unhealthy cluster as a badge rather than an alert", async () => {
     seedStatus();
     seedAutopilot({ healthy: false });
@@ -188,6 +217,28 @@ describe("Cluster page State section", () => {
 
     expect(
       await within(stateCard()).findByText("v6 · blocked by node 3"),
+    ).toBeInTheDocument();
+  });
+
+  it("names the blocking node by its display name when it has one", async () => {
+    seedStatus({
+      appliedSchemaVersion: 6,
+      pendingMigration: {
+        currentSchema: 6,
+        targetSchema: 6,
+        laggardNodeId: 3,
+      },
+    });
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: 3, displayName: "edge-rack-3" }),
+    ]);
+
+    await renderCluster();
+
+    expect(
+      await within(stateCard()).findByText("v6 · blocked by node edge-rack-3"),
     ).toBeInTheDocument();
   });
 
@@ -224,6 +275,196 @@ describe("Cluster page State section", () => {
   });
 });
 
+describe("Cluster page load failures", () => {
+  it("reports a failed member list instead of rendering an empty table", async () => {
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => httpError(500, "Failed to list cluster members"));
+
+    await renderCluster();
+
+    expect(
+      await screen.findByText("Failed to load cluster members"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Failed to list cluster members"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("explains why health is unknown when autopilot cannot be read", async () => {
+    const user = userEvent.setup();
+    seedStatus();
+    api.get(AUTOPILOT, () => httpError(500, "forward to leader failed"));
+    api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
+
+    await renderCluster();
+
+    const unknown = await within(stateCard()).findByText("Unknown");
+    await user.hover(unknown);
+
+    expect(
+      await screen.findByRole("tooltip", {
+        name: /Health could not be read: forward to leader failed/,
+      }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page members table", () => {
+  it("shows each node's cluster address", async () => {
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: 2 }),
+    ]);
+
+    await renderCluster();
+
+    await waitFor(() =>
+      expect(within(row(2)).getByText("10.0.0.2:7000")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "Cluster Address" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page row actions", () => {
+  it("offers only the actions that apply to each node", async () => {
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: 2, drainState: "drained" }),
+      { ...member({ nodeId: 3 }), suffrage: "nonvoter" },
+    ]);
+
+    await renderCluster();
+
+    const active = await openActions(await waitFor(() => row(1)));
+    expect(
+      within(active).getByRole("menuitem", { name: /Drain this node/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(active).queryByRole("menuitem", { name: /Resume/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(active).queryByRole("menuitem", { name: /Promote/ }),
+    ).not.toBeInTheDocument();
+    await closeMenu();
+
+    const drained = await openActions(row(2));
+    expect(
+      within(drained).getByRole("menuitem", { name: /Resume this node/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(drained).queryByRole("menuitem", { name: /Drain/ }),
+    ).not.toBeInTheDocument();
+    await closeMenu();
+
+    const nonvoter = await openActions(row(3));
+    expect(
+      within(nonvoter).getByRole("menuitem", { name: /Promote to Voter/ }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page drain", () => {
+  it("warns when draining the only active node and reports the result by name", async () => {
+    const user = userEvent.setup();
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true, drainState: "drained" }),
+      member({ nodeId: 2, displayName: "edge-rack-2" }),
+    ]);
+    api.post(`${MEMBERS}/:id/drain`, () => ({ drainState: "draining" }));
+
+    await renderCluster();
+
+    const edgeRow = (await screen.findByText("edge-rack-2")).closest(
+      "[role='row']",
+    ) as HTMLElement;
+    await user.click(await actionItem(edgeRow, /Drain this node/));
+
+    expect(
+      within(dialog()).getByText(/subscribers have nowhere to move/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog()).queryByText(/Leadership will move/),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(dialog()).getByRole("button", { name: /^Drain$/ }));
+
+    expect(
+      await screen.findByText(
+        "Node edge-rack-2 is draining. Subscribers are being moved.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page node health", () => {
+  it("explains a missing health value when autopilot cannot be read", async () => {
+    const user = userEvent.setup();
+    seedStatus();
+    api.get(AUTOPILOT, () => httpError(500, "forward to leader failed"));
+    api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
+
+    await renderCluster();
+
+    const placeholder = await waitFor(() => within(row(1)).getByText("—"));
+    await user.hover(placeholder);
+
+    expect(
+      await screen.findByRole("tooltip", {
+        name: /Health could not be read: forward to leader failed/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("says the leader has not reported when autopilot omits the node", async () => {
+    const user = userEvent.setup();
+    seedStatus();
+    seedAutopilot({ servers: [] });
+    api.get(MEMBERS, () => [member({ nodeId: 1, isLeader: true })]);
+
+    await renderCluster();
+
+    const placeholder = await waitFor(() => within(row(1)).getByText("—"));
+    await user.hover(placeholder);
+
+    expect(
+      await screen.findByRole("tooltip", {
+        name: /The leader has not reported on this node yet/,
+      }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Cluster page leader", () => {
+  it("marks the leader from cluster status even when the member list lags", async () => {
+    seedStatus({ leaderNodeId: 2, isLeader: false, role: "Follower" });
+    seedAutopilot({ leaderNodeId: 2 });
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true }),
+      member({ nodeId: 2 }),
+    ]);
+
+    await renderCluster();
+
+    await waitFor(() =>
+      expect(within(row(2)).getByText("Leader")).toBeInTheDocument(),
+    );
+    expect(within(row(1)).queryByText("Leader")).not.toBeInTheDocument();
+    expect(await removeItem(2)).toHaveAttribute("aria-disabled", "true");
+    await closeMenu();
+    expect(await removeItem(1)).not.toHaveAttribute("aria-disabled");
+  });
+});
+
 describe("Cluster page force remove", () => {
   it("enables Remove for an undrained node and sends force=true", async () => {
     const user = userEvent.setup();
@@ -248,8 +489,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
 
     const checkbox = within(dialog()).getByRole("checkbox", {
       name: /Force remove/,
@@ -276,8 +516,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
 
     expect(
       within(dialog()).getByRole("checkbox", { name: /Force remove/ }),
@@ -309,8 +548,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
 
     const checkbox = within(dialog()).getByRole("checkbox", {
       name: /Force remove/,
@@ -339,8 +577,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
 
     expect(
       within(dialog()).queryByRole("checkbox", { name: /Force remove/ }),
@@ -366,8 +603,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
 
     expect(within(dialog()).getByText(/ends your session/)).toBeInTheDocument();
   });
@@ -386,8 +622,7 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(2)).toBeEnabled());
-    await user.click(removeButton(2));
+    await user.click(await removeItem(2));
     await user.click(
       within(dialog()).getByRole("checkbox", { name: /Force remove/ }),
     );
@@ -413,7 +648,9 @@ describe("Cluster page force remove", () => {
 
     await renderCluster();
 
-    await waitFor(() => expect(removeButton(1)).toBeDisabled());
+    const remove = await removeItem(1);
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).toHaveTextContent(/Drain the leader first/);
   });
 });
 
@@ -460,7 +697,7 @@ describe("Cluster page node identity", () => {
       "[role='row']",
     ) as HTMLElement;
 
-    await user.click(within(uuidRow).getByLabelText("Rename this node"));
+    await user.click(await actionItem(uuidRow, /Rename this node/));
 
     const input = await screen.findByLabelText(/Display name/);
     await user.clear(input);
