@@ -482,6 +482,7 @@ func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.Glo
 	radio.RanID = &newID
 	radio.refreshLogLocked()
 	radio.advertisedCapacity = &advertisedCapacity
+	radio.retryNotBefore = time.Time{}
 	radio.guamiUnavailableSent = false
 	amf.reg.Claim(key, radio)
 	amf.mu.Unlock()
@@ -499,27 +500,6 @@ func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.Glo
 	}
 
 	return evicted, nil
-}
-
-func (amf *AMF) ReleaseSetup(ctx context.Context, radio *Radio) {
-	amf.mu.Lock()
-
-	if key, ok := models.RanNodeIDKey(radio.RanID); ok {
-		if holder, _ := amf.reg.ClaimedBy(key); holder == radio {
-			amf.reg.Unclaim(key)
-		}
-	}
-
-	radio.RanID = nil
-	radio.supportedTAIs = nil
-	radio.advertisedCapacity = nil
-	radio.retryNotBefore = time.Time{}
-	radio.guamiUnavailableSent = false
-	radio.refreshLogLocked()
-
-	amf.mu.Unlock()
-
-	amf.RemoveAllUeInRan(ctx, radio)
 }
 
 // RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN

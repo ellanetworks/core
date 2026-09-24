@@ -180,3 +180,33 @@ func TestUplinkCounterRestoredAtMaxFailsClosed(t *testing.T) {
 		t.Errorf("Commit on a counter restored at the maximum = %v, want ErrCountExhausted", err)
 	}
 }
+
+func TestUplinkCounterEstimateShortFindsTheCountAheadOfTheExpectedOne(t *testing.T) {
+	var u UplinkCounter
+
+	if err := u.Commit(MakeCount(0, 0x3e)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		recv uint8
+		want Count
+	}{
+		{recv: 0x1f, want: MakeCount(0, 0x3f)},
+		{recv: 0x01, want: MakeCount(0, 0x41)},
+		{recv: 0x1e, want: MakeCount(0, 0x5e)},
+	} {
+		got, err := u.EstimateShort(tc.recv)
+		if err != nil || got != tc.want {
+			t.Errorf("EstimateShort(%#02x) = %#06x, %v, want %#06x", tc.recv, uint32(got), err, uint32(tc.want))
+		}
+	}
+}
+
+func TestUplinkCounterEstimateShortCarriesIntoTheOverflowCounter(t *testing.T) {
+	u := NewUplinkCounter(MakeCount(3, 0xfe))
+
+	if got, err := u.EstimateShort(0x02); err != nil || got != MakeCount(4, 0x02) {
+		t.Fatalf("EstimateShort(0x02) = %#06x, %v, want %#06x", uint32(got), err, uint32(MakeCount(4, 0x02)))
+	}
+}

@@ -13,18 +13,26 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
+func attachingUE(t *testing.T) (*mme.UeContext, *mme.UeConn) {
+	t.Helper()
+
+	ue := newAttachUe(newTestMME(t), &captureConn{}, 7)
+
+	return ue, ue.Conn()
+}
+
 func TestIngestAttachRequestStoresDRX(t *testing.T) {
-	ue := &mme.UeContext{}
+	ue, ueConn := attachingUE(t)
 	drx := []byte{0x00, 0x08}
 
-	ingestAttachRequest(context.Background(), ue, ue.Conn(), &eps.AttachRequest{Unrecognized: []nas.RawIE{{IEI: ieiDRXParameter, Format: nas.IETV3, Value: drx}}})
+	ingestAttachRequest(context.Background(), ue, ueConn, &eps.AttachRequest{Unrecognized: []nas.RawIE{{IEI: ieiDRXParameter, Format: nas.IETV3, Value: drx}}})
 
 	if !bytes.Equal(ue.DRXParameter, drx) {
 		t.Fatalf("DRXParameter = %x, want %x", ue.DRXParameter, drx)
 	}
 
-	ue2 := &mme.UeContext{}
-	ingestAttachRequest(context.Background(), ue2, ue2.Conn(), &eps.AttachRequest{})
+	ue2, ue2Conn := attachingUE(t)
+	ingestAttachRequest(context.Background(), ue2, ue2Conn, &eps.AttachRequest{})
 
 	if ue2.DRXParameter != nil {
 		t.Fatalf("DRXParameter = %x, want nil when omitted", ue2.DRXParameter)
@@ -39,11 +47,11 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 		t.Fatalf("marshal PDN Connectivity Request: %v", err)
 	}
 
-	ue := &mme.UeContext{}
-	ingestAttachRequest(context.Background(), ue, ue.Conn(), &eps.AttachRequest{ESMMessageContainer: esm})
+	ue, ueConn := attachingUE(t)
+	ingestAttachRequest(context.Background(), ue, ueConn, &eps.AttachRequest{ESMMessageContainer: esm})
 
-	if ue.RequestedAPN != "ims" {
-		t.Errorf("requestedAPN = %q, want %q", ue.RequestedAPN, "ims")
+	if ueConn.ESMRequest.APN != "ims" {
+		t.Errorf("requestedAPN = %q, want %q", ueConn.ESMRequest.APN, "ims")
 	}
 
 	esm2, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: eps.PDNTypeIPv4}).MarshalBinary()
@@ -51,11 +59,11 @@ func TestIngestAttachRequestExtractsAPN(t *testing.T) {
 		t.Fatalf("marshal PDN Connectivity Request (no APN): %v", err)
 	}
 
-	ue2 := &mme.UeContext{}
-	ingestAttachRequest(context.Background(), ue2, ue2.Conn(), &eps.AttachRequest{ESMMessageContainer: esm2})
+	ue2, ue2Conn := attachingUE(t)
+	ingestAttachRequest(context.Background(), ue2, ue2Conn, &eps.AttachRequest{ESMMessageContainer: esm2})
 
-	if ue2.RequestedAPN != "" {
-		t.Errorf("requestedAPN = %q, want empty for an attach without an APN", ue2.RequestedAPN)
+	if ue2Conn.ESMRequest.APN != "" {
+		t.Errorf("requestedAPN = %q, want empty for an attach without an APN", ue2Conn.ESMRequest.APN)
 	}
 }
 
@@ -77,18 +85,18 @@ func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 
 	esm = append(esm, 0x28, 0x01, 0x00)
 
-	ue := mme.NewUeContext()
-	ingestAttachRequest(context.Background(), ue, ue.Conn(), &eps.AttachRequest{ESMMessageContainer: esm})
+	ue, ueConn := attachingUE(t)
+	ingestAttachRequest(context.Background(), ue, ueConn, &eps.AttachRequest{ESMMessageContainer: esm})
 
-	if ue.RequestedAPN != "internet" {
-		t.Errorf("RequestedAPN = %q, want %q", ue.RequestedAPN, "internet")
+	if ueConn.ESMRequest.APN != "internet" {
+		t.Errorf("RequestedAPN = %q, want %q", ueConn.ESMRequest.APN, "internet")
 	}
 
-	if ue.RequestedPDNType != uint8(eps.PDNTypeIPv6) {
-		t.Errorf("RequestedPDNType = %d, want %d", ue.RequestedPDNType, uint8(eps.PDNTypeIPv6))
+	if ueConn.ESMRequest.PDNType != uint8(eps.PDNTypeIPv6) {
+		t.Errorf("RequestedPDNType = %d, want %d", ueConn.ESMRequest.PDNType, uint8(eps.PDNTypeIPv6))
 	}
 
-	if ue.RequestedPTI != 5 {
-		t.Errorf("RequestedPTI = %d, want 5", ue.RequestedPTI)
+	if ueConn.ESMRequest.PTI != 5 {
+		t.Errorf("RequestedPTI = %d, want 5", ueConn.ESMRequest.PTI)
 	}
 }

@@ -15,14 +15,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, onAbort func(context.Context, uint8)) bool {
-	wait := ue.PendingESMInfo()
+func requestESMInformation(ctx context.Context, ueConn *mme.UeConn, onAbort func(context.Context, uint8)) bool {
+	wait := ueConn.PendingESMInfo()
 	if wait == nil {
 		return false
 	}
 
 	abort := func(ctx context.Context) {
-		w := ue.TakeESMInfoWait()
+		w := ueConn.TakeESMInfoWait()
 		if w == nil {
 			return
 		}
@@ -46,7 +46,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.U
 
 		// The connection is gone, so the abort's reject could not be protected.
 		if errors.Is(err, nas.ErrCountExhausted) {
-			ue.TakeESMInfoWait()
+			ueConn.TakeESMInfoWait()
 
 			return true
 		}
@@ -78,7 +78,7 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	wait := ue.TakeESMInfoWaitFor(pti)
+	wait := ueConn.TakeESMInfoWaitFor(pti)
 	if wait == nil {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response for no ongoing transaction", zap.Uint8("pti", pti))
 		egress{conn: ueConn}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
@@ -89,19 +89,19 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	ueConn.StopESMInfoGuard()
 
 	if req.AccessPointName != nil {
-		ue.RequestedAPN = string(*req.AccessPointName)
+		ueConn.ESMRequest.APN = string(*req.AccessPointName)
 	}
 
 	if id := pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); id != 0 {
-		ue.RequestedPDUSessionID = id
+		ueConn.ESMRequest.PDUSessionID = id
 	}
 
 	if opts, ok := protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions); ok {
-		ue.RequestedProtocolOpts = opts
+		ueConn.ESMRequest.ProtocolOpts = opts
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information", zap.String("apn", ue.RequestedAPN),
-		logger.PDUSessionID(ue.RequestedPDUSessionID))
+	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information", zap.String("apn", ueConn.ESMRequest.APN),
+		logger.PDUSessionID(ueConn.ESMRequest.PDUSessionID))
 
 	if wait.Standalone != nil {
 		resumePDNConnectivity(ctx, m, ue, ueConn, wait.Standalone)

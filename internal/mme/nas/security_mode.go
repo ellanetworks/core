@@ -81,7 +81,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		NASKeySetIdentifier:          ue.Eksi(),
 		ReplayedUESecurityCapability: eps.ReplayedUESecurityCapability(ue.UeNetCap(), ue.MsNetCap()),
 		IMEISVRequested:              &imeisvRequested,
-		HASHMME:                      mme.HashMME(ue.HashmmeInput),
+		HASHMME:                      hashMME(ueConn),
 	}
 
 	plain, err := smc.MarshalBinary()
@@ -105,4 +105,12 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	committed = true
 
 	return securityModeCommandSent
+}
+
+func hashMME(ueConn *mme.UeConn) []byte {
+	if !ueConn.HashMMERequired {
+		return nil
+	}
+
+	return mme.HashMME(ueConn.AttachRequestPlain)
 }

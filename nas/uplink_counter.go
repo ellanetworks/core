@@ -56,6 +56,23 @@ func (u UplinkCounter) Estimate(recvSeq uint8) (Count, error) {
 	return u.NextExpected().reconcileUplink(recvSeq), nil
 }
 
+// EstimateShort returns the NAS COUNT of a received message that carries only the
+// 5 least significant bits of its sequence number (TS 24.301 §4.4.3.1).
+func (u UplinkCounter) EstimateShort(recvSeq uint8) (Count, error) {
+	if u.Exhausted() {
+		return 0, ErrCountExhausted
+	}
+
+	next := u.NextExpected()
+
+	estimated := next + Count((recvSeq-next.SQN())&0x1f)
+	if estimated > countMask {
+		return 0, ErrCountExhausted
+	}
+
+	return estimated, nil
+}
+
 // Exhausted reports whether the count has reached its maximum, so no further
 // uplink message can be accepted under this security context.
 func (u UplinkCounter) Exhausted() bool { return u.accepted && u.last == countMask }

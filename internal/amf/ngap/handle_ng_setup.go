@@ -43,8 +43,6 @@ var causeSemanticError = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, req *ngap.NGSetupRequest) {
 	name := ranNodeName(req.RANNodeName)
 
-	amfInstance.ReleaseSetup(ctx, ran)
-
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		ran.Log(ctx).Error("Could not get operator info", zap.Error(err))
@@ -93,12 +91,6 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 			zap.Any("gnb_tai_list", tais), zap.Any("core_slices", snssaiList))
 	}
 
-	if name != "" {
-		amfInstance.UpdateRadioName(ran, name)
-	}
-
-	amfInstance.UpdateRadioSupportedTAIs(ran, tais)
-
 	// Claim RanID only after validation passes; the dispatcher's
 	// ran.RanID != nil guard gates all other NGAP handlers. The claim precedes
 	// the response because evicting a duplicate association aborts it, and the
@@ -110,6 +102,12 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 		return
 	}
+
+	if name != "" {
+		amfInstance.UpdateRadioName(ran, name)
+	}
+
+	amfInstance.UpdateRadioSupportedTAIs(ran, tais)
 
 	if evicted != nil {
 		ran.Log(ctx).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",

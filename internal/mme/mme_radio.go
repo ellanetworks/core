@@ -182,16 +182,9 @@ func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo
 	m.mu.Lock()
 
 	if existing, ok := m.reg.Radio(key); ok {
-		existing.name = info.Name
-		existing.address = info.Address
 		existing.lastSeen.Store(info.LastSeenAt.UnixNano())
-		m.releaseSetupLocked(existing)
-		existing.refreshLogLocked()
 
 		m.mu.Unlock()
-
-		existing.configUpdateGuard.Stop()
-		m.ReclaimConns(ctx, m.ConnsOnConn(key), "S1 Setup")
 
 		return
 	}
@@ -364,6 +357,8 @@ func (m *MME) ClaimENBID(ctx context.Context, radio *Radio, g s1ap.GlobalENBID, 
 
 	m.mu.Lock()
 
+	m.releaseSetupLocked(radio)
+
 	radio.ranID = &ranID
 	radio.refreshLogLocked()
 	radio.advertisedCapacity = &advertisedCapacity
@@ -378,6 +373,7 @@ func (m *MME) ClaimENBID(ctx context.Context, radio *Radio, g s1ap.GlobalENBID, 
 
 	m.mu.Unlock()
 
+	radio.configUpdateGuard.Stop()
 	m.ReclaimConns(ctx, m.ConnsOnConn(radio.Conn), "S1 Setup")
 
 	if stale != nil {

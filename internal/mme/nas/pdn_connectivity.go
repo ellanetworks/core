@@ -67,18 +67,18 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	ue.RequestedPDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
-	ue.RequestedProtocolOpts, _ = protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
-	ue.RequestedType = req.RequestType
+	ueConn.ESMRequest.PDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
+	ueConn.ESMRequest.ProtocolOpts, _ = protocolOptionsFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
+	ueConn.ESMRequest.Type = req.RequestType
 
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
-		ue.RequestedAPN = apn
-		ue.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
+		ueConn.ESMRequest.APN = apn
+		ueConn.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
 			PTI:     uint8(pti),
 			PDNType: uint8(req.PDNType),
 		})
 
-		requestESMInformation(ctx, ue, ueConn, func(ctx context.Context, abortedPTI uint8) {
+		requestESMInformation(ctx, ueConn, func(ctx context.Context, abortedPTI uint8) {
 			rejectPDNConnectivity(ctx, ueConn, abortedPTI, eps.ESMCauseESMInformationNotReceived)
 		})
 
@@ -141,7 +141,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
-		PDUSessionID:      ue.RequestedPDUSessionID,
+		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
 		Snssai:            qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -152,17 +152,17 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		DNS:               qos.DNS,
 		MTU:               qos.MTU,
 		RequestedPDNType:  uint8(pdnType),
-		RequestType:       ue.RequestedType,
+		RequestType:       ueConn.ESMRequest.Type,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed", zap.String("apn", apn), zap.Error(err))
 		m.DropPDN(ue, p.Ebi)
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), attachBearerRejectCause(ue.RequestedType, err))
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), attachBearerRejectCause(ueConn.ESMRequest.Type, err))
 
 		return nasreply.Handled()
 	}
 
-	p = m.FillBearer(ue, p, qos, bearer)
+	p = m.FillBearer(ue, p, qos, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -172,7 +172,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn, ue.UsesEPCO(p), ue.RequestedProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)
@@ -217,7 +217,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 }
 
 func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, pending *mme.PendingPDNConnectivity) {
-	openPDNConnection(ctx, m, ue, ueConn, ue.RequestedAPN, pending.PTI, eps.PDNType(pending.PDNType))
+	openPDNConnection(ctx, m, ue, ueConn, ueConn.ESMRequest.APN, pending.PTI, eps.PDNType(pending.PDNType))
 }
 
 func buildERABSetup(p *mme.PdnConnection, qos *mme.EpsQoS) (*s1ap.ERABSetupRequest, error) {

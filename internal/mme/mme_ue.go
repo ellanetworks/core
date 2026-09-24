@@ -132,26 +132,18 @@ type UeContext struct {
 	DRXParameter             []byte
 	RadioCapability          []byte // UE Radio Capability (S1AP UE Capability Info Indication), replayed in Initial Context Setup (TS 23.401)
 	RadioCapabilityForPaging []byte
-	RequestedPTI             nas.ProcedureTransactionIdentity
 	kenbCount                uint32
-	esmInfoWait              atomic.Pointer[ESMInfoWait]
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
-	HashmmeInput   []byte
 
 	lastSeen atomic.Int64
 
-	session               epsSessionManager
-	Pdns                  map[uint8]*PdnConnection
-	Ambr                  *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
-	RequestedPDNType      uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
-	RequestedAPN          string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
-	RequestedPDUSessionID uint8
-	RequestedType         eps.RequestType
-	RequestedProtocolOpts []nas.PCOContainer
-	tmsi                  etsi.TMSI
-	oldTmsi               etsi.TMSI
-	Location              models.UserLocation
+	session  epsSessionManager
+	Pdns     map[uint8]*PdnConnection
+	Ambr     *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
+	tmsi     etsi.TMSI
+	oldTmsi  etsi.TMSI
+	Location models.UserLocation
 
 	mu sync.Mutex
 
@@ -429,7 +421,7 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 // addressing/QoS atomically under ue.mu, so a status read or reconcile never sees a
 // half-populated bearer. It returns the negotiated PDN type, DNS, and ESM cause
 // (captured under the lock) for the caller to log.
-func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer) (pdnType uint8, dns string, esmCause eps.ESMCause) {
+func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer, transferred bool) (pdnType uint8, dns string, esmCause eps.ESMCause) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -438,7 +430,7 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 	// Session-AMBR is per PDN connection and lives on PdnConnection.
 	ue.Ambr = &models.Ambr{Uplink: qos.AMBRUL, Downlink: qos.AMBRDL}
 
-	p := ue.publishPDNLocked(DefaultERABID, qos, bearer)
+	p := ue.publishPDNLocked(DefaultERABID, qos, bearer, transferred)
 
 	return uint8(p.PdnType), p.Dns.String(), p.EsmCause
 }
@@ -447,21 +439,21 @@ func (ue *UeContext) UsesEPCO(p *PdnConnection) bool {
 	return p != nil && p.Transferred && ue.UeNetCap().SupportsEPCO()
 }
 
-func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) *PdnConnection {
+func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer, transferred bool) *PdnConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.publishPDNLocked(p.Ebi, qos, bearer)
+	return ue.publishPDNLocked(p.Ebi, qos, bearer, transferred)
 }
 
-func (ue *UeContext) publishPDNLocked(ebi uint8, qos *EpsQoS, bearer models.EPSBearer) *PdnConnection {
+func (ue *UeContext) publishPDNLocked(ebi uint8, qos *EpsQoS, bearer models.EPSBearer, transferred bool) *PdnConnection {
 	if ue.Pdns == nil {
 		ue.Pdns = make(map[uint8]*PdnConnection)
 	}
 
 	p := &PdnConnection{
 		Ebi:         ebi,
-		Transferred: ue.RequestedType == eps.RequestTypeHandover,
+		Transferred: transferred,
 	}
 
 	fillBearerLocked(p, qos, bearer)
@@ -504,25 +496,25 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	return ue.PdnForAPN(apn)
 }
 
-func (ue *UeContext) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
-	ue.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
+func (c *UeConn) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
+	c.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
 }
 
-func (ue *UeContext) PendingESMInfo() *ESMInfoWait {
-	return ue.esmInfoWait.Load()
+func (c *UeConn) PendingESMInfo() *ESMInfoWait {
+	return c.esmInfoWait.Load()
 }
 
-func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
-	return ue.esmInfoWait.Swap(nil)
+func (c *UeConn) TakeESMInfoWait() *ESMInfoWait {
+	return c.esmInfoWait.Swap(nil)
 }
 
-func (ue *UeContext) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
-	w := ue.esmInfoWait.Load()
+func (c *UeConn) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
+	w := c.esmInfoWait.Load()
 	if w == nil || w.PTI != pti {
 		return nil
 	}
 
-	if ue.esmInfoWait.CompareAndSwap(w, nil) {
+	if c.esmInfoWait.CompareAndSwap(w, nil) {
 		return w
 	}
 
@@ -731,7 +723,7 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// only be concluded by an unrelated one.
 	old.esmInfoGuard.Stop()
 	old.icsGuard.Stop()
-	ue.esmInfoWait.Store(nil)
+	old.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
