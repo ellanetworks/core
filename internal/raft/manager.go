@@ -139,7 +139,6 @@ type Manager struct {
 	dataDir         string
 	autopilot       *autopilot.Autopilot
 	followerTracker *followerTracker
-	boltNoSync      bool
 	clusterListener *listener.Listener
 
 	soleVoterTimeouts raft.ReloadableConfig
@@ -359,7 +358,6 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		config:         cfg,
 		raftID:         raftID,
 		dataDir:        dataDir,
-		boltNoSync:     false,
 		leaderLoopDone: make(chan struct{}),
 		leaderChanged:  make(chan struct{}),
 		shutdownCh:     make(chan struct{}),
@@ -778,34 +776,8 @@ func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
 }
 
-// BoltNoSync reports whether the raft log store was opened with fsync
-// disabled.
-func (m *Manager) BoltNoSync() bool {
-	return m.boltNoSync
-}
-
 func (m *Manager) LeadershipTransfer() error {
-	var lastErr error
-
-	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
-		err := m.raft.LeadershipTransfer().Error()
-		if err == nil {
-			return nil
-		}
-
-		if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
-			return err
-		}
-
-		lastErr = err
-
-		logger.RaftLog.Warn("Leadership transfer attempt failed",
-			zap.Int("attempt", attempt),
-			zap.Int("attempts", leadershipTransferAttempts),
-			zap.Error(err))
-	}
-
-	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
+	return m.transferLeadership(nil)
 }
 
 func (m *Manager) LeadershipTransferTo(candidates []Server) error {
@@ -813,15 +785,26 @@ func (m *Manager) LeadershipTransferTo(candidates []Server) error {
 		return ErrNoTransferTarget
 	}
 
+	return m.transferLeadership(candidates)
+}
+
+func (m *Manager) transferLeadership(candidates []Server) error {
 	var lastErr error
 
 	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
-		target := candidates[(attempt-1)%len(candidates)]
+		var (
+			target Server
+			future raft.Future
+		)
 
-		err := m.raft.LeadershipTransferToServer(
-			raft.ServerID(target.NodeID),
-			raft.ServerAddress(target.Address),
-		).Error()
+		if len(candidates) > 0 {
+			target = candidates[(attempt-1)%len(candidates)]
+			future = m.raft.LeadershipTransferToServer(raft.ServerID(target.NodeID), raft.ServerAddress(target.Address))
+		} else {
+			future = m.raft.LeadershipTransfer()
+		}
+
+		err := future.Error()
 		if err == nil {
 			logger.RaftLog.Info("Leadership transferred",
 				zap.String("target_node_id", target.NodeID),
@@ -930,26 +913,11 @@ func (m *Manager) HasLeader() bool {
 	return addr != ""
 }
 
-func (m *Manager) WaitForLeader(ctx context.Context) error {
-	return m.waitForLeader(ctx)
-}
-
-func (m *Manager) HoldForLeader(ctx context.Context, timeout time.Duration) error {
-	if m.HasLeader() {
-		return nil
-	}
-
-	holdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	return m.waitForLeader(holdCtx)
-}
-
-// waitForLeader blocks until the cluster has an elected leader or ctx is
+// WaitForLeader blocks until the cluster has an elected leader or ctx is
 // cancelled. It polls LeaderWithID rather than selecting on LeaderCh, which
 // only reports this node's own transitions and delivers each value to exactly
 // one receiver, so the leader loop must stay its sole consumer.
-func (m *Manager) waitForLeader(ctx context.Context) error {
+func (m *Manager) WaitForLeader(ctx context.Context) error {
 	if addr, _ := m.raft.LeaderWithID(); addr != "" {
 		return nil
 	}

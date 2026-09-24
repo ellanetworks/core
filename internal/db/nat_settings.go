@@ -114,7 +114,7 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicNATSettings}, 0)
+	db.publishOpTopics([]Topic{TopicNATSettings})
 	span.SetStatus(codes.Ok, "")
 
 	return nil

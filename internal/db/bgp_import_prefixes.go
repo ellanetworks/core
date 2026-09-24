@@ -131,7 +131,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
+	db.publishOpTopics([]Topic{TopicBGPPeers})
 	span.SetStatus(codes.Ok, "")
 
 	return nil

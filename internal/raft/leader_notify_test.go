@@ -43,6 +43,6 @@ func TestWaitForLeaderDoesNotConsumeLeaderCh(t *testing.T) {
 			t.Fatal("expected the pending notification to report leadership")
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("waitForLeader took the transition off raft.LeaderCh(); raft delivers each value to exactly one receiver, so the leader loop must be its sole consumer or leadership hooks are lost")
+		t.Fatal("WaitForLeader took the transition off raft.LeaderCh(); raft delivers each value to exactly one receiver, so the leader loop must be its sole consumer or leadership hooks are lost")
 	}
 }

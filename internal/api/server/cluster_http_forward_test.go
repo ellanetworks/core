@@ -57,10 +57,6 @@ func TestClusterPropose_HappyPath(t *testing.T) {
 	if env.Index == 0 {
 		t.Fatalf("index must be non-zero: %+v", env)
 	}
-
-	if got := w.Header().Get(ellaraft.HeaderAppliedIndex); got == "" {
-		t.Fatalf("missing X-Ella-Applied-Index header")
-	}
 }
 
 // TestClusterPropose_NotLeader covers the common-case misroute: a

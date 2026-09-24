@@ -515,3 +515,25 @@ func TestForwardErrorCode_UncodedIsEmpty(t *testing.T) {
 		t.Fatalf("ForwardErrorCode = %q, want empty", got)
 	}
 }
+
+func TestRunForwardRetryLoop_Coded503IsNotRetried(t *testing.T) {
+	m := newRetryLoopTestManager(t)
+
+	coded := &ForwardCodedError{Code: ForwardCodeMigrationPend, Message: "schema migration pending"}
+
+	s := &scriptedAttempter{
+		responses: []attemptResponse{
+			{status: http.StatusServiceUnavailable, err: coded},
+			{result: &ProposeResult{Index: 4}, status: http.StatusOK},
+		},
+	}
+
+	_, err := m.runForwardRetryLoop(context.Background(), time.Second, s.fn())
+	if got := ForwardErrorCode(err); got != ForwardCodeMigrationPend {
+		t.Fatalf("ForwardErrorCode = %q (err %v), want %q", got, err, ForwardCodeMigrationPend)
+	}
+
+	if got := s.calls.Load(); got != 1 {
+		t.Fatalf("expected 1 attempt, got %d", got)
+	}
+}

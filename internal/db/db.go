@@ -52,9 +52,8 @@ type Database struct {
 	// migrationCheckCh fan-ins re-trigger signals from the FSM applier
 	// (after UpsertClusterMember or CmdMigrateShared commits) so the
 	// leader re-runs CheckPendingMigrations without waiting for the
-	// next leadership change. Debounced by the worker.
-	migrationCheckCh     chan struct{}
-	migrationCheckCancel context.CancelFunc
+	// next leadership change.
+	migrationCheckCh chan struct{}
 
 	// Subscriber statements. The PreV18 variants omit the description
 	// column for nodes whose schema has not reached v18 yet.
@@ -464,10 +463,6 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 func (db *Database) Close() error {
 	var raftErr, connErr error
 
-	if db.migrationCheckCancel != nil {
-		db.migrationCheckCancel()
-	}
-
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
 	}
@@ -480,8 +475,7 @@ func (db *Database) Close() error {
 }
 
 // signalMigrationCheck requests a non-blocking re-run of
-// CheckPendingMigrations. Debounced by runMigrationCheckWorker. Safe to
-// call from applier goroutines.
+// CheckPendingMigrations. Safe to call from applier goroutines.
 func (db *Database) signalMigrationCheck() {
 	if db.migrationCheckCh == nil {
 		return
@@ -493,42 +487,13 @@ func (db *Database) signalMigrationCheck() {
 	}
 }
 
-// runMigrationCheckWorker consumes migrationCheckCh signals, waits 100ms
-// to coalesce bursts, and calls CheckPendingMigrations. The check itself
-// no-ops on followers; running it on every node is harmless because
-// leader-state is checked inside.
-func (db *Database) runMigrationCheckWorker(ctx context.Context) {
-	const debounce = 100 * time.Millisecond
+func (db *Database) checkPendingMigrations(ctx context.Context) {
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-db.migrationCheckCh:
-		}
-
-		timer := time.NewTimer(debounce)
-
-	drain:
-		for {
-			select {
-			case <-db.migrationCheckCh:
-			case <-timer.C:
-				break drain
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			}
-		}
-
-		checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
-		if err := db.CheckPendingMigrations(checkCtx); err != nil {
-			logger.From(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
-				zap.Error(err))
-		}
-
-		cancel()
+	if err := db.CheckPendingMigrations(checkCtx); err != nil {
+		logger.From(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
+			zap.Error(err))
 	}
 }
 
@@ -1174,7 +1139,7 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 // and on a periodic timer while leader. The timer is what catches a
 // voter swapping its binary (no event fires on that).
 func (db *Database) runClusterCoordinator(ctx context.Context) {
-	db.signalMigrationCheck()
+	db.checkPendingMigrations(ctx)
 
 	ticker := time.NewTicker(migrationGateTickInterval)
 	defer ticker.Stop()
@@ -1183,8 +1148,10 @@ func (db *Database) runClusterCoordinator(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-db.migrationCheckCh:
+			db.checkPendingMigrations(ctx)
 		case <-ticker.C:
-			db.signalMigrationCheck()
+			db.checkPendingMigrations(ctx)
 
 			if err := db.reconcileClusterMembers(ctx); err != nil {
 				logger.From(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
@@ -1515,10 +1482,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.adoptRaftManager(raftMgr)
 
 	db.migrationCheckCh = make(chan struct{}, 1)
-	workerCtx, workerCancel := context.WithCancel(context.Background())
-	db.migrationCheckCancel = workerCancel
-
-	go db.runMigrationCheckWorker(workerCtx)
 
 	raftMgr.OnLeadership(db.runClusterCoordinator)
 

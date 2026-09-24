@@ -12,88 +12,76 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func receiveEvent(t *testing.T, sub *db.Subscription, want db.Topic, wantIndex uint64) {
+func expectWakeup(t *testing.T, wakeup <-chan struct{}) {
 	t.Helper()
 
 	select {
-	case ev := <-sub.Events:
-		if ev.Topic != want {
-			t.Fatalf("expected topic %q, got %q", want, ev.Topic)
-		}
-
-		if ev.Index != wantIndex {
-			t.Fatalf("expected index %d, got %d", wantIndex, ev.Index)
-		}
+	case <-wakeup:
 	case <-time.After(time.Second):
-		t.Fatalf("timed out waiting for event on %q", want)
+		t.Fatal("timed out waiting for wakeup")
 	}
 }
 
-func expectNoEvent(t *testing.T, sub *db.Subscription) {
+func expectNoWakeup(t *testing.T, wakeup <-chan struct{}) {
 	t.Helper()
 
 	select {
-	case ev := <-sub.Events:
-		t.Fatalf("did not expect event, got %+v", ev)
+	case <-wakeup:
+		t.Fatal("did not expect a wakeup")
 	case <-time.After(50 * time.Millisecond):
 	}
 }
 
-func TestChangefeed_PublishDeliversToMatchingSubscriber(t *testing.T) {
+func TestChangefeed_PublishWakesMatchingSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicNATSettings)
-	defer sub.Close()
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	defer stop()
 
-	cf.Publish(db.TopicNATSettings, 42)
+	cf.Publish(db.TopicNATSettings)
 
-	receiveEvent(t, sub, db.TopicNATSettings, 42)
+	expectWakeup(t, wakeup)
 }
 
 func TestChangefeed_TopicIsolation(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	subA := cf.Subscribe(db.TopicFlowAccountingSettings)
-	defer subA.Close()
+	wakeupA, stopA := cf.Wakeup(db.TopicFlowAccountingSettings)
+	defer stopA()
 
-	subB := cf.Subscribe(db.TopicNATSettings)
-	defer subB.Close()
+	wakeupB, stopB := cf.Wakeup(db.TopicNATSettings)
+	defer stopB()
 
-	cf.Publish(db.TopicFlowAccountingSettings, 1)
+	cf.Publish(db.TopicFlowAccountingSettings)
 
-	receiveEvent(t, subA, db.TopicFlowAccountingSettings, 1)
-	expectNoEvent(t, subB)
+	expectWakeup(t, wakeupA)
+	expectNoWakeup(t, wakeupB)
 }
 
 func TestChangefeed_MultiTopicSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicNATSettings, db.TopicFlowAccountingSettings)
-	defer sub.Close()
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings, db.TopicFlowAccountingSettings)
+	defer stop()
 
-	cf.Publish(db.TopicNATSettings, 1)
-	cf.Publish(db.TopicFlowAccountingSettings, 2)
+	cf.Publish(db.TopicNATSettings)
+	expectWakeup(t, wakeup)
 
-	receiveEvent(t, sub, db.TopicNATSettings, 1)
-	receiveEvent(t, sub, db.TopicFlowAccountingSettings, 2)
+	cf.Publish(db.TopicFlowAccountingSettings)
+	expectWakeup(t, wakeup)
 }
 
-func TestChangefeed_RingOverflowFiresDroppedAndDoesNotBlock(t *testing.T) {
+func TestChangefeed_BurstCoalescesWithoutBlocking(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicNATSettings)
-	defer sub.Close()
-
-	// Publisher must remain non-blocking even if a subscriber never
-	// drains its Events channel. We push enough events to overflow
-	// the buffer (capacity 128) and assert Dropped fires.
-	const overflow = 256
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	defer stop()
 
 	done := make(chan struct{})
 
 	go func() {
-		for i := 0; i < overflow; i++ {
-			cf.Publish(db.TopicNATSettings, uint64(i))
+		for range 256 {
+			cf.Publish(db.TopicNATSettings)
 		}
 
 		close(done)
@@ -102,63 +90,35 @@ func TestChangefeed_RingOverflowFiresDroppedAndDoesNotBlock(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("publisher blocked despite full subscriber buffer")
+		t.Fatal("publisher blocked on an undrained subscriber")
 	}
 
-	select {
-	case <-sub.Dropped:
-	case <-time.After(time.Second):
-		t.Fatal("expected Dropped to fire after overflow")
-	}
+	expectWakeup(t, wakeup)
+	expectNoWakeup(t, wakeup)
 }
 
-func TestChangefeed_DroppedDoesNotBlockSubsequentPublishes(t *testing.T) {
+func TestChangefeed_PublishDuringReconcileWakesAgain(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicNATSettings)
-	defer sub.Close()
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	defer stop()
 
-	for i := 0; i < 256; i++ {
-		cf.Publish(db.TopicNATSettings, uint64(i))
-	}
+	cf.Publish(db.TopicNATSettings)
+	expectWakeup(t, wakeup)
 
-	// Even after Dropped is pending, further Publish calls must not
-	// block; the publisher just keeps trying to enqueue and harmlessly
-	// no-ops on the dropped signal.
-	done := make(chan struct{})
-
-	go func() {
-		for i := 0; i < 100; i++ {
-			cf.Publish(db.TopicNATSettings, uint64(i+1000))
-		}
-
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("publisher blocked on subsequent publish after overflow")
-	}
+	cf.Publish(db.TopicNATSettings)
+	expectWakeup(t, wakeup)
 }
 
-func TestChangefeed_CloseStopsDelivery(t *testing.T) {
+func TestChangefeed_StopStopsDelivery(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicNATSettings)
-	sub.Close()
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
+	stop()
 
-	cf.Publish(db.TopicNATSettings, 1)
+	cf.Publish(db.TopicNATSettings)
 
-	expectNoEvent(t, sub)
-}
-
-func TestChangefeed_CloseIsIdempotent(t *testing.T) {
-	cf := db.NewChangefeed()
-
-	sub := cf.Subscribe(db.TopicNATSettings)
-	sub.Close()
-	sub.Close()
+	expectNoWakeup(t, wakeup)
 }
 
 func TestChangefeed_PublishWithNoSubscribersIsNoop(t *testing.T) {
@@ -167,7 +127,7 @@ func TestChangefeed_PublishWithNoSubscribersIsNoop(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		cf.Publish(db.TopicNATSettings, 1)
+		cf.Publish(db.TopicNATSettings)
 		close(done)
 	}()
 
@@ -178,110 +138,38 @@ func TestChangefeed_PublishWithNoSubscribersIsNoop(t *testing.T) {
 	}
 }
 
-func TestChangefeed_ConcurrentPublishSubscribeClose(t *testing.T) {
+func TestChangefeed_ConcurrentPublishSubscribeStop(t *testing.T) {
 	cf := db.NewChangefeed()
 
 	const workers = 8
 
 	var (
-		wg       sync.WaitGroup
-		stop     atomic.Bool
-		received atomic.Uint64
+		wg   sync.WaitGroup
+		stop atomic.Bool
 	)
 
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+	for range workers {
+		wg.Go(func() {
 			for !stop.Load() {
-				sub := cf.Subscribe(db.TopicNATSettings)
+				wakeup, cancel := cf.Wakeup(db.TopicNATSettings)
 
-				go func() {
-					for {
-						select {
-						case <-sub.Events:
-							received.Add(1)
-						case <-sub.Dropped:
-						case <-time.After(10 * time.Millisecond):
-							return
-						}
-					}
-				}()
+				select {
+				case <-wakeup:
+				case <-time.After(time.Millisecond):
+				}
 
-				time.Sleep(time.Millisecond)
-				sub.Close()
+				cancel()
 			}
-		}()
-	}
+		})
 
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for !stop.Load() {
-				cf.Publish(db.TopicNATSettings, 1)
+				cf.Publish(db.TopicNATSettings)
 			}
-		}()
+		})
 	}
 
 	time.Sleep(100 * time.Millisecond)
 	stop.Store(true)
 	wg.Wait()
-}
-
-func TestChangefeed_WakeupCoalesces(t *testing.T) {
-	cf := db.NewChangefeed()
-
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
-	defer stop()
-
-	// Burst of publishes coalesces to a single wakeup, possibly two
-	// if the bridge goroutine drained the first by the time we
-	// publish more.
-	for i := 0; i < 10; i++ {
-		cf.Publish(db.TopicNATSettings, uint64(i))
-	}
-
-	select {
-	case <-wakeup:
-	case <-time.After(time.Second):
-		t.Fatal("expected at least one wakeup after publish burst")
-	}
-}
-
-func TestChangefeed_WakeupStopReleasesResources(t *testing.T) {
-	cf := db.NewChangefeed()
-
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
-
-	stop()
-
-	cf.Publish(db.TopicNATSettings, 1)
-
-	select {
-	case <-wakeup:
-		// A wakeup raced through before stop; harmless.
-	case <-time.After(50 * time.Millisecond):
-	}
-}
-
-func TestChangefeed_EventOrderingPerSubscriber(t *testing.T) {
-	cf := db.NewChangefeed()
-
-	sub := cf.Subscribe(db.TopicNATSettings)
-	defer sub.Close()
-
-	const n = 50
-
-	for i := uint64(1); i <= n; i++ {
-		cf.Publish(db.TopicNATSettings, i)
-	}
-
-	for i := uint64(1); i <= n; i++ {
-		receiveEvent(t, sub, db.TopicNATSettings, i)
-	}
 }
