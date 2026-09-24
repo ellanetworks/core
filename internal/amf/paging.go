@@ -62,13 +62,11 @@ func (amf *AMF) armPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
-	if ue.paging.guard.Active() {
+	if ue.paging.guard.Active() || ue.Conn() != nil {
 		return
 	}
 
 	link := trace.SpanContextFromContext(ctx)
-
-	ue.paging.attempt++
 	pagingAttempt := ue.paging.attempt
 
 	ue.paging.guard.ArmWith(amf.T3513Cfg,
@@ -166,7 +164,7 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (
 // mid-handover, or not registered.
 func guardIdlePaging(ue *UeContext) error {
 	if ue.Conn() != nil {
-		return fmt.Errorf("ue is already CM-CONNECTED")
+		return errUEConnected
 	}
 
 	if ue.State() == RegistrationInitiated {

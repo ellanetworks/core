@@ -195,7 +195,6 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 		if oldUeConn.ue.Load() == ue {
 			oldUeConn.Log(ctx).Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
-			oldUeConn.nasGuard.Stop()
 			displaced = oldUeConn
 		}
 	}

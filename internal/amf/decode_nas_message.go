@@ -380,11 +380,11 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	plain, _, uerr := fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedCipheredNewContext)
 	if uerr == nil {
-		if requiresNewContextSecurityHeader(plain) && headerType != fgs.SHTIntegrityProtectedCipheredNewContext {
-			logger.AmfLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type")
+		if requiresNewContextSecurityHeader(plain) != (headerType == fgs.SHTIntegrityProtectedCipheredNewContext) {
+			logger.AmfLog.Warn("discarding NAS message: the new-context security header type is reserved for SECURITY MODE COMPLETE")
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail,
-				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.501 §5.4.2.3)")
+				"NAS discarded: new-context security header type on a message other than SECURITY MODE COMPLETE, or missing from it (TS 24.501 table 9.3.1)")
 		}
 
 		if conn.CipheringStarted() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {

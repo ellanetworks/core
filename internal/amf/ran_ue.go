@@ -112,6 +112,8 @@ type UeConn struct {
 
 	AuthenticationCtx *ausf.AuthResult
 	AuthNgKsi         models.NgKsi
+
+	RegisteredBeforeRegistration bool
 	// resyncTried records whether an SQN re-synchronisation (AUTS) has been attempted
 	// this authentication exchange: the first synch failure resyncs, a second rejects
 	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).
@@ -285,25 +287,16 @@ func (ueConn *UeConn) armNASGuardWith(ctx context.Context, cfg guard.TimerValue,
 	}
 
 	link := trace.SpanContextFromContext(ctx)
-	ue := ueConn.UeContext()
 
 	ueConn.nasGuardName.Store(&name)
 	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
 		func(attempt int32) {
-			if ue != nil && ue.Conn() != ueConn {
-				return
-			}
-
 			guardCtx, span := guardSpan(link, "amf/nas_guard_retransmit", name, attempt)
 			defer span.End()
 
 			onRetransmit(guardCtx, attempt)
 		},
 		func() {
-			if ue != nil && ue.Conn() != ueConn {
-				return
-			}
-
 			guardCtx, span := guardSpan(link, "amf/nas_guard_expire", name, 0)
 			defer span.End()
 

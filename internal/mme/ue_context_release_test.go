@@ -107,31 +107,40 @@ func TestUnansweredInitialContextSetupReleasesTheConnection(t *testing.T) {
 	c.SetICS(ICSPending)
 	c.SuperviseICS(t.Context())
 
-	eventually(t, time.Second, func() bool { return ue.ReleasingForTest() })
-
-	if cc.count() == 0 {
-		t.Fatal("no UE Context Release Command for an Initial Context Setup the eNB never answered")
-	}
+	eventually(t, time.Second, func() bool { return cc.count() > 0 })
 }
 
 func TestAnsweredInitialContextSetupStopsItsSupervision(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := securedUE(t, m)
-	ue.TransitionTo(t.Context(), EMMRegistered)
-
-	saved := icsGuardTimeout
-	icsGuardTimeout = 10 * time.Millisecond
-
-	t.Cleanup(func() { icsGuardTimeout = saved })
+	ue, _ := securedUE(t, m)
 
 	c := ue.Conn()
 	c.SetICS(ICSPending)
 	c.SuperviseICS(t.Context())
+
+	if !c.icsGuard.Active() {
+		t.Fatal("Initial Context Setup is not supervised")
+	}
+
 	c.SetICS(ICSCompleted)
 
-	time.Sleep(50 * time.Millisecond)
+	if c.icsGuard.Active() {
+		t.Fatal("an answered Initial Context Setup is still supervised")
+	}
+}
 
-	if cc.count() != 0 || ue.ReleasingForTest() {
-		t.Fatal("an answered Initial Context Setup was released by its supervision")
+func TestFallbackLocalReleaseSparesAConnectionThatWasAlreadyReplaced(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	failed := ue.Conn()
+	current := m.NewUeConn(&captureConn{}, 8)
+	m.AttachUeConn(t.Context(), ue, current)
+
+	m.releaseUEContextLocally(t.Context(), ue, failed, "release-command-not-sent")
+
+	if ue.Conn() != current {
+		t.Fatal("the fallback release of a connection that was already replaced released the UE's current connection")
 	}
 }

@@ -133,14 +133,13 @@ func (m *MME) armPaging(ctx context.Context, ue *UeContext, pdu []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.paging.guard.Active() {
+	if ue.paging.guard.Active() || ue.Connected() {
 		return
 	}
 
 	link := trace.SpanContextFromContext(ctx)
 
 	ue.paging.mu.Lock()
-	ue.paging.attempt++
 	pagingAttempt := ue.paging.attempt
 	ue.paging.mu.Unlock()
 

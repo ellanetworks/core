@@ -43,3 +43,9 @@ func TestSelectNgKsiDiffersFromTheCitedAndTheStoredNgKsi(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectNgKsiAfterNgKSIAlreadyInUseAvoidsTheCitedAndStoredNgKsi(t *testing.T) {
+	if got := SelectNgKsi(3, 2, 4); got == 2 || got == 3 || got == 4 {
+		t.Fatalf("SelectNgKsi(rejected 3, cited 2, stored 4) = %d, want a value other than all three (TS 24.501 §5.4.1.3.2, §5.4.1.3.4)", got)
+	}
+}

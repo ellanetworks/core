@@ -3,6 +3,8 @@
 
 package mme
 
+import "slices"
+
 // AuthProof is an unforgeable witness that the caller is entitled to mutate
 // security-critical state on a UeContext: installing the NAS security context or
 // committing the UE identity. It has no exported constructor and is minted only
@@ -52,9 +54,9 @@ func NextEksi(current uint8) uint8 {
 	return 0
 }
 
-func SelectEksi(cited, stored uint8) uint8 {
-	v := NextEksi(cited)
-	if v == stored {
+func SelectEksi(after uint8, avoid ...uint8) uint8 {
+	v := NextEksi(after)
+	for slices.Contains(avoid, v) {
 		v = NextEksi(v)
 	}
 

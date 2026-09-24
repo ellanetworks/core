@@ -102,6 +102,10 @@ func (ue *UeContext) beginPaging(req *MTRequest) bool {
 		return false
 	}
 
+	if !ue.paging.guard.Active() {
+		ue.paging.attempt++
+	}
+
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
 

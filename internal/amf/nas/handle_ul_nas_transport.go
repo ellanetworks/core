@@ -248,14 +248,15 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	if ulNasTransport.SNSSAI != nil {
 		snssai = util.SnssaiToModels(*ulNasTransport.SNSSAI)
 	} else {
-		if len(ue.AllowedNssai()) == 0 {
+		allowed := ue.AllowedNssai()
+		if len(allowed) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")
 			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
 
 			return
 		}
 
-		snssai = &ue.AllowedNssai()[0]
+		snssai = &allowed[0]
 	}
 
 	if ulNasTransport.DNN != nil {

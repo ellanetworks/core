@@ -887,11 +887,17 @@ func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 
 // releaseContextLockedPart performs, under the registry lock, the registry side
 // of a local release: a registered UE keeps its context and is moved to ECM-IDLE
-// (its S1 connection freed), an unregistered one is removed. It returns whether
-// the UE was registered, plus its IMSI for post-release logging.
-func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi string) {
+// (its S1 connection freed), an unregistered one is removed. A non-nil expected
+// connection that is no longer the UE's leaves the UE untouched and reports
+// released false. It returns whether the UE was registered, plus its IMSI for
+// post-release logging.
+func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if expected != nil && ue.Conn() != expected {
+		return false, false, ""
+	}
 
 	registered = ue.EMMState() == EMMRegistered
 	imsi = ue.imsiOrEmpty()
@@ -902,7 +908,7 @@ func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi str
 		m.removeContextLocked(ue)
 	}
 
-	return registered, imsi
+	return true, registered, imsi
 }
 
 // ConnsOnConn returns every UE-associated connection on the given eNB association.

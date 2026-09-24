@@ -174,3 +174,16 @@ func TestDecodeNASMessageDiscardsTheSecurityModeCommandHeaderTypeOnTheUplink(t *
 		t.Fatalf("DecodeNASMessage(uplink %s) = %+v, nil, want it discarded", eps.SHTIntegrityProtectedNewContext, res)
 	}
 }
+
+func TestDecodeNASMessageDiscardsTheNewContextHeaderTypeOnAnyOtherMessage(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtectedCipheredNewContext))
+	if err == nil {
+		t.Fatalf("DecodeNASMessage(EMM STATUS, new-context header type) = %+v, nil, want it discarded (TS 24.301 table 9.3.1 NOTE 2)", res)
+	}
+}

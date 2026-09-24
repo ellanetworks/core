@@ -259,13 +259,6 @@ func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.active.Load().bindSupi(supi)
 }
 
-func (ue *UeContext) SetNgKsi(ngKsi models.NgKsi) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	ue.ngKsi = ngKsi
-}
-
 // SetAbba records the UE's ABBA parameter (TS 33.501).
 func (ue *UeContext) SetAbba(abba []uint8) {
 	ue.mu.Lock()

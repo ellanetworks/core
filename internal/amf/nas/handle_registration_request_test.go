@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
@@ -1430,5 +1431,60 @@ func TestAcceptRegistrationUESecurityCapability_MobilityStoresVerifiedChange(t *
 
 	if !ue.UESecurityCapabilityForTest().Equal(changed) {
 		t.Fatalf("stored capability = %#v, want the verified %#v", ue.UESecurityCapabilityForTest(), changed)
+	}
+}
+
+func TestAuthenticationTimeoutDuringAMobilityRegistrationKeepsTheRegisteredUE(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Millisecond}
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+
+	ue.SetSuciForTest("testsuci")
+	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+
+	m, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 3)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
+
+	deadline := time.Now().Add(time.Second)
+	for ue.State() == amf.RegistrationInitiated && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if ue.State() != amf.Registered {
+		t.Fatalf("state = %s after T3560 expired during a mobility registration, want Registered: TS 24.501 §5.4.1.3.7 only releases the N1 NAS signalling connection", ue.State())
+	}
+
+	if held, ok := amfInstance.LookupUeBySupi(supi); !ok || held != ue {
+		t.Fatal("the registered UE context was removed when its authentication timed out")
 	}
 }

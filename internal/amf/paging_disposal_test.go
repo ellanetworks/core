@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -324,5 +326,35 @@ func TestPagingDoesNotBeginForAUEThatHasReconnected(t *testing.T) {
 
 	if ue.PagingState() != PagingIdle {
 		t.Fatalf("paging state = %s after the UE reconnected, want Idle: nothing would ever deliver the buffered request", ue.PagingState())
+	}
+}
+
+func TestStalePagingAbortSparesARequestInstalledBeforeItsGuardIsArmed(t *testing.T) {
+	ue := NewUeContext()
+	stale := ue.paging.attempt
+
+	newer := &MTRequest{}
+	if _, err := ue.beginPaging(t.Context(), newer); err != nil {
+		t.Fatalf("beginPaging: %v", err)
+	}
+
+	if _, abandoned := ue.PagingUnanswered(t.Context(), stale, models.N1N2UENotResponding); abandoned {
+		t.Fatal("the abort of the previous paging attempt abandoned the request that began after it")
+	}
+
+	if ue.PagingPending() != newer {
+		t.Fatal("the abort of the previous paging attempt dropped the request that began after it")
+	}
+}
+
+func TestPagingSupervisionIsNotArmedForAUEThatAnswered(t *testing.T) {
+	ue, _ := newDownlinkOrderUE(t)
+	a := ue.Conn().amf
+	a.T3513Cfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour}
+
+	a.armPaging(t.Context(), ue, nil)
+
+	if ue.paging.guard.Active() {
+		t.Fatal("T3513 armed for a UE that already re-established its connection")
 	}
 }

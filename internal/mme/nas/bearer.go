@@ -242,14 +242,15 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 		}
 	}
 
+	ueConn.SetICS(mme.ICSPending)
+	ueConn.SuperviseICS(ctx)
+
 	if err := ueConn.SendInitialContextSetup(ctx, ics); err != nil {
+		ueConn.SetICS(mme.ICSNotStarted)
 		logger.From(ctx, logger.MmeLog).Error("failed to send Initial Context Setup Request", zap.Error(err))
 
 		return err
 	}
-
-	ueConn.SetICS(mme.ICSPending)
-	ueConn.SuperviseICS(ctx)
 
 	return nil
 }

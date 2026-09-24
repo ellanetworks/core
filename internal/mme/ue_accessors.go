@@ -4,7 +4,6 @@
 package mme
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
@@ -20,8 +19,6 @@ import (
 
 // Writers hold MME.mu (to keep the uesByTmsi index in step) and ue.mu; callers
 // outside the registry lock read here, callers holding ue.mu read the field.
-var ErrUplinkCountRejected = errors.New("mme: uplink NAS COUNT already accepted")
-
 func (ue *UeContext) Tmsi() etsi.TMSI {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -168,7 +165,7 @@ func (ue *UeContext) AcceptUplink(pdu []byte, check func(plain []byte) error, pe
 	}
 
 	if err := ue.ulCount.Commit(estimated); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUplinkCountRejected, err)
+		return nil, err
 	}
 
 	return p, nil
@@ -317,14 +314,6 @@ func (ue *UeContext) Eksi() nas.KeySetIdentifier {
 	return ue.eksi
 }
 
-// SetEksi records the eKSI assigned to the current EPS security context.
-func (ue *UeContext) SetEksi(v nas.KeySetIdentifier) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	ue.eksi = v
-}
-
 // SetUESecurityCapability stores the UE and MS network capabilities. The AuthProof
 // keeps every write on one audited path so a downgrade cannot enter (TS 24.301 §5.4.3.2).
 func (ue *UeContext) SetUESecurityCapability(ueNetCap eps.UENetworkCapability, msNetCap *eps.MSNetworkCapability, _ AuthProof) {
@@ -380,7 +369,7 @@ func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8,
 	}
 
 	if err := ue.ulCount.Commit(expected); err != nil {
-		return expSeq, ul, fmt.Errorf("%w: %w", ErrUplinkCountRejected, err)
+		return expSeq, ul, err
 	}
 
 	return expSeq, ul, nil

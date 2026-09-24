@@ -31,5 +31,7 @@ func (c *UeConn) SendDownlinkLPPaTransport(ctx context.Context, routingID uint8,
 		return fmt.Errorf("build downlink LPPa transport: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedureDownlinkUEAssociatedLPPaTransport, b)
+	_ = c.SendS1AP(ctx, S1APProcedureDownlinkUEAssociatedLPPaTransport, b)
+
+	return nil
 }

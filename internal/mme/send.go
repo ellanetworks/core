@@ -170,7 +170,9 @@ func (c *UeConn) SendInitialContextSetup(ctx context.Context, req *s1ap.InitialC
 		return fmt.Errorf("marshal Initial Context Setup Request: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedureInitialContextSetupRequest, b)
+	_ = c.SendS1AP(ctx, S1APProcedureInitialContextSetupRequest, b)
+
+	return nil
 }
 
 // SendERABSetup stamps the UE identities and sends the E-RAB Setup Request (TS 36.413 §8.2.1).
@@ -186,7 +188,9 @@ func (c *UeConn) SendERABSetup(ctx context.Context, req *s1ap.ERABSetupRequest) 
 		return fmt.Errorf("marshal E-RAB Setup Request: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedureERABSetupRequest, b)
+	_ = c.SendS1AP(ctx, S1APProcedureERABSetupRequest, b)
+
+	return nil
 }
 
 // SendERABModify stamps the UE identities and sends the E-RAB Modify Request (TS 36.413 §8.2.2).
@@ -202,7 +206,9 @@ func (c *UeConn) SendERABModify(ctx context.Context, req *s1ap.ERABModifyRequest
 		return fmt.Errorf("marshal E-RAB Modify Request: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
+	_ = c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
+
+	return nil
 }
 
 // SendERABRelease stamps the UE identities and sends the E-RAB Release Command (TS 36.413 §8.2.3).
@@ -218,7 +224,9 @@ func (c *UeConn) SendERABRelease(ctx context.Context, cmd *s1ap.ERABReleaseComma
 		return fmt.Errorf("marshal E-RAB Release Command: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedureERABReleaseCommand, b)
+	_ = c.SendS1AP(ctx, S1APProcedureERABReleaseCommand, b)
+
+	return nil
 }
 
 // SendPathSwitchAcknowledge stamps the UE identities and sends the Path Switch Request
@@ -236,7 +244,9 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 		return fmt.Errorf("marshal Path Switch Request Acknowledge: %w", err)
 	}
 
-	return c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
+	_ = c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
+
+	return nil
 }
 
 // reportProtectFailure logs a downlink protection failure and, when the NAS

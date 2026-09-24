@@ -82,7 +82,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		logger.From(ctx, logger.AmfLog).Warn("Select new NgKsi")
 
-		conn.AuthNgKsi.Ksi = amf.NextNgKsi(conn.AuthNgKsi.Ksi)
+		conn.AuthNgKsi.Ksi = amf.SelectNgKsi(conn.AuthNgKsi.Ksi, citedNgKsi(conn), ue.StoredNgKsi())
 
 		amf.SendAuthenticationRequest(ctx, amfInstance, ueConn)
 

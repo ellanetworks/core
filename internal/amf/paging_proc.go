@@ -112,6 +112,10 @@ func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1
 		return "", rejected
 	}
 
+	if !ue.paging.guard.Active() {
+		ue.paging.attempt++
+	}
+
 	displaced := ue.paging.pending
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting

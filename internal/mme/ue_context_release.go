@@ -167,7 +167,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	}
 
 	if err := conn.SendUEContextReleaseCommand(ctx, cause); err != nil {
-		m.ReleaseUEContextLocally(ctx, ue, "release-command-not-sent")
+		m.releaseUEContextLocally(ctx, ue, conn, "release-command-not-sent")
 
 		return
 	}
@@ -189,12 +189,23 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 // FAILURE, or an eNB/association loss). An incomplete registration is aborted; a
 // registered UE drops to ECM-IDLE.
 func (m *MME) ReleaseUEContextLocally(ctx context.Context, ue *UeContext, trigger string) {
+	m.releaseUEContextLocally(ctx, ue, nil, trigger)
+}
+
+func (m *MME) releaseUEContextLocally(ctx context.Context, ue *UeContext, expected *UeConn, trigger string) {
 	ueConn := ue.Conn()
+	if expected != nil && ueConn != expected {
+		return
+	}
+
 	log := ueConn.Log(ctx)
 
 	ue.settleDeliveryOnRelease(ctx)
 
-	registered, imsi := m.releaseContextLockedPart(ue)
+	released, registered, imsi := m.releaseContextLockedPart(ue, expected)
+	if !released {
+		return
+	}
 
 	if ueConn == nil {
 		log = log.With(logger.SUPIFromIMSI(imsi))

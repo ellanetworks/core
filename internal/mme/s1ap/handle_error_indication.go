@@ -102,9 +102,9 @@ func sendErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, m
 	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &c})
 }
 
-// handleParseError reports a failed decode of an eNB-initiated initiating
-// message with an ERROR INDICATION. It must not be used in reply to an ERROR
-// INDICATION, to avoid a loop.
+// handleParseError reports a failed decode of a message from the eNB, of the
+// kind trigger names, with an ERROR INDICATION. It must not be used in reply to
+// an ERROR INDICATION, to avoid a loop.
 //
 // An abstract syntax error carries the cause and the per-IE diagnostics the
 // rejection must report (TS 36.413 §10.3.5); where the message is UE

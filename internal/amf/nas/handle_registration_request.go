@@ -265,6 +265,10 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
+		if conn := ue.Conn(); conn != nil && state != amf.RegistrationInitiated {
+			conn.RegisteredBeforeRegistration = state == amf.Registered
+		}
+
 		ue.TransitionTo(ctx, amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
@@ -286,7 +290,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
 
 				if state == amf.Registered {
-					abortRegistrationRetainingContext(ctx, amfInstance, ue)
+					amfInstance.AbortRegistrationRetainingContext(ctx, ue)
 				} else {
 					abortRegistration(ctx, amfInstance, ue, "transient authentication failure", err)
 				}

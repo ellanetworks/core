@@ -35,6 +35,10 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 
 	conn.armNASGuardWith(ctx, cfg, name,
 		func(ctx context.Context, attempt int32) {
+			if ue.Conn() != conn {
+				return
+			}
+
 			conn.Log(ctx).Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
@@ -44,6 +48,10 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 			}
 		},
 		func(ctx context.Context) {
+			if ue.Conn() != conn {
+				return
+			}
+
 			conn.Log(ctx).Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
 			onExhausted(ctx)
 		},
@@ -253,16 +261,28 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	return nil
 }
 
-func (amf *AMF) abortCommonProcedure(ctx context.Context, ue *UeContext) {
-	if ue.State() != Registered {
-		amf.DeregisterAndRemoveUeContext(ctx, ue)
+func (a *AMF) abortCommonProcedure(ctx context.Context, ue *UeContext) {
+	if conn := ue.Conn(); conn != nil && conn.RegisteredBeforeRegistration && ue.State() == RegistrationInitiated {
+		a.AbortRegistrationRetainingContext(ctx, ue)
 		return
 	}
 
-	if conn := ue.Conn(); conn != nil {
-		conn.ReleaseAction = UeContextN2NormalRelease
-		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+	a.DeregisterAndRemoveUeContext(ctx, ue)
+}
+
+func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeContext) {
+	ueConn := ue.Conn()
+
+	ue.SuspendRegistration(ctx)
+
+	if ueConn == nil {
+		a.StartMobileReachable(ue)
+		return
 	}
+
+	ueConn.ReleaseAction = UeContextN2NormalRelease
+
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
 }
 
 func secureExchangeSHT(ue *UeConn) uint8 {

@@ -4,6 +4,8 @@
 package amf
 
 import (
+	"slices"
+
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -169,9 +171,9 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
-func SelectNgKsi(cited, stored int32) int32 {
-	v := NextNgKsi(cited)
-	if v == stored {
+func SelectNgKsi(after int32, avoid ...int32) int32 {
+	v := NextNgKsi(after)
+	for slices.Contains(avoid, v) {
 		v = NextNgKsi(v)
 	}
 

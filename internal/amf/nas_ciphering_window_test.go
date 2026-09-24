@@ -147,3 +147,23 @@ func TestDecodeNASMessageDiscardsASecurityModeCompleteWithoutTheNewContextHeader
 		t.Fatalf("DecodeNASMessage(unciphered SECURITY MODE COMPLETE) = %+v, nil, want it discarded: it would carry the replayed initial NAS message in the clear", res)
 	}
 }
+
+func TestDecodeNASMessageDiscardsTheNewContextHeaderTypeOnAnyOtherMessage(t *testing.T) {
+	ue := newSecuredUE(t)
+	ue.SetULCountForTest(0)
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	cnt, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := fgs.Protect(encodePlainULNasTransport(t), fgs.SHTIntegrityProtectedCipheredNewContext, cnt, nas.DirectionUplink, ue.sc)
+	if err != nil {
+		t.Fatalf("protect UL NAS TRANSPORT: %v", err)
+	}
+
+	if res, err := DecodeNASMessage(ue, wire); err == nil {
+		t.Fatalf("DecodeNASMessage(UL NAS TRANSPORT, new-context header type) = %+v, nil, want it discarded (TS 24.501 table 9.3.1 NOTE 2)", res)
+	}
+}
