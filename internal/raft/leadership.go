@@ -74,14 +74,18 @@ func (m *Manager) beginTerm() {
 	m.leaderMu.Unlock()
 
 	if current != nil {
-		if current.raftTerm == raftTerm {
-			return
+		select {
+		case <-current.done:
+		default:
+			if current.raftTerm == raftTerm {
+				return
+			}
 		}
 
 		m.endTerm()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) // #nosec G118 -- cancelled by endTerm
 	t := &leaderTerm{raftTerm: raftTerm, ctx: ctx, cancel: cancel, done: make(chan struct{})}
 
 	m.leaderMu.Lock()
@@ -124,6 +128,7 @@ func (m *Manager) runTerm(t *leaderTerm) {
 
 	if m.autopilot != nil {
 		m.autopilot.Start(t.ctx)
+
 		defer func() { <-m.autopilot.Stop() }()
 	}
 

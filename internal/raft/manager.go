@@ -793,22 +793,21 @@ func (m *Manager) transferLeadership(candidates []Server) error {
 
 	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
 		var (
-			target Server
 			future raft.Future
+			fields []zap.Field
 		)
 
 		if len(candidates) > 0 {
-			target = candidates[(attempt-1)%len(candidates)]
+			target := candidates[(attempt-1)%len(candidates)]
 			future = m.raft.LeadershipTransferToServer(raft.ServerID(target.NodeID), raft.ServerAddress(target.Address))
+			fields = []zap.Field{zap.String("target_node_id", target.NodeID), zap.String("target_address", target.Address)}
 		} else {
 			future = m.raft.LeadershipTransfer()
 		}
 
 		err := future.Error()
 		if err == nil {
-			logger.RaftLog.Info("Leadership transferred",
-				zap.String("target_node_id", target.NodeID),
-				zap.String("target_address", target.Address))
+			logger.RaftLog.Info("Leadership transferred", fields...)
 
 			return nil
 		}
@@ -819,11 +818,10 @@ func (m *Manager) transferLeadership(candidates []Server) error {
 
 		lastErr = err
 
-		logger.RaftLog.Warn("Leadership transfer attempt failed",
+		logger.RaftLog.Warn("Leadership transfer attempt failed", append(fields,
 			zap.Int("attempt", attempt),
 			zap.Int("attempts", leadershipTransferAttempts),
-			zap.String("target_node_id", target.NodeID),
-			zap.Error(err))
+			zap.Error(err))...)
 	}
 
 	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
