@@ -79,15 +79,22 @@ const RemoveNodeModal: React.FC<Props> = ({
           <NodeIdentity nodeId={nodeId} />
 
           {forceRequired && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={force}
-                  onChange={(e) => setForce(e.target.checked)}
-                />
-              }
-              label="Force remove (skip drain)"
-            />
+            <>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={force}
+                    onChange={(e) => setForce(e.target.checked)}
+                  />
+                }
+                label="Force remove (skip drain)"
+              />
+              <Typography variant="body2" color="textSecondary">
+                Subscribers on this node are not moved to the rest of the
+                cluster first. To move them, cancel and drain the node before
+                removing it.
+              </Typography>
+            </>
           )}
 
           {isSelf && (

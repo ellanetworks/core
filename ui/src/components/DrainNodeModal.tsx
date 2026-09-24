@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
+import { Alert, Box } from "@mui/material";
 import { NodeId } from "@/queries/nodeId";
 import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +13,9 @@ interface Props {
   open: boolean;
   nodeId: NodeId;
   nodeLabel: string;
+  isLastActive: boolean;
+  isLeader: boolean;
+  isSelf: boolean;
   onClose: () => void;
   onSuccess: (result: DrainResponse) => void;
 }
@@ -20,6 +24,9 @@ const DrainNodeModal: React.FC<Props> = ({
   open,
   nodeId,
   nodeLabel,
+  isLastActive,
+  isLeader,
+  isSelf,
   onClose,
   onSuccess,
 }) => {
@@ -44,7 +51,34 @@ const DrainNodeModal: React.FC<Props> = ({
           subscribers to the rest of the cluster.
         </>
       }
-      extra={<NodeIdentity nodeId={nodeId} />}
+      extra={
+        <>
+          <NodeIdentity nodeId={nodeId} />
+          {(isLastActive || isLeader || isSelf) && (
+            <Box
+              sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}
+            >
+              {isLastActive && (
+                <Alert severity="warning">
+                  No other node is active, so subscribers have nowhere to move
+                  and the drain will not finish.
+                </Alert>
+              )}
+              {isLeader && (
+                <Alert severity="info">
+                  This node is the leader. Leadership will move to another node.
+                </Alert>
+              )}
+              {isSelf && (
+                <Alert severity="info">
+                  This is the node serving this page. It stops taking new
+                  traffic; your session is unaffected.
+                </Alert>
+              )}
+            </Box>
+          )}
+        </>
+      }
       confirmLabel="Drain"
       confirmingLabel="Draining…"
       confirmColor="warning"

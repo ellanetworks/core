@@ -23,7 +23,7 @@ import {
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
-import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NGAPMessageView } from "@/components/NGAPMessageRender";
@@ -172,7 +172,7 @@ export default function EventDetails({
   open: boolean;
   log: LogRow | null;
 }) {
-  const { showSnackbar } = useSnackbar();
+  const copy = useCopyToClipboard();
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
 
@@ -196,11 +196,6 @@ export default function EventDetails({
   });
 
   if (!authReady || !accessToken) return null;
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    showSnackbar("Copied to clipboard.", "success");
-  };
 
   const stringify = (v: unknown): string => {
     if (v == null) return "";
@@ -356,7 +351,7 @@ export default function EventDetails({
           <span>
             <IconButton
               size="small"
-              onClick={() => handleCopy(stringify(decoded))}
+              onClick={() => copy(stringify(decoded))}
               aria-label="Copy decoded content"
               disabled={decoded == null}
             >
@@ -370,7 +365,7 @@ export default function EventDetails({
       </Box>
 
       <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
-      <RawHexSection hexDump={hexDump} onCopy={handleCopy} />
+      <RawHexSection hexDump={hexDump} onCopy={(text) => void copy(text)} />
     </Box>
   );
 }

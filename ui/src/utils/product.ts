@@ -14,6 +14,7 @@ export const PRODUCT = {
   name: DEFAULT_PRODUCT_NAME,
   docsUrl: DOCS_URL,
   haDocsUrl: `${DOCS_URL}/explanation/high_availability/`,
+  backupRestoreDocsUrl: `${DOCS_URL}/how_to/backup_and_restore/`,
 };
 
 export const logoAlt = () => `${PRODUCT.name} Logo`;

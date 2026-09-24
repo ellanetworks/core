@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UseQueryResult } from "@tanstack/react-query";
 import QueryState from "./QueryState";
+import { SnackbarProvider } from "@/contexts/SnackbarContext";
+
+const render = (ui: React.ReactElement) =>
+  rtlRender(ui, { wrapper: SnackbarProvider });
 
 const query = <T,>(over: Partial<UseQueryResult<T>>): UseQueryResult<T> =>
   ({

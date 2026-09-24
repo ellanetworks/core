@@ -231,7 +231,7 @@ const ClusterSetupCard = ({
 
   const body = (
     <>
-      {!(joinOnly && pending === null) && (
+      {!joinOnly && (
         <Typography variant="h6" gutterBottom>
           {pending === null
             ? "This node is not part of a cluster"
@@ -247,12 +247,11 @@ const ClusterSetupCard = ({
 
       {pending !== null && (
         <Stack
-          direction="row"
           spacing={2}
-          sx={{ mt: 2, alignItems: "center" }}
+          sx={{ mt: 2, alignItems: "center", textAlign: "center" }}
           component="output"
         >
-          <CircularProgress size={20} />
+          <CircularProgress size={32} sx={{ flexShrink: 0 }} />
           <Typography variant="body2">{PROGRESS_MESSAGE[pending]}</Typography>
         </Stack>
       )}

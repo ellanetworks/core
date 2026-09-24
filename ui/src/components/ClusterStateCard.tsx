@@ -12,12 +12,16 @@ import {
   Typography,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { useSnackbar } from "@/contexts/SnackbarContext";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import type { APIStatus } from "@/queries/status";
-import type { AutopilotState } from "@/queries/cluster";
+import type { AutopilotState, ClusterMember } from "@/queries/cluster";
+import { nodeIdKey, nodeLabel, sameNodeId } from "@/queries/nodeId";
 
 const CONVERGING =
   "The leader has not reported yet. This is normal for a moment after a leadership change.";
+
+const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : "unknown error";
 
 const InfoRow: React.FC<{
   label: string;
@@ -60,24 +64,11 @@ const UnknownChip: React.FC<{ title: string }> = ({ title }) => (
   </Tooltip>
 );
 
-const CopyableValue: React.FC<{ value: string }> = ({ value }) => {
-  const { showSnackbar } = useSnackbar();
-
-  const handleCopy = async () => {
-    if (!navigator.clipboard) {
-      showSnackbar(
-        "Clipboard API not available. Please use HTTPS or try a different browser.",
-        "error",
-      );
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value);
-      showSnackbar("Copied to clipboard.", "success");
-    } catch {
-      showSnackbar("Failed to copy.", "error");
-    }
-  };
+const CopyableValue: React.FC<{ value: string; label: string }> = ({
+  value,
+  label,
+}) => {
+  const copy = useCopyToClipboard();
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
@@ -89,7 +80,11 @@ const CopyableValue: React.FC<{ value: string }> = ({ value }) => {
         {value}
       </Typography>
       <Tooltip title="Copy">
-        <IconButton size="small" onClick={handleCopy} aria-label="Copy">
+        <IconButton
+          size="small"
+          onClick={() => copy(value, label)}
+          aria-label="Copy"
+        >
           <ContentCopyIcon fontSize="inherit" />
         </IconButton>
       </Tooltip>
@@ -125,8 +120,9 @@ const ToleranceChip: React.FC<{ failureTolerance: number }> = ({
 
 const HealthValue: React.FC<{
   autopilot?: AutopilotState;
+  autopilotError?: unknown;
   hasLeader: boolean;
-}> = ({ autopilot, hasLeader }) => {
+}> = ({ autopilot, autopilotError, hasLeader }) => {
   if (!hasLeader) {
     return (
       <Tooltip title="No node holds leadership. The cluster cannot accept writes until enough voters recover for an election to succeed.">
@@ -136,7 +132,15 @@ const HealthValue: React.FC<{
   }
 
   if (!autopilot) {
-    return <UnknownChip title={CONVERGING} />;
+    return (
+      <UnknownChip
+        title={
+          autopilotError
+            ? `Health could not be read: ${errorMessage(autopilotError)}`
+            : CONVERGING
+        }
+      />
+    );
   }
 
   return (
@@ -153,7 +157,10 @@ const HealthValue: React.FC<{
   );
 };
 
-const SchemaValue: React.FC<{ status?: APIStatus }> = ({ status }) => {
+const SchemaValue: React.FC<{
+  status?: APIStatus;
+  members: ClusterMember[];
+}> = ({ status, members }) => {
   const applied = status?.cluster?.appliedSchemaVersion;
   const binary = status?.schemaVersion;
   const pending = status?.cluster?.pendingMigration;
@@ -172,12 +179,16 @@ const SchemaValue: React.FC<{ status?: APIStatus }> = ({ status }) => {
     binary === undefined ? "" : ` This node's binary supports v${binary}.`;
 
   if (pending.laggardNodeId) {
+    const laggardId = pending.laggardNodeId;
+    const laggard = members.find((m) => sameNodeId(m.nodeId, laggardId));
+    const laggardLabel = nodeLabel(laggard?.displayName, laggardId);
+
     return (
       <Tooltip
-        title={`The cluster has committed schema v${pending.currentSchema} and cannot advance.${supports} Upgrade or remove node ${pending.laggardNodeId} to let the migration proceed.`}
+        title={`The cluster has committed schema v${pending.currentSchema} and cannot advance.${supports} Upgrade or remove node ${laggardLabel} to let the migration proceed.`}
       >
         <Chip
-          label={`v${pending.currentSchema} · blocked by node ${pending.laggardNodeId}`}
+          label={`v${pending.currentSchema} · blocked by node ${laggardLabel}`}
           size="small"
           color="warning"
           variant="outlined"
@@ -203,14 +214,18 @@ const SchemaValue: React.FC<{ status?: APIStatus }> = ({ status }) => {
 interface ClusterStateCardProps {
   status?: APIStatus;
   autopilot?: AutopilotState;
+  autopilotError?: unknown;
+  members?: ClusterMember[];
 }
 
 const ClusterStateCard: React.FC<ClusterStateCardProps> = ({
   status,
   autopilot,
+  autopilotError,
+  members = [],
 }) => {
   const cluster = status?.cluster;
-  const hasLeader = (cluster?.leaderNodeId ?? 0) !== 0;
+  const hasLeader = !["", "0"].includes(nodeIdKey(cluster?.leaderNodeId));
 
   return (
     <Card variant="outlined" sx={{ mb: 2 }}>
@@ -222,15 +237,24 @@ const ClusterStateCard: React.FC<ClusterStateCardProps> = ({
           label="Cluster ID"
           value={
             cluster?.clusterId ? (
-              <CopyableValue value={cluster.clusterId} />
+              <CopyableValue value={cluster.clusterId} label="Cluster ID" />
             ) : undefined
           }
         />
         <InfoRow
           label="Health"
-          value={<HealthValue autopilot={autopilot} hasLeader={hasLeader} />}
+          value={
+            <HealthValue
+              autopilot={autopilot}
+              autopilotError={autopilotError}
+              hasLeader={hasLeader}
+            />
+          }
         />
-        <InfoRow label="Schema" value={<SchemaValue status={status} />} />
+        <InfoRow
+          label="Schema"
+          value={<SchemaValue status={status} members={members} />}
+        />
       </CardContent>
     </Card>
   );
