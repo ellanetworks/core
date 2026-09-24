@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,15 +49,17 @@ const (
 // side supervision timer; this is a robustness guard.
 const releaseGuardTimeout = 5 * time.Second
 
-// UeConn represents one UE's radio-level state on a single Radio. It has no mutex of
-// its own: it is protected either by the owning Radio's single SCTP goroutine, or by
-// UeContext.Mutex when accessed via UeContext.Conn(). Callers of UeContext.Conn() must
+// UeConn represents one UE's radio-level state on a single Radio. Apart from locMu,
+// which guards Tai and Location, it has no mutex of its own: it is protected either by
+// the owning Radio's single SCTP goroutine, or by UeContext.Mutex when accessed via
+// UeContext.Conn(). Callers of UeContext.Conn() must
 // capture the returned pointer in a local and reuse it — the pointer may change between
 // calls.
 type UeConn struct {
 	ranUeNgapID  atomic.Int64
 	AmfUeNgapID  models.AmfUeNgapID
 	HandOverType ngap.HandoverType
+	locMu        sync.Mutex
 	Tai          models.Tai
 	Location     models.UserLocation
 	// Written only under amf.mu but read all over the NGAP dispatch path without
@@ -93,6 +96,7 @@ type UeConn struct {
 	// releaseGuard supervises a sent UE Context Release Command; if the Release Complete
 	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
 	releaseGuard guard.Guard
+	icsGuard     guard.Guard
 
 	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
 	// mutually exclusive, so one guard suffices.
@@ -274,9 +278,10 @@ func (ueConn *UeConn) Release(ctx context.Context) {
 	a.mu.Unlock()
 }
 
-// stopTimers stops the connection's NAS guard.
+// stopTimers stops the connection's NAS and Initial Context Setup guards.
 func (ueConn *UeConn) stopTimers(ctx context.Context) {
 	ueConn.StopNASGuard(ctx)
+	ueConn.icsGuard.Stop()
 }
 
 // armNASGuardWith arms the connection's NAS common-procedure guard (a no-op when cfg is
@@ -428,6 +433,7 @@ func (ueConn *UeConn) MarkICSPending() {
 // MarkICSCompleted records that the InitialContextSetupResponse has been received.
 func (ueConn *UeConn) MarkICSCompleted() {
 	ueConn.ics.Store(int32(ICSCompleted))
+	ueConn.icsGuard.Stop()
 }
 
 func (ueConn *UeConn) NoteInboundNAS() {
@@ -442,6 +448,35 @@ func (ueConn *UeConn) SentFrom5GMMIdle() bool {
 // failed so a retry re-attempts the context setup.
 func (ueConn *UeConn) ResetICS() {
 	ueConn.ics.Store(int32(ICSNotStarted))
+	ueConn.icsGuard.Stop()
+}
+
+func (ueConn *UeConn) superviseICS(ctx context.Context) {
+	a := ueConn.amf
+	if a == nil || !a.ICSGuardCfg.Enable {
+		return
+	}
+
+	link := trace.SpanContextFromContext(ctx)
+
+	ueConn.icsGuard.ArmOnce(a.ICSGuardCfg.ExpireTime, func() {
+		ue := ueConn.UeContext()
+		if ue == nil || ue.Conn() != ueConn || ueConn.ICS() != ICSPending {
+			return
+		}
+
+		guardCtx, span := guardSpan(link, "amf/ics_guard_expire", "Initial Context Setup", 0)
+		defer span.End()
+
+		ueConn.Log(guardCtx).Warn("no answer to the Initial Context Setup Request; releasing the NG connection")
+
+		if ue.State() == RegistrationInitiated {
+			a.abortCommonProcedure(guardCtx, ue)
+			return
+		}
+
+		a.ReleaseOnRANRequest(guardCtx, ueConn, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified}, nil)
+	})
 }
 
 func (ueConn *UeConn) AbortICS(ctx context.Context) {

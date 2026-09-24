@@ -20,7 +20,7 @@ import (
 // (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
-const defaultICSGuardTimeout = 10 * time.Second
+const defaultICSGuardTimeout = 15 * time.Second
 
 func (c *UeConn) SuperviseICS(ctx context.Context) {
 	if c == nil || !c.m.icsGuardCfg.Enable {

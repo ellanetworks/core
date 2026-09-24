@@ -375,3 +375,47 @@ func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(
 		t.Errorf("released SM context %q on a mobility update: TS 24.501 §5.5.1.3.4 reconciles the subscriber's sessions, it does not discard them", call.SmContextRef)
 	}
 }
+
+func TestHandleAuthenticationResponse_InitialRegistrationFromARegisteredUEDropsTheOldContextOnceGenuine(t *testing.T) {
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"1\"]",
+			Integrity:     `["SNOW3G","NULL"]`,
+			Ciphering:     `["SNOW3G","NULL"]`,
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  supi,
+		Kseaf: []byte{0xC0, 0xFF, 0xEE},
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+
+	conn := ue.Conn()
+	conn.RegistrationType5GS = fgs.RegistrationTypeInitial
+	conn.RegisteredBeforeRegistration = true
+	conn.AuthenticationCtx = &ausf.AuthResult{
+		Rand:      "DEADBEEF",
+		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	}
+
+	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
+
+	handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponse(make([]byte, 16)))
+
+	if conn.RegisteredBeforeRegistration {
+		t.Fatal("an initial registration proven genuine still keeps the previous registration; TS 24.501 §5.5.1.2.8 f deletes it")
+	}
+}

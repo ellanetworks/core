@@ -172,6 +172,7 @@ type AMF struct {
 	T3513Cfg                 guard.TimerValue
 	NASGuardCfg              guard.TimerValue
 	N2SetupGuardCfg          guard.TimerValue
+	ICSGuardCfg              guard.TimerValue
 	handoverGuardTimeout     time.Duration
 	Session                  SmfSbi
 	NAS                      NASHandler
@@ -772,6 +773,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		T3513Cfg:                 defaultTimerCfg,
 		NASGuardCfg:              defaultTimerCfg,
 		N2SetupGuardCfg:          defaultN2SetupGuardCfg,
+		ICSGuardCfg:              guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
@@ -788,6 +790,8 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
 // procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
+
+const defaultICSGuardTimeout = 15 * time.Second
 
 var defaultN2SetupGuardCfg = guard.TimerValue{
 	Enable:     true,
@@ -885,19 +889,14 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 		return fmt.Errorf("UE not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, _, err := amf.connOrPage(ctx, ue, models.N1N2MessageTransferRequest{})
 	if ueConn == nil {
 		var rejected *models.N1N2MessageTransferError
-
-		if _, err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
-			if errors.As(err, &rejected) {
-				return nil
-			}
-
-			return err
+		if errors.As(err, &rejected) {
+			return nil
 		}
 
-		return nil
+		return err
 	}
 
 	if err := ueConn.SendLocationReportingControl(ctx, ngap.EventTypeDirect); err != nil {

@@ -1009,7 +1009,13 @@ func (ueConn *UeConn) SendInitialContextSetup(
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt)
+	if err := amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt); err != nil {
+		return err
+	}
+
+	ueConn.superviseICS(ctx)
+
+	return nil
 }
 
 // pduSessionResourceModifyBytes builds a PDU SESSION RESOURCE MODIFY REQUEST

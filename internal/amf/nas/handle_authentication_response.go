@@ -97,6 +97,8 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	if isRegistrationUpdate(conn.RegistrationType5GS) {
 		amfInstance.CarrySubscriberSessions(ue)
+	} else {
+		conn.RegisteredBeforeRegistration = false
 	}
 
 	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {

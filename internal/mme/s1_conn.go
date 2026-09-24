@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/etsi"
@@ -38,7 +39,7 @@ const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
 // (TS 36.413): the S1AP identities, the eNB association, the connection-scoped
 // NAS-guard supervision, and any in-flight handover. A fresh one is bound
 // on each idle→active transition; the persistent UeContext it belongs to survives
-// across them. Fields are guarded by MME.mu unless noted.
+// across them. Fields are guarded by MME.mu unless noted; locMu guards Location.
 type UeConn struct {
 	enbUES1APID               atomic.Uint32
 	MMEUES1APID               s1ap.MMEUES1APID
@@ -48,6 +49,7 @@ type UeConn struct {
 	supi                      atomic.Pointer[string]
 	ue                        atomic.Pointer[UeContext]
 	ServingTAI                s1ap.TAI
+	locMu                     sync.Mutex
 	Location                  models.UserLocation
 	m                         *MME
 	ics                       atomic.Int32

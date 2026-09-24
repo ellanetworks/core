@@ -150,9 +150,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ue.SetLocation(ueConn.Location, ueConn.Tai)
+	loc, tai := ueConn.ServingLocation()
+	ue.SetLocation(loc, tai)
 
-	if !amf.InTaiList(ueConn.Tai, operatorInfo.Tais) {
+	if !amf.InTaiList(tai, operatorInfo.Tais) {
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)
@@ -289,7 +290,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			if !permanent {
 				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
 
-				if state == amf.Registered {
+				if conn := ue.Conn(); conn != nil && conn.RegisteredBeforeRegistration {
 					amfInstance.AbortRegistrationRetainingContext(ctx, ue)
 				} else {
 					abortRegistration(ctx, amfInstance, ue, "transient authentication failure", err)

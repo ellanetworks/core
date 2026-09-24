@@ -651,11 +651,13 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	c.bindSupi(ue.Supi())
 	ue.PagingAnswered()
 
+	c.locMu.Lock()
 	if c.Location.EutraLocation != nil {
 		ue.mu.Lock()
 		ue.Location = c.Location
 		ue.mu.Unlock()
 	}
+	c.locMu.Unlock()
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()

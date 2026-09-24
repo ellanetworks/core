@@ -50,16 +50,9 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return "", fmt.Errorf("ue context not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, cause, err := amf.connOrPage(ctx, ue, req)
 	if ueConn == nil {
-		cause, err := amf.storeN1N2AndPage(ctx, ue, req)
-		if !errors.Is(err, errUEConnected) {
-			return cause, err
-		}
-
-		if ueConn = ue.Conn(); ueConn == nil {
-			return "", err
-		}
+		return cause, err
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
@@ -173,6 +166,23 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	}
 
 	return models.N1N2TransferInitiated, nil
+}
+
+func (amf *AMF) connOrPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) (*UeConn, models.N1N2MessageTransferCause, error) {
+	if conn := ue.Conn(); conn != nil {
+		return conn, "", nil
+	}
+
+	cause, err := amf.storeN1N2AndPage(ctx, ue, req)
+	if !errors.Is(err, errUEConnected) {
+		return nil, cause, err
+	}
+
+	if conn := ue.Conn(); conn != nil {
+		return conn, "", nil
+	}
+
+	return nil, "", err
 }
 
 // storeN1N2AndPage buffers a downlink request and pages the idle UE
@@ -378,10 +388,10 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return "", fmt.Errorf("ue context not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, cause, err := amf.connOrPage(ctx, ue, req)
 	if ueConn == nil {
 		// UE is CM-IDLE: buffer the N2 message and page it (TS 23.502 §4.2.3.3).
-		return amf.storeN1N2AndPage(ctx, ue, req)
+		return cause, err
 	}
 
 	if ue.State() == RegistrationInitiated {
@@ -578,10 +588,8 @@ func (amf *AMF) TransferN2NRPPaMsg(ctx context.Context, supi etsi.SUPI, routingI
 // transferOrPageStandalone delivers a request that is not PDU-session scoped, buffering it
 // and paging the UE when it is CM-IDLE (TS 23.502 §4.2.3.3).
 func (amf *AMF) transferOrPageStandalone(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
-	conn := ue.Conn()
+	conn, _, err := amf.connOrPage(ctx, ue, req)
 	if conn == nil {
-		_, err := amf.storeN1N2AndPage(ctx, ue, req)
-
 		return err
 	}
 
