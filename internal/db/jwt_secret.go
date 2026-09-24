@@ -11,8 +11,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -59,7 +57,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", JWTSecretTableName),
+			semconv.DBCollectionName(JWTSecretTableName),
 		),
 	)
 	defer span.End()
@@ -74,17 +72,13 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 	err := db.conn().Query(ctx, db.getJWTSecretStmt).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return row.Secret, nil
 }
@@ -92,7 +86,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", JWTSecretTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -100,7 +94,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", JWTSecretTableName),
+			semconv.DBCollectionName(JWTSecretTableName),
 		),
 	)
 	defer span.End()
@@ -112,13 +106,10 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	_, err := opSetJWTSecret.Invoke(ctx, db, &bytesPayload{Value: secret})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -136,7 +127,7 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("ROTATE"),
-			attribute.String("db.collection.name", JWTSecretTableName),
+			semconv.DBCollectionName(JWTSecretTableName),
 		),
 	)
 	defer span.End()
@@ -148,8 +139,7 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 
 	tx, err := db.conn().Begin(ctx, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "begin transaction failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
@@ -160,8 +150,7 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 	if err != nil {
 		_ = tx.Rollback()
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "upsert secret failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("upsert secret failed: %w", err)
 	}
@@ -170,20 +159,16 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 	if err != nil {
 		_ = tx.Rollback()
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "delete sessions failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("delete sessions failed: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "commit failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("commit failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

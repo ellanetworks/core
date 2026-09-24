@@ -479,7 +479,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	}
 	defer db.restoreMu.Unlock()
 
-	_, span := tracer.Start(ctx, "db/restore", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(ctx, "db/restore", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
 	if db.conn() == nil {

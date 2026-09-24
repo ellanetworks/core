@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -58,9 +57,9 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", UsersTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(UsersTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -82,8 +81,6 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	err := db.conn().Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountUsers(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -92,8 +89,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -102,8 +98,6 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return users, count, nil
 }
@@ -120,7 +114,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -135,17 +129,13 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 	err := db.conn().Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -162,7 +152,7 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -177,17 +167,13 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 	err := db.conn().Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -195,7 +181,7 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", UsersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -203,7 +189,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -223,13 +209,10 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 	}
 
 	if _, err := opCreateUser.Invoke(ctx, db, user); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return "", err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return user.ID, nil
 }
@@ -238,7 +221,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -246,7 +229,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -263,13 +246,10 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 	_, err := opUpdateUser.Invoke(ctx, db, user)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -278,7 +258,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -286,7 +266,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -303,13 +283,10 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 	_, err := opUpdateUserPassword.Invoke(ctx, db, user)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -318,7 +295,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", UsersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -326,7 +303,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -338,13 +315,10 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	_, err := opDeleteUser.Invoke(ctx, db, &stringPayload{Value: email})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -361,7 +335,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", UsersTableName),
+			semconv.DBCollectionName(UsersTableName),
 		),
 	)
 	defer span.End()
@@ -375,13 +349,10 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

@@ -15,8 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -53,7 +51,7 @@ type NetworkRule struct {
 func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -61,7 +59,7 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -86,13 +84,10 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 
 	_, err := opCreateNetworkRule.Invoke(ctx, db, nr)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return "", err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nr.ID, nil
 }
@@ -109,7 +104,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -124,17 +119,13 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 	err := db.conn().Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -143,7 +134,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -151,7 +142,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -165,13 +156,10 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	_, err := opUpdateNetworkRule.Invoke(ctx, db, nr)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -188,7 +176,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -200,8 +188,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 
 	rules, err := db.ListRulesForPolicy(ctx, policyID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to list rules for policy")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to list rules for policy: %w", err)
 	}
@@ -230,8 +217,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 	}
 
 	if movedRule == nil {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "rule not found in policy")
+		recordSpanError(span, ErrNotFound)
 
 		return ErrNotFound
 	}
@@ -258,8 +244,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 	reorderedRules = append(reorderedRules, remainingRules[newIndex:]...)
 
 	if err := db.UpdateNetworkRule(ctx, movedRule); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %s", movedRule.ID))
+		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to update rule precedence for rule %s: %w", movedRule.ID, err)
 	}
@@ -267,14 +252,11 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 	for i, rule := range reorderedRules {
 		rule.Precedence = int32((i+1)*gap) + offset
 		if err := db.UpdateNetworkRule(ctx, rule); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %s", rule.ID))
+			recordSpanError(span, err)
 
 			return fmt.Errorf("failed to update rule precedence for rule %s: %w", rule.ID, err)
 		}
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -283,7 +265,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -291,7 +273,7 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -303,13 +285,10 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 
 	_, err := opDeleteNetworkRule.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -326,7 +305,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -343,17 +322,13 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 	err := db.conn().Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return []*NetworkRule{}, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return rules, nil
 }
@@ -362,7 +337,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -370,7 +345,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID s
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", NetworkRulesTableName),
+			semconv.DBCollectionName(NetworkRulesTableName),
 		),
 	)
 	defer span.End()
@@ -382,13 +357,10 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID s
 
 	_, err := opDeleteNetworkRulesByPolicy.Invoke(ctx, db, &stringPayload{Value: policyID})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

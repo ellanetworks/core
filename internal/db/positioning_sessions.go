@@ -14,8 +14,6 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -71,7 +69,7 @@ func (db *Database) CreatePositioningSession(ctx context.Context, s *Positioning
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", PositioningSessionsTableName),
+			semconv.DBCollectionName(PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -84,8 +82,7 @@ func (db *Database) CreatePositioningSession(ctx context.Context, s *Positioning
 	if s.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "uuid generation failed")
+			recordSpanError(span, err)
 
 			return fmt.Errorf("generate session id: %w", err)
 		}
@@ -99,13 +96,10 @@ func (db *Database) CreatePositioningSession(ctx context.Context, s *Positioning
 
 	err := db.conn().Query(ctx, db.createPositioningSessionStmt, s).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -121,7 +115,7 @@ func (db *Database) GetPositioningSession(ctx context.Context, id string) (*Posi
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PositioningSessionsTableName),
+			semconv.DBCollectionName(PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -137,13 +131,10 @@ func (db *Database) GetPositioningSession(ctx context.Context, id string) (*Posi
 
 	err := db.conn().Query(ctx, db.getPositioningSessionStmt, filter).Get(&s)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &s, nil
 }
@@ -159,7 +150,7 @@ func (db *Database) ListPositioningSessions(ctx context.Context, supi string, st
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PositioningSessionsTableName),
+			semconv.DBCollectionName(PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -184,13 +175,10 @@ func (db *Database) ListPositioningSessions(ctx context.Context, supi string, st
 	}
 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return sessions, nil
 }
@@ -206,7 +194,7 @@ func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id strin
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", PositioningSessionsTableName),
+			semconv.DBCollectionName(PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -222,13 +210,10 @@ func (db *Database) UpdatePositioningSessionStatus(ctx context.Context, id strin
 
 	err := db.conn().Query(ctx, db.updatePositioningSessionStmt, filter).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -244,7 +229,7 @@ func (db *Database) DeletePositioningSession(ctx context.Context, id string) err
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", PositioningSessionsTableName),
+			semconv.DBCollectionName(PositioningSessionsTableName),
 		),
 	)
 	defer span.End()
@@ -258,8 +243,7 @@ func (db *Database) DeletePositioningSession(ctx context.Context, id string) err
 
 	err := db.conn().Query(ctx, db.deletePositioningSessionStmt, PositioningSession{ID: id}).Get(&outcome)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -270,11 +254,10 @@ func (db *Database) DeletePositioningSession(ctx context.Context, id string) err
 	}
 
 	if rowsAffected == 0 {
-		span.SetStatus(codes.Error, "not found")
+		recordSpanError(span, ErrNotFound)
+
 		return ErrNotFound
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

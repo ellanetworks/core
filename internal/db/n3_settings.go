@@ -10,8 +10,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -51,7 +49,7 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -59,7 +57,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", N3SettingsTableName),
+			semconv.DBCollectionName(N3SettingsTableName),
 		),
 	)
 	defer span.End()
@@ -71,14 +69,12 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	_, err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
 
 	db.publishOpTopics([]Topic{TopicN3Settings})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -94,7 +90,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", N3SettingsTableName),
+			semconv.DBCollectionName(N3SettingsTableName),
 		),
 	)
 	defer span.End()
@@ -105,13 +101,10 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 	var n3Settings N3Settings
 
 	if err := db.conn().Query(ctx, db.getN3SettingsStmt).Get(&n3Settings); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &n3Settings, nil
 }

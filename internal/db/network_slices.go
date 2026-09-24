@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -51,9 +50,9 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(NetworkSlicesTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -75,8 +74,6 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 	err := db.conn().Query(ctx, db.listNetworkSlicesStmt, args).GetAll(&slices, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountNetworkSlices(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -85,8 +82,7 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -95,8 +91,6 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return slices, count, nil
 }
@@ -112,7 +106,7 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -127,17 +121,13 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 	err := db.conn().Query(ctx, db.listAllNetworkSlicesStmt).GetAll(&slices)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return slices, nil
 }
@@ -153,7 +143,7 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -168,17 +158,13 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 	err := db.conn().Query(ctx, db.getNetworkSliceStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -194,7 +180,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -209,17 +195,13 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 	err := db.conn().Query(ctx, db.getNetworkSliceByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -227,7 +209,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", NetworkSlicesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -235,7 +217,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -256,13 +238,10 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	_, err := opCreateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -270,7 +249,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkSlicesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -278,7 +257,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -290,13 +269,10 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	_, err := opUpdateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -304,7 +280,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkSlicesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -312,7 +288,7 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -324,13 +300,10 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	_, err := opDeleteNetworkSlice.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -346,7 +319,7 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
@@ -360,13 +333,10 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countNetworkSlicesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -382,13 +352,12 @@ func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", NetworkSlicesTableName),
+			semconv.DBCollectionName(NetworkSlicesTableName),
 		),
 	)
 	defer span.End()
 
 	if len(ids) == 0 {
-		span.SetStatus(codes.Ok, "empty input")
 		return nil, nil
 	}
 
@@ -402,17 +371,13 @@ func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([
 	err := db.conn().Query(ctx, db.listNetworkSlicesByIDsStmt, SliceIDs(ids)).GetAll(&slices)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return slices, nil
 }

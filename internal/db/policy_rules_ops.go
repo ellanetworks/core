@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -36,7 +35,7 @@ type policyWithRulesPayload struct {
 func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "INSERT", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -44,7 +43,7 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -66,7 +65,7 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "UPDATE", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -74,7 +73,7 @@ func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, r
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()

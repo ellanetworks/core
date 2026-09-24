@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -165,7 +164,16 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 		return nil
 	}
 
-	querySummary := fmt.Sprintf("BATCH INSERT %s", FlowReportsTableName)
+	operation := "INSERT"
+
+	var batchAttrs []attribute.KeyValue
+
+	if len(flowReports) > 1 {
+		operation = "BATCH INSERT"
+		batchAttrs = []attribute.KeyValue{semconv.DBOperationBatchSize(len(flowReports))}
+	}
+
+	querySummary := fmt.Sprintf("%s %s", operation, FlowReportsTableName)
 
 	ctx, span := tracer.Start(
 		ctx,
@@ -174,10 +182,10 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 		trace.WithAttributes(
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", FlowReportsTableName),
-			attribute.Int("db.operation.batch.size", len(flowReports)),
+			semconv.DBOperationName(operation),
+			semconv.DBCollectionName(FlowReportsTableName),
 		),
+		trace.WithAttributes(batchAttrs...),
 	)
 	defer span.End()
 
@@ -188,8 +196,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	tx, err := db.conn().Begin(ctx, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "begin transaction failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
@@ -205,15 +212,14 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 			_ = tx.Rollback()
 
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "insert failed")
+			recordSpanError(span, err)
 
 			return fmt.Errorf("insert failed: %w", err)
 		}
 	}
 
 	if orphaned > 0 {
-		span.SetAttributes(attribute.Int("db.batch_orphaned", orphaned))
+		span.SetAttributes(attribute.Int("ella.db.batch_orphaned", orphaned))
 		logger.DBLog.Warn("Dropped flow reports for deleted subscribers",
 			zap.Int("dropped", orphaned),
 			zap.Int("batch_size", len(flowReports)),
@@ -221,13 +227,10 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 	}
 
 	if err := tx.Commit(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "commit failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("commit failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -243,9 +246,9 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FlowReportsTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(FlowReportsTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -271,8 +274,6 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 	err := db.conn().Query(ctx, db.listFlowReportsStmt, args, filters).GetAll(&reports, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			var fallbackCount NumItems
 
 			countErr := db.conn().Query(ctx, db.countFlowReportsStmt, filters).Get(&fallbackCount)
@@ -283,8 +284,7 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 			return nil, fallbackCount.Count, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -293,8 +293,6 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return reports, count, nil
 }
@@ -311,7 +309,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", FlowReportsTableName),
+			semconv.DBCollectionName(FlowReportsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -328,13 +326,10 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 
 	err := db.conn().Query(ctx, db.deleteOldFlowReportsStmt, args).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -350,7 +345,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", FlowReportsTableName),
+			semconv.DBCollectionName(FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -362,13 +357,10 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 
 	err := db.conn().Query(ctx, db.deleteAllFlowReportsStmt).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -384,7 +376,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FlowReportsTableName),
+			semconv.DBCollectionName(FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -403,17 +395,13 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 	err := db.conn().Query(ctx, db.listFlowReportsByDayStmt, filters).GetAll(&results)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return results, nil
 }
@@ -429,7 +417,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FlowReportsTableName),
+			semconv.DBCollectionName(FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -448,17 +436,13 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 	err := db.conn().Query(ctx, db.listFlowReportsBySubscriberStmt, filters).GetAll(&results)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return results, nil
 }
@@ -475,7 +459,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FlowReportsTableName),
+			semconv.DBCollectionName(FlowReportsTableName),
 		),
 	)
 	defer span.End()
@@ -493,8 +477,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	err := db.conn().Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "protocol counts query failed")
+		recordSpanError(span, err)
 
 		return nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
@@ -503,13 +486,10 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	err = db.conn().Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "top destinations uplink query failed")
+		recordSpanError(span, err)
 
 		return nil, nil, fmt.Errorf("top destinations uplink query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return protocols, destinationsUplink, nil
 }

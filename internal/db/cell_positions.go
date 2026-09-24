@@ -14,8 +14,6 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -80,7 +78,7 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -93,8 +91,7 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 	if c.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "uuid generation failed")
+			recordSpanError(span, err)
 
 			return fmt.Errorf("generate cell position id: %w", err)
 		}
@@ -113,13 +110,10 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 	c.UpdatedAt = now
 
 	if err := db.conn().Query(ctx, db.createCellPositionStmt, c).Run(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -135,7 +129,7 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -149,13 +143,10 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 
 	err := db.conn().Query(ctx, db.getCellPositionStmt, CellPosition{ID: id}).Get(&c)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &c, nil
 }
@@ -173,7 +164,7 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -190,17 +181,13 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 	err := db.conn().Query(ctx, db.getCellPositionByCellStmt, filter).Get(&c)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &c, nil
 }
@@ -216,7 +203,7 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -230,13 +217,10 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 
 	err := db.conn().Query(ctx, db.listCellPositionsStmt).GetAll(&positions)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return positions, nil
 }
@@ -252,7 +236,7 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -269,8 +253,7 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 
 	err := db.conn().Query(ctx, db.updateCellPositionStmt, c).Get(&outcome)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -281,11 +264,10 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 	}
 
 	if rowsAffected == 0 {
-		span.SetStatus(codes.Error, "not found")
+		recordSpanError(span, ErrNotFound)
+
 		return ErrNotFound
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -301,7 +283,7 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", CellPositionsTableName),
+			semconv.DBCollectionName(CellPositionsTableName),
 		),
 	)
 	defer span.End()
@@ -315,8 +297,7 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 
 	err := db.conn().Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: id}).Get(&outcome)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -327,11 +308,10 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		span.SetStatus(codes.Error, "not found")
+		recordSpanError(span, ErrNotFound)
+
 		return ErrNotFound
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

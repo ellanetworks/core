@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -91,7 +90,7 @@ func (l *IPLease) Address() netip.Addr {
 func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -99,7 +98,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -117,22 +116,19 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, err
 	}
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
 	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
-	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
 }
@@ -145,7 +141,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -153,7 +149,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -171,22 +167,19 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, err
 	}
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
 	span.SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
-	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
 }
@@ -197,7 +190,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -205,7 +198,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -220,13 +213,10 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 
 	_, err := opCreateLease.Invoke(ctx, db, lease)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -243,7 +233,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -258,17 +248,13 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 	err := db.conn().Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -277,7 +263,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
 	querySummary := fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -285,7 +271,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -299,13 +285,10 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 
 	_, err := opUpdateLeaseSession.Invoke(ctx, db, lease)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -313,7 +296,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
 	querySummary := fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -321,7 +304,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -339,27 +322,23 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, err
 	}
 
 	if addrStr == "" {
-		span.SetStatus(codes.Ok, "")
 		return netip.Addr{}, nil
 	}
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return netip.Addr{}, fmt.Errorf("parse released address %q: %w", addrStr, err)
 	}
 
 	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
-	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
 }
@@ -367,7 +346,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -375,7 +354,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -387,13 +366,10 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 
 	_, err := opDeleteDynamicLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -403,7 +379,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 	querySummary := fmt.Sprintf("%s %s (dynamic)", "DELETE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -411,7 +387,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -423,13 +399,10 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	_, err := opDeleteAllDynamicLeases.Invoke(ctx, db, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -440,7 +413,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s (dynamic by node)", "DELETE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -448,7 +421,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 			attrs.NodeID(nodeID),
 		),
 	)
@@ -461,13 +434,10 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 
 	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -477,7 +447,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID string, sessionID int) error {
 	querySummary := fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -485,7 +455,7 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -499,13 +469,10 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 
 	_, err := opUpdateLeaseNode.Invoke(ctx, db, lease)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -522,7 +489,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -537,17 +504,13 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 	err := db.conn().Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
 }
@@ -568,7 +531,7 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 			attrs.NodeID(nodeID),
 		),
 	)
@@ -584,17 +547,13 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (
 	err := db.conn().Query(ctx, db.listActiveLeasesByNodeStmt, IPLease{NodeID: nodeID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
 }
@@ -627,7 +586,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -642,17 +601,13 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 	err := db.conn().Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
 }
@@ -670,9 +625,9 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(IPLeasesTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -694,8 +649,6 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID, poolType)
 			if countErr != nil {
 				return nil, 0, fmt.Errorf("count fallback failed: %w", countErr)
@@ -704,8 +657,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -714,8 +666,6 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, count, nil
 }
@@ -733,7 +683,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolTy
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -748,12 +698,10 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolTy
 	err := db.conn().Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -763,8 +711,6 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolTy
 	for i := range leases {
 		addresses = append(addresses, leases[i].Address().String())
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return addresses, nil
 }
@@ -781,7 +727,7 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -795,13 +741,10 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 
 	err := db.conn().Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -819,7 +762,7 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -833,13 +776,10 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 
 	err := db.conn().Query(ctx, db.countIPv4LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -856,7 +796,7 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -870,13 +810,10 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 
 	err := db.conn().Query(ctx, db.countIPv6LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -893,7 +830,7 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -907,13 +844,10 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countActiveLeasesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -930,7 +864,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -944,13 +878,10 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 
 	err := db.conn().Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -961,7 +892,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
 	querySummary := fmt.Sprintf("%s %s (static)", "INSERT", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -969,7 +900,7 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -989,13 +920,10 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 
 	_, err := opCreateStaticLease.Invoke(ctx, db, lease)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -1013,7 +941,7 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1028,17 +956,13 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 	err := db.conn().Query(ctx, db.getStaticLeaseStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -1056,7 +980,7 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1071,17 +995,13 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 	err := db.conn().Query(ctx, db.listStaticLeasesByIMSIStmt, IPLease{IMSI: imsi}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
 }
@@ -1099,7 +1019,7 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1114,17 +1034,13 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 	err := db.conn().Query(ctx, db.listStaticLeasesByDNStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
 }
@@ -1135,7 +1051,7 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
 	querySummary := fmt.Sprintf("%s %s (static clear)", "UPDATE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -1143,7 +1059,7 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1155,13 +1071,10 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 
 	_, err := opUpdateLeaseSession.Invoke(ctx, db, &IPLease{ID: leaseID})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -1172,7 +1085,7 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
 	querySummary := fmt.Sprintf("%s %s (static repin)", "UPDATE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -1180,7 +1093,7 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1194,13 +1107,10 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 
 	_, err := opUpdateStaticLeaseAddress.Invoke(ctx, db, &IPLease{ID: leaseID, AddressBin: b[:]})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -1210,7 +1120,7 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
 	querySummary := fmt.Sprintf("%s %s (static)", "DELETE", IPLeasesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -1218,7 +1128,7 @@ func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", IPLeasesTableName),
+			semconv.DBCollectionName(IPLeasesTableName),
 		),
 	)
 	defer span.End()
@@ -1230,13 +1140,10 @@ func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error
 
 	_, err := opDeleteStaticLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

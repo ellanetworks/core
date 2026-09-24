@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -51,9 +50,9 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ProfilesTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(ProfilesTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -75,8 +74,6 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 	err := db.conn().Query(ctx, db.listProfilesStmt, args).GetAll(&profiles, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountProfiles(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -85,8 +82,7 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -95,8 +91,6 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return profiles, count, nil
 }
@@ -112,7 +106,7 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -127,17 +121,13 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 	err := db.conn().Query(ctx, db.getProfileStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -153,7 +143,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -168,17 +158,13 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 	err := db.conn().Query(ctx, db.getProfileByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -186,7 +172,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", ProfilesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -194,7 +180,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -215,13 +201,10 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 
 	_, err := opCreateProfile.Invoke(ctx, db, profile)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -229,7 +212,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -237,7 +220,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -249,13 +232,10 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	_, err := opUpdateProfile.Invoke(ctx, db, profile)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -263,7 +243,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ProfilesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -271,7 +251,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -283,13 +263,10 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	_, err := opDeleteProfile.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -305,7 +282,7 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ProfilesTableName),
+			semconv.DBCollectionName(ProfilesTableName),
 		),
 	)
 	defer span.End()
@@ -319,13 +296,10 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countProfilesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -341,7 +315,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 			attrs.ProfileID(profileID),
 		),
 	)
@@ -358,13 +332,10 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 
 	err := db.conn().Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -378,27 +349,22 @@ func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool
 	profile, err := db.GetProfile(ctx, name)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			span.RecordError(ErrNotFound)
-			span.SetStatus(codes.Error, "profile not found")
+			recordSpanError(span, ErrNotFound)
 
 			return false, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "profile not found")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("profile not found: %w", err)
 	}
 
 	count, err := db.CountSubscribersInProfile(ctx, profile.ID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "counting failed")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("counting failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return count > 0, nil
 }

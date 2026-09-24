@@ -10,8 +10,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -59,7 +57,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FlowAccountingSettingsTableName),
+			semconv.DBCollectionName(FlowAccountingSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -73,13 +71,10 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 
 	err := db.conn().Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return flowAccountingSettings.Enabled, nil
 }
@@ -87,7 +82,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bool) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", FlowAccountingSettingsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -95,7 +90,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", FlowAccountingSettingsTableName),
+			semconv.DBCollectionName(FlowAccountingSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -107,14 +102,12 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 
 	_, err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
 
 	db.publishOpTopics([]Topic{TopicFlowAccountingSettings})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

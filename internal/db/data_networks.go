@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -52,9 +51,9 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(DataNetworksTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -76,8 +75,6 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	err := db.conn().Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountDataNetworks(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -86,8 +83,7 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -96,8 +92,6 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return dataNetworks, count, nil
 }
@@ -113,7 +107,7 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -128,18 +122,13 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 	err := db.conn().Query(ctx, db.listAllDataNetworksStmt).GetAll(&dataNetworks)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return dataNetworks, nil
 }
@@ -155,7 +144,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -170,19 +159,15 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	err := db.conn().Query(ctx, db.getDataNetworkStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "not found")
+			recordSpanError(span, err)
 
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -198,7 +183,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -213,19 +198,15 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 	err := db.conn().Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "not found")
+			recordSpanError(span, err)
 
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -233,7 +214,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -241,7 +222,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -262,13 +243,10 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	_, err := opCreateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -276,7 +254,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -284,7 +262,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -296,13 +274,10 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	_, err := opUpdateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -310,7 +285,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -318,7 +293,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -330,13 +305,10 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	_, err := opDeleteDataNetwork.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -352,7 +324,7 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DataNetworksTableName),
+			semconv.DBCollectionName(DataNetworksTableName),
 		),
 	)
 	defer span.End()
@@ -366,13 +338,10 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countDataNetworksStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
