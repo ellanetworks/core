@@ -4,28 +4,41 @@
 package db
 
 import (
+	"slices"
 	"testing"
+
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestDrainingVotersAreNeverTransferTargets(t *testing.T) {
+	voters := []ellaraft.Server{
+		{NodeID: "a", Suffrage: "voter"},
+		{NodeID: "b", Suffrage: "voter"},
+		{NodeID: "c", Suffrage: "voter"},
+	}
+
 	for _, tc := range []struct {
 		name         string
+		servers      []ellaraft.Server
 		members      []ClusterMember
 		wantEligible []string
 		wantExcluded bool
 	}{
 		{
 			name:         "no drain state means every peer is eligible",
+			servers:      voters,
 			members:      nil,
 			wantEligible: []string{"b", "c"},
 		},
 		{
 			name:         "an empty drain state means active",
+			servers:      voters,
 			members:      []ClusterMember{{NodeID: "b"}, {NodeID: "c"}},
 			wantEligible: []string{"b", "c"},
 		},
 		{
-			name: "a draining peer is excluded",
+			name:    "a draining peer is excluded",
+			servers: voters,
 			members: []ClusterMember{
 				{NodeID: "b", DrainState: DrainStateDraining},
 				{NodeID: "c", DrainState: DrainStateActive},
@@ -34,7 +47,8 @@ func TestDrainingVotersAreNeverTransferTargets(t *testing.T) {
 			wantExcluded: true,
 		},
 		{
-			name: "a drained peer is excluded",
+			name:    "a drained peer is excluded",
+			servers: voters,
 			members: []ClusterMember{
 				{NodeID: "b", DrainState: DrainStateDrained},
 				{NodeID: "c", DrainState: DrainStateDrained},
@@ -42,42 +56,35 @@ func TestDrainingVotersAreNeverTransferTargets(t *testing.T) {
 			wantEligible: nil,
 			wantExcluded: true,
 		},
+		{
+			name: "a nonvoter is never a target",
+			servers: []ellaraft.Server{
+				{NodeID: "a", Suffrage: "voter"},
+				{NodeID: "b", Suffrage: "nonvoter"},
+				{NodeID: "c", Suffrage: "voter"},
+			},
+			wantEligible: []string{"c"},
+		},
+		{
+			name:         "self is never a target",
+			servers:      []ellaraft.Server{{NodeID: "a", Suffrage: "voter"}},
+			wantEligible: nil,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			draining := make(map[string]bool, len(tc.members))
-			for _, m := range tc.members {
-				draining[m.NodeID] = normalizeDrainState(m.DrainState) != DrainStateActive
-			}
-
-			var eligible []string
-
-			excluded := false
-
-			for _, id := range []string{"a", "b", "c"} {
-				if id == "a" {
-					continue
-				}
-
-				if draining[id] {
-					excluded = true
-					continue
-				}
-
-				eligible = append(eligible, id)
-			}
+			got, excluded := selectTransferCandidates(tc.servers, "a", tc.members)
 
 			if excluded != tc.wantExcluded {
 				t.Fatalf("excluded = %v, want %v", excluded, tc.wantExcluded)
 			}
 
-			if len(eligible) != len(tc.wantEligible) {
-				t.Fatalf("eligible = %v, want %v", eligible, tc.wantEligible)
+			var eligible []string
+			for _, srv := range got {
+				eligible = append(eligible, srv.NodeID)
 			}
 
-			for i := range eligible {
-				if eligible[i] != tc.wantEligible[i] {
-					t.Fatalf("eligible = %v, want %v", eligible, tc.wantEligible)
-				}
+			if !slices.Equal(eligible, tc.wantEligible) {
+				t.Fatalf("eligible = %v, want %v", eligible, tc.wantEligible)
 			}
 		})
 	}

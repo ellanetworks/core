@@ -15,32 +15,24 @@ const (
 	LeadershipLostAction     = "leadership_lost"
 )
 
-// LeadershipAuditCallback logs leadership transitions to the audit log.
-// Implements raft.LeaderCallback.
-type LeadershipAuditCallback struct {
-	nodeID string
-}
+func LeadershipAudit(nodeID string) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		logger.LogAuditEvent(
+			context.Background(),
+			LeadershipAcquiredAction,
+			"system",
+			"",
+			fmt.Sprintf("Node %s acquired leadership", nodeID),
+		)
 
-func NewLeadershipAuditCallback(nodeID string) *LeadershipAuditCallback {
-	return &LeadershipAuditCallback{nodeID: nodeID}
-}
+		<-ctx.Done()
 
-func (c *LeadershipAuditCallback) OnBecameLeader() {
-	go logger.LogAuditEvent(
-		context.Background(),
-		LeadershipAcquiredAction,
-		"system",
-		"",
-		fmt.Sprintf("Node %s acquired leadership", c.nodeID),
-	)
-}
-
-func (c *LeadershipAuditCallback) OnLostLeadership() {
-	go logger.LogAuditEvent(
-		context.Background(),
-		LeadershipLostAction,
-		"system",
-		"",
-		fmt.Sprintf("Node %s lost leadership", c.nodeID),
-	)
+		logger.LogAuditEvent(
+			context.Background(),
+			LeadershipLostAction,
+			"system",
+			"",
+			fmt.Sprintf("Node %s lost leadership", nodeID),
+		)
+	}
 }

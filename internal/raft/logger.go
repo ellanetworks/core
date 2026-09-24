@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
 
@@ -33,8 +34,13 @@ func newZapRaftLogger() hclog.Logger {
 func (l *zapRaftLogger) Log(level hclog.Level, msg string, args ...interface{}) {
 	fields := argsToFields(args)
 
-	if level == hclog.Error && isUnreachablePeerError(args) {
-		level = hclog.Warn
+	if level == hclog.Error {
+		switch {
+		case isTransportShutdownError(args):
+			level = hclog.Debug
+		case isUnreachablePeerError(args):
+			level = hclog.Warn
+		}
 	}
 
 	switch level {
@@ -49,6 +55,16 @@ func (l *zapRaftLogger) Log(level hclog.Level, msg string, args ...interface{}) 
 	}
 }
 
+func isTransportShutdownError(args []interface{}) bool {
+	for i := 1; i < len(args); i += 2 {
+		if err, ok := args[i].(error); ok && errors.Is(err, raft.ErrTransportShutdown) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func isUnreachablePeerError(args []interface{}) bool {
 	for i := 1; i < len(args); i += 2 {
 		err, ok := args[i].(error)
@@ -56,24 +72,34 @@ func isUnreachablePeerError(args []interface{}) bool {
 			continue
 		}
 
-		if errors.Is(err, syscall.ECONNREFUSED) ||
-			errors.Is(err, syscall.EHOSTUNREACH) ||
-			errors.Is(err, syscall.ENETUNREACH) ||
-			errors.Is(err, syscall.ECONNRESET) ||
-			errors.Is(err, syscall.ETIMEDOUT) ||
-			errors.Is(err, syscall.EPIPE) ||
-			errors.Is(err, io.EOF) ||
-			errors.Is(err, io.ErrUnexpectedEOF) {
+		if isUnreachable(err) {
 			return true
 		}
 
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
+		var causer interface{ Cause() error }
+		if errors.As(err, &causer) && isUnreachable(causer.Cause()) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func isUnreachable(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ETIMEDOUT) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	var netErr net.Error
+
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func (l *zapRaftLogger) Trace(msg string, args ...interface{}) { l.Log(hclog.Trace, msg, args...) }

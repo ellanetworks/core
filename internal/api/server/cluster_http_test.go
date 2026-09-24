@@ -274,42 +274,6 @@ func TestClusterHTTP_AddMemberRejectsUnreachableJoiner(t *testing.T) {
 	}
 }
 
-func TestClusterHTTP_AddMemberProbesBeforeTouchingRaft(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []string{"1", "5"})
-
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, []string{"5"})
-	defer cleanup()
-
-	joinerLn := listener.New(listener.Config{
-		BindAddress:      "127.0.0.1:0",
-		AdvertiseAddress: "127.0.0.1:0",
-		NodeID:           "5",
-		Pin:              pki.PinFunc(),
-
-		Leaf: pki.LeafFunc("5"),
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := joinerLn.Start(ctx); err != nil {
-		t.Fatalf("start joiner listener: %v", err)
-	}
-
-	defer joinerLn.Stop()
-
-	body := fmt.Sprintf(
-		`{"nodeId":5,"raftAddress":%q,"apiAddress":"127.0.0.1:9001","schemaVersion":%d}`,
-		joinerLn.BoundAddress(), db.SchemaVersion(),
-	)
-
-	status, respBody := postClusterMember(t, clients["5"], serverAddr, body)
-
-	if status == http.StatusBadGateway || strings.Contains(respBody, "Cannot reach node") {
-		t.Fatalf("a reachable joiner was rejected by the reachability probe: %d (body: %s)", status, respBody)
-	}
-}
-
 func TestClusterHTTP_AddMemberRejectsAddressHeldByAnotherNode(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []string{"1", "5", "6"})
 

@@ -141,7 +141,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicBGPSettings}, 0)
+	db.publishOpTopics([]Topic{TopicBGPSettings})
 	span.SetStatus(codes.Ok, "")
 
 	return nil

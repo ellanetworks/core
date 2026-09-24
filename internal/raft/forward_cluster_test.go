@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"testing"
 	"time"
 
@@ -215,7 +214,7 @@ func TestForwardPropose_FollowerRetriesOnLeaderChange(t *testing.T) {
 				continue
 			}
 
-			if m.LeaderObserver().IsLeader() {
+			if m.leadershipEstablished() {
 				newLeader = m
 				break
 			}
@@ -274,13 +273,6 @@ func TestWriteProposeForwardResponse_EnvelopeAndHeader(t *testing.T) {
 		t.Errorf("status: got %d want %d", rec.status, http.StatusOK)
 	}
 
-	gotHeader := rec.header.Get(HeaderAppliedIndex)
-
-	wantHeader := strconv.FormatUint(result.Index, 10)
-	if gotHeader != wantHeader {
-		t.Errorf("applied-index header: got %q want %q", gotHeader, wantHeader)
-	}
-
 	var env ProposeForwardResponse
 	if err := json.Unmarshal(rec.body, &env); err != nil {
 		t.Fatalf("decode envelope: %v (body=%q)", err, rec.body)
@@ -304,10 +296,6 @@ func TestWriteProposeForwardResponse_NilValue(t *testing.T) {
 	rec := newHeaderRecorder()
 	if err := WriteProposeForwardResponse(rec, &ProposeResult{Index: 7}); err != nil {
 		t.Fatalf("write response: %v", err)
-	}
-
-	if got := rec.header.Get(HeaderAppliedIndex); got != "7" {
-		t.Errorf("applied-index header: got %q want %q", got, "7")
 	}
 
 	var env ProposeForwardResponse

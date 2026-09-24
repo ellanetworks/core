@@ -8,6 +8,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
@@ -320,5 +321,36 @@ func stubServers(ids []string) func() []ellaraft.Server {
 		}
 
 		return out
+	}
+}
+
+func TestRunClusterCoordinatorConsumesWakesAndStopsOnCancel(t *testing.T) {
+	database := &Database{migrationCheckCh: make(chan struct{}, 1)}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		database.runClusterCoordinator(ctx)
+		close(done)
+	}()
+
+	database.signalMigrationCheck()
+
+	deadline := time.Now().Add(time.Second)
+	for len(database.migrationCheckCh) != 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("coordinator never consumed the migration check wake")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not return after its context was cancelled")
 	}
 }

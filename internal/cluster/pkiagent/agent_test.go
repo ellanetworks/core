@@ -8,13 +8,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 	"time"
 
@@ -36,52 +34,31 @@ func newAgent(t *testing.T, nodeID string, clusterID string) *pkiagent.Agent {
 	return a
 }
 
-// startListener builds a listener bound to a free ephemeral port, runs setup
-// (e.g. Register, which must precede Start) if given, and starts it, retrying on
-// a fresh port if another test grabbed the chosen one between selection and bind
-// (the probe-then-bind window is inherently racy). Stop is registered as cleanup.
+// startListener builds a listener bound to an ephemeral port, runs setup
+// (e.g. Register, which must precede Start) if given, and starts it. Stop is
+// registered as cleanup.
 func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn listener.PinFunc, setup func(*listener.Listener)) string {
 	t.Helper()
 
-	for attempt := 0; attempt < 20; attempt++ {
-		lc := net.ListenConfig{}
+	ln := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           a.NodeID,
+		Pin:              pinFn,
+		Leaf:             func() *tls.Certificate { return a.Leaf() },
+	})
 
-		probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("free port: %v", err)
-		}
+	if setup != nil {
+		setup(ln)
+	}
 
-		addr := probe.Addr().String()
-		_ = probe.Close()
-
-		ln := listener.New(listener.Config{
-			BindAddress:      addr,
-			AdvertiseAddress: addr,
-			NodeID:           a.NodeID,
-			Pin:              pinFn,
-			Leaf:             func() *tls.Certificate { return a.Leaf() },
-		})
-
-		if setup != nil {
-			setup(ln)
-		}
-
-		err = ln.Start(ctx)
-		if err == nil {
-			t.Cleanup(ln.Stop)
-			return addr
-		}
-
-		if errors.Is(err, syscall.EADDRINUSE) {
-			continue
-		}
-
+	if err := ln.Start(ctx); err != nil {
 		t.Fatalf("start listener: %v", err)
 	}
 
-	t.Fatal("could not bind a free ephemeral port after 20 attempts")
+	t.Cleanup(ln.Stop)
 
-	return ""
+	return ln.BoundAddress()
 }
 
 // alwaysFailRegisterHandler reads one HTTP request and writes a

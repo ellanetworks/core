@@ -118,8 +118,6 @@ const (
 	leadershipTransferAttempts = 3
 )
 
-var errShuttingDown = errors.New("raft manager shutting down")
-
 // closeTransport best-effort closes a raft.Transport. The interface itself
 // has no Close method, but concrete transports (TCP, in-mem) implement
 // io.Closer. Used on error paths in NewManager and Shutdown.
@@ -139,10 +137,8 @@ type Manager struct {
 	config          ClusterConfig
 	raftID          string
 	dataDir         string
-	observer        *LeaderObserver
-	autopilot       *autopilotRunner
+	autopilot       *autopilot.Autopilot
 	followerTracker *followerTracker
-	boltNoSync      bool
 	clusterListener *listener.Listener
 
 	soleVoterTimeouts raft.ReloadableConfig
@@ -152,80 +148,17 @@ type Manager struct {
 
 	discoveryPending atomic.Bool
 
-	barrieredTerm atomic.Uint64
-	barrierMu     sync.Mutex
-	barrier       *barrierAttempt
+	leaderMu       sync.Mutex
+	hooks          []LeaderHook
+	term           *leaderTerm
+	leaderLoopDone chan struct{}
 
-	leaderBarrier     chan struct{}
-	leaderBarrierOnce sync.Once
+	barrierMu     sync.Mutex
+	barrieredTerm uint64
+	leaderChanged chan struct{}
 
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
-}
-
-type leaderBarrierCallback struct {
-	m *Manager
-}
-
-func (c leaderBarrierCallback) OnLostLeadership() {}
-
-func (c leaderBarrierCallback) OnBecameLeader() {
-	for {
-		err := c.m.barrierForLeadership()
-		if err == nil {
-			c.m.leaderBarrierOnce.Do(func() { close(c.m.leaderBarrier) })
-			return
-		}
-
-		if errors.Is(err, errShuttingDown) || c.m.raft.State() != raft.Leader {
-			logger.RaftLog.Warn("Post-leadership barrier abandoned", zap.Error(err))
-			return
-		}
-
-		logger.RaftLog.Error("Post-leadership barrier failed; retrying before leader initialization runs",
-			zap.Error(err))
-
-		select {
-		case <-c.m.shutdownCh:
-			return
-		case <-time.After(leaderBarrierRetryInterval):
-		}
-	}
-}
-
-func (m *Manager) barrierForLeadership() error {
-	term := m.raft.CurrentTerm()
-	if term != 0 && m.barrieredTerm.Load() == term {
-		return nil
-	}
-
-	if m.raft.State() != raft.Leader {
-		return raft.ErrNotLeader
-	}
-
-	att := m.barrierFor(term)
-
-	select {
-	case <-att.done:
-		return att.err
-	case <-m.shutdownCh:
-		return errShuttingDown
-	}
-}
-
-func (m *Manager) WaitForLeaderBarrier(ctx context.Context) error {
-	select {
-	case <-m.leaderBarrier:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-type barrierAttempt struct {
-	term uint64
-	done chan struct{}
-	err  error
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -416,21 +349,18 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		}
 	}
 
-	observer := NewLeaderObserver()
-
 	m := &Manager{
-		raft:          r,
-		fsm:           fsm,
-		transport:     transport,
-		logStore:      boltStore,
-		snaps:         snapshotStore,
-		config:        cfg,
-		raftID:        raftID,
-		dataDir:       dataDir,
-		observer:      observer,
-		boltNoSync:    false,
-		leaderBarrier: make(chan struct{}),
-		shutdownCh:    make(chan struct{}),
+		raft:           r,
+		fsm:            fsm,
+		transport:      transport,
+		logStore:       boltStore,
+		snaps:          snapshotStore,
+		config:         cfg,
+		raftID:         raftID,
+		dataDir:        dataDir,
+		leaderLoopDone: make(chan struct{}),
+		leaderChanged:  make(chan struct{}),
+		shutdownCh:     make(chan struct{}),
 		clusterTimeouts: raft.ReloadableConfig{
 			TrailingLogs:      raftConfig.TrailingLogs,
 			SnapshotInterval:  raftConfig.SnapshotInterval,
@@ -447,8 +377,6 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		},
 	}
 
-	observer.Register(leaderBarrierCallback{m: m})
-
 	m.discoveryPending.Store(!singleServer && !hasState && !recovered)
 
 	m.relaxSoleVoterTimeouts()
@@ -456,19 +384,15 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	m.attachClusterListener(options.clusterListener)
 
 	if !singleServer {
-		ft := newFollowerTracker(r)
-		m.followerTracker = ft
-		m.autopilot = newAutopilotRunner(r, m)
-
-		observer.Register(ft.asLeaderCallback(raft.ServerID(raftID)))
-		observer.Register(m.autopilot)
+		m.followerTracker = newFollowerTracker(r)
+		m.autopilot = newAutopilot(r, m)
 	}
 
 	if singleServer {
 		warnOnMultiServerStandaloneState(r, raftID, raftDir)
 	}
 
-	go observer.Run(r)
+	go m.monitorLeadership()
 
 	return m, nil
 }
@@ -628,7 +552,7 @@ func (m *Manager) AutopilotState() *autopilot.State {
 		return nil
 	}
 
-	return m.autopilot.State()
+	return m.autopilot.GetState()
 }
 
 // LeaderAddress returns the Raft transport address of the current leader.
@@ -703,63 +627,6 @@ func (m *Manager) Barrier(timeout time.Duration) error {
 	return m.raft.Barrier(timeout).Error()
 }
 
-// WriteBarrier blocks until the FSM has applied every entry committed before
-// this call. raft.State() reports Leader while entries from the previous term
-// are still queued for the FSM, so a changeset captured in that window carries
-// pre-images those entries invalidate. Once per term is enough: everything
-// this node appends afterwards is ordered behind the barrier.
-func (m *Manager) WriteBarrier(timeout time.Duration) error {
-	term := m.raft.CurrentTerm()
-	if term != 0 && m.barrieredTerm.Load() == term {
-		return nil
-	}
-
-	if m.raft.State() != raft.Leader {
-		return raft.ErrNotLeader
-	}
-
-	att := m.barrierFor(term)
-
-	select {
-	case <-att.done:
-		return att.err
-	case <-time.After(timeout):
-		return ErrBarrierTimeout
-	}
-}
-
-// barrierFor shares one in-flight barrier per term: a caller that gives up
-// leaves it running, so repeated timeouts still cost the log a single entry.
-func (m *Manager) barrierFor(term uint64) *barrierAttempt {
-	m.barrierMu.Lock()
-	defer m.barrierMu.Unlock()
-
-	if m.barrier != nil && m.barrier.term == term {
-		return m.barrier
-	}
-
-	att := &barrierAttempt{term: term, done: make(chan struct{})}
-	m.barrier = att
-
-	go func() {
-		att.err = m.raft.Barrier(0).Error()
-
-		if att.err == nil {
-			m.barrieredTerm.Store(term)
-		}
-
-		m.barrierMu.Lock()
-		if m.barrier == att {
-			m.barrier = nil
-		}
-		m.barrierMu.Unlock()
-
-		close(att.done)
-	}()
-
-	return att
-}
-
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. No production caller; reached only from db.ForceSnapshot,
 // which tests use to exercise the snapshot-restore path.
@@ -797,14 +664,6 @@ func (m *Manager) State() raft.RaftState {
 // Stats returns the Raft stats map (wraps raft.Stats()).
 func (m *Manager) Stats() map[string]string {
 	return m.raft.Stats()
-}
-
-// LeaderObserver returns the manager's leadership observer. Callers register
-// LeaderCallback implementations before the observer's Run loop fires the
-// initial state; in practice, registration happens between NewDatabase and
-// the background-worker launch in runtime.go.
-func (m *Manager) LeaderObserver() *LeaderObserver {
-	return m.observer
 }
 
 // atLeast floors d at the leader-lease timeout. ReloadConfig cannot change
@@ -917,34 +776,8 @@ func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
 }
 
-// BoltNoSync reports whether the raft log store was opened with fsync
-// disabled.
-func (m *Manager) BoltNoSync() bool {
-	return m.boltNoSync
-}
-
 func (m *Manager) LeadershipTransfer() error {
-	var lastErr error
-
-	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
-		err := m.raft.LeadershipTransfer().Error()
-		if err == nil {
-			return nil
-		}
-
-		if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
-			return err
-		}
-
-		lastErr = err
-
-		logger.RaftLog.Warn("Leadership transfer attempt failed",
-			zap.Int("attempt", attempt),
-			zap.Int("attempts", leadershipTransferAttempts),
-			zap.Error(err))
-	}
-
-	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
+	return m.transferLeadership(nil)
 }
 
 func (m *Manager) LeadershipTransferTo(candidates []Server) error {
@@ -952,19 +785,29 @@ func (m *Manager) LeadershipTransferTo(candidates []Server) error {
 		return ErrNoTransferTarget
 	}
 
+	return m.transferLeadership(candidates)
+}
+
+func (m *Manager) transferLeadership(candidates []Server) error {
 	var lastErr error
 
 	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
-		target := candidates[(attempt-1)%len(candidates)]
+		var (
+			future raft.Future
+			fields []zap.Field
+		)
 
-		err := m.raft.LeadershipTransferToServer(
-			raft.ServerID(target.NodeID),
-			raft.ServerAddress(target.Address),
-		).Error()
+		if len(candidates) > 0 {
+			target := candidates[(attempt-1)%len(candidates)]
+			future = m.raft.LeadershipTransferToServer(raft.ServerID(target.NodeID), raft.ServerAddress(target.Address))
+			fields = []zap.Field{zap.String("target_node_id", target.NodeID), zap.String("target_address", target.Address)}
+		} else {
+			future = m.raft.LeadershipTransfer()
+		}
+
+		err := future.Error()
 		if err == nil {
-			logger.RaftLog.Info("Leadership transferred",
-				zap.String("target_node_id", target.NodeID),
-				zap.String("target_address", target.Address))
+			logger.RaftLog.Info("Leadership transferred", fields...)
 
 			return nil
 		}
@@ -975,11 +818,10 @@ func (m *Manager) LeadershipTransferTo(candidates []Server) error {
 
 		lastErr = err
 
-		logger.RaftLog.Warn("Leadership transfer attempt failed",
+		logger.RaftLog.Warn("Leadership transfer attempt failed", append(fields,
 			zap.Int("attempt", attempt),
 			zap.Int("attempts", leadershipTransferAttempts),
-			zap.String("target_node_id", target.NodeID),
-			zap.Error(err))
+			zap.Error(err))...)
 	}
 
 	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
@@ -1037,18 +879,6 @@ func (m *Manager) MemberIDs() []string {
 func (m *Manager) Shutdown() error {
 	m.shutdownOnce.Do(func() { close(m.shutdownCh) })
 
-	if m.observer != nil {
-		m.observer.Stop()
-	}
-
-	if m.autopilot != nil {
-		<-m.autopilot.ap.Stop()
-	}
-
-	if m.followerTracker != nil {
-		m.followerTracker.stop()
-	}
-
 	if tc, ok := m.transport.(io.Closer); ok {
 		if err := tc.Close(); err != nil {
 			return fmt.Errorf("close transport: %w", err)
@@ -1056,6 +886,9 @@ func (m *Manager) Shutdown() error {
 	}
 
 	future := m.raft.Shutdown()
+
+	<-m.leaderLoopDone
+
 	if err := future.Error(); err != nil {
 		return fmt.Errorf("raft shutdown: %w", err)
 	}
@@ -1078,26 +911,11 @@ func (m *Manager) HasLeader() bool {
 	return addr != ""
 }
 
-func (m *Manager) WaitForLeader(ctx context.Context) error {
-	return m.waitForLeader(ctx)
-}
-
-func (m *Manager) HoldForLeader(ctx context.Context, timeout time.Duration) error {
-	if m.HasLeader() {
-		return nil
-	}
-
-	holdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	return m.waitForLeader(holdCtx)
-}
-
-// waitForLeader blocks until the cluster has an elected leader or ctx is
+// WaitForLeader blocks until the cluster has an elected leader or ctx is
 // cancelled. It polls LeaderWithID rather than selecting on LeaderCh, which
 // only reports this node's own transitions and delivers each value to exactly
-// one receiver, so LeaderObserver must stay its sole consumer.
-func (m *Manager) waitForLeader(ctx context.Context) error {
+// one receiver, so the leader loop must stay its sole consumer.
+func (m *Manager) WaitForLeader(ctx context.Context) error {
 	if addr, _ := m.raft.LeaderWithID(); addr != "" {
 		return nil
 	}

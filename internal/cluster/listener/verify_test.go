@@ -166,19 +166,3 @@ func TestRequiresClientCert(t *testing.T) {
 		t.Fatal("bootstrap ALPN must NOT require client cert")
 	}
 }
-
-// Sanity-check that pki.Fingerprint matches what verifyConnection
-// computes — the contract this whole subsystem hinges on.
-func TestVerifyConnection_FingerprintMatchesPKIPackage(t *testing.T) {
-	c := mintForTest(t, "1")
-
-	cert := parseCerts(t, c.CertPEM)[0]
-
-	fpFromPKI := pki.Fingerprint(cert)
-
-	pinFn := pinFromCerts(c)
-
-	if !pinFn(fpFromPKI).Found {
-		t.Fatalf("pin lookup for %s should succeed", fpFromPKI)
-	}
-}

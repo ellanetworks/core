@@ -299,12 +299,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		awaitInitialSettings(ctx, dbInstance, pki)
 	})
 
-	if observer := dbInstance.LeaderObserver(); observer != nil {
-		observer.Register(server.NewLeadershipAuditCallback(dbInstance.RaftID()))
+	dbInstance.OnLeadership(server.LeadershipAudit(dbInstance.RaftID()))
 
-		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, raftID, ver.Version, restoredFromBundle))
-		}
+	if pki != nil {
+		dbInstance.OnLeadership(newPKILeader(pki, dbInstance, raftID, ver.Version, restoredFromBundle).run)
 	}
 
 	wg.Go(func() {

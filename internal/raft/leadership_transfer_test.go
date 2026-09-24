@@ -61,7 +61,7 @@ func TestLeadershipTransferToHonoursTheNamedTarget(t *testing.T) {
 
 	deadline := time.After(5 * time.Second)
 
-	for !target.LeaderObserver().IsLeader() {
+	for !target.leadershipEstablished() {
 		select {
 		case <-deadline:
 			t.Fatalf("leadership did not land on the named target %s", candidate.NodeID)

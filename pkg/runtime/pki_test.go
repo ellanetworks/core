@@ -45,8 +45,6 @@ func TestRunJoinFlow_RetriesUntilContextCancelled(t *testing.T) {
 		done <- runJoinFlow(ctx, nil, []string{"127.0.0.1:1"}, "not-a-real-token")
 	}()
 
-	// Let the loop accumulate at least one pass before cancelling.
-	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	select {

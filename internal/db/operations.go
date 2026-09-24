@@ -271,7 +271,7 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 			return zero, err
 		}
 
-		db.publishOpTopics(topicsForChangesetOp(op.name), 0)
+		db.publishOpTopics(topicsForChangesetOp(op.name))
 
 		return narrowResult[R](op.name, result)
 	}
@@ -285,7 +285,7 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 			return op.apply(db, ctx, payload)
 		})
 		if err == nil {
-			return narrowResult[R](op.name, result)
+			return narrowResult[R](op.name, result.Value)
 		}
 
 		if !errors.Is(err, hraft.ErrNotLeader) {
@@ -420,7 +420,7 @@ func (db *Database) ReadBarrier() error {
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
 // RequiredSchema for the apply-time gate on every node.
-func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (any, error) {
+func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (*ellaraft.ProposeResult, error) {
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
 
@@ -440,7 +440,7 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 	}
 
 	if len(changeset) == 0 {
-		return applyResult, nil
+		return &ellaraft.ProposeResult{Value: applyResult}, nil
 	}
 
 	capturedSchema, err := db.CurrentSchemaVersion(ctx)
@@ -463,7 +463,7 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 		return nil, fmt.Errorf("marshal changeset command: %w", err)
 	}
 
-	index, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	res, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
 	if err != nil {
 		return nil, classifyProposeErr(err)
 	}
@@ -471,34 +471,47 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 	logger.From(ctx, logger.DBLog).Debug("proposed changeset",
 		zap.String("operation", operation),
 		zap.Int("required_schema", minSchema),
-		zap.Uint64("index", index.Index),
+		zap.Uint64("index", res.Index),
 		logger.Bytes(uint64(len(changeset))))
 
-	return applyResult, nil
+	return &ellaraft.ProposeResult{Index: res.Index, Value: applyResult}, nil
+}
+
+var forwardCodes = []struct {
+	code string
+	err  error
+}{
+	{ellaraft.ForwardCodeTokenConsumed, ErrJoinTokenAlreadyConsumed},
+	{ellaraft.ForwardCodeTokenExpired, ErrJoinTokenExpired},
+	{ellaraft.ForwardCodeTokenNodeMism, ErrJoinTokenNodeMismatch},
+	{ellaraft.ForwardCodeMigrationPend, ErrMigrationPending},
+	{ellaraft.ForwardCodeAlreadyExists, ErrAlreadyExists},
+	{ellaraft.ForwardCodeNotFound, ErrNotFound},
+}
+
+func sentinelForForwardCode(code string) error {
+	for _, c := range forwardCodes {
+		if c.code == code {
+			return c.err
+		}
+	}
+
+	return nil
+}
+
+func ForwardCodeFor(err error) string {
+	for _, c := range forwardCodes {
+		if errors.Is(err, c.err) {
+			return c.code
+		}
+	}
+
+	return ""
 }
 
 // forwardOperation POSTs to the leader's /cluster/internal/propose
 // endpoint. Transient errors (no leader, leadership changed) become
 // ErrProposeTimeout so the API maps them to 503.
-func sentinelForForwardCode(code string) error {
-	switch code {
-	case ellaraft.ForwardCodeTokenConsumed:
-		return ErrJoinTokenAlreadyConsumed
-	case ellaraft.ForwardCodeTokenExpired:
-		return ErrJoinTokenExpired
-	case ellaraft.ForwardCodeTokenNodeMism:
-		return ErrJoinTokenNodeMismatch
-	case ellaraft.ForwardCodeMigrationPend:
-		return ErrMigrationPending
-	case ellaraft.ForwardCodeAlreadyExists:
-		return ErrAlreadyExists
-	case ellaraft.ForwardCodeNotFound:
-		return ErrNotFound
-	default:
-		return nil
-	}
-}
-
 func (db *Database) forwardOperation(ctx context.Context, opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, hraft.ErrNotLeader
@@ -559,50 +572,9 @@ func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string
 		return nil, err
 	}
 
-	db.proposeMu.Lock()
-	defer db.proposeMu.Unlock()
-
-	if err := db.writeBarrier(); err != nil {
-		return nil, err
-	}
-
-	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(ctx), func(ctx context.Context) (any, error) {
+	return db.leaderCaptureAndPropose(ctx, opName, h.minSchema, func(ctx context.Context) (any, error) {
 		return h.applyJSON(db, ctx, payload)
-	}, opName)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(changeset) == 0 {
-		return &ellaraft.ProposeResult{Value: applyResult}, nil
-	}
-
-	capturedSchema, err := db.CurrentSchemaVersion(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read schema version for %s: %w", opName, err)
-	}
-
-	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{
-		Value:          changeset,
-		Operation:      opName,
-		RequiredSchema: h.minSchema,
-		CapturedSchema: capturedSchema,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := changesetCmd.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("marshal changeset command: %w", err)
-	}
-
-	res, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
-	if err != nil {
-		return nil, classifyProposeErr(err)
-	}
-
-	return &ellaraft.ProposeResult{Index: res.Index, Value: applyResult}, nil
 }
 
 func (db *Database) applyForwardedIntentOp(h intentOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {

@@ -167,17 +167,13 @@ func (r *SettingsReconciler) Stop() {
 func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}, failMsg string, reconcile func(context.Context) error, topics ...db.Topic) {
 	defer close(done)
 
-	var (
-		events  <-chan db.Event
-		dropped <-chan struct{}
-	)
+	var wakeup <-chan struct{}
 
 	if r.changefeed != nil {
-		sub := r.changefeed.Subscribe(topics...)
-		defer sub.Close()
+		ch, stop := r.changefeed.Wakeup(topics...)
+		defer stop()
 
-		events = sub.Events
-		dropped = sub.Dropped
+		wakeup = ch
 	}
 
 	if err := reconcile(ctx); err != nil {
@@ -191,8 +187,7 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}, failM
 		select {
 		case <-ctx.Done():
 			return
-		case <-events:
-		case <-dropped:
+		case <-wakeup:
 		case <-backstop.C:
 		}
 

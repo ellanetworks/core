@@ -559,7 +559,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	store.natEnabled = false
 	store.mu.Unlock()
 
-	feed.Publish(db.TopicNATSettings, 0)
+	feed.Publish(db.TopicNATSettings)
 
 	deadline = time.Now().Add(time.Second)
 
