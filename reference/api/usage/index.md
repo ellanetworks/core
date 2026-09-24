@@ -1,0 +1,101 @@
+# Usage
+
+## Get Subscriber Usage
+
+This path retrieves usage data for network subscribers.
+
+| Method | Path                       |
+| ------ | -------------------------- |
+| GET    | `/api/v1/subscriber-usage` |
+
+### Query Parameters
+
+| Name         | In    | Type   | Default    | Allowed             | Description                                                   |
+| ------------ | ----- | ------ | ---------- | ------------------- | ------------------------------------------------------------- |
+| `start`      | query | string | `now-7d`   |                     | Inclusive lower bound, RFC3339 (e.g. `2006-01-02T15:04:05Z`). |
+| `end`        | query | string | `now`      |                     | Exclusive upper bound, RFC3339.                               |
+| `group_by`   | query | string | *required* | `day`, `subscriber` | Grouping method for usage data.                               |
+| `subscriber` | query | string | \`\`       |                     | Filter usage data for a specific subscriber.                  |
+
+### Sample Response
+
+```
+{
+  "result": [
+    {
+      "date": "2025-02-22",
+      "uplink_bytes": 1048576,
+      "downlink_bytes": 2097152,
+      "total_bytes": 3145728
+    },
+    {
+      "date": "2025-02-23",
+      "uplink_bytes": 524288,
+      "downlink_bytes": 1048576,
+      "total_bytes": 1572864
+    }
+  ]
+}
+```
+
+## Clear Subscriber Usage
+
+This path clears usage data for all network subscribers.
+
+| Method | Path                       |
+| ------ | -------------------------- |
+| DELETE | `/api/v1/subscriber-usage` |
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "All subscriber usage cleared successfully"
+    }
+}
+```
+
+## Get Subscriber Usage Retention Policy
+
+This path returns the current subscriber usage retention policy.
+
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| GET    | `/api/v1/subscriber-usage/retention` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```
+{
+    "result": {
+        "days": 365
+    }
+}
+```
+
+## Update Subscriber Usage Retention Policy
+
+This path updates the subscriber usage retention policy.
+
+| Method | Path                                 |
+| ------ | ------------------------------------ |
+| PUT    | `/api/v1/subscriber-usage/retention` |
+
+### Parameters
+
+- `days` (integer): The number of days to retain subscriber usage data. Must be a positive integer.
+
+### Sample Response
+
+```
+{
+    "result": {
+        "message": "Subscriber usage retention policy updated successfully"
+    }
+}
+```
