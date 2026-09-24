@@ -237,12 +237,12 @@ func TestRepeatS1SetupReusesTheAssociationsRadio(t *testing.T) {
 		t.Errorf("the repeat S1 Setup did not refresh the eNB name, got %q", again.NodeName())
 	}
 
-	if again.SetupComplete() {
-		t.Error("the eNB stayed setup-complete while its repeat S1 Setup was unanswered")
+	if !again.SetupComplete() {
+		t.Error("an unanswered repeat S1 Setup took the eNB out of setup-complete; only an accepted one replaces the setup (TS 36.413 §8.7.3.3)")
 	}
 
-	if _, ok := m.reg.ClaimedBy(id); ok {
-		t.Errorf("the Global eNB ID %q stayed claimed across a repeat S1 Setup", id)
+	if _, ok := m.reg.ClaimedBy(id); !ok {
+		t.Errorf("the Global eNB ID %q was unclaimed by an unanswered repeat S1 Setup", id)
 	}
 
 	if len(m.ListRadios()) != 1 {

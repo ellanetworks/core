@@ -4,8 +4,6 @@
 package mme
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/models"
@@ -340,9 +338,10 @@ func (ue *UeContext) MsNetCap() *eps.MSNetworkCapability {
 	return ue.msNetCap
 }
 
-// VerifyServiceRequest checks a SERVICE REQUEST against the UE's security
-// context: its short MAC, and that the truncated sequence number it carries is
-// the one the next uplink message must have (TS 24.301 §5.6.1).
+// VerifyServiceRequest checks a SERVICE REQUEST's short MAC against the UE's
+// security context, using the NAS COUNT estimated from the 5 sequence number bits
+// the message carries, and records that count as accepted (TS 24.301 §4.4.3.1,
+// §4.4.3.3, §5.6.1).
 func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8, ul uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -351,24 +350,20 @@ func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8,
 		return 0, 0, nas.ErrNoSecurityContext
 	}
 
-	expected := ue.ulCount.NextExpected()
+	expSeq = ue.ulCount.NextExpected().SQN() & 0x1F
 
-	// Only 5 of the 8 sequence number bits ride a SERVICE REQUEST, so the message
-	// is bound to the expected count rather than to an estimate from the received
-	// sequence number (TS 24.301 §4.4.3.1).
-	ul = expected.Value()
-	expSeq = expected.SQN() & 0x1F
+	estimated, err := ue.ulCount.EstimateShort(sr.SeqShort)
+	if err != nil {
+		return expSeq, 0, err
+	}
 
-	if err := eps.VerifyServiceRequestShortMAC(sr, expected, ue.sc); err != nil {
+	ul = estimated.Value()
+
+	if err := eps.VerifyServiceRequestShortMAC(sr, estimated, ue.sc); err != nil {
 		return expSeq, ul, err
 	}
 
-	if sr.SeqShort != expSeq {
-		return expSeq, ul, fmt.Errorf("%w: SERVICE REQUEST carries sequence %#02x, expected %#02x",
-			nas.ErrSequenceNumberMismatch, sr.SeqShort, expSeq)
-	}
-
-	if err := ue.ulCount.Commit(expected); err != nil {
+	if err := ue.ulCount.Commit(estimated); err != nil {
 		return expSeq, ul, err
 	}
 

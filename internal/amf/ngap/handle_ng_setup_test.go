@@ -632,7 +632,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 	}
 }
 
-func TestHandleNGSetupRequest_RejectedReSetupReleasesThePreviousSetup(t *testing.T) {
+func TestHandleNGSetupRequest_RejectedReSetupKeepsThePreviousSetup(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	op := &db.Operator{Mcc: "001", Mnc: "01"}
@@ -671,11 +671,11 @@ func TestHandleNGSetupRequest_RejectedReSetupReleasesThePreviousSetup(t *testing
 		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
 	}
 
-	if ran.RanID != nil {
-		t.Errorf("RanID = %v after a rejected re-Setup, want the previous setup erased (TS 38.413 §8.7.1.1)", ran.RanID)
+	if ran.RanID == nil {
+		t.Error("a rejected re-Setup erased the previous setup; TS 38.413 §8.7.1.3 only answers with NG SETUP FAILURE")
 	}
 
-	if n := amfInstance.CountUeConnsForTest(); n != 0 {
-		t.Errorf("%d UE-associated connections survived a repeated NG Setup, want 0 (TS 38.413 §8.7.1.1)", n)
+	if n := amfInstance.CountUeConnsForTest(); n != 1 {
+		t.Errorf("%d UE-associated connections after a rejected re-Setup, want the 1 the previous setup held", n)
 	}
 }

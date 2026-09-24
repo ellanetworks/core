@@ -622,7 +622,7 @@ func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
 	ue.CombinedAttach = true
-	ue.RequestedAPN = "tampered-apn"
+	ue.Conn().ESMRequest.APN = "tampered-apn"
 
 	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
@@ -648,8 +648,8 @@ func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
 		t.Fatal("MME must re-ingest the genuine (non-combined) Attach from the replayed NAS message container")
 	}
 
-	if ue.RequestedAPN != "" {
-		t.Fatalf("genuine Attach carried no APN; re-ingest must reset RequestedAPN, got %q", ue.RequestedAPN)
+	if ue.Conn().ESMRequest.APN != "" {
+		t.Fatalf("genuine Attach carried no APN; re-ingest must reset RequestedAPN, got %q", ue.Conn().ESMRequest.APN)
 	}
 }
 

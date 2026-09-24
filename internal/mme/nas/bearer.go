@@ -43,7 +43,7 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
-	if requestESMInformation(ctx, ue, ueConn, func(ctx context.Context, pti uint8) {
+	if requestESMInformation(ctx, ueConn, func(ctx context.Context, pti uint8) {
 		rejectAttachESM(ctx, m, ue, ueConn, pti, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
@@ -65,12 +65,12 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ue.SetAccess(access)
 
-	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
+	qos, err := mme.ResolveAttachQoS(ctx, m, ue, ueConn.ESMRequest.APN)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile", zap.String("apn", ue.RequestedAPN))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile", zap.String("apn", ueConn.ESMRequest.APN))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
@@ -80,9 +80,9 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	if cause, refused := requestTypeRefusal(ue.RequestedType); refused {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served", zap.Stringer("request_type", ue.RequestedType))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), cause)
+	if cause, refused := requestTypeRefusal(ueConn.ESMRequest.Type); refused {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served", zap.Stringer("request_type", ueConn.ESMRequest.Type))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), cause)
 
 		return
 	}
@@ -90,7 +90,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
-		PDUSessionID:      ue.RequestedPDUSessionID,
+		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
 		Snssai:            qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -100,17 +100,17 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
 		MTU:               qos.MTU,
-		RequestedPDNType:  ue.RequestedPDNType,
-		RequestType:       ue.RequestedType,
+		RequestedPDNType:  ueConn.ESMRequest.PDNType,
+		RequestType:       ueConn.ESMRequest.Type,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed", zap.Error(err))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), attachBearerRejectCause(ue.RequestedType, err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), attachBearerRejectCause(ueConn.ESMRequest.Type, err))
 
 		return
 	}
 
-	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
+	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.Uint8("pdn_type", pdnType),
@@ -118,11 +118,11 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		logger.ESMCause(esmCause.String()),
 	)
 
-	plain, err := buildAttachAccept(ctx, m, ue, qos)
+	plain, err := buildAttachAccept(ctx, m, ue, ueConn, qos)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		if p := m.DefaultPDN(ue); p != nil {
 			m.ReleasePDN(ctx, ue, p)
@@ -255,7 +255,7 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 	return nil
 }
 
-func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) ([]byte, error) {
 	if !m.ServesUeContext(ue) {
 		return nil, fmt.Errorf("refusing to build attach accept: UE context is not indexed by IMSI")
 	}
@@ -272,7 +272,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesEPCO(p), ue.RequestedProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
 	if err != nil {
 		return nil, err
 	}

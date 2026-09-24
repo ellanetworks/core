@@ -16,7 +16,7 @@ import (
 )
 
 func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
-	plain, err := buildAttachAccept(ctx, m, ue, qos)
+	plain, err := buildAttachAccept(ctx, m, ue, ue.Conn(), qos)
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +191,8 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Errorf("carried ESM cause = %d, want %d", esm.Cause, eps.ESMCauseRequestRejectedUnspecified)
 	}
 
-	if esm.PTI != ue.RequestedPTI {
-		t.Errorf("carried PTI = %d, want the requested %d", esm.PTI, ue.RequestedPTI)
+	if esm.PTI != ue.Conn().ESMRequest.PTI {
+		t.Errorf("carried PTI = %d, want the requested %d", esm.PTI, ue.Conn().ESMRequest.PTI)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])

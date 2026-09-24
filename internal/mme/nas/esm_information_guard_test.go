@@ -65,7 +65,7 @@ func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 		t.Errorf("carried ESM cause = %d, want %d", esm.Cause, eps.ESMCauseESMInformationNotReceived)
 	}
 
-	if ue.PendingESMInfo() != nil {
+	if ue.Conn().PendingESMInfo() != nil {
 		t.Error("the ESM information procedure is still outstanding after its final expiry")
 	}
 }
@@ -112,13 +112,13 @@ func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 		go func() {
 			<-start
 
-			concluded <- ue.TakeESMInfoWaitFor(3) != nil
+			concluded <- ue.Conn().TakeESMInfoWaitFor(3) != nil
 		}()
 
 		go func() {
 			<-start
 
-			concluded <- ue.TakeESMInfoWait() != nil
+			concluded <- ue.Conn().TakeESMInfoWait() != nil
 		}()
 
 		close(start)
@@ -133,15 +133,16 @@ func TestS1ReleaseDropsTheESMInformationWait(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
+	conn := ue.Conn()
+	activateDefaultBearer(context.Background(), m, ue, conn)
 
-	if ue.PendingESMInfo() == nil {
+	if conn.PendingESMInfo() == nil {
 		t.Fatal("the ESM information procedure is not outstanding before the release")
 	}
 
 	m.FreeUeConn(t.Context(), ue)
 
-	if ue.PendingESMInfo() != nil {
+	if conn.PendingESMInfo() != nil {
 		t.Error("the ESM information wait survived the S1 release")
 	}
 }
