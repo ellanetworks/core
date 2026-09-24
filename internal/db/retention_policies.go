@@ -146,6 +146,8 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate retention policy id: %w", err)
 		}
 

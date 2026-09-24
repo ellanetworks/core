@@ -73,7 +73,10 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
 	if auditLog.ID == "" {
-		return fmt.Errorf("InsertAuditLog: ID must be set by the caller")
+		err := fmt.Errorf("InsertAuditLog: ID must be set by the caller")
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	err := db.conn().Query(context.WithoutCancel(ctx), db.insertAuditLogStmt, auditLog).Run()

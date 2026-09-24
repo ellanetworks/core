@@ -75,6 +75,8 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 	if session.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate session id: %w", err)
 		}
 

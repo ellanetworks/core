@@ -133,7 +133,10 @@ func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, 
 	}
 
 	if creds == nil {
-		return nil, fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", imsi)
+		err = fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", imsi)
+		recordSpanError(span, err)
+
+		return nil, err
 	}
 
 	return creds, nil

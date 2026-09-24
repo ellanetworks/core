@@ -278,6 +278,8 @@ func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert
 			return nil, nil
 		}
 
+		recordSpanError(span, err)
+
 		return nil, fmt.Errorf("list cluster node certs: %w", err)
 	}
 
@@ -311,6 +313,8 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 			return nil, ErrNotFound
 		}
 
+		recordSpanError(span, err)
+
 		return nil, fmt.Errorf("get cluster node cert: %w", err)
 	}
 
@@ -336,8 +340,13 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 	defer span.End()
 
 	_, err := opUpsertNodeCert.Invoke(ctx, db, r)
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // DeleteClusterNodeCert removes a node's pin. Called from
@@ -360,8 +369,13 @@ func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID string) er
 	defer span.End()
 
 	_, err := opDeleteNodeCert.Invoke(ctx, db, &ClusterNodeCert{NodeID: nodeID})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // MintJoinTokenRecord persists a join-token row so the HMAC-validated
@@ -384,8 +398,13 @@ func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken
 	defer span.End()
 
 	_, err := opMintJoinToken.Invoke(ctx, db, r)
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // GetJoinToken returns the token row for id, or ErrNotFound.
@@ -412,6 +431,8 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("get join token: %w", err)
 	}
@@ -443,8 +464,13 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID stri
 		ConsumedAt: time.Now().Unix(),
 		ConsumedBy: nodeID,
 	})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
@@ -460,11 +486,16 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 		CertPEM:     certPEM,
 	})
 	if err != nil {
+		recordSpanError(span, err)
+
 		return nil, err
 	}
 
 	if res == nil || len(res.Pins) == 0 {
-		return nil, fmt.Errorf("redeem returned an empty pin snapshot")
+		err = fmt.Errorf("redeem returned an empty pin snapshot")
+		recordSpanError(span, err)
+
+		return nil, err
 	}
 
 	return res.Pins, nil
@@ -494,8 +525,13 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 		ExpiresAt:  now.Add(-pki.JoinTokenClockSkew).Unix(),
 		ConsumedAt: cutoffConsumed,
 	})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // GetClusterJoinHMACKey returns the join-token HMAC key, or
@@ -524,6 +560,8 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 			return nil, ErrNotFound
 		}
 
+		recordSpanError(span, err)
+
 		return nil, fmt.Errorf("get cluster join hmac key: %w", err)
 	}
 
@@ -550,6 +588,11 @@ func (db *Database) InitClusterJoinHMACKey(ctx context.Context, key []byte) erro
 	defer span.End()
 
 	_, err := opInitJoinHMAC.Invoke(ctx, db, &ClusterJoinHMAC{HMACKey: key})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }

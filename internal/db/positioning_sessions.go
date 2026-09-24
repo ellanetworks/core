@@ -250,6 +250,8 @@ func (db *Database) DeletePositioningSession(ctx context.Context, id string) err
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("rows affected: %w", err)
 	}
 

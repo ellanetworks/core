@@ -119,6 +119,8 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 	if apiToken.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate api token id: %w", err)
 		}
 

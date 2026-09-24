@@ -202,6 +202,8 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 	if user.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return "", fmt.Errorf("generate user id: %w", err)
 		}
 

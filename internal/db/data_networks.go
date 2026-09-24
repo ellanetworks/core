@@ -235,6 +235,8 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	if dataNetwork.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate data network id: %w", err)
 		}
 

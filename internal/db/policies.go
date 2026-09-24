@@ -530,6 +530,8 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate policy id: %w", err)
 		}
 

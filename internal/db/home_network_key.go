@@ -219,7 +219,10 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
 	if key.ID == "" {
-		return fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
+		err := fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	_, err := opCreateHomeNetworkKey.Invoke(ctx, db, key)

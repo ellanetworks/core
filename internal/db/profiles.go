@@ -193,6 +193,8 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	if profile.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate profile id: %w", err)
 		}
 

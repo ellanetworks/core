@@ -260,6 +260,8 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("rows affected: %w", err)
 	}
 
@@ -304,6 +306,8 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("rows affected: %w", err)
 	}
 

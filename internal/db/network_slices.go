@@ -230,6 +230,8 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 	if slice.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate network slice id: %w", err)
 		}
 

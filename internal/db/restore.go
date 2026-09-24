@@ -483,20 +483,30 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	defer span.End()
 
 	if db.conn() == nil {
-		return fmt.Errorf("database connection is not initialized")
+		err := fmt.Errorf("database connection is not initialized")
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	if backupFile == nil {
-		return fmt.Errorf("backup file is nil")
+		err := fmt.Errorf("backup file is nil")
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	if _, err := backupFile.Seek(0, io.SeekStart); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to rewind backup file: %w", err)
 	}
 
 	// Stage the archive and validate the embedded SQLite file.
 	stageDir, err := os.MkdirTemp(db.Dir(), "restore-stage-*")
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to create restore stage directory: %w", err)
 	}
 
@@ -505,10 +515,14 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	stagedDB := filepath.Join(stageDir, DBFilename)
 
 	if err := extractBackupArchive(backupFile, stagedDB); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
 	if err := validateSQLiteFile(ctx, stagedDB); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
@@ -519,6 +533,8 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	// leader also replicates the snapshot to followers via InstallSnapshot.
 	f, err := os.Open(stagedDB) // #nosec: G304 — path is under stageDir
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("open staged database for restore: %w", err)
 	}
 
@@ -526,10 +542,14 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	info, err := f.Stat()
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("stat staged database: %w", err)
 	}
 
 	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("raft restore: %w", err)
 	}
 
