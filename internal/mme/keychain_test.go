@@ -6,6 +6,8 @@ package mme
 import (
 	"sync"
 	"testing"
+
+	"github.com/ellanetworks/core/nas"
 )
 
 // TS 33.401 §7.2.8
@@ -26,7 +28,7 @@ func TestPathSwitchNHDerivationRaceFree(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			ue.SetKASME(make([]byte, 32))
+			ue.SetKASME(make([]byte, 32), nas.KeySetIdentifier{})
 		}()
 	}
 

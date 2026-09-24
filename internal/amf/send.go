@@ -131,7 +131,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 	}
 
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3570 (Identity Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -170,7 +170,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 	}
 
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Authentication Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -247,10 +247,22 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	conn := amfUe.Conn()
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", plain, sht, func(ctx context.Context) {
 		amfUe.EndKeyChainProc(procedure.SecurityMode)
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	return nil
+}
+
+func (amf *AMF) abortCommonProcedure(ctx context.Context, ue *UeContext) {
+	if ue.State() != Registered {
+		amf.DeregisterAndRemoveUeContext(ctx, ue)
+		return
+	}
+
+	if conn := ue.Conn(); conn != nil {
+		conn.ReleaseAction = UeContextN2NormalRelease
+		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+	}
 }
 
 func secureExchangeSHT(ue *UeConn) uint8 {

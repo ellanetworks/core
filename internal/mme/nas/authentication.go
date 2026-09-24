@@ -36,7 +36,7 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// A new authentication carries an eKSI distinct from the stored one, so the UE keeps
 	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
-	ue.SetEksi(nas.KeySetIdentifier{Value: mme.SelectEksi(citedEksi(ueConn), ue.StoredEksi())})
+	ueConn.AuthEKSI = nas.KeySetIdentifier{Value: mme.SelectEksi(citedEksi(ueConn), ue.StoredEksi())}
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, "", ""); err != nil {
 		failAuthentication(ctx, m, ue, ueConn, err)
@@ -97,7 +97,7 @@ func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 	c.AuthVector = vec
 
 	logger.From(ctx, logger.MmeLog).Info("Authentication Request")
-	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: ue.Eksi(), RAND: vec.RAND, AUTN: vec.AUTN})
+	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: c.AuthEKSI, RAND: vec.RAND, AUTN: vec.AUTN})
 
 	return nil
 }

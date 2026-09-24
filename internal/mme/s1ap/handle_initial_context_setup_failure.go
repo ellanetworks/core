@@ -18,7 +18,7 @@ import (
 func handleInitialContextSetupFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupFailure(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringUnsuccessfulOutcome, err)
 		return
 	}
 

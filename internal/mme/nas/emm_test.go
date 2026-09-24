@@ -1022,4 +1022,8 @@ func TestAttachAuthenticationUsesAnEKSIOtherThanTheOneTheUECited(t *testing.T) {
 	if authReq.NASKeySetIdentifier.Value == 1 {
 		t.Fatal("Authentication Request reuses the eKSI the UE cited in its ATTACH REQUEST (TS 24.301 §5.4.2.2)")
 	}
+
+	if ue.Eksi() == authReq.NASKeySetIdentifier {
+		t.Fatal("the stored eKSI took the new value before authentication completed; it must change with K_ASME")
+	}
 }

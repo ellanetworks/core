@@ -61,12 +61,12 @@ func (c *UeConn) ArmNASGuardAbortOnly(ctx context.Context, name string, plain []
 }
 
 func (c *UeConn) ArmT3489(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
-	if c == nil || c.ue == nil {
+	ue := c.UeContext()
+	if ue == nil {
 		return
 	}
 
 	m := c.m
-	ue := c.ue
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -92,13 +92,12 @@ func (c *UeConn) StopESMInfoGuard() {
 }
 
 func (c *UeConn) armNASGuardMode(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
-	if c == nil || c.ue == nil {
+	ue := c.UeContext()
+	if ue == nil {
 		return
 	}
 
 	m := c.m
-
-	ue := c.ue
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

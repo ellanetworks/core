@@ -88,7 +88,6 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
 	}
 
-	ue.AdvanceULCount()
 	ue.PinKeNBFreshness()
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted")

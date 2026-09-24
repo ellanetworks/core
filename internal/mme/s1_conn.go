@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -45,7 +46,7 @@ type UeConn struct {
 	logFields                 atomic.Pointer[[]zap.Field]
 	baseLogFields             atomic.Pointer[[]zap.Field]
 	supi                      atomic.Pointer[string]
-	ue                        *UeContext
+	ue                        atomic.Pointer[UeContext]
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
 	m                         *MME
@@ -53,6 +54,7 @@ type UeConn struct {
 	secureExchangeEstablished bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
+	AuthEKSI                  nas.KeySetIdentifier
 	resyncTried               atomic.Bool
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte
@@ -68,6 +70,7 @@ type UeConn struct {
 	nasGuardName              string
 	esmInfoGuard              guard.Guard
 	releaseGuard              guard.Guard
+	icsGuard                  guard.Guard
 	releasing                 bool
 }
 
@@ -182,7 +185,7 @@ func (c *UeConn) UeContext() *UeContext {
 		return nil
 	}
 
-	return c.ue
+	return c.ue.Load()
 }
 
 // SecureExchangeEstablished reports whether secure exchange of NAS messages is
@@ -231,4 +234,8 @@ func (c *UeConn) SetICS(state ICSState) {
 	}
 
 	c.ics.Store(int32(state))
+
+	if state != ICSPending {
+		c.icsGuard.Stop()
+	}
 }

@@ -19,7 +19,7 @@ import (
 func handleENBConfigurationTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseENBConfigurationTransfer(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBConfigurationTransfer, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBConfigurationTransfer, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -55,5 +55,5 @@ func handleENBConfigurationTransfer(ctx context.Context, m *mme.MME, radio *mme.
 		return
 	}
 
-	m.SendToRadio(ctx, targetRadio.Conn, mme.S1APProcedureMMEConfigurationTransfer, b)
+	_ = m.SendToRadio(ctx, targetRadio.Conn, mme.S1APProcedureMMEConfigurationTransfer, b)
 }

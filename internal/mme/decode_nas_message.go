@@ -38,6 +38,11 @@ func silentDecode(reason nasreply.Reason, format string, args ...any) error {
 	return &decodeError{disposition: nasreply.Silent(reason), detail: fmt.Sprintf(format, args...)}
 }
 
+var (
+	errNewContextHeaderRequired        = errors.New("SECURITY MODE COMPLETE without the new-context security header type")
+	errUncipheredAfterCipheringStarted = errors.New("unciphered NAS message after ciphering started")
+)
+
 // DecodeResult is the outcome of decoding an inbound EMM NAS PDU: the plaintext
 // body to dispatch and how it was authorized.
 type DecodeResult struct {
@@ -111,25 +116,36 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		permitted = append(permitted, eps.SHTIntegrityProtectedCipheredNewContext)
 	}
 
-	p, count, err := ue.unprotectUplink(nas, permitted...)
-	if err == nil {
+	p, err := ue.AcceptUplink(nas, func(p []byte) error {
 		if requiresNewContextSecurityHeader(p) && spm.SecurityHeaderType != eps.SHTIntegrityProtectedCipheredNewContext {
-			logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
-				logger.SUPI(ue.Supi().String()))
-
-			return nil, silentDecode(nasreply.ReasonIntegrityFail,
-				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.301 §5.4.3.3)")
+			return errNewContextHeaderRequired
 		}
 
 		if conn.CipheringStarted() && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
-			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
-				logger.SUPI(ue.Supi().String()))
-
-			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.301 §4.4.5)")
+			return errUncipheredAfterCipheringStarted
 		}
 
-		ue.CommitUplinkCount(count)
+		return nil
+	}, permitted...)
 
+	switch {
+	case errors.Is(err, errNewContextHeaderRequired):
+		logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail,
+			"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.301 §5.4.3.3)")
+	case errors.Is(err, errUncipheredAfterCipheringStarted):
+		logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.301 §4.4.5)")
+	case errors.Is(err, ErrUplinkCountRejected):
+		logger.MmeLog.Warn("discarding NAS message whose uplink NAS COUNT was already accepted",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: replayed uplink NAS COUNT (TS 24.301 §4.4.3.3)")
+	case err == nil:
 		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
 		if conn != nil {
 			conn.MarkSecureExchangeEstablished()

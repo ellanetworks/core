@@ -17,7 +17,7 @@ import (
 func HandleUEContextReleaseComplete(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseComplete(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, err)
 		return
 	}
 

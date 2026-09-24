@@ -1015,8 +1015,12 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 4 {
-		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 4 {
+		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.Conn().AuthNgKsi.Ksi)
+	}
+
+	if ue.NgKsiForTest().Ksi == 4 {
+		t.Fatal("the stored ngKSI took the new value before authentication completed; it must change with K_AMF")
 	}
 }
 
@@ -1056,8 +1060,8 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 }
 
@@ -1097,12 +1101,12 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 
-	if ue.NgKsiForTest().Tsc != models.ScTypeNative {
-		t.Fatalf("expected TSC=NATIVE, got %v", ue.NgKsiForTest().Tsc)
+	if ue.Conn().AuthNgKsi.Tsc != models.ScTypeNative {
+		t.Fatalf("expected TSC=NATIVE, got %v", ue.Conn().AuthNgKsi.Tsc)
 	}
 }
 

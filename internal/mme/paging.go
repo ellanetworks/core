@@ -276,7 +276,7 @@ func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
-		m.SendToRadio(ctx, conn, S1APProcedurePaging, b)
+		_ = m.SendToRadio(ctx, conn, S1APProcedurePaging, b)
 	}
 }
 

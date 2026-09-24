@@ -26,7 +26,7 @@ var causeERABModOmittedERAB = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Val
 func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseERABModificationIndication(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModificationIndication, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -77,7 +77,7 @@ func handleERABModificationIndication(ctx context.Context, m *mme.MME, radio *mm
 		logger.MMEUeS1apID(uint32(msg.MMEUES1APID)),
 		zap.Int("e_rabs_modified", len(modified)))
 
-	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
+	_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
 }
 
 func modifyBearerDownlinks(ctx context.Context, m *mme.MME, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) []s1ap.ERABID {

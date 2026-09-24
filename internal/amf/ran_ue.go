@@ -111,6 +111,7 @@ type UeConn struct {
 	cipheringStarted atomic.Bool
 
 	AuthenticationCtx *ausf.AuthResult
+	AuthNgKsi         models.NgKsi
 	// resyncTried records whether an SQN re-synchronisation (AUTS) has been attempted
 	// this authentication exchange: the first synch failure resyncs, a second rejects
 	// (TS 24.501 §5.4.1.3.7 f)/NOTE 4).

@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -73,5 +74,31 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 	if got := ue.downlink().Next(); got != totalCount {
 		t.Fatalf("downlink NAS COUNT = %d after %d protected messages, want %d (%d counts reused)",
 			got, totalCount, totalCount, totalCount-uint32(got))
+	}
+}
+
+func TestAcceptUplinkAcceptsAMessageOnceUnderConcurrentReplays(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	pdu := uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtectedCiphered)
+
+	var (
+		wg       sync.WaitGroup
+		accepted atomic.Int32
+	)
+
+	for range 16 {
+		wg.Go(func() {
+			if _, err := ue.AcceptUplink(pdu, nil, eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered); err == nil {
+				accepted.Add(1)
+			}
+		})
+	}
+
+	wg.Wait()
+
+	if n := accepted.Load(); n != 1 {
+		t.Fatalf("a protected uplink message was accepted %d times, want once (TS 24.301 §4.4.3.3)", n)
 	}
 }

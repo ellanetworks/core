@@ -38,12 +38,12 @@ type S1APWriter interface {
 }
 
 // SendS1AP writes a complete S1AP PDU to the UE's eNB association.
-func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []byte) {
+func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []byte) error {
 	if c == nil {
-		return
+		return fmt.Errorf("no S1 connection to send %s on", messageType)
 	}
 
-	c.m.SendToRadio(ctx, c.Conn(), messageType, b)
+	return c.m.SendToRadio(ctx, c.Conn(), messageType, b)
 }
 
 // s1apStreamForProcedure returns the SCTP stream for an S1AP procedure: the reserved
@@ -74,7 +74,7 @@ func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 
 // SendToRadio writes a complete S1AP PDU to a specific eNB association — the single
 // traced+logged send chokepoint. The SCTP stream is derived from the procedure.
-func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) {
+func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1APProcedure, b []byte) error {
 	ctx, span := Tracer.Start(ctx, "s1ap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -88,7 +88,7 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 
 	if conn == nil {
 		logger.From(ctx, logger.MmeLog).Error("cannot send S1AP message: eNB connection is nil", logger.MessageType(string(messageType)))
-		return
+		return fmt.Errorf("no eNB association to send %s on", messageType)
 	}
 
 	stream, err := s1apStreamForProcedure(messageType)
@@ -97,7 +97,7 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.From(ctx, logger.MmeLog).Error("cannot send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))
 
-		return
+		return err
 	}
 
 	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: stream}); err != nil {
@@ -105,8 +105,10 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))
 
-		return
+		return fmt.Errorf("send %s: %w", messageType, err)
 	}
 
 	m.LogOutboundS1AP(ctx, conn, messageType, b)
+
+	return nil
 }

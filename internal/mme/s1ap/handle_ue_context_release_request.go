@@ -31,7 +31,7 @@ func keepsConnectionForPendingDownlink(cause s1ap.Cause, ueConn *mme.UeConn) boo
 func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseRequest(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -65,10 +65,7 @@ func handleUEContextReleaseRequest(ctx context.Context, m *mme.MME, radio *mme.R
 	// before INITIAL CONTEXT SETUP RESPONSE and ATTACH COMPLETE, so the UE restarts the
 	// attach. Surface it as a failure.
 	if ue.Secured() && ue.EMMState() == mme.EMMRegistrationInitiated {
-		icsReceived := false
-		if p := m.DefaultPDN(ue); p != nil {
-			icsReceived = p.EnbFTEID.TEID != 0
-		}
+		icsReceived := ueConn.ICS() == mme.ICSCompleted
 
 		ueConn.Log(ctx).Warn("UE Context Release Request aborted an in-progress attach",
 			append(fields, zap.Bool("ics_response_received", icsReceived))...)

@@ -5,7 +5,11 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
+
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 // TS 23.401 §5.3.5
@@ -65,5 +69,69 @@ func TestAttachUeConn_DeactivatesTheSupersededConnectionsUserPlane(t *testing.T)
 
 	if !fake.deactivated {
 		t.Error("the superseded connection's user plane was left pointing at a released eNB context")
+	}
+}
+
+type failingConn struct{}
+
+func (failingConn) WriteMsg([]byte, *sctp.SndRcvInfo) (int, error) {
+	return 0, errors.New("association down")
+}
+
+func TestReleaseUEContextReleasesLocallyWhenTheCommandCannotBeSent(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	unreachable := m.NewUeConn(failingConn{}, 8)
+	m.AttachUeConn(t.Context(), ue, unreachable)
+
+	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+
+	if ue.Connected() {
+		t.Fatal("the UE stays ECM-CONNECTED on a connection its release command could not reach; it waits out the release guard")
+	}
+}
+
+func TestUnansweredInitialContextSetupReleasesTheConnection(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	saved := icsGuardTimeout
+	icsGuardTimeout = 10 * time.Millisecond
+
+	t.Cleanup(func() { icsGuardTimeout = saved })
+
+	c := ue.Conn()
+	c.SetICS(ICSPending)
+	c.SuperviseICS(t.Context())
+
+	eventually(t, time.Second, func() bool { return ue.ReleasingForTest() })
+
+	if cc.count() == 0 {
+		t.Fatal("no UE Context Release Command for an Initial Context Setup the eNB never answered")
+	}
+}
+
+func TestAnsweredInitialContextSetupStopsItsSupervision(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	saved := icsGuardTimeout
+	icsGuardTimeout = 10 * time.Millisecond
+
+	t.Cleanup(func() { icsGuardTimeout = saved })
+
+	c := ue.Conn()
+	c.SetICS(ICSPending)
+	c.SuperviseICS(t.Context())
+	c.SetICS(ICSCompleted)
+
+	time.Sleep(50 * time.Millisecond)
+
+	if cc.count() != 0 || ue.ReleasingForTest() {
+		t.Fatal("an answered Initial Context Setup was released by its supervision")
 	}
 }

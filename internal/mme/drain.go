@@ -103,7 +103,7 @@ func (m *MME) emitConfigUpdate(ctx context.Context, radio *Radio, capacity uint8
 	radio.advertisedCapacity = &capacity
 	m.mu.Unlock()
 
-	m.SendToRadio(ctx, radio.Conn, S1APProcedureMMEConfigUpdate, b)
+	_ = m.SendToRadio(ctx, radio.Conn, S1APProcedureMMEConfigUpdate, b)
 
 	guarded := context.WithoutCancel(ctx)
 

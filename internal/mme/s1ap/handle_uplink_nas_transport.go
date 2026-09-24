@@ -15,7 +15,7 @@ import (
 func handleUplinkNASTransport(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUplinkNASTransport(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcUplinkNASTransport, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUplinkNASTransport, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 

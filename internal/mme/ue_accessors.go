@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
@@ -19,6 +20,8 @@ import (
 
 // Writers hold MME.mu (to keep the uesByTmsi index in step) and ue.mu; callers
 // outside the registry lock read here, callers holding ue.mu read the field.
+var ErrUplinkCountRejected = errors.New("mme: uplink NAS COUNT already accepted")
+
 func (ue *UeContext) Tmsi() etsi.TMSI {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -92,11 +95,12 @@ func (ue *UeContext) HasKASME() bool {
 }
 
 // SetKASME installs K_ASME derived from the EPS authentication vector (TS 33.401).
-func (ue *UeContext) SetKASME(kasme []byte) {
+func (ue *UeContext) SetKASME(kasme []byte, eksi nas.KeySetIdentifier) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	ue.kasme = kasme
+	ue.eksi = eksi
 }
 
 // EIA returns the selected NAS integrity algorithm.
@@ -131,42 +135,50 @@ func (ue *UeContext) Secured() bool {
 	return ue.secured
 }
 
-// AdvanceULCount records the expected uplink NAS COUNT as accepted. A SERVICE
-// REQUEST is verified against that count by its short-MAC rather than by
-// TryUnprotectUplink, so its acceptance is committed here (TS 24.301 §5.6.1).
-func (ue *UeContext) AdvanceULCount() {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	_ = ue.ulCount.Commit(ue.ulCount.NextExpected())
-}
-
-// CommitUplinkCount records count as accepted, so a replay of its message
-// estimates to a different count whose MAC fails to verify (TS 24.301 §4.4.3).
-func (ue *UeContext) CommitUplinkCount(count uint32) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	_ = ue.ulCount.Commit(nas.Count(count))
-}
-
 // TryUnprotectUplink verifies and deciphers a protected uplink NAS message
 // against the UE's security context, returning the plain message and the full
 // NAS COUNT it estimated. It does not mutate the UE, so a caller resolving a UE
 // by S-TMSI can authenticate the message before binding the context. The keys
 // never leave the kernel (TS 33.401).
 func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32, err error) {
-	return ue.unprotectUplink(pdu, eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered)
-}
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
-func (ue *UeContext) unprotectUplink(pdu []byte, permitted ...eps.SecurityHeaderType) (plain []byte, count uint32, err error) {
-	spm, err := eps.ParseSecurityProtectedMessage(pdu)
+	p, estimated, err := ue.unprotectUplinkLocked(pdu, eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
 		return nil, 0, err
 	}
 
+	return p, estimated.Value(), nil
+}
+
+func (ue *UeContext) AcceptUplink(pdu []byte, check func(plain []byte) error, permitted ...eps.SecurityHeaderType) ([]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
+
+	p, estimated, err := ue.unprotectUplinkLocked(pdu, permitted...)
+	if err != nil {
+		return nil, err
+	}
+
+	if check != nil {
+		if err := check(p); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := ue.ulCount.Commit(estimated); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrUplinkCountRejected, err)
+	}
+
+	return p, nil
+}
+
+func (ue *UeContext) unprotectUplinkLocked(pdu []byte, permitted ...eps.SecurityHeaderType) ([]byte, nas.Count, error) {
+	spm, err := eps.ParseSecurityProtectedMessage(pdu)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	// A UE with no installed security context cannot have sent a protected
 	// message this MME can verify; attempting one would rest on whatever the
@@ -188,7 +200,7 @@ func (ue *UeContext) unprotectUplink(pdu []byte, permitted ...eps.SecurityHeader
 		return nil, 0, err
 	}
 
-	return p, estimated.Value(), nil
+	return p, estimated, nil
 }
 
 // downlink returns the UE's downlink NAS sender, which takes a downlink NAS COUNT
@@ -365,6 +377,10 @@ func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8,
 	if sr.SeqShort != expSeq {
 		return expSeq, ul, fmt.Errorf("%w: SERVICE REQUEST carries sequence %#02x, expected %#02x",
 			nas.ErrSequenceNumberMismatch, sr.SeqShort, expSeq)
+	}
+
+	if err := ue.ulCount.Commit(expected); err != nil {
+		return expSeq, ul, fmt.Errorf("%w: %w", ErrUplinkCountRejected, err)
 	}
 
 	return expSeq, ul, nil

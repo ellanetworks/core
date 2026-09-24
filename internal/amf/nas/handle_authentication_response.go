@@ -87,7 +87,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	ue.SetSupi(supi)
 
-	if err := ue.DeriveKamf(kseaf); err != nil {
+	if err := ue.DeriveKamf(kseaf, conn.AuthNgKsi); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("couldn't derive Kamf", zap.Error(err))
 
 		failAuthentication(ctx, ue, ueConn)

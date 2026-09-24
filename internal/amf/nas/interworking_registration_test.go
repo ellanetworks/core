@@ -157,7 +157,7 @@ func TestAuthenticationTakesAFreshNgKSIAfterTheOneTheUECited(t *testing.T) {
 		t.Fatal("authentication built a request for a UE with no serving PLMN")
 	}
 
-	if got := ue.NgKsi(); got.Tsc != models.ScTypeNative || got.Ksi != 3 {
+	if got := ue.Conn().AuthNgKsi; got.Tsc != models.ScTypeNative || got.Ksi != 3 {
 		t.Errorf("ngKSI = %+v, want the native identifier after the 2 the UE cited", got)
 	}
 }

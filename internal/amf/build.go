@@ -69,10 +69,8 @@ func BuildAuthenticationRequest(ue *UeContext) ([]byte, error) {
 	copy(randArr[:], rand)
 	copy(autnArr[:], autn)
 
-	ngksi := ue.NgKsi()
-
 	m := &fgs.AuthenticationRequest{
-		NgKSI: ngKsi(ngksi),
+		NgKSI: ngKsi(conn.AuthNgKsi),
 		ABBA:  ue.Abba(),
 		RAND:  &randArr,
 		AUTN:  &autnArr,

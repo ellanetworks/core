@@ -21,7 +21,7 @@ import (
 func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 

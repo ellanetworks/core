@@ -25,11 +25,12 @@ import (
 // anchor, or send a second protected message; MME.mu it reaches only through the
 // S1AP send chokepoint.
 func (c *UeConn) SendProtected(plain []byte, sht eps.SecurityHeaderType, write nas.WriteFunc) error {
-	if c == nil || c.ue == nil {
+	ue := c.UeContext()
+	if ue == nil {
 		return nil
 	}
 
-	if err := c.ue.downlink().Send(plain, uint8(sht), write); err != nil {
+	if err := ue.downlink().Send(plain, uint8(sht), write); err != nil {
 		return err
 	}
 
@@ -76,7 +77,7 @@ func (c *UeConn) SendDownlink(ctx context.Context, msg nasMessage) {
 // SendDownlinkProtected encodes a plain NAS message, integrity-protects and
 // ciphers it with the UE's security context, and sends it downlink.
 func (c *UeConn) SendDownlinkProtected(ctx context.Context, msg nasMessage) {
-	if c == nil || c.ue == nil {
+	if c == nil || c.ue.Load() == nil {
 		return
 	}
 
@@ -128,7 +129,7 @@ func (c *UeConn) SendDownlinkNASTransport(ctx context.Context, nas []byte) {
 		return
 	}
 
-	c.SendS1AP(ctx, S1APProcedureDownlinkNASTransport, b)
+	_ = c.SendS1AP(ctx, S1APProcedureDownlinkNASTransport, b)
 }
 
 // nasMessage is any EPS NAS message that can serialize itself.
@@ -169,9 +170,7 @@ func (c *UeConn) SendInitialContextSetup(ctx context.Context, req *s1ap.InitialC
 		return fmt.Errorf("marshal Initial Context Setup Request: %w", err)
 	}
 
-	c.SendS1AP(ctx, S1APProcedureInitialContextSetupRequest, b)
-
-	return nil
+	return c.SendS1AP(ctx, S1APProcedureInitialContextSetupRequest, b)
 }
 
 // SendERABSetup stamps the UE identities and sends the E-RAB Setup Request (TS 36.413 §8.2.1).
@@ -187,9 +186,7 @@ func (c *UeConn) SendERABSetup(ctx context.Context, req *s1ap.ERABSetupRequest) 
 		return fmt.Errorf("marshal E-RAB Setup Request: %w", err)
 	}
 
-	c.SendS1AP(ctx, S1APProcedureERABSetupRequest, b)
-
-	return nil
+	return c.SendS1AP(ctx, S1APProcedureERABSetupRequest, b)
 }
 
 // SendERABModify stamps the UE identities and sends the E-RAB Modify Request (TS 36.413 §8.2.2).
@@ -205,9 +202,7 @@ func (c *UeConn) SendERABModify(ctx context.Context, req *s1ap.ERABModifyRequest
 		return fmt.Errorf("marshal E-RAB Modify Request: %w", err)
 	}
 
-	c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
-
-	return nil
+	return c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
 }
 
 // SendERABRelease stamps the UE identities and sends the E-RAB Release Command (TS 36.413 §8.2.3).
@@ -223,9 +218,7 @@ func (c *UeConn) SendERABRelease(ctx context.Context, cmd *s1ap.ERABReleaseComma
 		return fmt.Errorf("marshal E-RAB Release Command: %w", err)
 	}
 
-	c.SendS1AP(ctx, S1APProcedureERABReleaseCommand, b)
-
-	return nil
+	return c.SendS1AP(ctx, S1APProcedureERABReleaseCommand, b)
 }
 
 // SendPathSwitchAcknowledge stamps the UE identities and sends the Path Switch Request
@@ -243,9 +236,7 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 		return fmt.Errorf("marshal Path Switch Request Acknowledge: %w", err)
 	}
 
-	c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
-
-	return nil
+	return c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
 }
 
 // reportProtectFailure logs a downlink protection failure and, when the NAS

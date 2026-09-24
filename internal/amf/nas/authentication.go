@@ -81,7 +81,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	logger.From(ctx, logger.AmfLog).Debug("UE has no valid security context - continue with the authentication procedure")
 
-	ue.SetNgKsi(models.NgKsi{Tsc: models.ScTypeNative, Ksi: amf.SelectNgKsi(citedNgKsi(ue.Conn()), ue.StoredNgKsi())})
+	ueConn.AuthNgKsi = models.NgKsi{Tsc: models.ScTypeNative, Ksi: amf.SelectNgKsi(citedNgKsi(ueConn), ue.StoredNgKsi())}
 
 	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, nil)
 	if err != nil {

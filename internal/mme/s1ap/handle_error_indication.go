@@ -109,17 +109,16 @@ func sendErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, m
 // An abstract syntax error carries the cause and the per-IE diagnostics the
 // rejection must report (TS 36.413 §10.3.5); where the message is UE
 // associated, the UE S1AP IDs that did decode address it (§8.7.2.2).
-func handleParseError(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
+func handleParseError(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, trigger s1ap.TriggeringMessage, err error) {
 	logger.From(ctx, logger.MmeLog).Warn("failed to decode S1AP message",
 		zap.Int("procedure_code", int(proc)),
 		zap.Error(err))
 
-	sendParseErrorIndication(ctx, m, conn, proc, err)
+	sendParseErrorIndication(ctx, m, conn, proc, trigger, err)
 }
 
 // sendParseErrorIndication reports a failed decode with an ERROR INDICATION.
-func sendParseErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, err error) {
-	trigger := s1ap.TriggeringInitiatingMessage
+func sendParseErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, trigger s1ap.TriggeringMessage, err error) {
 	crit := s1ap.CriticalityReject
 
 	ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err)
@@ -225,7 +224,7 @@ func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 	if build != nil && isAbstract && ase.HasUnsuccessfulOutcome() {
 		out, buildErr := build(cause, diag)
 		if buildErr == nil {
-			m.SendToRadio(ctx, conn, msgType, out)
+			_ = m.SendToRadio(ctx, conn, msgType, out)
 
 			return
 		}
@@ -233,7 +232,7 @@ func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 		log.Warn("cannot build the unsuccessful outcome; reporting by Error Indication", zap.Error(buildErr))
 	}
 
-	sendParseErrorIndication(ctx, m, conn, proc, err)
+	sendParseErrorIndication(ctx, m, conn, proc, s1ap.TriggeringInitiatingMessage, err)
 }
 
 // sendProtocolErrorIndication answers a PDU the MME could not decode with a cause-only
@@ -287,7 +286,7 @@ func emitErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, i
 		return
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedureErrorIndication, b)
+	_ = m.SendToRadio(ctx, conn, mme.S1APProcedureErrorIndication, b)
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413). A

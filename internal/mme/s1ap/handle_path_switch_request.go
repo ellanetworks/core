@@ -221,7 +221,7 @@ func sendPathSwitchFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter,
 		return
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedurePathSwitchRequestFailure, b)
+	_ = m.SendToRadio(ctx, conn, mme.S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target

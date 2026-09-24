@@ -110,7 +110,7 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		logger.MMEUeS1apID(uint32(source.MMEUES1APID)),
 		zap.Int("accepted", len(accepted)),
 		zap.Int("released", len(unadmitted)))
-	m.SendToRadio(ctx, source.Conn(), mme.S1APProcedureHandoverCommand, b)
+	_ = m.SendToRadio(ctx, source.Conn(), mme.S1APProcedureHandoverCommand, b)
 
 	m.SuperviseHandoverToFiveGS(ue, req.ID)
 }

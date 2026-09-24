@@ -17,7 +17,7 @@ import (
 func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	notify, err := s1ap.ParseHandoverNotify(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverNotification, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 

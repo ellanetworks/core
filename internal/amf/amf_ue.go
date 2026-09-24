@@ -360,7 +360,10 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	return snap
 }
 
-func (ue *UeContext) DeriveKamf(kseaf []byte) error {
+func (ue *UeContext) DeriveKamf(kseaf []byte, ngKsi models.NgKsi) error {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
 	if !ue.supi.IsValid() || !ue.supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
@@ -376,6 +379,7 @@ func (ue *UeContext) DeriveKamf(kseaf []byte) error {
 	}
 
 	ue.kamf = kAmfBytes
+	ue.ngKsi = ngKsi
 
 	return nil
 }

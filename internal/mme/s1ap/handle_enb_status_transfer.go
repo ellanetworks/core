@@ -18,7 +18,7 @@ import (
 func handleENBStatusTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	st, err := s1ap.ParseENBStatusTransfer(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -46,5 +46,5 @@ func handleENBStatusTransfer(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 		return
 	}
 
-	m.SendToRadio(ctx, targetConn, mme.S1APProcedureMMEStatusTransfer, b)
+	_ = m.SendToRadio(ctx, targetConn, mme.S1APProcedureMMEStatusTransfer, b)
 }

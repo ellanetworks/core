@@ -48,7 +48,9 @@ func TestUpdateLocationConversion(t *testing.T) {
 
 func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 	ue := &UeContext{}
-	c := &UeConn{ue: ue}
+	c := &UeConn{}
+	c.ue.Store(ue)
+
 	cgi, tai := testCGIAndTAI()
 
 	if !ue.IsUserLocationEmpty() {
@@ -80,7 +82,9 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 
 func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	ue := &UeContext{}
-	c := &UeConn{ue: ue}
+	c := &UeConn{}
+	c.ue.Store(ue)
+
 	cgi, tai := testCGIAndTAI()
 
 	done := make(chan struct{})
@@ -139,5 +143,19 @@ func TestMMELocationAccessors(t *testing.T) {
 
 	if m.IsUERegistered(unknown) {
 		t.Fatal("IsUERegistered should be false for an unknown SUPI")
+	}
+}
+
+func TestBindingAConnectionCarriesItsLocationToTheUE(t *testing.T) {
+	m := newTestMME(t)
+	c := m.NewUeConn(&captureConn{}, 7)
+
+	c.UpdateLocation(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x1234567}, s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1})
+
+	ue := NewUeContext()
+	m.AttachUeConn(t.Context(), ue, c)
+
+	if ue.IsUserLocationEmpty() {
+		t.Fatal("the UE has no location although its Initial UE Message carried one")
 	}
 }

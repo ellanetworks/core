@@ -4,9 +4,11 @@
 package mme
 
 import (
+	"net/netip"
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 )
 
@@ -91,5 +93,21 @@ func TestRepeatedS1SetupReclaimsTheUEsOfTheAssociation(t *testing.T) {
 
 	if n := m.ConnCountForTest(); n != 0 {
 		t.Errorf("%d UE-associated connections survived a repeated S1 Setup, want 0", n)
+	}
+}
+
+func TestIdleUEKeepsNoENBEndpoint(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	m.SetPDNEnbFTEID(ue, testPDN(ue), models.FTEID{TEID: 0x1234, Addr: netip.MustParseAddr("10.0.0.1")})
+
+	m.FreeUeConn(t.Context(), ue)
+
+	for _, p := range m.SnapshotPDNs(ue) {
+		if p.EnbFTEID != (models.FTEID{}) {
+			t.Fatalf("EBI %d keeps eNB endpoint %+v in ECM-IDLE; the eNB released it with the S1 connection (TS 23.401 §5.3.5)", p.Ebi, p.EnbFTEID)
+		}
 	}
 }

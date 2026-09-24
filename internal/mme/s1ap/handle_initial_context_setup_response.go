@@ -36,7 +36,7 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, err)
 		return
 	}
 

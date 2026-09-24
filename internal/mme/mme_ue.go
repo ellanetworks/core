@@ -606,7 +606,7 @@ func (m *MME) ReleaseBareConn(c *UeConn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if c.ue != nil {
+	if c.ue.Load() != nil {
 		return
 	}
 
@@ -642,14 +642,20 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
 	// connected on c.
-	if prev := c.ue; prev != nil && prev != ue {
+	if prev := c.ue.Load(); prev != nil && prev != ue {
 		prev.active.CompareAndSwap(c, nil)
 	}
 
 	ue.active.Store(c)
-	c.ue = ue
+	c.ue.Store(ue)
 	c.bindSupi(ue.Supi())
 	ue.PagingAnswered()
+
+	if c.Location.EutraLocation != nil {
+		ue.mu.Lock()
+		ue.Location = c.Location
+		ue.mu.Unlock()
+	}
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
@@ -722,13 +728,20 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// The response can only arrive over this connection, so a surviving wait could
 	// only be concluded by an unrelated one.
 	old.esmInfoGuard.Stop()
+	old.icsGuard.Stop()
 	ue.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
 	ue.clearKeyChainProc()
 
-	old.ue = nil
+	ue.mu.Lock()
+	for _, p := range ue.Pdns {
+		p.EnbFTEID = models.FTEID{}
+	}
+	ue.mu.Unlock()
+
+	old.ue.Store(nil)
 	ue.active.Store(nil)
 
 	return old
@@ -823,8 +836,8 @@ func (m *MME) ConnectedUEs() []*UeContext {
 
 	ues := make([]*UeContext, 0, len(m.conns))
 	for _, c := range m.conns {
-		if c.ue != nil {
-			ues = append(ues, c.ue)
+		if ue := c.ue.Load(); ue != nil {
+			ues = append(ues, ue)
 		}
 	}
 
@@ -947,8 +960,8 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
-			stale = append(stale, c.ue)
+		if ue := c.ue.Load(); ue != nil && ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
+			stale = append(stale, ue)
 		}
 	}
 
@@ -981,11 +994,13 @@ func (m *MME) LookupUe(mmeUEID s1ap.MMEUES1APID) (*UeContext, bool) {
 	defer m.mu.RUnlock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
-	if !ok || c.ue == nil {
+	if !ok {
 		return nil, false
 	}
 
-	return c.ue, true
+	ue := c.ue.Load()
+
+	return ue, ue != nil
 }
 
 // LookupUeByMTMSI finds a UE context by the M-TMSI of its assigned GUTI,
