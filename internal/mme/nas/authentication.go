@@ -36,11 +36,24 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// A new authentication carries an eKSI distinct from the stored one, so the UE keeps
 	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
-	ue.SetEksi(nas.KeySetIdentifier{Value: mme.NextEksi(ue.Eksi().Value)})
+	ue.SetEksi(nas.KeySetIdentifier{Value: mme.SelectEksi(citedEksi(ueConn), ue.StoredEksi())})
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, "", ""); err != nil {
 		failAuthentication(ctx, m, ue, ueConn, err)
 	}
+}
+
+func citedEksi(ueConn *mme.UeConn) uint8 {
+	if ueConn == nil || ueConn.AttachRequestPlain == nil {
+		return nas.NoKeyAvailable
+	}
+
+	req, err := eps.ParseAttachRequest(ueConn.AttachRequestPlain)
+	if err != nil {
+		return nas.NoKeyAvailable
+	}
+
+	return req.NASKeySetIdentifier.Value
 }
 
 func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, err error) {

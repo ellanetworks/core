@@ -64,7 +64,7 @@ type UeConn struct {
 	ue atomic.Pointer[UeContext]
 	// conn is the NGAP association this UE sends through and the key into the AMF's
 	// radios index for node metadata (looked up via amf.radioFor(conn)).
-	conn NGAPWriter
+	conn atomic.Pointer[NGAPWriter]
 	// radio is the serving node's ID and name, for hot-path last-seen tagging without a
 	// registry lookup. Atomic: written under amf.mu, read off it on the dispatch path.
 	radio atomic.Pointer[radioRef]
@@ -284,16 +284,25 @@ func (ueConn *UeConn) armNASGuardWith(ctx context.Context, cfg guard.TimerValue,
 	}
 
 	link := trace.SpanContextFromContext(ctx)
+	ue := ueConn.UeContext()
 
 	ueConn.nasGuardName.Store(&name)
 	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
 		func(attempt int32) {
+			if ue != nil && ue.Conn() != ueConn {
+				return
+			}
+
 			guardCtx, span := guardSpan(link, "amf/nas_guard_retransmit", name, attempt)
 			defer span.End()
 
 			onRetransmit(guardCtx, attempt)
 		},
 		func() {
+			if ue != nil && ue.Conn() != ueConn {
+				return
+			}
+
 			guardCtx, span := guardSpan(link, "amf/nas_guard_expire", name, 0)
 			defer span.End()
 
@@ -538,7 +547,7 @@ func (ueConn *UeConn) Radio() *Radio {
 		return nil
 	}
 
-	return ueConn.amf.radioFor(ueConn.conn)
+	return ueConn.amf.radioFor(ueConn.Conn())
 }
 
 // UeContext returns the currently attached UeContext, or nil.
@@ -571,7 +580,8 @@ func (ueConn *UeConn) sendTarget() (*AMF, NGAPWriter, error) {
 		return nil, nil, fmt.Errorf("ran ue is nil")
 	}
 
-	if ueConn.conn == nil {
+	conn := ueConn.Conn()
+	if conn == nil {
 		return nil, nil, fmt.Errorf("conn is nil")
 	}
 
@@ -579,7 +589,24 @@ func (ueConn *UeConn) sendTarget() (*AMF, NGAPWriter, error) {
 		return nil, nil, fmt.Errorf("amf is nil")
 	}
 
-	return ueConn.amf, ueConn.conn, nil
+	return ueConn.amf, conn, nil
+}
+
+func (ueConn *UeConn) Conn() NGAPWriter {
+	if ueConn == nil {
+		return nil
+	}
+
+	w := ueConn.conn.Load()
+	if w == nil {
+		return nil
+	}
+
+	return *w
+}
+
+func (ueConn *UeConn) setConn(w NGAPWriter) {
+	ueConn.conn.Store(&w)
 }
 
 // StopReleaseGuard cancels the Release-Complete supervision timer.
@@ -785,7 +812,7 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	var stale []*UeConn
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
+		if ueConn.Conn() == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			stale = append(stale, ueConn)
 		}
 	}
@@ -838,7 +865,7 @@ func (a *AMF) CommitPathSwitch(ctx context.Context, ue *UeContext, ueConn *UeCon
 		return false
 	}
 
-	ueConn.conn = ran.Conn
+	ueConn.setConn(ran.Conn)
 	ueConn.setRadio(radioIDOf(ran), ran.name)
 	ueConn.setRanUeNgapID(ranUeNgapID)
 
@@ -871,9 +898,9 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 
 	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
-		conn:        radio.Conn,
 		amf:         radio.amf,
 	}
+	ueConn.setConn(radio.Conn)
 	ueConn.setRanUeNgapID(ranUeNgapID)
 
 	radio.amf.mu.Lock()

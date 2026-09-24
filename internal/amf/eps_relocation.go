@@ -104,7 +104,7 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 		return interworking.ForwardRelocationRequest{}, nil, err
 	}
 
-	ambr := ue.Ambr
+	ambr := ue.Ambr()
 	if ambr == nil {
 		return interworking.ForwardRelocationRequest{}, nil, fmt.Errorf("amf: UE has no AMBR")
 	}

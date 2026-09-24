@@ -94,8 +94,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 			[]uint8{uint8(fgs.IdentitySUCI)},
 			fmt.Errorf("nas: bytes at octet 1: buffer truncated"),
 			func(ue *amf.UeContext) error {
-				if ue.Suci != "" || ue.PlmnID.Mcc != "" || ue.PlmnID.Mnc != "" {
-					return fmt.Errorf("SUCI and PLMN should be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
+				if ue.Suci() != "" || ue.PlmnID().Mcc != "" || ue.PlmnID().Mnc != "" {
+					return fmt.Errorf("SUCI and PLMN should be empty, got %s, %s%s", ue.Suci(), ue.PlmnID().Mcc, ue.PlmnID().Mnc)
 				}
 
 				return nil
@@ -107,8 +107,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 			[]uint8{uint8(fgs.IdentitySUCI), 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			nil,
 			func(ue *amf.UeContext) error {
-				if ue.Suci != "suci-0-001-01-0110-0-1-00000000000000000010" || ue.PlmnID.Mcc != "001" || ue.PlmnID.Mnc != "01" {
-					return fmt.Errorf("SUCI and PLMN should not be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
+				if ue.Suci() != "suci-0-001-01-0110-0-1-00000000000000000010" || ue.PlmnID().Mcc != "001" || ue.PlmnID().Mnc != "01" {
+					return fmt.Errorf("SUCI and PLMN should not be empty, got %s, %s%s", ue.Suci(), ue.PlmnID().Mcc, ue.PlmnID().Mnc)
 				}
 
 				return nil
@@ -212,8 +212,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 			nil,
 			func(ue *amf.UeContext) error {
 				expected := "imei-490154203237518"
-				if ue.Imei.String() != expected {
-					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Imei.String())
+				if ue.Imei().String() != expected {
+					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Imei().String())
 				}
 
 				return nil
@@ -233,8 +233,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 			nil,
 			func(ue *amf.UeContext) error {
 				expected := "imeisv-3520990017614823"
-				if ue.Imei.String() != expected {
-					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Imei.String())
+				if ue.Imei().String() != expected {
+					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Imei().String())
 				}
 
 				return nil
@@ -314,7 +314,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = ""
+	ue.SetSuciForTest("")
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = ue.Conn().Tai
 
@@ -351,7 +351,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = ""
+	ue.SetSuciForTest("")
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = models.Tai{}
 
@@ -390,7 +390,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -461,7 +461,7 @@ func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.Suci = "testsuci"
+			ue.SetSuciForTest("testsuci")
 			ue.SetSupiForTest(supi)
 
 			if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {

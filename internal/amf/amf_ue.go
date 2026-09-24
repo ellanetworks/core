@@ -48,10 +48,10 @@ type UeContext struct {
 	arrivedFromEPSHandover bool
 	exportableToEPSUntil   time.Time
 
-	PlmnID  models.PlmnID
-	Suci    string
+	plmnID  models.PlmnID
+	suci    string
 	supi    etsi.SUPI
-	Imei    etsi.IMEI // PEI carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
+	imei    etsi.IMEI // PEI carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
@@ -92,10 +92,10 @@ type UeContext struct {
 	kamf         []uint8
 	abba         []uint8
 
-	Ambr                     *models.Ambr
-	AllowedNssai             []models.Snssai
-	RegistrationArea         []models.Tai
-	RadioCapability          []byte
+	ambr                     *models.Ambr
+	allowedNssai             []models.Snssai
+	registrationArea         []models.Tai
+	radioCapability          []byte
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A)
 	SmContextList            map[uint8]*SmContext
@@ -121,7 +121,7 @@ func NewUeContext() *UeContext {
 	ue := &UeContext{
 		state:            Deregistered,
 		SmContextList:    make(map[uint8]*SmContext),
-		RegistrationArea: make([]models.Tai, 0),
+		registrationArea: make([]models.Tai, 0),
 		procedures:       procedure.NewRegistry(logger.AmfLog),
 		tmsi:             etsi.InvalidTMSI,
 		oldTmsi:          etsi.InvalidTMSI,
@@ -195,6 +195,7 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 		if oldUeConn.ue.Load() == ue {
 			oldUeConn.Log(ctx).Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
+			oldUeConn.nasGuard.Stop()
 			displaced = oldUeConn
 		}
 	}
@@ -275,11 +276,17 @@ func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 }
 
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
-	ue.RegistrationArea = append([]models.Tai(nil), supportedTais...)
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.registrationArea = append([]models.Tai(nil), supportedTais...)
 }
 
 func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
-	for _, s := range ue.AllowedNssai {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for _, s := range ue.allowedNssai {
 		if s.Equal(*targetSNssai) {
 			return true
 		}
@@ -289,6 +296,9 @@ func (ue *UeContext) IsAllowedNssai(targetSNssai *models.Snssai) bool {
 }
 
 func (ue *UeContext) SecurityContextIsValid() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
 	return ue.secured && ue.ngKsi.Ksi != int32(nas.NoKeyAvailable)
 }
 
@@ -331,7 +341,7 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	conn := ue.active.Load()
 
 	snap := UESnapshot{
-		Imei:               ue.Imei.IMEI(),
+		Imei:               ue.imei.IMEI(),
 		LastSeenAt:         ue.lastSeenTime(),
 		CipheringAlgorithm: cipheringAlgName(ue.cipheringAlg),
 		IntegrityAlgorithm: integrityAlgName(ue.integrityAlg),

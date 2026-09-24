@@ -365,8 +365,8 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if authReq.NASKeySetIdentifier.Value != 1 {
-		t.Fatalf("Authentication Request eKSI = %d, want 1 (cycled from stored 0)", authReq.NASKeySetIdentifier.Value)
+	if authReq.NASKeySetIdentifier.Value != 0 {
+		t.Fatalf("Authentication Request eKSI = %d, want 0 (the UE cited no key and none is stored)", authReq.NASKeySetIdentifier.Value)
 	}
 
 	res := make([]byte, 8)
@@ -984,5 +984,42 @@ func TestAttachReadsOperatorOnce(t *testing.T) {
 
 	if got := store.reads.Load(); got != 1 {
 		t.Fatalf("attach read the operator row %d times, want 1", got)
+	}
+}
+
+func TestAttachAuthenticationUsesAnEKSIOtherThanTheOneTheUECited(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attachBytes, err := (&eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 1},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
+		ESMMessageContainer: esm,
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), attachBytes)
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected 1 downlink (Authentication Request), got %d", len(cc.sent))
+	}
+
+	authReq, err := eps.ParseAuthenticationRequest(decodeDownlinkNAS(t, cc.sent[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if authReq.NASKeySetIdentifier.Value == 1 {
+		t.Fatal("Authentication Request reuses the eKSI the UE cited in its ATTACH REQUEST (TS 24.301 §5.4.2.2)")
 	}
 }

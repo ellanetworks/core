@@ -156,6 +156,10 @@ func (ue *UeContext) CommitUplinkCount(count uint32) {
 // by S-TMSI can authenticate the message before binding the context. The keys
 // never leave the kernel (TS 33.401).
 func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32, err error) {
+	return ue.unprotectUplink(pdu, eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered)
+}
+
+func (ue *UeContext) unprotectUplink(pdu []byte, permitted ...eps.SecurityHeaderType) (plain []byte, count uint32, err error) {
 	spm, err := eps.ParseSecurityProtectedMessage(pdu)
 	if err != nil {
 		return nil, 0, err
@@ -179,7 +183,7 @@ func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32,
 		return nil, 0, err
 	}
 
-	p, _, err := eps.Unprotect(pdu, estimated, nas.DirectionUplink, ue.sc)
+	p, _, err := eps.Unprotect(pdu, estimated, nas.DirectionUplink, ue.sc, permitted...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -281,6 +285,17 @@ func (ue *UeContext) RegistrationArea() []models.Tai {
 	defer ue.mu.Unlock()
 
 	return append([]models.Tai(nil), ue.registrationArea...)
+}
+
+func (ue *UeContext) StoredEksi() uint8 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if len(ue.kasme) == 0 {
+		return nas.NoKeyAvailable
+	}
+
+	return ue.eksi.Value
 }
 
 func (ue *UeContext) Eksi() nas.KeySetIdentifier {

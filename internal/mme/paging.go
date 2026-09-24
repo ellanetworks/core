@@ -43,7 +43,7 @@ func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, ca
 		return nil
 	}
 
-	arm := func() { ue.beginPaging(req) }
+	arm := func() bool { return ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
@@ -67,7 +67,7 @@ func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	arm := func() { ue.beginPaging(req) }
+	arm := func() bool { return ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		logger.From(ctx, logger.MmeLog).Warn("could not page the UE after releasing S1 for a GTP-U Error Indication",
@@ -92,7 +92,7 @@ func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 // page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately
 // before the Paging is sent, because the UE may answer on another goroutine the moment it
 // leaves the MME. No undo is needed: pageRadios reports send failures at the chokepoint.
-func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
+func (m *MME) page(ctx context.Context, ue *UeContext, arm func() bool) error {
 	m.mu.RLock()
 
 	skip := ue.Connected() || ue.paging.guard.Active()
@@ -114,8 +114,8 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 		return fmt.Errorf("paging: marshal: %w", err)
 	}
 
-	if arm != nil {
-		arm()
+	if arm != nil && !arm() {
+		return errPagingSkipped
 	}
 
 	m.pageRadios(ctx, ue, b)
@@ -139,9 +139,14 @@ func (m *MME) armPaging(ctx context.Context, ue *UeContext, pdu []byte) {
 
 	link := trace.SpanContextFromContext(ctx)
 
+	ue.paging.mu.Lock()
+	ue.paging.attempt++
+	pagingAttempt := ue.paging.attempt
+	ue.paging.mu.Unlock()
+
 	ue.paging.guard.ArmWith(m.pagingCfg,
 		func(attempt int32) { m.retransmitPaging(link, ue, pdu, attempt) },
-		func() { m.abandonPaging(link, ue) })
+		func() { m.abandonPaging(link, ue, pagingAttempt) })
 }
 
 func (ue *UeContext) clearPaging() {
@@ -181,7 +186,7 @@ func (m *MME) retransmitPaging(link trace.SpanContext, ue *UeContext, pdu []byte
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.401 §5.3.4.3); the UE
 // stays under mobile-reachable supervision until it returns or is implicitly detached.
-func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext) {
+func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext, attempt uint64) {
 	m.mu.RLock()
 
 	imsi := ue.imsiOrEmpty()
@@ -191,7 +196,7 @@ func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext) {
 	ctx, span := guardSpan(link, "mme/paging_abandon", "T3413 (Paging)", 0)
 	defer span.End()
 
-	dropped, abandoned := ue.PagingUnanswered(ctx, models.EPSPagingUENotResponding)
+	dropped, abandoned := ue.PagingUnanswered(ctx, attempt, models.EPSPagingUENotResponding)
 	if !abandoned {
 		return
 	}
@@ -353,9 +358,14 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 		return fmt.Errorf("UE is not in registered state")
 	}
 
-	arm := func() {
-		ue.beginPaging(&MTRequest{})
+	arm := func() bool {
+		if !ue.beginPaging(&MTRequest{}) {
+			return false
+		}
+
 		ue.SetLPPaBuffered(measID, lppaPayload)
+
+		return true
 	}
 
 	if err := m.page(ctx, ue, arm); err != nil {

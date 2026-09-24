@@ -186,8 +186,6 @@ type UeContext struct {
 
 	localBearerDeactivation bool
 
-	releasing bool
-
 	regStep RegStep
 
 	mobileReachableTimer guard.Guard
@@ -636,7 +634,6 @@ func (m *MME) NewUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1AP
 // carries the message that establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
-	ue.PagingAnswered()
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
@@ -652,6 +649,7 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	ue.active.Store(c)
 	c.ue = ue
 	c.bindSupi(ue.Supi())
+	ue.PagingAnswered()
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
@@ -737,8 +735,6 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 }
 
 func (m *MME) freeUeConnLocked(ue *UeContext) {
-	ue.releasing = false
-
 	if old := m.detachConnLocked(ue); old != nil {
 		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}
@@ -855,19 +851,25 @@ func (m *MME) ReconcileReady(ue *UeContext) (*UeConn, bool) {
 }
 
 // claimRelease atomically marks the UE's S1 connection as releasing, returning
-// false when there is no connection or a release is already in progress (a NAS
-// guard timeout and an eNB-initiated release can race for the same UE).
-func (m *MME) claimRelease(ue *UeContext) bool {
+// that connection (nil when there is none) and false when a release of it is
+// already in progress (a NAS guard timeout and an eNB-initiated release can race
+// for the same UE).
+func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.releasing {
-		return false
+	c := ue.Conn()
+	if c == nil {
+		return nil, true
 	}
 
-	ue.releasing = true
+	if c.releasing {
+		return nil, false
+	}
 
-	return true
+	c.releasing = true
+
+	return c, true
 }
 
 // releaseContextLockedPart performs, under the registry lock, the registry side

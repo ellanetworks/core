@@ -159,7 +159,7 @@ func isTrackingAreaUpdate(nas []byte) bool {
 
 	switch nas[0] >> 4 {
 	case uint8(eps.SHTPlain):
-	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+	case uint8(eps.SHTIntegrityProtected):
 		if len(nas) < 6 {
 			return false
 		}

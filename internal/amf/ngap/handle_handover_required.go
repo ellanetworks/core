@@ -22,6 +22,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	amfUe := sourceUe.UeContext()
 	if amfUe == nil {
 		sourceUe.Log(ctx).Error("Cannot find amfUE from sourceUE")
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHandoverPrepUnspecific, nil, nil)
+
 		return
 	}
 
@@ -30,6 +32,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	conn := amfUe.Conn()
 	if conn == nil {
 		sourceUe.Log(ctx).Error("no active NAS connection")
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHandoverPrepUnspecific, nil, nil)
+
 		return
 	}
 
@@ -90,6 +94,22 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+	if err != nil {
+		sourceUe.Log(ctx).Error("Could not get operator info", zap.Error(err))
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHandoverPrepUnspecific, nil, nil)
+
+		return
+	}
+
+	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
+	if err != nil {
+		sourceUe.Log(ctx).Error("Could not list operator SNSSAI", zap.Error(err))
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHandoverPrepUnspecific, nil, nil)
+
+		return
+	}
+
 	sourceUe.HandOverType = msg.HandoverType
 
 	var (
@@ -146,18 +166,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	operatorInfo, err := amfInstance.OperatorInfo(ctx)
-	if err != nil {
-		sourceUe.Log(ctx).Error("Could not get operator info", zap.Error(err))
-		return
-	}
-
-	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
-	if err != nil {
-		sourceUe.Log(ctx).Error("Could not list operator SNSSAI", zap.Error(err))
-		return
-	}
-
 	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan, candidates)
 	if !ok {
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
@@ -170,10 +178,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		cause = *msg.Cause
 	}
 
+	ambr := amfUe.Ambr()
+
 	err = targetUe.SendHandoverRequest(ctx, amf.HandoverRequestOpts{
 		HandoverType:         sourceUe.HandOverType,
-		UplinkAmbr:           amfUe.Ambr.Uplink,
-		DownlinkAmbr:         amfUe.Ambr.Downlink,
+		UplinkAmbr:           ambr.Uplink,
+		DownlinkAmbr:         ambr.Downlink,
 		UESecurityCapability: amfUe.UESecCap(),
 		NCC:                  ncc,
 		NH:                   nh[:],

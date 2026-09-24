@@ -541,7 +541,7 @@ func TestHandleServiceRequestMTReadsOperatorOnce(t *testing.T) {
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -610,7 +610,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -684,7 +684,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.Conn().Tai
@@ -749,7 +749,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -767,8 +767,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
-	ue.AllowedNssai = []models.Snssai{snssai}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
+	ue.SetAllowedNssai([]models.Snssai{snssai})
 	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
@@ -847,7 +847,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -865,8 +865,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
-	ue.AllowedNssai = []models.Snssai{snssai}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
+	ue.SetAllowedNssai([]models.Snssai{snssai})
 	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
@@ -955,7 +955,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -973,8 +973,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
-	ue.AllowedNssai = []models.Snssai{snssai}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
+	ue.SetAllowedNssai([]models.Snssai{snssai})
 	setTestUESecurityCapability(ue)
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
@@ -1071,7 +1071,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
@@ -1080,7 +1080,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.ArmPagingForTest(6*time.Minute, 5)
 	amfInstance.AttachUeConn(t.Context(), ue, ue.Conn())
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(oldguti)
 	ue.Tai = ue.Conn().Tai
@@ -1098,7 +1098,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
 	ue.SetPagedRequestForTest(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -1285,7 +1285,7 @@ func TestHandleServiceRequest_BufferedN1WithN2_ServiceAcceptTakesTheLowerNASCoun
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.Conn().Tai
@@ -1298,8 +1298,8 @@ func TestHandleServiceRequest_BufferedN1WithN2_ServiceAcceptTakesTheLowerNASCoun
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
-	ue.AllowedNssai = []models.Snssai{snssai}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
+	ue.SetAllowedNssai([]models.Snssai{snssai})
 	setTestUESecurityCapability(ue)
 
 	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")

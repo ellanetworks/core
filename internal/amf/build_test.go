@@ -134,10 +134,10 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	ue := buildServedTestUE(t, amfInstance, "001019756139901")
-	ue.AllowedNssai = []models.Snssai{
+	ue.SetAllowedNssai([]models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
-	}
+	})
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
@@ -159,9 +159,9 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	ue := buildServedTestUE(t, amfInstance, "001019756139902")
-	ue.AllowedNssai = []models.Snssai{
+	ue.SetAllowedNssai([]models.Snssai{
 		{Sst: 1, Sd: "010203"},
-	}
+	})
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
@@ -183,7 +183,7 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	ue := buildServedTestUE(t, amfInstance, "001019756139903")
-	ue.AllowedNssai = []models.Snssai{}
+	ue.SetAllowedNssai([]models.Snssai{})
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {

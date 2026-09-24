@@ -19,10 +19,10 @@ func relocatableUE(t *testing.T) *amf.UeContext {
 
 	ue := mappableUE(t)
 	ue.SetAllow4G(true)
-	ue.Ambr = &models.Ambr{
+	ue.SetAmbr(&models.Ambr{
 		Uplink:   models.MustParseBitRate("50 Mbps"),
 		Downlink: models.MustParseBitRate("100 Mbps"),
-	}
+	})
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
@@ -215,7 +215,7 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatal("the source-to-target container must be relayed verbatim")
 	}
 
-	if req.UEAMBRUplink != ue.Ambr.Uplink || req.UEAMBRDownlink != ue.Ambr.Downlink {
+	if req.UEAMBRUplink != ue.Ambr().Uplink || req.UEAMBRDownlink != ue.Ambr().Downlink {
 		t.Fatal("the UE-AMBR must be the UE's")
 	}
 

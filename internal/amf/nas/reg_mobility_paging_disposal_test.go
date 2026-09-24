@@ -45,7 +45,7 @@ func TestMobilityReg_UndeliverablePagedRequestIsFailed(t *testing.T) {
 
 func TestMobilityReg_DeliveredPagedRequestSettlesTheProcedure(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}

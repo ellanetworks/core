@@ -29,3 +29,17 @@ func TestNextNgKsi(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectNgKsiDiffersFromTheCitedAndTheStoredNgKsi(t *testing.T) {
+	for _, tc := range []struct{ cited, stored, want int32 }{
+		{cited: 1, stored: 7, want: 2},
+		{cited: 1, stored: 2, want: 3},
+		{cited: 6, stored: 0, want: 1},
+		{cited: 7, stored: 0, want: 1},
+		{cited: 7, stored: 7, want: 0},
+	} {
+		if got := SelectNgKsi(tc.cited, tc.stored); got != tc.want {
+			t.Errorf("SelectNgKsi(%d, %d) = %d, want %d", tc.cited, tc.stored, got, tc.want)
+		}
+	}
+}

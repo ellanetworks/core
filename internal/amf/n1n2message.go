@@ -33,6 +33,8 @@ var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
 
+var errUEConnected = errors.New("the UE re-established its NAS signalling connection before it was paged")
+
 func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -50,7 +52,14 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		return amf.storeN1N2AndPage(ctx, ue, req)
+		cause, err := amf.storeN1N2AndPage(ctx, ue, req)
+		if !errors.Is(err, errUEConnected) {
+			return cause, err
+		}
+
+		if ueConn = ue.Conn(); ueConn == nil {
+			return "", err
+		}
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
@@ -82,8 +91,9 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			}
 
 			list := ngap.PDUSessionResourceSetupListSUReq{item}
+			ambr := ue.Ambr()
 
-			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list); err != nil {
+			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ambr.Uplink, ambr.Downlink, nil, list); err != nil {
 				n2Setup.End(ctx)
 
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
@@ -130,14 +140,15 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		}
 
 		list := ngap.PDUSessionResourceSetupListCxtReq{item}
+		ambr := ue.Ambr()
 
 		if err := ueConn.SendInitialContextSetup(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
+			ambr.Uplink,
+			ambr.Downlink,
+			ue.AllowedNssai(),
 			kgnb,
-			ue.RadioCapability,
+			ue.RadioCapability(),
 			ue.RadioCapabilityForPaging,
 			ueSecCap,
 			nil,
@@ -401,8 +412,9 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		}
 
 		list := ngap.PDUSessionResourceSetupListSUReq{item}
+		ambr := ue.Ambr()
 
-		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ambr.Uplink, ambr.Downlink, nil, list)
 		if err != nil {
 			n2Setup.End(ctx)
 
@@ -441,14 +453,15 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	}
 
 	list := ngap.PDUSessionResourceSetupListCxtReq{item}
+	ambr := ue.Ambr()
 
 	err = ueConn.SendInitialContextSetup(
 		ctx,
-		ue.Ambr.Uplink,
-		ue.Ambr.Downlink,
-		ue.AllowedNssai,
+		ambr.Uplink,
+		ambr.Downlink,
+		ue.AllowedNssai(),
 		ue.kgnb,
-		ue.RadioCapability,
+		ue.RadioCapability(),
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
 		nil,

@@ -23,7 +23,7 @@ func TestRefreshLocation_IdleRegisteredUE_Pages(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000040", func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	if conn := ue.Conn(); conn != nil {
@@ -65,7 +65,7 @@ func TestRefreshLocation_IdleUE_PagingAlreadyInProgress(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000041", func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	if conn := ue.Conn(); conn != nil {

@@ -64,6 +64,15 @@ func (c *UeConn) SendDownlinkMessage(ctx context.Context, msg nasMessage) {
 	c.SendDownlinkNASTransport(ctx, b)
 }
 
+func (c *UeConn) SendDownlink(ctx context.Context, msg nasMessage) {
+	if c.SecureExchangeEstablished() {
+		c.SendDownlinkProtected(ctx, msg)
+		return
+	}
+
+	c.SendDownlinkMessage(ctx, msg)
+}
+
 // SendDownlinkProtected encodes a plain NAS message, integrity-protects and
 // ciphers it with the UE's security context, and sends it downlink.
 func (c *UeConn) SendDownlinkProtected(ctx context.Context, msg nasMessage) {

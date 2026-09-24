@@ -81,6 +81,9 @@ func (a *AMF) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 // UE is gone for good, so its amf.UEs and uesByTmsi entries would otherwise leak
 // for the lifetime of the process.
 func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
+	ctx, span := guardSpan(trace.SpanContext{}, "amf/implicit_deregistration_expire", "implicit deregistration", 0)
+	defer span.End()
+
 	a.mu.Lock()
 
 	if ue.idleGen != gen {
@@ -89,11 +92,9 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 	}
 
 	a.stopIdleTimersLocked(ue)
+	ue.TransitionTo(ctx, Deregistered)
 
 	a.mu.Unlock()
-
-	ctx, span := guardSpan(trace.SpanContext{}, "amf/implicit_deregistration_expire", "implicit deregistration", 0)
-	defer span.End()
 
 	a.DeregisterAndRemoveUeContext(ctx, ue)
 }

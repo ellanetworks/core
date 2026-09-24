@@ -69,10 +69,10 @@ func leavingUE(t *testing.T, a *AMF, guti etsi.GUTI5G) *UeContext {
 	ue.SetSupiForTest(supi)
 	ue.ForceStateForTest(Registered)
 	ue.SetAllow4G(true)
-	ue.Ambr = &models.Ambr{
+	ue.SetAmbr(&models.Ambr{
 		Uplink:   models.MustParseBitRate("50 Mbps"),
 		Downlink: models.MustParseBitRate("100 Mbps"),
-	}
+	})
 	ue.SetUESecurityCapability(&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0}, MintAuthProofForSecurityMode())
 	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, mustEncodeNetworkCapability(t))
 
@@ -173,7 +173,7 @@ func TestEPSContextReturnsTheMappedContext(t *testing.T) {
 		t.Errorf("PDN connections = %+v, want the session holding EBI 6", resp.PDNConnections)
 	}
 
-	if resp.AMBRUplink != ue.Ambr.Uplink || resp.AMBRDownlink != ue.Ambr.Downlink {
+	if resp.AMBRUplink != ue.Ambr().Uplink || resp.AMBRDownlink != ue.Ambr().Downlink {
 		t.Errorf("AMBR = %v/%v, want the subscribed one", resp.AMBRUplink, resp.AMBRDownlink)
 	}
 }

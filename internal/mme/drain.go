@@ -176,7 +176,7 @@ func (m *MME) offloadCandidates(batch int) []*UeContext {
 			break
 		}
 
-		if ue.EMMState() != EMMRegistered || ue.releasing {
+		if c := ue.Conn(); ue.EMMState() != EMMRegistered || (c != nil && c.releasing) {
 			continue
 		}
 

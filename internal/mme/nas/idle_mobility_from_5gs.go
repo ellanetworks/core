@@ -101,7 +101,7 @@ func unprotectedBody(pdu []byte) ([]byte, bool) {
 	switch sht {
 	case eps.SHTPlain:
 		return pdu, true
-	case eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedNewContext:
+	case eps.SHTIntegrityProtected:
 		if len(pdu) < 6 {
 			return nil, false
 		}

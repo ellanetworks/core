@@ -191,6 +191,7 @@ func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo
 		m.mu.Unlock()
 
 		existing.configUpdateGuard.Stop()
+		m.ReclaimConns(ctx, m.ConnsOnConn(key), "S1 Setup")
 
 		return
 	}

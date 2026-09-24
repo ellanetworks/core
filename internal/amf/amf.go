@@ -500,6 +500,27 @@ func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.Glo
 	return evicted, nil
 }
 
+func (amf *AMF) ReleaseSetup(ctx context.Context, radio *Radio) {
+	amf.mu.Lock()
+
+	if key, ok := models.RanNodeIDKey(radio.RanID); ok {
+		if holder, _ := amf.reg.ClaimedBy(key); holder == radio {
+			amf.reg.Unclaim(key)
+		}
+	}
+
+	radio.RanID = nil
+	radio.supportedTAIs = nil
+	radio.advertisedCapacity = nil
+	radio.retryNotBefore = time.Time{}
+	radio.guamiUnavailableSent = false
+	radio.refreshLogLocked()
+
+	amf.mu.Unlock()
+
+	amf.RemoveAllUeInRan(ctx, radio)
+}
+
 // RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN
 // CONFIGURATION UPDATE carries, so the TNLA stays associated with the right
 // NG-C interface instance (TS 38.413 §8.7.2.2).
@@ -788,9 +809,9 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 
 	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
-		conn:        radio.Conn,
 		amf:         a,
 	}
+	ueConn.setConn(radio.Conn)
 	ueConn.setRanUeNgapID(ranUeNgapID)
 	ueConn.bindLogFields(radio.LogFields())
 

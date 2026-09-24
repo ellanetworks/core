@@ -33,8 +33,6 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	ctx, span := gmmTracer.Start(ctx, "nas/security_mode")
 	defer span.End()
 
-	ue.AdvanceRegStep(amf.RegStepSecurityMode)
-
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
@@ -109,6 +107,8 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return
 	}
 
+	ue.AdvanceRegStep(amf.RegStepSecurityMode)
+
 	committed = true
 }
 
@@ -162,6 +162,8 @@ func provideEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		logger.From(ctx, logger.AmfLog).Warn("could not send the security mode command carrying the EPS NAS algorithms", zap.Error(err))
 		return false
 	}
+
+	ue.AdvanceRegStep(amf.RegStepSecurityMode)
 
 	committed = true
 

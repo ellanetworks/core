@@ -52,9 +52,18 @@ func NextEksi(current uint8) uint8 {
 	return 0
 }
 
+func SelectEksi(cited, stored uint8) uint8 {
+	v := NextEksi(cited)
+	if v == stored {
+		v = NextEksi(v)
+	}
+
+	return v
+}
+
 // ResyncTried reports whether SQN re-synchronisation has already been attempted
 // for the in-progress authentication (TS 33.401). Connection-scoped.
-func (c *UeConn) ResyncTried() bool { return c.resyncTried }
+func (c *UeConn) ResyncTried() bool { return c.resyncTried.Load() }
 
 // SetResyncTried records whether SQN re-synchronisation has been attempted.
-func (c *UeConn) SetResyncTried(v bool) { c.resyncTried = v }
+func (c *UeConn) SetResyncTried(v bool) { c.resyncTried.Store(v) }

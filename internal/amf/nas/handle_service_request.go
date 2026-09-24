@@ -120,15 +120,17 @@ func sendServiceAccept(
 		}
 	}
 
+	ambr := ue.Ambr()
+
 	switch {
 	case initialContextSetup:
 		if err := ueConn.SendInitialContextSetup(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
+			ambr.Uplink,
+			ambr.Downlink,
+			ue.AllowedNssai(),
 			kgnb,
-			ue.RadioCapability,
+			ue.RadioCapability(),
 			ue.RadioCapabilityForPaging,
 			ueSecCap,
 			acceptWire,
@@ -144,8 +146,8 @@ func sendServiceAccept(
 	case len(suList) != 0:
 		if err := ueConn.SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
+			ambr.Uplink,
+			ambr.Downlink,
 			acceptWire,
 			suList,
 		); err != nil {

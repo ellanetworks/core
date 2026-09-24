@@ -92,7 +92,7 @@ func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci strin
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = suci
+	ue.SetSuciForTest(suci)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -209,7 +209,7 @@ func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fake
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {

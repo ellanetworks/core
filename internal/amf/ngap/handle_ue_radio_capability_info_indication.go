@@ -37,7 +37,7 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 
 	// §10.3.5: an absent IE leaves the stored capability standing.
 	if msg.UERadioCapability != nil {
-		amfUe.RadioCapability = msg.UERadioCapability
+		amfUe.SetRadioCapability(msg.UERadioCapability)
 	}
 
 	if p := msg.UERadioCapabilityForPaging; p != nil {
@@ -55,5 +55,5 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 	}
 
 	ueConn.Log(ctx).Debug("stored UE Radio Capability",
-		logger.Bytes(uint64(len(amfUe.RadioCapability))))
+		logger.Bytes(uint64(len(amfUe.RadioCapability()))))
 }

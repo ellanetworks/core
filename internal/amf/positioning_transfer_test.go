@@ -24,7 +24,7 @@ func idlePageableUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *fakeN
 	ue := addUE(t, amfInstance, imsi, func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	if conn := ue.Conn(); conn != nil {

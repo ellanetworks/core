@@ -24,10 +24,10 @@ func newDecoderTestUE(t *testing.T) *UeContext {
 	radio.BindAMFForTest(New(nil, nil, nil))
 
 	ueConn := &UeConn{
-		conn:        radio.Conn,
 		amf:         radio.amf,
 		AmfUeNgapID: 1,
 	}
+	ueConn.setConn(radio.Conn)
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
 	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)

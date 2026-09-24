@@ -3,7 +3,12 @@
 
 package mme
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/ellanetworks/core/internal/sctp"
+)
 
 func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {
 	m := newTestMME(t)
@@ -63,5 +68,28 @@ func TestENBDisconnectLeavesIdleUE(t *testing.T) {
 
 	if m.Session.(*fakeSessionManager).deactivated {
 		t.Fatal("idle UE's session re-deactivated on eNB disconnect")
+	}
+}
+
+func TestRepeatedS1SetupReclaimsTheUEsOfTheAssociation(t *testing.T) {
+	m := newTestMME(t)
+	conn := new(sctp.SCTPConn)
+	now := time.Now()
+
+	m.trackRadio(t.Context(), conn, RadioInfo{Name: "enb-a", ConnectedAt: now, LastSeenAt: now})
+
+	ue := m.NewUe(t.Context(), conn, 7)
+	if !ue.Connected() {
+		t.Fatal("the UE is not connected on the eNB association")
+	}
+
+	m.trackRadio(t.Context(), conn, RadioInfo{Name: "enb-a", ConnectedAt: now, LastSeenAt: now})
+
+	if ue.Connected() {
+		t.Error("a repeated S1 Setup left the UE connected on an association the eNB re-initialised (TS 36.413 §8.7.3.1)")
+	}
+
+	if n := m.ConnCountForTest(); n != 0 {
+		t.Errorf("%d UE-associated connections survived a repeated S1 Setup, want 0", n)
 	}
 }

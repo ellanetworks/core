@@ -28,13 +28,15 @@ var (
 )
 
 type captureConn struct {
-	mu   sync.Mutex
-	sent [][]byte
+	mu      sync.Mutex
+	sent    [][]byte
+	streams []uint16
 }
 
-func (c *captureConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
+func (c *captureConn) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, error) {
 	c.mu.Lock()
 	c.sent = append(c.sent, append([]byte(nil), b...))
+	c.streams = append(c.streams, info.Stream)
 	c.mu.Unlock()
 
 	return len(b), nil

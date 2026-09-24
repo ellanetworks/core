@@ -46,12 +46,7 @@ func (e egress) emit(ctx context.Context, msg nasMarshaler) {
 		return
 	}
 
-	if ue := e.conn.UeContext(); ue != nil && ue.Secured() {
-		e.conn.SendDownlinkProtected(ctx, msg)
-		return
-	}
-
-	e.conn.SendDownlinkMessage(ctx, msg)
+	e.conn.SendDownlink(ctx, msg)
 }
 
 func (e egress) Discard(ctx context.Context, reason nasreply.Reason) {

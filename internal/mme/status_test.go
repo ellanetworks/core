@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"net/netip"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -311,4 +312,38 @@ func TestLastSeenRadioFollowsAnX2PathSwitch(t *testing.T) {
 	if seen.RadioName != "enb-b" {
 		t.Errorf("RadioName = %q, want the target enb-b", seen.RadioName)
 	}
+}
+
+func TestResyncTriedIsWrittenWhileTheUEIsExported(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	conn := ue.Conn()
+
+	var wg sync.WaitGroup
+
+	stop := make(chan struct{})
+
+	wg.Go(func() {
+		defer close(stop)
+
+		for i := range 2000 {
+			conn.SetResyncTried(i%2 == 0)
+		}
+	})
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+
+			m.mu.RLock()
+			m.exportUeContext(models.PlmnID{Mcc: "001", Mnc: "01"}, ue)
+			m.mu.RUnlock()
+		}
+	})
+
+	wg.Wait()
 }

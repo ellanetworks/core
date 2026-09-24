@@ -183,9 +183,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	now := time.Now()
 	ue := addTestUE(t, amfInstance, "001010000000002", func(ue *amf.UeContext) {
-		ue.Imei, _ = etsi.NewIMEIFromPEI("imei-123456789012345")
-		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
+		imei, _ := etsi.NewIMEIFromPEI("imei-123456789012345")
+		ue.SetImei(imei)
+		ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
+		ue.SetSuciForTest("suci-0-001-01-0000-0-0-0000000001")
 		ue.ForceStateForTest(amf.Registered)
 		ue.SetSecuredForTest(true)
 		ue.SetCipheringAlgForTest(nas.CipheringAES)
@@ -200,12 +201,12 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			},
 		}
 		ue.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
-		ue.RegistrationArea = []models.Tai{
+		ue.AllocateRegistrationArea([]models.Tai{
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
-		}
-		ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
-		ue.Ambr = &models.Ambr{Uplink: models.BitRateFromBps(1000000), Downlink: models.BitRateFromBps(2000000)}
+		})
+		ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "000001"}})
+		ue.SetAmbr(&models.Ambr{Uplink: models.BitRateFromBps(1000000), Downlink: models.BitRateFromBps(2000000)})
 		ue.SmContextList[5] = &amf.SmContext{
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
@@ -578,11 +579,11 @@ func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
 
 	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.UeContext) {
 		ue.ForceStateForTest(amf.Registered)
-		ue.AllowedNssai = []models.Snssai{
+		ue.SetAllowedNssai([]models.Snssai{
 			{Sst: 1, Sd: "010203"},
 			{Sst: 2, Sd: "aabbcc"},
 			{Sst: 3, Sd: ""},
-		}
+		})
 	})
 
 	result := exportAndMarshal(t, amfInstance)

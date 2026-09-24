@@ -53,7 +53,7 @@ type UeConn struct {
 	secureExchangeEstablished bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
-	resyncTried               bool
+	resyncTried               atomic.Bool
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte
 	TauRequestPlain           []byte
@@ -68,6 +68,7 @@ type UeConn struct {
 	nasGuardName              string
 	esmInfoGuard              guard.Guard
 	releaseGuard              guard.Guard
+	releasing                 bool
 }
 
 type FiveGSArrival struct {

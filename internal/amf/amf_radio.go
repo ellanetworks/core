@@ -77,7 +77,7 @@ func (r *Radio) refreshLogLocked() {
 	}
 
 	for _, ueConn := range r.amf.conns {
-		if ueConn.conn == r.Conn {
+		if ueConn.Conn() == r.Conn {
 			ueConn.bindLogFields(fields)
 		}
 	}
@@ -232,7 +232,7 @@ func (a *AMF) RemoveAllUeInRan(ctx context.Context, radio *Radio) {
 	ues := make([]*UeConn, 0)
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn {
+		if ueConn.Conn() == radio.Conn {
 			ues = append(ues, ueConn)
 		}
 	}
@@ -283,7 +283,7 @@ func (a *AMF) FindUEByRanUeNgapID(radio *Radio, ranUeNgapID models.RanUeNgapID) 
 	defer a.mu.RUnlock()
 
 	for _, ueConn := range a.conns {
-		if ueConn.conn == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
+		if ueConn.Conn() == radio.Conn && ueConn.RanUeNgapID() == ranUeNgapID {
 			return ueConn
 		}
 	}
@@ -305,7 +305,7 @@ func (a *AMF) FindUEByAmfUeNgapID(radio *Radio, amfUeNgapID models.AmfUeNgapID) 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if ueConn := a.conns[int64(amfUeNgapID)]; ueConn != nil && ueConn.conn == radio.Conn {
+	if ueConn := a.conns[int64(amfUeNgapID)]; ueConn != nil && ueConn.Conn() == radio.Conn {
 		return ueConn
 	}
 

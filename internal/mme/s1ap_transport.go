@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -48,16 +49,26 @@ func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []by
 // s1apStreamForProcedure returns the SCTP stream for an S1AP procedure: the reserved
 // non-UE stream (0) for non-UE-associated signalling, the UE stream otherwise
 // (TS 36.412 §7).
-func s1apStreamForProcedure(p S1APProcedure) uint16 {
+func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 	switch p {
 	case S1APProcedureS1SetupResponse, S1APProcedureS1SetupFailure,
 		S1APProcedurePaging, S1APProcedureResetAcknowledge,
 		S1APProcedureErrorIndication,
 		S1APProcedureENBConfigUpdateAck, S1APProcedureENBConfigUpdateFailure,
-		S1APProcedureMMEConfigUpdate:
-		return S1apStreamNonUE
+		S1APProcedureMMEConfigUpdate,
+		S1APProcedureMMEConfigurationTransfer:
+		return S1apStreamNonUE, nil
+	case S1APProcedureInitialContextSetupRequest, S1APProcedureUEContextReleaseCommand,
+		S1APProcedureDownlinkNASTransport,
+		S1APProcedureERABSetupRequest, S1APProcedureERABModifyRequest, S1APProcedureERABReleaseCommand,
+		S1APProcedureERABModificationConfirm,
+		S1APProcedureHandoverRequest, S1APProcedureHandoverCommand, S1APProcedureHandoverPreparationFailure,
+		S1APProcedureHandoverCancelAcknowledge, S1APProcedureMMEStatusTransfer,
+		S1APProcedurePathSwitchRequestAck, S1APProcedurePathSwitchRequestFailure,
+		S1APProcedureDownlinkUEAssociatedLPPaTransport:
+		return S1apStreamUE, nil
 	default:
-		return S1apStreamUE
+		return 0, fmt.Errorf("no SCTP stream for S1AP message type %s", p)
 	}
 }
 
@@ -80,7 +91,16 @@ func (m *MME) SendToRadio(ctx context.Context, conn S1APWriter, messageType S1AP
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: s1apStreamForProcedure(messageType)}); err != nil {
+	stream, err := s1apStreamForProcedure(messageType)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send S1AP message")
+		logger.From(ctx, logger.MmeLog).Error("cannot send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))
+
+		return
+	}
+
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: S1apWirePPID, Stream: stream}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.From(ctx, logger.MmeLog).Error("failed to send S1AP message", logger.MessageType(string(messageType)), zap.Error(err))

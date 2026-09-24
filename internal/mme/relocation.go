@@ -182,7 +182,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			AcceptedPDUSessions: m.dropUnadmittedPDNs(ctx, ue, accepted, out.unadmitted),
 		}, nil
 	case <-ctx.Done():
-		m.abandonHandover(ctx, ue, causeHandoverTS1relocExpiry)
+		m.abandonHandover(context.WithoutCancel(ctx), ue, causeHandoverTS1relocExpiry)
 
 		return none, ctx.Err()
 	}

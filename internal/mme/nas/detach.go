@@ -56,7 +56,7 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	releaseDetachSessions(ctx, m, ue)
 
 	if !req.SwitchOff {
-		ueConn.SendDownlinkProtected(ctx, &eps.DetachAccept{})
+		ueConn.SendDownlink(ctx, &eps.DetachAccept{})
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)

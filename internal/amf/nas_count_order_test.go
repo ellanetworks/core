@@ -102,10 +102,10 @@ func newDownlinkOrderUE(t *testing.T) (*UeContext, *downlinkOrderConn) {
 	radio.BindAMFForTest(New(nil, nil, nil))
 
 	ueConn := &UeConn{
-		conn:        sender,
 		amf:         radio.amf,
 		AmfUeNgapID: 1,
 	}
+	ueConn.setConn(sender)
 	ueConn.setRanUeNgapID(1)
 	ueConn.setRadio("", radio.name)
 	ueConn.amf.AttachUeConn(t.Context(), ue, ueConn)

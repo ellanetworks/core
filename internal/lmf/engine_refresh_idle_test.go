@@ -81,9 +81,9 @@ func idleStaleUE(t *testing.T, amfInstance *amf.AMF, imsi string, ageSeconds int
 		},
 	}
 	ue.ForceStateForTest(amf.Registered)
-	ue.RegistrationArea = []coremodels.Tai{{
+	ue.AllocateRegistrationArea([]coremodels.Tai{{
 		PlmnID: &coremodels.PlmnID{Mcc: "262", Mnc: "01"}, Tac: "00001a",
-	}}
+	}})
 
 	if err := amfInstance.AddUeContextToPoolForTest(ue); err != nil {
 		t.Fatalf("add UE to AMF: %v", err)

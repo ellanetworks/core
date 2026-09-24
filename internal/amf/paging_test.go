@@ -25,9 +25,9 @@ func pagingTestUE(t *testing.T) *UeContext {
 	}
 
 	ue := NewUeContext()
-	ue.RegistrationArea = []models.Tai{
+	ue.AllocateRegistrationArea([]models.Tai{
 		{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-	}
+	})
 	ue.SetTmsiForTest(tmsi)
 	ue.SetOldTmsiForTest(etsi.InvalidTMSI)
 
@@ -91,7 +91,7 @@ func TestBuildPaging(t *testing.T) {
 func TestBuildPagingRejectsEmptyRegistrationArea(t *testing.T) {
 	amfInstance := New(nil, nil, nil)
 	ue := pagingTestUE(t)
-	ue.RegistrationArea = nil
+	ue.AllocateRegistrationArea(nil)
 
 	if _, err := amfInstance.buildPaging(pagingTestGuami(), ue); err == nil {
 		t.Fatal("buildPaging() = nil error, want a failure for an empty registration area")

@@ -126,8 +126,8 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	handleSecurityModeComplete(t.Context(), amfInstance, ue, msg, true)
 
 	expected := "imeisv-3520990017614823"
-	if ue.Imei.String() != expected {
-		t.Fatalf("expected PEI: %v, got: %v", expected, ue.Imei.String())
+	if ue.Imei().String() != expected {
+		t.Fatalf("expected PEI: %v, got: %v", expected, ue.Imei().String())
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {

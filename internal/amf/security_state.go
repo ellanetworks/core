@@ -169,6 +169,15 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
+func SelectNgKsi(cited, stored int32) int32 {
+	v := NextNgKsi(cited)
+	if v == stored {
+		v = NextNgKsi(v)
+	}
+
+	return v
+}
+
 func (ue *UeContext) AttestS1Mode() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

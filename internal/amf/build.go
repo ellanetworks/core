@@ -155,7 +155,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	}
 
 	imeisv := fgs.IMEISVNotRequested
-	if !ue.Imei.IsSet() {
+	if !ue.Imei().IsSet() {
 		imeisv = fgs.IMEISVRequested
 	}
 
@@ -274,8 +274,8 @@ func BuildRegistrationAccept(
 		m.GUTI = &gutiNas
 	}
 
-	if len(ue.RegistrationArea) > 0 {
-		taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
+	if len(ue.RegistrationArea()) > 0 {
+		taiListNas, err := util.TaiListToNas(ue.RegistrationArea())
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert TAI list to NAS: %s", err)
 		}
@@ -283,7 +283,7 @@ func BuildRegistrationAccept(
 		m.TAIList = &taiListNas
 	}
 
-	for _, s := range ue.AllowedNssai {
+	for _, s := range ue.AllowedNssai() {
 		snssai, err := util.SnssaiToNas(s)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)

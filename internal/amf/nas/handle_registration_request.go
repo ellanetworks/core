@@ -125,10 +125,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	case mobileIdentity.SUCI != nil:
 		logger.From(ctx, logger.AmfLog).Debug("UE used SUCI identity for registration")
 
-		ue.Suci = mobileIdentity.SUCI.String()
-		if mobileIdentity.SUCI.Format == fgs.SUPIFormatIMSI {
-			ue.PlmnID = amf.PlmnIDStringToModels(mobileIdentity.SUCI.PLMN.MCC + mobileIdentity.SUCI.PLMN.MNC)
-		}
+		ue.SetSUCI(mobileIdentity.SUCI)
 	case mobileIdentity.GUTI != nil:
 		guti, _ := etsi.NewGUTI5GFromNAS(mobileIdentity)
 		logger.From(ctx, logger.AmfLog).Debug("UE used GUTI identity for registration", logger.GUTI(guti.String()))
@@ -139,7 +136,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 				zap.Stringer("type", mobileIdentity.Type()), zap.Error(err))
 		}
 
-		ue.Imei = pei
+		ue.SetImei(pei)
 		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
 			zap.Stringer("type", mobileIdentity.Type()), logger.PEI(pei.String()))
 	default:
@@ -153,10 +150,9 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ue.Location = ueConn.Location
-	ue.Tai = ueConn.Tai
+	ue.SetLocation(ueConn.Location, ueConn.Tai)
 
-	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
+	if !amf.InTaiList(ueConn.Tai, operatorInfo.Tais) {
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)

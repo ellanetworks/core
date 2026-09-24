@@ -160,7 +160,11 @@ func (ue *UeContext) KASMEForTest() []byte { return ue.kasme }
 
 func (c *UeConn) ConnForTest() S1APWriter { return c.Conn() }
 
-func (ue *UeContext) ReleasingForTest() bool { return ue.releasing }
+func (ue *UeContext) ReleasingForTest() bool {
+	c := ue.Conn()
+
+	return c != nil && c.releasing
+}
 
 // NASGuardActiveForTest reports whether the UE's EMM common-procedure guard is armed.
 func (ue *UeContext) NASGuardActiveForTest() bool {
@@ -290,7 +294,11 @@ func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
 }
 
 func (ue *UeContext) SetPagedBearerForTest(ebi uint8) {
-	ue.beginPaging(&MTRequest{Ebi: ebi})
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	ue.paging.pending = &MTRequest{Ebi: ebi}
+	ue.paging.state = PagingAttempting
 }
 
 func BindRadioLogForTest(r *Radio, address string) {

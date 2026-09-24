@@ -32,10 +32,7 @@ func updateUEIdentity(ue *amf.UeContext, id fgs.MobileIdentity, integrityVerifie
 
 	switch {
 	case id.SUCI != nil:
-		ue.Suci = id.SUCI.String()
-		if id.SUCI.Format == fgs.SUPIFormatIMSI {
-			ue.PlmnID = amf.PlmnIDStringToModels(id.SUCI.PLMN.MCC + id.SUCI.PLMN.MNC)
-		}
+		ue.SetSUCI(id.SUCI)
 	case id.GUTI != nil:
 		guti, err := etsi.NewGUTI5GFromNAS(id)
 		if err != nil {
@@ -66,7 +63,7 @@ func updateUEIdentity(ue *amf.UeContext, id fgs.MobileIdentity, integrityVerifie
 			return fmt.Errorf("UE sent invalid %s: %w", id.Type(), err)
 		}
 
-		ue.Imei = imei
+		ue.SetImei(imei)
 	default:
 		// An IDENTITY RESPONSE that names no identity — or one this AMF does not
 		// model — identifies nobody, so the identification procedure cannot have

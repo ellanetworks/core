@@ -72,7 +72,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	ue.AllowedNssai = subscriberProfile.AllowedNssai
+	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("raai", conn.RegistrationRequest.MICOIndication.RAAI))
@@ -207,11 +207,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationAccepted)
 
+					ambr := ue.Ambr()
+
 					if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 						if err := ueConn.SendPDUSessionResourceSetupRequest(
 							ctx,
-							ue.Ambr.Uplink,
-							ue.Ambr.Downlink,
+							ambr.Uplink,
+							ambr.Downlink,
 							wire,
 							suList,
 						); err != nil {
@@ -373,10 +375,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	if len(suList) != 0 {
+		ambr := ue.Ambr()
+
 		if err := ueConn.SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
+			ambr.Uplink,
+			ambr.Downlink,
 			acceptWire,
 			suList,
 		); err != nil {

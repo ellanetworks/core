@@ -187,14 +187,14 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
-		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, rejectSHT(ue),
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause5GMM))},
-		rejectSHT(ue),
+		secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
 			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
 		})
@@ -253,7 +253,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	return nil
 }
 
-func rejectSHT(ue *UeConn) uint8 {
+func secureExchangeSHT(ue *UeConn) uint8 {
 	if ue.SecureExchangeEstablished() {
 		return uint8(fgs.SHTIntegrityProtectedCiphered)
 	}
@@ -262,8 +262,28 @@ func rejectSHT(ue *UeConn) uint8 {
 }
 
 func SendDeregistrationAccept(ctx context.Context, ue *UeConn) {
-	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil, uint8(fgs.SHTPlain),
+	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildDeregistrationAccept() })
+}
+
+func SendStatus5GMM(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
+	if ue.UeContext() == nil {
+		pdu, err := BuildStatus5GMM(cause)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Error("failed to build 5GMM STATUS", zap.Error(err))
+			return
+		}
+
+		if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to send 5GMM STATUS", zap.Error(err))
+		}
+
+		return
+	}
+
+	sendGmm(ctx, ue, "nas/send_5gmm_status",
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, secureExchangeSHT(ue),
+		func(_ *UeContext) ([]byte, error) { return BuildStatus5GMM(cause) })
 }
 
 func SendRegistrationAccept(
@@ -352,13 +372,15 @@ func SendRegistrationAccept(
 	}
 
 	if initialContextSetup {
+		ambr := ue.Ambr()
+
 		if err := ueConn.SendInitialContextSetup(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
+			ambr.Uplink,
+			ambr.Downlink,
+			ue.AllowedNssai(),
 			kgnb,
-			ue.RadioCapability,
+			ue.RadioCapability(),
 			ue.RadioCapabilityForPaging,
 			ueSecCap,
 			acceptWire,
@@ -402,13 +424,15 @@ func SendRegistrationAccept(
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				if initialContextSetup && ueConn.ICS() != ICSCompleted {
+					ambr := ue.Ambr()
+
 					if err := ueConn.SendInitialContextSetup(
 						ctx,
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
-						ue.AllowedNssai,
+						ambr.Uplink,
+						ambr.Downlink,
+						ue.AllowedNssai(),
 						kgnb,
-						ue.RadioCapability,
+						ue.RadioCapability(),
 						ue.RadioCapabilityForPaging,
 						ueSecCap,
 						wire,

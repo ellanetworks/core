@@ -32,6 +32,23 @@ func TestReleaseUEContextAfterAnEarlierReleaseCompleted(t *testing.T) {
 	}
 }
 
+func TestReleaseUEContextOnAConnectionThatSupersededOneStillReleasing(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	ue.TransitionTo(t.Context(), EMMRegistered)
+
+	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+
+	second := &captureConn{}
+	m.AttachUeConn(t.Context(), ue, m.NewUeConn(second, 8))
+
+	m.ReleaseUEContext(context.Background(), ue, CauseNASNormalRelease)
+
+	if len(second.sent) != 1 {
+		t.Fatalf("release on the resumed connection sent %d messages, want 1 UE Context Release Command", len(second.sent))
+	}
+}
+
 // TS 23.401 §5.3.5: the release of a superseded S1 connection buffers the downlink of
 // the bearers it was carrying, so data arriving meanwhile pages the UE instead of being
 // forwarded to an eNB that is releasing it.

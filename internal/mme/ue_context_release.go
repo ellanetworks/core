@@ -118,11 +118,11 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 	// release request can race to release the same UE from different goroutines. A
 	// Release Complete in the gap may already have freed the connection, which is
 	// itself a completed release.
-	if !m.claimRelease(ue) {
+	conn, ok := m.claimRelease(ue)
+	if !ok {
 		return
 	}
 
-	conn := ue.Conn()
 	if conn == nil {
 		// No S1 connection to command; release the context locally.
 		m.ReleaseUEContextLocally(ctx, ue, "release-no-connection")

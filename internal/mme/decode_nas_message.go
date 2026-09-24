@@ -106,7 +106,12 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// Verify against the UE's security context. Replay protection: a stale or
 	// replayed message estimates to a NAS COUNT whose MAC fails to verify, so it
 	// is dropped (TS 24.301).
-	p, count, err := ue.TryUnprotectUplink(nas)
+	permitted := []eps.SecurityHeaderType{eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered}
+	if ue.RegStep() == RegStepSecurityMode {
+		permitted = append(permitted, eps.SHTIntegrityProtectedCipheredNewContext)
+	}
+
+	p, count, err := ue.unprotectUplink(nas, permitted...)
 	if err == nil {
 		if requiresNewContextSecurityHeader(p) && spm.SecurityHeaderType != eps.SHTIntegrityProtectedCipheredNewContext {
 			logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
@@ -155,9 +160,9 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	}
 
 	// The plaintext type is readable only for an integrity-only (unciphered)
-	// security header (types 1 and 3); a ciphered body peeks to a meaningless type,
+	// security header (type 1); a ciphered body peeks to a meaningless type,
 	// so such a message is dropped.
-	if securityHeader != eps.SHTIntegrityProtected && securityHeader != eps.SHTIntegrityProtectedNewContext {
+	if securityHeader != eps.SHTIntegrityProtected {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
 			zap.Uint8("security_header_type", uint8(securityHeader)),

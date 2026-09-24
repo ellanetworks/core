@@ -101,13 +101,13 @@ func TestSendPDUSessionResourceSetupRequest_RefusedBeforeInitialContextSetup(t *
 
 	list := ngap.PDUSessionResourceSetupListSUReq{item}
 
-	if err := f.conn().SendPDUSessionResourceSetupRequest(t.Context(), f.ue.Ambr.Uplink, f.ue.Ambr.Downlink, nil, list); err == nil {
+	if err := f.conn().SendPDUSessionResourceSetupRequest(t.Context(), f.ue.Ambr().Uplink, f.ue.Ambr().Downlink, nil, list); err == nil {
 		t.Fatal("send succeeded, want a refusal: the NG-RAN node holds no UE context")
 	}
 
 	f.conn().MarkICSCompleted()
 
-	if err := f.conn().SendPDUSessionResourceSetupRequest(t.Context(), f.ue.Ambr.Uplink, f.ue.Ambr.Downlink, nil, list); err != nil {
+	if err := f.conn().SendPDUSessionResourceSetupRequest(t.Context(), f.ue.Ambr().Uplink, f.ue.Ambr().Downlink, nil, list); err != nil {
 		t.Fatalf("send failed once the NG-RAN node holds the UE context: %v", err)
 	}
 
