@@ -98,10 +98,7 @@ func TestUnansweredInitialContextSetupReleasesTheConnection(t *testing.T) {
 	ue, cc := securedUE(t, m)
 	ue.TransitionTo(t.Context(), EMMRegistered)
 
-	saved := icsGuardTimeout
-	icsGuardTimeout = 10 * time.Millisecond
-
-	t.Cleanup(func() { icsGuardTimeout = saved })
+	m.icsGuardCfg.ExpireTime = 10 * time.Millisecond
 
 	c := ue.Conn()
 	c.SetICS(ICSPending)

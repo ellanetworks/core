@@ -118,11 +118,7 @@ func rejectService(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *m
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.ServiceReject{Cause: cause}
-	if ue.Secured() {
-		ueConn.SendDownlinkProtected(ctx, reject)
-	} else {
-		ueConn.SendDownlinkMessage(ctx, reject)
-	}
+	ueConn.SendDownlink(ctx, reject)
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 }

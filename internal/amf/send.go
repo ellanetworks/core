@@ -255,6 +255,12 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	conn := amfUe.Conn()
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", plain, sht, func(ctx context.Context) {
 		amfUe.EndKeyChainProc(procedure.SecurityMode)
+
+		if newContext {
+			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+			return
+		}
+
 		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
@@ -496,6 +502,10 @@ func SendRegistrationAccept(
 				ueConn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
+			if ue.Conn() != ueConn {
+				return
+			}
+
 			ueConn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 			amfInstance.MarkRegistered(ctx, ue)
@@ -539,6 +549,10 @@ func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeCon
 			conn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func(ctx context.Context) {
+		if ue.Conn() != conn {
+			return
+		}
+
 		conn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 		amfInstance.MarkRegistered(ctx, ue)

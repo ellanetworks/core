@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -220,7 +221,7 @@ func TestPagingDoesNotBeginForAUEThatHasReconnected(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	if ue.beginPaging(&MTRequest{Ebi: 5}) {
+	if err := ue.beginPaging(&MTRequest{Ebi: 5}); !errors.Is(err, errUEConnected) {
 		t.Fatal("beginPaging on a connected UE began paging")
 	}
 
@@ -234,7 +235,7 @@ func TestStalePagingAbortSparesARequestInstalledBeforeItsGuardIsArmed(t *testing
 	stale := ue.paging.attempt
 
 	newer := &MTRequest{Ebi: 5}
-	if !ue.beginPaging(newer) {
+	if err := ue.beginPaging(newer); err != nil {
 		t.Fatal("beginPaging refused an idle UE")
 	}
 

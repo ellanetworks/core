@@ -118,6 +118,7 @@ type MME struct {
 	esmGuardCfg guard.TimerValue // ESM bearer-procedure guard (TS 24.301: T3486/T3495), 4G-only (no AMF peer)
 	t3489Cfg    guard.TimerValue // ESM information request guard (TS 24.301: T3489)
 	pagingCfg   guard.TimerValue // paging supervision (T3413, TS 24.301 §5.6.2)
+	icsGuardCfg guard.TimerValue
 
 	// handoverGuardTimeout bounds the whole S1 handover (HANDOVER REQUIRED → NOTIFY)
 	// so a silent target does not pin the UE's handover slot.
@@ -196,6 +197,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		esmGuardCfg: guard.TimerValue{Enable: true, ExpireTime: defaultESMGuardTimeout, MaxRetryTimes: int32(defaultNASGuardMaxRetransmit)},
 		t3489Cfg:    guard.TimerValue{Enable: true, ExpireTime: defaultT3489Timeout, MaxRetryTimes: int32(defaultT3489MaxRetransmit)},
 		pagingCfg:   guard.TimerValue{Enable: true, ExpireTime: defaultPagingTimeout, MaxRetryTimes: int32(defaultPagingMaxRetransmit)},
+		icsGuardCfg: guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 
 		handoverGuardTimeout: defaultHandoverGuardTimeout,
 	}

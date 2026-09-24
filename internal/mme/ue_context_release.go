@@ -20,16 +20,16 @@ import (
 // (S1AP §8.3 has no MME-side supervision timer, so this is a robustness guard).
 const releaseGuardTimeout = 5 * time.Second
 
-var icsGuardTimeout = 10 * time.Second
+const defaultICSGuardTimeout = 10 * time.Second
 
 func (c *UeConn) SuperviseICS(ctx context.Context) {
-	if c == nil {
+	if c == nil || !c.m.icsGuardCfg.Enable {
 		return
 	}
 
 	link := trace.SpanContextFromContext(ctx)
 
-	c.icsGuard.ArmOnce(icsGuardTimeout, func() {
+	c.icsGuard.ArmOnce(c.m.icsGuardCfg.ExpireTime, func() {
 		ue := c.UeContext()
 		if ue == nil || ue.Conn() != c || c.ICS() != ICSPending {
 			return
@@ -180,7 +180,7 @@ func (m *MME) ReleaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Ca
 		guardCtx, span := guardSpan(link, "mme/release_guard_expire", "UE Context Release", 0)
 		defer span.End()
 
-		m.ReleaseUEContextLocally(guardCtx, ue, "release-command-timeout")
+		m.releaseUEContextLocally(guardCtx, ue, conn, "release-command-timeout")
 	})
 }
 

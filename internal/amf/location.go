@@ -31,6 +31,11 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, uli ngap.UserLocationI
 		return
 	}
 
+	if a := ueConn.amf; a != nil {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+	}
+
 	ueConn.Location = loc
 	ueConn.Tai = *tai
 

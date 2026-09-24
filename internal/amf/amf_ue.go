@@ -209,6 +209,10 @@ func (a *AMF) attachUeConnLocked(ctx context.Context, ue *UeContext, ueConn *UeC
 
 	ue.active.Store(ueConn)
 
+	if ueConn.Location.NrLocation != nil || ueConn.Location.EutraLocation != nil {
+		ue.SetLocation(ueConn.Location, ueConn.Tai)
+	}
+
 	a.stopIdleTimersLocked(ue)
 	ue.PagingAnswered()
 

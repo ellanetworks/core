@@ -119,6 +119,12 @@ func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
 	ue.paging.guard.Arm(d, maxRetransmit, func(int32) {}, func() {})
 }
 
+func (ue *UeContext) BeginPagingForTest() error {
+	_, err := ue.beginPaging(context.Background(), &MTRequest{})
+
+	return err
+}
+
 func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()

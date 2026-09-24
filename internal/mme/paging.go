@@ -21,6 +21,8 @@ import (
 // being paged. Entry points decide whether that is a success or a failure.
 var errPagingSkipped = errors.New("paging skipped")
 
+var errUEConnected = errors.New("mme: the UE re-established its S1 connection before it was paged")
+
 var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
 
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
@@ -43,7 +45,7 @@ func (m *MME) NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, ca
 		return nil
 	}
 
-	arm := func() bool { return ue.beginPaging(req) }
+	arm := func() error { return ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		return err
@@ -67,7 +69,7 @@ func (m *MME) ResumeDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	arm := func() bool { return ue.beginPaging(req) }
+	arm := func() error { return ue.beginPaging(req) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		logger.From(ctx, logger.MmeLog).Warn("could not page the UE after releasing S1 for a GTP-U Error Indication",
@@ -92,7 +94,7 @@ func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 // page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately
 // before the Paging is sent, because the UE may answer on another goroutine the moment it
 // leaves the MME. No undo is needed: pageRadios reports send failures at the chokepoint.
-func (m *MME) page(ctx context.Context, ue *UeContext, arm func() bool) error {
+func (m *MME) page(ctx context.Context, ue *UeContext, arm func() error) error {
 	m.mu.RLock()
 
 	skip := ue.Connected() || ue.paging.guard.Active()
@@ -114,8 +116,10 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func() bool) error {
 		return fmt.Errorf("paging: marshal: %w", err)
 	}
 
-	if arm != nil && !arm() {
-		return errPagingSkipped
+	if arm != nil {
+		if err := arm(); err != nil {
+			return errors.Join(errPagingSkipped, err)
+		}
 	}
 
 	m.pageRadios(ctx, ue, b)
@@ -140,8 +144,13 @@ func (m *MME) armPaging(ctx context.Context, ue *UeContext, pdu []byte) {
 	link := trace.SpanContextFromContext(ctx)
 
 	ue.paging.mu.Lock()
+	attempting := ue.paging.state == PagingAttempting
 	pagingAttempt := ue.paging.attempt
 	ue.paging.mu.Unlock()
+
+	if !attempting {
+		return
+	}
 
 	ue.paging.guard.ArmWith(m.pagingCfg,
 		func(attempt int32) { m.retransmitPaging(link, ue, pdu, attempt) },
@@ -357,14 +366,14 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 		return fmt.Errorf("UE is not in registered state")
 	}
 
-	arm := func() bool {
-		if !ue.beginPaging(&MTRequest{}) {
-			return false
+	arm := func() error {
+		if err := ue.beginPaging(&MTRequest{}); err != nil {
+			return err
 		}
 
 		ue.SetLPPaBuffered(measID, lppaPayload)
 
-		return true
+		return nil
 	}
 
 	if err := m.page(ctx, ue, arm); err != nil {

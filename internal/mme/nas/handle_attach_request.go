@@ -248,11 +248,7 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 
 	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
 	// plain form is for the rejects preceding security activation.
-	if ue.Secured() {
-		ueConn.SendDownlinkProtected(ctx, reject)
-	} else {
-		ueConn.SendDownlinkMessage(ctx, reject)
-	}
+	ueConn.SendDownlink(ctx, reject)
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }

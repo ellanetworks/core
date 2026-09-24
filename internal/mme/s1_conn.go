@@ -54,7 +54,7 @@ type UeConn struct {
 	secureExchangeEstablished bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
-	AuthEKSI                  nas.KeySetIdentifier
+	AuthEksi                  nas.KeySetIdentifier
 	resyncTried               atomic.Bool
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte

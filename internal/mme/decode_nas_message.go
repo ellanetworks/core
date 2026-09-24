@@ -112,7 +112,13 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// replayed message estimates to a NAS COUNT whose MAC fails to verify, so it
 	// is dropped (TS 24.301).
 	permitted := []eps.SecurityHeaderType{eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered}
-	if ue.RegStep() == RegStepSecurityMode {
+
+	if spm.SecurityHeaderType == eps.SHTIntegrityProtectedCipheredNewContext {
+		if ue.RegStep() != RegStepSecurityMode {
+			return nil, silentDecode(nasreply.ReasonOutOfState,
+				"new-context security header type outside the security mode procedure")
+		}
+
 		permitted = append(permitted, eps.SHTIntegrityProtectedCipheredNewContext)
 	}
 

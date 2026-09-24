@@ -94,12 +94,12 @@ func (ue *UeContext) takeDeferredServiceRequest() *MTRequest {
 	return req
 }
 
-func (ue *UeContext) beginPaging(req *MTRequest) bool {
+func (ue *UeContext) beginPaging(req *MTRequest) error {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
 	if ue.Connected() {
-		return false
+		return errUEConnected
 	}
 
 	if !ue.paging.guard.Active() {
@@ -109,7 +109,7 @@ func (ue *UeContext) beginPaging(req *MTRequest) bool {
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
 
-	return true
+	return nil
 }
 
 func (ue *UeContext) PagingAnswered() {

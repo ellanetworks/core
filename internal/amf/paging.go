@@ -62,7 +62,7 @@ func (amf *AMF) armPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
-	if ue.paging.guard.Active() || ue.Conn() != nil {
+	if ue.paging.guard.Active() || ue.paging.state != PagingAttempting || ue.Conn() != nil {
 		return
 	}
 

@@ -483,6 +483,10 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 		t.Fatal("precondition: idle UE must have no NAS connection")
 	}
 
+	if err := ue.BeginPagingForTest(); err != nil {
+		t.Fatalf("begin paging: %v", err)
+	}
+
 	if err := amfInstance.SendPaging(context.Background(), ue, []byte{0x00}); err != nil {
 		t.Fatalf("SendPaging: %v", err)
 	}

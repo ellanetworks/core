@@ -33,7 +33,7 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	ue.SetKASME(c.AuthVector.KASME, c.AuthEKSI)
+	ue.SetKASME(c.AuthVector.KASME, c.AuthEksi)
 
 	// With K_ASME held in the security context, drop the vector: this clears the
 	// retained XRES/K_ASME/RAND key material and makes AuthVector==nil mean "no
