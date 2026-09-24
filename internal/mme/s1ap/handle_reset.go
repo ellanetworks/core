@@ -19,7 +19,7 @@ import (
 func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseReset(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcReset, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcReset, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -71,5 +71,5 @@ func sendResetAcknowledge(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedureResetAcknowledge, b)
+	_ = m.SendToRadio(ctx, conn, mme.S1APProcedureResetAcknowledge, b)
 }

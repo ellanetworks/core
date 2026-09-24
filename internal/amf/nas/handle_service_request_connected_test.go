@@ -59,10 +59,10 @@ func connectedModeUe(t *testing.T, smf amf.SmfSbi) connectedModeFixture {
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.Conn().Tai
@@ -79,7 +79,7 @@ func connectedModeUe(t *testing.T, smf amf.SmfSbi) connectedModeFixture {
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
 
 	if err := ue.CreateSmContext(12, "testrefuplink", &snssai, "internet"); err != nil {
 		t.Fatalf("could not create sm context: %v", err)

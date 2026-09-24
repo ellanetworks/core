@@ -125,10 +125,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	case mobileIdentity.SUCI != nil:
 		logger.From(ctx, logger.AmfLog).Debug("UE used SUCI identity for registration")
 
-		ue.Suci = mobileIdentity.SUCI.String()
-		if mobileIdentity.SUCI.Format == fgs.SUPIFormatIMSI {
-			ue.PlmnID = amf.PlmnIDStringToModels(mobileIdentity.SUCI.PLMN.MCC + mobileIdentity.SUCI.PLMN.MNC)
-		}
+		ue.SetSUCI(mobileIdentity.SUCI)
 	case mobileIdentity.GUTI != nil:
 		guti, _ := etsi.NewGUTI5GFromNAS(mobileIdentity)
 		logger.From(ctx, logger.AmfLog).Debug("UE used GUTI identity for registration", logger.GUTI(guti.String()))
@@ -139,7 +136,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 				zap.Stringer("type", mobileIdentity.Type()), zap.Error(err))
 		}
 
-		ue.Imei = pei
+		ue.SetImei(pei)
 		logger.From(ctx, logger.AmfLog).Debug("UE used an equipment identity for registration",
 			zap.Stringer("type", mobileIdentity.Type()), logger.PEI(pei.String()))
 	default:
@@ -153,10 +150,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ue.Location = ueConn.Location
-	ue.Tai = ueConn.Tai
+	loc, tai := ueConn.ServingLocation()
+	ue.SetLocation(loc, tai)
 
-	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
+	if !amf.InTaiList(tai, operatorInfo.Tais) {
 		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseTrackingAreaNotAllowed)
@@ -269,6 +266,10 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
+		if conn := ue.Conn(); conn != nil && state != amf.RegistrationInitiated {
+			conn.RegisteredBeforeRegistration = state == amf.Registered
+		}
+
 		ue.TransitionTo(ctx, amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
@@ -289,8 +290,8 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			if !permanent {
 				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
 
-				if state == amf.Registered {
-					abortRegistrationRetainingContext(ctx, amfInstance, ue)
+				if conn := ue.Conn(); conn != nil && conn.RegisteredBeforeRegistration {
+					amfInstance.AbortRegistrationRetainingContext(ctx, ue)
 				} else {
 					abortRegistration(ctx, amfInstance, ue, "transient authentication failure", err)
 				}

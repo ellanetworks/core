@@ -10,7 +10,7 @@ func TestKeNBFreshnessSurvivesALaterUplinkMessage(t *testing.T) {
 	ue, _ := securedUE(t, m)
 
 	ue.SetULCountForTest(0)
-	ue.CommitUplinkCount(0)
+	ue.CommitUplinkCountForTest(0)
 	ue.PinKeNBFreshness()
 
 	pinned, pinnedCount, err := ue.DeriveInitialKeNB()
@@ -22,7 +22,7 @@ func TestKeNBFreshnessSurvivesALaterUplinkMessage(t *testing.T) {
 		t.Fatalf("pinned K_eNB NAS COUNT = %d, want 0", pinnedCount)
 	}
 
-	ue.CommitUplinkCount(1)
+	ue.CommitUplinkCountForTest(1)
 
 	kenb, count, err := ue.DeriveInitialKeNB()
 	if err != nil {
@@ -43,7 +43,7 @@ func TestKeNBFreshnessRepinsForALaterTrigger(t *testing.T) {
 	ue, _ := securedUE(t, m)
 
 	ue.SetULCountForTest(0)
-	ue.CommitUplinkCount(0)
+	ue.CommitUplinkCountForTest(0)
 	ue.PinKeNBFreshness()
 
 	attach, _, err := ue.DeriveInitialKeNB()
@@ -51,7 +51,7 @@ func TestKeNBFreshnessRepinsForALaterTrigger(t *testing.T) {
 		t.Fatalf("derive K_eNB at attach: %v", err)
 	}
 
-	ue.CommitUplinkCount(1)
+	ue.CommitUplinkCountForTest(1)
 	ue.PinKeNBFreshness()
 
 	resume, count, err := ue.DeriveInitialKeNB()
@@ -73,7 +73,7 @@ func TestKeNBFreshnessResetsWithTheSecurityContext(t *testing.T) {
 	ue, _ := securedUE(t, m)
 
 	ue.SetULCountForTest(0)
-	ue.CommitUplinkCount(4)
+	ue.CommitUplinkCountForTest(4)
 	ue.PinKeNBFreshness()
 
 	if _, count, err := ue.DeriveInitialKeNB(); err != nil || count != 4 {

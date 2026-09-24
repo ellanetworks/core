@@ -38,6 +38,11 @@ func silentDecode(reason nasreply.Reason, format string, args ...any) error {
 	return &decodeError{disposition: nasreply.Silent(reason), detail: fmt.Sprintf(format, args...)}
 }
 
+var (
+	errNewContextHeaderMismatch        = errors.New("new-context security header type used on a message other than SECURITY MODE COMPLETE, or missing from it")
+	errUncipheredAfterCipheringStarted = errors.New("unciphered NAS message after ciphering started")
+)
+
 // DecodeResult is the outcome of decoding an inbound EMM NAS PDU: the plaintext
 // body to dispatch and how it was authorized.
 type DecodeResult struct {
@@ -106,25 +111,42 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// Verify against the UE's security context. Replay protection: a stale or
 	// replayed message estimates to a NAS COUNT whose MAC fails to verify, so it
 	// is dropped (TS 24.301).
-	p, count, err := ue.TryUnprotectUplink(nas)
-	if err == nil {
-		if requiresNewContextSecurityHeader(p) && spm.SecurityHeaderType != eps.SHTIntegrityProtectedCipheredNewContext {
-			logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
-				logger.SUPI(ue.Supi().String()))
+	permitted := []eps.SecurityHeaderType{eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered}
 
-			return nil, silentDecode(nasreply.ReasonIntegrityFail,
-				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.301 §5.4.3.3)")
+	if spm.SecurityHeaderType == eps.SHTIntegrityProtectedCipheredNewContext {
+		if ue.RegStep() != RegStepSecurityMode {
+			return nil, silentDecode(nasreply.ReasonOutOfState,
+				"new-context security header type outside the security mode procedure")
+		}
+
+		permitted = append(permitted, eps.SHTIntegrityProtectedCipheredNewContext)
+	}
+
+	p, err := ue.AcceptUplink(nas, func(p []byte) error {
+		if requiresNewContextSecurityHeader(p) != (spm.SecurityHeaderType == eps.SHTIntegrityProtectedCipheredNewContext) {
+			return errNewContextHeaderMismatch
 		}
 
 		if conn.CipheringStarted() && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
-			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
-				logger.SUPI(ue.Supi().String()))
-
-			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.301 §4.4.5)")
+			return errUncipheredAfterCipheringStarted
 		}
 
-		ue.CommitUplinkCount(count)
+		return nil
+	}, permitted...)
 
+	switch {
+	case errors.Is(err, errNewContextHeaderMismatch):
+		logger.MmeLog.Warn("discarding NAS message: the new-context security header type is reserved for SECURITY MODE COMPLETE",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail,
+			"NAS discarded: new-context security header type on a message other than SECURITY MODE COMPLETE, or missing from it (TS 24.301 table 9.3.1)")
+	case errors.Is(err, errUncipheredAfterCipheringStarted):
+		logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.301 §4.4.5)")
+	case err == nil:
 		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
 		if conn != nil {
 			conn.MarkSecureExchangeEstablished()
@@ -155,9 +177,9 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	}
 
 	// The plaintext type is readable only for an integrity-only (unciphered)
-	// security header (types 1 and 3); a ciphered body peeks to a meaningless type,
+	// security header (type 1); a ciphered body peeks to a meaningless type,
 	// so such a message is dropped.
-	if securityHeader != eps.SHTIntegrityProtected && securityHeader != eps.SHTIntegrityProtectedNewContext {
+	if securityHeader != eps.SHTIntegrityProtected {
 		logger.MmeLog.Warn("NAS integrity check failed",
 			zap.Error(err),
 			zap.Uint8("security_header_type", uint8(securityHeader)),

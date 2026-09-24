@@ -135,7 +135,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
@@ -331,7 +331,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
@@ -419,7 +419,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
 	sourceRan := &amf.Radio{Conn: &fakeNGAPSender{}}
@@ -556,7 +556,7 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 	amfUe.SetKamfForTest(kamfHex)
 	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
 	amfUe.TransitionTo(t.Context(), amf.RegistrationInitiated)
@@ -595,5 +595,75 @@ func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T
 
 	if got := smfSbi.DeactivateSmContextCalls; len(got) != 0 {
 		t.Fatalf("releasing an abandoned handover target deactivated the UE's sessions: DeactivateSmContext calls = %v, want none", got)
+	}
+}
+
+func TestHandoverRequired_OperatorLookupFailure(t *testing.T) {
+	const (
+		pduSessionID = uint8(1)
+		supiStr      = "imsi-001010000000001"
+		dnn          = "internet"
+		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
+
+	msg := handoverRequired(t, 1, pduSessionID)
+
+	smfInstance := smf.New(nil, nil, nil, nil)
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecuredForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
+
+	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+		Ref:    smCtx.Ref,
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	sourceNGAPSender := &fakeNGAPSender{}
+	sourceRan := &amf.Radio{
+		Conn: sourceNGAPSender,
+	}
+	amfInstance := amf.New(&fakeDBInstance{
+		OperatorErr: fmt.Errorf("database unavailable"),
+	}, nil, &fakeSmfSbi{SMF: smfInstance})
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1)
+	sourceUe.AMFForTest().AttachUeConn(t.Context(), amfUe, sourceUe)
+
+	targetNGAPSender := &fakeNGAPSender{}
+	targetRan := &amf.Radio{
+		Conn: targetNGAPSender,
+		RanID: &models.GlobalRanNodeID{
+			PlmnID: operatorPlmnID(),
+			GNbID: &models.GNbID{
+				GNBValue:  handoverTargetGnbID,
+				BitLength: 24,
+			},
+		},
+	}
+
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+
+	if len(targetNGAPSender.SentHandoverRequests) != 0 {
+		t.Fatalf("expected no HandoverRequest to the target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
+	}
+
+	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+	}
+
+	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
+	if failure.Cause == nil || *failure.Cause != causeHandoverPrepUnspecific {
+		t.Errorf("cause = %v, want %v", failure.Cause, causeHandoverPrepUnspecific)
 	}
 }

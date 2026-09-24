@@ -92,7 +92,7 @@ func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci strin
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = suci
+	ue.SetSuciForTest(suci)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -200,6 +200,12 @@ func TestHandleRegistrationRequest_UndecipherableSUCIRejectsWithIdentityCause(t 
 func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fakeNGAPSender) {
 	t.Helper()
 
+	return registeredUEWithSessionRegistering(t, ausfErr, fgs.RegistrationTypeMobilityUpdating)
+}
+
+func registeredUEWithSessionRegistering(t *testing.T, ausfErr error, regType fgs.RegistrationType) (*amf.UeContext, *fakeNGAPSender) {
+	t.Helper()
+
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"},
 	}, &fakeAusf{Error: ausfErr}, nil)
@@ -209,7 +215,7 @@ func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fake
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -223,7 +229,7 @@ func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fake
 	ue.TransitionTo(t.Context(), amf.RegistrationInitiated)
 	ue.TransitionTo(t.Context(), amf.Registered)
 
-	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	m, err := buildRegReqBytes(uint8(regType), testMobileIdentity(), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -231,6 +237,15 @@ func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fake
 	handleRegistrationRequest(t.Context(), amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	return ue, ngapSender
+}
+
+// TS 24.501 §5.4.1.3.7 b, §5.5.1.2.8 f
+func TestTransientAuthFailureOnInitialRegistrationKeepsTheUnprovenUEsRegistration(t *testing.T) {
+	ue, _ := registeredUEWithSessionRegistering(t, fmt.Errorf("advance sqn: %w", db.ErrProposeTimeout), fgs.RegistrationTypeInitial)
+
+	if got := ue.State(); got != amf.Registered {
+		t.Errorf("state = %s; an initial registration not yet shown to come from the genuine UE must leave its 5GMM context unchanged", got)
+	}
 }
 
 // TS 24.501 §5.5.1.3.7 case e

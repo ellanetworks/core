@@ -33,7 +33,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
 
-	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci, *ue.Tai.PlmnID, resyncInfo)
+	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci(), *ue.Tai.PlmnID, resyncInfo)
 	if err != nil {
 		return nil, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %w", err)
 	}
@@ -42,7 +42,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 }
 
 func identityVerification(ue *amf.UeContext) bool {
-	return ue.Supi().IsValid() || len(ue.Suci) != 0
+	return ue.Supi().IsValid() || len(ue.Suci()) != 0
 }
 
 func citedNgKsi(conn *amf.UeConn) int32 {
@@ -81,7 +81,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	logger.From(ctx, logger.AmfLog).Debug("UE has no valid security context - continue with the authentication procedure")
 
-	ue.SetNgKsi(models.NgKsi{Tsc: models.ScTypeNative, Ksi: amf.NextNgKsi(citedNgKsi(ue.Conn()))})
+	ueConn.AuthNgKsi = models.NgKsi{Tsc: models.ScTypeNative, Ksi: amf.SelectNgKsi(citedNgKsi(ueConn), ue.StoredNgKsi())}
 
 	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, nil)
 	if err != nil {

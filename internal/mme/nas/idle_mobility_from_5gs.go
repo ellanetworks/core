@@ -65,6 +65,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 	ue.BeginIdleMobilityFrom5GS()
 
 	m.AttachUeConn(ctx, ue, conn)
+	conn.MarkSecureExchangeEstablished()
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
@@ -84,6 +85,7 @@ func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn
 	}
 
 	m.AttachUeConn(ctx, held, conn)
+	conn.MarkSecureExchangeEstablished()
 
 	conn.FiveGSArrival = &mme.FiveGSArrival{RemappedHeldContext: true}
 
@@ -101,7 +103,7 @@ func unprotectedBody(pdu []byte) ([]byte, bool) {
 	switch sht {
 	case eps.SHTPlain:
 		return pdu, true
-	case eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedNewContext:
+	case eps.SHTIntegrityProtected:
 		if len(pdu) < 6 {
 			return nil, false
 		}

@@ -340,13 +340,13 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 	export := UeContextExport{
 		Identity: UEIdentityExport{
 			Supi:    ue.supi.String(),
-			Pei:     ue.Imei.String(),
-			PlmnID:  ue.PlmnID,
+			Pei:     ue.imei.String(),
+			PlmnID:  ue.plmnID,
 			Guti:    guti.String(),
 			OldGuti: oldGuti.String(),
 			Tmsi:    ue.tmsi.String(),
 			OldTmsi: ue.oldTmsi.String(),
-			Suci:    ue.Suci,
+			Suci:    ue.suci,
 		},
 		State: UEStateExport{
 			GMMState:                 ue.state.String(),
@@ -361,11 +361,11 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 		Location: UELocationExport{
 			Current:          copyUserLocation(ue.Location),
 			Tai:              ue.Tai,
-			RegistrationArea: append([]models.Tai(nil), ue.RegistrationArea...),
+			RegistrationArea: append([]models.Tai(nil), ue.registrationArea...),
 		},
 		Subscription: UESubscriptionExport{
-			AllowedNssai: append([]models.Snssai(nil), ue.AllowedNssai...),
-			Ambr:         copyPtr(ue.Ambr),
+			AllowedNssai: append([]models.Snssai(nil), ue.allowedNssai...),
+			Ambr:         copyPtr(ue.ambr),
 		},
 		Registration: UERegistrationExport{
 			Type:             regType,

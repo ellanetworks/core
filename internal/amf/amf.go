@@ -172,6 +172,7 @@ type AMF struct {
 	T3513Cfg                 guard.TimerValue
 	NASGuardCfg              guard.TimerValue
 	N2SetupGuardCfg          guard.TimerValue
+	ICSGuardCfg              guard.TimerValue
 	handoverGuardTimeout     time.Duration
 	Session                  SmfSbi
 	NAS                      NASHandler
@@ -500,6 +501,27 @@ func (amf *AMF) ClaimRanID(ctx context.Context, radio *Radio, ranNodeID ngap.Glo
 	return evicted, nil
 }
 
+func (amf *AMF) ReleaseSetup(ctx context.Context, radio *Radio) {
+	amf.mu.Lock()
+
+	if key, ok := models.RanNodeIDKey(radio.RanID); ok {
+		if holder, _ := amf.reg.ClaimedBy(key); holder == radio {
+			amf.reg.Unclaim(key)
+		}
+	}
+
+	radio.RanID = nil
+	radio.supportedTAIs = nil
+	radio.advertisedCapacity = nil
+	radio.retryNotBefore = time.Time{}
+	radio.guamiUnavailableSent = false
+	radio.refreshLogLocked()
+
+	amf.mu.Unlock()
+
+	amf.RemoveAllUeInRan(ctx, radio)
+}
+
 // RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN
 // CONFIGURATION UPDATE carries, so the TNLA stays associated with the right
 // NG-C interface instance (TS 38.413 §8.7.2.2).
@@ -751,6 +773,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		T3513Cfg:                 defaultTimerCfg,
 		NASGuardCfg:              defaultTimerCfg,
 		N2SetupGuardCfg:          defaultN2SetupGuardCfg,
+		ICSGuardCfg:              guard.TimerValue{Enable: true, ExpireTime: defaultICSGuardTimeout},
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
@@ -767,6 +790,8 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 // half-prepared handover so a silent target cannot pin the UE's N2Handover
 // procedure.
 const defaultHandoverGuardTimeout = 10 * time.Second
+
+const defaultICSGuardTimeout = 15 * time.Second
 
 var defaultN2SetupGuardCfg = guard.TimerValue{
 	Enable:     true,
@@ -788,9 +813,9 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 
 	ueConn := &UeConn{
 		AmfUeNgapID: amfUeNgapID,
-		conn:        radio.Conn,
 		amf:         a,
 	}
+	ueConn.setConn(radio.Conn)
 	ueConn.setRanUeNgapID(ranUeNgapID)
 	ueConn.bindLogFields(radio.LogFields())
 
@@ -864,19 +889,14 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 		return fmt.Errorf("UE not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, _, err := amf.connOrPage(ctx, ue, models.N1N2MessageTransferRequest{})
 	if ueConn == nil {
 		var rejected *models.N1N2MessageTransferError
-
-		if _, err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
-			if errors.As(err, &rejected) {
-				return nil
-			}
-
-			return err
+		if errors.As(err, &rejected) {
+			return nil
 		}
 
-		return nil
+		return err
 	}
 
 	if err := ueConn.SendLocationReportingControl(ctx, ngap.EventTypeDirect); err != nil {

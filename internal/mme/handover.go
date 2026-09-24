@@ -105,7 +105,8 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid)}
+	targetConn.ue.Store(ue)
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
@@ -237,7 +238,8 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 
 	held.prepared = true
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid)}
+	targetConn.ue.Store(ue)
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
@@ -426,7 +428,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 		return nil, 0, 0, target.MMEUES1APID, true
 	}
 
-	source.ue = nil // its Release Complete removes the connection
+	source.ue.Store(nil) // its Release Complete removes the connection
 	m.clearHandoverLocked(ue)
 
 	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID(), target.MMEUES1APID, true
@@ -528,7 +530,7 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
 
 	if ho.target != nil && ho.target != ue.Conn() {
-		ho.target.ue = nil
+		ho.target.ue.Store(nil)
 		m.releaseConnIDLocked(uint32(ho.target.MMEUES1APID))
 	}
 
@@ -626,7 +628,7 @@ func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enb
 	m.mu.Lock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
-	if !ok || c.ue != nil || c.Conn() != conn || c.ENBUES1APID() != enbUEID {
+	if !ok || c.ue.Load() != nil || c.Conn() != conn || c.ENBUES1APID() != enbUEID {
 		m.mu.Unlock()
 
 		return false
@@ -648,7 +650,7 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 		return
 	}
 
-	m.SendToRadio(ctx, conn, S1APProcedureHandoverPreparationFailure, b)
+	_ = m.SendToRadio(ctx, conn, S1APProcedureHandoverPreparationFailure, b)
 }
 
 func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
@@ -664,7 +666,7 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 	}
 
 	logger.From(ctx, logger.MmeLog).Debug("UE Context Release Command", logger.MMEUeS1apID(uint32(mmeUEID)))
-	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
+	_ = m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 
 var (

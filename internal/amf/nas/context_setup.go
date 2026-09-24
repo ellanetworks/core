@@ -32,7 +32,7 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 
 	if msg != nil {
 		if msg.UpdateType5GS != nil && msg.UpdateType5GS.NGRANRCU {
-			ue.RadioCapability = nil
+			ue.SetRadioCapability(nil)
 			ue.RadioCapabilityForPaging = nil
 		}
 	}

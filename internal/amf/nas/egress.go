@@ -13,21 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// egress finalizes a nasreply.Disposition on the 5GS connection a NAS message arrived on. The
-// 5GMM STATUS is sent over the raw NGAP transport, so a peer the AMF could not resolve to a
-// context still receives the STATUS the spec mandates.
+// egress finalizes a nasreply.Disposition on the 5GS connection a NAS message arrived on. A
+// peer the AMF could not resolve to a context still receives the 5GMM STATUS the spec mandates,
+// over the raw NGAP transport.
 type egress struct{ ue *amf.UeConn }
 
 func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
-	pdu, err := amf.BuildStatus5GMM(fgs.GMMCause(cause))
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to build 5GMM STATUS", zap.Error(err))
-		return
-	}
-
-	if err := e.ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("failed to send 5GMM STATUS", zap.Error(err))
-	}
+	amf.SendStatus5GMM(ctx, e.ue, fgs.GMMCause(cause))
 }
 
 // SendSMStatus is never reached: 5GSM is relayed to the SMF (TS 24.501 §4.4), so the AMF's

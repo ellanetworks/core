@@ -266,7 +266,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 
 	var pduSessionID uint8 = 5
 
@@ -294,7 +294,7 @@ func TestTransport5GSMMessage_InitialRequest_NotAllowedNssai_NotForwarded(t *tes
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 
 	var pduSessionID uint8 = 1
 
@@ -332,7 +332,7 @@ func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 
 	var pduSessionID uint8 = 5
 
@@ -478,7 +478,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.SetAllowedNssai([]models.Snssai{*snssai})
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
@@ -507,7 +507,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 	var pduSessionID uint8 = 4
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.SetAllowedNssai([]models.Snssai{*snssai})
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
@@ -543,7 +543,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	var pduSessionID uint8 = 5
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.SetAllowedNssai([]models.Snssai{*snssai})
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
@@ -787,7 +787,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	amfInstance := amf.New(&fakeDBInstance{}, nil, fakeSmf)
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.SetAllowedNssai([]models.Snssai{*snssai})
 
 	transport5GSMMessage(t.Context(), amfInstance, ue, fgsULNAS(t, msg))
 
@@ -825,7 +825,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	}
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.SetAllowedNssai([]models.Snssai{*snssai})
 
 	var pduSessionID uint8 = 5
 
@@ -888,7 +888,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 
 	var pduSessionID uint8 = 1
 
@@ -939,7 +939,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "aabbcc"}})
 
 	var pduSessionID uint8 = 2
 
@@ -987,7 +987,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Payload
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = nil
+	ue.SetAllowedNssai(nil)
 
 	var pduSessionID uint8 = 1
 
@@ -1023,7 +1023,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 
 	var pduSessionID uint8 = 1
 
@@ -1059,11 +1059,11 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.AllowedNssai = []models.Snssai{
+	ue.SetAllowedNssai([]models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
-	}
+	})
 
 	var pduSessionID uint8 = 5
 
@@ -1097,11 +1097,11 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.AllowedNssai = []models.Snssai{
+	ue.SetAllowedNssai([]models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
-	}
+	})
 
 	var pduSessionID uint8 = 5
 
@@ -1127,11 +1127,11 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
 
-	ue.AllowedNssai = []models.Snssai{
+	ue.SetAllowedNssai([]models.Snssai{
 		{Sst: 1, Sd: "aabbcc"},
 		{Sst: 2, Sd: "010203"},
 		{Sst: 3, Sd: "ddeeff"},
-	}
+	})
 
 	var pduSessionID uint8 = 2
 

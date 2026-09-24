@@ -335,7 +335,7 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 	ue.SmContextList[1] = &SmContext{Ref: "ref-1"}
 	ue.SmContextList[2] = &SmContext{Ref: "ref-2"}
 
-	a.abandonPaging(trace.SpanContext{}, ue)
+	a.abandonPaging(trace.SpanContext{}, ue, ue.paging.attempt)
 
 	if fake.suppressCalls != 2 {
 		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)

@@ -174,11 +174,7 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
-	if ue.Secured() {
-		ueConn.SendDownlinkProtected(ctx, reject)
-	} else {
-		ueConn.SendDownlinkMessage(ctx, reject)
-	}
+	ueConn.SendDownlink(ctx, reject)
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }

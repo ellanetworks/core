@@ -55,7 +55,7 @@ func newN2Env(t *testing.T, fakeSmf *fakeSmfSbi, sessions ...uint8) *n2Env {
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
 	amfUe := newValidUeContext()
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 
 	for _, id := range sessions {
 		amfUe.SmContextList[id] = &amf.SmContext{Ref: smContextRefFor(id), Snssai: &models.Snssai{Sst: 1}}

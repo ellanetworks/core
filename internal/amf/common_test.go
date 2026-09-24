@@ -29,3 +29,23 @@ func TestNextNgKsi(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectNgKsiDiffersFromTheCitedAndTheStoredNgKsi(t *testing.T) {
+	for _, tc := range []struct{ cited, stored, want int32 }{
+		{cited: 1, stored: 7, want: 2},
+		{cited: 1, stored: 2, want: 3},
+		{cited: 6, stored: 0, want: 1},
+		{cited: 7, stored: 0, want: 1},
+		{cited: 7, stored: 7, want: 0},
+	} {
+		if got := SelectNgKsi(tc.cited, tc.stored); got != tc.want {
+			t.Errorf("SelectNgKsi(%d, %d) = %d, want %d", tc.cited, tc.stored, got, tc.want)
+		}
+	}
+}
+
+func TestSelectNgKsiAfterNgKSIAlreadyInUseAvoidsTheCitedAndStoredNgKsi(t *testing.T) {
+	if got := SelectNgKsi(3, 2, 4); got == 2 || got == 3 || got == 4 {
+		t.Fatalf("SelectNgKsi(rejected 3, cited 2, stored 4) = %d, want a value other than all three (TS 24.501 §5.4.1.3.2, §5.4.1.3.4)", got)
+	}
+}

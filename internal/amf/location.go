@@ -31,15 +31,39 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, uli ngap.UserLocationI
 		return
 	}
 
+	ueConn.locMu.Lock()
+	defer ueConn.locMu.Unlock()
+
 	ueConn.Location = loc
 	ueConn.Tai = *tai
 
 	if ue := ueConn.ue.Load(); ue != nil {
-		ue.mu.Lock()
-		ue.Location = loc
-		ue.Tai = *tai
-		ue.mu.Unlock()
+		ue.SetLocation(loc, *tai)
 	}
+}
+
+func (ueConn *UeConn) ServingLocation() (models.UserLocation, models.Tai) {
+	ueConn.locMu.Lock()
+	defer ueConn.locMu.Unlock()
+
+	return ueConn.Location, ueConn.Tai
+}
+
+func (ueConn *UeConn) PublishLocation(ue *UeContext) {
+	ueConn.locMu.Lock()
+	defer ueConn.locMu.Unlock()
+
+	if ueConn.Location.NrLocation != nil || ueConn.Location.EutraLocation != nil {
+		ue.SetLocation(ueConn.Location, ueConn.Tai)
+	}
+}
+
+func (ue *UeContext) SetLocation(loc models.UserLocation, tai models.Tai) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.Location = loc
+	ue.Tai = tai
 }
 
 func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationInformation) (models.UserLocation, *models.Tai, bool) {

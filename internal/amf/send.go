@@ -35,6 +35,10 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 
 	conn.armNASGuardWith(ctx, cfg, name,
 		func(ctx context.Context, attempt int32) {
+			if ue.Conn() != conn {
+				return
+			}
+
 			conn.Log(ctx).Warn("retransmitting NAS request", zap.String("timer", name), zap.Int32("attempt", attempt))
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
@@ -44,6 +48,10 @@ func armNASGuard(ctx context.Context, conn *UeConn, ueConn *UeConn, cfg guard.Ti
 			}
 		},
 		func(ctx context.Context) {
+			if ue.Conn() != conn {
+				return
+			}
+
 			conn.Log(ctx).Warn("NAS guard exhausted, aborting procedure", zap.String("timer", name))
 			onExhausted(ctx)
 		},
@@ -131,7 +139,7 @@ func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, type
 	}
 
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3570 (Identity Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -170,7 +178,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *AMF, ue *UeConn
 	}
 
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Authentication Request)", nasMsg, uint8(fgs.SHTPlain), func(ctx context.Context) {
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	if err := amfUe.SendDownlinkNAS(nasMsg, uint8(fgs.SHTPlain), func(wire []byte) error {
@@ -187,14 +195,14 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
-		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, rejectSHT(ue),
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause5GMM))},
-		rejectSHT(ue),
+		secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
 			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
 		})
@@ -247,13 +255,43 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	conn := amfUe.Conn()
 	armNASGuard(ctx, conn, ue, amfInstance.NASGuardCfg, "T3560 (Security Mode Command)", plain, sht, func(ctx context.Context) {
 		amfUe.EndKeyChainProc(procedure.SecurityMode)
-		amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+
+		if newContext {
+			amfInstance.DeregisterAndRemoveUeContext(ctx, amfUe)
+			return
+		}
+
+		amfInstance.abortCommonProcedure(ctx, amfUe)
 	})
 
 	return nil
 }
 
-func rejectSHT(ue *UeConn) uint8 {
+func (a *AMF) abortCommonProcedure(ctx context.Context, ue *UeContext) {
+	if conn := ue.Conn(); conn != nil && conn.RegisteredBeforeRegistration && ue.State() == RegistrationInitiated {
+		a.AbortRegistrationRetainingContext(ctx, ue)
+		return
+	}
+
+	a.DeregisterAndRemoveUeContext(ctx, ue)
+}
+
+func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeContext) {
+	ueConn := ue.Conn()
+
+	ue.SuspendRegistration(ctx)
+
+	if ueConn == nil {
+		a.StartMobileReachable(ue)
+		return
+	}
+
+	ueConn.ReleaseAction = UeContextN2NormalRelease
+
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+}
+
+func secureExchangeSHT(ue *UeConn) uint8 {
 	if ue.SecureExchangeEstablished() {
 		return uint8(fgs.SHTIntegrityProtectedCiphered)
 	}
@@ -262,8 +300,28 @@ func rejectSHT(ue *UeConn) uint8 {
 }
 
 func SendDeregistrationAccept(ctx context.Context, ue *UeConn) {
-	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil, uint8(fgs.SHTPlain),
+	sendGmm(ctx, ue, "nas/send_deregistration_accept", nil, secureExchangeSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildDeregistrationAccept() })
+}
+
+func SendStatus5GMM(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
+	if ue.UeContext() == nil {
+		pdu, err := BuildStatus5GMM(cause)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Error("failed to build 5GMM STATUS", zap.Error(err))
+			return
+		}
+
+		if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to send 5GMM STATUS", zap.Error(err))
+		}
+
+		return
+	}
+
+	sendGmm(ctx, ue, "nas/send_5gmm_status",
+		[]attribute.KeyValue{attribute.Int("nas.cause", int(cause))}, secureExchangeSHT(ue),
+		func(_ *UeContext) ([]byte, error) { return BuildStatus5GMM(cause) })
 }
 
 func SendRegistrationAccept(
@@ -352,13 +410,15 @@ func SendRegistrationAccept(
 	}
 
 	if initialContextSetup {
+		ambr := ue.Ambr()
+
 		if err := ueConn.SendInitialContextSetup(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
+			ambr.Uplink,
+			ambr.Downlink,
+			ue.AllowedNssai(),
 			kgnb,
-			ue.RadioCapability,
+			ue.RadioCapability(),
 			ue.RadioCapabilityForPaging,
 			ueSecCap,
 			acceptWire,
@@ -402,13 +462,15 @@ func SendRegistrationAccept(
 
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				if initialContextSetup && ueConn.ICS() != ICSCompleted {
+					ambr := ue.Ambr()
+
 					if err := ueConn.SendInitialContextSetup(
 						ctx,
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
-						ue.AllowedNssai,
+						ambr.Uplink,
+						ambr.Downlink,
+						ue.AllowedNssai(),
 						kgnb,
-						ue.RadioCapability,
+						ue.RadioCapability(),
 						ue.RadioCapabilityForPaging,
 						ueSecCap,
 						wire,
@@ -440,6 +502,10 @@ func SendRegistrationAccept(
 				ueConn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 			}
 		}, func(ctx context.Context) {
+			if ue.Conn() != ueConn {
+				return
+			}
+
 			ueConn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 			amfInstance.MarkRegistered(ctx, ue)
@@ -483,6 +549,10 @@ func ArmRegistrationAcceptGuard(ctx context.Context, amfInstance *AMF, ue *UeCon
 			conn.Log(ctx).Error("could not retransmit Registration Accept", zap.Error(err))
 		}
 	}, func(ctx context.Context) {
+		if ue.Conn() != conn {
+			return
+		}
+
 		conn.Log(ctx).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expire_times", cfg.MaxRetryTimes))
 
 		amfInstance.MarkRegistered(ctx, ue)
@@ -939,7 +1009,13 @@ func (ueConn *UeConn) SendInitialContextSetup(
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt)
+	if err := amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt); err != nil {
+		return err
+	}
+
+	ueConn.superviseICS(ctx)
+
+	return nil
 }
 
 // pduSessionResourceModifyBytes builds a PDU SESSION RESOURCE MODIFY REQUEST

@@ -63,6 +63,7 @@ type pagingProc struct {
 	state   PagingState
 	pending *MTRequest
 	guard   guard.Guard
+	attempt uint64
 }
 
 func (ue *UeContext) PagingState() PagingState {
@@ -94,6 +95,12 @@ func (ue *UeContext) MTDeliveryInProgress() bool {
 func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1N2MessageTransferCause, error) {
 	ue.paging.mu.Lock()
 
+	if ue.Conn() != nil {
+		ue.paging.mu.Unlock()
+
+		return "", errUEConnected
+	}
+
 	if ue.paging.state == PagingAttempting && !outranks(req.arp(), ue.paging.pending.arp()) {
 		rejected := &models.N1N2MessageTransferError{
 			Cause:  models.N1N2ErrHigherPriorityRequestOngoing,
@@ -103,6 +110,10 @@ func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1
 		ue.paging.mu.Unlock()
 
 		return "", rejected
+	}
+
+	if !ue.paging.guard.Active() {
+		ue.paging.attempt++
 	}
 
 	displaced := ue.paging.pending
@@ -186,14 +197,20 @@ func (ue *UeContext) PagingFailed(ctx context.Context, cause models.N1N2MessageT
 	return dropped
 }
 
-func (ue *UeContext) PagingUnanswered(ctx context.Context, cause models.N1N2MessageTransferCause) (*MTRequest, bool) {
+func (ue *UeContext) PagingUnanswered(ctx context.Context, attempt uint64, cause models.N1N2MessageTransferCause) (*MTRequest, bool) {
 	if ue == nil {
 		return nil, false
 	}
 
-	ue.paging.guard.Stop()
-
 	ue.paging.mu.Lock()
+
+	if ue.paging.attempt != attempt {
+		ue.paging.mu.Unlock()
+
+		return nil, false
+	}
+
+	ue.paging.guard.Stop()
 
 	if ue.Conn() != nil {
 		ue.paging.mu.Unlock()

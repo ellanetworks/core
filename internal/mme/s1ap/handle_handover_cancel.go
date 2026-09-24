@@ -19,7 +19,7 @@ import (
 func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	cancel, err := s1ap.ParseHandoverCancel(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcHandoverCancel, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -78,5 +78,5 @@ func sendHandoverCancelAcknowledge(ctx context.Context, m *mme.MME, radio *mme.R
 		return
 	}
 
-	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureHandoverCancelAcknowledge, b)
+	_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureHandoverCancelAcknowledge, b)
 }

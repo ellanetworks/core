@@ -182,7 +182,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 	// resyncTried is in-flight auth state on the connection; an idle UE has none.
 	resyncTried := false
 	if c := ue.Conn(); c != nil {
-		resyncTried = c.resyncTried
+		resyncTried = c.resyncTried.Load()
 	}
 
 	export := UeContextExport{

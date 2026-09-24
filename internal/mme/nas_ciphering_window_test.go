@@ -122,6 +122,7 @@ func TestDecodeNASMessageAcceptsASecurityModeCompleteWithTheNewContextHeaderType
 	ue, _ := securedUE(t, m)
 
 	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+	ue.ForceRegStepForTest(RegStepSecurityMode)
 
 	if _, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSSecurityModeComplete(t), eps.SHTIntegrityProtectedCipheredNewContext)); err != nil {
 		t.Fatalf("DecodeNASMessage(SECURITY MODE COMPLETE, new-context header type) = %v, want it accepted", err)
@@ -146,5 +147,43 @@ func TestDecodeNASMessageDiscardsASecurityModeCompleteWithoutTheNewContextHeader
 	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSSecurityModeComplete(t), eps.SHTIntegrityProtected))
 	if err == nil {
 		t.Fatalf("DecodeNASMessage(unciphered SECURITY MODE COMPLETE) = %+v, nil, want it discarded (TS 24.301 §5.4.3.3)", res)
+	}
+}
+
+func TestDecodeNASMessageDiscardsTheNewContextHeaderTypeOutsideTheSecurityModeProcedure(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+
+	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSSecurityModeComplete(t), eps.SHTIntegrityProtectedCipheredNewContext))
+	if err == nil {
+		t.Fatalf("DecodeNASMessage(new-context header type outside the security mode procedure) = %+v, nil, want it discarded", res)
+	}
+}
+
+func TestDecodeNASMessageDiscardsTheSecurityModeCommandHeaderTypeOnTheUplink(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtectedNewContext))
+	if err == nil {
+		t.Fatalf("DecodeNASMessage(uplink %s) = %+v, nil, want it discarded", eps.SHTIntegrityProtectedNewContext, res)
+	}
+}
+
+func TestDecodeNASMessageDiscardsTheNewContextHeaderTypeOnAnyOtherMessage(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+	ue.ForceRegStepForTest(RegStepSecurityMode)
+
+	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtectedCipheredNewContext))
+	if err == nil {
+		t.Fatalf("DecodeNASMessage(EMM STATUS, new-context header type) = %+v, nil, want it discarded (TS 24.301 table 9.3.1 NOTE 2)", res)
 	}
 }

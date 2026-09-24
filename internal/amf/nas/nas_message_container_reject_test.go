@@ -32,7 +32,7 @@ func containerTestUE(t *testing.T, alg nas.CipheringAlgorithm, key [16]uint8) (*
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {

@@ -191,6 +191,7 @@ func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo
 		m.mu.Unlock()
 
 		existing.configUpdateGuard.Stop()
+		m.ReclaimConns(ctx, m.ConnsOnConn(key), "S1 Setup")
 
 		return
 	}
@@ -543,7 +544,7 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 	)
 
 	for _, c := range conns {
-		ue := c.ue
+		ue := c.ue.Load()
 		if ue == nil {
 			m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 			continue
@@ -576,7 +577,7 @@ func (m *MME) ReclaimConns(ctx context.Context, conns []*UeConn, trigger string)
 				orphaned = append(orphaned, ue)
 			}
 		default:
-			c.ue = nil
+			c.ue.Store(nil)
 			m.releaseConnIDLocked(uint32(c.MMEUES1APID))
 		}
 	}

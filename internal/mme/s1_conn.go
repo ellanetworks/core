@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/etsi"
@@ -13,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -37,7 +39,7 @@ const enbUES1APIDUnspecified s1ap.ENBUES1APID = 0xFFFFFFFF
 // (TS 36.413): the S1AP identities, the eNB association, the connection-scoped
 // NAS-guard supervision, and any in-flight handover. A fresh one is bound
 // on each idle→active transition; the persistent UeContext it belongs to survives
-// across them. Fields are guarded by MME.mu unless noted.
+// across them. Fields are guarded by MME.mu unless noted; locMu guards Location.
 type UeConn struct {
 	enbUES1APID               atomic.Uint32
 	MMEUES1APID               s1ap.MMEUES1APID
@@ -45,15 +47,17 @@ type UeConn struct {
 	logFields                 atomic.Pointer[[]zap.Field]
 	baseLogFields             atomic.Pointer[[]zap.Field]
 	supi                      atomic.Pointer[string]
-	ue                        *UeContext
+	ue                        atomic.Pointer[UeContext]
 	ServingTAI                s1ap.TAI
+	locMu                     sync.Mutex
 	Location                  models.UserLocation
 	m                         *MME
 	ics                       atomic.Int32
 	secureExchangeEstablished bool
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
-	resyncTried               bool
+	AuthEksi                  nas.KeySetIdentifier
+	resyncTried               atomic.Bool
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte
 	TauRequestPlain           []byte
@@ -68,6 +72,8 @@ type UeConn struct {
 	nasGuardName              string
 	esmInfoGuard              guard.Guard
 	releaseGuard              guard.Guard
+	icsGuard                  guard.Guard
+	releasing                 bool
 }
 
 type FiveGSArrival struct {
@@ -181,7 +187,7 @@ func (c *UeConn) UeContext() *UeContext {
 		return nil
 	}
 
-	return c.ue
+	return c.ue.Load()
 }
 
 // SecureExchangeEstablished reports whether secure exchange of NAS messages is
@@ -230,4 +236,8 @@ func (c *UeConn) SetICS(state ICSState) {
 	}
 
 	c.ics.Store(int32(state))
+
+	if state != ICSPending {
+		c.icsGuard.Stop()
+	}
 }

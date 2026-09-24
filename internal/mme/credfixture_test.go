@@ -59,6 +59,7 @@ type fakeSessionManager struct {
 	forwardingErr     error
 	forwardingTargets []models.FTEID
 	forwardingClosed  []string
+	forwardingCtxErrs []error
 	idleTransfers     []idleEPSTransfer
 	idleTransferErr   error
 	lastRequest       models.EPSBearerRequest
@@ -328,8 +329,9 @@ func (f *fakeSessionManager) OpenEPSForwardingTunnel(_ context.Context, ref stri
 	return models.ForwardingTunnel{TEID: f.forwardingTEID, IPv4: netip.MustParseAddr("192.168.1.1"), IPv6: f.forwardingIPv6}, nil
 }
 
-func (f *fakeSessionManager) CloseEPSForwardingTunnel(_ context.Context, ref string) error {
+func (f *fakeSessionManager) CloseEPSForwardingTunnel(ctx context.Context, ref string) error {
 	f.forwardingClosed = append(f.forwardingClosed, ref)
+	f.forwardingCtxErrs = append(f.forwardingCtxErrs, ctx.Err())
 
 	return nil
 }

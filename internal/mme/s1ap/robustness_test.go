@@ -54,3 +54,32 @@ func TestNonAttachInitialUEMessageCreatesNoContext(t *testing.T) {
 		t.Fatalf("non-Attach Initial UE Messages left %d connections, want 0", got)
 	}
 }
+
+func TestHandleParseError_NamesTheResponseThatFailedToDecode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		handle func(context.Context, *mme.MME, *mme.Radio, []byte)
+		want   s1ap.TriggeringMessage
+	}{
+		{"UE CONTEXT RELEASE COMPLETE", HandleUEContextReleaseComplete, s1ap.TriggeringSuccessfulOutcome},
+		{"INITIAL CONTEXT SETUP RESPONSE", handleInitialContextSetupResponse, s1ap.TriggeringSuccessfulOutcome},
+		{"INITIAL CONTEXT SETUP FAILURE", handleInitialContextSetupFailure, s1ap.TriggeringUnsuccessfulOutcome},
+		{"E-RAB MODIFY RESPONSE", handleERABModifyResponse, s1ap.TriggeringSuccessfulOutcome},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			cc := &captureConn{}
+
+			tc.handle(context.Background(), m, mme.NewRadioForTest(cc), []byte{0xff, 0xff, 0xff})
+
+			if cc.count() != 1 {
+				t.Fatalf("expected 1 Error Indication, got %d", cc.count())
+			}
+
+			cd := parseOutboundErrorIndication(t, cc.sent[0]).CriticalityDiagnostics
+			if cd == nil || cd.TriggeringMessage == nil || *cd.TriggeringMessage != tc.want {
+				t.Fatalf("Criticality Diagnostics = %+v, want triggering message %v (TS 36.413 §9.2.1.21)", cd, tc.want)
+			}
+		})
+	}
+}

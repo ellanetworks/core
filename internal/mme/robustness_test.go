@@ -25,7 +25,7 @@ func TestBareConnectionIgnoredByLookups(t *testing.T) {
 
 	c := m.NewUeConn(&captureConn{}, 7)
 
-	if c.ue != nil {
+	if c.ue.Load() != nil {
 		t.Fatal("new connection is not bare")
 	}
 

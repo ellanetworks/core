@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
@@ -338,7 +339,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -385,7 +386,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ue.Tai.Tac = "cafe64"
 	ue.Conn().Tai.Tac = "cafe64"
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -487,7 +488,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -544,7 +545,7 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -597,7 +598,7 @@ func TestHandleRegistrationRequest_Authenticating_DifferingIEs_Restarts(t *testi
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -654,7 +655,7 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -704,7 +705,7 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -754,7 +755,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -819,7 +820,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -881,7 +882,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -948,7 +949,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -1001,7 +1002,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -1015,8 +1016,12 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 4 {
-		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 4 {
+		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.Conn().AuthNgKsi.Ksi)
+	}
+
+	if ue.NgKsiForTest().Ksi == 4 {
+		t.Fatal("the stored ngKSI took the new value before authentication completed; it must change with K_AMF")
 	}
 }
 
@@ -1042,7 +1047,7 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -1056,8 +1061,8 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 }
 
@@ -1083,7 +1088,7 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -1097,12 +1102,12 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	if ue.NgKsiForTest().Ksi != 0 {
-		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 
-	if ue.NgKsiForTest().Tsc != models.ScTypeNative {
-		t.Fatalf("expected TSC=NATIVE, got %v", ue.NgKsiForTest().Tsc)
+	if ue.Conn().AuthNgKsi.Tsc != models.ScTypeNative {
+		t.Fatalf("expected TSC=NATIVE, got %v", ue.Conn().AuthNgKsi.Tsc)
 	}
 }
 
@@ -1168,7 +1173,7 @@ func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := nas.CipheringAES
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(supi)
 
 	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
@@ -1426,5 +1431,60 @@ func TestAcceptRegistrationUESecurityCapability_MobilityStoresVerifiedChange(t *
 
 	if !ue.UESecurityCapabilityForTest().Equal(changed) {
 		t.Fatalf("stored capability = %#v, want the verified %#v", ue.UESecurityCapabilityForTest(), changed)
+	}
+}
+
+func TestAuthenticationTimeoutDuringAMobilityRegistrationKeepsTheRegisteredUE(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Millisecond}
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+
+	ue.SetSuciForTest("testsuci")
+	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+
+	m, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 3)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
+
+	deadline := time.Now().Add(time.Second)
+	for ue.State() == amf.RegistrationInitiated && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if ue.State() != amf.Registered {
+		t.Fatalf("state = %s after T3560 expired during a mobility registration, want Registered: TS 24.501 §5.4.1.3.7 only releases the N1 NAS signalling connection", ue.State())
+	}
+
+	if held, ok := amfInstance.LookupUeBySupi(supi); !ok || held != ue {
+		t.Fatal("the registered UE context was removed when its authentication timed out")
 	}
 }

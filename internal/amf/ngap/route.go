@@ -187,7 +187,7 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 	case ngap.ProcInitialContextSetup:
 		receiveInitialContextSetupFailure(ctx, amfInstance, ran, msg, uo, span)
 	case ngap.ProcAMFConfigurationUpdate:
-		handleAMFConfigurationUpdateFailure(amfInstance, ctx, ran, uo.Value)
+		handleAMFConfigurationUpdateFailure(ctx, amfInstance, ran, uo.Value)
 	default:
 		return false
 	}

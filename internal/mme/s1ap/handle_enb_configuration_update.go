@@ -54,7 +54,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 	}
 
 	if !accepted {
-		m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, out)
+		_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, out)
 
 		radio.Log(ctx).Warn("ENB Configuration Update rejected",
 			zap.String("reason", reason),
@@ -74,7 +74,7 @@ func handleENBConfigurationUpdate(ctx context.Context, m *mme.MME, radio *mme.Ra
 		m.UpdateRadioSupportedTAs(radio, tais)
 	}
 
-	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateAck, out)
+	_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateAck, out)
 
 	radio.Log(ctx).Info("ENB Configuration Update acknowledged",
 		zap.String("enb_name", radio.NodeName()))
@@ -112,7 +112,7 @@ func sendENBConfigurationUpdateFailure(ctx context.Context, m *mme.MME, radio *m
 		return
 	}
 
-	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, pkt)
+	_ = m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, pkt)
 }
 
 // rejectENBConfigurationUpdate answers an undecodable update with ENB

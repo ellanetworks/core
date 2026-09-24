@@ -166,7 +166,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 		zap.Uint32("target_mme_ue_s1ap_id", uint32(targetMMEID)),
 		zap.String("target_enb", targetID),
 		zap.Int("e_rabs", len(bearers)))
-	m.SendToRadio(ctx, target.Conn, S1APProcedureHandoverRequest, b)
+	_ = m.SendToRadio(ctx, target.Conn, S1APProcedureHandoverRequest, b)
 	m.SuperviseHandover(ue)
 
 	select {
@@ -182,7 +182,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			AcceptedPDUSessions: m.dropUnadmittedPDNs(ctx, ue, accepted, out.unadmitted),
 		}, nil
 	case <-ctx.Done():
-		m.abandonHandover(ctx, ue, causeHandoverTS1relocExpiry)
+		m.abandonHandover(context.WithoutCancel(ctx), ue, causeHandoverTS1relocExpiry)
 
 		return none, ctx.Err()
 	}

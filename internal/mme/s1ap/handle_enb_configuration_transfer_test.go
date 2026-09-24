@@ -55,6 +55,11 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 	if !ok || im.ProcedureCode != s1ap.ProcMMEConfigurationTransfer {
 		t.Fatalf("expected MME CONFIGURATION TRANSFER (proc %d), got %T", s1ap.ProcMMEConfigurationTransfer, pdu)
 	}
+
+	if targetConn.streams[0] != mme.S1apStreamNonUE {
+		t.Fatalf("MME CONFIGURATION TRANSFER sent on stream %d, want the non-UE-associated stream %d (TS 36.413 §8.16.1)",
+			targetConn.streams[0], mme.S1apStreamNonUE)
+	}
 }
 
 func TestHandleENBConfigurationTransfer_TargetNotConnected(t *testing.T) {

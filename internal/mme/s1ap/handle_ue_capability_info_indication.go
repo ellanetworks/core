@@ -18,7 +18,7 @@ import (
 func handleUECapabilityInfoIndication(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUECapabilityInfoIndication(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 

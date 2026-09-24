@@ -57,8 +57,8 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 		UERadioCapability: ngap.UERadioCapability{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
-	if !bytes.Equal(amfUe.RadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
-		t.Errorf("RadioCapability = %x, want %x", amfUe.RadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF})
+	if !bytes.Equal(amfUe.RadioCapability(), []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+		t.Errorf("RadioCapability = %x, want %x", amfUe.RadioCapability(), []byte{0xDE, 0xAD, 0xBE, 0xEF})
 	}
 }
 
@@ -102,7 +102,7 @@ func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	stored := []byte{0x01, 0x02, 0x03, 0x04}
-	amfUe.RadioCapability = stored
+	amfUe.SetRadioCapability(stored)
 	amfUe.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{NR: []byte{0x0a}}
 
 	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
@@ -110,8 +110,8 @@ func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.
 		AMFUENGAPID: ngap.AMFUENGAPID(10),
 	})
 
-	if !bytes.Equal(amfUe.RadioCapability, stored) {
-		t.Errorf("RadioCapability = %x, want the stored %x", amfUe.RadioCapability, stored)
+	if !bytes.Equal(amfUe.RadioCapability(), stored) {
+		t.Errorf("RadioCapability = %x, want the stored %x", amfUe.RadioCapability(), stored)
 	}
 
 	if amfUe.RadioCapabilityForPaging == nil || !bytes.Equal(amfUe.RadioCapabilityForPaging.NR, []byte{0x0a}) {

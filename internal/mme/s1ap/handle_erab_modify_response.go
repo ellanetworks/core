@@ -18,7 +18,7 @@ import (
 func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModify, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, err)
 		return
 	}
 

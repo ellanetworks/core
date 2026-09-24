@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -167,7 +169,7 @@ func TestAbandonPagingKeepsTheTransferWhenTheUEAnsweredTheLastRetransmission(t *
 
 	ue.PagingAnswered()
 
-	a.abandonPaging(trace.SpanContext{}, ue)
+	a.abandonPaging(trace.SpanContext{}, ue, ue.paging.attempt)
 
 	if state := ue.PagingState(); state != PagingDelivering {
 		t.Errorf("paging state = %s after an abort that raced the UE answering, want Delivering", state)
@@ -293,5 +295,66 @@ func TestAttachingAConnectionAnswersThePage(t *testing.T) {
 
 	if state := ue.PagingState(); state != PagingIdle {
 		t.Errorf("paging state = %s after delivery, want Idle", state)
+	}
+}
+
+func TestStalePagingAbortSparesANewerAttempt(t *testing.T) {
+	ue := NewUeContext()
+	newer := &MTRequest{}
+
+	ue.paging.mu.Lock()
+	ue.paging.attempt = 2
+	ue.paging.pending = newer
+	ue.paging.state = PagingAttempting
+	ue.paging.mu.Unlock()
+
+	if _, abandoned := ue.PagingUnanswered(t.Context(), 1, models.N1N2UENotResponding); abandoned {
+		t.Fatal("the abort of paging attempt 1 abandoned attempt 2")
+	}
+
+	if ue.PagingPending() != newer {
+		t.Fatal("the abort of paging attempt 1 dropped the request attempt 2 is delivering")
+	}
+}
+
+func TestPagingDoesNotBeginForAUEThatHasReconnected(t *testing.T) {
+	ue, _ := newDownlinkOrderUE(t)
+
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{}); !errors.Is(err, errUEConnected) {
+		t.Fatalf("beginPaging on a connected UE = %v, want errUEConnected", err)
+	}
+
+	if ue.PagingState() != PagingIdle {
+		t.Fatalf("paging state = %s after the UE reconnected, want Idle: nothing would ever deliver the buffered request", ue.PagingState())
+	}
+}
+
+func TestStalePagingAbortSparesARequestInstalledBeforeItsGuardIsArmed(t *testing.T) {
+	ue := NewUeContext()
+	stale := ue.paging.attempt
+
+	newer := &MTRequest{}
+	if _, err := ue.beginPaging(t.Context(), newer); err != nil {
+		t.Fatalf("beginPaging: %v", err)
+	}
+
+	if _, abandoned := ue.PagingUnanswered(t.Context(), stale, models.N1N2UENotResponding); abandoned {
+		t.Fatal("the abort of the previous paging attempt abandoned the request that began after it")
+	}
+
+	if ue.PagingPending() != newer {
+		t.Fatal("the abort of the previous paging attempt dropped the request that began after it")
+	}
+}
+
+func TestPagingSupervisionIsNotArmedForAUEThatAnswered(t *testing.T) {
+	ue, _ := newDownlinkOrderUE(t)
+	a := ue.Conn().amf
+	a.T3513Cfg = guard.TimerValue{Enable: true, ExpireTime: time.Hour}
+
+	a.armPaging(t.Context(), ue, nil)
+
+	if ue.paging.guard.Active() {
+		t.Fatal("T3513 armed for a UE that already re-established its connection")
 	}
 }

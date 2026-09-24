@@ -57,6 +57,11 @@ func (m *MME) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 // context and its IMSI/M-TMSI index, so a later re-attach with the native GUTI can
 // reuse it and skip authentication (TS 24.301 §4.4.2 / annex C).
 func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
+	// A timer callback has no request context; the teardown must complete regardless,
+	// so it runs on a fresh root.
+	ctx, span := guardSpan(trace.SpanContext{}, "mme/implicit_detach_expire", "implicit detach", 0)
+	defer span.End()
+
 	m.mu.Lock()
 
 	if ue.idleGen != gen {
@@ -65,16 +70,10 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	}
 
 	m.stopIdleTimersLocked(ue)
+	ue.TransitionTo(ctx, EMMDeregistered)
 	imsi := ue.imsiOrEmpty()
 
 	m.mu.Unlock()
-
-	// A timer callback has no request context; the teardown must complete regardless,
-	// so it runs on a fresh root.
-	ctx, span := guardSpan(trace.SpanContext{}, "mme/implicit_detach_expire", "implicit detach", 0)
-	defer span.End()
-
-	ue.TransitionTo(ctx, EMMDeregistered)
 
 	logger.From(ctx, logger.MmeLog).Info("implicit detach: UE unreachable, deregistering (native security context retained)",
 		logger.SUPIFromIMSI(imsi))

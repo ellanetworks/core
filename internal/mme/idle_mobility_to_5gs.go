@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -51,16 +52,15 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
 	}
 
-	plain, count, err := ue.TryUnprotectUplink(req.EPSNAS)
-	if err != nil {
+	if _, err := ue.AcceptUplink(req.EPSNAS, func(plain []byte) error {
+		if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
+			return errors.New("the container holds no TRACKING AREA UPDATE REQUEST")
+		}
+
+		return nil
+	}, eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedCiphered); err != nil {
 		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
 	}
-
-	if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
-		return none, fmt.Errorf("%w: the container holds no TRACKING AREA UPDATE REQUEST", interworking.ErrIntegrityCheckFailed)
-	}
-
-	ue.CommitUplinkCount(count)
 
 	security, err := ue.EPSSecurityContextForRelocation()
 	if err != nil {

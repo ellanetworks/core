@@ -38,22 +38,102 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 	return refs
 }
 
+func (ue *UeContext) Suci() string {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.suci
+}
+
+func (ue *UeContext) SetSUCI(suci *fgs.SUCI) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.suci = suci.String()
+	if suci.Format == fgs.SUPIFormatIMSI {
+		ue.plmnID = PlmnIDStringToModels(suci.PLMN.MCC + suci.PLMN.MNC)
+	}
+}
+
+func (ue *UeContext) PlmnID() models.PlmnID {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.plmnID
+}
+
+func (ue *UeContext) Imei() etsi.IMEI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.imei
+}
+
+func (ue *UeContext) SetImei(imei etsi.IMEI) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.imei = imei
+}
+
+func (ue *UeContext) AllowedNssai() []models.Snssai {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return append([]models.Snssai(nil), ue.allowedNssai...)
+}
+
+func (ue *UeContext) SetAllowedNssai(nssai []models.Snssai) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.allowedNssai = append([]models.Snssai(nil), nssai...)
+}
+
+func (ue *UeContext) RegistrationArea() []models.Tai {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return append([]models.Tai(nil), ue.registrationArea...)
+}
+
+func (ue *UeContext) RadioCapability() []byte {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.radioCapability
+}
+
+func (ue *UeContext) SetRadioCapability(capability []byte) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.radioCapability = capability
+}
+
 func (ue *UeContext) SetAmbr(ambr *models.Ambr) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Ambr = ambr
+	ue.ambr = ambr
+}
+
+func (ue *UeContext) Ambr() *models.Ambr {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ambr
 }
 
 func (ue *UeContext) AmbrRates() (uplink, downlink models.BitRate, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if ue.Ambr == nil {
+	if ue.ambr == nil {
 		return models.BitRate{}, models.BitRate{}, false
 	}
 
-	return ue.Ambr.Uplink, ue.Ambr.Downlink, true
+	return ue.ambr.Uplink, ue.ambr.Downlink, true
 }
 
 func (ue *UeContext) RetainForEPS(d time.Duration) {
@@ -101,6 +181,17 @@ func (ue *UeContext) UESecCap() *fgs.UESecurityCapability {
 	defer ue.mu.Unlock()
 
 	return ue.ueSecurityCapability
+}
+
+func (ue *UeContext) StoredNgKsi() int32 {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if len(ue.kamf) == 0 {
+		return int32(nas.NoKeyAvailable)
+	}
+
+	return ue.ngKsi.Ksi
 }
 
 func (ue *UeContext) NgKsi() models.NgKsi {
@@ -166,13 +257,6 @@ func (ue *UeContext) SetSupi(supi etsi.SUPI) {
 	ue.mu.Unlock()
 
 	ue.active.Load().bindSupi(supi)
-}
-
-func (ue *UeContext) SetNgKsi(ngKsi models.NgKsi) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	ue.ngKsi = ngKsi
 }
 
 // SetAbba records the UE's ABBA parameter (TS 33.501).

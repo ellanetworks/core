@@ -39,10 +39,10 @@ func TestRegistrationAcceptGuardDoesNotRetransmitOnAReplacedConnection(t *testin
 	replacementSender := &downlinkOrderConn{wrote: make(chan struct{}, 1)}
 
 	replacement := &UeConn{
-		conn:        replacementSender,
 		amf:         amfInstance,
 		AmfUeNgapID: 2,
 	}
+	replacement.setConn(replacementSender)
 	replacement.setRanUeNgapID(2)
 	replacement.setRadio("", "test-gNB")
 

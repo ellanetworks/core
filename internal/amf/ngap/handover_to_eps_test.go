@@ -168,7 +168,7 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	amfUe.SetKamfForTest("6c38fea1e0a2ff9f8ba6a1e4f4de8b8e1b3b7f2e9d5c0a4738261f5e0d9c8b7a")
 	amfUe.SetNHForTest(make([]byte, 32))
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0})
-	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
 
 	// TS 33.501 §8.3.2
 	amfUe.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, []byte{0xe0, 0xe0, 0x00, 0x00})

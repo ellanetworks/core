@@ -79,3 +79,17 @@ func TestRekeyNASSecurityContextKeepsNASCounts(t *testing.T) {
 		t.Errorf("integrity algorithm = %v, want the re-selected %v", ue.EIA(), nas.IntegrityAES)
 	}
 }
+
+func TestSelectEksiDiffersFromTheCitedAndTheStoredEksi(t *testing.T) {
+	for _, tc := range []struct{ cited, stored, want uint8 }{
+		{cited: 1, stored: nas.NoKeyAvailable, want: 2},
+		{cited: 1, stored: 2, want: 3},
+		{cited: 6, stored: 0, want: 1},
+		{cited: nas.NoKeyAvailable, stored: 0, want: 1},
+		{cited: nas.NoKeyAvailable, stored: nas.NoKeyAvailable, want: 0},
+	} {
+		if got := SelectEksi(tc.cited, tc.stored); got != tc.want {
+			t.Errorf("SelectEksi(%d, %d) = %d, want %d", tc.cited, tc.stored, got, tc.want)
+		}
+	}
+}

@@ -132,7 +132,7 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		zap.Stringer("target_enb", targetID),
 		zap.Int("e_rabs", len(bearers)),
 		zap.Bool("direct_forwarding", direct))
-	m.SendToRadio(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
+	_ = m.SendToRadio(ctx, target.Conn, mme.S1APProcedureHandoverRequest, b)
 
 	// Arm the guard after the HANDOVER REQUEST is sent, so the timer cannot race the
 	// outbound request (TS 36.413 §8.4).

@@ -84,7 +84,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 	)
 
 	if !accepted {
-		m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
+		_ = m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, outBytes)
 
 		m.RadioLog(ctx, conn).Warn("Radio setup rejected",
 			zap.String("enb_name", enbName(req.ENBName)),
@@ -115,7 +115,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 		}
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
+	_ = m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)
 
 	m.RadioLog(ctx, conn).Info("Radio setup complete", logger.RAT(metrics.RAT4G))
 }
@@ -142,7 +142,7 @@ func sendS1SetupFailure(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, ca
 		return
 	}
 
-	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, out)
+	_ = m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, out)
 }
 
 // sendS1SetupProtocolFailure rejects a request that must not reach the

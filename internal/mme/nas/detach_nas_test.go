@@ -310,3 +310,33 @@ func TestDetachAcceptReleasesWithTheDetachCause(t *testing.T) {
 		t.Errorf("release cause = %+v, want NAS detach: releasing the last PDN first claims the release, so the detach's own cause never reaches the eNB", cmd.Cause)
 	}
 }
+
+func TestPlainDetachFromAUEWithoutSecurityIsAcceptedInPlain(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	plain, err := (&eps.DetachRequestUE{
+		TypeOfDetach:      eps.DetachTypeEPS,
+		EPSMobileIdentity: eps.GUTIIdentity(eps.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0x00, 0x00, 0x00, 0x01}}),
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), plain)
+
+	if cc.count() == 0 {
+		t.Fatal("no DETACH ACCEPT sent to a UE without a security context (TS 24.301 §4.4.4.2)")
+	}
+
+	dl := decodeDownlinkNAS(t, cc.sent[0])
+
+	if sht, err := eps.PeekSecurityHeaderType(dl); err != nil || sht != eps.SHTPlain {
+		t.Fatalf("DETACH ACCEPT security header type = %v (%v), want plain", sht, err)
+	}
+
+	if mt, err := eps.PeekMessageType(dl); err != nil || mt != eps.MsgDetachAccept {
+		t.Fatalf("first downlink message type = %v (%v), want DETACH ACCEPT", mt, err)
+	}
+}

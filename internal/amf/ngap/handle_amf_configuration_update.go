@@ -44,7 +44,7 @@ func handleAMFConfigurationUpdateAcknowledge(ctx context.Context, radio *amf.Rad
 	radio.Log(ctx).Info("AMF Configuration Update acknowledged")
 }
 
-func handleAMFConfigurationUpdateFailure(amfInstance *amf.AMF, ctx context.Context, radio *amf.Radio, value []byte) {
+func handleAMFConfigurationUpdateFailure(ctx context.Context, amfInstance *amf.AMF, radio *amf.Radio, value []byte) {
 	fail, err := ngap.ParseAMFConfigurationUpdateFailure(value)
 	if err != nil {
 		radio.Log(ctx).Warn("failed to decode AMF Configuration Update Failure", zap.Error(err))

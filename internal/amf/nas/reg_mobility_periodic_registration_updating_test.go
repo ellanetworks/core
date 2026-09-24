@@ -120,7 +120,8 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
+	imei, _ := etsi.NewIMEIFromPEI("imei-490154203237518")
+	ue.SetImei(imei)
 	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
@@ -195,7 +196,7 @@ func TestMobilityReg_NilGMMCapability_Periodic_Continues(t *testing.T) {
 func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.RadioCapability = []byte("some-capability")
+	ue.SetRadioCapability([]byte("some-capability"))
 	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
@@ -203,8 +204,8 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	contextSetup(context.TODO(), amfInstance, ue,
 		&fgs.RegistrationRequest{UpdateType5GS: &fgs.UpdateType5GS{NGRANRCU: true}}, nil)
 
-	if len(ue.RadioCapability) != 0 {
-		t.Fatalf("expected RadioCapability to be cleared, got %x", ue.RadioCapability)
+	if len(ue.RadioCapability()) != 0 {
+		t.Fatalf("expected RadioCapability to be cleared, got %x", ue.RadioCapability())
 	}
 
 	if ue.RadioCapabilityForPaging != nil {
@@ -313,7 +314,7 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -346,7 +347,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 
 func TestMobilityReg_UplinkDataStatus_NoUeContextRequest_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -383,7 +384,7 @@ func TestMobilityReg_UplinkDataStatus_NoUeContextRequest_InitialContextSetup(t *
 
 func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -505,7 +506,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySetupList(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -591,7 +592,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Error("the accept carries no TAI list")
 	}
 
-	if len(ue.RegistrationArea) == 0 {
+	if len(ue.RegistrationArea()) == 0 {
 		t.Error("no registration area was allocated, so the AMF cannot page this UE")
 	}
 }
@@ -616,7 +617,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	snssai := &models.Snssai{Sst: 1}
@@ -663,7 +664,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
 	setTestUESecurityCapability(ue)
 
 	ue.Conn().UeContextRequest = true
@@ -840,7 +841,8 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
+	imei, _ := etsi.NewIMEIFromPEI("imei-490154203237518")
+	ue.SetImei(imei)
 	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
 	{
@@ -863,16 +865,16 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if len(ue.AllowedNssai) != 2 {
-		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai))
+	if len(ue.AllowedNssai()) != 2 {
+		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai()))
 	}
 
-	if ue.AllowedNssai[0].Sst != 1 || ue.AllowedNssai[0].Sd != "010203" {
-		t.Fatalf("expected first slice SST=1 SD=010203, got SST=%d SD=%s", ue.AllowedNssai[0].Sst, ue.AllowedNssai[0].Sd)
+	if ue.AllowedNssai()[0].Sst != 1 || ue.AllowedNssai()[0].Sd != "010203" {
+		t.Fatalf("expected first slice SST=1 SD=010203, got SST=%d SD=%s", ue.AllowedNssai()[0].Sst, ue.AllowedNssai()[0].Sd)
 	}
 
-	if ue.AllowedNssai[1].Sst != 2 || ue.AllowedNssai[1].Sd != "aabbcc" {
-		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai[1].Sst, ue.AllowedNssai[1].Sd)
+	if ue.AllowedNssai()[1].Sst != 2 || ue.AllowedNssai()[1].Sd != "aabbcc" {
+		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai()[1].Sst, ue.AllowedNssai()[1].Sd)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {

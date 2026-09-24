@@ -47,12 +47,15 @@ func (c *UeConn) UpdateLocation(cgi s1ap.EUTRANCGI, tai s1ap.TAI) {
 		UeLocationTimestamp: &curTime,
 	}
 
+	c.locMu.Lock()
+	defer c.locMu.Unlock()
+
 	c.Location.EutraLocation = eutra
 
-	if c.ue != nil {
-		c.ue.mu.Lock()
-		c.ue.Location = c.Location
-		c.ue.mu.Unlock()
+	if ue := c.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		ue.Location = c.Location
+		ue.mu.Unlock()
 	}
 }
 

@@ -42,6 +42,25 @@ func TestSecurityMode_BlockedByConflict(t *testing.T) {
 	}
 }
 
+func TestSecurityMode_BlockedByConflictDoesNotEnterTheSecurityModeStep(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("build UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	if err := ue.Procedures().Begin(procedure.N2Handover); err != nil {
+		t.Fatalf("start N2 handover: %v", err)
+	}
+
+	securityMode(context.Background(), amf.New(nil, nil, nil), ue)
+
+	if ue.RegStep() == amf.RegStepSecurityMode {
+		t.Fatal("no SECURITY MODE COMMAND was sent, yet the UE is in the security mode step that admits the new-context header type (TS 24.501 §4.4.4.3)")
+	}
+}
+
 func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{

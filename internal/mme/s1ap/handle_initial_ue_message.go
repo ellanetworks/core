@@ -21,7 +21,7 @@ import (
 func HandleInitialUEMessage(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 
@@ -159,7 +159,7 @@ func isTrackingAreaUpdate(nas []byte) bool {
 
 	switch nas[0] >> 4 {
 	case uint8(eps.SHTPlain):
-	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+	case uint8(eps.SHTIntegrityProtected):
 		if len(nas) < 6 {
 			return false
 		}

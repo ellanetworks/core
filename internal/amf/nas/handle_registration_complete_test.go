@@ -34,7 +34,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.Suci = "testsuci"
+	ue.SetSuciForTest("testsuci")
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 	ue.SetSecuredForTest(true)
 	{
@@ -43,7 +43,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 		ue.SetNgKsiForTest(ng)
 	}
 
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := nas.CipheringAES

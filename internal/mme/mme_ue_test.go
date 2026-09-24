@@ -80,7 +80,7 @@ func TestAbandonPaging_SuppressesAllPDNs(t *testing.T) {
 		6: {Ebi: 6},
 	}
 
-	m.abandonPaging(trace.SpanContext{}, ue)
+	m.abandonPaging(trace.SpanContext{}, ue, ue.paging.attempt)
 
 	fake := m.Session.(*fakeSessionManager)
 	if fake.suppressCalls != 2 {

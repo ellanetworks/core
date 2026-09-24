@@ -52,13 +52,13 @@ func TestAllocateRegistrationArea(t *testing.T) {
 			ue := amf.NewUeContext()
 			ue.AllocateRegistrationArea(tc.supportedTais)
 
-			if len(ue.RegistrationArea) != len(tc.supportedTais) {
-				t.Fatalf("RegistrationArea len = %d, want %d", len(ue.RegistrationArea), len(tc.supportedTais))
+			if len(ue.RegistrationArea()) != len(tc.supportedTais) {
+				t.Fatalf("RegistrationArea len = %d, want %d", len(ue.RegistrationArea()), len(tc.supportedTais))
 			}
 
 			for i := range tc.supportedTais {
-				if !ue.RegistrationArea[i].Equal(tc.supportedTais[i]) {
-					t.Fatalf("RegistrationArea[%d] = %v, want %v", i, ue.RegistrationArea[i], tc.supportedTais[i])
+				if !ue.RegistrationArea()[i].Equal(tc.supportedTais[i]) {
+					t.Fatalf("RegistrationArea[%d] = %v, want %v", i, ue.RegistrationArea()[i], tc.supportedTais[i])
 				}
 			}
 		})
@@ -177,7 +177,7 @@ func TestIsAllowedNssai(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := amf.NewUeContext()
-			ue.AllowedNssai = tc.allowed
+			ue.SetAllowedNssai(tc.allowed)
 
 			got := ue.IsAllowedNssai(tc.target)
 			if got != tc.expected {

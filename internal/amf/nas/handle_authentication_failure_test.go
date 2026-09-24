@@ -131,7 +131,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.SetNgKsiForTest(models.NgKsi{Ksi: 3})
+	ue.Conn().AuthNgKsi = models.NgKsi{Ksi: 3}
 	ue.Conn().SetResyncTried(true)
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
@@ -145,8 +145,8 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
-	if ue.NgKsiForTest().Ksi != 4 {
-		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 4 {
+		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 
 	if ue.Conn().ResyncTried() {
@@ -168,7 +168,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.SetNgKsiForTest(models.NgKsi{Ksi: 6})
+	ue.Conn().AuthNgKsi = models.NgKsi{Ksi: 6}
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
@@ -181,8 +181,8 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 
 	handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 
-	if ue.NgKsiForTest().Ksi != 0 {
-		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.NgKsiForTest().Ksi)
+	if ue.Conn().AuthNgKsi.Ksi != 0 {
+		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.Conn().AuthNgKsi.Ksi)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -199,7 +199,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	ue.Conn().SetResyncTried(false)
-	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
+	ue.SetSuciForTest("suci-0-001-01-0000-0-0-0000000001")
 	ue.Tai = ue.Conn().Tai
 
 	expectedAv := &ausf.AuthResult{
@@ -245,7 +245,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
 	ue.Conn().SetResyncTried(false)
-	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
+	ue.SetSuciForTest("suci-0-001-01-0000-0-0-0000000001")
 	ue.Tai = ue.Conn().Tai
 
 	amfInstance := amf.New(nil, &fakeAusf{

@@ -43,6 +43,8 @@ var causeSemanticError = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, req *ngap.NGSetupRequest) {
 	name := ranNodeName(req.RANNodeName)
 
+	amfInstance.ReleaseSetup(ctx, ran)
+
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		ran.Log(ctx).Error("Could not get operator info", zap.Error(err))

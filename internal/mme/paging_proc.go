@@ -44,6 +44,7 @@ type pagingProc struct {
 	pending  *MTRequest
 	deferred *MTRequest
 	guard    guard.Guard
+	attempt  uint64
 }
 
 func (ue *UeContext) PagingState() PagingState {
@@ -93,12 +94,22 @@ func (ue *UeContext) takeDeferredServiceRequest() *MTRequest {
 	return req
 }
 
-func (ue *UeContext) beginPaging(req *MTRequest) {
+func (ue *UeContext) beginPaging(req *MTRequest) error {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
+	if ue.Connected() {
+		return errUEConnected
+	}
+
+	if !ue.paging.guard.Active() {
+		ue.paging.attempt++
+	}
+
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
+
+	return nil
 }
 
 func (ue *UeContext) PagingAnswered() {
@@ -155,14 +166,20 @@ func (ue *UeContext) PagingFailed(ctx context.Context, cause models.EPSPagingFai
 	return dropped
 }
 
-func (ue *UeContext) PagingUnanswered(ctx context.Context, cause models.EPSPagingFailureCause) (*MTRequest, bool) {
+func (ue *UeContext) PagingUnanswered(ctx context.Context, attempt uint64, cause models.EPSPagingFailureCause) (*MTRequest, bool) {
 	if ue == nil {
 		return nil, false
 	}
 
-	ue.paging.guard.Stop()
-
 	ue.paging.mu.Lock()
+
+	if ue.paging.attempt != attempt {
+		ue.paging.mu.Unlock()
+
+		return nil, false
+	}
+
+	ue.paging.guard.Stop()
 
 	if ue.Connected() {
 		ue.paging.mu.Unlock()

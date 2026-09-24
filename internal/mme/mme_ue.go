@@ -186,8 +186,6 @@ type UeContext struct {
 
 	localBearerDeactivation bool
 
-	releasing bool
-
 	regStep RegStep
 
 	mobileReachableTimer guard.Guard
@@ -608,7 +606,7 @@ func (m *MME) ReleaseBareConn(c *UeConn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if c.ue != nil {
+	if c.ue.Load() != nil {
 		return
 	}
 
@@ -636,7 +634,6 @@ func (m *MME) NewUe(ctx context.Context, conn S1APWriter, enbUEID s1ap.ENBUES1AP
 // carries the message that establishes it).
 func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) {
 	m.stopIdleTimersLocked(ue)
-	ue.PagingAnswered()
 
 	// A superseding connection detaches the old one but keeps its MME-UE-S1AP-ID
 	// reserved in m.conns: the eNB can reference it until it is released (TS 36.413 §8.3.3.1).
@@ -645,13 +642,22 @@ func (m *MME) attachUeConnLocked(ue *UeContext, c *UeConn) (superseded *UeConn) 
 	// If c was bound to a transient context — a fresh Attach context superseded by a
 	// native-GUTI reuse — detach it there so that discarded context does not appear
 	// connected on c.
-	if prev := c.ue; prev != nil && prev != ue {
+	if prev := c.ue.Load(); prev != nil && prev != ue {
 		prev.active.CompareAndSwap(c, nil)
 	}
 
 	ue.active.Store(c)
-	c.ue = ue
+	c.ue.Store(ue)
 	c.bindSupi(ue.Supi())
+	ue.PagingAnswered()
+
+	c.locMu.Lock()
+	if c.Location.EutraLocation != nil {
+		ue.mu.Lock()
+		ue.Location = c.Location
+		ue.mu.Unlock()
+	}
+	c.locMu.Unlock()
 
 	// Becoming connected is activity; refresh liveness at the bind point.
 	ue.TouchLastSeen()
@@ -724,21 +730,26 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// The response can only arrive over this connection, so a surviving wait could
 	// only be concluded by an unrelated one.
 	old.esmInfoGuard.Stop()
+	old.icsGuard.Stop()
 	ue.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).
 	ue.clearKeyChainProc()
 
-	old.ue = nil
+	ue.mu.Lock()
+	for _, p := range ue.Pdns {
+		p.EnbFTEID = models.FTEID{}
+	}
+	ue.mu.Unlock()
+
+	old.ue.Store(nil)
 	ue.active.Store(nil)
 
 	return old
 }
 
 func (m *MME) freeUeConnLocked(ue *UeContext) {
-	ue.releasing = false
-
 	if old := m.detachConnLocked(ue); old != nil {
 		m.releaseConnIDLocked(uint32(old.MMEUES1APID))
 	}
@@ -827,8 +838,8 @@ func (m *MME) ConnectedUEs() []*UeContext {
 
 	ues := make([]*UeContext, 0, len(m.conns))
 	for _, c := range m.conns {
-		if c.ue != nil {
-			ues = append(ues, c.ue)
+		if ue := c.ue.Load(); ue != nil {
+			ues = append(ues, ue)
 		}
 	}
 
@@ -855,28 +866,40 @@ func (m *MME) ReconcileReady(ue *UeContext) (*UeConn, bool) {
 }
 
 // claimRelease atomically marks the UE's S1 connection as releasing, returning
-// false when there is no connection or a release is already in progress (a NAS
-// guard timeout and an eNB-initiated release can race for the same UE).
-func (m *MME) claimRelease(ue *UeContext) bool {
+// that connection (nil when there is none) and false when a release of it is
+// already in progress (a NAS guard timeout and an eNB-initiated release can race
+// for the same UE).
+func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if ue.releasing {
-		return false
+	c := ue.Conn()
+	if c == nil {
+		return nil, true
 	}
 
-	ue.releasing = true
+	if c.releasing {
+		return nil, false
+	}
 
-	return true
+	c.releasing = true
+
+	return c, true
 }
 
 // releaseContextLockedPart performs, under the registry lock, the registry side
 // of a local release: a registered UE keeps its context and is moved to ECM-IDLE
-// (its S1 connection freed), an unregistered one is removed. It returns whether
-// the UE was registered, plus its IMSI for post-release logging.
-func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi string) {
+// (its S1 connection freed), an unregistered one is removed. A non-nil expected
+// connection that is no longer the UE's leaves the UE untouched and reports
+// released false. It returns whether the UE was registered, plus its IMSI for
+// post-release logging.
+func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if expected != nil && ue.Conn() != expected {
+		return false, false, ""
+	}
 
 	registered = ue.EMMState() == EMMRegistered
 	imsi = ue.imsiOrEmpty()
@@ -887,7 +910,7 @@ func (m *MME) releaseContextLockedPart(ue *UeContext) (registered bool, imsi str
 		m.removeContextLocked(ue)
 	}
 
-	return registered, imsi
+	return true, registered, imsi
 }
 
 // ConnsOnConn returns every UE-associated connection on the given eNB association.
@@ -945,8 +968,8 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
-			stale = append(stale, c.ue)
+		if ue := c.ue.Load(); ue != nil && ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID() == enbUEID {
+			stale = append(stale, ue)
 		}
 	}
 
@@ -979,11 +1002,13 @@ func (m *MME) LookupUe(mmeUEID s1ap.MMEUES1APID) (*UeContext, bool) {
 	defer m.mu.RUnlock()
 
 	c, ok := m.conns[uint32(mmeUEID)]
-	if !ok || c.ue == nil {
+	if !ok {
 		return nil, false
 	}
 
-	return c.ue, true
+	ue := c.ue.Load()
+
+	return ue, ue != nil
 }
 
 // LookupUeByMTMSI finds a UE context by the M-TMSI of its assigned GUTI,

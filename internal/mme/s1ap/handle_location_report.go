@@ -28,7 +28,7 @@ func captureUserLocation(ueConn *mme.UeConn, uli *s1ap.UserLocationInformation) 
 func handleLocationReport(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseLocationReport(value)
 	if err != nil {
-		handleParseError(ctx, m, radio.Conn, s1ap.ProcLocationReport, err)
+		handleParseError(ctx, m, radio.Conn, s1ap.ProcLocationReport, s1ap.TriggeringInitiatingMessage, err)
 		return
 	}
 

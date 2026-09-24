@@ -21,8 +21,8 @@ import (
 func setTestUESecurityCapability(ue *amf.UeContext) {
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 
-	if ue.PlmnID.Mcc == "" {
-		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	if ue.PlmnID().Mcc == "" {
+		ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	}
 }
 

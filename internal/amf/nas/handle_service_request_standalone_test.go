@@ -43,7 +43,7 @@ func standaloneBufferUE(t *testing.T) (*amf.AMF, *amf.UeContext, *fakeNGAPSender
 	}
 
 	ue.ArmPagingForTest(6*time.Minute, 5)
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 	ue.ForceStateForTest(amf.Registered)
 	ue.SetGutiForTest(mustTestGuti("001", "01", "cafe42", 0x00000001))
 	ue.Tai = ue.Conn().Tai
@@ -59,7 +59,7 @@ func standaloneBufferUE(t *testing.T) (*amf.AMF, *amf.UeContext, *fakeNGAPSender
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(nas.CipheringAES)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")})
 
 	return amfInstance, ue, ngapSender, key, nas.CipheringAES
 }

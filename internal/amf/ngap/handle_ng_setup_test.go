@@ -631,3 +631,51 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 		t.Errorf("expected no NGSetupFailure for slice mismatch, got %d", len(sender.SentNGSetupFailures))
 	}
 }
+
+func TestHandleNGSetupRequest_RejectedReSetupReleasesThePreviousSetup(t *testing.T) {
+	sender := &fakeNGAPSender{}
+
+	op := &db.Operator{Mcc: "001", Mnc: "01"}
+	if err := op.SetSupportedTacs([]string{"000064"}); err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&fakeDBInstance{Operator: op}, nil, nil)
+
+	ran := &amf.Radio{
+		Conn: sender,
+		RanID: &models.GlobalRanNodeID{
+			PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
+			GNbID:  &models.GNbID{GNBValue: "abcde1", BitLength: 24},
+		},
+	}
+	ran.BindAMFForTest(amfInstance)
+	amf.NewUeConnForTest(ran, 1, 1)
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "310",
+		Mnc:   "410",
+		Tac:   "000064",
+		Sst:   1,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
+	}
+
+	if ran.RanID != nil {
+		t.Errorf("RanID = %v after a rejected re-Setup, want the previous setup erased (TS 38.413 §8.7.1.1)", ran.RanID)
+	}
+
+	if n := amfInstance.CountUeConnsForTest(); n != 0 {
+		t.Errorf("%d UE-associated connections survived a repeated NG Setup, want 0 (TS 38.413 §8.7.1.1)", n)
+	}
+}

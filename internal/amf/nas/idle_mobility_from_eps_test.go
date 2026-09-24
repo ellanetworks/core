@@ -147,8 +147,8 @@ func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 		t.Errorf("selected EPS NAS algorithms = %+v, want the AES pair already in use", smc.SelectedEPSNASSecurityAlgorithms)
 	}
 
-	if ue.Ambr == nil || ue.Ambr.Uplink != models.MustParseBitRate("50 Mbps") {
-		t.Errorf("AMBR = %+v, want the subscribed one the MME returned", ue.Ambr)
+	if ue.Ambr() == nil || ue.Ambr().Uplink != models.MustParseBitRate("50 Mbps") {
+		t.Errorf("AMBR = %+v, want the subscribed one the MME returned", ue.Ambr())
 	}
 }
 

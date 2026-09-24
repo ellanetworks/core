@@ -76,7 +76,7 @@ func (r *Radio) BindAMFForTest(a *AMF) {
 	moved := make(map[int64]*UeConn)
 
 	for id, ueConn := range old.conns {
-		if ueConn.conn == r.Conn {
+		if ueConn.Conn() == r.Conn {
 			moved[id] = ueConn
 			delete(old.conns, id)
 		}
@@ -99,7 +99,7 @@ func (r *Radio) NumUEsForTest() int {
 	n := 0
 
 	for _, ueConn := range r.amf.conns {
-		if ueConn.conn == r.Conn {
+		if ueConn.Conn() == r.Conn {
 			n++
 		}
 	}
@@ -117,6 +117,12 @@ func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
 	ue.paging.mu.Unlock()
 
 	ue.paging.guard.Arm(d, maxRetransmit, func(int32) {}, func() {})
+}
+
+func (ue *UeContext) BeginPagingForTest() error {
+	_, err := ue.beginPaging(context.Background(), &MTRequest{})
+
+	return err
 }
 
 func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
@@ -294,4 +300,18 @@ func (ue *UeContext) SetPagedRequestForTest(req *models.N1N2MessageTransferReque
 func BindRadioLogForTest(r *Radio, address string) {
 	r.address = address
 	r.refreshLogLocked()
+}
+
+func (ue *UeContext) SetSuciForTest(suci string) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.suci = suci
+}
+
+func (ue *UeContext) SetPlmnIDForTest(plmnID models.PlmnID) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.plmnID = plmnID
 }

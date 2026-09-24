@@ -276,7 +276,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -306,9 +306,9 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
-		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
-		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
+		u.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
+		u.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 
 		u.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 		u.SetKgnbForTest(make([]byte, 32))
@@ -342,7 +342,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	radio := &amf.Radio{
@@ -483,6 +483,10 @@ func TestSendPaging_IdleUE_ArmsPersistentTimer(t *testing.T) {
 		t.Fatal("precondition: idle UE must have no NAS connection")
 	}
 
+	if err := ue.BeginPagingForTest(); err != nil {
+		t.Fatalf("begin paging: %v", err)
+	}
+
 	if err := amfInstance.SendPaging(context.Background(), ue, []byte{0x00}); err != nil {
 		t.Fatalf("SendPaging: %v", err)
 	}
@@ -540,7 +544,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -568,7 +572,7 @@ func TestN2MessageTransferOrPage_IdleRegisteredUE_Pages(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000030", func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	if conn := ue.Conn(); conn != nil {
@@ -668,7 +672,7 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000021", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -759,7 +763,7 @@ func TestN2MessageTransferOrPage_DoesNotResetupASessionAlreadyInFlight(t *testin
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000021", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
@@ -797,7 +801,7 @@ func TestReleaseNasConnectionClearsOutstandingSetups(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000022", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
@@ -968,9 +972,9 @@ func TestTransferN1N2Message_SessionAlreadySetUp_ReleasesTheICSClaim(t *testing.
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000026", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
-		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
-		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
+		u.SetAllowedNssai([]models.Snssai{{Sst: 1, Sd: "010203"}})
+		u.SetPlmnIDForTest(models.PlmnID{Mcc: "001", Mnc: "01"})
 
 		u.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 		u.SetKgnbForTest(make([]byte, 32))
@@ -1009,7 +1013,7 @@ func TestStoreN1N2AndPage_RejectsASecondTransferWhilePaging(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000027", func(u *amf.UeContext) {
 		u.ForceStateForTest(amf.Registered)
 		u.SetGutiForTest(testGUTI(t))
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
 	if conn := ue.Conn(); conn != nil {
@@ -1171,7 +1175,7 @@ func TestN2MessageTransferOrPage_ReplacedSessionReachesTheRAN(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000032", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+		u.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")})
 	})
 
 	if err := ue.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {

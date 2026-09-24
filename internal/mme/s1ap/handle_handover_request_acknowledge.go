@@ -126,7 +126,7 @@ func handleHandoverRequestAcknowledge(ctx context.Context, m *mme.MME, radio *mm
 		zap.Int("admitted", len(admitted)),
 		zap.Int("released", len(prep.Unadmitted)),
 		zap.Bool("data_forwarding", len(forwarding) > 0))
-	m.SendToRadio(ctx, prep.SourceConn, mme.S1APProcedureHandoverCommand, b)
+	_ = m.SendToRadio(ctx, prep.SourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
 func failedERABCauses(failed []s1ap.ERABItem) map[uint8]s1ap.Cause {

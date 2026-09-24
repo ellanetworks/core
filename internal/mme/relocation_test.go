@@ -948,3 +948,34 @@ func TestForwardRelocationRefusesASubscriberBarredFrom4G(t *testing.T) {
 		t.Fatalf("refusal cause = %+v, want handover target not allowed", refusal.Cause)
 	}
 }
+
+func TestForwardRelocationTimeoutUnwindsWithALiveContext(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(ctx, relocationRequest())
+		done <- err
+	}()
+
+	target.awaitHandoverRequest(t)
+	cancel()
+
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("ForwardRelocation = %v, want context.Canceled", err)
+	}
+
+	if len(sessions.forwardingCtxErrs) == 0 {
+		t.Fatal("the abandoned relocation closed no forwarding tunnel")
+	}
+
+	for _, err := range sessions.forwardingCtxErrs {
+		if err != nil {
+			t.Errorf("forwarding tunnel closed under a cancelled context: %v", err)
+		}
+	}
+}

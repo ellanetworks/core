@@ -33,6 +33,8 @@ var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
 
+var errUEConnected = errors.New("the UE re-established its NAS signalling connection before it was paged")
+
 func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) (models.N1N2MessageTransferCause, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -48,9 +50,9 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return "", fmt.Errorf("ue context not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, cause, err := amf.connOrPage(ctx, ue, req)
 	if ueConn == nil {
-		return amf.storeN1N2AndPage(ctx, ue, req)
+		return cause, err
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
@@ -82,8 +84,9 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 			}
 
 			list := ngap.PDUSessionResourceSetupListSUReq{item}
+			ambr := ue.Ambr()
 
-			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list); err != nil {
+			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ambr.Uplink, ambr.Downlink, nil, list); err != nil {
 				n2Setup.End(ctx)
 
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
@@ -130,14 +133,15 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		}
 
 		list := ngap.PDUSessionResourceSetupListCxtReq{item}
+		ambr := ue.Ambr()
 
 		if err := ueConn.SendInitialContextSetup(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
+			ambr.Uplink,
+			ambr.Downlink,
+			ue.AllowedNssai(),
 			kgnb,
-			ue.RadioCapability,
+			ue.RadioCapability(),
 			ue.RadioCapabilityForPaging,
 			ueSecCap,
 			nil,
@@ -162,6 +166,23 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	}
 
 	return models.N1N2TransferInitiated, nil
+}
+
+func (amf *AMF) connOrPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) (*UeConn, models.N1N2MessageTransferCause, error) {
+	if conn := ue.Conn(); conn != nil {
+		return conn, "", nil
+	}
+
+	cause, err := amf.storeN1N2AndPage(ctx, ue, req)
+	if !errors.Is(err, errUEConnected) {
+		return nil, cause, err
+	}
+
+	if conn := ue.Conn(); conn != nil {
+		return conn, "", nil
+	}
+
+	return nil, "", err
 }
 
 // storeN1N2AndPage buffers a downlink request and pages the idle UE
@@ -367,10 +388,10 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return "", fmt.Errorf("ue context not found")
 	}
 
-	ueConn := ue.Conn()
+	ueConn, cause, err := amf.connOrPage(ctx, ue, req)
 	if ueConn == nil {
 		// UE is CM-IDLE: buffer the N2 message and page it (TS 23.502 §4.2.3.3).
-		return amf.storeN1N2AndPage(ctx, ue, req)
+		return cause, err
 	}
 
 	if ue.State() == RegistrationInitiated {
@@ -401,8 +422,9 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		}
 
 		list := ngap.PDUSessionResourceSetupListSUReq{item}
+		ambr := ue.Ambr()
 
-		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ambr.Uplink, ambr.Downlink, nil, list)
 		if err != nil {
 			n2Setup.End(ctx)
 
@@ -441,14 +463,15 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 	}
 
 	list := ngap.PDUSessionResourceSetupListCxtReq{item}
+	ambr := ue.Ambr()
 
 	err = ueConn.SendInitialContextSetup(
 		ctx,
-		ue.Ambr.Uplink,
-		ue.Ambr.Downlink,
-		ue.AllowedNssai,
+		ambr.Uplink,
+		ambr.Downlink,
+		ue.AllowedNssai(),
 		ue.kgnb,
-		ue.RadioCapability,
+		ue.RadioCapability(),
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
 		nil,
@@ -565,10 +588,8 @@ func (amf *AMF) TransferN2NRPPaMsg(ctx context.Context, supi etsi.SUPI, routingI
 // transferOrPageStandalone delivers a request that is not PDU-session scoped, buffering it
 // and paging the UE when it is CM-IDLE (TS 23.502 §4.2.3.3).
 func (amf *AMF) transferOrPageStandalone(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
-	conn := ue.Conn()
+	conn, _, err := amf.connOrPage(ctx, ue, req)
 	if conn == nil {
-		_, err := amf.storeN1N2AndPage(ctx, ue, req)
-
 		return err
 	}
 

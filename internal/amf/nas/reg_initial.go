@@ -42,21 +42,6 @@ func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
 }
 
-func abortRegistrationRetainingContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
-	ueConn := ue.Conn()
-
-	ue.SuspendRegistration(ctx)
-
-	if ueConn == nil {
-		amfInstance.StartMobileReachable(ue)
-		return
-	}
-
-	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
-
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
-}
-
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
 	if ue.MTDeliveryInProgress() {
 		ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
@@ -122,7 +107,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	ue.AllowedNssai = subscriberProfile.AllowedNssai
+	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 

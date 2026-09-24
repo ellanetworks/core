@@ -38,7 +38,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) e
 // pageRadios sends the paging PDU to every radio whose supported TAIs intersect
 // the UE's registration area.
 func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
-	taiList := ue.RegistrationArea
+	taiList := ue.RegistrationArea()
 
 	for _, ran := range amf.ConnectedRadios() {
 		for _, item := range ran.SupportedTAIList() {
@@ -62,15 +62,16 @@ func (amf *AMF) armPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
-	if ue.paging.guard.Active() {
+	if ue.paging.guard.Active() || ue.paging.state != PagingAttempting || ue.Conn() != nil {
 		return
 	}
 
 	link := trace.SpanContextFromContext(ctx)
+	pagingAttempt := ue.paging.attempt
 
 	ue.paging.guard.ArmWith(amf.T3513Cfg,
 		func(attempt int32) { amf.retransmitPaging(link, ue, ngapBuf, attempt) },
-		func() { amf.abandonPaging(link, ue) })
+		func() { amf.abandonPaging(link, ue, pagingAttempt) })
 }
 
 // retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.6.2), or
@@ -90,12 +91,12 @@ func (amf *AMF) retransmitPaging(link trace.SpanContext, ue *UeContext, ngapBuf 
 
 // abandonPaging suppresses the anchor's downlink data notification so further
 // downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
-func (amf *AMF) abandonPaging(link trace.SpanContext, ue *UeContext) {
+func (amf *AMF) abandonPaging(link trace.SpanContext, ue *UeContext, attempt uint64) {
 	ctx, span := guardSpan(link, "amf/paging_abandon", "T3513 (Paging)", 0)
 	defer span.End()
 
 	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
-	dropped, abandoned := ue.PagingUnanswered(ctx, models.N1N2UENotResponding)
+	dropped, abandoned := ue.PagingUnanswered(ctx, attempt, models.N1N2UENotResponding)
 	if !abandoned {
 		return
 	}
@@ -163,7 +164,7 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (
 // mid-handover, or not registered.
 func guardIdlePaging(ue *UeContext) error {
 	if ue.Conn() != nil {
-		return fmt.Errorf("ue is already CM-CONNECTED")
+		return errUEConnected
 	}
 
 	if ue.State() == RegistrationInitiated {
@@ -190,7 +191,7 @@ func (amf *AMF) buildPaging(guami *models.Guami, ue *UeContext) (*ngap.Paging, e
 		return nil, fmt.Errorf("paging: build 5G-GUTI: %w", err)
 	}
 
-	taiList, err := areaToNGAPTAIs(ue.RegistrationArea)
+	taiList, err := areaToNGAPTAIs(ue.RegistrationArea())
 	if err != nil {
 		return nil, fmt.Errorf("paging: %w", err)
 	}

@@ -76,7 +76,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nasreply.Handled()
 	}
 
-	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
+	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci())
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
@@ -87,7 +87,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	ue.SetSupi(supi)
 
-	if err := ue.DeriveKamf(kseaf); err != nil {
+	if err := ue.DeriveKamf(kseaf, conn.AuthNgKsi); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("couldn't derive Kamf", zap.Error(err))
 
 		failAuthentication(ctx, ue, ueConn)
@@ -97,6 +97,8 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	if isRegistrationUpdate(conn.RegistrationType5GS) {
 		amfInstance.CarrySubscriberSessions(ue)
+	} else {
+		conn.RegisteredBeforeRegistration = false
 	}
 
 	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {

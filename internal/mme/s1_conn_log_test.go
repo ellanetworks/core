@@ -59,7 +59,7 @@ func TestCommitPathSwitchRebindsConnLoggerToTargetENB(t *testing.T) {
 
 	ue := &UeContext{}
 	ue.active.Store(c)
-	c.ue = ue
+	c.ue.Store(ue)
 
 	c.Log(t.Context()).Info("before")
 
@@ -94,7 +94,7 @@ func TestUeConnLogConcurrentAccessNoRace(t *testing.T) {
 
 	ue := &UeContext{}
 	ue.active.Store(c)
-	c.ue = ue
+	c.ue.Store(ue)
 
 	var (
 		wg      sync.WaitGroup
