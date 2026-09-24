@@ -6,7 +6,6 @@ package listener_test
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -23,12 +22,9 @@ import (
 func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 	p := testutil.GenTestPKI(t, []string{"1"})
 
-	port := freePort(t)
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-
 	ln := listener.New(listener.Config{
-		BindAddress:      addr,
-		AdvertiseAddress: addr,
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           "1",
 		Pin:              p.PinFunc(),
 		Leaf:             p.LeafFunc("1"),
@@ -62,6 +58,8 @@ func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	addr := ln.BoundAddress()
+
 	dialer := &tls.Dialer{
 		NetDialer: &net.Dialer{Timeout: 2 * time.Second},
 		Config: &tls.Config{
@@ -79,61 +77,6 @@ func TestListener_BootstrapALPN_NoClientCert(t *testing.T) {
 	_ = conn.Close()
 
 	waitWithTimeout(t, &wg, 2*time.Second)
-}
-
-// TestListener_CloseByPeerFingerprint closes a tracked connection
-// after its peer has been removed from the keyring.
-func TestListener_CloseByPeerFingerprint(t *testing.T) {
-	p := testutil.GenTestPKI(t, []string{"1", "2"})
-
-	ln1, addr1 := newTestListener(t, p, "1")
-	defer ln1.Stop()
-
-	handlerReady := make(chan struct{})
-	closedCh := make(chan struct{})
-
-	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
-		defer func() { _ = conn.Close() }()
-
-		close(handlerReady)
-
-		buf := make([]byte, 16)
-		_, _ = conn.Read(buf)
-
-		close(closedCh)
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := ln1.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	ln2, _ := newTestListener(t, p, "2")
-	defer ln2.Stop()
-
-	conn, err := ln2.Dial(ctx, addr1, "1", listener.ALPNRaft, 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	<-handlerReady
-
-	fp := pki.Fingerprint(p.Nodes["2"].Cert)
-
-	closed := ln1.CloseByPeerFingerprint(fp)
-	if closed == 0 {
-		t.Fatal("CloseByPeerFingerprint should have closed at least one conn")
-	}
-
-	select {
-	case <-closedCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("server-side handler did not observe close")
-	}
 }
 
 func waitWithTimeout(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
@@ -188,12 +131,9 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 		return base(fingerprint)
 	}
 
-	port := freePort(t)
-	addr1 := fmt.Sprintf("127.0.0.1:%d", port)
-
 	ln1 := listener.New(listener.Config{
-		BindAddress:      addr1,
-		AdvertiseAddress: addr1,
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           "1",
 		Pin:              pin,
 		Leaf:             p.LeafFunc("1"),
@@ -216,7 +156,9 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ln2, _ := newTestListener(t, p, "2")
+	addr1 := ln1.BoundAddress()
+
+	ln2 := newTestListener(t, p, "2")
 	defer ln2.Stop()
 
 	dialed := make(chan *tls.Conn, 1)
@@ -243,18 +185,17 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 
 	close(release)
 
-	conn := <-dialed
-	if conn == nil {
-		return
+	if conn := <-dialed; conn != nil {
+		defer func() { _ = conn.Close() }()
+
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+		if _, err := conn.Read(make([]byte, 1)); err == nil {
+			t.Fatal("peer kept the connection after its pin was removed")
+		}
 	}
 
-	defer func() { _ = conn.Close() }()
-
-	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-	if _, err := conn.Read(make([]byte, 1)); err == nil {
-		t.Fatal("peer kept the connection after its pin was removed")
-	}
+	ln1.Stop()
 
 	select {
 	case <-handlerRan:

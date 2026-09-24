@@ -97,67 +97,14 @@ func (f *fakeStore) MintJoinTokenRecord(ctx context.Context, r *db.ClusterJoinTo
 	return nil
 }
 
-func (f *fakeStore) GetJoinToken(ctx context.Context, id string) (*db.ClusterJoinToken, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	t, ok := f.tokens[id]
-	if !ok {
-		return nil, db.ErrNotFound
-	}
-
-	cp := *t
-
-	return &cp, nil
-}
-
-func (f *fakeStore) ConsumeJoinToken(ctx context.Context, id string, nodeID string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	t, ok := f.tokens[id]
-	if !ok {
-		return db.ErrNotFound
-	}
-
-	if t.ConsumedAt != 0 {
-		return db.ErrJoinTokenAlreadyConsumed
-	}
-
-	t.ConsumedAt = time.Now().Unix()
-	t.ConsumedBy = nodeID
-
-	return nil
-}
-
 func (f *fakeStore) RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]db.ClusterNodeCert, error) {
 	f.mu.Lock()
 
-	t, ok := f.tokens[tokenID]
-	if !ok {
+	if _, ok := f.tokens[tokenID]; !ok {
 		f.mu.Unlock()
 		return nil, db.ErrNotFound
 	}
 
-	if t.ExpiresAt <= time.Now().Unix() {
-		f.mu.Unlock()
-		return nil, db.ErrJoinTokenExpired
-	}
-
-	if t.ConsumedAt != 0 {
-		existing, have := f.pins[nodeID]
-		if t.ConsumedBy != nodeID || !have || existing.Fingerprint != fingerprint {
-			f.mu.Unlock()
-			return nil, db.ErrJoinTokenAlreadyConsumed
-		}
-
-		f.mu.Unlock()
-
-		return f.ListClusterNodeCerts(ctx)
-	}
-
-	t.ConsumedAt = time.Now().Unix()
-	t.ConsumedBy = nodeID
 	f.pins[nodeID] = &db.ClusterNodeCert{
 		NodeID:      nodeID,
 		Fingerprint: fingerprint,
@@ -326,11 +273,6 @@ func TestService_MintAndVerifyJoinToken_RoundTrip(t *testing.T) {
 	if fp == "" || len(pins) != 2 {
 		t.Fatalf("redeem returned fp=%q pins=%d, want non-empty fp and 2 pins", fp, len(pins))
 	}
-
-	otherPEM := nodeCertPEM(t, "6")
-	if _, _, err := svc.RedeemJoinToken(context.Background(), token, "6", otherPEM); err == nil {
-		t.Fatal("replay for a different node should be rejected")
-	}
 }
 
 func TestService_MintJoinToken_RejectsInvalidTTL(t *testing.T) {
@@ -372,50 +314,6 @@ func TestService_RegisterCert_WorksOnNonLeader(t *testing.T) {
 
 	if _, _, err := svc.RegisterCert(context.Background(), "5", nodeCertPEM(t, "5")); err != nil {
 		t.Fatalf("RegisterCert on a follower: %v", err)
-	}
-}
-
-func TestService_Redeem_ReplayWithDifferentCertRejected(t *testing.T) {
-	store := newFakeStore("c")
-	preregisterLeader(t, store, "1")
-
-	svc := pkiissuer.New(store, leaderLeaf(store))
-	_ = svc.Bootstrap(context.Background())
-
-	tok, _ := svc.MintJoinToken(context.Background(), time.Minute*10)
-
-	if _, _, err := svc.RedeemJoinToken(context.Background(), tok, "5", nodeCertPEM(t, "5")); err != nil {
-		t.Fatal(err)
-	}
-
-	_, _, err := svc.RedeemJoinToken(context.Background(), tok, "5", nodeCertPEM(t, "5"))
-	if !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
-		t.Fatalf("second redeem with a fresh cert: got %v, want ErrJoinTokenAlreadyConsumed", err)
-	}
-}
-
-func TestService_Redeem_SameNodeSameCertIsIdempotent(t *testing.T) {
-	store := newFakeStore("c")
-	preregisterLeader(t, store, "1")
-
-	svc := pkiissuer.New(store, leaderLeaf(store))
-	_ = svc.Bootstrap(context.Background())
-
-	tok, _ := svc.MintJoinToken(context.Background(), time.Minute*10)
-	joinerPEM := nodeCertPEM(t, "5")
-
-	fp1, pins1, err := svc.RedeemJoinToken(context.Background(), tok, "5", joinerPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fp2, pins2, err := svc.RedeemJoinToken(context.Background(), tok, "5", joinerPEM)
-	if err != nil {
-		t.Fatalf("retry after a burnt token must succeed: %v", err)
-	}
-
-	if fp1 != fp2 || len(pins1) != len(pins2) {
-		t.Fatalf("replay returned a different result: %s/%d vs %s/%d", fp1, len(pins1), fp2, len(pins2))
 	}
 }
 

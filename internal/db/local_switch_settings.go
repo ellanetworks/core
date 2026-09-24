@@ -111,7 +111,7 @@ func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool)
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicLocalSwitchSettings}, 0)
+	db.publishOpTopics([]Topic{TopicLocalSwitchSettings})
 	span.SetStatus(codes.Ok, "")
 
 	return nil

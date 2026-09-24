@@ -113,7 +113,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicFlowAccountingSettings}, 0)
+	db.publishOpTopics([]Topic{TopicFlowAccountingSettings})
 	span.SetStatus(codes.Ok, "")
 
 	return nil

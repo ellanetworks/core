@@ -138,9 +138,7 @@ func (a *testApplier) seen() []*Command {
 }
 
 // TestFSM_Apply_AdvancesAppliedIndex confirms that AppliedIndex tracks the
-// highest index successfully applied, and that applier errors still advance
-// the index per hashicorp/raft semantics (the error is returned as the
-// response but the log is committed).
+// highest index successfully applied.
 func TestFSM_Apply_AdvancesAppliedIndex(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())

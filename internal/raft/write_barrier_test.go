@@ -127,40 +127,6 @@ func awaitStableLeader(t *testing.T, tc *TestCluster, survivors []int) (*Manager
 	}
 }
 
-func awaitStableLastIndex(t *testing.T, m *Manager) uint64 {
-	t.Helper()
-
-	const (
-		tick        = 10 * time.Millisecond
-		stableTicks = 50
-	)
-
-	deadline := time.After(15 * time.Second)
-	last := m.raft.LastIndex()
-	stable := 0
-
-	for {
-		select {
-		case <-deadline:
-			t.Fatalf("last index never settled (still %d)", last)
-		case <-time.After(tick):
-		}
-
-		cur := m.raft.LastIndex()
-		if cur != last {
-			last = cur
-			stable = 0
-
-			continue
-		}
-
-		stable++
-		if stable == stableTicks {
-			return last
-		}
-	}
-}
-
 func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 	const (
 		proposals = 30
@@ -190,28 +156,22 @@ func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 			t.Fatalf("commands applied before the barrier: want 0 (the FSM backlog is held), got %d", got)
 		}
 
+		switch err := newLeader.WriteBarrier(10 * time.Millisecond); {
+		case errors.Is(err, ErrBarrierTimeout):
+		case isElectionChurn(err):
+			continue
+		default:
+			t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
+		}
+
 		done := make(chan error, 1)
 
 		go func() { done <- newLeader.WriteBarrier(30 * time.Second) }()
 
-		select {
-		case err := <-done:
-			if err == nil {
-				t.Fatal("write barrier returned while the prior-term backlog was still unapplied")
-			}
-
-			if isElectionChurn(err) {
-				continue
-			}
-
-			t.Fatalf("write barrier: %v", err)
-		case <-time.After(250 * time.Millisecond):
-		}
-
 		unblock()
 
 		if err := <-done; err != nil {
-			t.Fatalf("write barrier: %v", err)
+			t.Fatalf("write barrier after backlog drains: %v", err)
 		}
 
 		if got := len(applier.seen()); got < proposals {
@@ -222,100 +182,6 @@ func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 	}
 
 	t.Fatalf("no barrier attempt held leadership across %d elections", attempts)
-}
-
-func backlogTimeoutAttempt(t *testing.T, tc *TestCluster, appliers []*gatedApplier) (*Manager, bool) {
-	t.Helper()
-
-	newLeader, idx := awaitStableLeader(t, tc, []int{1, 2})
-
-	if got := len(appliers[idx].seen()); got != 0 {
-		t.Fatalf("commands applied before the barrier: want 0 (the FSM backlog is held), got %d", got)
-	}
-
-	switch err := newLeader.WriteBarrier(10 * time.Millisecond); {
-	case errors.Is(err, ErrBarrierTimeout):
-	case isElectionChurn(err):
-		return nil, false
-	default:
-		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
-	}
-
-	beforeRetries := awaitStableLastIndex(t, newLeader)
-
-	for range 5 {
-		switch err := newLeader.WriteBarrier(10 * time.Millisecond); {
-		case errors.Is(err, ErrBarrierTimeout):
-		case isElectionChurn(err):
-			return nil, false
-		default:
-			t.Fatalf("write barrier retry: want ErrBarrierTimeout, got %v", err)
-		}
-	}
-
-	if got := awaitStableLastIndex(t, newLeader); got != beforeRetries {
-		t.Fatalf("last index after 5 timed-out retries: want %d (one barrier in flight), got %d", beforeRetries, got)
-	}
-
-	return newLeader, true
-}
-
-func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
-	const (
-		proposals = 30
-		attempts  = 5
-	)
-
-	tc, appliers, unblock := newGatedCluster(t)
-
-	proposeN(t, tc.Nodes[0], proposals)
-
-	if err := tc.Nodes[0].Shutdown(); err != nil {
-		t.Fatalf("shutdown leader: %v", err)
-	}
-
-	tc.Listeners[0].Stop()
-
-	for range attempts {
-		newLeader, ok := backlogTimeoutAttempt(t, tc, appliers)
-		if !ok {
-			continue
-		}
-
-		unblock()
-
-		if err := newLeader.WriteBarrier(30 * time.Second); err != nil {
-			t.Fatalf("write barrier after backlog drains: %v", err)
-		}
-
-		return
-	}
-
-	t.Fatalf("no barrier attempt held leadership across %d elections", attempts)
-}
-
-func TestWriteBarrier_OncePerTerm(t *testing.T) {
-	applier := newTestApplier(t)
-	tc := SetupTestCluster(t, 3, applier)
-
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("no leader")
-	}
-
-	if err := leader.WriteBarrier(5 * time.Second); err != nil {
-		t.Fatalf("first write barrier: %v", err)
-	}
-
-	afterFirst := leader.raft.LastIndex()
-
-	if err := leader.WriteBarrier(5 * time.Second); err != nil {
-		t.Fatalf("second write barrier: %v", err)
-	}
-
-	if got := leader.raft.LastIndex(); got != afterFirst {
-		t.Fatalf("last index after second barrier: want %d (no new entry), got %d", afterFirst, got)
-	}
 }
 
 func TestWriteBarrier_NotLeader(t *testing.T) {

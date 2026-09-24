@@ -9,6 +9,7 @@ import {
   ContentCopy as CopyIcon,
 } from "@mui/icons-material";
 import type { DecodedNGAPMessage } from "@/queries/radio_events";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 const INDENT_PX = 16;
 const CHEVRON_W = 24;
@@ -125,18 +126,7 @@ const RawHexLine: React.FC<{ depth: number; hex: string; label?: string }> = ({
   hex,
   label = "raw_hex",
 }) => {
-  const [copied, setCopied] = React.useState(false);
-
-  const copy = () => {
-    navigator.clipboard?.writeText(hex);
-    setCopied(true);
-  };
-
-  React.useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(timer);
-  }, [copied]);
+  const copy = useCopyToClipboard();
 
   return (
     <TreeRow depth={depth}>
@@ -164,10 +154,10 @@ const RawHexLine: React.FC<{ depth: number; hex: string; label?: string }> = ({
       >
         {` (${hex.length / 2} ${hex.length === 2 ? "byte" : "bytes"})`}
       </Box>
-      <Tooltip title={copied ? "Copied" : "Copy raw hex"}>
+      <Tooltip title="Copy raw hex">
         <IconButton
           size="small"
-          onClick={copy}
+          onClick={() => copy(hex, "Hex")}
           aria-label="Copy raw hex"
           sx={{ p: 0.25, ml: 0.5, flexShrink: 0 }}
         >

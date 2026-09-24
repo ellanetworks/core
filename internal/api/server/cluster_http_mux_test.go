@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -103,26 +102,6 @@ func TestRemovedNodeFence_AllowsCurrentMember(t *testing.T) {
 	if !nextCalled {
 		t.Fatal("expected next handler to be called for current member")
 	}
-}
-
-// newLeaderTestDB creates a real SQLite-backed DB and waits up to 3s for
-// the embedded single-node Raft cluster to elect itself leader, so the
-// returned DB is guaranteed to accept replicated write calls.
-func newLeaderTestDB(t *testing.T) *db.Database {
-	t.Helper()
-
-	testDB := newTestDB(t)
-
-	deadline := time.Now().Add(3 * time.Second)
-	for !testDB.IsLeader() && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if !testDB.IsLeader() {
-		t.Fatal("single-node DB did not become leader")
-	}
-
-	return testDB
 }
 
 func TestRemovedNodeFence_MissingPeerIdentity(t *testing.T) {

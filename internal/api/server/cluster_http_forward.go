@@ -122,7 +122,7 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 			"schema migration pending", ellaraft.ForwardCodeMigrationPend, err)
 
 	default:
-		if code := forwardCodeForDomainErr(err); code != "" {
+		if code := db.ForwardCodeFor(err); code != "" {
 			writeProposeForwardCodedError(ctx, w, http.StatusConflict,
 				err.Error(), code, err)
 
@@ -131,23 +131,6 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 
 		writeProposeForwardError(ctx, w, http.StatusInternalServerError,
 			"apply failed", err)
-	}
-}
-
-func forwardCodeForDomainErr(err error) string {
-	switch {
-	case errors.Is(err, db.ErrJoinTokenAlreadyConsumed):
-		return ellaraft.ForwardCodeTokenConsumed
-	case errors.Is(err, db.ErrJoinTokenExpired):
-		return ellaraft.ForwardCodeTokenExpired
-	case errors.Is(err, db.ErrJoinTokenNodeMismatch):
-		return ellaraft.ForwardCodeTokenNodeMism
-	case errors.Is(err, db.ErrAlreadyExists):
-		return ellaraft.ForwardCodeAlreadyExists
-	case errors.Is(err, db.ErrNotFound):
-		return ellaraft.ForwardCodeNotFound
-	default:
-		return ""
 	}
 }
 

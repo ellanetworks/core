@@ -52,9 +52,8 @@ type Database struct {
 	// migrationCheckCh fan-ins re-trigger signals from the FSM applier
 	// (after UpsertClusterMember or CmdMigrateShared commits) so the
 	// leader re-runs CheckPendingMigrations without waiting for the
-	// next leadership change. Debounced by the worker.
-	migrationCheckCh     chan struct{}
-	migrationCheckCancel context.CancelFunc
+	// next leadership change.
+	migrationCheckCh chan struct{}
 
 	// Subscriber statements. The PreV18 variants omit the description
 	// column for nodes whose schema has not reached v18 yet.
@@ -464,10 +463,6 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 func (db *Database) Close() error {
 	var raftErr, connErr error
 
-	if db.migrationCheckCancel != nil {
-		db.migrationCheckCancel()
-	}
-
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
 	}
@@ -480,8 +475,7 @@ func (db *Database) Close() error {
 }
 
 // signalMigrationCheck requests a non-blocking re-run of
-// CheckPendingMigrations. Debounced by runMigrationCheckWorker. Safe to
-// call from applier goroutines.
+// CheckPendingMigrations. Safe to call from applier goroutines.
 func (db *Database) signalMigrationCheck() {
 	if db.migrationCheckCh == nil {
 		return
@@ -493,42 +487,13 @@ func (db *Database) signalMigrationCheck() {
 	}
 }
 
-// runMigrationCheckWorker consumes migrationCheckCh signals, waits 100ms
-// to coalesce bursts, and calls CheckPendingMigrations. The check itself
-// no-ops on followers; running it on every node is harmless because
-// leader-state is checked inside.
-func (db *Database) runMigrationCheckWorker(ctx context.Context) {
-	const debounce = 100 * time.Millisecond
+func (db *Database) checkPendingMigrations(ctx context.Context) {
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-db.migrationCheckCh:
-		}
-
-		timer := time.NewTimer(debounce)
-
-	drain:
-		for {
-			select {
-			case <-db.migrationCheckCh:
-			case <-timer.C:
-				break drain
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			}
-		}
-
-		checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
-		if err := db.CheckPendingMigrations(checkCtx); err != nil {
-			logger.From(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
-				zap.Error(err))
-		}
-
-		cancel()
+	if err := db.CheckPendingMigrations(checkCtx); err != nil {
+		logger.From(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
+			zap.Error(err))
 	}
 }
 
@@ -558,14 +523,12 @@ func (db *Database) Changefeed() *Changefeed {
 	return db.changefeed
 }
 
-// LeaderObserver returns the Raft leadership observer for registering
-// callbacks that react to leadership transitions.
-func (db *Database) LeaderObserver() *ellaraft.LeaderObserver {
+func (db *Database) OnLeadership(hook ellaraft.LeaderHook) {
 	if db.raftManager == nil {
-		return nil
+		return
 	}
 
-	return db.raftManager.LeaderObserver()
+	db.raftManager.OnLeadership(hook)
 }
 
 // IsLeader returns true if this node is the current Raft leader.
@@ -776,17 +739,20 @@ func (db *Database) transferCandidates() ([]ellaraft.Server, bool) {
 		members = nil
 	}
 
+	return selectTransferCandidates(db.raftManager.Servers(), db.raftManager.RaftID(), members)
+}
+
+func selectTransferCandidates(servers []ellaraft.Server, self string, members []ClusterMember) ([]ellaraft.Server, bool) {
 	draining := make(map[string]bool, len(members))
 	for _, m := range members {
 		draining[m.NodeID] = normalizeDrainState(m.DrainState) != DrainStateActive
 	}
 
-	self := db.raftManager.RaftID()
 	excluded := false
 
 	var eligible []ellaraft.Server
 
-	for _, srv := range db.raftManager.Servers() {
+	for _, srv := range servers {
 		if srv.NodeID == self || srv.Suffrage != "voter" {
 			continue
 		}
@@ -1172,55 +1138,12 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, string, st
 	return floor, laggard, LaggardReasonSchemaBehind, nil
 }
 
-// clusterCoordinator runs the migration gate on leadership transitions
+// runClusterCoordinator runs the migration gate on leadership transitions
 // and on a periodic timer while leader. The timer is what catches a
 // voter swapping its binary (no event fires on that).
-type clusterCoordinator struct {
-	db        *Database
-	parentCtx context.Context // cancelled by Database.Close
+func (db *Database) runClusterCoordinator(ctx context.Context) {
+	db.checkPendingMigrations(ctx)
 
-	mu         sync.Mutex
-	cancelTick context.CancelFunc
-}
-
-const (
-	migrationGateTickInterval = 5 * time.Second
-	reconcileBarrierTimeout   = 10 * time.Second
-)
-
-func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
-	return &clusterCoordinator{db: db, parentCtx: parentCtx}
-}
-
-func (c *clusterCoordinator) OnBecameLeader() {
-	c.db.signalMigrationCheck()
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Guard against future observer changes that could fire OnBecameLeader
-	// twice without OnLostLeadership in between.
-	if c.cancelTick != nil {
-		c.cancelTick()
-	}
-
-	tickCtx, cancel := context.WithCancel(c.parentCtx)
-	c.cancelTick = cancel
-
-	go c.runPeriodicCheck(tickCtx)
-}
-
-func (c *clusterCoordinator) OnLostLeadership() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancelTick != nil {
-		c.cancelTick()
-		c.cancelTick = nil
-	}
-}
-
-func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 	ticker := time.NewTicker(migrationGateTickInterval)
 	defer ticker.Stop()
 
@@ -1228,15 +1151,22 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-db.migrationCheckCh:
+			db.checkPendingMigrations(ctx)
 		case <-ticker.C:
-			c.db.signalMigrationCheck()
+			db.checkPendingMigrations(ctx)
 
-			if err := c.db.reconcileClusterMembers(ctx); err != nil {
+			if err := db.reconcileClusterMembers(ctx); err != nil {
 				logger.From(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
 			}
 		}
 	}
 }
+
+const (
+	migrationGateTickInterval = 5 * time.Second
+	reconcileBarrierTimeout   = 10 * time.Second
+)
 
 func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 	if !db.clusterEnabled || db.raftManager == nil || !db.raftManager.IsLeader() {
@@ -1555,14 +1485,8 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.adoptRaftManager(raftMgr)
 
 	db.migrationCheckCh = make(chan struct{}, 1)
-	workerCtx, workerCancel := context.WithCancel(context.Background())
-	db.migrationCheckCancel = workerCancel
 
-	go db.runMigrationCheckWorker(workerCtx)
-
-	if observer := raftMgr.LeaderObserver(); observer != nil {
-		observer.Register(newClusterCoordinator(db, workerCtx))
-	}
+	raftMgr.OnLeadership(db.runClusterCoordinator)
 
 	RegisterMetrics(db)
 
@@ -1579,11 +1503,9 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	// Replicated singleton rows (JWT secret, operator, admin user) are
 	// seeded on leadership, not here: Initialize proposes through Raft and
 	// no node is leader this early. HA mode seeds through runLeaderInit in
-	// pkg/runtime; standalone seeds through the callback registered below.
-	if !raftCfg.Enabled && raftMgr != nil {
-		if observer := raftMgr.LeaderObserver(); observer != nil {
-			observer.Register(newStandaloneInitializer(db, workerCtx))
-		}
+	// pkg/runtime; standalone seeds through the hook registered below.
+	if !raftCfg.Enabled {
+		raftMgr.OnLeadership(db.runStandaloneInitializer)
 	}
 
 	logger.From(ctx, logger.DBLog).Debug("Database Initialized")

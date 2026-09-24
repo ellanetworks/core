@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/joinreq"
 )
@@ -110,10 +109,10 @@ func TestAwaitUnblocksOnShutdown(t *testing.T) {
 	c := joinreq.New()
 	c.Open()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	if _, err := c.Await(ctx); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := c.Await(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Await must return when the process is shutting down, got %v", err)
 	}
 }
