@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -36,7 +35,7 @@ type policyWithRulesPayload struct {
 func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "INSERT", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -44,7 +43,7 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -52,6 +51,8 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate policy id: %w", err)
 		}
 
@@ -59,14 +60,19 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 	}
 
 	_, err := opCreatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "UPDATE", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -74,14 +80,19 @@ func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, r
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
 
 	_, err := opUpdatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *policyWithRulesPayload) (any, error) {

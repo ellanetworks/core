@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -74,7 +73,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", RadioEventsTableName),
+			semconv.DBCollectionName(RadioEventsTableName),
 		),
 	)
 	defer span.End()
@@ -86,13 +85,10 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 
 	err := db.conn().Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -108,9 +104,9 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RadioEventsTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(RadioEventsTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -136,8 +132,6 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	err := db.conn().Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			var fallbackCount NumItems
 
 			countErr := db.conn().Query(ctx, db.countRadioEventsStmt, filters).Get(&fallbackCount)
@@ -148,8 +142,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 			return nil, fallbackCount.Count, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -158,8 +151,6 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return logs, count, nil
 }
@@ -176,7 +167,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", RadioEventsTableName),
+			semconv.DBCollectionName(RadioEventsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -193,13 +184,10 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 
 	err := db.conn().Query(ctx, db.deleteOldRadioEventsStmt, args).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -215,7 +203,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", RadioEventsTableName),
+			semconv.DBCollectionName(RadioEventsTableName),
 		),
 	)
 	defer span.End()
@@ -227,13 +215,10 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 
 	err := db.conn().Query(ctx, db.deleteAllRadioEventsStmt).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -249,7 +234,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RadioEventsTableName),
+			semconv.DBCollectionName(RadioEventsTableName),
 			attribute.Int("radio_event.id", id),
 		),
 	)
@@ -265,17 +250,13 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 	err := db.conn().Query(ctx, db.getRadioEventByIDStmt, log).Get(&log)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &log, nil
 }

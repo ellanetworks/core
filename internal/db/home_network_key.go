@@ -14,8 +14,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -96,7 +94,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -111,17 +109,13 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 	err := db.conn().Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return keys, nil
 }
@@ -138,7 +132,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -153,17 +147,13 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 	err := db.conn().Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -180,7 +170,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -195,17 +185,13 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 	err := db.conn().Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -214,7 +200,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -222,7 +208,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -233,18 +219,18 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
 	if key.ID == "" {
-		return fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
-	}
-
-	_, err := opCreateHomeNetworkKey.Invoke(ctx, db, key)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		err := fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
+		recordSpanError(span, err)
 
 		return err
 	}
 
-	span.SetStatus(codes.Ok, "")
+	_, err := opCreateHomeNetworkKey.Invoke(ctx, db, key)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return err
+	}
 
 	return nil
 }
@@ -253,7 +239,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -261,7 +247,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -273,13 +259,10 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 
 	_, err := opDeleteHomeNetworkKey.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -296,7 +279,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", HomeNetworkKeysTableName),
+			semconv.DBCollectionName(HomeNetworkKeysTableName),
 		),
 	)
 	defer span.End()
@@ -310,13 +293,10 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

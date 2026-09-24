@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -133,9 +132,9 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SubscribersTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(SubscribersTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -164,21 +163,15 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
 			if countErr != nil {
-				span.RecordError(countErr)
-				span.SetStatus(codes.Error, "fallback count failed")
-
 				return nil, 0, nil
 			}
 
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -187,8 +180,6 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return subs, count, nil
 }
@@ -204,7 +195,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -222,13 +213,10 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	}
 
 	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -244,7 +232,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -264,17 +252,13 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -282,7 +266,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", SubscribersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -290,7 +274,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -303,6 +287,8 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	if subscriber.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate subscriber id: %w", err)
 		}
 
@@ -311,13 +297,10 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	_, err := opCreateSubscriber.Invoke(ctx, db, subscriber)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -325,7 +308,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -333,7 +316,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -345,13 +328,10 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	_, err := opUpdateSubscriberProfile.Invoke(ctx, db, subscriber)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -359,7 +339,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
 	querySummary := fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -367,7 +347,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -384,13 +364,10 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 
 	_, err := opEditSubscriberSeqNum.Invoke(ctx, db, subscriber)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -398,7 +375,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", SubscribersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -406,7 +383,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -418,13 +395,10 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	_, err := opDeleteSubscriber.Invoke(ctx, db, &stringPayload{Value: imsi})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -440,7 +414,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SubscribersTableName),
+			semconv.DBCollectionName(SubscribersTableName),
 		),
 	)
 	defer span.End()
@@ -454,13 +428,10 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countSubscribersStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

@@ -10,8 +10,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -57,7 +55,7 @@ func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
+			semconv.DBCollectionName(LocalSwitchSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -71,13 +69,10 @@ func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
 
 	err := db.conn().Query(ctx, db.getLocalSwitchSettingsStmt).Get(&localSwitchSettings)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return localSwitchSettings.Enabled, nil
 }
@@ -85,7 +80,7 @@ func (db *Database) IsLocalSwitchEnabled(ctx context.Context) (bool, error) {
 func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", LocalSwitchSettingsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -93,7 +88,7 @@ func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", LocalSwitchSettingsTableName),
+			semconv.DBCollectionName(LocalSwitchSettingsTableName),
 		),
 	)
 	defer span.End()
@@ -105,14 +100,12 @@ func (db *Database) UpdateLocalSwitchSettings(ctx context.Context, enabled bool)
 
 	_, err := db.applyUpdateLocalSwitchSettings(ctx, &boolPayload{Value: enabled})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
 
 	db.publishOpTopics([]Topic{TopicLocalSwitchSettings})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

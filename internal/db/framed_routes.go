@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -47,7 +45,7 @@ type framedRoutesPayload struct {
 func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID string, prefixes []netip.Prefix) error {
 	querySummary := fmt.Sprintf("%s %s", "REPLACE", FramedRoutesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -55,7 +53,7 @@ func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("REPLACE"),
-			attribute.String("db.collection.name", FramedRoutesTableName),
+			semconv.DBCollectionName(FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -76,13 +74,10 @@ func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID
 		Prefixes:      normalized,
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -133,7 +128,7 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FramedRoutesTableName),
+			semconv.DBCollectionName(FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -150,17 +145,13 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 	err := db.conn().Query(ctx, db.listFramedRoutesByPairStmt, params).GetAll(&routes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return []SubscriberFramedRoute{}, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return routes, nil
 }
@@ -176,7 +167,7 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FramedRoutesTableName),
+			semconv.DBCollectionName(FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -193,17 +184,13 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 	err := db.conn().Query(ctx, db.listFramedRoutesByDNStmt, params).GetAll(&routes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return []SubscriberFramedRoute{}, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return routes, nil
 }
@@ -219,7 +206,7 @@ func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramed
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", FramedRoutesTableName),
+			semconv.DBCollectionName(FramedRoutesTableName),
 		),
 	)
 	defer span.End()
@@ -234,17 +221,13 @@ func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramed
 	err := db.conn().Query(ctx, db.listAllFramedRoutesStmt).GetAll(&routes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return []SubscriberFramedRoute{}, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return routes, nil
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -69,9 +68,9 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RoutesTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(RoutesTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -93,8 +92,6 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	err := db.conn().Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountRoutes(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -103,8 +100,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -113,8 +109,6 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return routes, count, nil
 }
@@ -132,7 +126,7 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -147,18 +141,13 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 	err := db.conn().Query(ctx, db.listAllRoutesStmt).GetAll(&routes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return routes, nil
 }
@@ -174,7 +163,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -189,17 +178,13 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 	err := db.conn().Query(ctx, db.getRouteStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -215,7 +200,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -229,21 +214,17 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 
 	err := t.tx.Query(ctx, t.db.createRouteStmt, route).Get(&outcome)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	id, err := outcome.Result().LastInsertId()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return id, nil
 }
@@ -259,7 +240,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -271,13 +252,10 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 
 	err := t.tx.Query(ctx, t.db.deleteRouteStmt, Route{ID: id}).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -285,7 +263,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", RoutesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -293,7 +271,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -305,15 +283,12 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	result, err := db.applyCreateRoute(ctx, route)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return 0, err
 	}
 
 	id, _ := result.(int64)
-
-	span.SetStatus(codes.Ok, "")
 
 	return id, nil
 }
@@ -321,7 +296,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", RoutesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -329,7 +304,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -341,13 +316,10 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 	_, err := db.applyDeleteRoute(ctx, &int64Payload{Value: id})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -364,7 +336,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RoutesTableName),
+			semconv.DBCollectionName(RoutesTableName),
 		),
 	)
 	defer span.End()
@@ -378,13 +350,10 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countRoutesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

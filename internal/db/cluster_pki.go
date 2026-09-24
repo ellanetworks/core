@@ -21,7 +21,6 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
-	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -267,7 +266,7 @@ func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ClusterNodeCertsTableName),
+			semconv.DBCollectionName(ClusterNodeCertsTableName),
 		),
 	)
 	defer span.End()
@@ -278,6 +277,8 @@ func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
+
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("list cluster node certs: %w", err)
 	}
@@ -299,7 +300,7 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ClusterNodeCertsTableName),
+			semconv.DBCollectionName(ClusterNodeCertsTableName),
 		),
 	)
 	defer span.End()
@@ -312,6 +313,8 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 			return nil, ErrNotFound
 		}
 
+		recordSpanError(span, err)
+
 		return nil, fmt.Errorf("get cluster node cert: %w", err)
 	}
 
@@ -323,7 +326,7 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCert) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", ClusterNodeCertsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -331,14 +334,19 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", ClusterNodeCertsTableName),
+			semconv.DBCollectionName(ClusterNodeCertsTableName),
 		),
 	)
 	defer span.End()
 
 	_, err := opUpsertNodeCert.Invoke(ctx, db, r)
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // DeleteClusterNodeCert removes a node's pin. Called from
@@ -347,7 +355,7 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterNodeCertsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -355,14 +363,19 @@ func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID string) er
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", ClusterNodeCertsTableName),
+			semconv.DBCollectionName(ClusterNodeCertsTableName),
 		),
 	)
 	defer span.End()
 
 	_, err := opDeleteNodeCert.Invoke(ctx, db, &ClusterNodeCert{NodeID: nodeID})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // MintJoinTokenRecord persists a join-token row so the HMAC-validated
@@ -371,7 +384,7 @@ func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID string) er
 func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", ClusterJoinTokensTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -379,14 +392,19 @@ func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", ClusterJoinTokensTableName),
+			semconv.DBCollectionName(ClusterJoinTokensTableName),
 		),
 	)
 	defer span.End()
 
 	_, err := opMintJoinToken.Invoke(ctx, db, r)
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // GetJoinToken returns the token row for id, or ErrNotFound.
@@ -401,7 +419,7 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ClusterJoinTokensTableName),
+			semconv.DBCollectionName(ClusterJoinTokensTableName),
 		),
 	)
 	defer span.End()
@@ -413,6 +431,8 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("get join token: %w", err)
 	}
@@ -426,7 +446,7 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID string) error {
 	querySummary := fmt.Sprintf("%s %s (consume)", "UPDATE", ClusterJoinTokensTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -434,7 +454,7 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID stri
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", ClusterJoinTokensTableName),
+			semconv.DBCollectionName(ClusterJoinTokensTableName),
 		),
 	)
 	defer span.End()
@@ -444,12 +464,17 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID stri
 		ConsumedAt: time.Now().Unix(),
 		ConsumedBy: nodeID,
 	})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
-	_, span := tracer.Start(ctx, "db/redeem_join_token",
+	ctx, span := tracer.Start(ctx, "db/redeem_join_token",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
@@ -461,11 +486,16 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 		CertPEM:     certPEM,
 	})
 	if err != nil {
+		recordSpanError(span, err)
+
 		return nil, err
 	}
 
 	if res == nil || len(res.Pins) == 0 {
-		return nil, fmt.Errorf("redeem returned an empty pin snapshot")
+		err = fmt.Errorf("redeem returned an empty pin snapshot")
+		recordSpanError(span, err)
+
+		return nil, err
 	}
 
 	return res.Pins, nil
@@ -476,7 +506,7 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) error {
 	querySummary := fmt.Sprintf("%s %s (stale)", "DELETE", ClusterJoinTokensTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -484,7 +514,7 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", ClusterJoinTokensTableName),
+			semconv.DBCollectionName(ClusterJoinTokensTableName),
 		),
 	)
 	defer span.End()
@@ -495,8 +525,13 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 		ExpiresAt:  now.Add(-pki.JoinTokenClockSkew).Unix(),
 		ConsumedAt: cutoffConsumed,
 	})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 // GetClusterJoinHMACKey returns the join-token HMAC key, or
@@ -512,7 +547,7 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", ClusterJoinHMACTableName),
+			semconv.DBCollectionName(ClusterJoinHMACTableName),
 		),
 	)
 	defer span.End()
@@ -524,6 +559,8 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("get cluster join hmac key: %w", err)
 	}
@@ -537,7 +574,7 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 func (db *Database) InitClusterJoinHMACKey(ctx context.Context, key []byte) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", ClusterJoinHMACTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -545,12 +582,17 @@ func (db *Database) InitClusterJoinHMACKey(ctx context.Context, key []byte) erro
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", ClusterJoinHMACTableName),
+			semconv.DBCollectionName(ClusterJoinHMACTableName),
 		),
 	)
 	defer span.End()
 
 	_, err := opInitJoinHMAC.Invoke(ctx, db, &ClusterJoinHMAC{HMACKey: key})
+	if err != nil {
+		recordSpanError(span, err)
 
-	return err
+		return err
+	}
+
+	return nil
 }

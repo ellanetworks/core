@@ -44,6 +44,8 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	tmpDir, err := os.MkdirTemp(db.dataDir, "backup-*")
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to create temp dir for backup: %w", err)
 	}
 
@@ -52,11 +54,15 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	dbTmp := filepath.Join(tmpDir, DBFilename)
 
 	if _, err := db.conn().PlainDB().ExecContext(ctx, "VACUUM INTO ?", dbTmp); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to VACUUM INTO backup file: %w", err)
 	}
 
 	dbSum, err := sha256File(dbTmp)
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to hash backup file: %w", err)
 	}
 
@@ -78,6 +84,8 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to encode manifest: %w", err)
 	}
 
@@ -85,10 +93,14 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	tarWriter := tar.NewWriter(gzWriter)
 
 	if err := writeTarFile(tarWriter, "manifest.json", manifestBytes, manifest.CreatedAt); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
 
 	if err := writeTarFromDisk(tarWriter, dbTmp, DBFilename); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to write %s: %w", DBFilename, err)
 	}
 
@@ -97,10 +109,14 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	fmt.Fprintln(os.Stderr, "warning: backup archive contains cluster signing keys; store and transfer encrypted")
 
 	if err := tarWriter.Close(); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to close tar writer: %w", err)
 	}
 
 	if err := gzWriter.Close(); err != nil {
+		recordSpanError(span, err)
+
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
 

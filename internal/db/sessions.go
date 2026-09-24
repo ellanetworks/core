@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -56,7 +54,7 @@ type DeleteOldestArgs struct {
 func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -64,7 +62,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -77,6 +75,8 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 	if session.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate session id: %w", err)
 		}
 
@@ -85,13 +85,10 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 
 	_, err := opCreateSession.Invoke(ctx, db, session)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -107,7 +104,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -122,17 +119,13 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	err := db.conn().Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -140,7 +133,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -148,7 +141,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -160,13 +153,10 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	_, err := opDeleteSessionByTokenHash.Invoke(ctx, db, &bytesPayload{Value: tokenHash})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -174,7 +164,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -182,7 +172,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -196,13 +186,10 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	count, err := opDeleteExpiredSessions.Invoke(ctx, db, &int64Payload{Value: nowUnix})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return 0, err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return count, nil
 }
@@ -218,7 +205,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -234,13 +221,10 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 
 	err := db.conn().Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -256,7 +240,7 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -270,13 +254,10 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 
 	err := db.conn().Query(ctx, db.countExpiredSessionsStmt, SessionCutoff{NowUnix: nowUnix}).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -284,7 +265,7 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -292,7 +273,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -304,13 +285,10 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 
 	_, err := opDeleteOldestSessions.Invoke(ctx, db, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -318,7 +296,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -326,7 +304,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -338,21 +316,18 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string)
 
 	_, err := opDeleteAllSessionsForUser.Invoke(ctx, db, &stringPayload{Value: userID})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
 
 func (db *Database) DeleteAllSessions(ctx context.Context) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName)
+	querySummary := fmt.Sprintf("%s %s (all)", "DELETE", SessionsTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -360,7 +335,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", SessionsTableName),
+			semconv.DBCollectionName(SessionsTableName),
 		),
 	)
 	defer span.End()
@@ -372,13 +347,10 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	_, err := opDeleteAllSessions.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

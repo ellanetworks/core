@@ -11,7 +11,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -48,9 +47,9 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", BGPPeersTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(BGPPeersTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -72,8 +71,6 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 	err := db.conn().Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountBGPPeers(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -82,8 +79,7 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -92,8 +88,6 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return peers, count, nil
 }
@@ -109,7 +103,7 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -124,18 +118,13 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 	err := db.conn().Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return peers, nil
 }
@@ -151,7 +140,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -166,19 +155,15 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 	err := db.conn().Query(ctx, db.getBGPPeerStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "not found")
+			recordSpanError(span, err)
 
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -186,7 +171,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -194,7 +179,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -206,8 +191,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	result, err := db.applyCreateBGPPeer(ctx, peer)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
@@ -215,7 +199,6 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	peer.ID = result.(int)
 
 	db.publishOpTopics([]Topic{TopicBGPPeers})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -223,7 +206,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -231,7 +214,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -243,14 +226,12 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	_, err := db.applyUpdateBGPPeer(ctx, peer)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
 
 	db.publishOpTopics([]Topic{TopicBGPPeers})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -258,7 +239,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -266,7 +247,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -278,14 +259,12 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	_, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
 
 	db.publishOpTopics([]Topic{TopicBGPPeers})
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -301,7 +280,7 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", BGPPeersTableName),
+			semconv.DBCollectionName(BGPPeersTableName),
 		),
 	)
 	defer span.End()
@@ -315,13 +294,10 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countBGPPeersStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

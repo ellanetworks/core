@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -63,7 +62,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", AuditLogsTableName),
+			semconv.DBCollectionName(AuditLogsTableName),
 		),
 	)
 	defer span.End()
@@ -74,18 +73,18 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
 	if auditLog.ID == "" {
-		return fmt.Errorf("InsertAuditLog: ID must be set by the caller")
-	}
-
-	err := db.conn().Query(context.WithoutCancel(ctx), db.insertAuditLogStmt, auditLog).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		err := fmt.Errorf("InsertAuditLog: ID must be set by the caller")
+		recordSpanError(span, err)
 
 		return err
 	}
 
-	span.SetStatus(codes.Ok, "")
+	err := db.conn().Query(context.WithoutCancel(ctx), db.insertAuditLogStmt, auditLog).Run()
+	if err != nil {
+		recordSpanError(span, err)
+
+		return err
+	}
 
 	return nil
 }
@@ -105,9 +104,9 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", AuditLogsTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(AuditLogsTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -129,13 +128,10 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 	err := db.conn().Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, 0, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -144,8 +140,6 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return logs, count, nil
 }
@@ -162,7 +156,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", AuditLogsTableName),
+			semconv.DBCollectionName(AuditLogsTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -178,13 +172,10 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 
 	err := db.conn().Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: cutoff}).Run()
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

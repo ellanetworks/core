@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -54,7 +53,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RetentionPolicyTableName),
+			semconv.DBCollectionName(RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -71,13 +70,10 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 	err := db.conn().Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return row.Days, nil
 }
@@ -94,7 +90,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", RetentionPolicyTableName),
+			semconv.DBCollectionName(RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
 	)
@@ -110,17 +106,13 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 	err := db.conn().Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return false
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return false
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return true
 }
@@ -131,7 +123,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
 	querySummary := fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -139,7 +131,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
-			attribute.String("db.collection.name", RetentionPolicyTableName),
+			semconv.DBCollectionName(RetentionPolicyTableName),
 			attribute.String("policy.category", string(policy.Category)),
 			attribute.Int("policy.days", policy.Days),
 		),
@@ -154,6 +146,8 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate retention policy id: %w", err)
 		}
 
@@ -162,13 +156,10 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 
 	_, err := opSetRetentionPolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

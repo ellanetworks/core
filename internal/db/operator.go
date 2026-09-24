@@ -13,8 +13,6 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -164,7 +162,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -179,18 +177,14 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		if err == sqlair.ErrNoRows {
-			span.SetStatus(codes.Ok, "operator not initialized")
 			return false
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 		logger.From(ctx, logger.DBLog).Error("Failed to get operator", zap.Error(err))
 
 		return false
 	}
-
-	span.SetStatus(codes.Ok, "operator initialized")
 
 	return op.ID > 0
 }
@@ -198,7 +192,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -206,7 +200,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -218,13 +212,10 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	_, err := opInitializeOperator.Invoke(ctx, db, initialOperator)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -241,7 +232,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -255,13 +246,10 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &op, nil
 }
@@ -270,7 +258,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -278,7 +266,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -292,21 +280,17 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 
 	err := op.SetSupportedTacs(supportedTACs)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to set supported TACs")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
 	_, err = opUpdateOperatorTracking.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -315,7 +299,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -323,7 +307,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -337,13 +321,10 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	_, err := opUpdateOperatorID.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -360,7 +341,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -374,13 +355,10 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return "", fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return op.OperatorCode, nil
 }
@@ -389,7 +367,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -397,7 +375,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -411,13 +389,10 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	_, err := opUpdateOperatorCode.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -426,7 +401,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -434,7 +409,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -448,29 +423,24 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 	err := op.SetCiphering(cipheringOrder)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to set ciphering order")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to set ciphering order: %w", err)
 	}
 
 	err = op.SetIntegrity(integrityOrder)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to set integrity order")
+		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
 	_, err = opUpdateOperatorSecurityAlgorithms.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -479,7 +449,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -487,7 +457,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -501,13 +471,10 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	_, err := opUpdateOperatorSPN.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -525,7 +492,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 
 	querySummary := fmt.Sprintf("%s %s (amf identity)", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -533,7 +500,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -547,13 +514,10 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 
 	_, err := opUpdateOperatorAMFIdentity.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -562,7 +526,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) error {
 	querySummary := fmt.Sprintf("%s %s (cluster id)", "UPDATE", OperatorTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -570,7 +534,7 @@ func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID strin
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", OperatorTableName),
+			semconv.DBCollectionName(OperatorTableName),
 		),
 	)
 	defer span.End()
@@ -584,13 +548,10 @@ func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID strin
 
 	_, err := opUpdateOperatorClusterID.Invoke(ctx, db, op)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }

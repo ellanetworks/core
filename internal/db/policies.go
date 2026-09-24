@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -71,9 +70,9 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			semconv.DBCollectionName(PoliciesTableName),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -95,8 +94,6 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	err := db.conn().Query(ctx, db.listPoliciesStmt, args).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			fallbackCount, countErr := db.CountPolicies(ctx)
 			if countErr != nil {
 				return nil, 0, nil
@@ -105,8 +102,7 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 			return nil, fallbackCount, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -115,8 +111,6 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return policies, count, nil
 }
@@ -132,10 +126,10 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
-			attribute.Int("db.page", page),
-			attribute.Int("db.page_size", perPage),
+			attribute.Int("ella.db.page", page),
+			attribute.Int("ella.db.page_size", perPage),
 		),
 	)
 	defer span.End()
@@ -159,13 +153,10 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 	err := db.conn().Query(ctx, db.listPoliciesByProfileStmt, args, filter).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, 0, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -174,8 +165,6 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 	if len(counts) > 0 {
 		count = counts[0].Count
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return policies, count, nil
 }
@@ -191,7 +180,7 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
 		),
 	)
@@ -209,18 +198,13 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 	err := db.conn().Query(ctx, db.listPoliciesByProfileAllStmt, filter).GetAll(&policies)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return policies, nil
 }
@@ -236,7 +220,7 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -251,17 +235,13 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 	err := db.conn().Query(ctx, db.getPolicyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -278,7 +258,7 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
 			attrs.SliceID(sliceID),
 			attrs.DataNetworkID(dataNetworkID),
@@ -296,18 +276,13 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 	err := db.conn().Query(ctx, db.getPolicyByLookupStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -327,7 +302,7 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
 		),
 	)
@@ -343,18 +318,13 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 	err := db.conn().Query(ctx, db.getDefaultPolicyByProfileStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -364,7 +334,7 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) error {
 	querySummary := fmt.Sprintf("%s %s (set default)", "UPDATE", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -372,7 +342,7 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -384,13 +354,10 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 
 	_, err := opSetDefaultPolicy.Invoke(ctx, db, &Policy{ProfileID: profileID, Name: name})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -406,7 +373,7 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
 			attrs.SliceID(sliceID),
 		),
@@ -423,18 +390,13 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 	err := db.conn().Query(ctx, db.getPolicyByProfileAndSliceStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
 			return nil, ErrNotFound
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
 }
@@ -455,16 +417,14 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 	sub, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "subscriber not found")
+		recordSpanError(span, err)
 
 		return nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 
 	policies, err := db.ListPoliciesByProfile(ctx, sub.ProfileID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "list policies failed")
+		recordSpanError(span, err)
 
 		return nil, nil, nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
 	}
@@ -482,8 +442,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 	sliceList, err := db.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "list slices failed")
+		recordSpanError(span, err)
 
 		return nil, nil, nil, fmt.Errorf("list slices by IDs: %w", err)
 	}
@@ -516,7 +475,8 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
 		if err != nil {
-			span.RecordError(err)
+			recordSpanError(span, err)
+
 			return nil, nil, nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
 		}
 
@@ -526,32 +486,30 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 		rules, err := db.ListRulesForPolicy(ctx, p.ID)
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "list rules failed")
+			recordSpanError(span, err)
 
 			return nil, nil, nil, fmt.Errorf("list rules for policy %s: %w", p.ID, err)
 		}
 
-		span.SetStatus(codes.Ok, "")
-
 		return &p, rules, dataNetwork, nil
 	}
 
-	span.SetStatus(codes.Error, "no matching policy")
-
 	// A matched slice with no policy for the DNN is a DNN problem; an unmatched
 	// slice is a slice problem (TS 24.501 §9.11.4.2 #70 vs the generic reject).
+	err = fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s: %w", sst, sd, dnn, sub.ProfileID, ErrNoMatchingPolicy)
 	if sliceMatched {
-		return nil, nil, nil, fmt.Errorf("no data network %q in slice sst=%d sd=%q for profile %s: %w", dnn, sst, sd, sub.ProfileID, ErrDNNNotInSlice)
+		err = fmt.Errorf("no data network %q in slice sst=%d sd=%q for profile %s: %w", dnn, sst, sd, sub.ProfileID, ErrDNNNotInSlice)
 	}
 
-	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s: %w", sst, sd, dnn, sub.ProfileID, ErrNoMatchingPolicy)
+	recordSpanError(span, err)
+
+	return nil, nil, nil, err
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -559,7 +517,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -572,6 +530,8 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
+			recordSpanError(span, err)
+
 			return fmt.Errorf("generate policy id: %w", err)
 		}
 
@@ -580,13 +540,10 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 
 	_, err := opCreatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -594,7 +551,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 	querySummary := fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -602,7 +559,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -614,13 +571,10 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	_, err := opUpdatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -628,7 +582,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", PoliciesTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -636,7 +590,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -648,13 +602,10 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	_, err := opDeletePolicy.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -671,7 +622,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 		),
 	)
 	defer span.End()
@@ -685,13 +636,10 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 
 	err := db.conn().Query(ctx, db.countPoliciesStmt).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -707,7 +655,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.ProfileID(profileID),
 		),
 	)
@@ -724,13 +672,10 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 
 	err := db.conn().Query(ctx, db.countPoliciesInProfileStmt, policy).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -746,7 +691,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.SliceID(sliceID),
 		),
 	)
@@ -763,13 +708,10 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 
 	err := db.conn().Query(ctx, db.countPoliciesInSliceStmt, policy).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -785,7 +727,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", PoliciesTableName),
+			semconv.DBCollectionName(PoliciesTableName),
 			attrs.DataNetworkID(dataNetworkID),
 		),
 	)
@@ -802,13 +744,10 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 
 	err := db.conn().Query(ctx, db.countPoliciesInDataNetworkStmt, policy).Get(&result)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }
@@ -821,21 +760,17 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 
 	dataNetwork, err := db.GetDataNetwork(ctx, name)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "data network not found")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("data network not found: %w", err)
 	}
 
 	count, err := db.CountPoliciesInDataNetwork(ctx, dataNetwork.ID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "counting failed")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("counting failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return count > 0, nil
 }
@@ -848,21 +783,17 @@ func (db *Database) PoliciesInSlice(ctx context.Context, name string) (bool, err
 
 	slice, err := db.GetNetworkSlice(ctx, name)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "slice not found")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("slice not found: %w", err)
 	}
 
 	count, err := db.CountPoliciesInSlice(ctx, slice.ID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "counting failed")
+		recordSpanError(span, err)
 
 		return false, fmt.Errorf("counting failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return count > 0, nil
 }

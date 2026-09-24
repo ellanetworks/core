@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -135,7 +134,7 @@ func (d *UsagePerDay) GetDay() time.Time {
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -143,7 +142,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", DailyUsageTableName),
+			semconv.DBCollectionName(DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -155,13 +154,10 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	_, err := opIncrementDailyUsage.Invoke(ctx, db, &usage)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -181,19 +177,28 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 		return nil
 	}
 
-	querySummary := fmt.Sprintf("%s %s (batch)", "INSERT", DailyUsageTableName)
+	operation := "INSERT"
 
-	_, span := tracer.Start(
+	var batchAttrs []attribute.KeyValue
+
+	if len(usages) > 1 {
+		operation = "BATCH INSERT"
+		batchAttrs = []attribute.KeyValue{semconv.DBOperationBatchSize(len(usages))}
+	}
+
+	querySummary := fmt.Sprintf("%s %s", operation, DailyUsageTableName)
+
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection.name", DailyUsageTableName),
-			attribute.Int("db.operation.batch.size", len(usages)),
+			semconv.DBOperationName(operation),
+			semconv.DBCollectionName(DailyUsageTableName),
 		),
+		trace.WithAttributes(batchAttrs...),
 	)
 	defer span.End()
 
@@ -204,8 +209,7 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 
 	dropped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
@@ -216,8 +220,6 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 			logger.UplinkVolume(uint64(dropped.BytesUplink)),
 			logger.DownlinkVolume(uint64(dropped.BytesDownlink)))
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -233,7 +235,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DailyUsageTableName),
+			semconv.DBCollectionName(DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -258,17 +260,13 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 	err := db.conn().Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return dailyUsage, nil
 }
@@ -284,7 +282,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection.name", DailyUsageTableName),
+			semconv.DBCollectionName(DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -309,17 +307,13 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 	err := db.conn().Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
 
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return dailyUsage, nil
 }
@@ -327,7 +321,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
 	querySummary := fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -335,7 +329,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", DailyUsageTableName),
+			semconv.DBCollectionName(DailyUsageTableName),
 		),
 	)
 	defer span.End()
@@ -347,13 +341,10 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	_, err := opClearDailyUsage.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
@@ -361,7 +352,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", DailyUsageTableName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		querySummary,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -369,7 +360,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 			semconv.DBQuerySummary(querySummary),
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection.name", DailyUsageTableName),
+			semconv.DBCollectionName(DailyUsageTableName),
 			attribute.Int("retention.days", days),
 		),
 	)
@@ -387,13 +378,10 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	_, err := opDeleteOldDailyUsage.Invoke(ctx, db, &int64Payload{Value: cutoffDay})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		recordSpanError(span, err)
 
 		return err
 	}
-
-	span.SetStatus(codes.Ok, "")
 
 	return nil
 }
