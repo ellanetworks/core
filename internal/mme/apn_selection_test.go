@@ -57,7 +57,7 @@ func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 	m := newTestMME(t)
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
-	qos, err := ResolveAttachQoS(context.Background(), m, ue)
+	qos, err := ResolveAttachQoS(context.Background(), m, ue, "")
 	if err != nil {
 		t.Fatalf("ResolveAttachQoS: %v", err)
 	}
@@ -69,9 +69,9 @@ func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
 
 func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "ims"}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
-	qos, err := ResolveAttachQoS(context.Background(), m, ue)
+	qos, err := ResolveAttachQoS(context.Background(), m, ue, "ims")
 	if err != nil {
 		t.Fatalf("ResolveAttachQoS: %v", err)
 	}
@@ -87,9 +87,9 @@ func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
 
 func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI), RequestedAPN: "nonexistent"}
+	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
-	if _, err := ResolveAttachQoS(context.Background(), m, ue); !errors.Is(err, ErrUnknownAPN) {
+	if _, err := ResolveAttachQoS(context.Background(), m, ue, "nonexistent"); !errors.Is(err, ErrUnknownAPN) {
 		t.Fatalf("ResolveAttachQoS error = %v, want ErrUnknownAPN", err)
 	}
 }

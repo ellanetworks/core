@@ -71,11 +71,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// An Attach without verified integrity is replayed to the UE as a HashMME in
 	// the SECURITY MODE COMMAND, so the UE can detect tampering (TS 24.301 §5.4.3.2).
-	if integrityVerified {
-		ue.HashmmeInput = nil
-	} else {
-		ue.HashmmeInput = plain
-	}
+	ueConn.HashMMERequired = !integrityVerified
 
 	ingestAttachRequest(ctx, ue, ueConn, req)
 
@@ -123,39 +119,39 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 	// The requested PDN type, APN and transaction identity ride in the PDN
 	// Connectivity Request inside the ESM container; absent or unparsable, the PDN
 	// type defaults to IPv4 and the APN stays empty (the default policy).
-	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
-	ue.RequestedAPN = ""
-	ue.RequestedPTI = 0
-	ue.RequestedPDUSessionID = 0
-	ue.RequestedType = eps.RequestTypeInitialRequest
+	ueConn.ESMRequest.PDNType = uint8(eps.PDNTypeIPv4)
+	ueConn.ESMRequest.APN = ""
+	ueConn.ESMRequest.PTI = 0
+	ueConn.ESMRequest.PDUSessionID = 0
+	ueConn.ESMRequest.Type = eps.RequestTypeInitialRequest
 	// An abandoned deferral's abort would otherwise emit a reject naming the
 	// earlier transaction.
 	ueConn.StopESMInfoGuard()
-	ue.TakeESMInfoWait()
+	ueConn.TakeESMInfoWait()
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
 	// defaults above.
 	if pc, err := eps.ParsePDNConnectivityRequest(req.ESMMessageContainer); decoded(ctx, "PDNConnectivityRequest", err) && pc != nil {
-		ue.RequestedPTI = pc.PTI
+		ueConn.ESMRequest.PTI = pc.PTI
 
 		if pc.PDNType != 0 {
-			ue.RequestedPDNType = uint8(pc.PDNType)
+			ueConn.ESMRequest.PDNType = uint8(pc.PDNType)
 		}
 
 		if pc.AccessPointName != nil {
-			ue.RequestedAPN = string(*pc.AccessPointName)
+			ueConn.ESMRequest.APN = string(*pc.AccessPointName)
 		}
 
-		ue.RequestedPDUSessionID = pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
-		ue.RequestedProtocolOpts, _ = protocolOptionsFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
+		ueConn.ESMRequest.PDUSessionID = pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
+		ueConn.ESMRequest.ProtocolOpts, _ = protocolOptionsFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
 
 		if pc.RequestType != 0 {
-			ue.RequestedType = pc.RequestType
+			ueConn.ESMRequest.Type = pc.RequestType
 		}
 
 		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
-			ue.AwaitESMInformation(uint8(pc.PTI), nil)
+			ueConn.AwaitESMInformation(uint8(pc.PTI), nil)
 		}
 	}
 }

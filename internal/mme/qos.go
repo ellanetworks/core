@@ -185,12 +185,12 @@ func (q *EpsQoS) DnFingerprint() string {
 // ResolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours
 // a UE-requested APN (TS 24.301 §6.5.1.3) by selecting the policy bound to that data
 // network, and falls back to the profile's default policy when no APN is requested.
-func ResolveAttachQoS(ctx context.Context, m *MME, ue *UeContext) (*EpsQoS, error) {
+func ResolveAttachQoS(ctx context.Context, m *MME, ue *UeContext, apn string) (*EpsQoS, error) {
 	ctx, span := Tracer.Start(ctx, "mme/resolve_attach_qos")
 	defer span.End()
 
-	if ue.RequestedAPN != "" {
-		return ResolveQoSByAPN(ctx, m, ue.IMSI(), ue.RequestedAPN)
+	if apn != "" {
+		return ResolveQoSByAPN(ctx, m, ue.IMSI(), apn)
 	}
 
 	return ResolveQoS(ctx, m, ue.IMSI())

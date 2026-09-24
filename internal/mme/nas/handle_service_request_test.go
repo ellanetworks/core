@@ -394,3 +394,30 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 		t.Fatal("a forged Service Request connected the idle victim to the attacker")
 	}
 }
+
+func TestServiceRequestAfterLostUplinkMessagesIsAccepted(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	sc := mustSecurityContext(t, ue.EIA(), nas.CipheringNull, ue.KnasIntForTest(), nas.CipherKey{})
+
+	sr, err := eps.NewServiceRequest(0, nas.Count(ue.ULCount()+2), sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := sr.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleServiceRequest(context.Background(), m, &captureConn{}, &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(wire),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
+	})
+
+	if !ue.Connected() {
+		t.Fatal("a SERVICE REQUEST sent after two lost uplink messages was rejected; TS 24.301 §4.4.3.1 estimates the count from its 5 sequence bits")
+	}
+}

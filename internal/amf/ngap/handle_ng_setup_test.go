@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type SliceOpt struct {
@@ -632,7 +633,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 	}
 }
 
-func TestHandleNGSetupRequest_RejectedReSetupReleasesThePreviousSetup(t *testing.T) {
+func TestHandleNGSetupRequest_RejectedReSetupKeepsThePreviousSetup(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
 	op := &db.Operator{Mcc: "001", Mnc: "01"}
@@ -671,11 +672,69 @@ func TestHandleNGSetupRequest_RejectedReSetupReleasesThePreviousSetup(t *testing
 		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
 	}
 
-	if ran.RanID != nil {
-		t.Errorf("RanID = %v after a rejected re-Setup, want the previous setup erased (TS 38.413 §8.7.1.1)", ran.RanID)
+	if ran.RanID == nil {
+		t.Error("a rejected re-Setup erased the previous setup; TS 38.413 §8.7.1.3 only answers with NG SETUP FAILURE")
 	}
 
-	if n := amfInstance.CountUeConnsForTest(); n != 0 {
-		t.Errorf("%d UE-associated connections survived a repeated NG Setup, want 0 (TS 38.413 §8.7.1.1)", n)
+	if n := amfInstance.CountUeConnsForTest(); n != 1 {
+		t.Errorf("%d UE-associated connections after a rejected re-Setup, want the 1 the previous setup held", n)
+	}
+}
+
+func TestReceiveNGSetup_RejectedReSetupKeepsTheRadioName(t *testing.T) {
+	sender := &fakeNGAPSender{}
+
+	op := &db.Operator{Mcc: "001", Mnc: "01"}
+	if err := op.SetSupportedTacs([]string{"000064"}); err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&fakeDBInstance{Operator: op}, nil, nil)
+
+	ran := &amf.Radio{
+		Conn: sender,
+		RanID: &models.GlobalRanNodeID{
+			PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
+			GNbID:  &models.GNbID{GNBValue: "abcde1", BitLength: 24},
+		},
+	}
+	ran.BindAMFForTest(amfInstance)
+	amfInstance.UpdateRadioName(ran, "gnb-accepted")
+
+	req, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "gnb-rejected",
+		GnbID: "ABCDE1",
+		Mcc:   "310",
+		Mnc:   "410",
+		Tac:   "000064",
+		Sst:   1,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	raw, err := req.Marshal()
+	if err != nil {
+		t.Fatalf("failed to marshal NGSetupRequest: %v", err)
+	}
+
+	pdu, err := ngap.Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("failed to unmarshal NGSetupRequest: %v", err)
+	}
+
+	im, ok := pdu.(*ngap.InitiatingMessage)
+	if !ok {
+		t.Fatalf("expected an initiating message, got %T", pdu)
+	}
+
+	receiveNGSetup(context.Background(), amfInstance, ran, raw, im, trace.SpanFromContext(context.Background()))
+
+	if len(sender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
+	}
+
+	if got := ran.NodeName(); got != "gnb-accepted" {
+		t.Errorf("a rejected re-Setup changed the radio name to %q, want %q", got, "gnb-accepted")
 	}
 }

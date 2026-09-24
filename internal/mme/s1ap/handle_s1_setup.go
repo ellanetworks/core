@@ -105,14 +105,15 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 	// Claim the eNB's identity and broadcast TAIs only on accept; until then the
 	// dispatcher's setup-first gate drops the association's UE signalling (TS 36.413).
 	if radio := m.RadioForConn(conn); radio != nil {
-		m.UpdateRadioSupportedTAs(radio, tais)
-
 		if err := m.ClaimENBID(ctx, radio, req.GlobalENBID, advertisedCapacity); err != nil {
 			m.RadioLog(ctx, conn).Warn("Radio setup rejected", zap.Error(err))
 			sendS1SetupFailure(ctx, m, conn, causeSemanticError, nil)
 
 			return
 		}
+
+		m.UpdateRadioName(radio, enbName(req.ENBName))
+		m.UpdateRadioSupportedTAs(radio, tais)
 	}
 
 	_ = m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupResponse, outBytes)

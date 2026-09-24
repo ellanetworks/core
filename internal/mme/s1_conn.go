@@ -57,6 +57,9 @@ type UeConn struct {
 	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
 	AuthEksi                  nas.KeySetIdentifier
+	ESMRequest                ESMRequest
+	HashMMERequired           bool
+	esmInfoWait               atomic.Pointer[ESMInfoWait]
 	resyncTried               atomic.Bool
 	AttachRequestPlain        []byte
 	AttachAcceptPlain         []byte
@@ -74,6 +77,15 @@ type UeConn struct {
 	releaseGuard              guard.Guard
 	icsGuard                  guard.Guard
 	releasing                 bool
+}
+
+type ESMRequest struct {
+	PTI          nas.ProcedureTransactionIdentity
+	PDNType      uint8
+	APN          string
+	PDUSessionID uint8
+	Type         eps.RequestType
+	ProtocolOpts []nas.PCOContainer
 }
 
 type FiveGSArrival struct {

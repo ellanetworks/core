@@ -239,7 +239,7 @@ func (m *MME) publishRelocatedPDN(ue *UeContext, ebi uint8, qos *EpsQoS, bearer 
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.publishPDNLocked(ebi, qos, bearer).Transferred = true
+	ue.publishPDNLocked(ebi, qos, bearer, true)
 }
 
 func (m *MME) dropUnadmittedPDNs(ctx context.Context, ue *UeContext, accepted map[uint8]uint8, unadmitted []HandoverCandidate) []uint8 {

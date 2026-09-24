@@ -427,7 +427,7 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
 	})
 
-	wait := ue.PendingESMInfo()
+	wait := ue.Conn().PendingESMInfo()
 	if wait == nil {
 		t.Fatal("the ESM information transfer flag did not defer the request")
 	}

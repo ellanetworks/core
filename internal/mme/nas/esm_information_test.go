@@ -18,8 +18,8 @@ func esmInfoAttachUe(t *testing.T, m *mme.MME, pti uint8) (*mme.UeContext, *capt
 	t.Helper()
 
 	ue, cc := securedUE(t, m)
-	ue.RequestedPTI = nas.ProcedureTransactionIdentity(pti)
-	ue.AwaitESMInformation(pti, nil)
+	ue.Conn().ESMRequest.PTI = nas.ProcedureTransactionIdentity(pti)
+	ue.Conn().AwaitESMInformation(pti, nil)
 
 	return ue, cc
 }
@@ -59,7 +59,7 @@ func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 		t.Errorf("ESM Information Request EPS bearer identity = %d, want 0 (no EPS bearer identity assigned)", req.EPSBearerIdentity)
 	}
 
-	if ue.PendingESMInfo() == nil {
+	if ue.Conn().PendingESMInfo() == nil {
 		t.Error("the ESM information procedure is not recorded as outstanding")
 	}
 }
@@ -76,11 +76,11 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 		AccessPointName: &apn,
 	})
 
-	if ue.RequestedAPN != "ims" {
-		t.Errorf("requested APN = %q, want %q", ue.RequestedAPN, "ims")
+	if ue.Conn().ESMRequest.APN != "ims" {
+		t.Errorf("requested APN = %q, want %q", ue.Conn().ESMRequest.APN, "ims")
 	}
 
-	if ue.PendingESMInfo() != nil {
+	if ue.Conn().PendingESMInfo() != nil {
 		t.Error("the ESM information procedure is still outstanding after its response")
 	}
 
@@ -142,7 +142,7 @@ func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 
 	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{PTI: 9})
 
-	if ue.PendingESMInfo() == nil {
+	if ue.Conn().PendingESMInfo() == nil {
 		t.Error("a response for another transaction ended the ongoing procedure")
 	}
 
@@ -175,7 +175,7 @@ func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 			PTI: nas.ProcedureTransactionIdentity(pti),
 		})
 
-		if ue.PendingESMInfo() == nil {
+		if ue.Conn().PendingESMInfo() == nil {
 			t.Errorf("PTI %d ended the ongoing procedure", pti)
 		}
 
@@ -196,7 +196,7 @@ func TestESMInformationResponseWithAnEPSBearerIdentityIsIgnored(t *testing.T) {
 		PTI:               3,
 	})
 
-	if ue.PendingESMInfo() == nil {
+	if ue.Conn().PendingESMInfo() == nil {
 		t.Error("a response naming an EPS bearer identity ended the ongoing procedure")
 	}
 
@@ -211,7 +211,7 @@ func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 
 	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	if ue.PendingESMInfo() != nil {
+	if ue.Conn().PendingESMInfo() != nil {
 		t.Error("an ESM information procedure was started for a UE that did not defer")
 	}
 
@@ -237,7 +237,7 @@ func TestAttachClearsAnAbandonedESMInformationWait(t *testing.T) {
 		ESMMessageContainer: mustPDNConnectivityRequest(t, 4, false),
 	})
 
-	if ue.PendingESMInfo() != nil {
+	if ue.Conn().PendingESMInfo() != nil {
 		t.Error("the earlier deferral survived a new attach")
 	}
 }
@@ -253,7 +253,7 @@ func TestAttachIngestRecordsTheDeferral(t *testing.T) {
 		ESMMessageContainer: mustPDNConnectivityRequest(t, 7, true),
 	})
 
-	wait := ue.PendingESMInfo()
+	wait := ue.Conn().PendingESMInfo()
 	if wait == nil {
 		t.Fatal("the ESM information transfer flag did not record a deferral")
 	}
@@ -295,7 +295,7 @@ func TestESMInformationResponseKeepsTheAttachPDUSessionIdentity(t *testing.T) {
 
 	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	ue.RequestedPDUSessionID = 7
+	ue.Conn().ESMRequest.PDUSessionID = 7
 
 	dnsOnly := nas.NewProtocolConfigurationOptions(nas.DNSServers(netip.MustParseAddr("8.8.8.8")), 1400)
 
@@ -306,8 +306,8 @@ func TestESMInformationResponseKeepsTheAttachPDUSessionIdentity(t *testing.T) {
 		ProtocolConfigurationOptions: &dnsOnly,
 	})
 
-	if ue.RequestedPDUSessionID != 7 {
-		t.Errorf("PDU session identity = %d, want the 7 the attach carried: a response that names none does not withdraw it, and zeroing it costs the UE its IP preservation", ue.RequestedPDUSessionID)
+	if ue.Conn().ESMRequest.PDUSessionID != 7 {
+		t.Errorf("PDU session identity = %d, want the 7 the attach carried: a response that names none does not withdraw it, and zeroing it costs the UE its IP preservation", ue.Conn().ESMRequest.PDUSessionID)
 	}
 }
 
@@ -317,7 +317,7 @@ func TestESMInformationResponseReplacesTheAttachProtocolOptions(t *testing.T) {
 
 	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	ue.RequestedProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
+	ue.Conn().ESMRequest.ProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
 
 	replacement := nas.NewRequestedProtocolConfigurationOptions(nas.PCOContainerDNSServerIPv4Address)
 
@@ -326,8 +326,8 @@ func TestESMInformationResponseReplacesTheAttachProtocolOptions(t *testing.T) {
 		ProtocolConfigurationOptions: &replacement,
 	})
 
-	if len(ue.RequestedProtocolOpts) != 0 {
-		t.Fatalf("the attach's IPCP request survived a replacing IE: %+v", ue.RequestedProtocolOpts)
+	if len(ue.Conn().ESMRequest.ProtocolOpts) != 0 {
+		t.Fatalf("the attach's IPCP request survived a replacing IE: %+v", ue.Conn().ESMRequest.ProtocolOpts)
 	}
 }
 
@@ -337,11 +337,11 @@ func TestESMInformationResponseWithoutPCOKeepsTheAttachProtocolOptions(t *testin
 
 	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	ue.RequestedProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
+	ue.Conn().ESMRequest.ProtocolOpts = []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: []byte{1, 0, 0, 4}}}
 
 	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{PTI: 3})
 
-	if len(ue.RequestedProtocolOpts) != 1 {
+	if len(ue.Conn().ESMRequest.ProtocolOpts) != 1 {
 		t.Fatal("a response carrying no PCO IE replaces nothing")
 	}
 }
