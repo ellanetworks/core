@@ -92,6 +92,8 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
 		return fmt.Errorf("failed to read schema version: %w", err)
 	}
 
+	from := current
+
 	for _, m := range migrations {
 		if m.version <= current {
 			continue
@@ -104,6 +106,15 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
 		if err := applyLocalMigration(ctx, sqlConn, m); err != nil {
 			return err
 		}
+
+		current = m.version
+	}
+
+	if current > from {
+		logger.DBLog.Info("Database schema migrated",
+			zap.Int("from_version", from),
+			zap.Int("to_version", current),
+		)
 	}
 
 	return nil
@@ -115,7 +126,7 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
 // prevents DROP TABLE from cascade-deleting child rows during table rebuilds.
 // FK is re-enabled unconditionally via defer.
 func applyLocalMigration(ctx context.Context, sqlConn *sql.DB, m migration) error {
-	logger.DBLog.Info("Applying migration",
+	logger.DBLog.Debug("Applying migration",
 		zap.Int("version", m.version),
 		zap.String("description", m.description),
 	)
@@ -148,7 +159,7 @@ func applyLocalMigration(ctx context.Context, sqlConn *sql.DB, m migration) erro
 		return fmt.Errorf("failed to commit migration %d: %w", m.version, err)
 	}
 
-	logger.DBLog.Info("Migration applied successfully",
+	logger.DBLog.Debug("Migration applied successfully",
 		zap.Int("version", m.version),
 		zap.String("description", m.description),
 	)

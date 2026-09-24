@@ -55,7 +55,7 @@ jobs:
 
       - name: Connect the snap plugs
         run: |
-          for plug in network-control process-control system-observe firewall-control mount-observe; do
+          for plug in network-control process-control firewall-control mount-observe; do
             sudo snap connect ella-core:"${plug}"
           done
 
