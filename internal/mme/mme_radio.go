@@ -182,10 +182,7 @@ func (m *MME) trackRadio(ctx context.Context, key *sctp.SCTPConn, info RadioInfo
 	m.mu.Lock()
 
 	if existing, ok := m.reg.Radio(key); ok {
-		existing.name = info.Name
-		existing.address = info.Address
 		existing.lastSeen.Store(info.LastSeenAt.UnixNano())
-		existing.refreshLogLocked()
 
 		m.mu.Unlock()
 

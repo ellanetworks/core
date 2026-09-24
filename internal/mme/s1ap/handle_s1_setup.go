@@ -112,6 +112,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 			return
 		}
 
+		m.UpdateRadioName(radio, enbName(req.ENBName))
 		m.UpdateRadioSupportedTAs(radio, tais)
 	}
 

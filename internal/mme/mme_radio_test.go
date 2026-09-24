@@ -233,8 +233,8 @@ func TestRepeatS1SetupReusesTheAssociationsRadio(t *testing.T) {
 		t.Fatal("a repeat S1 Setup replaced the association's Radio instead of re-surveying it")
 	}
 
-	if again.NodeName() != "enb-a-renamed" {
-		t.Errorf("the repeat S1 Setup did not refresh the eNB name, got %q", again.NodeName())
+	if again.NodeName() != "enb-a" {
+		t.Errorf("an unanswered repeat S1 Setup changed the eNB name, got %q", again.NodeName())
 	}
 
 	if !again.SetupComplete() {

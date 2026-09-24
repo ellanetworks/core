@@ -229,7 +229,7 @@ func receiveNGSetup(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 
 	// The peer's RAN node name is applied before the inbound event is logged,
 	// so the log keeps chronological order with the outbound response.
-	if parseErr == nil && req.RANNodeName != nil && *req.RANNodeName != "" {
+	if parseErr == nil && ran.RanID == nil && req.RANNodeName != nil && *req.RANNodeName != "" {
 		amfInstance.UpdateRadioName(ran, *req.RANNodeName)
 	}
 
