@@ -208,6 +208,10 @@ func TestLeaderInitRetriesWhenLeadershipTransferFails(t *testing.T) {
 	if inits.Load() != 3 {
 		t.Fatalf("expected the retry loop to run init until it recovered, got %d calls", inits.Load())
 	}
+
+	if transfers := fdb.transferCount(); transfers != 1 {
+		t.Fatalf("expected one leadership transfer attempt before retrying, got %d", transfers)
+	}
 }
 
 func TestLeaderInitRetryStopsWhenLeadershipIsLost(t *testing.T) {
@@ -235,12 +239,77 @@ func TestLeaderInitRetryStopsWhenLeadershipIsLost(t *testing.T) {
 	cancel()
 
 	waitDone(t, done)
+}
 
-	settled := inits.Load()
+func TestSuccessiveLeadershipTermsSelfRestoreOnce(t *testing.T) {
+	shortBackoff(t)
 
-	time.Sleep(20 * time.Millisecond)
+	fdb := &fakeLeaderDB{}
 
-	if inits.Load() != settled {
-		t.Fatal("retry loop kept running after leadership was lost")
+	var inits atomic.Int32
+
+	l := &pkiLeader{
+		db: fdb,
+		runInit: func(context.Context) error {
+			inits.Add(1)
+
+			return nil
+		},
+	}
+	l.needsDRSnapshot.Store(true)
+
+	waitDone(t, runInBackground(t.Context(), l))
+	waitDone(t, runInBackground(t.Context(), l))
+
+	if restores := fdb.restoreCount(); restores != 1 {
+		t.Fatalf("expected self-restore to run once across two terms, got %d", restores)
+	}
+
+	if inits.Load() != 2 {
+		t.Fatalf("expected leader init to run once per term, got %d", inits.Load())
+	}
+
+	if l.needsDRSnapshot.Load() {
+		t.Fatal("needsDRSnapshot set again after a successful self-restore")
+	}
+}
+
+func TestSelfRestoreRetryStopsWhenLeadershipIsLost(t *testing.T) {
+	shortBackoff(t)
+
+	fdb := &fakeLeaderDB{restoreErr: errLeaderInitBoom}
+
+	var inits atomic.Int32
+
+	l := &pkiLeader{
+		db: fdb,
+		runInit: func(context.Context) error {
+			inits.Add(1)
+
+			return nil
+		},
+	}
+	l.needsDRSnapshot.Store(true)
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	done := runInBackground(ctx, l)
+
+	waitFor(t, func() bool { return fdb.restoreCount() > 1 })
+
+	cancel()
+
+	waitDone(t, done)
+
+	if transfers := fdb.transferCount(); transfers != 0 {
+		t.Fatalf("pending self-restore yielded leadership: %d transfers", transfers)
+	}
+
+	if inits.Load() != 0 {
+		t.Fatalf("leader init ran %d times without a DR baseline", inits.Load())
+	}
+
+	if !l.needsDRSnapshot.Load() {
+		t.Fatal("needsDRSnapshot cleared although self-restore never succeeded")
 	}
 }

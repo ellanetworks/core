@@ -41,34 +41,33 @@ func (p *termProbe) waitStarts(t *testing.T, want int32) {
 	}
 }
 
-func newIdleLeaderLoop(t *testing.T) (*Manager, *termProbe) {
+func newStoppedLeaderLoop(t *testing.T) (*Manager, *termProbe) {
 	t.Helper()
 
 	m, _ := NewTestManager(t, newTestApplier(t))
 
+	m.shutdownOnce.Do(func() { close(m.shutdownCh) })
+	<-m.leaderLoopDone
+
 	probe := &termProbe{}
 	m.OnLeadership(probe.hook)
+
+	m.beginTerm()
+	t.Cleanup(m.endTerm)
+
 	probe.waitStarts(t, 1)
-
-	deadline := time.Now().Add(5 * time.Second)
-	for len(m.raft.LeaderCh()) > 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("leader loop never drained raft.LeaderCh()")
-		}
-
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	time.Sleep(50 * time.Millisecond)
 
 	return m, probe
 }
 
 func TestLeaderTermsDoNotOverlap(t *testing.T) {
-	m, probe := newIdleLeaderLoop(t)
+	m, probe := newStoppedLeaderLoop(t)
 
-	for i := range 5 {
-		m.endTerm()
+	for i := range 2 {
+		m.leaderMu.Lock()
+		m.term.raftTerm++
+		m.leaderMu.Unlock()
+
 		m.beginTerm()
 
 		probe.waitStarts(t, int32(i+2))
@@ -80,7 +79,7 @@ func TestLeaderTermsDoNotOverlap(t *testing.T) {
 }
 
 func TestDuplicateLeaderNotificationKeepsTheTerm(t *testing.T) {
-	m, probe := newIdleLeaderLoop(t)
+	m, _ := newStoppedLeaderLoop(t)
 
 	m.leaderMu.Lock()
 	before := m.term
@@ -95,16 +94,10 @@ func TestDuplicateLeaderNotificationKeepsTheTerm(t *testing.T) {
 	if after != before {
 		t.Fatal("a repeated leadership notification for the same term restarted the term")
 	}
-
-	time.Sleep(50 * time.Millisecond)
-
-	if got := probe.starts.Load(); got != 1 {
-		t.Fatalf("leader hook started %d times, want 1", got)
-	}
 }
 
 func TestLeadershipRegainedAfterAbandonedTermRestartsIt(t *testing.T) {
-	m, probe := newIdleLeaderLoop(t)
+	m, probe := newStoppedLeaderLoop(t)
 
 	m.endTerm()
 

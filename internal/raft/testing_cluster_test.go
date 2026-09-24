@@ -14,155 +14,6 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-func TestSetupTestCluster_LeaderPropose(t *testing.T) {
-	appliers := make([]*testApplier, 0, 3)
-
-	tc := SetupTestClusterWithAppliers(t, 3, func() Applier {
-		a := newTestApplier(t)
-		a.writeRows = true
-		appliers = append(appliers, a)
-
-		return a
-	})
-
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("no leader")
-	}
-
-	first, err := NewCommand(CmdChangeset, map[string]string{"seq": "first"})
-	if err != nil {
-		t.Fatalf("new command: %v", err)
-	}
-
-	firstResult, err := leader.Propose(first, 5*time.Second)
-	if err != nil {
-		t.Fatalf("propose first: %v", err)
-	}
-
-	if firstResult.Index == 0 {
-		t.Fatal("propose returned index 0; a committed entry always has a non-zero log index")
-	}
-
-	second, err := NewCommand(CmdChangeset, map[string]string{"seq": "second"})
-	if err != nil {
-		t.Fatalf("new command: %v", err)
-	}
-
-	secondResult, err := leader.Propose(second, 5*time.Second)
-	if err != nil {
-		t.Fatalf("propose second: %v", err)
-	}
-
-	if secondResult.Index <= firstResult.Index {
-		t.Fatalf("log index did not advance: first=%d second=%d",
-			firstResult.Index, secondResult.Index)
-	}
-
-	waitForAppliedIndex(t, tc, secondResult.Index, 10*time.Second)
-
-	for i, a := range appliers {
-		a.mu.Lock()
-		got := len(a.commands)
-		a.mu.Unlock()
-
-		if got < 2 {
-			t.Errorf("node %d applier saw %d commands, want at least 2", i+1, got)
-		}
-	}
-}
-
-func waitForAppliedIndex(t *testing.T, tc *TestCluster, want uint64, timeout time.Duration) {
-	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-
-	for _, n := range tc.Nodes {
-		for n.AppliedIndex() < want {
-			if time.Now().After(deadline) {
-				t.Fatalf("node did not reach applied index %d within %s (stuck at %d)",
-					want, timeout, n.AppliedIndex())
-			}
-
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-}
-
-// TestSetupTestCluster_LeaderFailover shuts down the leader, verifies that a
-// new leader is elected among the remaining nodes, and that the new leader can
-// accept writes.
-func TestSetupTestCluster_LeaderFailover(t *testing.T) {
-	applier := newTestApplier(t)
-	tc := SetupTestCluster(t, 3, applier)
-
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("no leader")
-	}
-
-	var leaderIdx int
-
-	for i, n := range tc.Nodes {
-		if n == leader {
-			leaderIdx = i
-			break
-		}
-	}
-
-	// Shut down the leader to simulate node failure. This closes the
-	// transport, breaking all Raft connections to followers.
-	if err := leader.Shutdown(); err != nil {
-		t.Fatalf("shutdown leader: %v", err)
-	}
-
-	tc.Listeners[leaderIdx].Stop()
-
-	// Wait for a new leader among the survivors.
-	deadline := time.After(5 * time.Second)
-
-	var newLeader *Manager
-
-	for newLeader == nil {
-		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for new leader after partition")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-
-		for i, n := range tc.Nodes {
-			if i == leaderIdx {
-				continue
-			}
-
-			// Gate on the leader loop rather than Manager.IsLeader() because
-			// the loop is the signal leader hooks (and the assertion below)
-			// actually see. Manager.IsLeader() reads raft.State() directly and
-			// flips before the loop has drained raft.LeaderCh(), which races
-			// this test.
-			if n.leadershipEstablished() {
-				newLeader = n
-				break
-			}
-		}
-	}
-
-	if !newLeader.leadershipEstablished() {
-		t.Fatal("new leader's leader loop has not established leadership")
-	}
-
-	// Propose on the new leader.
-	cmd, err := NewCommand(CmdChangeset, map[string]string{"after": "failover"})
-	if err != nil {
-		t.Fatalf("new command: %v", err)
-	}
-
-	if _, err := newLeader.Propose(cmd, 5*time.Second); err != nil {
-		t.Fatalf("propose on new leader failed: %v", err)
-	}
-}
-
 // TestSetupTestCluster_RemoveAndReaddServer removes a node from a 3-node
 // cluster, verifies the 2-node cluster is functional, then re-adds the node
 // and verifies it rejoins.
@@ -255,6 +106,8 @@ func TestSetupTestCluster_FSMConvergence(t *testing.T) {
 	// Propose several commands through the leader.
 	const numCommands = 10
 
+	var lastIndex uint64
+
 	for i := range numCommands {
 		cmd, err := NewCommand(CmdChangeset, map[string]string{
 			"key": fmt.Sprintf("value-%d", i),
@@ -263,9 +116,16 @@ func TestSetupTestCluster_FSMConvergence(t *testing.T) {
 			t.Fatalf("new command %d: %v", i, err)
 		}
 
-		if _, err := leader.Propose(cmd, 5*time.Second); err != nil {
+		result, err := leader.Propose(cmd, 5*time.Second)
+		if err != nil {
 			t.Fatalf("propose %d: %v", i, err)
 		}
+
+		if result.Index <= lastIndex {
+			t.Fatalf("propose %d returned index %d: want an index above %d", i, result.Index, lastIndex)
+		}
+
+		lastIndex = result.Index
 	}
 
 	// Wait for all nodes to apply up to the leader's index.

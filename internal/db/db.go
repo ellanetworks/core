@@ -739,17 +739,20 @@ func (db *Database) transferCandidates() ([]ellaraft.Server, bool) {
 		members = nil
 	}
 
+	return selectTransferCandidates(db.raftManager.Servers(), db.raftManager.RaftID(), members)
+}
+
+func selectTransferCandidates(servers []ellaraft.Server, self string, members []ClusterMember) ([]ellaraft.Server, bool) {
 	draining := make(map[string]bool, len(members))
 	for _, m := range members {
 		draining[m.NodeID] = normalizeDrainState(m.DrainState) != DrainStateActive
 	}
 
-	self := db.raftManager.RaftID()
 	excluded := false
 
 	var eligible []ellaraft.Server
 
-	for _, srv := range db.raftManager.Servers() {
+	for _, srv := range servers {
 		if srv.NodeID == self || srv.Suffrage != "voter" {
 			continue
 		}

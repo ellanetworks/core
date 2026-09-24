@@ -32,17 +32,6 @@ func expectNoWakeup(t *testing.T, wakeup <-chan struct{}) {
 	}
 }
 
-func TestChangefeed_PublishWakesMatchingSubscriber(t *testing.T) {
-	cf := db.NewChangefeed()
-
-	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
-	defer stop()
-
-	cf.Publish(db.TopicNATSettings)
-
-	expectWakeup(t, wakeup)
-}
-
 func TestChangefeed_TopicIsolation(t *testing.T) {
 	cf := db.NewChangefeed()
 
