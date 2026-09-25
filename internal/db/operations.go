@@ -371,6 +371,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 
 func (db *Database) leaderProposeIntent(ctx context.Context, operation string, data []byte) (_ *ellaraft.ProposeResult, err error) {
 	ctx, span := db.startProposeSpan(ctx, operation)
+
 	defer func() { endSpan(span, err) }()
 
 	db.lockPropose(ctx)
@@ -395,6 +396,7 @@ func (db *Database) lockPropose(ctx context.Context) {
 
 func (db *Database) raftApply(ctx context.Context, data []byte) (_ *ellaraft.ProposeResult, err error) {
 	_, span := tracer.Start(ctx, "db/raft_apply", trace.WithSpanKind(trace.SpanKindInternal))
+
 	defer func() { endSpan(span, err) }()
 
 	result, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
@@ -441,6 +443,7 @@ func (db *Database) writeBarrier() error {
 
 func (db *Database) tracedWriteBarrier(ctx context.Context) (err error) {
 	_, span := tracer.Start(ctx, "db/write_barrier", trace.WithSpanKind(trace.SpanKindInternal))
+
 	defer func() { endSpan(span, err) }()
 
 	return db.writeBarrier()
@@ -460,6 +463,7 @@ func (db *Database) ReadBarrier() error {
 // RequiredSchema for the apply-time gate on every node.
 func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (_ *ellaraft.ProposeResult, err error) {
 	ctx, span := db.startProposeSpan(ctx, operation)
+
 	defer func() { endSpan(span, err) }()
 
 	db.lockPropose(ctx)
