@@ -38,7 +38,6 @@ const (
 	NGAPProcedureHandoverCancelAcknowledge        NGAPProcedure = "HandoverCancelAcknowledge"
 	NGAPProcedureHandoverPreparationFailure       NGAPProcedure = "HandoverPreparationFailure"
 	NGAPProcedureUEContextReleaseCommand          NGAPProcedure = "UEContextReleaseCommand"
-	NGAPProcedureUEContextModificationRequest     NGAPProcedure = "UEContextModificationRequest"
 	NGAPProcedureDownlinkNRPPaTransport           NGAPProcedure = "DownlinkNRPPaTransport"
 	NGAPProcedureDownlinkRANStatusTransfer        NGAPProcedure = "DownlinkRANStatusTransfer"
 )
@@ -61,8 +60,7 @@ func GetSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedurePDUSessionResourceModifyConfirm, NGAPProcedureHandoverCancelAcknowledge,
 		NGAPProcedureLocationReportingControl, NGAPProcedurePathSwitchRequestFailure,
 		NGAPProcedureDownlinkNRPPaTransport,
-		NGAPProcedureDownlinkRANStatusTransfer,
-		NGAPProcedureUEContextModificationRequest:
+		NGAPProcedureDownlinkRANStatusTransfer:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)

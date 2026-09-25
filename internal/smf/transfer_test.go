@@ -830,7 +830,7 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 	}
 }
 
-func TestTransferKeepsTheSessionPolicy(t *testing.T) {
+func TestTransferKeepsTheUEsQoSAndBindsTheTargetPolicy(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	target := *pcf.policy
 	target.PolicyID = "5gs-policy"
@@ -894,8 +894,8 @@ func TestTransferKeepsTheSessionPolicy(t *testing.T) {
 		t.Fatal("the session is not on 5GS after the gNB bound its downlink")
 	}
 
-	if policyID != "eps-policy" {
-		t.Errorf("policy %q in force after the move, want the session's own %q: a move must not change policy", policyID, "eps-policy")
+	if policyID != "5gs-policy" {
+		t.Errorf("policy %q in force after the move, want the target's %q: the UPF must filter with the current rules", policyID, "5gs-policy")
 	}
 }
 

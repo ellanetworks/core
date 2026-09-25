@@ -8,9 +8,10 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestModifyEPSBearerPagesAnIdleUE(t *testing.T) {
@@ -28,18 +29,28 @@ func TestModifyEPSBearerPagesAnIdleUE(t *testing.T) {
 	}
 }
 
-func TestModifyEPSBearerDoesNotPageForAnARPOnlyChange(t *testing.T) {
+func TestModifyEPSBearerCommitsAnIdleUEsARPOnlyChange(t *testing.T) {
 	m := newTestMME(t)
 	ue := idleRegisteredUE(t, m)
-	testPDN(ue).Qci = 9
+	p := testPDN(ue)
+	p.Qci = 9
+	p.SessionRef = "ref-internet"
 
-	err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: 3}})
-	if !errors.Is(err, ErrUENotReachable) {
-		t.Fatalf("ModifyEPSBearer error = %v, want ErrUENotReachable", err)
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: 3}}); err != nil {
+		t.Fatalf("ModifyEPSBearer: %v", err)
 	}
 
 	if m.pagingActive(ue) {
 		t.Fatal("the idle UE was paged for an ARP-only change")
+	}
+
+	if p.Arp != 3 {
+		t.Fatalf("ARP = %d, want the committed 3", p.Arp)
+	}
+
+	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: true}}
+	if got := m.Session.(*fakeSessionManager).outcomes(); !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
 	}
 }
 
@@ -146,72 +157,71 @@ func TestRANUEAMBRIsTheSumOfAPNAMBRsCappedBySubscription(t *testing.T) {
 	}
 }
 
-func sentUEContextModification(t *testing.T, cc *captureConn) *s1ap.UEContextModificationRequest {
-	t.Helper()
-
-	for _, b := range slices.Backward(cc.sent) {
-		pdu, err := s1ap.Unmarshal(b)
-		if err != nil {
-			continue
-		}
-
-		if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcUEContextModification {
-			req, err := s1ap.ParseUEContextModificationRequest(im.Value)
-			if err != nil {
-				t.Fatalf("parse UE Context Modification Request: %v", err)
-			}
-
-			return req
-		}
-	}
-
-	return nil
-}
-
-func TestAcceptedAPNAMBRChangeSignalsTheUEAMBR(t *testing.T) {
+func TestUnansweredERABModifyAbandonsTheModification(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	ue.SetSubscribedUEAMBR(models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")})
+	m.SetESMGuardConfigForTest(20*time.Millisecond, 0)
 
-	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{APNAMBR: testAmbr("300 Mbps", "400 Mbps")}); err != nil {
+	ue, _ := connectedBearerUE(t, m)
+	p := testPDN(ue)
+
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 8, ARP: 2}}); err != nil {
 		t.Fatal(err)
 	}
 
-	defer ue.Conn().StopNASGuard(t.Context())
+	m.StopESMGuard(p)
+	m.ConcludeBearerModification(context.Background(), ue, p, true)
 
-	m.ConcludeBearerModification(context.Background(), ue, testPDN(ue), true)
-
-	req := sentUEContextModification(t, cc)
-	if req == nil || req.UEAggregateMaximumBitRate == nil {
-		t.Fatal("no UE Context Modification carried the new UE-AMBR")
+	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: false}}
+	if got := waitForOutcome(m); !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v once the eNB never answered", got, want)
 	}
 
-	if req.UEAggregateMaximumBitRate.DL != 400_000_000 || req.UEAggregateMaximumBitRate.UL != 300_000_000 {
-		t.Fatalf("UE-AMBR = %d/%d, want 400/300 Mbps", req.UEAggregateMaximumBitRate.DL, req.UEAggregateMaximumBitRate.UL)
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if p.Modifying != nil || p.Qci != 9 {
+		t.Fatalf("modification left Modifying %+v and QCI %d, want nil and 9", p.Modifying, p.Qci)
 	}
 }
 
-func TestRefreshUEAMBRsSignalsASubscriptionChange(t *testing.T) {
+func TestPDNDisconnectEndsAnInFlightModification(t *testing.T) {
 	m := newTestMME(t)
-	ue, cc := connectedBearerUE(t, m)
-	ue.SetSubscribedUEAMBR(models.Ambr{Uplink: models.MustParseBitRate("10 Mbps"), Downlink: models.MustParseBitRate("10 Mbps")})
+	ue, _ := connectedBearerUE(t, m)
 
-	m.RefreshUEAMBRs(context.Background())
+	ims := ue.EnsurePDN(6)
+	ims.Apn = "ims"
+	ims.SessionRef = "ref-ims"
 
-	req := sentUEContextModification(t, cc)
-	if req == nil || req.UEAggregateMaximumBitRate == nil {
-		t.Fatal("no UE Context Modification carried the new UE-AMBR")
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), 6, models.EPSBearerModification{APNAMBR: testAmbr("300 Mbps", "400 Mbps")}); err != nil {
+		t.Fatal(err)
 	}
 
-	if req.UEAggregateMaximumBitRate.DL != 200_000_000 || req.UEAggregateMaximumBitRate.UL != 100_000_000 {
-		t.Fatalf("UE-AMBR = %d/%d, want the APN-AMBR sum 200/100 Mbps under the 1 Gbps subscription", req.UEAggregateMaximumBitRate.DL, req.UEAggregateMaximumBitRate.UL)
+	m.DisconnectBearer(context.Background(), ue, ims, 36, 3)
+
+	defer m.StopESMGuard(ims)
+
+	if ims.Modifying != nil {
+		t.Fatal("the modification outlived the PDN disconnect")
 	}
 
-	before := len(cc.sent)
+	want := []bearerModificationOutcome{{ref: "ref-ims", accepted: false}}
+	if got := m.Session.(*fakeSessionManager).outcomes(); !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
+	}
+}
 
-	m.RefreshUEAMBRs(context.Background())
+func TestUnansweredSignallingPageSuppressesNoDownlinkData(t *testing.T) {
+	m := newTestMME(t)
+	ue := idleRegisteredUE(t, m)
+	testPDN(ue).Qci = 9
 
-	if len(cc.sent) != before {
-		t.Fatal("an unchanged UE-AMBR was signalled again")
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), DefaultERABID, models.EPSBearerModification{APNAMBR: testAmbr("1 Gbps", "1 Gbps")}); !errors.Is(err, ErrUENotReachable) {
+		t.Fatalf("ModifyEPSBearer error = %v, want ErrUENotReachable", err)
+	}
+
+	m.abandonPaging(trace.SpanContext{}, ue, ue.paging.attempt)
+
+	if got := m.Session.(*fakeSessionManager).suppressCalls; got != 0 {
+		t.Fatalf("downlink notifications suppressed %d times after a signalling page", got)
 	}
 }

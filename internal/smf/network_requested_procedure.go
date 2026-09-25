@@ -32,6 +32,8 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 		return nil
 	}
 
+	upActive := smContext.upConnectionActive()
+
 	s.releaseUserPlane(ctx, smContext)
 
 	n1Msg, err := nas.BuildGSMPDUSessionReleaseCommand(fgs.PDUSessionID(smContext.PDUSessionID), naslib.ProcedureTransactionIdentity(pti), cause)
@@ -39,11 +41,17 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 		return fmt.Errorf("build PDU Session Release Command (N1): %w", err)
 	}
 
-	smContext.recordN2Release(n2ReleaseSession)
+	var n2Transfer []byte
 
-	n2Transfer, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
-	if err != nil {
-		return fmt.Errorf("build PDU Session Resource Release Command Transfer (N2): %w", err)
+	if upActive {
+		smContext.recordN2Release(n2ReleaseSession)
+
+		n2Transfer, err = ngap.BuildPDUSessionResourceReleaseCommandTransfer()
+		if err != nil {
+			return fmt.Errorf("build PDU Session Resource Release Command Transfer (N2): %w", err)
+		}
+	} else {
+		smContext.n2Released = true
 	}
 
 	supi := smContext.Supi
@@ -53,7 +61,9 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 		if errors.Is(err, ErrUENotReachable) {
 			// No UE to acknowledge and the user plane is already released, so remove
 			// the SM context immediately.
+			s.amf.SessionDropped(ctx, supi, pduSessionID, smContext.Ref, nil)
 			s.removeSessionUnlocked(ctx, smContext.Ref)
+
 			return nil
 		}
 

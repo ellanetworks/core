@@ -46,6 +46,8 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 		smContext.pendingPolicy = nil
 	}
 
+	smContext.activating = true
+
 	n2Buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)

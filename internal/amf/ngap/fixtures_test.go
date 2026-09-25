@@ -88,6 +88,10 @@ type fakeSmfSbi struct {
 	PrepareFromEPSCalls         []*SmfPrepareFromEPSCall
 }
 
+func (f *fakeSmfSbi) ReconcileSession(context.Context, string) error {
+	return nil
+}
+
 type SmfPrepareFromEPSCall struct {
 	Supi              etsi.SUPI
 	PDUSessionID      uint8

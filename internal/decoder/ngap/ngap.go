@@ -168,8 +168,6 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildNASNonDeliveryIndication(m.Value)
 	case ngap.ProcPDUSessionResourceModify:
 		return buildPDUSessionResourceModifyRequest(m.Value)
-	case ngap.ProcUEContextModification:
-		return buildUEContextModificationRequest(m.Value)
 	case ngap.ProcPDUSessionResourceModifyIndication:
 		return buildPDUSessionResourceModifyIndication(m.Value)
 	case ngap.ProcPDUSessionResourceNotify:
@@ -209,8 +207,6 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildPDUSessionResourceSetupResponse(m.Value)
 	case ngap.ProcUEContextRelease:
 		return buildUEContextReleaseComplete(m.Value)
-	case ngap.ProcUEContextModification:
-		return buildUEContextModificationResponse(m.Value)
 	case ngap.ProcPDUSessionResourceRelease:
 		return buildPDUSessionResourceReleaseResponse(m.Value)
 	case ngap.ProcNGReset:
@@ -242,8 +238,6 @@ func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
 		return buildNGSetupFailure(m.Value)
 	case ngap.ProcInitialContextSetup:
 		return buildInitialContextSetupFailure(m.Value)
-	case ngap.ProcUEContextModification:
-		return buildUEContextModificationFailure(m.Value)
 	case ngap.ProcPathSwitchRequest:
 		return buildPathSwitchRequestFailure(m.Value)
 	case ngap.ProcRANConfigurationUpdate:

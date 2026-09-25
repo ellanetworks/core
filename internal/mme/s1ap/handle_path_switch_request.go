@@ -165,7 +165,11 @@ func handlePathSwitchRequest(ctx context.Context, m *mme.MME, radio *mme.Radio, 
 
 	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send Path Switch Request Acknowledge", zap.Error(err))
+
+		return
 	}
+
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 }
 
 func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {

@@ -60,6 +60,10 @@ func (m *MME) ResumeBearerReconfigurationAfterHandover(ctx context.Context, ue *
 }
 
 func (m *MME) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error {
+	if m.commitIdleARPChange(ctx, imsi, ebi, mod) {
+		return nil
+	}
+
 	ue, ueConn, p, err := m.reconcilableBearer(ctx, imsi, ebi, func(p *PdnConnection) bool { return !arpOnly(p, mod) })
 	if err != nil {
 		return err
@@ -92,6 +96,30 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) e
 	m.reactivateBearer(ctx, ue, p)
 
 	return nil
+}
+
+func (m *MME) commitIdleARPChange(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) bool {
+	ue, ok := m.LookupUeByIMSI(imsi)
+	if !ok || ue.EMMState() != EMMRegistered || ue.Conn() != nil {
+		return false
+	}
+
+	ue.mu.Lock()
+
+	p := ue.Pdns[ebi]
+	if p == nil || p.Deactivating || p.Modifying != nil || !arpOnly(p, mod) {
+		ue.mu.Unlock()
+
+		return false
+	}
+
+	p.Arp = mod.QoS.ARP
+	ref := p.SessionRef
+	ue.mu.Unlock()
+
+	m.Session.CommitEPSBearerModification(ctx, ref, true)
+
+	return true
 }
 
 func arpOnly(p *PdnConnection, mod models.EPSBearerModification) bool {
@@ -138,7 +166,7 @@ func (m *MME) reconcilableBearer(ctx context.Context, imsi string, ebi uint8, pa
 }
 
 func (m *MME) pageForSignalling(ctx context.Context, ue *UeContext) {
-	arm := func() error { return ue.beginPaging(&MTRequest{}) }
+	arm := func() error { return ue.beginPaging(&MTRequest{Signalling: true}) }
 
 	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
 		logger.From(ctx, logger.MmeLog).Warn("could not page the UE for a bearer reconfiguration",
@@ -228,7 +256,13 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		}
 	}
 
+	m.ArmESMGuardAbortOnly(ctx, ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
+		m.ConcludeBearerModification(ctx, ue, p, false)
+	})
+
 	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
+		m.StopESMGuard(p)
+
 		ue.mu.Lock()
 		p.clearModificationLocked()
 		ue.mu.Unlock()
@@ -237,10 +271,6 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 
 		return err
 	}
-
-	m.ArmESMGuardAbortOnly(ctx, ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func(ctx context.Context) {
-		m.ConcludeBearerModification(ctx, ue, p, false)
-	})
 
 	return nil
 }

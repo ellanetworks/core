@@ -22,7 +22,7 @@ func esmStatus(_ *testing.T, ebi eps.EPSBearerIdentity, pti nas.ProcedureTransac
 // TS 24.301 §6.7
 func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
+	ue, cc := securedUE(t, m)
 	testPDN(ue)
 
 	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCauseInvalidEPSBearerIdentity))
@@ -31,12 +31,17 @@ func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T)
 		t.Fatalf("disposition = %+v, want handled", d)
 	}
 
-	if got := ue.PDNCount(); got != 0 {
-		t.Fatalf("PDNCount = %d after ESM STATUS #43 on the default bearer, want 0", got)
+	if ue.EMMState() != mme.EMMDeregistrationInitiated {
+		t.Fatalf("emmState = %v after ESM STATUS #43 on the default bearer, want a network detach in progress", ue.EMMState())
 	}
 
-	if ue.EMMState() != mme.EMMDeregistered {
-		t.Fatalf("emmState = %v after ESM STATUS #43 on the default bearer, want mme.EMMDeregistered", ue.EMMState())
+	req, err := eps.ParseDetachRequestNetwork(decodeProtectedDownlink(t, ue, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("not a Detach Request: %v", err)
+	}
+
+	if req.TypeOfDetach != eps.DetachTypeReattachRequired {
+		t.Fatalf("detach type = %d, want re-attach required", req.TypeOfDetach)
 	}
 }
 

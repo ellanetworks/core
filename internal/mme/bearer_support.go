@@ -8,11 +8,8 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
-	"go.uber.org/zap"
 )
 
 // ActiveEBIs returns the EPS bearer identities of the UE's established PDN
@@ -85,20 +82,21 @@ func (m *MME) ConcludeBearerModification(ctx context.Context, ue *UeContext, p *
 
 	if accepted && p.modifyAwaitingRadio {
 		p.modifyAcceptedByUE = true
+		ebi := p.Ebi
+
+		p.guard.ArmOnce(m.esmGuardCfg.ExpireTime, func() {
+			m.RadioBearerModified(context.Background(), ue, ebi, false)
+		})
 		ue.mu.Unlock()
 
 		return true
 	}
 
 	ref := p.SessionRef
-	ambr, ambrChanged := m.finishModificationLocked(ue, p, accepted)
+	finishModificationLocked(p, accepted)
 	ue.mu.Unlock()
 
 	m.Session.CommitEPSBearerModification(ctx, ref, accepted)
-
-	if ambrChanged {
-		m.signalUEAMBR(ctx, ue, ambr)
-	}
 
 	return true
 }
@@ -124,25 +122,19 @@ func (m *MME) RadioBearerModified(ctx context.Context, ue *UeContext, ebi uint8,
 	p.guard.Stop()
 
 	ref := p.SessionRef
-	ambr, ambrChanged := m.finishModificationLocked(ue, p, modified)
+	finishModificationLocked(p, modified)
 	ue.mu.Unlock()
 
 	m.Session.CommitEPSBearerModification(ctx, ref, modified)
-
-	if ambrChanged {
-		m.signalUEAMBR(ctx, ue, ambr)
-	}
 }
 
-func (m *MME) finishModificationLocked(ue *UeContext, p *PdnConnection, accepted bool) (models.Ambr, bool) {
+func finishModificationLocked(p *PdnConnection, accepted bool) {
 	mod := p.Modifying
 	p.clearModificationLocked()
 
 	if !accepted {
-		return models.Ambr{}, false
+		return
 	}
-
-	before := ue.ranUEAMBRLocked()
 
 	if mod.QoS != nil {
 		p.Qci = mod.QoS.QCI
@@ -156,37 +148,6 @@ func (m *MME) finishModificationLocked(ue *UeContext, p *PdnConnection, accepted
 
 	if mod.DNS.IsValid() {
 		p.Dns = mod.DNS
-	}
-
-	after := ue.ranUEAMBRLocked()
-
-	return after, after != before
-}
-
-func (m *MME) signalUEAMBR(ctx context.Context, ue *UeContext, ambr models.Ambr) {
-	ueConn, ready := m.ReconcileReady(ue)
-	if !ready || ueConn.ICS() != ICSCompleted {
-		return
-	}
-
-	if err := ueConn.SendUEContextModification(ctx, ambr); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to signal the UE-AMBR", zap.Error(err))
-	}
-}
-
-func (m *MME) RefreshUEAMBRs(ctx context.Context) {
-	for _, ue := range m.ConnectedUEs() {
-		subscribed, err := SubscribedUEAMBR(ctx, m, ue.IMSI())
-		if err != nil {
-			logger.From(ctx, logger.MmeLog).Warn("failed to read the subscribed UE-AMBR", logger.SUPI(ue.Supi().String()), zap.Error(err))
-			continue
-		}
-
-		before := ue.RANUEAMBR()
-
-		if after := ue.SetSubscribedUEAMBR(subscribed); after != before {
-			m.signalUEAMBR(ctx, ue, after)
-		}
 	}
 }
 

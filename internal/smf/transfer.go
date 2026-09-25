@@ -121,9 +121,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 		}
 	}
 
-	if req.Access == Access5G {
-		sc.discardOutstandingProcedures()
-	}
+	sc.discardOutstandingProcedures()
 
 	move := &pendingTransfer{to: req.Access, ebi: req.EBI, policy: req.Policy}
 	sc.pending = move
@@ -240,10 +238,8 @@ func transferPolicy(current, target *Policy) *Policy {
 	}
 
 	retained := *current
-
-	if len(retained.NetworkRules) == 0 {
-		retained.NetworkRules = target.NetworkRules
-	}
+	retained.PolicyID = target.PolicyID
+	retained.NetworkRules = target.NetworkRules
 
 	if retained.QosData == (models.QosData{}) {
 		retained.QosData = target.QosData

@@ -541,9 +541,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.LPPHandler = lmfAMF
 
 	// Session reconciler: watches the session_reconcile changefeed topic
-	// and reconciles every local session, 5G and EPS, and every UE's UE-AMBR
-	// against the current DB policy. Triggered by profile, subscriber, and
-	// policy writes.
+	// and reconciles every local session, 5G and EPS, against the current DB
+	// policy. Triggered by profile, subscriber, and policy writes.
 	sessionReconciler := reconciler.New(func() <-chan struct{} {
 		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
@@ -553,7 +552,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}(), smfInstance.Reconcile, amfInstance.RefreshUEAMBRs, mmeInstance.RefreshUEAMBRs)
+	}(), smfInstance.Reconcile)
 	sessionReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes once the

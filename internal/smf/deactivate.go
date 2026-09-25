@@ -47,6 +47,8 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return nil
 	}
 
+	smContext.activating = false
+
 	if by == Access4G {
 		smContext.pendingPolicy = nil
 	}

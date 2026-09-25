@@ -25,10 +25,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrUENotReachable is returned when the UE is in CM-IDLE state and the
-// requested signaling cannot be delivered. Per TS 23.502 the AMF may ignore
-// the N2 SM information when the UE is not reachable; delivery is deferred
-// until the UE transitions to CM-CONNECTED.
+// ErrUENotReachable is returned when the UE is in CM-IDLE state, or not yet
+// registered, and the requested signaling cannot be delivered. Per TS 23.502
+// the AMF may ignore the N2 SM information when the UE is not reachable;
+// delivery is deferred until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
@@ -203,7 +203,7 @@ func (amf *AMF) pageForSessionSignalling(ctx context.Context, ue *UeContext, pdu
 		return
 	}
 
-	req := &MTRequest{Req: models.N1N2MessageTransferRequest{N1Class: models.N1ClassSM, PduSessionID: pduSessionID}}
+	req := &MTRequest{Req: models.N1N2MessageTransferRequest{N1Class: models.N1ClassSM, PduSessionID: pduSessionID}, Signalling: true}
 
 	if _, err := amf.pageIdleUE(ctx, ue, req); err != nil {
 		logger.From(ctx, logger.AmfLog).Debug("could not page the UE for a PDU session modification",
@@ -318,7 +318,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	}
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		if !ueConn.RANHoldsUEContext() {
+		if n2Transfer == nil || !ueConn.RANHoldsUEContext() {
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send downlink NAS transport: %w", err)
 			}

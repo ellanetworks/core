@@ -10,57 +10,54 @@ import "github.com/ellanetworks/core/s1ap"
 type S1APProcedure string
 
 const (
-	S1APProcedureS1SetupRequest                S1APProcedure = "S1SetupRequest"
-	S1APProcedureS1SetupResponse               S1APProcedure = "S1SetupResponse"
-	S1APProcedureS1SetupFailure                S1APProcedure = "S1SetupFailure"
-	S1APProcedureInitialUEMessage              S1APProcedure = "InitialUEMessage"
-	S1APProcedureUplinkNASTransport            S1APProcedure = "UplinkNASTransport"
-	S1APProcedureDownlinkNASTransport          S1APProcedure = "DownlinkNASTransport"
-	S1APProcedureNASNonDeliveryIndication      S1APProcedure = "NASNonDeliveryIndication"
-	S1APProcedureInitialContextSetupRequest    S1APProcedure = "InitialContextSetupRequest"
-	S1APProcedureInitialContextSetupResponse   S1APProcedure = "InitialContextSetupResponse"
-	S1APProcedureInitialContextSetupFailure    S1APProcedure = "InitialContextSetupFailure"
-	S1APProcedureUEContextReleaseRequest       S1APProcedure = "UEContextReleaseRequest"
-	S1APProcedureUEContextReleaseCommand       S1APProcedure = "UEContextReleaseCommand"
-	S1APProcedureUEContextReleaseComplete      S1APProcedure = "UEContextReleaseComplete"
-	S1APProcedureUECapabilityInfoIndication    S1APProcedure = "UECapabilityInfoIndication"
-	S1APProcedureUEContextModificationRequest  S1APProcedure = "UEContextModificationRequest"
-	S1APProcedureUEContextModificationResponse S1APProcedure = "UEContextModificationResponse"
-	S1APProcedureUEContextModificationFailure  S1APProcedure = "UEContextModificationFailure"
-	S1APProcedureErrorIndication               S1APProcedure = "ErrorIndication"
-	S1APProcedureReset                         S1APProcedure = "Reset"
-	S1APProcedureResetAcknowledge              S1APProcedure = "ResetAcknowledge"
-	S1APProcedureENBConfigUpdate               S1APProcedure = "ENBConfigurationUpdate"
-	S1APProcedureENBConfigUpdateAck            S1APProcedure = "ENBConfigurationUpdateAcknowledge"
-	S1APProcedureENBConfigUpdateFailure        S1APProcedure = "ENBConfigurationUpdateFailure"
-	S1APProcedureMMEConfigUpdate               S1APProcedure = "MMEConfigurationUpdate"
-	S1APProcedureMMEConfigUpdateAck            S1APProcedure = "MMEConfigurationUpdateAcknowledge"
-	S1APProcedureMMEConfigUpdateFailure        S1APProcedure = "MMEConfigurationUpdateFailure"
-	S1APProcedureERABSetupRequest              S1APProcedure = "E-RABSetupRequest"
-	S1APProcedureERABSetupResponse             S1APProcedure = "E-RABSetupResponse"
-	S1APProcedureERABModifyRequest             S1APProcedure = "E-RABModifyRequest"
-	S1APProcedureERABModifyResponse            S1APProcedure = "E-RABModifyResponse"
-	S1APProcedureERABReleaseCommand            S1APProcedure = "E-RABReleaseCommand"
-	S1APProcedureERABReleaseResponse           S1APProcedure = "E-RABReleaseResponse"
-	S1APProcedurePaging                        S1APProcedure = "Paging"
-	S1APProcedurePathSwitchRequest             S1APProcedure = "PathSwitchRequest"
-	S1APProcedurePathSwitchRequestAck          S1APProcedure = "PathSwitchRequestAcknowledge"
-	S1APProcedurePathSwitchRequestFailure      S1APProcedure = "PathSwitchRequestFailure"
-	S1APProcedureHandoverRequired              S1APProcedure = "HandoverRequired"
-	S1APProcedureHandoverRequest               S1APProcedure = "HandoverRequest"
-	S1APProcedureHandoverRequestAck            S1APProcedure = "HandoverRequestAcknowledge"
-	S1APProcedureHandoverFailure               S1APProcedure = "HandoverFailure"
-	S1APProcedureHandoverCommand               S1APProcedure = "HandoverCommand"
-	S1APProcedureHandoverPreparationFailure    S1APProcedure = "HandoverPreparationFailure"
-	S1APProcedureHandoverNotify                S1APProcedure = "HandoverNotify"
-	S1APProcedureHandoverCancel                S1APProcedure = "HandoverCancel"
-	S1APProcedureHandoverCancelAcknowledge     S1APProcedure = "HandoverCancelAcknowledge"
-	S1APProcedureENBStatusTransfer             S1APProcedure = "ENBStatusTransfer"
-	S1APProcedureMMEStatusTransfer             S1APProcedure = "MMEStatusTransfer"
-	S1APProcedureENBConfigurationTransfer      S1APProcedure = "ENBConfigurationTransfer"
-	S1APProcedureMMEConfigurationTransfer      S1APProcedure = "MMEConfigurationTransfer"
-	S1APProcedureERABModificationIndication    S1APProcedure = "E-RABModificationIndication"
-	S1APProcedureERABModificationConfirm       S1APProcedure = "E-RABModificationConfirm"
+	S1APProcedureS1SetupRequest              S1APProcedure = "S1SetupRequest"
+	S1APProcedureS1SetupResponse             S1APProcedure = "S1SetupResponse"
+	S1APProcedureS1SetupFailure              S1APProcedure = "S1SetupFailure"
+	S1APProcedureInitialUEMessage            S1APProcedure = "InitialUEMessage"
+	S1APProcedureUplinkNASTransport          S1APProcedure = "UplinkNASTransport"
+	S1APProcedureDownlinkNASTransport        S1APProcedure = "DownlinkNASTransport"
+	S1APProcedureNASNonDeliveryIndication    S1APProcedure = "NASNonDeliveryIndication"
+	S1APProcedureInitialContextSetupRequest  S1APProcedure = "InitialContextSetupRequest"
+	S1APProcedureInitialContextSetupResponse S1APProcedure = "InitialContextSetupResponse"
+	S1APProcedureInitialContextSetupFailure  S1APProcedure = "InitialContextSetupFailure"
+	S1APProcedureUEContextReleaseRequest     S1APProcedure = "UEContextReleaseRequest"
+	S1APProcedureUEContextReleaseCommand     S1APProcedure = "UEContextReleaseCommand"
+	S1APProcedureUEContextReleaseComplete    S1APProcedure = "UEContextReleaseComplete"
+	S1APProcedureUECapabilityInfoIndication  S1APProcedure = "UECapabilityInfoIndication"
+	S1APProcedureErrorIndication             S1APProcedure = "ErrorIndication"
+	S1APProcedureReset                       S1APProcedure = "Reset"
+	S1APProcedureResetAcknowledge            S1APProcedure = "ResetAcknowledge"
+	S1APProcedureENBConfigUpdate             S1APProcedure = "ENBConfigurationUpdate"
+	S1APProcedureENBConfigUpdateAck          S1APProcedure = "ENBConfigurationUpdateAcknowledge"
+	S1APProcedureENBConfigUpdateFailure      S1APProcedure = "ENBConfigurationUpdateFailure"
+	S1APProcedureMMEConfigUpdate             S1APProcedure = "MMEConfigurationUpdate"
+	S1APProcedureMMEConfigUpdateAck          S1APProcedure = "MMEConfigurationUpdateAcknowledge"
+	S1APProcedureMMEConfigUpdateFailure      S1APProcedure = "MMEConfigurationUpdateFailure"
+	S1APProcedureERABSetupRequest            S1APProcedure = "E-RABSetupRequest"
+	S1APProcedureERABSetupResponse           S1APProcedure = "E-RABSetupResponse"
+	S1APProcedureERABModifyRequest           S1APProcedure = "E-RABModifyRequest"
+	S1APProcedureERABModifyResponse          S1APProcedure = "E-RABModifyResponse"
+	S1APProcedureERABReleaseCommand          S1APProcedure = "E-RABReleaseCommand"
+	S1APProcedureERABReleaseResponse         S1APProcedure = "E-RABReleaseResponse"
+	S1APProcedurePaging                      S1APProcedure = "Paging"
+	S1APProcedurePathSwitchRequest           S1APProcedure = "PathSwitchRequest"
+	S1APProcedurePathSwitchRequestAck        S1APProcedure = "PathSwitchRequestAcknowledge"
+	S1APProcedurePathSwitchRequestFailure    S1APProcedure = "PathSwitchRequestFailure"
+	S1APProcedureHandoverRequired            S1APProcedure = "HandoverRequired"
+	S1APProcedureHandoverRequest             S1APProcedure = "HandoverRequest"
+	S1APProcedureHandoverRequestAck          S1APProcedure = "HandoverRequestAcknowledge"
+	S1APProcedureHandoverFailure             S1APProcedure = "HandoverFailure"
+	S1APProcedureHandoverCommand             S1APProcedure = "HandoverCommand"
+	S1APProcedureHandoverPreparationFailure  S1APProcedure = "HandoverPreparationFailure"
+	S1APProcedureHandoverNotify              S1APProcedure = "HandoverNotify"
+	S1APProcedureHandoverCancel              S1APProcedure = "HandoverCancel"
+	S1APProcedureHandoverCancelAcknowledge   S1APProcedure = "HandoverCancelAcknowledge"
+	S1APProcedureENBStatusTransfer           S1APProcedure = "ENBStatusTransfer"
+	S1APProcedureMMEStatusTransfer           S1APProcedure = "MMEStatusTransfer"
+	S1APProcedureENBConfigurationTransfer    S1APProcedure = "ENBConfigurationTransfer"
+	S1APProcedureMMEConfigurationTransfer    S1APProcedure = "MMEConfigurationTransfer"
+	S1APProcedureERABModificationIndication  S1APProcedure = "E-RABModificationIndication"
+	S1APProcedureERABModificationConfirm     S1APProcedure = "E-RABModificationConfirm"
 
 	S1APProcedureDownlinkUEAssociatedLPPaTransport S1APProcedure = "DownlinkUEAssociatedLPPaTransport"
 	S1APProcedureUplinkUEAssociatedLPPaTransport   S1APProcedure = "UplinkUEAssociatedLPPaTransport"
@@ -103,8 +100,6 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureUEContextReleaseRequest
 	case s1ap.ProcUEContextRelease:
 		return S1APProcedureUEContextReleaseCommand
-	case s1ap.ProcUEContextModification:
-		return S1APProcedureUEContextModificationRequest
 	case s1ap.ProcUECapabilityInfoIndication:
 		return S1APProcedureUECapabilityInfoIndication
 	case s1ap.ProcErrorIndication:
@@ -160,8 +155,6 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureInitialContextSetupResponse
 	case s1ap.ProcUEContextRelease:
 		return S1APProcedureUEContextReleaseComplete
-	case s1ap.ProcUEContextModification:
-		return S1APProcedureUEContextModificationResponse
 	case s1ap.ProcReset:
 		return S1APProcedureResetAcknowledge
 	case s1ap.ProcENBConfigurationUpdate:
@@ -195,8 +188,6 @@ func s1apUnsuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureS1SetupFailure
 	case s1ap.ProcInitialContextSetup:
 		return S1APProcedureInitialContextSetupFailure
-	case s1ap.ProcUEContextModification:
-		return S1APProcedureUEContextModificationFailure
 	case s1ap.ProcENBConfigurationUpdate:
 		return S1APProcedureENBConfigUpdateFailure
 	case s1ap.ProcMMEConfigurationUpdate:

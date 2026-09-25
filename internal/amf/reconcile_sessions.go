@@ -133,7 +133,7 @@ func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string,
 // ReconcileSessionsForUE re-evaluates every PDU session of a UE against the
 // current DB policy and applies any change (UPF, gNB, and UE) via the SMF.
 func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
-	if ue == nil {
+	if ue == nil || amf.Session == nil {
 		return
 	}
 
@@ -155,42 +155,6 @@ func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
 			logger.AmfLog.Warn("session reconcile failed",
 				logger.SMContextRef(ref),
 				zap.Error(err))
-		}
-	}
-}
-
-func (amf *AMF) RefreshUEAMBRs(ctx context.Context) {
-	amf.mu.RLock()
-	ues := make([]*UeContext, 0, len(amf.UEs))
-
-	for _, ue := range amf.UEs {
-		if ue.State() == Registered {
-			ues = append(ues, ue)
-		}
-	}
-
-	amf.mu.RUnlock()
-
-	for _, ue := range ues {
-		profile, err := amf.SubscriberProfile(ctx, ue.Supi())
-		if err != nil || profile.Ambr == nil {
-			logger.AmfLog.Warn("failed to read the subscribed UE-AMBR", logger.SUPI(ue.Supi().String()), zap.Error(err))
-			continue
-		}
-
-		if current := ue.Ambr(); current != nil && *current == *profile.Ambr {
-			continue
-		}
-
-		ue.SetAmbr(profile.Ambr)
-
-		ueConn := ue.Conn()
-		if ueConn == nil || ueConn.ICS() != ICSCompleted {
-			continue
-		}
-
-		if err := ueConn.SendUEContextModification(ctx, *profile.Ambr); err != nil {
-			logger.AmfLog.Warn("failed to signal the UE-AMBR", logger.SUPI(ue.Supi().String()), zap.Error(err))
 		}
 	}
 }

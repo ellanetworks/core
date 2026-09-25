@@ -67,6 +67,10 @@ func handleHandoverCancel(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", logger.MMEUeS1apID(uint32(cancel.MMEUES1APID)))
 	sendHandoverCancelAcknowledge(ctx, m, radio, cancel)
+
+	if aborted {
+		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
+	}
 }
 
 func sendHandoverCancelAcknowledge(ctx context.Context, m *mme.MME, radio *mme.Radio, cancel *s1ap.HandoverCancel) {

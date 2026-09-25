@@ -151,7 +151,7 @@ func permanentPolicyFailure(err error) bool {
 }
 
 func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy *Policy) (reconcileDecision, error) {
-	if smContext.Tunnel == nil || smContext.PolicyData == nil || smContext.releasing || smContext.pending != nil {
+	if smContext.Tunnel == nil || smContext.PolicyData == nil || smContext.releasing || smContext.pending != nil || smContext.activating {
 		return reconcileDecision{}, nil
 	}
 
@@ -172,6 +172,14 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
 	if policy == nil {
 		return s.releaseForReactivation(ctx, smContext)
+	}
+
+	if smContext.userPlaneStale {
+		if err := s.updatePFCPRules(ctx, smContext, smContext.PolicyData); err != nil {
+			return reconcileDecision{}, fmt.Errorf("re-apply the committed policy to the UPF: %w", err)
+		}
+
+		smContext.userPlaneStale = false
 	}
 
 	current := smContext.PolicyData
@@ -233,6 +241,19 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return s.releaseForReactivation(ctx, smContext)
 	}
 
+	if policy.PolicyID != current.PolicyID {
+		rebound := *current
+		rebound.PolicyID = policy.PolicyID
+		rebound.NetworkRules = policy.NetworkRules
+
+		if err := s.updatePFCPRules(ctx, smContext, &rebound); err != nil {
+			return reconcileDecision{}, fmt.Errorf("bind the session to policy %q: %w", policy.PolicyID, err)
+		}
+
+		smContext.PolicyData = &rebound
+		current = &rebound
+	}
+
 	oldQoS := current.QosData
 
 	oldArp, newArp := int32(0), int32(0)
@@ -271,6 +292,12 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		MTU:          current.MTU,
 		IPv4Pool:     current.IPv4Pool,
 		IPv6Pool:     current.IPv6Pool,
+	}
+
+	if smContext.Access == Access5G && hasQoSChange && !has5QIChange && !hasAmbrChange && !hasDNSChange && !smContext.upConnectionActive() {
+		smContext.PolicyData = newPolicy
+
+		return reconcileDecision{}, nil
 	}
 
 	if smContext.Access == Access4G {
@@ -383,12 +410,13 @@ func (s *SMF) commitPendingPolicy(ctx context.Context, smContext *SMContext) {
 	}
 
 	current := smContext.PolicyData
-	if current == nil || current.QosData.QFI != pending.QosData.QFI || current.Ambr != pending.Ambr {
+	if current == nil || current.QosData.QFI != pending.QosData.QFI ||
+		!current.Ambr.Uplink.Equal(pending.Ambr.Uplink) || !current.Ambr.Downlink.Equal(pending.Ambr.Downlink) {
 		if err := s.updatePFCPRules(ctx, smContext, pending); err != nil {
-			logger.From(ctx, logger.SmfLog).Warn("failed to apply the accepted policy to the UPF; keeping the previous one for the next reconcile",
+			logger.From(ctx, logger.SmfLog).Warn("failed to apply the accepted policy to the UPF; the next reconcile retries it",
 				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-			return
+			smContext.userPlaneStale = true
 		}
 	}
 

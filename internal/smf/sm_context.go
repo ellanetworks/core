@@ -81,6 +81,8 @@ type SMContext struct {
 	pendingPolicy *Policy
 
 	releasing                bool // guarded by Mutex
+	activating               bool
+	userPlaneStale           bool
 	n1Released               bool
 	n2Released               bool
 	n2Release                n2ReleasePurpose
@@ -121,6 +123,13 @@ func (smContext *SMContext) stopProcedureTimer() {
 
 func (smContext *SMContext) networkProcedureOutstanding() bool {
 	return smContext.releasing || smContext.procedureTimer.Active()
+}
+
+func (smContext *SMContext) endActivation() {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	smContext.activating = false
 }
 
 func (smContext *SMContext) upConnectionActive() bool {

@@ -33,7 +33,6 @@ type fakeNGAPSender struct {
 	pagingCalls                   int
 	locationReportingControlCalls int
 	nrppaTransportCalls           int
-	ueContextModificationCalls    int
 }
 
 func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
@@ -56,8 +55,6 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 			f.locationReportingControlCalls++
 		case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
 			f.nrppaTransportCalls++
-		case ngap.ProcUEContextModification:
-			f.ueContextModificationCalls++
 		}
 	}
 

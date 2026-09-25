@@ -208,6 +208,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
+	smContext.endActivation()
+
 	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data)
 	if err != nil {
 		span.RecordError(err)
@@ -290,6 +292,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
+
+	smContext.endActivation()
 
 	s.rejectUnforwardedEstablishment(ctx, smContext)
 
