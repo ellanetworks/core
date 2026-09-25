@@ -76,7 +76,6 @@ type PdnConnection struct {
 	Dns           netip.Addr // data-network DNS server, advertised to the UE via PCO
 	PDUSessionID  uint8
 	Snssai        *models.Snssai
-	Transferred   bool
 	SessAmbrDLBps uint64
 	SessAmbrULBps uint64
 	Qci           uint8
@@ -95,6 +94,9 @@ type PdnConnection struct {
 	Disconnecting bool
 
 	Modifying *models.EPSBearerModification
+
+	modifyAwaitingRadio bool
+	modifyAcceptedByUE  bool
 
 	// guard supervises this bearer's outstanding ESM procedure (Modify/Deactivate,
 	// T3486/T3495). It is per-bearer because a UE with several PDN connections can
@@ -414,7 +416,7 @@ func fillBearerLocked(p *PdnConnection, apn string, bearer models.EPSBearer) {
 // addressing/QoS atomically under ue.mu, so a status read or reconcile never sees a
 // half-populated bearer. It returns the negotiated PDN type, DNS, and ESM cause
 // (captured under the lock) for the caller to log.
-func (m *MME) InstallDefaultBearer(ue *UeContext, ueAmbr models.Ambr, apn string, bearer models.EPSBearer, transferred bool) (pdnType uint8, dns string, esmCause eps.ESMCause) {
+func (m *MME) InstallDefaultBearer(ue *UeContext, ueAmbr models.Ambr, apn string, bearer models.EPSBearer) (pdnType uint8, dns string, esmCause eps.ESMCause) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -423,31 +425,28 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, ueAmbr models.Ambr, apn string
 	// Session-AMBR is per PDN connection and lives on PdnConnection.
 	ue.Ambr = &ueAmbr
 
-	p := ue.publishPDNLocked(DefaultERABID, apn, bearer, transferred)
+	p := ue.publishPDNLocked(DefaultERABID, apn, bearer)
 
 	return uint8(p.PdnType), p.Dns.String(), p.EsmCause
 }
 
 func (ue *UeContext) UsesEPCO(p *PdnConnection) bool {
-	return p != nil && p.Transferred && ue.UeNetCap().SupportsEPCO()
+	return p != nil && ue.UeNetCap().SupportsEPCO()
 }
 
-func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, apn string, bearer models.EPSBearer, transferred bool) *PdnConnection {
+func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, apn string, bearer models.EPSBearer) *PdnConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.publishPDNLocked(p.Ebi, apn, bearer, transferred)
+	return ue.publishPDNLocked(p.Ebi, apn, bearer)
 }
 
-func (ue *UeContext) publishPDNLocked(ebi uint8, apn string, bearer models.EPSBearer, transferred bool) *PdnConnection {
+func (ue *UeContext) publishPDNLocked(ebi uint8, apn string, bearer models.EPSBearer) *PdnConnection {
 	if ue.Pdns == nil {
 		ue.Pdns = make(map[uint8]*PdnConnection)
 	}
 
-	p := &PdnConnection{
-		Ebi:         ebi,
-		Transferred: transferred,
-	}
+	p := &PdnConnection{Ebi: ebi}
 
 	fillBearerLocked(p, apn, bearer)
 
@@ -728,7 +727,7 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 
 		if p.Modifying != nil {
 			p.guard.Stop()
-			p.Modifying = nil
+			p.clearModificationLocked()
 		}
 	}
 	ue.mu.Unlock()

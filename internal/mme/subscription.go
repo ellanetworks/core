@@ -14,7 +14,7 @@ import (
 // ErrUnknownAPN reports that the subscriber's profile has no policy bound to a
 // data network with the requested APN, so the PDN connection cannot be
 // authorised (TS 24.301 ESM cause #27).
-var ErrUnknownAPN = fmt.Errorf("mme: requested APN not in subscriber profile")
+var ErrUnknownAPN = models.ErrUnknownAPN
 
 func SubscribedAPN(ctx context.Context, m *MME, imsi, requested string) (string, error) {
 	sub, err := m.Bearer.GetSubscriber(ctx, imsi)

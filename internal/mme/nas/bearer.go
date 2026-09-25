@@ -51,7 +51,8 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the subscriber's access", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		return
 	}
@@ -76,13 +77,17 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	}
 
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed APN", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the subscribed APN", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+
 		return
 	}
 
 	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed UE-AMBR", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to resolve the subscribed UE-AMBR", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+
 		return
 	}
 
@@ -108,7 +113,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, ueAmbr, apn, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
+	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, ueAmbr, apn, bearer)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.Uint8("pdn_type", pdnType),
@@ -133,7 +138,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
 
-	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ueAmbr)
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ue.RANUEAMBR())
 	if !ok {
 		if p := m.DefaultPDN(ue); p != nil {
 			m.ReleasePDN(ctx, ue, p)

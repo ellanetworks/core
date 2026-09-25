@@ -28,7 +28,7 @@ func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 		defer wg.Done()
 
 		for range 500 {
-			m.InstallDefaultBearer(ue, ueAmbr, "internet", bearer, false)
+			m.InstallDefaultBearer(ue, ueAmbr, "internet", bearer)
 		}
 	}()
 

@@ -5,7 +5,9 @@ package nas
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -484,5 +486,54 @@ func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testi
 
 	if !ue.Connected() {
 		t.Error("the UE was released; a failed standalone PDN connectivity leaves it connected")
+	}
+}
+
+func TestPDNConnectivityWithoutAnAPNUsesTheDefaultAPN(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	testPDN(ue).Apn = "ims"
+
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4,
+	})
+
+	defer ue.Conn().StopNASGuard(t.Context())
+
+	if got := m.Session.(*fakeSessionManager).lastRequest.APN; got != "internet" {
+		t.Fatalf("PDN connection opened on APN %q, want the default %q", got, "internet")
+	}
+}
+
+func TestModifyRejectWithInvalidEPSBearerIdentityDeactivatesTheBearer(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := connectedBearerUE(t, m)
+
+	ims := ue.EnsurePDN(6)
+	ims.Apn = "ims"
+	ims.SessionRef = "ref-ims"
+	ims.Modifying = &models.EPSBearerModification{APNAMBR: &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("1 Mbps")}}
+
+	handleModifyBearerReject(context.Background(), m, ue, ue.Conn(), &eps.ModifyEPSBearerContextReject{
+		EPSBearerIdentity: 6,
+		Cause:             eps.ESMCauseInvalidEPSBearerIdentity,
+	})
+
+	if m.LookupPDN(ue, 6) != nil {
+		t.Fatal("the bearer the UE does not hold is still active")
+	}
+
+	want := []bearerModificationOutcome{{ref: "ref-ims", accepted: false}}
+	if got := m.Session.(*fakeSessionManager).concluded; !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
+	}
+}
+
+func TestAttachBearerRejectCauseNamesAnUnknownAPN(t *testing.T) {
+	err := fmt.Errorf("no policy for APN %q: %w", "gone", models.ErrUnknownAPN)
+
+	if got := attachBearerRejectCause(eps.RequestTypeInitialRequest, err); got != eps.ESMCauseMissingOrUnknownAPN {
+		t.Fatalf("cause = %d, want #27", got)
 	}
 }

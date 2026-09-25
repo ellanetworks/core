@@ -1055,6 +1055,33 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
+func (ueConn *UeConn) SendUEContextModification(ctx context.Context, ambr models.Ambr) error {
+	if !ueConn.RANHoldsUEContext() {
+		return errNoRANUEContext
+	}
+
+	amfInstance, conn, err := ueConn.sendTarget()
+	if err != nil {
+		return err
+	}
+
+	req := &ngap.UEContextModificationRequest{
+		AMFUENGAPID: ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(ueConn.RanUeNgapID()),
+		UEAggregateMaximumBitRate: &ngap.UEAggregateMaximumBitRate{
+			DL: ngap.BitRate(ambr.Downlink.Bps()),
+			UL: ngap.BitRate(ambr.Uplink.Bps()),
+		},
+	}
+
+	pkt, err := req.Marshal()
+	if err != nil {
+		return fmt.Errorf("marshal UE Context Modification Request: %w", err)
+	}
+
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureUEContextModificationRequest, pkt)
+}
+
 // handoverPreparationFailureBytes builds a Handover Preparation Failure for the
 // given NGAP identities (TS 38.413 §9.2.3.3).
 func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause, diagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) ([]byte, error) {

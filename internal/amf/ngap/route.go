@@ -30,6 +30,8 @@ const (
 	initialUEMessageMessageType                   amf.NGAPProcedure = "InitialUEMessage"
 	ueContextReleaseRequestMessageType            amf.NGAPProcedure = "UEContextReleaseRequest"
 	ueContextReleaseCompleteMessageType           amf.NGAPProcedure = "UEContextReleaseComplete"
+	ueContextModificationResponseMessageType      amf.NGAPProcedure = "UEContextModificationResponse"
+	ueContextModificationFailureMessageType       amf.NGAPProcedure = "UEContextModificationFailure"
 	initialContextSetupResponseMessageType        amf.NGAPProcedure = "InitialContextSetupResponse"
 	initialContextSetupFailureMessageType         amf.NGAPProcedure = "InitialContextSetupFailure"
 	ueRadioCapabilityInfoIndicationMessageType    amf.NGAPProcedure = "UERadioCapabilityInfoIndication"
@@ -167,6 +169,8 @@ func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receivePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcPDUSessionResourceModify:
 		receivePDUSessionResourceModifyResponse(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcUEContextModification:
+		receiveUEContextModificationResponse(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcAMFConfigurationUpdate:
 		handleAMFConfigurationUpdateAcknowledge(ctx, ran, so.Value)
 	default:
@@ -186,6 +190,8 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 		receiveHandoverFailure(ctx, amfInstance, ran, msg, uo, span)
 	case ngap.ProcInitialContextSetup:
 		receiveInitialContextSetupFailure(ctx, amfInstance, ran, msg, uo, span)
+	case ngap.ProcUEContextModification:
+		receiveUEContextModificationFailure(ctx, amfInstance, ran, msg, uo, span)
 	case ngap.ProcAMFConfigurationUpdate:
 		handleAMFConfigurationUpdateFailure(ctx, amfInstance, ran, uo.Value)
 	default:
@@ -512,6 +518,32 @@ func receivePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *a
 	}
 
 	HandlePDUSessionResourceModifyResponse(ctx, amfInstance, ran, resp)
+}
+
+func receiveUEContextModificationResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ueContextModificationResponseMessageType, span)
+
+	if _, err := ngap.ParseUEContextModificationResponse(so.Value); err != nil {
+		ran.Log(ctx).Warn("failed to decode UE Context Modification Response", zap.Error(err))
+	}
+}
+
+func receiveUEContextModificationFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, uo *ngap.UnsuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ueContextModificationFailureMessageType, span)
+
+	failure, err := ngap.ParseUEContextModificationFailure(uo.Value)
+	if err != nil {
+		ran.Log(ctx).Warn("failed to decode UE Context Modification Failure", zap.Error(err))
+
+		return
+	}
+
+	var cause string
+	if failure.Cause != nil {
+		cause = failure.Cause.String()
+	}
+
+	ran.Log(ctx).Warn("gNB refused the UE context modification", logger.Cause(cause))
 }
 
 // receivePDUSessionResourceModifyIndication parses and handles a PDU SESSION

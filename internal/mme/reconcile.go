@@ -37,8 +37,30 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 	}
 }
 
+func (m *MME) ResumeBearerReconfigurationAfterHandover(ctx context.Context, ue *UeContext) {
+	ue.mu.Lock()
+
+	var interrupted []string
+
+	for _, p := range ue.Pdns {
+		if p.Modifying != nil {
+			p.guard.Stop()
+			p.clearModificationLocked()
+			interrupted = append(interrupted, p.SessionRef)
+		}
+	}
+
+	ue.mu.Unlock()
+
+	for _, ref := range interrupted {
+		m.Session.CommitEPSBearerModification(ctx, ref, false)
+	}
+
+	m.ReconcileUE(ctx, ue)
+}
+
 func (m *MME) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error {
-	ue, ueConn, p, err := m.reconcilableBearer(imsi, ebi)
+	ue, ueConn, p, err := m.reconcilableBearer(ctx, imsi, ebi, func(p *PdnConnection) bool { return !arpOnly(p, mod) })
 	if err != nil {
 		return err
 	}
@@ -52,12 +74,19 @@ func (m *MME) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod m
 }
 
 func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error {
-	ue, ueConn, p, err := m.reconcilableBearer(imsi, ebi)
+	ue, ueConn, p, err := m.reconcilableBearer(ctx, imsi, ebi, func(*PdnConnection) bool { return true })
 	if err != nil {
 		return err
 	}
 
 	ctx = logger.Into(ctx, ueConn.LogFields()...)
+
+	if !ue.BearerReleaseOnly(p) {
+		ueConn.Log(ctx).Info("policy/data-network changed on the last PDN connection; detaching for re-attach", zap.String("apn", p.Apn))
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
+
+		return nil
+	}
 
 	ueConn.Log(ctx).Info("policy/data-network changed; reactivating EPS bearer", zap.String("apn", p.Apn))
 	m.reactivateBearer(ctx, ue, p)
@@ -65,24 +94,36 @@ func (m *MME) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) e
 	return nil
 }
 
+func arpOnly(p *PdnConnection, mod models.EPSBearerModification) bool {
+	return mod.QoS != nil && mod.QoS.QCI == p.Qci && mod.APNAMBR == nil && !mod.DNS.IsValid() && len(mod.MappedFiveGSQoS) == 0
+}
+
 // ue.active is freed concurrently by a release goroutine, and reconciliation is
 // deferred while an S1 handover is in flight (an E-RAB Modify or Release would
 // collide with the handover's bearer signalling, TS 36.413 §8.4.1.2); the next
 // sweep re-converges the UE.
-func (m *MME) reconcilableBearer(imsi string, ebi uint8) (*UeContext, *UeConn, *PdnConnection, error) {
+func (m *MME) reconcilableBearer(ctx context.Context, imsi string, ebi uint8, pageIfIdle func(*PdnConnection) bool) (*UeContext, *UeConn, *PdnConnection, error) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("no context for imsi %s", imsi)
 	}
 
-	ueConn, ready := m.ReconcileReady(ue)
-	if !ready {
-		return nil, nil, nil, ErrUENotReachable
-	}
-
 	p := m.LookupPDN(ue, ebi)
 	if p == nil {
 		return nil, nil, nil, fmt.Errorf("no EPS bearer %d for imsi %s", ebi, imsi)
+	}
+
+	ueConn, ready := m.ReconcileReady(ue)
+	if !ready {
+		if ue.EMMState() == EMMRegistered && ue.Conn() == nil && pageIfIdle(p) {
+			m.pageForSignalling(ctx, ue)
+		}
+
+		return nil, nil, nil, ErrUENotReachable
+	}
+
+	if ueConn.ICS() != ICSCompleted {
+		return nil, nil, nil, ErrUENotReachable
 	}
 
 	ue.mu.Lock()
@@ -94,6 +135,15 @@ func (m *MME) reconcilableBearer(imsi string, ebi uint8) (*UeContext, *UeConn, *
 	}
 
 	return ue, ueConn, p, nil
+}
+
+func (m *MME) pageForSignalling(ctx context.Context, ue *UeContext) {
+	arm := func() error { return ue.beginPaging(&MTRequest{}) }
+
+	if err := m.page(ctx, ue, arm); err != nil && !errors.Is(err, errPagingSkipped) {
+		logger.From(ctx, logger.MmeLog).Warn("could not page the UE for a bearer reconfiguration",
+			logger.SUPI(ue.Supi().String()), zap.Error(err))
+	}
 }
 
 // modifyBearer updates an active default bearer in place with a single MODIFY EPS
@@ -159,6 +209,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 	}
 
 	p.Modifying = &mod
+	p.modifyAwaitingRadio = mod.QoS != nil
 	ue.mu.Unlock()
 
 	write := func(wire []byte) error {
@@ -179,7 +230,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 
 	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
 		ue.mu.Lock()
-		p.Modifying = nil
+		p.clearModificationLocked()
 		ue.mu.Unlock()
 
 		ReportProtectFailure(ctx, ueConn, "Modify EPS Bearer Context Request", err)

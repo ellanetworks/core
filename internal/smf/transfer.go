@@ -239,17 +239,17 @@ func transferPolicy(current, target *Policy) *Policy {
 		return target
 	}
 
-	merged := *target
+	retained := *current
 
-	if len(merged.NetworkRules) == 0 {
-		merged.NetworkRules = current.NetworkRules
+	if len(retained.NetworkRules) == 0 {
+		retained.NetworkRules = target.NetworkRules
 	}
 
-	if merged.QosData == (models.QosData{}) {
-		merged.QosData = current.QosData
+	if retained.QosData == (models.QosData{}) {
+		retained.QosData = target.QosData
 	}
 
-	return &merged
+	return &retained
 }
 
 func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppedSource) {

@@ -20,6 +20,8 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	t.Helper()
 
 	ue, cc := securedUE(t, m)
+	ue.Conn().SetICS(ICSCompleted)
+
 	p := testPDN(ue)
 	p.Apn = "internet"
 	p.SessionRef = "ref-internet"
@@ -73,7 +75,7 @@ func sentERABModify(t *testing.T, pdu []byte) *s1ap.ERABModifyRequest {
 	return req
 }
 
-func TestReactivateEPSBearerRequestsReactivation(t *testing.T) {
+func TestReactivateEPSBearerOnTheLastPDNDetachesForReattach(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
 
@@ -83,15 +85,69 @@ func TestReactivateEPSBearerRequestsReactivation(t *testing.T) {
 
 	defer ue.Conn().StopNASGuard(t.Context())
 
-	if !testPDN(ue).Deactivating {
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Detach Request, got %d", len(cc.sent))
+	}
+
+	wire := decodeDownlinkNAS(t, cc.sent[0])
+
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
+	if err != nil {
+		t.Fatalf("unprotect downlink: %v", err)
+	}
+
+	req, err := eps.ParseDetachRequestNetwork(plain)
+	if err != nil {
+		t.Fatalf("parse Detach Request: %v", err)
+	}
+
+	if req.TypeOfDetach != eps.DetachTypeReattachRequired {
+		t.Fatalf("detach type = %d, want re-attach required", req.TypeOfDetach)
+	}
+
+	if ue.EMMState() != EMMDeregistrationInitiated {
+		t.Fatalf("EMM state = %v, want deregistration initiated", ue.EMMState())
+	}
+}
+
+func TestReactivateEPSBearerRequestsReactivation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+
+	ims := ue.EnsurePDN(6)
+	ims.Apn = "ims"
+	ims.SessionRef = "ref-ims"
+
+	if err := m.ReactivateEPSBearer(context.Background(), ue.imsiOrEmpty(), 6); err != nil {
+		t.Fatal(err)
+	}
+
+	defer ue.Conn().StopNASGuard(t.Context())
+
+	if !ims.Deactivating {
 		t.Fatal("bearer not marked deactivating")
 	}
 
 	if len(cc.sent) != 1 {
-		t.Fatalf("expected one Deactivate EPS Bearer Context Request, got %d", len(cc.sent))
+		t.Fatalf("expected one E-RAB Release Command, got %d", len(cc.sent))
 	}
 
-	wire := decodeDownlinkNAS(t, cc.sent[0])
+	pdu, err := s1ap.Unmarshal(cc.sent[0])
+	if err != nil {
+		t.Fatalf("unmarshal S1AP: %v", err)
+	}
+
+	im, ok := pdu.(*s1ap.InitiatingMessage)
+	if !ok || im.ProcedureCode != s1ap.ProcERABRelease {
+		t.Fatalf("got %T, want E-RAB Release Command", pdu)
+	}
+
+	cmd, err := s1ap.ParseERABReleaseCommand(im.Value)
+	if err != nil {
+		t.Fatalf("parse E-RAB Release Command: %v", err)
+	}
+
+	wire := []byte(cmd.NASPDU)
 
 	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
 	if err != nil {
@@ -252,19 +308,17 @@ func TestModifyEPSBearerQoSViaERABModify(t *testing.T) {
 func TestModifyBearerFollowsTheConnectionsPCOElement(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
-		transferred  bool
+		cap          eps.UENetworkCapability
 		wantExtended bool
 	}{
-		{"transferred from a PDU session", true, true},
-		{"ordinary PDN connection", false, false},
+		{"UE supports ePCO", eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x80, 0x20}}, true},
+		{"UE does not", eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x00, 0x20}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
 			ue, cc := connectedBearerUE(t, m)
 
-			ue.SetUESecurityCapability(eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x80, 0x20}}, nil, MintAuthProofForTrackingAreaUpdate())
-
-			testPDN(ue).Transferred = tc.transferred
+			ue.SetUESecurityCapability(tc.cap, nil, MintAuthProofForTrackingAreaUpdate())
 
 			before := cc.count()
 

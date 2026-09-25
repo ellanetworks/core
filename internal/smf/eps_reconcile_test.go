@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func epsReconcileFixture(t *testing.T, pduSessionID uint8) (*smf.SMF, *fakePCF, *fakeUPF, *fakeMME, string) {
@@ -136,6 +137,88 @@ func TestEPSSessionMovedFrom5GSKeepsItsSlicesPolicy(t *testing.T) {
 	}
 }
 
+func TestUERequestedEPSHandoverKeepsTheSessionsSlice(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	sc := establish5GS(t, s)
+	pcf.lastSnssai = nil
+
+	req := epsMove(sc.PDUSessionID)
+	req.EPSBearerIdentity = 7
+
+	bearer, err := s.CreateEPSSession(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if pcf.apnLookups != 0 || pcf.lastSnssai == nil || !pcf.lastSnssai.Equal(*sc.Snssai) {
+		t.Fatalf("policy resolved for slice %+v after %d APN lookups, want the moving session's %+v", pcf.lastSnssai, pcf.apnLookups, sc.Snssai)
+	}
+
+	var flows []byte
+
+	for _, c := range bearer.MappedFiveGSQoS {
+		if c.ID == nas.PCOContainerQoSFlowDescriptions {
+			flows = c.Content
+		}
+	}
+
+	parsed, err := fgs.ParseQoSFlowDescriptions(flows)
+	if err != nil || len(parsed) != 1 {
+		t.Fatalf("mapped QoS flow descriptions = %v (%v), want one", parsed, err)
+	}
+
+	if ebi, ok := parsed[0].EPSBearerID(); !ok || ebi != 7 {
+		t.Fatalf("mapped QoS flow names EPS bearer %d, want the bearer being activated (7)", ebi)
+	}
+}
+
+func TestEPSCommitIgnoresASessionNowOn5GS(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	reconcileAmbrChange(t, s, pcf, ref)
+
+	s.CommitEPSBearerModification(context.Background(), ref, true)
+
+	smCtx.Mutex.Lock()
+	dl := smCtx.PolicyData.Ambr.Downlink
+	smCtx.Mutex.Unlock()
+
+	if dl != models.MustParseBitRate("200 Mbps") {
+		t.Fatalf("a late EPS accept committed a 5GS modification: downlink %s", dl)
+	}
+}
+
+func TestUserPlaneReactivationAbortsAPendingModification(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	reconcileAmbrChange(t, s, pcf, ref)
+
+	if _, err := s.ActivateSmContext(context.Background(), ref); err != nil {
+		t.Fatalf("ActivateSmContext: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
+	}
+
+	smCtx.Mutex.Lock()
+	dl := smCtx.PolicyData.Ambr.Downlink
+	smCtx.Mutex.Unlock()
+
+	if dl != models.MustParseBitRate("200 Mbps") {
+		t.Fatalf("a modification aborted by the user-plane re-establishment was committed: downlink %s", dl)
+	}
+}
+
 func TestEPSReconcileModifiesTheBearerAndCommitsOnAccept(t *testing.T) {
 	s, pcf, upf, mmeCb, ref := epsReconcileFixture(t, 0)
 
@@ -157,8 +240,8 @@ func TestEPSReconcileModifiesTheBearerAndCommitsOnAccept(t *testing.T) {
 		t.Fatalf("modification = %+v, want the new APN-AMBR alone", mods[0])
 	}
 
-	if len(upf.modifyCalls) == before {
-		t.Error("the UPF QER was not updated")
+	if len(upf.modifyCalls) != before {
+		t.Error("the UPF QER was updated before the UE accepted the modification")
 	}
 
 	if committedPolicy(s, ref).Ambr == newAmbr {
@@ -169,6 +252,10 @@ func TestEPSReconcileModifiesTheBearerAndCommitsOnAccept(t *testing.T) {
 
 	if committedPolicy(s, ref).Ambr != newAmbr {
 		t.Fatal("an accepted modification was not committed")
+	}
+
+	if len(upf.modifyCalls) == before {
+		t.Error("the UPF QER was not updated once the UE accepted")
 	}
 }
 
@@ -277,12 +364,15 @@ func TestEPSReconcileReactivatesAnUnauthorizedAPN(t *testing.T) {
 	}
 }
 
-func TestEPSReconcileLeavesAnIdleUEAlone(t *testing.T) {
-	s, pcf, _, mmeCb, ref := epsReconcileFixture(t, 0)
+func TestEPSReconcileLeavesTheIdleUEToTheMME(t *testing.T) {
+	s, pcf, upf, mmeCb, ref := epsReconcileFixture(t, 0)
 
 	if err := s.DeactivateEPSSession(context.Background(), ref); err != nil {
 		t.Fatal(err)
 	}
+
+	before := len(upf.modifyCalls)
+	mmeCb.modifyErr = smf.ErrUENotReachable
 
 	changePolicy(pcf, func(p *smf.Policy) { p.Ambr.Downlink = models.MustParseBitRate("400 Mbps") })
 
@@ -290,8 +380,24 @@ func TestEPSReconcileLeavesAnIdleUEAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(mmeCb.modifications()) != 0 || len(mmeCb.reactivations()) != 0 {
-		t.Fatal("an idle UE was signalled")
+	if len(upf.modifyCalls) != before {
+		t.Error("the UPF was reconfigured for a change the idle UE never received")
+	}
+
+	if committedPolicy(s, ref).Ambr.Downlink.Equal(models.MustParseBitRate("400 Mbps")) {
+		t.Error("the change was committed while the UE was idle")
+	}
+
+	mmeCb.mu.Lock()
+	mmeCb.modifyErr = nil
+	mmeCb.mu.Unlock()
+
+	if err := s.ReconcileSession(context.Background(), ref); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(mmeCb.modifications()) != 1 {
+		t.Fatal("the deferred change was not sent once the UE could be reached")
 	}
 }
 

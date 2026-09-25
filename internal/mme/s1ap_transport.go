@@ -61,6 +61,7 @@ func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 	case S1APProcedureInitialContextSetupRequest, S1APProcedureUEContextReleaseCommand,
 		S1APProcedureDownlinkNASTransport,
 		S1APProcedureERABSetupRequest, S1APProcedureERABModifyRequest, S1APProcedureERABReleaseCommand,
+		S1APProcedureUEContextModificationRequest,
 		S1APProcedureERABModificationConfirm,
 		S1APProcedureHandoverRequest, S1APProcedureHandoverCommand, S1APProcedureHandoverPreparationFailure,
 		S1APProcedureHandoverCancelAcknowledge, S1APProcedureMMEStatusTransfer,

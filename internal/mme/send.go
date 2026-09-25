@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -209,6 +210,25 @@ func (c *UeConn) SendERABModify(ctx context.Context, req *s1ap.ERABModifyRequest
 	_ = c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
 
 	return nil
+}
+
+func (c *UeConn) SendUEContextModification(ctx context.Context, ambr models.Ambr) error {
+	if c == nil {
+		return nil
+	}
+
+	req := &s1ap.UEContextModificationRequest{
+		MMEUES1APID:               c.MMEUES1APID,
+		ENBUES1APID:               c.ENBUES1APID(),
+		UEAggregateMaximumBitRate: &s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(ambr.Downlink.Bps()), UL: s1ap.BitRate(ambr.Uplink.Bps())},
+	}
+
+	b, err := req.Marshal()
+	if err != nil {
+		return fmt.Errorf("marshal UE Context Modification Request: %w", err)
+	}
+
+	return c.SendS1AP(ctx, S1APProcedureUEContextModificationRequest, b)
 }
 
 // SendERABRelease stamps the UE identities and sends the E-RAB Release Command (TS 36.413 §8.2.3).

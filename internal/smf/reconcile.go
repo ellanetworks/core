@@ -168,18 +168,6 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return reconcileDecision{}, nil
 	}
 
-	// UE in CM-IDLE (user plane buffering): do not touch any enforcement point
-	// while it is unreachable. The change is applied atomically to UPF + RAN + UE
-	// when the UE reactivates.
-	if !smContext.upConnectionActive() {
-		logger.SmfLog.Debug("UE idle (user plane buffering), deferring reconciliation to reactivation",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID),
-		)
-
-		return reconcileDecision{}, nil
-	}
-
 	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
 	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
 	if policy == nil {
@@ -285,25 +273,6 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		IPv6Pool:     current.IPv6Pool,
 	}
 
-	if hasQoSChange || hasAmbrChange {
-		if err := s.updatePFCPRules(ctx, smContext, newPolicy); err != nil {
-			logger.SmfLog.Error("failed to update PFCP rules during reconciliation",
-				zap.Error(err),
-				logger.SUPI(smContext.Supi.String()),
-				logger.PDUSessionID(smContext.PDUSessionID),
-			)
-
-			return reconcileDecision{}, fmt.Errorf("failed to update PFCP rules: %w", err)
-		}
-
-		logger.SmfLog.Info("PFCP rules updated during reconciliation",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID),
-			zap.Bool("qos_change", hasQoSChange),
-			zap.Bool("ambr_change", hasAmbrChange),
-		)
-	}
-
 	if smContext.Access == Access4G {
 		mod, err := epsBearerModification(smContext, newPolicy, hasQoSChange, has5QIChange, hasAmbrChange, hasDNSChange)
 		if err != nil {
@@ -315,10 +284,6 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 		return reconcileDecision{action: reconcileModify, policy: newPolicy, mod: mod}, nil
 	}
 
-	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502: the AMF may
-	// ignore N2 SM information when the UE is unreachable) and the policy is
-	// committed immediately; if connected, the commit is deferred until the UE
-	// answers the modification.
 	if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, has5QIChange, hasDNSChange); err != nil {
 		if !errors.Is(err, ErrUENotReachable) {
 			logger.SmfLog.Error("failed to send session modification to UE/gNB",
@@ -330,14 +295,10 @@ func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy 
 			return reconcileDecision{}, fmt.Errorf("failed to send session modification: %w", err)
 		}
 
-		logger.SmfLog.Debug("UE is idle, skipping N1N2 delivery; policy committed for next activation",
+		logger.SmfLog.Debug("UE not reachable, deferring the modification until it returns",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
-
-		// No procedure to await: commit now. ActivateSmContext rebuilds the Setup
-		// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
-		smContext.PolicyData = newPolicy
 
 		return reconcileDecision{}, nil
 	}
@@ -401,11 +362,37 @@ func (s *SMF) CommitEPSBearerModification(ctx context.Context, ref string, accep
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if accepted && smContext.pendingPolicy != nil {
-		smContext.PolicyData = smContext.pendingPolicy
+	if smContext.Access != Access4G {
+		return
 	}
 
+	if !accepted {
+		smContext.pendingPolicy = nil
+		return
+	}
+
+	s.commitPendingPolicy(ctx, smContext)
+}
+
+func (s *SMF) commitPendingPolicy(ctx context.Context, smContext *SMContext) {
+	pending := smContext.pendingPolicy
 	smContext.pendingPolicy = nil
+
+	if pending == nil {
+		return
+	}
+
+	current := smContext.PolicyData
+	if current == nil || current.QosData.QFI != pending.QosData.QFI || current.Ambr != pending.Ambr {
+		if err := s.updatePFCPRules(ctx, smContext, pending); err != nil {
+			logger.From(ctx, logger.SmfLog).Warn("failed to apply the accepted policy to the UPF; keeping the previous one for the next reconcile",
+				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+			return
+		}
+	}
+
+	smContext.PolicyData = pending
 }
 
 // sendSessionModification builds and sends N1+N2 for the network-requested PDU
@@ -442,7 +429,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// DNS travels in the NAS Extended PCO and needs no N2 signaling.
 	var n2Msg []byte
 
-	if hasAmbrChange || hasQoSChange {
+	if (hasAmbrChange || hasQoSChange) && smContext.upConnectionActive() {
 		var n2Ambr *models.Ambr
 		if hasAmbrChange {
 			n2Ambr = &policy.Ambr
@@ -470,7 +457,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 
 	// T3591 retransmits the command until the UE replies; on the final expiry
 	// the procedure is aborted and the session stays PDU SESSION ACTIVE
-	// (TS 24.501). The committed PFCP/policy change is not rolled back.
+	// (TS 24.501).
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 	s.armRetransmit(ctx, smContext, s.timerT3591(),

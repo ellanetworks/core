@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -75,23 +76,16 @@ func ptiInUse(t *testing.T, smCtx *smf.SMContext, pti uint8) bool {
 	return smCtx.IsPTIInUse(pti)
 }
 
-// TestReconcileSkipsIdleSession verifies that a reconcile for a CM-IDLE session (the
-// downlink FAR buffering after DeactivateSmContext) touches no enforcement point —
-// no UPF push, no N1N2, no policy commit. The change is applied when the UE
-// reactivates (item 8; mirrors the MME deferring idle UEs to its ICS-Response
-// reconcile).
-func TestReconcileSkipsIdleSession(t *testing.T) {
+func TestReconcileSendsAnIdleSessionN1Only(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	// Move the session to CM-IDLE (downlink FAR → buffering).
 	if err := s.DeactivateSmContext(context.Background(), ref); err != nil {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
-	// Ignore the PFCP modify from the deactivation itself.
 	upf.mu.Lock()
 	upf.modifyCalls = nil
 	upf.mu.Unlock()
@@ -103,11 +97,15 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 	upf.mu.Unlock()
 
 	if upfModifies != 0 {
-		t.Fatalf("an idle session must not be pushed to the UPF, got %d modify calls", upfModifies)
+		t.Fatalf("the UPF was updated before the UE accepted, got %d modify calls", upfModifies)
 	}
 
-	if got := modifyCallCount(amfCb); got != 0 {
-		t.Fatalf("an idle session must not be signalled, got %d N1N2 modify calls", got)
+	amfCb.mu.Lock()
+	calls := slices.Clone(amfCb.modifyCalls)
+	amfCb.mu.Unlock()
+
+	if len(calls) != 1 || calls[0].n2Msg != nil {
+		t.Fatalf("modify calls = %d, want one N1-only command for a session with no user plane", len(calls))
 	}
 
 	smCtx.Mutex.Lock()
@@ -115,7 +113,7 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 	smCtx.Mutex.Unlock()
 
 	if dl != models.MustParseBitRate("200 Mbps") {
-		t.Fatalf("an idle session's policy must not be committed, got %q", dl)
+		t.Fatalf("the policy was committed before the UE accepted, got %q", dl)
 	}
 }
 

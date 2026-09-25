@@ -158,3 +158,39 @@ func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
 		}
 	}
 }
+
+func (amf *AMF) RefreshUEAMBRs(ctx context.Context) {
+	amf.mu.RLock()
+	ues := make([]*UeContext, 0, len(amf.UEs))
+
+	for _, ue := range amf.UEs {
+		if ue.State() == Registered {
+			ues = append(ues, ue)
+		}
+	}
+
+	amf.mu.RUnlock()
+
+	for _, ue := range ues {
+		profile, err := amf.SubscriberProfile(ctx, ue.Supi())
+		if err != nil || profile.Ambr == nil {
+			logger.AmfLog.Warn("failed to read the subscribed UE-AMBR", logger.SUPI(ue.Supi().String()), zap.Error(err))
+			continue
+		}
+
+		if current := ue.Ambr(); current != nil && *current == *profile.Ambr {
+			continue
+		}
+
+		ue.SetAmbr(profile.Ambr)
+
+		ueConn := ue.Conn()
+		if ueConn == nil || ueConn.ICS() != ICSCompleted {
+			continue
+		}
+
+		if err := ueConn.SendUEContextModification(ctx, *profile.Ambr); err != nil {
+			logger.AmfLog.Warn("failed to signal the UE-AMBR", logger.SUPI(ue.Supi().String()), zap.Error(err))
+		}
+	}
+}

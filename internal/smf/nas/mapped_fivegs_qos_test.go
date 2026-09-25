@@ -93,4 +93,13 @@ func TestMappedFiveGSQoSRefreshOmitsTheDefaultRule(t *testing.T) {
 	if containerContent(t, containers, nas.PCOContainerQoSRules) != nil {
 		t.Error("the refresh re-sends the default QoS rule, which the UE rejects with 5GSM cause #83")
 	}
+
+	flows, err := fgs.ParseQoSFlowDescriptions(containerContent(t, containers, nas.PCOContainerQoSFlowDescriptions))
+	if err != nil || len(flows) != 1 {
+		t.Fatalf("mapped QoS flow descriptions = %v (%v), want one", flows, err)
+	}
+
+	if flows[0].OperationCode != fgs.QoSFlowOpModify || !flows[0].EBit {
+		t.Errorf("refresh flow = op %d E=%t, want a modify replacing all parameters", flows[0].OperationCode, flows[0].EBit)
+	}
 }

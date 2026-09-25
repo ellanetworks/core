@@ -39,7 +39,11 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{}, err
 	}
 
-	bearer, err := epsBearerForSession(sc, policy)
+	sc.Mutex.Lock()
+	retained := transferPolicy(sc.PolicyData, policy)
+	sc.Mutex.Unlock()
+
+	bearer, err := epsBearerForSession(sc, retained, req.EPSBearerIdentity)
 	if err != nil {
 		sc.abandonTransferTo(Access4G)
 
@@ -53,7 +57,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	return bearer, nil
 }
 
-func epsBearerForSession(sc *SMContext, policy *Policy) (models.EPSBearer, error) {
+func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBearer, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -95,7 +99,7 @@ func epsBearerForSession(sc *SMContext, policy *Policy) (models.EPSBearer, error
 	}
 
 	if sc.PDUSessionID != 0 && sc.Snssai != nil {
-		mapped, err := smfNas.MappedFiveGSQoS(sc.EBI, &policy.QosData, &policy.Ambr)
+		mapped, err := smfNas.MappedFiveGSQoS(ebi, &policy.QosData, &policy.Ambr)
 		if err != nil {
 			return models.EPSBearer{}, err
 		}

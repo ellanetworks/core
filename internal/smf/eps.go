@@ -37,6 +37,18 @@ func (s *SMF) resolveEPSPolicy(ctx context.Context, supi etsi.SUPI, apn string, 
 	return s.pcf.GetEPSSessionPolicy(ctx, supi.IMSI(), apn)
 }
 
+func (s *SMF) movingSessionSlice(supi etsi.SUPI, pduSessionID uint8) *models.Snssai {
+	sc := s.currentPDUSession(supi, pduSessionID)
+	if sc == nil {
+		return nil
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	return sc.Snssai
+}
+
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
@@ -61,8 +73,16 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, err
 	}
 
+	if req.RequestType == eps.RequestTypeHandover && req.Snssai == nil {
+		req.Snssai = s.movingSessionSlice(supi, req.PDUSessionID)
+	}
+
 	policy, snssai, err := s.resolveEPSPolicy(ctx, supi, req.APN, req.Snssai)
 	if err != nil {
+		if permanentPolicyFailure(err) {
+			return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w: %w", req.APN, models.ErrUnknownAPN, err)
+		}
+
 		return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w", req.APN, err)
 	}
 
@@ -100,7 +120,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, err
 	}
 
-	bearer, err = epsBearerForSession(sc, policy)
+	bearer, err = epsBearerForSession(sc, policy, req.EPSBearerIdentity)
 	if err != nil {
 		return models.EPSBearer{}, err
 	}

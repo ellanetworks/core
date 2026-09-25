@@ -81,6 +81,59 @@ func (ue *UeContext) AmbrRates() (uplink, downlink models.BitRate) {
 	return ue.Ambr.Uplink, ue.Ambr.Downlink
 }
 
+func (ue *UeContext) SetSubscribedUEAMBR(subscribed models.Ambr) models.Ambr {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.Ambr = &subscribed
+
+	return ue.ranUEAMBRLocked()
+}
+
+func (ue *UeContext) RANUEAMBR() models.Ambr {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ranUEAMBRLocked()
+}
+
+func (ue *UeContext) ranUEAMBRLocked() models.Ambr {
+	if ue.Ambr == nil {
+		return models.Ambr{}
+	}
+
+	var (
+		downlink, uplink uint64
+		active           bool
+	)
+
+	for _, p := range ue.Pdns {
+		if p.SessionRef == "" {
+			continue
+		}
+
+		active = true
+		downlink += p.SessAmbrDLBps
+		uplink += p.SessAmbrULBps
+	}
+
+	ambr := *ue.Ambr
+
+	if !active {
+		return ambr
+	}
+
+	if downlink < ambr.Downlink.Bps() {
+		ambr.Downlink = models.BitRateFromBps(downlink)
+	}
+
+	if uplink < ambr.Uplink.Bps() {
+		ambr.Uplink = models.BitRateFromBps(uplink)
+	}
+
+	return ambr
+}
+
 // HasKASME reports whether K_ASME is present (the UE has authenticated).
 func (ue *UeContext) HasKASME() bool {
 	ue.mu.Lock()

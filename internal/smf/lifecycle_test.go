@@ -961,26 +961,11 @@ func TestReconcileSession_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	}
 
 	upf.mu.Lock()
-	if len(upf.modifyCalls) != 1 {
+	if len(upf.modifyCalls) != 0 {
 		upf.mu.Unlock()
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+		t.Fatalf("the UPF was updated before the UE accepted the modification: %d calls", len(upf.modifyCalls))
 	}
-
-	modifyReq := upf.modifyCalls[0]
 	upf.mu.Unlock()
-
-	if len(modifyReq.UpdateQERs) != 1 {
-		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
-	}
-
-	qer := modifyReq.UpdateQERs[0]
-	if qer.MBR == nil {
-		t.Fatal("expected QER MBR")
-	}
-
-	if qer.MBR.ULMBR != 200000 || qer.MBR.DLMBR != 300000 {
-		t.Fatalf("QER MBR = %d/%d, want 200000/300000", qer.MBR.ULMBR, qer.MBR.DLMBR)
-	}
 
 	amfCb.mu.Lock()
 	if len(amfCb.modifyCalls) != 1 {
@@ -1015,6 +1000,28 @@ func TestReconcileSession_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 1 {
+		upf.mu.Unlock()
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+
+	modifyReq := upf.modifyCalls[0]
+	upf.mu.Unlock()
+
+	if len(modifyReq.UpdateQERs) != 1 {
+		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
+	}
+
+	qer := modifyReq.UpdateQERs[0]
+	if qer.MBR == nil {
+		t.Fatal("expected QER MBR")
+	}
+
+	if qer.MBR.ULMBR != 200000 || qer.MBR.DLMBR != 300000 {
+		t.Fatalf("QER MBR = %d/%d, want 200000/300000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	}
+
 	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("200 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("300 Mbps")) {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
@@ -1039,6 +1046,10 @@ func TestReconcileSession_AmbrOnly(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("ReconcileSession failed: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
 	}
 
 	qer := upf.modifyCalls[0].UpdateQERs[0]
@@ -1074,9 +1085,12 @@ func TestReconcileSession_QoSOnly(t *testing.T) {
 		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
-	qer := upf.modifyCalls[0].UpdateQERs[0]
-	if qer.MBR.ULMBR != 100000 || qer.MBR.DLMBR != 200000 {
-		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
+	}
+
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("a 5QI/ARP change reached the UPF, whose QER carries neither: %d calls", len(upf.modifyCalls))
 	}
 
 	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil, nil)
@@ -1162,9 +1176,8 @@ func TestReconcileSession_SliceMismatchFullCleanup(t *testing.T) {
 	}
 }
 
-func TestReconcileSession_ModifyIdleUE_CommitsPolicy(t *testing.T) {
+func TestReconcileSession_UnreachableUEDefersTheChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	// Simulate idle UE: ModifyN1N2 returns ErrUENotReachable.
 	amfCb.err = smf.ErrUENotReachable
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
@@ -1176,26 +1189,25 @@ func TestReconcileSession_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 		SessionAmbrDownlink: "600 Mbps",
 		Var5qi:              7,
 		Arp:                 10,
+		DNS:                 "1.1.1.1",
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSession should succeed for idle UE, got: %v", err)
+		t.Fatalf("ReconcileSession should succeed for an unreachable UE, got: %v", err)
 	}
 
 	upf.mu.Lock()
 	pfcpModifyCalls := len(upf.modifyCalls)
 	upf.mu.Unlock()
 
-	if pfcpModifyCalls != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", pfcpModifyCalls)
+	if pfcpModifyCalls != 0 {
+		t.Fatalf("the UPF was updated for a change the UE never received: %d calls", pfcpModifyCalls)
 	}
 
-	// Policy should have been committed despite N1N2 skip.
-	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("500 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("600 Mbps")) {
-		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
-	}
+	smCtx.Mutex.Lock()
+	defer smCtx.Mutex.Unlock()
 
-	if smCtx.PolicyData.QosData.Var5qi != 7 {
-		t.Fatalf("policy not committed: 5QI = %d, want 7", smCtx.PolicyData.QosData.Var5qi)
+	if smCtx.PolicyData.QosData.Var5qi != 9 || smCtx.PolicyData.DNS != nil {
+		t.Fatalf("the change was committed without the UE: 5QI %d DNS %v", smCtx.PolicyData.QosData.Var5qi, smCtx.PolicyData.DNS)
 	}
 }
 
@@ -1468,36 +1480,6 @@ func TestReconcileSession_DNSUnchanged(t *testing.T) {
 	if modifyCalls != 0 {
 		t.Fatalf("expected 0 modify calls when nothing changed, got %d", modifyCalls)
 	}
-}
-
-// TestReconcileSession_DNSIdleUE verifies that DNS policy is committed even
-// when the UE is idle (N1N2 delivery skipped).
-func TestReconcileSession_DNSIdleUE(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	amfCb.err = smf.ErrUENotReachable
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, ref := setupSessionWithTunnel(t, s)
-
-	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
-		SessionAmbrUplink:   "100 Mbps",
-		SessionAmbrDownlink: "200 Mbps",
-		Var5qi:              9,
-		Arp:                 1,
-		DNS:                 "1.1.1.1",
-	})
-	if err != nil {
-		t.Fatalf("ReconcileSession should succeed for idle UE, got: %v", err)
-	}
-
-	// Policy should have been committed despite N1N2 skip.
-	smCtx.Mutex.Lock()
-	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("1.1.1.1")) {
-		smCtx.Mutex.Unlock()
-		t.Fatalf("policy not committed: DNS = %v", smCtx.PolicyData.DNS)
-	}
-	smCtx.Mutex.Unlock()
 }
 
 // TestHandleDownlinkDataReportEPS checks that downlink data for a 4G EPS session

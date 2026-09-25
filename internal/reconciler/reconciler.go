@@ -1,44 +1,39 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package smf
+package reconciler
 
 import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 const sessionReconcileBackstop = 5 * time.Minute
 
-// SessionReconciler subscribes to the session_reconcile changefeed topic and
-// reconciles every local session, 5G and EPS, against the current DB policy. It runs
-// on every cluster node; Raft replication guarantees each node receives the
-// wakeup after the write applies locally.
-type SessionReconciler struct {
-	smf      *SMF
+// Reconciler subscribes to the session_reconcile changefeed topic and runs its
+// sweeps, which reconcile every local session and UE against the current DB
+// policy. It runs on every cluster node; Raft replication guarantees each node
+// receives the wakeup after the write applies locally.
+type Reconciler struct {
+	sweeps   []func(context.Context)
 	wakeup   <-chan struct{}
 	backstop time.Duration
-	log      *zap.Logger
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 }
 
-// NewSessionReconciler creates a reconciler for the given SMF. wakeup is
+// New creates a reconciler running the given sweeps. wakeup is
 // signalled when a profile/policy/subscriber write that affects session
 // parameters has been applied; nil is fine (then only the backstop sweep
 // fires). Start must be called explicitly.
-func NewSessionReconciler(smf *SMF, wakeup <-chan struct{}) *SessionReconciler {
-	return &SessionReconciler{
-		smf:      smf,
+func New(wakeup <-chan struct{}, sweeps ...func(context.Context)) *Reconciler {
+	return &Reconciler{
+		sweeps:   sweeps,
 		wakeup:   wakeup,
 		backstop: sessionReconcileBackstop,
-		log:      logger.Scope("SMF/session-reconciler"),
 	}
 }
 
@@ -46,7 +41,7 @@ func NewSessionReconciler(smf *SMF, wakeup <-chan struct{}) *SessionReconciler {
 // running; subsequent calls without a paired Stop are no-ops. The first
 // reconcile runs synchronously in the goroutine immediately, then the
 // periodic ticker takes over.
-func (r *SessionReconciler) Start() {
+func (r *Reconciler) Start() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -63,7 +58,7 @@ func (r *SessionReconciler) Start() {
 
 // Stop signals the reconciler to exit and blocks until the goroutine
 // has drained. Safe to call when not started.
-func (r *SessionReconciler) Stop() {
+func (r *Reconciler) Stop() {
 	r.mu.Lock()
 	cancel := r.cancel
 	done := r.done
@@ -79,10 +74,10 @@ func (r *SessionReconciler) Stop() {
 	<-done
 }
 
-func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
+func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	r.smf.Reconcile(ctx)
+	r.sweep(ctx)
 
 	ticker := time.NewTicker(r.backstop)
 	defer ticker.Stop()
@@ -92,9 +87,15 @@ func (r *SessionReconciler) loop(ctx context.Context, done chan struct{}) {
 		case <-ctx.Done():
 			return
 		case <-r.wakeup:
-			r.smf.Reconcile(ctx)
+			r.sweep(ctx)
 		case <-ticker.C:
-			r.smf.Reconcile(ctx)
+			r.sweep(ctx)
 		}
+	}
+}
+
+func (r *Reconciler) sweep(ctx context.Context) {
+	for _, sweep := range r.sweeps {
+		sweep(ctx)
 	}
 }

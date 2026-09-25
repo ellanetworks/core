@@ -22,16 +22,20 @@ func MappedFiveGSQoS(ebi uint8, qosData *models.QosData, ambr *models.Ambr) ([]n
 		return nil, err
 	}
 
-	refresh, err := MappedFiveGSQoSRefresh(ebi, qosData, ambr)
+	flowAndAMBR, err := mappedFlowAndAMBR(ebi, qosData, ambr, fgs.QoSFlowOpCreate)
 	if err != nil {
 		return nil, err
 	}
 
-	return append([]nas.PCOContainer{rulesContainer}, refresh...), nil
+	return append([]nas.PCOContainer{rulesContainer}, flowAndAMBR...), nil
 }
 
 func MappedFiveGSQoSRefresh(ebi uint8, qosData *models.QosData, ambr *models.Ambr) ([]nas.PCOContainer, error) {
-	flow := fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), fgs.QoSFlowOpCreate)
+	return mappedFlowAndAMBR(ebi, qosData, ambr, fgs.QoSFlowOpModify)
+}
+
+func mappedFlowAndAMBR(ebi uint8, qosData *models.QosData, ambr *models.Ambr, op fgs.QoSFlowOperation) ([]nas.PCOContainer, error) {
+	flow := fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), op)
 
 	param, err := fgs.EPSBearerIDQoSFlowParameter(ebi)
 	if err != nil {

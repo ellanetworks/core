@@ -128,7 +128,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	case ueConn.ICS() == mme.ICSCompleted:
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted")
 	case reestablish:
-		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ueAmbr)
+		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ue.SetSubscribedUEAMBR(ueAmbr))
 		if !ok {
 			return nasreply.Handled()
 		}

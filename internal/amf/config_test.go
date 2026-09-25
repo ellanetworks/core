@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type configTestDB struct {
@@ -345,5 +346,39 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 				t.Fatalf("expected AmfID %q, got %q", tt.wantAmf, info.Guami.AmfID)
 			}
 		})
+	}
+}
+
+func TestRefreshUEAMBRsSignalsASubscriptionChange(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(&configTestDB{subscriber: &db.Subscriber{Imsi: "001010000000070", ProfileID: "profile"}}, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000070", func(u *amf.UeContext) {
+		u.ForceStateForTest(amf.Registered)
+	})
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1)
+	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
+	ueConn.MarkICSCompleted()
+
+	ue.SetAmbr(&models.Ambr{Uplink: models.MustParseBitRate("10 Mbps"), Downlink: models.MustParseBitRate("10 Mbps")})
+
+	amfInstance.RefreshUEAMBRs(context.Background())
+
+	if sender.ueContextModificationCalls != 1 {
+		t.Fatalf("UE Context Modification calls = %d, want 1", sender.ueContextModificationCalls)
+	}
+
+	want := models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
+	if got := ue.Ambr(); got == nil || *got != want {
+		t.Fatalf("UE-AMBR = %+v, want the profile's %+v", got, want)
+	}
+
+	amfInstance.RefreshUEAMBRs(context.Background())
+
+	if sender.ueContextModificationCalls != 1 {
+		t.Fatalf("an unchanged UE-AMBR was signalled again: %d calls", sender.ueContextModificationCalls)
 	}
 }

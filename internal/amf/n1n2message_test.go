@@ -33,6 +33,7 @@ type fakeNGAPSender struct {
 	pagingCalls                   int
 	locationReportingControlCalls int
 	nrppaTransportCalls           int
+	ueContextModificationCalls    int
 }
 
 func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
@@ -55,6 +56,8 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 			f.locationReportingControlCalls++
 		case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
 			f.nrppaTransportCalls++
+		case ngap.ProcUEContextModification:
+			f.ueContextModificationCalls++
 		}
 	}
 
@@ -326,9 +329,10 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	}
 }
 
-func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
+func TestModifyN1N2Message_IdleRegisteredUE_PagesAndReturnsNotReachable(t *testing.T) {
 	sender := &fakeNGAPSender{}
-	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 	amfInstance.ClearRadiosForTest()
 
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.UeContext) {
@@ -337,30 +341,41 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 		u.AllocateRegistrationArea([]models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}})
 	})
 
-	radio := &amf.Radio{
-		Conn: sender,
+	if conn := ue.Conn(); conn != nil {
+		conn.Release(t.Context())
 	}
+
+	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
 	amfInstance.UpdateRadioSupportedTAIs(radio, []amf.SupportedTAI{{
 		Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 	}})
-	amfInstance.SetRadioForTest(nil, radio)
 
 	err := amfInstance.ModifyN1N2Message(context.Background(), ue.SupiForTest(), 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
-	if err == nil {
-		t.Fatal("expected ErrUENotReachable for idle UE")
+	if !errors.Is(err, amf.ErrUENotReachable) {
+		t.Fatalf("expected ErrUENotReachable for an idle UE, got: %v", err)
 	}
 
-	if err != amf.ErrUENotReachable {
-		t.Fatalf("expected ErrUENotReachable, got: %v", err)
+	if sender.pagingCalls != 1 {
+		t.Fatalf("expected the idle UE to be paged once, got %d paging calls", sender.pagingCalls)
 	}
 
-	if sender.pagingCalls != 0 {
-		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
+	if req := ue.PagingPending().Request(); req == nil || req.BinaryDataN1Message != nil || req.PduSessionID != 1 {
+		t.Fatalf("buffered request = %+v, want a signalling-only page for PDU session 1", req)
+	}
+}
+
+func TestModifyN1N2Message_UnregisteredUEIsNotSignalled(t *testing.T) {
+	ue, ueConn, sender := connectedUE(t, "001010000000015")
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	err := ueConn.AMFForTest().ModifyN1N2Message(context.Background(), ue.SupiForTest(), 1, []byte{0x01, 0x02}, nil)
+	if !errors.Is(err, amf.ErrUENotReachable) {
+		t.Fatalf("expected ErrUENotReachable for a UE mid-registration, got: %v", err)
 	}
 
-	if ue.PagingPending().Request() != nil {
-		t.Fatal("expected no stored N1N2 message")
+	if sender.downlinkNasTransportCalls != 0 {
+		t.Fatalf("a session modification reached a UE mid-registration: %d messages", sender.downlinkNasTransportCalls)
 	}
 }
 

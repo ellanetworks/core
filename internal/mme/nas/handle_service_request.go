@@ -98,7 +98,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, ueAmbr)
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, ue.SetSubscribedUEAMBR(ueAmbr))
 	if !ok {
 		rejectService(ctx, m, ue, c, eps.EMMCauseNoEPSBearerContextActivated)
 

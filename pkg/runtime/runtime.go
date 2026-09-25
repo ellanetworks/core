@@ -42,6 +42,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/internal/reconciler"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -540,9 +541,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.LPPHandler = lmfAMF
 
 	// Session reconciler: watches the session_reconcile changefeed topic
-	// and reconciles every local session, 5G and EPS, against the current DB
-	// policy. Triggered by profile, subscriber, and policy writes.
-	sessionReconciler := smf.NewSessionReconciler(smfInstance, func() <-chan struct{} {
+	// and reconciles every local session, 5G and EPS, and every UE's UE-AMBR
+	// against the current DB policy. Triggered by profile, subscriber, and
+	// policy writes.
+	sessionReconciler := reconciler.New(func() <-chan struct{} {
 		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
 		go func() {
@@ -551,7 +553,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}())
+	}(), smfInstance.Reconcile, amfInstance.RefreshUEAMBRs, mmeInstance.RefreshUEAMBRs)
 	sessionReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes once the

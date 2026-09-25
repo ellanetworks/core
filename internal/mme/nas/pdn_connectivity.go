@@ -85,11 +85,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	if apn == "" {
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
-		return nasreply.Handled()
-	}
-
 	return openPDNConnection(ctx, m, ue, ueConn, apn, uint8(pti), req.PDNType)
 }
 
@@ -103,19 +98,8 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	if apn == "" {
-		rejectPDNConnectivity(ctx, ueConn, ptiValue, eps.ESMCauseMissingOrUnknownAPN)
-		return nasreply.Handled()
-	}
-
-	if m.FindPDNByAPN(ue, apn) != nil {
-		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN already connected", zap.String("apn", apn))
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMultiplePDNNotAllowed)
-
-		return nasreply.Handled()
-	}
-
-	if _, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), apn); err != nil {
+	subscribed, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), apn)
+	if err != nil {
 		if errors.Is(err, mme.ErrUnknownAPN) {
 			logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN not in subscriber profile", zap.String("apn", apn))
 			rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
@@ -125,6 +109,15 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 		logger.From(ctx, logger.MmeLog).Warn("failed to resolve the subscribed APN for additional PDN", zap.String("apn", apn), zap.Error(err))
 		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+
+		return nasreply.Handled()
+	}
+
+	apn = subscribed
+
+	if m.FindPDNByAPN(ue, apn) != nil {
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN already connected", zap.String("apn", apn))
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMultiplePDNNotAllowed)
 
 		return nasreply.Handled()
 	}
@@ -161,7 +154,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	p = m.FillBearer(ue, p, apn, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
+	p = m.FillBearer(ue, p, apn, bearer)
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -179,7 +172,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	req, err := buildERABSetup(p, ueAmbr)
+	req, err := buildERABSetup(p, ue.SetSubscribedUEAMBR(ueAmbr))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build E-RAB Setup Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)

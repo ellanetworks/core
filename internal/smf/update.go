@@ -140,9 +140,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		if pti == networkRequestedPTI && smContext.pendingPolicy != nil {
-			smContext.PolicyData = smContext.pendingPolicy
-			smContext.pendingPolicy = nil
+		if pti == networkRequestedPTI {
+			s.commitPendingPolicy(ctx, smContext)
 		}
 
 		return nil, nil

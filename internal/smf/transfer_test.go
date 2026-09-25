@@ -830,12 +830,11 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 	}
 }
 
-func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
+func TestTransferKeepsTheSessionPolicy(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	target := *pcf.policy
 	target.PolicyID = "5gs-policy"
 	pcf.policy.PolicyID = "eps-policy"
-	pcf.policy.QosData.QFI = 0
 
 	s := newTestSMF(pcf, store, upf, amfCb)
 	s.SetMME(mmeCb)
@@ -871,19 +870,11 @@ func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	access, policyID, qfi := sc.Access, sc.PolicyData.PolicyID, sc.PolicyData.QosData.QFI
+	access := sc.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access4G {
 		t.Fatal("the session left EPS before the gNB bound its downlink")
-	}
-
-	if policyID != "eps-policy" {
-		t.Errorf("policy %q is in force on an EPS session, want %q: the target policy was committed early", policyID, "eps-policy")
-	}
-
-	if qfi != 0 {
-		t.Errorf("QFI %d is in force on an EPS session, want 0", qfi)
 	}
 
 	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
@@ -896,15 +887,15 @@ func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	access, policyID, qfi = sc.Access, sc.PolicyData.PolicyID, sc.PolicyData.QosData.QFI
+	access, policyID := sc.Access, sc.PolicyData.PolicyID
 	sc.Mutex.Unlock()
 
 	if access != smf.Access5G {
 		t.Fatal("the session is not on 5GS after the gNB bound its downlink")
 	}
 
-	if policyID != "5gs-policy" || qfi != 1 {
-		t.Errorf("policy %q QFI %d in force after the move, want %q / 1", policyID, qfi, "5gs-policy")
+	if policyID != "eps-policy" {
+		t.Errorf("policy %q in force after the move, want the session's own %q: a move must not change policy", policyID, "eps-policy")
 	}
 }
 

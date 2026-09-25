@@ -41,5 +41,9 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 		return pdnType.Cause
 	}
 
+	if errors.Is(err, models.ErrUnknownAPN) {
+		return eps.ESMCauseMissingOrUnknownAPN
+	}
+
 	return eps.ESMCauseRequestRejectedUnspecified
 }
