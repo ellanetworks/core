@@ -42,7 +42,7 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
-	sampler := trace.AlwaysSample()
+	sampler := trace.ParentBased(trace.AlwaysSample())
 
 	res, err := resource.New(ctx,
 		resource.WithHost(),

@@ -89,7 +89,7 @@ func peerReachableForJoin(ctx context.Context, nodeID string, raftAddress string
 // StartClusterHTTP registers the ALPNHTTP handler on the cluster
 // listener and starts an HTTP server serving the cluster-internal mux.
 // The returned function shuts down the server.
-func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
+func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, tracingEnabled bool) func() {
 	addr, _ := net.ResolveTCPAddr("tcp", ln.AdvertiseAddress())
 	cl := newConnListener(addr)
 
@@ -103,9 +103,13 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
 
 	clusterListenerForPeerLookup = ln
 
-	mux := newClusterMux(dbInstance)
+	var handler http.Handler = newClusterMux(dbInstance)
+	if tracingEnabled {
+		handler = ClusterTracingMiddleware(handler)
+	}
+
 	srv := &http.Server{
-		Handler:           mux,
+		Handler:           handler,
 		ErrorLog:          logger.StdLogger(logger.APILog),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,

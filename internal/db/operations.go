@@ -51,6 +51,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -343,7 +345,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 			return zero, fmt.Errorf("marshal intent command: %w", err)
 		}
 
-		result, applyErr := db.leaderProposeIntent(data)
+		result, applyErr := db.leaderProposeIntent(ctx, op.name, data)
 		if applyErr == nil {
 			return narrowResult[R](op.name, result.Value)
 		}
@@ -367,13 +369,42 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	return narrowResult[R](op.name, result.Value)
 }
 
-func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, error) {
-	db.proposeMu.Lock()
+func (db *Database) leaderProposeIntent(ctx context.Context, operation string, data []byte) (_ *ellaraft.ProposeResult, err error) {
+	ctx, span := db.startProposeSpan(ctx, operation)
+	defer func() { endSpan(span, err) }()
+
+	db.lockPropose(ctx)
 	defer db.proposeMu.Unlock()
 
-	result, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	return db.raftApply(ctx, data)
+}
 
-	return result, classifyProposeErr(err)
+func (db *Database) startProposeSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
+	return tracer.Start(ctx, "db/propose",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String("ella.raft.operation", operation)),
+	)
+}
+
+func (db *Database) lockPropose(ctx context.Context) {
+	_, span := tracer.Start(ctx, "db/propose_lock_wait", trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+
+	db.proposeMu.Lock()
+}
+
+func (db *Database) raftApply(ctx context.Context, data []byte) (_ *ellaraft.ProposeResult, err error) {
+	_, span := tracer.Start(ctx, "db/raft_apply", trace.WithSpanKind(trace.SpanKindInternal))
+	defer func() { endSpan(span, err) }()
+
+	result, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	if err != nil {
+		return nil, classifyProposeErr(err)
+	}
+
+	span.SetAttributes(attribute.Int64("ella.raft.index", int64(result.Index)))
+
+	return result, nil
 }
 
 func classifyBarrierErr(err error) error {
@@ -408,6 +439,13 @@ func (db *Database) writeBarrier() error {
 	return classifyBarrierErr(db.raftManager.WriteBarrier(db.proposeTimeout))
 }
 
+func (db *Database) tracedWriteBarrier(ctx context.Context) (err error) {
+	_, span := tracer.Start(ctx, "db/write_barrier", trace.WithSpanKind(trace.SpanKindInternal))
+	defer func() { endSpan(span, err) }()
+
+	return db.writeBarrier()
+}
+
 func (db *Database) ReadBarrier() error {
 	if db.raftManager == nil || !db.raftManager.IsLeader() {
 		return nil
@@ -420,15 +458,21 @@ func (db *Database) ReadBarrier() error {
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
 // RequiredSchema for the apply-time gate on every node.
-func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (*ellaraft.ProposeResult, error) {
-	db.proposeMu.Lock()
+func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (_ *ellaraft.ProposeResult, err error) {
+	ctx, span := db.startProposeSpan(ctx, operation)
+	defer func() { endSpan(span, err) }()
+
+	db.lockPropose(ctx)
 	defer db.proposeMu.Unlock()
 
-	if err := db.writeBarrier(); err != nil {
+	if err := db.tracedWriteBarrier(ctx); err != nil {
 		return nil, err
 	}
 
-	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(ctx), applyFn, operation)
+	captureCtx, captureSpan := tracer.Start(ctx, "db/capture_changeset", trace.WithSpanKind(trace.SpanKindInternal))
+	changeset, applyResult, err := db.captureChangeset(context.WithoutCancel(captureCtx), applyFn, operation)
+	endSpan(captureSpan, err)
+
 	if err != nil {
 		if errors.Is(err, ErrAlreadyExists) ||
 			errors.Is(err, ErrNotFound) ||
@@ -463,9 +507,9 @@ func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation strin
 		return nil, fmt.Errorf("marshal changeset command: %w", err)
 	}
 
-	res, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	res, err := db.raftApply(ctx, data)
 	if err != nil {
-		return nil, classifyProposeErr(err)
+		return nil, err
 	}
 
 	logger.From(ctx, logger.DBLog).Debug("proposed changeset",
@@ -561,7 +605,7 @@ func (db *Database) ApplyForwardedOperation(ctx context.Context, opName string, 
 	}
 
 	if h, ok := intentOps[opName]; ok {
-		return db.applyForwardedIntentOp(h, payload)
+		return db.applyForwardedIntentOp(ctx, opName, h, payload)
 	}
 
 	return nil, fmt.Errorf("%w %q", ErrUnknownOperation, opName)
@@ -577,7 +621,7 @@ func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string
 	})
 }
 
-func (db *Database) applyForwardedIntentOp(h intentOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
+func (db *Database) applyForwardedIntentOp(ctx context.Context, opName string, h intentOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if err := db.checkOpSchema(h.minSchema); err != nil {
 		return nil, err
 	}
@@ -589,5 +633,5 @@ func (db *Database) applyForwardedIntentOp(h intentOpHandler, payload json.RawMe
 		return nil, fmt.Errorf("marshal intent command: %w", err)
 	}
 
-	return db.leaderProposeIntent(data)
+	return db.leaderProposeIntent(ctx, opName, data)
 }
