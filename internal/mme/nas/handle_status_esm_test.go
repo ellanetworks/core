@@ -5,9 +5,11 @@ package nas
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -20,7 +22,7 @@ func esmStatus(_ *testing.T, ebi eps.EPSBearerIdentity, pti nas.ProcedureTransac
 // TS 24.301 §6.7
 func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T) {
 	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
+	ue, cc := securedUE(t, m)
 	testPDN(ue)
 
 	d := handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCauseInvalidEPSBearerIdentity))
@@ -29,12 +31,17 @@ func TestESMStatus_InvalidEPSBearerIdentityOnDefaultBearerDetaches(t *testing.T)
 		t.Fatalf("disposition = %+v, want handled", d)
 	}
 
-	if got := ue.PDNCount(); got != 0 {
-		t.Fatalf("PDNCount = %d after ESM STATUS #43 on the default bearer, want 0", got)
+	if ue.EMMState() != mme.EMMDeregistrationInitiated {
+		t.Fatalf("emmState = %v after ESM STATUS #43 on the default bearer, want a network detach in progress", ue.EMMState())
 	}
 
-	if ue.EMMState() != mme.EMMDeregistered {
-		t.Fatalf("emmState = %v after ESM STATUS #43 on the default bearer, want mme.EMMDeregistered", ue.EMMState())
+	req, err := eps.ParseDetachRequestNetwork(decodeProtectedDownlink(t, ue, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("not a Detach Request: %v", err)
+	}
+
+	if req.TypeOfDetach != eps.DetachTypeReattachRequired {
+		t.Fatalf("detach type = %d, want re-attach required", req.TypeOfDetach)
 	}
 }
 
@@ -127,8 +134,9 @@ func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	p := testPDN(ue)
-	p.Modifying = true
-	p.PendingQCI = 7
+	p.SessionRef = "ref-internet"
+	p.Qci = 9
+	p.Modifying = &models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 7}}
 
 	handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCause(nasreply.CauseProtocolErrorUnspecified)))
 
@@ -136,7 +144,12 @@ func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 		t.Fatalf("PDNCount = %d after ESM STATUS #111 with no procedure in flight, want 1", got)
 	}
 
-	if p.Modifying || p.PendingQCI != 0 {
-		t.Fatalf("pending modification not abandoned: Modifying = %v, PendingQCI = %d, want false and 0", p.Modifying, p.PendingQCI)
+	if p.Modifying != nil || p.Qci != 9 {
+		t.Fatalf("pending modification not abandoned: Modifying = %+v, QCI = %d, want nil and 9", p.Modifying, p.Qci)
+	}
+
+	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: false}}
+	if got := m.Session.(*fakeSessionManager).concluded; !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
 	}
 }

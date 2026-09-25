@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -20,26 +19,34 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) {
-	var ambr models.Ambr
-
+func validateEPSBearerRequest(req models.EPSBearerRequest) error {
 	if req.EPSBearerIdentity < 5 || req.EPSBearerIdentity > 15 {
-		return ambr, fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
+		return fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
 	}
 
-	if req.AMBRUplink.Kbps() == 0 {
-		return ambr, fmt.Errorf("uplink AMBR %s is below 1 Kbps", req.AMBRUplink)
+	return nil
+}
+
+func (s *SMF) resolveEPSPolicy(ctx context.Context, supi etsi.SUPI, apn string, snssai *models.Snssai) (*Policy, *models.Snssai, error) {
+	if snssai != nil {
+		policy, err := s.GetSessionPolicy(ctx, supi, snssai, apn)
+
+		return policy, snssai, err
 	}
 
-	if req.AMBRDownlink.Kbps() == 0 {
-		return ambr, fmt.Errorf("downlink AMBR %s is below 1 Kbps", req.AMBRDownlink)
+	return s.pcf.GetEPSSessionPolicy(ctx, supi.IMSI(), apn)
+}
+
+func (s *SMF) movingSessionSlice(supi etsi.SUPI, pduSessionID uint8) *models.Snssai {
+	sc := s.currentPDUSession(supi, pduSessionID)
+	if sc == nil {
+		return nil
 	}
 
-	if req.DNS != "" && net.ParseIP(req.DNS) == nil {
-		return ambr, fmt.Errorf("invalid DNS address %q", req.DNS)
-	}
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
 
-	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
+	return sc.Snssai
 }
 
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
@@ -62,18 +69,21 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, fmt.Errorf("invalid imsi %q: %w", req.IMSI, err)
 	}
 
-	ambr, err := validateEPSBearerRequest(req)
-	if err != nil {
+	if err := validateEPSBearerRequest(req); err != nil {
 		return models.EPSBearer{}, err
 	}
 
-	policy := &Policy{
-		PolicyID: req.PolicyID,
-		Ambr:     ambr,
-		IPv4Pool: req.IPv4Pool,
-		IPv6Pool: req.IPv6Pool,
-		DNS:      net.ParseIP(req.DNS),
-		MTU:      req.MTU,
+	if req.RequestType == eps.RequestTypeHandover && req.Snssai == nil {
+		req.Snssai = s.movingSessionSlice(supi, req.PDUSessionID)
+	}
+
+	policy, snssai, err := s.resolveEPSPolicy(ctx, supi, req.APN, req.Snssai)
+	if err != nil {
+		if permanentPolicyFailure(err) {
+			return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w: %w", req.APN, models.ErrUnknownAPN, err)
+		}
+
+		return models.EPSBearer{}, fmt.Errorf("no policy for APN %q: %w", req.APN, err)
 	}
 
 	if req.RequestType == eps.RequestTypeHandover {
@@ -93,16 +103,15 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, &models.PDNTypeError{Cause: pdnTypeRejectCause(requestedType, policy)}
 	}
 
-	pdnType, err := pdnTypeFor(pduType)
-	if err != nil {
+	if _, err := pdnTypeFor(pduType); err != nil {
 		return models.EPSBearer{}, &models.PDNTypeError{Cause: eps.ESMCauseUnknownPDNType}
 	}
 
-	sc, addrs, err := s.establishSession(ctx, SessionRequest{
+	sc, err := s.establishSession(ctx, SessionRequest{
 		Supi:     supi,
 		Identity: SessionIdentity{PDUSessionID: req.PDUSessionID, EBI: req.EPSBearerIdentity},
 		Dnn:      req.APN,
-		Snssai:   req.Snssai,
+		Snssai:   snssai,
 		Access:   Access4G,
 		PDUType:  pduType,
 		Policy:   policy,
@@ -111,20 +120,9 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, err
 	}
 
-	var dns netip.Addr
-	if policy.DNS != nil {
-		dns, _ = netip.AddrFromSlice(policy.DNS)
-	}
-
-	bearer = models.EPSBearer{
-		Ref:          sc.Ref,
-		PDNType:      pdnType,
-		DNS:          dns.Unmap(),
-		IPv4:         addrs.IPv4,
-		IPv6Prefix:   addrs.IPv6Prefix,
-		IPv6IID:      addrs.IPv6IID,
-		PDUSessionID: sc.PDUSessionID,
-		Snssai:       sc.Snssai,
+	bearer, err = epsBearerForSession(sc, policy, req.EPSBearerIdentity)
+	if err != nil {
+		return models.EPSBearer{}, err
 	}
 
 	switch narrowPDUType(requestedType, pduType) {
@@ -133,11 +131,6 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	case narrowIPv6Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv6OnlyAllowed
 	}
-
-	sc.Mutex.Lock()
-	bearer.SGW = models.FTEID{TEID: sc.Tunnel.N3TEID, Addr: sc.Tunnel.N3IPv4}
-	bearer.SGWN3IPv6 = sc.Tunnel.N3IPv6
-	sc.Mutex.Unlock()
 
 	return bearer, nil
 }
@@ -193,44 +186,6 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 	return dropped, nil
 }
 
-func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error {
-	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr",
-		trace.WithAttributes(attrs.SMContextRef(ref)),
-	)
-	defer span.End()
-
-	smContext := s.GetSession(ref)
-	if smContext == nil {
-		return fmt.Errorf("no EPS session %q", ref)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	var (
-		policyID string
-		qfi      uint8
-	)
-
-	if smContext.PolicyData != nil {
-		policyID = smContext.PolicyData.PolicyID
-		qfi = smContext.PolicyData.QosData.QFI
-	}
-
-	if err := s.applySessionQERs(ctx, smContext, policyID, qfi, ambrUplink, ambrDownlink); err != nil {
-		return fmt.Errorf("update Session-AMBR for %q: %w", ref, err)
-	}
-
-	if smContext.PolicyData != nil {
-		updated := *smContext.PolicyData
-		updated.Ambr.Uplink = ambrUplink
-		updated.Ambr.Downlink = ambrDownlink
-		smContext.PolicyData = &updated
-	}
-
-	return nil
-}
-
 func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
 	if s.dropHalf(ref, Access4G) {
 		return nil
@@ -258,18 +213,6 @@ func (s *SMF) dropHalf(ref string, by AccessType) bool {
 	}
 
 	return true
-}
-
-func (s *SMF) EPSSubscriptionChanged(ctx context.Context, ref string) (models.SubscriptionDelta, error) {
-	smContext := s.GetSession(ref)
-	if smContext == nil {
-		return models.SubscriptionDelta{}, nil
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	return s.subscriptionChanged(ctx, smContext)
 }
 
 func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {

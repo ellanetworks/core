@@ -205,7 +205,7 @@ func (m *MME) abandonPaging(link trace.SpanContext, ue *UeContext, attempt uint6
 	defer span.End()
 
 	dropped, abandoned := ue.PagingUnanswered(ctx, attempt, models.EPSPagingUENotResponding)
-	if !abandoned {
+	if !abandoned || (dropped != nil && dropped.Signalling) {
 		return
 	}
 

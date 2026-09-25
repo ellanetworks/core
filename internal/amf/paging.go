@@ -97,7 +97,7 @@ func (amf *AMF) abandonPaging(link trace.SpanContext, ue *UeContext, attempt uin
 
 	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
 	dropped, abandoned := ue.PagingUnanswered(ctx, attempt, models.N1N2UENotResponding)
-	if !abandoned {
+	if !abandoned || dropped.SignallingOnly() {
 		return
 	}
 

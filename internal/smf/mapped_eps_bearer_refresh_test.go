@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -21,16 +20,11 @@ func setupInterworkingSession(t *testing.T, s *smf.SMF) (*smf.SMContext, string)
 	return setupSessionWithTunnelIdentity(t, s, smf.SessionIdentity{PDUSessionID: 1, EBI: refreshTestEBI})
 }
 
-func reconcilePolicy(t *testing.T, s *smf.SMF, ref string, delta *models.SessionPolicyDelta) {
+func reconcilePolicy(t *testing.T, s *smf.SMF, pcf *fakePCF, ref string, change *policyChange) {
 	t.Helper()
 
-	err := s.ReconcileSmContext(context.Background(), &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy:    delta,
-	})
-	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+	if err := reconcileWithPolicy(context.Background(), s, pcf, ref, change); err != nil {
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 }
 
@@ -120,7 +114,7 @@ func TestTS24501_6_3_2_2_FiveQIChangeRefreshesTheMappedEPSBearerContext(t *testi
 
 	smCtx, ref := setupInterworkingSession(t, s)
 
-	reconcilePolicy(t, s, ref, &models.SessionPolicyDelta{
+	reconcilePolicy(t, s, pcf, ref, &policyChange{
 		SessionAmbrUplink:   "100 Mbps",
 		SessionAmbrDownlink: "200 Mbps",
 		Var5qi:              6,
@@ -169,7 +163,7 @@ func TestTS24501_6_3_2_2_SessionAMBRChangeRefreshesTheMappedEPSBearerContext(t *
 
 	_, ref := setupInterworkingSession(t, s)
 
-	reconcilePolicy(t, s, ref, &models.SessionPolicyDelta{
+	reconcilePolicy(t, s, pcf, ref, &policyChange{
 		SessionAmbrUplink:   "300 Mbps",
 		SessionAmbrDownlink: "400 Mbps",
 		Var5qi:              9,
@@ -193,7 +187,7 @@ func TestTS24501_6_1_4_1_PolicyChangeRefreshesNoMappedContextWithoutAnEPSBearer(
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	reconcilePolicy(t, s, ref, &models.SessionPolicyDelta{
+	reconcilePolicy(t, s, pcf, ref, &policyChange{
 		SessionAmbrUplink:   "300 Mbps",
 		SessionAmbrDownlink: "400 Mbps",
 		Var5qi:              6,
@@ -211,7 +205,7 @@ func TestTS24501_6_3_2_2_ARPOnlyChangeRefreshesNoMappedEPSBearerContext(t *testi
 
 	_, ref := setupInterworkingSession(t, s)
 
-	reconcilePolicy(t, s, ref, &models.SessionPolicyDelta{
+	reconcilePolicy(t, s, pcf, ref, &policyChange{
 		SessionAmbrUplink:   "100 Mbps",
 		SessionAmbrDownlink: "200 Mbps",
 		Var5qi:              9,
@@ -229,7 +223,7 @@ func TestTS24501_6_3_2_2_UnchangedPolicySendsNoModificationCommand(t *testing.T)
 
 	_, ref := setupInterworkingSession(t, s)
 
-	reconcilePolicy(t, s, ref, &models.SessionPolicyDelta{
+	reconcilePolicy(t, s, pcf, ref, &policyChange{
 		SessionAmbrUplink:   "100 Mbps",
 		SessionAmbrDownlink: "200 Mbps",
 		Var5qi:              9,

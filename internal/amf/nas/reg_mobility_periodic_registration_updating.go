@@ -110,6 +110,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	appendPendingN1 := func(uint8) error { return nil }
 
 	requestData := ue.PagingPending().Request()
+	signallingPage := ue.PagingPending().SignallingOnly()
 
 	deliveredPending := false
 
@@ -118,7 +119,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			return
 		}
 
-		if deliveredPending {
+		if deliveredPending || signallingPage {
 			ue.PagingDelivered(ctx)
 
 			return
@@ -252,7 +253,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					if err := amf.DeliverStandaloneN1N2(ctx, ue, ueConn, requestData); err != nil {
 						logger.From(ctx, logger.AmfLog).Warn("failed to deliver buffered downlink message", zap.Error(err))
 					}
-				} else {
+				} else if len(n1Msg) > 0 {
 					amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
 				}
 

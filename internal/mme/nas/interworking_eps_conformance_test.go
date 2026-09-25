@@ -161,39 +161,31 @@ func TestEPSSNSSAIContainerFormat(t *testing.T) {
 }
 
 // TS 24.301 §6.6.1.1
-func TestEPSExtendedPCOIsAPropertyOfThePDNConnection(t *testing.T) {
+func TestEPSExtendedPCOFollowsTheUEsSupport(t *testing.T) {
 	epcoCapable := eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x80, 0x20}}
 
 	for _, tc := range []struct {
-		name        string
-		transferred bool
-		cap         eps.UENetworkCapability
-		want        bool
+		name string
+		cap  eps.UENetworkCapability
+		want bool
 	}{
-		{"transferred, UE supports ePCO", true, epcoCapable, true},
-		{"transferred, UE does not", true, eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x00, 0x20}}, false},
-		{"ordinary attach, UE supports ePCO", false, epcoCapable, false},
-		{"ordinary attach, UE does not", false, eps.UENetworkCapability{}, false},
+		{"UE supports ePCO", epcoCapable, true},
+		{"UE does not", eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x00, 0x20}}, false},
+		{"UE sent no capability", eps.UENetworkCapability{}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ue := &mme.UeContext{}
 			ue.SetUESecurityCapability(tc.cap, nil, mme.MintAuthProofForTrackingAreaUpdate())
 
 			p := &mme.PdnConnection{
-				Ebi:         mme.DefaultERABID,
-				PdnType:     eps.PDNTypeIPv4,
-				UeIP:        netip.MustParseAddr("10.45.0.2"),
-				Dns:         netip.MustParseAddr("8.8.8.8"),
-				Transferred: tc.transferred,
+				Ebi:     mme.DefaultERABID,
+				Apn:     "internet",
+				PdnType: eps.PDNTypeIPv4,
+				UeIP:    netip.MustParseAddr("10.45.0.2"),
+				Dns:     netip.MustParseAddr("8.8.8.8"),
 			}
 
-			qos := &mme.EpsQoS{
-				APN:        "internet",
-				QCI:        9,
-				MTU:        1400,
-				SessAmbrUL: models.MustParseBitRate("1 Gbps"),
-				SessAmbrDL: models.MustParseBitRate("1 Gbps"),
-			}
+			qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}}, MTU: 1400}
 
 			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil)
 			if err != nil {

@@ -38,13 +38,20 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 
 	m.StopESMGuard(p)
 
-	if status.Cause == eps.ESMCauseInvalidEPSBearerIdentity || ue.BearerDeactivating(p) {
+	if ue.BearerDeactivating(p) {
 		m.DeactivatePDN(ctx, ue, p)
 
 		return nasreply.Handled()
 	}
 
-	ue.ClearPendingModify(p)
+	if status.Cause == eps.ESMCauseInvalidEPSBearerIdentity {
+		m.ConcludeBearerModification(ctx, ue, p, false)
+		m.DeactivateBearerLocally(ctx, ue, p)
+
+		return nasreply.Handled()
+	}
+
+	m.ConcludeBearerModification(ctx, ue, p, false)
 
 	return nasreply.Handled()
 }

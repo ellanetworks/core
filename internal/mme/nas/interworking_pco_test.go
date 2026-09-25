@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -23,17 +24,13 @@ import (
 func TestActivateDefaultCarriesTheSNSSAI(t *testing.T) {
 	p := &mme.PdnConnection{
 		Ebi:          mme.DefaultERABID,
+		Apn:          "internet",
 		PdnType:      eps.PDNTypeIPv4,
 		UeIP:         netip.MustParseAddr("10.45.0.1"),
 		Snssai:       &models.Snssai{Sst: 1, Sd: "000001"},
 		PDUSessionID: 5,
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
-		Snssai:     &models.Snssai{Sst: 2},
-	}
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
 
 	act := buildActivate(t, p, qos)
 
@@ -64,8 +61,8 @@ func TestActivateDefaultCarriesTheSNSSAI(t *testing.T) {
 }
 
 func TestActivateDefaultOmitsTheSNSSAIWhenTheAnchorHasNone(t *testing.T) {
-	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
-	qos := &mme.EpsQoS{APN: "internet", QCI: 9, SessAmbrDL: models.MustParseBitRate("100 Mbps"), SessAmbrUL: models.MustParseBitRate("50 Mbps")}
+	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, Apn: "internet", PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
 
 	act := buildActivate(t, p, qos)
 
@@ -80,13 +77,13 @@ func TestActivateDefaultOmitsTheSNSSAIWhenTheAnchorHasNone(t *testing.T) {
 	}
 }
 
-func buildActivate(t *testing.T, p *mme.PdnConnection, qos *mme.EpsQoS) *eps.ActivateDefaultEPSBearerContextRequest {
+func buildActivate(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
 	return buildActivateWithEPCO(t, p, qos, false)
 }
 
-func buildActivateWithEPCO(t *testing.T, p *mme.PdnConnection, qos *mme.EpsQoS, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
+func buildActivateWithEPCO(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
 	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, nil)
@@ -134,15 +131,12 @@ func TestPDUSessionIDFromPCO(t *testing.T) {
 func TestActivateDefaultWithholdsTheSNSSAIFromA5GCUnawareUE(t *testing.T) {
 	p := &mme.PdnConnection{
 		Ebi:     mme.DefaultERABID,
+		Apn:     "internet",
 		PdnType: eps.PDNTypeIPv4,
 		UeIP:    netip.MustParseAddr("10.45.0.1"),
 		Snssai:  &models.Snssai{Sst: 1, Sd: "000001"},
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
-	}
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
 
 	act := buildActivate(t, p, qos)
 
@@ -161,16 +155,13 @@ func TestActivateDefaultWithholdsTheSNSSAIFromA5GCUnawareUE(t *testing.T) {
 func TestActivateDefaultCarriesTheSNSSAIInEPCOOnATransferredPDN(t *testing.T) {
 	p := &mme.PdnConnection{
 		Ebi:          mme.DefaultERABID,
+		Apn:          "internet",
 		PdnType:      eps.PDNTypeIPv4,
 		UeIP:         netip.MustParseAddr("10.45.0.1"),
 		Snssai:       &models.Snssai{Sst: 1, Sd: "000001"},
 		PDUSessionID: 5,
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
-	}
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
 
 	act := buildActivateWithEPCO(t, p, qos, true)
 
@@ -218,16 +209,20 @@ func containerContent(t *testing.T, pco *nas.ProtocolConfigurationOptions, id ui
 func TestActivateDefaultCarriesTheMappedFiveGSQoS(t *testing.T) {
 	p := &mme.PdnConnection{
 		Ebi:          mme.DefaultERABID,
+		Apn:          "internet",
 		PdnType:      eps.PDNTypeIPv4,
 		UeIP:         netip.MustParseAddr("10.45.0.1"),
 		Snssai:       &models.Snssai{Sst: 1},
 		PDUSessionID: 5,
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
+
+	mapped, err := smfNas.MappedFiveGSQoS(mme.DefaultERABID, &models.QosData{QFI: models.DefaultQFI, Var5qi: 9}, &qos.QoS.APNAMBR)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	qos.MappedFiveGSQoS = mapped
 
 	act := buildActivate(t, p, qos)
 
@@ -278,8 +273,8 @@ func TestActivateDefaultCarriesTheMappedFiveGSQoS(t *testing.T) {
 	}
 
 	dl, ul, ok := ambr.Kbps()
-	if !ok || dl != qos.SessAmbrDL.Kbps() || ul != qos.SessAmbrUL.Kbps() {
-		t.Errorf("mapped Session-AMBR = %d/%d kbps, want %d/%d", dl, ul, qos.SessAmbrDL.Kbps(), qos.SessAmbrUL.Kbps())
+	if !ok || dl != qos.QoS.APNAMBR.Downlink.Kbps() || ul != qos.QoS.APNAMBR.Uplink.Kbps() {
+		t.Errorf("mapped Session-AMBR = %d/%d kbps, want %d/%d", dl, ul, qos.QoS.APNAMBR.Downlink.Kbps(), qos.QoS.APNAMBR.Uplink.Kbps())
 	}
 
 	for _, id := range []uint16{nas.PCOContainerQoSRulesTwoOctet, nas.PCOContainerQoSFlowDescriptionsTwoOctet} {
@@ -292,15 +287,19 @@ func TestActivateDefaultCarriesTheMappedFiveGSQoS(t *testing.T) {
 func TestActivateDefaultOmitsTheMappedFiveGSQoSWithoutAPDUSessionIdentity(t *testing.T) {
 	p := &mme.PdnConnection{
 		Ebi:     mme.DefaultERABID,
+		Apn:     "internet",
 		PdnType: eps.PDNTypeIPv4,
 		UeIP:    netip.MustParseAddr("10.45.0.1"),
 		Snssai:  &models.Snssai{Sst: 1},
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}}
+
+	mapped, err := smfNas.MappedFiveGSQoS(mme.DefaultERABID, &models.QosData{QFI: models.DefaultQFI, Var5qi: 9}, &qos.QoS.APNAMBR)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	qos.MappedFiveGSQoS = mapped
 
 	act := buildActivate(t, p, qos)
 	if act.ProtocolConfigurationOptions == nil {

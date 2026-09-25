@@ -192,27 +192,12 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 	accepted := make(map[uint8]uint8, len(conns))
 
 	for _, c := range conns {
-		qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), c.APN)
-		if err != nil {
-			logger.From(ctx, logger.MmeLog).Warn("relocated PDN connection has no QoS in the subscriber profile; leaving it behind",
-				logger.SUPI(ue.Supi().String()), zap.String("apn", c.APN), zap.Error(err))
-
-			continue
-		}
-
 		bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 			IMSI:              ue.IMSI(),
 			EPSBearerIdentity: c.EPSBearerIdentity,
 			PDUSessionID:      c.PDUSessionID,
 			Snssai:            &c.Snssai,
-			PolicyID:          qos.PolicyID,
-			APN:               qos.APN,
-			AMBRUplink:        qos.SessAmbrUL,
-			AMBRDownlink:      qos.SessAmbrDL,
-			IPv4Pool:          qos.IPv4Pool,
-			IPv6Pool:          qos.IPv6Pool,
-			DNS:               qos.DNS,
-			MTU:               qos.MTU,
+			APN:               c.APN,
 			RequestType:       eps.RequestTypeHandover,
 		})
 		if err != nil {
@@ -223,7 +208,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 			continue
 		}
 
-		m.publishRelocatedPDN(ue, c.EPSBearerIdentity, qos, bearer)
+		m.publishRelocatedPDN(ue, c.EPSBearerIdentity, c.APN, bearer)
 
 		accepted[c.EPSBearerIdentity] = c.PDUSessionID
 	}
@@ -235,11 +220,11 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 	return accepted, nil
 }
 
-func (m *MME) publishRelocatedPDN(ue *UeContext, ebi uint8, qos *EpsQoS, bearer models.EPSBearer) {
+func (m *MME) publishRelocatedPDN(ue *UeContext, ebi uint8, apn string, bearer models.EPSBearer) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.publishPDNLocked(ebi, qos, bearer, true)
+	ue.publishPDNLocked(ebi, apn, bearer)
 }
 
 func (m *MME) dropUnadmittedPDNs(ctx context.Context, ue *UeContext, accepted map[uint8]uint8, unadmitted []HandoverCandidate) []uint8 {

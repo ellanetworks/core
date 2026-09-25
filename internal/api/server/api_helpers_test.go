@@ -249,6 +249,10 @@ func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai
 	return nil, fmt.Errorf("not implemented in test")
 }
 
+func (f *fakePCF) GetEPSSessionPolicy(_ context.Context, _ string, _ string) (*smf.Policy, *models.Snssai, error) {
+	return nil, nil, fmt.Errorf("not implemented in test")
+}
+
 type fakeSessionStore struct{}
 
 func (f *fakeSessionStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {

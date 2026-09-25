@@ -10,12 +10,15 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos models.EPSBearer) ([]byte, error) {
+	testPDN(ue).Apn = "internet"
+
 	plain, err := buildAttachAccept(ctx, m, ue, ue.Conn(), qos)
 	if err != nil {
 		return nil, err
@@ -37,7 +40,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9}, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +70,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 	testPDN(ue).PdnType = eps.PDNTypeIPv4
 	testPDN(ue).UeIP = testUEIP
 
-	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9}, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +222,7 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 			testPDN(ue).UeIP = testUEIP
 			testPDN(ue).UeIPv6IID = testUEIPv6IID
 
-			wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9})
+			wire, err := buildProtectedAttachAccept(context.Background(), m, ue, models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9}})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -42,6 +42,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/ellanetworks/core/internal/reconciler"
 	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
@@ -526,7 +527,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfAMF.amf = amfInstance
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
-	smfInstance.SetMME(mmeInstance)
+	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance
 
@@ -540,9 +541,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.LPPHandler = lmfAMF
 
 	// Session reconciler: watches the session_reconcile changefeed topic
-	// and reconciles every local PDU session against the current DB policy.
-	// Triggered by profile, subscriber, and policy writes.
-	sessionReconciler := amf.NewSessionReconciler(amfInstance, func() <-chan struct{} {
+	// and reconciles every local session, 5G and EPS, against the current DB
+	// policy. Triggered by profile, subscriber, and policy writes.
+	sessionReconciler := reconciler.New(func() <-chan struct{} {
 		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
 
 		go func() {
@@ -551,27 +552,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 
 		return wakeup
-	}())
+	}(), smfInstance.Reconcile)
 	sessionReconciler.Start()
-
-	// 4G counterpart of the session reconciler: propagate data-network
-	// reconfiguration to active EPS bearers. On a session_reconcile change the
-	// MME modifies or reactivates any bearer whose data-network parameters changed
-	// (TS 24.301 §6.4.2 / §6.4.4.2); the AMF reconciler above handles 5G PDU
-	// sessions. A periodic backstop sweep mirrors the AMF reconciler's, recovering
-	// from a dropped or coalesced changefeed wakeup and from UEs that were
-	// transitioning (mid-attach, idle) when the change applied.
-	mmeReconciler := mme.NewSessionReconciler(mmeInstance, func() <-chan struct{} {
-		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
-
-		go func() {
-			<-ctx.Done()
-			stop()
-		}()
-
-		return wakeup
-	}())
-	mmeReconciler.Start()
 
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---
@@ -705,11 +687,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			}
 		})
 
-		// 1b. Stop the session reconcilers so no more reconcile calls land
-		// on a shutting-down SMF or eNB.
-		logger.EllaLog.Info("Shutting down session reconcilers")
+		// 1b. Stop the session reconciler so no more reconcile calls land
+		// on a shutting-down SMF, gNB or eNB.
+		logger.EllaLog.Info("Shutting down session reconciler")
 		sessionReconciler.Stop()
-		mmeReconciler.Stop()
 
 		handoverDrainTimeout := max(amfInstance.HandoverGuardTimeout(), mmeInstance.HandoverGuardTimeout()) + stepTimeout
 

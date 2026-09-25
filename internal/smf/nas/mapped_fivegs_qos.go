@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package nas
 
 import (
 	"fmt"
@@ -11,10 +11,8 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-const defaultQoSRuleIdentifier uint8 = 1
-
-func MappedFiveGSQoSContainers(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, error) {
-	rules, err := fgs.QoSRules{fgs.DefaultQoSRule(defaultQoSRuleIdentifier, models.DefaultQFI)}.MarshalBinary()
+func MappedFiveGSQoS(ebi uint8, qosData *models.QosData, ambr *models.Ambr) ([]nas.PCOContainer, error) {
+	rules, err := fgs.QoSRules{fgs.DefaultQoSRule(DefaultQosRuleID, qosData.QFI)}.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("encode the mapped QoS rules: %w", err)
 	}
@@ -24,16 +22,20 @@ func MappedFiveGSQoSContainers(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, erro
 		return nil, err
 	}
 
-	refresh, err := MappedFiveGSQoSRefresh(ebi, qos)
+	flowAndAMBR, err := mappedFlowAndAMBR(ebi, qosData, ambr, fgs.QoSFlowOpCreate)
 	if err != nil {
 		return nil, err
 	}
 
-	return append([]nas.PCOContainer{rulesContainer}, refresh...), nil
+	return append([]nas.PCOContainer{rulesContainer}, flowAndAMBR...), nil
 }
 
-func MappedFiveGSQoSRefresh(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, error) {
-	flow := fgs.FiveQIQoSFlow(models.DefaultQFI, qos.QCI, fgs.QoSFlowOpCreate)
+func MappedFiveGSQoSRefresh(ebi uint8, qosData *models.QosData, ambr *models.Ambr) ([]nas.PCOContainer, error) {
+	return mappedFlowAndAMBR(ebi, qosData, ambr, fgs.QoSFlowOpModify)
+}
+
+func mappedFlowAndAMBR(ebi uint8, qosData *models.QosData, ambr *models.Ambr, op fgs.QoSFlowOperation) ([]nas.PCOContainer, error) {
+	flow := fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), op)
 
 	param, err := fgs.EPSBearerIDQoSFlowParameter(ebi)
 	if err != nil {
@@ -47,12 +49,12 @@ func MappedFiveGSQoSRefresh(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, error) 
 		return nil, fmt.Errorf("encode the mapped QoS flow descriptions: %w", err)
 	}
 
-	ambr, err := fgs.SessionAMBRFromKbps(qos.SessAmbrDL.Kbps(), qos.SessAmbrUL.Kbps())
+	sessionAMBR, err := fgs.SessionAMBRFromKbps(ambr.Downlink.Kbps(), ambr.Uplink.Kbps())
 	if err != nil {
 		return nil, fmt.Errorf("encode the mapped Session-AMBR: %w", err)
 	}
 
-	ambrValue, err := ambr.MarshalBinary()
+	ambrValue, err := sessionAMBR.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("encode the mapped Session-AMBR: %w", err)
 	}

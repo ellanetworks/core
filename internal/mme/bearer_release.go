@@ -37,7 +37,16 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 	p.Deactivating = true
 	p.Disconnecting = disconnecting
+
+	interrupted := p.Modifying != nil
+	if interrupted {
+		p.clearModificationLocked()
+	}
 	ue.mu.Unlock()
+
+	if interrupted {
+		m.Session.CommitEPSBearerModification(ctx, p.SessionRef, false)
+	}
 
 	plain, err := (&eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
@@ -105,6 +114,22 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular
 // deactivation; the UE is not asked to re-establish it.
+func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	ueConn := ue.Conn()
+
+	if !ue.BearerReleaseOnly(p) && ueConn != nil && ue.Secured() {
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
+
+		return
+	}
+
+	if ueConn != nil && ue.BearerReleaseOnly(p) {
+		m.sendERABRelease(ctx, ueConn, p, nil)
+	}
+
+	m.DeactivatePDN(ctx, ue, p)
+}
+
 func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8) {
 	m.DeactivateBearer(ctx, ue, p, esmCause, pti, true)
 }

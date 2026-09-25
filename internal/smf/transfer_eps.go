@@ -6,12 +6,12 @@ package smf
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -39,7 +39,11 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{}, err
 	}
 
-	bearer, err := epsBearerForSession(sc, req.DNS)
+	sc.Mutex.Lock()
+	retained := transferPolicy(sc.PolicyData, policy)
+	sc.Mutex.Unlock()
+
+	bearer, err := epsBearerForSession(sc, retained, req.EPSBearerIdentity)
 	if err != nil {
 		sc.abandonTransferTo(Access4G)
 
@@ -53,18 +57,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	return bearer, nil
 }
 
-func sessionDNS(sc *SMContext) string {
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	if sc.PolicyData == nil || sc.PolicyData.DNS == nil {
-		return ""
-	}
-
-	return sc.PolicyData.DNS.String()
-}
-
-func epsBearerForSession(sc *SMContext, dns string) (models.EPSBearer, error) {
+func epsBearerForSession(sc *SMContext, policy *Policy, ebi uint8) (models.EPSBearer, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -85,6 +78,8 @@ func epsBearerForSession(sc *SMContext, dns string) (models.EPSBearer, error) {
 		SGW:          models.FTEID{TEID: sc.Tunnel.N3TEID, Addr: sc.Tunnel.N3IPv4},
 		SGWN3IPv6:    sc.Tunnel.N3IPv6,
 		IPv6IID:      sc.IPv6IID,
+		QoS:          epsBearerQoS(policy),
+		MTU:          policy.MTU,
 	}
 
 	if sc.PDUIPV4Address != nil {
@@ -99,13 +94,33 @@ func epsBearerForSession(sc *SMContext, dns string) (models.EPSBearer, error) {
 		}
 	}
 
-	if dns := net.ParseIP(dns); dns != nil {
-		if addr, ok := netip.AddrFromSlice(dns); ok {
-			bearer.DNS = addr.Unmap()
+	if addr, ok := netip.AddrFromSlice(policy.DNS); ok {
+		bearer.DNS = addr.Unmap()
+	}
+
+	if sc.PDUSessionID != 0 && sc.Snssai != nil {
+		mapped, err := smfNas.MappedFiveGSQoS(ebi, &policy.QosData, &policy.Ambr)
+		if err != nil {
+			return models.EPSBearer{}, err
 		}
+
+		bearer.MappedFiveGSQoS = mapped
 	}
 
 	return bearer, nil
+}
+
+func epsBearerQoS(policy *Policy) models.EPSBearerQoS {
+	qos := models.EPSBearerQoS{
+		QCI:     uint8(policy.QosData.Var5qi),
+		APNAMBR: policy.Ambr,
+	}
+
+	if policy.QosData.Arp != nil {
+		qos.ARP = uint8(policy.QosData.Arp.PriorityLevel)
+	}
+
+	return qos
 }
 
 func pduSessionTypeFor(pdnType uint8) (uint8, error) {

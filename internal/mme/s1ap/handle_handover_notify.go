@@ -71,9 +71,11 @@ func handleHandoverNotify(ctx context.Context, m *mme.MME, radio *mme.Radio, val
 
 	if sourceConn == nil {
 		m.CompleteRelocation(ctx, ue)
+		m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 
 		return
 	}
 
 	mme.SendUEContextRelease(ctx, m, sourceConn, sourceMMEID, sourceENBID, true, mme.CauseHandoverSuccess)
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 }

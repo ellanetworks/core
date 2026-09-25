@@ -61,10 +61,6 @@ func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.
 	return []db.NetworkSlice{{ID: "slice-1", Sst: 1, Name: "default"}}, nil
 }
 
-func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
-	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1", SessionAmbrDownlink: "200 Mbps", SessionAmbrUplink: "100 Mbps"}, nil
-}
-
 func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"}}, nil
 }
@@ -803,10 +799,6 @@ func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlic
 		{ID: "slice-1", Name: "slice-a", Sst: 1, Sd: &sd1},
 		{ID: "slice-2", Name: "slice-b", Sst: 2, Sd: &sd2},
 	}, nil
-}
-
-func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, sliceID string) (*db.Policy, error) {
-	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1", SessionAmbrDownlink: "200 Mbps", SessionAmbrUplink: "100 Mbps"}, nil
 }
 
 func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {

@@ -85,11 +85,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	if apn == "" {
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
-		return nasreply.Handled()
-	}
-
 	return openPDNConnection(ctx, m, ue, ueConn, apn, uint8(pti), req.PDNType)
 }
 
@@ -103,10 +98,22 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	if apn == "" {
-		rejectPDNConnectivity(ctx, ueConn, ptiValue, eps.ESMCauseMissingOrUnknownAPN)
+	subscribed, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), apn)
+	if err != nil {
+		if errors.Is(err, mme.ErrUnknownAPN) {
+			logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN not in subscriber profile", zap.String("apn", apn))
+			rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
+
+			return nasreply.Handled()
+		}
+
+		logger.From(ctx, logger.MmeLog).Warn("failed to resolve the subscribed APN for additional PDN", zap.String("apn", apn), zap.Error(err))
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+
 		return nasreply.Handled()
 	}
+
+	apn = subscribed
 
 	if m.FindPDNByAPN(ue, apn) != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN already connected", zap.String("apn", apn))
@@ -115,16 +122,9 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	qos, err := mme.ResolveQoSByAPN(ctx, m, ue.IMSI(), apn)
-	if errors.Is(err, mme.ErrUnknownAPN) {
-		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN not in subscriber profile", zap.String("apn", apn))
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
-
-		return nasreply.Handled()
-	}
-
+	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to resolve QoS for additional PDN", zap.String("apn", apn), zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Warn("failed to resolve the subscribed UE-AMBR for additional PDN", zap.String("apn", apn), zap.Error(err))
 		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
 
 		return nasreply.Handled()
@@ -142,15 +142,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
 		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
-		Snssai:            qos.Snssai,
-		PolicyID:          qos.PolicyID,
-		APN:               qos.APN,
-		AMBRUplink:        qos.SessAmbrUL,
-		AMBRDownlink:      qos.SessAmbrDL,
-		IPv4Pool:          qos.IPv4Pool,
-		IPv6Pool:          qos.IPv6Pool,
-		DNS:               qos.DNS,
-		MTU:               qos.MTU,
+		APN:               apn,
 		RequestedPDNType:  uint8(pdnType),
 		RequestType:       ueConn.ESMRequest.Type,
 	})
@@ -162,7 +154,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	p = m.FillBearer(ue, p, qos, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
+	p = m.FillBearer(ue, p, apn, bearer)
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
@@ -172,7 +164,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, bearer, uint8(pti), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)
@@ -180,7 +172,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	req, err := buildERABSetup(p, qos)
+	req, err := buildERABSetup(p, ue.SetSubscribedUEAMBR(ueAmbr))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build E-RAB Setup Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)
@@ -220,21 +212,21 @@ func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	openPDNConnection(ctx, m, ue, ueConn, ueConn.ESMRequest.APN, pending.PTI, eps.PDNType(pending.PDNType))
 }
 
-func buildERABSetup(p *mme.PdnConnection, qos *mme.EpsQoS) (*s1ap.ERABSetupRequest, error) {
+func buildERABSetup(p *mme.PdnConnection, ueAmbr models.Ambr) (*s1ap.ERABSetupRequest, error) {
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode S-GW transport layer address: %w", err)
 	}
 
-	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL.Bps()), UL: s1ap.BitRate(qos.AMBRUL.Bps())}
+	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(ueAmbr.Downlink.Bps()), UL: s1ap.BitRate(ueAmbr.Uplink.Bps())}
 
 	return &s1ap.ERABSetupRequest{
 		UEAggregateMaximumBitRate: &ambr,
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
-				QCI: s1ap.QCI(qos.QCI),
-				ARP: mme.BearerARP(qos.ARP),
+				QCI: s1ap.QCI(p.Qci),
+				ARP: mme.BearerARP(p.Arp),
 			},
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),

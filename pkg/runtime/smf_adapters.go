@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
@@ -226,21 +227,48 @@ func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID
 func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
 	pol, dbRules, dn, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, snssai.Sd, dnn)
 	if err != nil {
-		if errors.Is(err, db.ErrDataNetworkNotFound) {
-			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
-		}
-
-		if errors.Is(err, db.ErrDNNNotInSlice) {
-			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotInSlice, err)
-		}
-
-		if errors.Is(err, db.ErrNoMatchingPolicy) {
-			return nil, fmt.Errorf("%w: %v", smf.ErrNoPolicyMatch, err)
-		}
-
-		return nil, fmt.Errorf("get session policy: %w", err)
+		return nil, policyLookupError(err)
 	}
 
+	return smfPolicy(pol, dbRules, dn)
+}
+
+func (a *pcfDBAdapter) GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*smf.Policy, *models.Snssai, error) {
+	pol, dbRules, dn, slice, err := a.db.GetEPSSessionPolicy(ctx, imsi, apn)
+	if err != nil {
+		return nil, nil, policyLookupError(err)
+	}
+
+	policy, err := smfPolicy(pol, dbRules, dn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	snssai := &models.Snssai{Sst: slice.Sst}
+	if slice.Sd != nil {
+		snssai.Sd = *slice.Sd
+	}
+
+	return policy, snssai, nil
+}
+
+func policyLookupError(err error) error {
+	if errors.Is(err, db.ErrDataNetworkNotFound) {
+		return fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
+	}
+
+	if errors.Is(err, db.ErrDNNNotInSlice) {
+		return fmt.Errorf("%w: %v", smf.ErrDNNNotInSlice, err)
+	}
+
+	if errors.Is(err, db.ErrNoMatchingPolicy) {
+		return fmt.Errorf("%w: %v", smf.ErrNoPolicyMatch, err)
+	}
+
+	return fmt.Errorf("get session policy: %w", err)
+}
+
+func smfPolicy(pol *db.Policy, dbRules []*db.NetworkRule, dn *db.DataNetwork) (*smf.Policy, error) {
 	dns := net.ParseIP(dn.DNS)
 
 	// The stored policy text becomes a rate here, at the edge of the DB layer.
@@ -513,4 +541,24 @@ func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pd
 
 func (a *smfAMFAdapter) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	a.amf.SessionDropped(ctx, supi, pduSessionID, ref, n2Transfer)
+}
+
+type smfMMEAdapter struct {
+	*mme.MME
+}
+
+func (a *smfMMEAdapter) ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error {
+	return mmeReachability(a.MME.ModifyEPSBearer(ctx, imsi, ebi, mod))
+}
+
+func (a *smfMMEAdapter) ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error {
+	return mmeReachability(a.MME.ReactivateEPSBearer(ctx, imsi, ebi))
+}
+
+func mmeReachability(err error) error {
+	if errors.Is(err, mme.ErrUENotReachable) || errors.Is(err, mme.ErrBearerBusy) {
+		return fmt.Errorf("%w: %v", smf.ErrUENotReachable, err)
+	}
+
+	return err
 }

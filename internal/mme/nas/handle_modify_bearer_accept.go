@@ -20,13 +20,17 @@ func handleModifyBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
+	if ue.BearerDeactivating(p) {
+		return nasreply.Silent(nasreply.ReasonOutOfState)
+	}
+
 	m.StopESMGuard(p)
 
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
 		ueConn.Log(ctx).Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification", zap.String("apn", p.Apn), logger.FiveGSMCause(cause))
 	}
 
-	if !ue.CommitBearerModification(p) {
+	if !m.ConcludeBearerModification(ctx, ue, p, true) {
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 

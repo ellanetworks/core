@@ -25,8 +25,7 @@ type deregisterTestSmf struct {
 	onRelease             func(context.Context, string) error
 
 	session       func(ref string) *smf.SMContext
-	sessionPolicy func() (*smf.Policy, error)
-	reconcileReqs []*models.SessionReconcileRequest
+	reconcileRefs []string
 }
 
 func (s *deregisterTestSmf) GetSession(ref string) *smf.SMContext {
@@ -136,17 +135,9 @@ func (s *deregisterTestSmf) UpdateSmContextXnHandoverFailed(context.Context, str
 	return nil
 }
 
-func (s *deregisterTestSmf) ReconcileSmContext(_ context.Context, req *models.SessionReconcileRequest) error {
-	s.reconcileReqs = append(s.reconcileReqs, req)
+func (s *deregisterTestSmf) ReconcileSession(_ context.Context, ref string) error {
+	s.reconcileRefs = append(s.reconcileRefs, ref)
 	return nil
-}
-
-func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, string) (*smf.Policy, error) {
-	if s.sessionPolicy != nil {
-		return s.sessionPolicy()
-	}
-
-	return nil, nil
 }
 
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
@@ -266,18 +257,8 @@ func TestRadioRemoveUe_Registered_DeactivatesUserPlane(t *testing.T) {
 	}
 }
 
-func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
-	fakeSmf := &deregisterTestSmf{
-		session: func(string) *smf.SMContext {
-			return &smf.SMContext{Dnn: "internet", Snssai: &models.Snssai{Sst: 1}}
-		},
-		sessionPolicy: func() (*smf.Policy, error) {
-			return &smf.Policy{
-				Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("2 Gbps")},
-				QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}},
-			}, nil
-		},
-	}
+func TestReconcileSessionsForUE_AsksTheSMFPerSession(t *testing.T) {
+	fakeSmf := &deregisterTestSmf{}
 
 	amfInstance := New(nil, nil, fakeSmf)
 
@@ -286,22 +267,8 @@ func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 
 	amfInstance.ReconcileSessionsForUE(context.Background(), ue)
 
-	if len(fakeSmf.reconcileReqs) != 1 {
-		t.Fatalf("expected 1 reconcile call, got %d", len(fakeSmf.reconcileReqs))
-	}
-
-	req := fakeSmf.reconcileReqs[0]
-
-	if req.SmContextRef != "ref-1" {
-		t.Fatalf("reconcile ref = %q, want ref-1", req.SmContextRef)
-	}
-
-	if req.Reason != models.ReconcilePolicyChange {
-		t.Fatalf("reconcile reason = %q, want policy-change", req.Reason)
-	}
-
-	if req.NewPolicy == nil || req.NewPolicy.SessionAmbrDownlink != "2 Gbps" {
-		t.Fatalf("reconcile did not carry the resolved policy: %+v", req.NewPolicy)
+	if len(fakeSmf.reconcileRefs) != 1 || fakeSmf.reconcileRefs[0] != "ref-1" {
+		t.Fatalf("reconcile calls = %v, want [ref-1]", fakeSmf.reconcileRefs)
 	}
 }
 
