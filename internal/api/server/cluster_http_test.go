@@ -46,7 +46,7 @@ func TestClusterHTTP_Status(t *testing.T) {
 		t.Fatalf("database never became ready: %v", err)
 	}
 
-	stopCluster := server.StartClusterHTTP(testDB, serverLn)
+	stopCluster := server.StartClusterHTTP(testDB, serverLn, false)
 	defer stopCluster()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,7 +152,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []string) (s
 		t.Fatalf("database never became ready: %v", err)
 	}
 
-	stopCluster := server.StartClusterHTTP(testDB, serverLn)
+	stopCluster := server.StartClusterHTTP(testDB, serverLn, false)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

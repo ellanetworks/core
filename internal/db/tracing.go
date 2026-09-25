@@ -51,6 +51,14 @@ func recordSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
+func endSpan(span trace.Span, err error) {
+	if err != nil {
+		recordSpanError(span, err)
+	}
+
+	span.End()
+}
+
 func spanErrorAttributes(err error) []attribute.KeyValue {
 	var se sqlite3.Error
 	if errors.As(err, &se) {

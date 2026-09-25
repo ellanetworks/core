@@ -13,12 +13,22 @@ import (
 )
 
 // TracingMiddleware wraps the handler in OpenTelemetry HTTP middleware
-func TracingMiddleware(serviceName string, handler http.Handler) http.Handler {
+func TracingMiddleware(serviceName string, handler http.Handler, opts ...otelhttp.Option) http.Handler {
 	return otelhttp.NewHandler(
 		routeAttributeMiddleware(handler),
 		"",
-		otelhttp.WithServerName(serviceName),
+		append([]otelhttp.Option{otelhttp.WithServerName(serviceName)}, opts...)...,
 	)
+}
+
+func ClusterTracingMiddleware(handler http.Handler) http.Handler {
+	return TracingMiddleware("ella-core/cluster", handler, otelhttp.WithFilter(func(r *http.Request) bool {
+		return r.Method != http.MethodGet || r.URL.Path != "/cluster/status"
+	}))
+}
+
+func PublicTracingMiddleware(serviceName string, handler http.Handler) http.Handler {
+	return TracingMiddleware(serviceName, handler, otelhttp.WithPublicEndpointFn(func(*http.Request) bool { return true }))
 }
 
 func routeAttributeMiddleware(next http.Handler) http.Handler {

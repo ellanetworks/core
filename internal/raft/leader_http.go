@@ -15,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -79,9 +81,13 @@ func (c *leaderHTTPClient) clientFor(addr string, peerID string) *http.Client {
 
 	c.key = key
 	c.transport = transport
-	c.client = &http.Client{Transport: transport}
+	c.client = &http.Client{Transport: otelhttp.NewTransport(transport, otelhttp.WithSpanNameFormatter(leaderSpanName))}
 
 	return c.client
+}
+
+func leaderSpanName(_ string, r *http.Request) string {
+	return r.Method + " " + r.URL.Path
 }
 
 func (c *leaderHTTPClient) close() {

@@ -258,7 +258,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	server.SetJoinCoordinator(joinreq.Default())
 
 	if clusterLn != nil {
-		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn)
+		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn, cfg.Telemetry.Enabled)
 		defer stopClusterHTTP()
 
 		if pki != nil {

@@ -14,6 +14,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	hraft "github.com/hashicorp/raft"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -118,12 +120,20 @@ func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload j
 		return nil, hraft.ErrNotLeader
 	}
 
+	ctx, span := tracer.Start(ctx, "raft/forward",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String("ella.raft.operation", opName)),
+	)
+	defer span.End()
+
 	envelope, err := json.Marshal(ProposeForwardRequest{Operation: opName, Payload: payload})
 	if err != nil {
+		recordSpanError(span, err)
+
 		return nil, fmt.Errorf("marshal forward envelope: %w", err)
 	}
 
-	return m.runForwardRetryLoop(ctx, timeout, func(attemptCtx context.Context) (*ProposeResult, int, error) {
+	result, err := m.runForwardRetryLoop(ctx, timeout, func(attemptCtx context.Context) (*ProposeResult, int, error) {
 		leaderAddr, leaderID := m.LeaderAddressAndID()
 		if leaderAddr == "" || leaderID == "" {
 			return nil, http.StatusServiceUnavailable, nil
@@ -131,6 +141,15 @@ func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload j
 
 		return m.doForwardRequest(attemptCtx, leaderAddr, leaderID, envelope)
 	})
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int64("ella.raft.index", int64(result.Index)))
+
+	return result, nil
 }
 
 func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration, attempt forwardAttemptFn) (*ProposeResult, error) {
@@ -250,6 +269,12 @@ func decodeForwardError(body []byte, status int) error {
 }
 
 func (m *Manager) waitForLocalApply(ctx context.Context, target uint64) {
+	_, span := tracer.Start(ctx, "raft/wait_local_apply",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.Int64("ella.raft.index", int64(target))),
+	)
+	defer span.End()
+
 	deadline := time.Now().Add(appliedIndexWaitMax)
 
 	for {
@@ -258,6 +283,7 @@ func (m *Manager) waitForLocalApply(ctx context.Context, target uint64) {
 		}
 
 		if !time.Now().Before(deadline) {
+			span.SetAttributes(attribute.Bool("ella.raft.catch_up_timed_out", true))
 			logger.RaftLog.Warn(
 				"forward operation: follower did not catch up to leader applied index before response",
 				zap.Uint64("target_idx", target),
