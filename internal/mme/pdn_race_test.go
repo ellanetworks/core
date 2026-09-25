@@ -15,8 +15,10 @@ func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 	m := newTestMME(t)
 	ue := m.NewUe(t.Context(), &captureConn{}, 7)
 
-	qos := &EpsQoS{APN: "internet", SessAmbrUL: models.MustParseBitRate("100 Mbps"), SessAmbrDL: models.MustParseBitRate("200 Mbps"), QCI: 9, ARP: 1}
-	bearer := models.EPSBearer{PDNType: 1, IPv4: netip.MustParseAddr("10.0.0.1")}
+	ueAmbr := models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	bearer := models.EPSBearer{PDNType: 1, IPv4: netip.MustParseAddr("10.0.0.1"), QoS: models.EPSBearerQoS{
+		QCI: 9, ARP: 1, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
+	}}
 
 	var wg sync.WaitGroup
 
@@ -26,7 +28,7 @@ func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 		defer wg.Done()
 
 		for range 500 {
-			m.InstallDefaultBearer(ue, qos, bearer, false)
+			m.InstallDefaultBearer(ue, ueAmbr, "internet", bearer, false)
 		}
 	}()
 

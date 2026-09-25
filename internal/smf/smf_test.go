@@ -77,9 +77,11 @@ func (f *fakeStore) allocSessionIDs() []uint8 {
 }
 
 type fakePCF struct {
-	mu     sync.Mutex
-	policy *smf.Policy
-	err    error
+	mu         sync.Mutex
+	policy     *smf.Policy
+	err        error
+	lastSnssai *models.Snssai
+	apnLookups int
 }
 
 type usageEntry struct {
@@ -157,9 +159,11 @@ func (f *fakeStore) GetStaticIP(_ context.Context, _ string, ipv6 bool) (netip.A
 	return addr, addr.IsValid(), nil
 }
 
-func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
+func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, snssai *models.Snssai, _ string) (*smf.Policy, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.lastSnssai = snssai
 
 	if f.err != nil {
 		return nil, f.err
@@ -170,6 +174,23 @@ func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai
 	}
 
 	return f.policy, nil
+}
+
+func (f *fakePCF) GetEPSSessionPolicy(_ context.Context, _ string, _ string) (*smf.Policy, *models.Snssai, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.apnLookups++
+
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+
+	if f.policy == nil {
+		return epsPolicy(), testSnssai, nil
+	}
+
+	return f.policy, testSnssai, nil
 }
 
 func (f *fakeStore) IncrementDailyUsageBatch(_ context.Context, usages []models.SubscriberUsage) error {
@@ -415,7 +436,46 @@ type fakeMME struct {
 	pagedIMSI    []string
 	notifyCauses []models.DownlinkDataNotificationCause
 	droppedCalls []mmeTransferredCall
+	modified     []models.EPSBearerModification
+	reactivated  []uint8
+	modifyErr    error
 	err          error
+}
+
+func (f *fakeMME) ModifyEPSBearer(_ context.Context, _ string, _ uint8, mod models.EPSBearerModification) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.modifyErr != nil {
+		return f.modifyErr
+	}
+
+	f.modified = append(f.modified, mod)
+
+	return nil
+}
+
+func (f *fakeMME) ReactivateEPSBearer(_ context.Context, _ string, ebi uint8) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.reactivated = append(f.reactivated, ebi)
+
+	return nil
+}
+
+func (f *fakeMME) modifications() []models.EPSBearerModification {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.modified)
+}
+
+func (f *fakeMME) reactivations() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.reactivated)
 }
 
 type mmeTransferredCall struct {

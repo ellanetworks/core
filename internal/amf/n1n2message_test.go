@@ -93,10 +93,6 @@ func (f *fakeDBInstance) ListAllNetworkSlices(context.Context) ([]db.NetworkSlic
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
-	return nil, nil
-}
-
 func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Policy, error) {
 	return nil, nil
 }
@@ -189,12 +185,8 @@ func (f *fakeSmf) UpdateSmContextXnHandoverFailed(context.Context, string, []byt
 
 func (f *fakeSmf) UpdateSmContextN2HandoverFailed(context.Context, string, []byte) error { return nil }
 
-func (f *fakeSmf) ReconcileSmContext(context.Context, *models.SessionReconcileRequest) error {
+func (f *fakeSmf) ReconcileSession(context.Context, string) error {
 	return nil
-}
-
-func (f *fakeSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, string) (*smf.Policy, error) {
-	return nil, nil
 }
 
 func mustSUPIFromIMSI(t *testing.T, imsi string) etsi.SUPI {

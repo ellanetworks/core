@@ -38,21 +38,17 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-func reconcileAmbrChange(t *testing.T, s *smf.SMF, ref string) {
+func reconcileAmbrChange(t *testing.T, s *smf.SMF, pcf *fakePCF, ref string) {
 	t.Helper()
 
-	err := s.ReconcileSmContext(context.Background(), &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "500 Mbps",
-			SessionAmbrDownlink: "600 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-		},
+	err := reconcileWithPolicy(context.Background(), s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "500 Mbps",
+		SessionAmbrDownlink: "600 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 }
 
@@ -100,7 +96,7 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 	upf.modifyCalls = nil
 	upf.mu.Unlock()
 
-	reconcileAmbrChange(t, s, ref)
+	reconcileAmbrChange(t, s, pcf, ref)
 
 	upf.mu.Lock()
 	upfModifies := len(upf.modifyCalls)
@@ -133,13 +129,13 @@ func TestReconcileSkippedWhileProcedureInFlight(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	reconcileAmbrChange(t, s, ref)
+	reconcileAmbrChange(t, s, pcf, ref)
 
 	if got := modifyCallCount(amfCb); got != 1 {
 		t.Fatalf("expected 1 modify call, got %d", got)
 	}
 
-	reconcileAmbrChange(t, s, ref)
+	reconcileAmbrChange(t, s, pcf, ref)
 
 	if got := modifyCallCount(amfCb); got != 1 {
 		t.Fatalf("a reconcile during an in-flight modification must be skipped, got %d modify calls", got)
@@ -155,7 +151,7 @@ func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	reconcileAmbrChange(t, s, ref) // new AMBR 500/600 Mbps, held pending
+	reconcileAmbrChange(t, s, pcf, ref) // new AMBR 500/600 Mbps, held pending
 
 	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionModificationCommandReject(smCtx.PDUSessionID, 0)); err != nil {
 		t.Fatalf("modification command reject: %v", err)
@@ -275,7 +271,7 @@ func TestT3591RetransmitsThenAborts(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	reconcileAmbrChange(t, s, ref)
+	reconcileAmbrChange(t, s, pcf, ref)
 
 	waitFor(t, "T3591 abort clearing the PTI", func() bool {
 		sc := s.GetSession(ref)
@@ -299,7 +295,7 @@ func TestT3591StopsOnModificationComplete(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	reconcileAmbrChange(t, s, ref)
+	reconcileAmbrChange(t, s, pcf, ref)
 
 	// A network-requested modification carries PTI 0 (TS 24.501 §7.3.1).
 	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {

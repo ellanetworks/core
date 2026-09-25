@@ -181,19 +181,14 @@ func TestEPSExtendedPCOIsAPropertyOfThePDNConnection(t *testing.T) {
 
 			p := &mme.PdnConnection{
 				Ebi:         mme.DefaultERABID,
+				Apn:         "internet",
 				PdnType:     eps.PDNTypeIPv4,
 				UeIP:        netip.MustParseAddr("10.45.0.2"),
 				Dns:         netip.MustParseAddr("8.8.8.8"),
 				Transferred: tc.transferred,
 			}
 
-			qos := &mme.EpsQoS{
-				APN:        "internet",
-				QCI:        9,
-				MTU:        1400,
-				SessAmbrUL: models.MustParseBitRate("1 Gbps"),
-				SessAmbrDL: models.MustParseBitRate("1 Gbps"),
-			}
+			qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}}, MTU: 1400}
 
 			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil)
 			if err != nil {

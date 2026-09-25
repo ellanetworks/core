@@ -425,6 +425,7 @@ func TestForwardRelocationReleasesPDNsTheTargetRefused(t *testing.T) {
 func TestForwardRelocationFailsWhenNoSessionCanTransfer(t *testing.T) {
 	m := newTestMME(t)
 	newRelocationTarget(t, m)
+	m.Session.(*fakeSessionManager).createErr = errors.New("no policy for APN")
 
 	req := relocationRequest(interworking.PDNConnection{PDUSessionID: 1, EPSBearerIdentity: 5, APN: "not-a-subscribed-apn"})
 

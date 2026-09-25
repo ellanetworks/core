@@ -17,79 +17,155 @@ import (
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-// ReconcileSmContext applies an OAM-initiated policy change to an active PDU
-// session.
-//
-// QoS/AMBR/DNS changes use the network-requested PDU Session Modification
-// procedure (TS 23.502): PFCP update plus N1+N2 to the UE and gNB.
-//
-// Slice (SST/SD), MTU, or IP pool changes release the session with cause #39
-// "reactivation requested" (TS 24.501) so the UE re-establishes with the
-// correct configuration; TS 23.501 does not address dynamic MTU adjustment,
-// and IP pools have no in-place modification mechanism.
-func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error {
-	if req == nil {
-		return fmt.Errorf("reconcile request is nil")
+type reconcileAction int
+
+const (
+	reconcileNone reconcileAction = iota
+	reconcileRelease
+	reconcileModify
+)
+
+type reconcileDecision struct {
+	action reconcileAction
+	policy *Policy
+	mod    models.EPSBearerModification
+}
+
+type subscriptionDelta struct {
+	FramedRoutes bool
+	StaticIP     bool
+}
+
+func (s *SMF) Reconcile(ctx context.Context) {
+	s.mu.RLock()
+	refs := make([]string, 0, len(s.pool))
+
+	for ref := range s.pool {
+		refs = append(refs, ref)
 	}
 
-	ctx, span := tracer.Start(ctx, "smf/reconcile_sm_context",
-		trace.WithAttributes(
-			attrs.SMContextRef(req.SmContextRef),
-			attribute.String("smf.reason", string(req.Reason)),
-		),
+	s.mu.RUnlock()
+
+	if len(refs) == 0 {
+		return
+	}
+
+	ctx, span := tracer.Start(ctx, "smf/reconcile_sessions",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.Int("reconcile.session_count", len(refs))),
 	)
 	defer span.End()
 
-	if req.SmContextRef == "" {
-		span.SetStatus(codes.Error, "sm context reference is missing")
-
-		return fmt.Errorf("sm context reference is missing")
+	for _, ref := range refs {
+		if err := s.ReconcileSession(ctx, ref); err != nil {
+			logger.SmfLog.Warn("session reconcile failed", logger.SMContextRef(ref), zap.Error(err))
+		}
 	}
+}
 
-	smContext := s.GetSession(req.SmContextRef)
+// ReconcileSession applies an OAM-initiated policy change to an active session,
+// on either access (TS 23.502 §4.3.3.2 step 1d, TS 23.401 §5.4.2.1).
+//
+// QoS/AMBR/DNS changes use the network-requested modification procedure: PFCP
+// update plus N1+N2 to the UE and gNB, or the MME's EPS bearer modification.
+//
+// Slice (SST/SD), MTU, or IP pool changes release the session with cause #39
+// "reactivation requested" (TS 24.501, TS 24.301) so the UE re-establishes with
+// the correct configuration; TS 23.501 does not address dynamic MTU adjustment,
+// and IP pools have no in-place modification mechanism.
+func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
+	ctx, span := tracer.Start(ctx, "smf/reconcile_session",
+		trace.WithAttributes(attrs.SMContextRef(ref)),
+	)
+	defer span.End()
+
+	smContext := s.GetSession(ref)
 	if smContext == nil {
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", req.SmContextRef)
+		return nil
 	}
 
 	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
+	supi, snssai, dnn := smContext.Supi, smContext.Snssai, smContext.Dnn
+	smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil {
-		logger.SmfLog.Debug("session not activated, skipping reconciliation",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID),
-		)
+	policy, _, err := s.resolveEPSPolicy(ctx, supi, dnn, snssai)
+	if err != nil && !permanentPolicyFailure(err) {
+		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",
+			logger.SMContextRef(ref), zap.Error(err))
 
 		return nil
 	}
 
-	if smContext.PolicyData == nil {
-		logger.SmfLog.Debug("session has no policy data, skipping reconciliation",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID),
-		)
+	smContext.Mutex.Lock()
+	decision, err := s.reconcileLocked(ctx, smContext, policy)
+	onEPS := smContext.Access == Access4G
+	ebi := smContext.EBI
+	smContext.Mutex.Unlock()
+
+	if err != nil {
+		span.RecordError(err)
+
+		return err
+	}
+
+	if !onEPS {
+		return nil
+	}
+
+	switch decision.action {
+	case reconcileRelease:
+		err = s.mme.ReactivateEPSBearer(ctx, supi.IMSI(), ebi)
+	case reconcileModify:
+		err = s.mme.ModifyEPSBearer(ctx, supi.IMSI(), ebi, decision.mod)
+		if err != nil {
+			smContext.Mutex.Lock()
+			if smContext.pendingPolicy == decision.policy {
+				smContext.pendingPolicy = nil
+			}
+			smContext.Mutex.Unlock()
+		}
+	}
+
+	if errors.Is(err, ErrUENotReachable) {
+		logger.SmfLog.Debug("EPS bearer not signallable, deferring reconciliation",
+			logger.SUPI(supi.String()), zap.Uint8("ebi", ebi), zap.Error(err))
 
 		return nil
+	}
+
+	return err
+}
+
+// Provisioning failures are permanent until an operator acts, so the session is
+// released; a DB outage or Raft timeout is not, and the backstop retries it.
+// Missing a permanent cause is the expensive mistake: the reconciler then logs
+// "transient error … skipping" on every sweep, forever.
+func permanentPolicyFailure(err error) bool {
+	return errors.Is(err, ErrNoPolicyMatch) ||
+		errors.Is(err, ErrDNNNotFound) ||
+		errors.Is(err, ErrDNNNotInSlice)
+}
+
+func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy *Policy) (reconcileDecision, error) {
+	if smContext.Tunnel == nil || smContext.PolicyData == nil || smContext.releasing || smContext.pending != nil {
+		return reconcileDecision{}, nil
 	}
 
 	// A network-requested modification or release is already outstanding
 	// (T3591/T3592 running); re-firing resends the command and resets the
 	// retransmission counter, or double-frees on release. Defer to the next
 	// backstop sweep.
-	if smContext.procedureTimer.Active() {
+	if smContext.procedureTimer.Active() || (smContext.Access == Access4G && smContext.pendingPolicy != nil) {
 		logger.SmfLog.Debug("a network-requested procedure is in flight, skipping reconciliation",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return nil
+		return reconcileDecision{}, nil
 	}
 
 	// UE in CM-IDLE (user plane buffering): do not touch any enforcement point
@@ -101,37 +177,37 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return nil
+		return reconcileDecision{}, nil
 	}
 
 	// Slice (SST/SD) change: stored Snssai matches no configured slice. Release
 	// with cause #39 so the UE re-establishes on the new slice (TS 23.502).
-	if req.Reason == models.ReconcileSliceMismatch {
-		return s.sendSessionRelease(ctx, smContext)
+	if policy == nil {
+		return s.releaseForReactivation(ctx, smContext)
 	}
 
-	// MTU or IP pool change: release for re-establishment. Zero/empty delta
-	// values mean "unspecified" (unchanged), avoiding spurious releases on a
-	// partial delta.
-	if req.NewPolicy != nil {
-		mtuChanged := req.NewPolicy.MTU != 0 && smContext.PolicyData.MTU != req.NewPolicy.MTU
-		ipv4PoolChanged := req.NewPolicy.IPv4Pool != "" && smContext.PolicyData.IPv4Pool != req.NewPolicy.IPv4Pool
-		ipv6PoolChanged := req.NewPolicy.IPv6Pool != "" && smContext.PolicyData.IPv6Pool != req.NewPolicy.IPv6Pool
+	current := smContext.PolicyData
 
-		if mtuChanged || ipv4PoolChanged || ipv6PoolChanged {
-			logger.SmfLog.Info("MTU or IP pool changed, releasing session for re-establishment",
-				logger.SUPI(smContext.Supi.String()),
-				logger.PDUSessionID(smContext.PDUSessionID),
-				zap.Uint16("old_mtu", smContext.PolicyData.MTU),
-				zap.Uint16("new_mtu", req.NewPolicy.MTU),
-				zap.String("old_ipv4_pool", smContext.PolicyData.IPv4Pool),
-				zap.String("new_ipv4_pool", req.NewPolicy.IPv4Pool),
-				zap.String("old_ipv6_pool", smContext.PolicyData.IPv6Pool),
-				zap.String("new_ipv6_pool", req.NewPolicy.IPv6Pool),
-			)
+	// MTU or IP pool change: release for re-establishment. Zero/empty values
+	// mean "unspecified" (unchanged), avoiding spurious releases on a partial
+	// policy.
+	mtuChanged := policy.MTU != 0 && current.MTU != policy.MTU
+	ipv4PoolChanged := policy.IPv4Pool != "" && current.IPv4Pool != policy.IPv4Pool
+	ipv6PoolChanged := policy.IPv6Pool != "" && current.IPv6Pool != policy.IPv6Pool
 
-			return s.sendSessionRelease(ctx, smContext)
-		}
+	if mtuChanged || ipv4PoolChanged || ipv6PoolChanged {
+		logger.SmfLog.Info("MTU or IP pool changed, releasing session for re-establishment",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+			zap.Uint16("old_mtu", current.MTU),
+			zap.Uint16("new_mtu", policy.MTU),
+			zap.String("old_ipv4_pool", current.IPv4Pool),
+			zap.String("new_ipv4_pool", policy.IPv4Pool),
+			zap.String("old_ipv6_pool", current.IPv6Pool),
+			zap.String("new_ipv6_pool", policy.IPv6Pool),
+		)
+
+		return s.releaseForReactivation(ctx, smContext)
 	}
 
 	delta, err := s.subscriptionChanged(ctx, smContext)
@@ -142,7 +218,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			zap.Error(err),
 		)
 
-		return nil
+		return reconcileDecision{}, nil
 	}
 
 	// A framed-route change cannot be applied in place: TS 23.501 §5.6.14 requires
@@ -155,7 +231,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return s.sendSessionRelease(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext)
 	}
 
 	// The UE IP is fixed for the session lifetime (TS 23.501 §5.8.2.2); a
@@ -166,100 +242,58 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			logger.PDUSessionID(smContext.PDUSessionID),
 		)
 
-		return s.sendSessionRelease(ctx, smContext)
+		return s.releaseForReactivation(ctx, smContext)
 	}
 
-	oldQoS := smContext.PolicyData.QosData
-	newAmbrUL, newAmbrDL := models.BitRate{}, models.BitRate{}
+	oldQoS := current.QosData
 
-	if req.NewPolicy != nil {
-		var err error
-
-		if newAmbrUL, err = models.ParseBitRate(req.NewPolicy.SessionAmbrUplink); err != nil {
-			return fmt.Errorf("new policy Session-AMBR uplink: %w", err)
-		}
-
-		if newAmbrDL, err = models.ParseBitRate(req.NewPolicy.SessionAmbrDownlink); err != nil {
-			return fmt.Errorf("new policy Session-AMBR downlink: %w", err)
-		}
+	oldArp, newArp := int32(0), int32(0)
+	if oldQoS.Arp != nil {
+		oldArp = oldQoS.Arp.PriorityLevel
 	}
 
-	oldAmbr := smContext.PolicyData.Ambr
-
-	hasQoSChange := false
-	has5QIChange := false
-	hasAmbrChange := false
-	hasDNSChange := false
-
-	if req.NewPolicy != nil {
-		oldArp := int32(0)
-		if oldQoS.Arp != nil {
-			oldArp = oldQoS.Arp.PriorityLevel
-		}
-
-		has5QIChange = oldQoS.Var5qi != req.NewPolicy.Var5qi
-
-		if has5QIChange || oldArp != req.NewPolicy.Arp {
-			hasQoSChange = true
-		}
-
-		if !oldAmbr.Uplink.Equal(newAmbrUL) || !oldAmbr.Downlink.Equal(newAmbrDL) {
-			hasAmbrChange = true
-		}
-
-		oldDNS := ""
-		if smContext.PolicyData.DNS != nil {
-			oldDNS = smContext.PolicyData.DNS.String()
-		}
-
-		if req.NewPolicy.DNS != "" && oldDNS != req.NewPolicy.DNS {
-			hasDNSChange = true
-		}
+	if policy.QosData.Arp != nil {
+		newArp = policy.QosData.Arp.PriorityLevel
 	}
 
-	newPolicy := smContext.PolicyData
-	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
-		dns := smContext.PolicyData.DNS
-		if hasDNSChange {
-			dns = net.ParseIP(req.NewPolicy.DNS)
-			if dns == nil {
-				return fmt.Errorf("invalid DNS address %q in new policy", req.NewPolicy.DNS)
-			}
-		}
+	has5QIChange := oldQoS.Var5qi != policy.QosData.Var5qi
+	hasQoSChange := has5QIChange || oldArp != newArp
+	hasAmbrChange := !current.Ambr.Uplink.Equal(policy.Ambr.Uplink) || !current.Ambr.Downlink.Equal(policy.Ambr.Downlink)
+	hasDNSChange := policy.DNS != nil && !policy.DNS.Equal(current.DNS)
 
-		newPolicy = &Policy{
-			PolicyID: smContext.PolicyData.PolicyID,
-			Ambr:     models.Ambr{Uplink: newAmbrUL, Downlink: newAmbrDL},
-			QosData: models.QosData{
-				QFI:    smContext.PolicyData.QosData.QFI,
-				Var5qi: req.NewPolicy.Var5qi,
-				Arp: &models.Arp{
-					PriorityLevel: req.NewPolicy.Arp,
-					PreemptCap:    req.NewPolicy.PreemptCap,
-					PreemptVuln:   req.NewPolicy.PreemptVuln,
-				},
-			},
-			NetworkRules: smContext.PolicyData.NetworkRules,
-			DNS:          dns,
-			MTU:          smContext.PolicyData.MTU,
-			IPv4Pool:     smContext.PolicyData.IPv4Pool,
-			IPv6Pool:     smContext.PolicyData.IPv6Pool,
-		}
+	if !hasQoSChange && !hasAmbrChange && !hasDNSChange {
+		return reconcileDecision{}, nil
+	}
+
+	dns := current.DNS
+	if hasDNSChange {
+		dns = policy.DNS
+	}
+
+	newPolicy := &Policy{
+		PolicyID: current.PolicyID,
+		Ambr:     policy.Ambr,
+		QosData: models.QosData{
+			QFI:    current.QosData.QFI,
+			Var5qi: policy.QosData.Var5qi,
+			Arp:    policy.QosData.Arp,
+		},
+		NetworkRules: current.NetworkRules,
+		DNS:          dns,
+		MTU:          current.MTU,
+		IPv4Pool:     current.IPv4Pool,
+		IPv6Pool:     current.IPv6Pool,
 	}
 
 	if hasQoSChange || hasAmbrChange {
 		if err := s.updatePFCPRules(ctx, smContext, newPolicy); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to update PFCP rules")
-
 			logger.SmfLog.Error("failed to update PFCP rules during reconciliation",
 				zap.Error(err),
 				logger.SUPI(smContext.Supi.String()),
 				logger.PDUSessionID(smContext.PDUSessionID),
-				zap.String("reason", string(req.Reason)),
 			)
 
-			return fmt.Errorf("failed to update PFCP rules: %v", err)
+			return reconcileDecision{}, fmt.Errorf("failed to update PFCP rules: %w", err)
 		}
 
 		logger.SmfLog.Info("PFCP rules updated during reconciliation",
@@ -267,55 +301,111 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			logger.PDUSessionID(smContext.PDUSessionID),
 			zap.Bool("qos_change", hasQoSChange),
 			zap.Bool("ambr_change", hasAmbrChange),
-			zap.String("reason", string(req.Reason)),
 		)
+	}
+
+	if smContext.Access == Access4G {
+		mod, err := epsBearerModification(smContext, newPolicy, hasQoSChange, has5QIChange, hasAmbrChange, hasDNSChange)
+		if err != nil {
+			return reconcileDecision{}, err
+		}
+
+		smContext.pendingPolicy = newPolicy
+
+		return reconcileDecision{action: reconcileModify, policy: newPolicy, mod: mod}, nil
 	}
 
 	// If the UE is in CM-IDLE, N1N2 delivery is skipped (TS 23.502: the AMF may
 	// ignore N2 SM information when the UE is unreachable) and the policy is
 	// committed immediately; if connected, the commit is deferred until the UE
 	// answers the modification.
-	ueIdle := false
+	if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, has5QIChange, hasDNSChange); err != nil {
+		if !errors.Is(err, ErrUENotReachable) {
+			logger.SmfLog.Error("failed to send session modification to UE/gNB",
+				zap.Error(err),
+				logger.SUPI(smContext.Supi.String()),
+				logger.PDUSessionID(smContext.PDUSessionID),
+			)
 
-	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
-		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, has5QIChange, hasDNSChange); err != nil {
-			if errors.Is(err, ErrUENotReachable) {
-				ueIdle = true
-
-				logger.SmfLog.Debug("UE is idle, skipping N1N2 delivery; policy committed for next activation",
-					logger.SUPI(smContext.Supi.String()),
-					logger.PDUSessionID(smContext.PDUSessionID),
-				)
-			} else {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to send session modification to UE/gNB")
-
-				logger.SmfLog.Error("failed to send session modification to UE/gNB",
-					zap.Error(err),
-					logger.SUPI(smContext.Supi.String()),
-					logger.PDUSessionID(smContext.PDUSessionID),
-				)
-
-				return fmt.Errorf("failed to send session modification: %v", err)
-			}
+			return reconcileDecision{}, fmt.Errorf("failed to send session modification: %w", err)
 		}
+
+		logger.SmfLog.Debug("UE is idle, skipping N1N2 delivery; policy committed for next activation",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+
+		// No procedure to await: commit now. ActivateSmContext rebuilds the Setup
+		// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
+		smContext.PolicyData = newPolicy
+
+		return reconcileDecision{}, nil
 	}
 
-	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
-		if ueIdle {
-			// No procedure to await: commit now. ActivateSmContext rebuilds the Setup
-			// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
-			smContext.PolicyData = newPolicy
-		} else {
-			// UE connected: the modification command is outstanding. Commit only when
-			// the UE answers PDU SESSION MODIFICATION COMPLETE (TS 24.501 §6.3.2.2); a
-			// reject or T3591 abort discards this and keeps the previous configuration
-			// (§6.3.2.5), which the backstop then re-attempts.
-			smContext.pendingPolicy = newPolicy
-		}
+	// UE connected: the modification command is outstanding. Commit only when
+	// the UE answers PDU SESSION MODIFICATION COMPLETE (TS 24.501 §6.3.2.2); a
+	// reject or T3591 abort discards this and keeps the previous configuration
+	// (§6.3.2.5), which the backstop then re-attempts.
+	smContext.pendingPolicy = newPolicy
+
+	return reconcileDecision{}, nil
+}
+
+func (s *SMF) releaseForReactivation(ctx context.Context, smContext *SMContext) (reconcileDecision, error) {
+	if smContext.Access == Access4G {
+		return reconcileDecision{action: reconcileRelease}, nil
 	}
 
-	return nil
+	return reconcileDecision{}, s.sendSessionRelease(ctx, smContext)
+}
+
+func epsBearerModification(smContext *SMContext, policy *Policy, hasQoSChange, has5QIChange, hasAmbrChange, hasDNSChange bool) (models.EPSBearerModification, error) {
+	var mod models.EPSBearerModification
+
+	qos := epsBearerQoS(policy)
+
+	if hasQoSChange {
+		mod.QoS = &qos
+	}
+
+	if hasAmbrChange {
+		mod.APNAMBR = &policy.Ambr
+	}
+
+	if hasDNSChange {
+		if addr, ok := netip.AddrFromSlice(policy.DNS); ok {
+			mod.DNS = addr.Unmap()
+		}
+
+		mod.MTU = policy.MTU
+	}
+
+	if (has5QIChange || hasAmbrChange) && smContext.PDUSessionID != 0 && smContext.Snssai != nil {
+		mapped, err := nas.MappedFiveGSQoSRefresh(smContext.EBI, &policy.QosData, &policy.Ambr)
+		if err != nil {
+			return models.EPSBearerModification{}, fmt.Errorf("encode the mapped 5GS QoS parameters: %w", err)
+		}
+
+		mod.MappedFiveGSQoS = mapped
+	}
+
+	return mod, nil
+}
+
+func (s *SMF) CommitEPSBearerModification(ctx context.Context, ref string, accepted bool) {
+	smContext := s.GetSession(ref)
+	if smContext == nil {
+		return
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	if accepted && smContext.pendingPolicy != nil {
+		smContext.PolicyData = smContext.pendingPolicy
+	}
+
+	smContext.pendingPolicy = nil
 }
 
 // sendSessionModification builds and sends N1+N2 for the network-requested PDU
@@ -430,27 +520,27 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	return s.applyDataPlane(ctx, smContext, next, policyID)
 }
 
-func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (models.SubscriptionDelta, error) {
+func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (subscriptionDelta, error) {
 	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
 	if err != nil {
-		return models.SubscriptionDelta{}, fmt.Errorf("resolve data network: %w", err)
+		return subscriptionDelta{}, fmt.Errorf("resolve data network: %w", err)
 	}
 
 	framed, err := framedRoutesChanged(ctx, dn, smContext)
 	if err != nil {
-		return models.SubscriptionDelta{}, fmt.Errorf("framed routes: %w", err)
+		return subscriptionDelta{}, fmt.Errorf("framed routes: %w", err)
 	}
 
 	if framed {
-		return models.SubscriptionDelta{FramedRoutes: true}, nil
+		return subscriptionDelta{FramedRoutes: true}, nil
 	}
 
 	static, err := staticIPChanged(ctx, dn, smContext)
 	if err != nil {
-		return models.SubscriptionDelta{}, fmt.Errorf("static IP: %w", err)
+		return subscriptionDelta{}, fmt.Errorf("static IP: %w", err)
 	}
 
-	return models.SubscriptionDelta{StaticIP: static}, nil
+	return subscriptionDelta{StaticIP: static}, nil
 }
 
 // framedRoutesChanged reports whether the subscriber's currently provisioned

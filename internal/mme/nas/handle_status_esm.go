@@ -44,7 +44,7 @@ func handleESMStatus(ctx context.Context, m *mme.MME, ue *mme.UeContext, status 
 		return nasreply.Handled()
 	}
 
-	ue.ClearPendingModify(p)
+	m.ConcludeBearerModification(ctx, ue, p, false)
 
 	return nasreply.Handled()
 }

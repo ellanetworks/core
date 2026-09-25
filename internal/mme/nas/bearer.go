@@ -65,7 +65,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ue.SetAccess(access)
 
-	qos, err := mme.ResolveAttachQoS(ctx, m, ue, ueConn.ESMRequest.APN)
+	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
@@ -76,7 +76,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	}
 
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed APN", zap.Error(err))
+		return
+	}
+
+	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed UE-AMBR", zap.Error(err))
 		return
 	}
 
@@ -91,15 +97,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
 		PDUSessionID:      ueConn.ESMRequest.PDUSessionID,
-		Snssai:            qos.Snssai,
-		PolicyID:          qos.PolicyID,
-		APN:               qos.APN,
-		AMBRUplink:        qos.SessAmbrUL,
-		AMBRDownlink:      qos.SessAmbrDL,
-		IPv4Pool:          qos.IPv4Pool,
-		IPv6Pool:          qos.IPv6Pool,
-		DNS:               qos.DNS,
-		MTU:               qos.MTU,
+		APN:               apn,
 		RequestedPDNType:  ueConn.ESMRequest.PDNType,
 		RequestType:       ueConn.ESMRequest.Type,
 	})
@@ -110,7 +108,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
+	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, ueAmbr, apn, bearer, ueConn.ESMRequest.Type == eps.RequestTypeHandover)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.Uint8("pdn_type", pdnType),
@@ -118,7 +116,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		logger.ESMCause(esmCause.String()),
 	)
 
-	plain, err := buildAttachAccept(ctx, m, ue, ueConn, qos)
+	plain, err := buildAttachAccept(ctx, m, ue, ueConn, bearer)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 
@@ -135,7 +133,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
 
-	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ueAmbr)
 	if !ok {
 		if p := m.DefaultPDN(ue); p != nil {
 			m.ReleasePDN(ctx, ue, p)
@@ -167,7 +165,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	ueConn.ArmNASGuard(ctx, "Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, _ *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
+func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, _ *mme.UeConn, ueAmbr models.Ambr) (*s1ap.InitialContextSetupRequest, uint8, bool) {
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to derive AS keys", zap.Error(err))
@@ -213,7 +211,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	ics := &s1ap.InitialContextSetupRequest{
-		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL.Bps()), UL: s1ap.BitRate(qos.AMBRUL.Bps())},
+		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(ueAmbr.Downlink.Bps()), UL: s1ap.BitRate(ueAmbr.Uplink.Bps())},
 		ERABToBeSetup:             erabs,
 		UESecurityCapabilities:    mme.S1apSecurityCapabilities(uecap),
 		SecurityKey:               kenb,
@@ -255,7 +253,7 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 	return nil
 }
 
-func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) ([]byte, error) {
+func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, bearer models.EPSBearer) ([]byte, error) {
 	if !m.ServesUeContext(ue) {
 		return nil, fmt.Errorf("refusing to build attach accept: UE context is not indexed by IMSI")
 	}
@@ -272,7 +270,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
+	esm, err := buildActivateDefaultESM(p, bearer, uint8(ueConn.ESMRequest.PTI), plmn, ue.UsesEPCO(p), ueConn.ESMRequest.ProtocolOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -391,8 +389,8 @@ func sendNITZ(ctx context.Context, m *mme.MME, _ *mme.UeContext, ueConn *mme.UeC
 	ueConn.SendDownlinkProtected(ctx, info)
 }
 
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer) ([]byte, error) {
-	apn := eps.APN(qos.APN)
+func buildActivateDefaultESM(p *mme.PdnConnection, bearer models.EPSBearer, pti uint8, plmn models.PlmnID, useEPCO bool, protocolRequests []nas.PCOContainer) ([]byte, error) {
+	apn := eps.APN(p.Apn)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
 	// address; IPv6 carries the SLAAC interface identifier (the prefix reaches the
@@ -408,7 +406,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 		pdnAddr = eps.PDNAddress{PDNType: eps.PDNTypeIPv4, IPv4: p.UeIP.As4()}
 	}
 
-	apnAMBR, err := eps.APNAMBRFromKbps(qos.SessAmbrDL.Bps()/1000, qos.SessAmbrUL.Bps()/1000)
+	apnAMBR, err := eps.APNAMBRFromKbps(bearer.QoS.APNAMBR.Downlink.Bps()/1000, bearer.QoS.APNAMBR.Uplink.Bps()/1000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode APN-AMBR: %w", err)
 	}
@@ -416,7 +414,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 	activate := &eps.ActivateDefaultEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               nas.ProcedureTransactionIdentity(pti),
-		EPSQoS:            eps.EPSQoS{QCI: qos.QCI},
+		EPSQoS:            eps.EPSQoS{QCI: bearer.QoS.QCI},
 		AccessPointName:   apn,
 		PDNAddress:        pdnAddr,
 		// Signal the per-APN Session-AMBR so the UE can enforce its uplink share
@@ -431,7 +429,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 
 	var ipv4LinkMTU uint16
 	if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
-		ipv4LinkMTU = qos.MTU
+		ipv4LinkMTU = bearer.MTU
 	}
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
@@ -443,13 +441,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 		}
 
 		pco.Containers = append(pco.Containers, container)
-
-		mapped, err := mme.MappedFiveGSQoSContainers(p.Ebi, qos)
-		if err != nil {
-			return nil, err
-		}
-
-		pco.Containers = append(pco.Containers, mapped...)
+		pco.Containers = append(pco.Containers, bearer.MappedFiveGSQoS...)
 	}
 
 	if answers := nas.AnswerProtocolOptions(protocolRequests, p.Dns, p.UeIP); len(answers) > 0 {

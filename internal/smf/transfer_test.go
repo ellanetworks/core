@@ -832,7 +832,10 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 
 func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
-	pcf.policy.PolicyID = "5gs-policy"
+	target := *pcf.policy
+	target.PolicyID = "5gs-policy"
+	pcf.policy.PolicyID = "eps-policy"
+	pcf.policy.QosData.QFI = 0
 
 	s := newTestSMF(pcf, store, upf, amfCb)
 	s.SetMME(mmeCb)
@@ -843,12 +846,13 @@ func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
 	req.APN = testDNN
 	req.PDUSessionID = movedPDUSessionID
 	req.Snssai = testSnssai
-	req.PolicyID = "eps-policy"
 
 	bearer, err := s.CreateEPSSession(ctx, req)
 	if err != nil {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
+
+	pcf.policy = &target
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {

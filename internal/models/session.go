@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -73,24 +74,22 @@ type FTEID struct {
 }
 
 // EPSBearerRequest is the input the MME hands the SMF+PGW-C anchor to establish a
-// 4G default bearer. IPv4Pool/IPv6Pool are non-empty when the data network offers
-// that family; RequestedPDNType is the UE's requested type (1 IPv4, 2 IPv6,
+// 4G default bearer. RequestedPDNType is the UE's requested type (1 IPv4, 2 IPv6,
 // 3 IPv4v6, TS 24.301 §9.9.4.10).
 type EPSBearerRequest struct {
 	IMSI              string
 	EPSBearerIdentity uint8
 	PDUSessionID      uint8
 	Snssai            *Snssai
-	PolicyID          string // policy DB ID, so the UPF binds the session to its network rules
 	APN               string
-	AMBRUplink        BitRate
-	AMBRDownlink      BitRate
-	IPv4Pool          string
-	IPv6Pool          string
-	DNS               string
-	MTU               uint16
 	RequestedPDNType  uint8
 	RequestType       eps.RequestType
+}
+
+type EPSBearerQoS struct {
+	QCI     uint8
+	ARP     uint8
+	APNAMBR Ambr
 }
 
 // EPSBearer is the result of establishing a default bearer: the negotiated PDN
@@ -112,9 +111,20 @@ type EPSBearer struct {
 	SGWN3IPv6 netip.Addr
 	// ESMCause, when non-zero, is the reason the assigned PDN type is narrower
 	// than requested (#50 IPv4-only / #51 IPv6-only allowed, TS 24.301 §6.5.1.3).
-	ESMCause     eps.ESMCause
-	PDUSessionID uint8
-	Snssai       *Snssai
+	ESMCause        eps.ESMCause
+	PDUSessionID    uint8
+	Snssai          *Snssai
+	QoS             EPSBearerQoS
+	MTU             uint16
+	MappedFiveGSQoS []nas.PCOContainer
+}
+
+type EPSBearerModification struct {
+	QoS             *EPSBearerQoS
+	APNAMBR         *Ambr
+	DNS             netip.Addr
+	MTU             uint16
+	MappedFiveGSQoS []nas.PCOContainer
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

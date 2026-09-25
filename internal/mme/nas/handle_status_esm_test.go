@@ -5,9 +5,11 @@ package nas
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -127,8 +129,9 @@ func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	p := testPDN(ue)
-	p.Modifying = true
-	p.PendingQCI = 7
+	p.SessionRef = "ref-internet"
+	p.Qci = 9
+	p.Modifying = &models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 7}}
 
 	handleESMStatus(context.Background(), m, ue, esmStatus(t, eps.EPSBearerIdentity(mme.DefaultERABID), 0, eps.ESMCause(nasreply.CauseProtocolErrorUnspecified)))
 
@@ -136,7 +139,12 @@ func TestESMStatus_UnrelatedCauseKeepsPDNAndClearsPendingModify(t *testing.T) {
 		t.Fatalf("PDNCount = %d after ESM STATUS #111 with no procedure in flight, want 1", got)
 	}
 
-	if p.Modifying || p.PendingQCI != 0 {
-		t.Fatalf("pending modification not abandoned: Modifying = %v, PendingQCI = %d, want false and 0", p.Modifying, p.PendingQCI)
+	if p.Modifying != nil || p.Qci != 9 {
+		t.Fatalf("pending modification not abandoned: Modifying = %+v, QCI = %d, want nil and 9", p.Modifying, p.Qci)
+	}
+
+	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: false}}
+	if got := m.Session.(*fakeSessionManager).concluded; !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
 	}
 }

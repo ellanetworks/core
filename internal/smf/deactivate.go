@@ -47,6 +47,10 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return nil
 	}
 
+	if by == Access4G {
+		smContext.pendingPolicy = nil
+	}
+
 	// Leave any network-requested procedure timer running: CM/ECM-IDLE is resolved
 	// by paging, not by abandoning the procedure (TS 24.501 §6.3.2.5/§6.3.3.5).
 

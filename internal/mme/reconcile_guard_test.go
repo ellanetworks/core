@@ -5,8 +5,11 @@ package mme
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
@@ -14,34 +17,43 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 
 	ue, _ := connectedBearerUE(t, m)
 
-	qos, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), "internet")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testPDN(ue).DnConfig = qos.DnFingerprint()
-
-	imsQoS, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), "ims")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	p := ue.EnsurePDN(6)
 	p.Apn = "ims"
-	p.DnConfig = imsQoS.DnFingerprint()
-	p.SessAmbrDLBps = imsQoS.SessAmbrDL.Bps()
-	p.SessAmbrULBps = imsQoS.SessAmbrUL.Bps()
-	p.Qci = imsQoS.QCI + 1
-	p.Arp = imsQoS.ARP
+	p.SessionRef = "ref-ims"
+	p.Qci = 5
+	p.Arp = 1
 
 	return ue, p
+}
+
+func modifyQoS(t *testing.T, m *MME, ue *UeContext, ebi uint8) {
+	t.Helper()
+
+	if err := m.ModifyEPSBearer(context.Background(), ue.imsiOrEmpty(), ebi, models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 6, ARP: 1}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func waitForOutcome(m *MME) []bearerModificationOutcome {
+	fake := m.Session.(*fakeSessionManager)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := fake.outcomes(); len(got) > 0 {
+			return got
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	return nil
 }
 
 func waitForPendingModifyCleared(ue *UeContext, p *PdnConnection) bool {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		ue.mu.Lock()
-		done := !p.Modifying && p.PendingQCI == 0
+		done := p.Modifying == nil
 		ue.mu.Unlock()
 
 		if done {
@@ -60,15 +72,18 @@ func TestModifyBearerGuardAbortClearsTheModifiedPDN(t *testing.T) {
 	ue, p := modifyingAdditionalPDN(t, m)
 
 	m.SetESMGuardConfigForTest(20*time.Millisecond, 0)
-	m.ReconcileUE(context.Background(), ue)
+	modifyQoS(t, m, ue, p.Ebi)
 
-	if !p.Modifying {
-		t.Fatal("additional PDN not marked modifying after a QoS change")
+	want := []bearerModificationOutcome{{ref: "ref-ims", accepted: false}}
+	if got := waitForOutcome(m); !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
 	}
 
-	if !waitForPendingModifyCleared(ue, p) {
-		t.Fatalf("additional PDN Modifying = %v, PendingQCI = %d after its own modify guard aborted, want false and 0",
-			p.Modifying, p.PendingQCI)
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if p.Modifying != nil || p.Qci != 5 {
+		t.Fatalf("aborted modification left Modifying %+v and QCI %d, want nil and 5", p.Modifying, p.Qci)
 	}
 }
 
@@ -77,11 +92,11 @@ func TestModifyBearerGuardAbortLeavesOtherPDNsIntact(t *testing.T) {
 	ue, p := modifyingAdditionalPDN(t, m)
 
 	def := testPDN(ue)
-	def.Modifying = true
-	def.PendingQCI = 9
+	pending := &models.EPSBearerModification{QoS: &models.EPSBearerQoS{QCI: 9, ARP: 1}}
+	def.Modifying = pending
 
 	m.SetESMGuardConfigForTest(20*time.Millisecond, 0)
-	m.ReconcileUE(context.Background(), ue)
+	modifyQoS(t, m, ue, p.Ebi)
 
 	if !waitForPendingModifyCleared(ue, p) {
 		t.Fatal("additional PDN's modification not cleared by its own guard abort")
@@ -90,8 +105,7 @@ func TestModifyBearerGuardAbortLeavesOtherPDNsIntact(t *testing.T) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if !def.Modifying || def.PendingQCI != 9 {
-		t.Fatalf("default bearer Modifying = %v, PendingQCI = %d after an additional PDN's guard aborted, want true and 9",
-			def.Modifying, def.PendingQCI)
+	if def.Modifying != pending {
+		t.Fatalf("default bearer modification = %+v after an additional PDN's guard aborted, want it untouched", def.Modifying)
 	}
 }

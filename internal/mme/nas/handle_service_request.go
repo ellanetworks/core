@@ -92,13 +92,13 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted")
 
-	qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
+	ueAmbr, err := mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed UE-AMBR", zap.Error(err))
 		return
 	}
 
-	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, qos)
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, ueAmbr)
 	if !ok {
 		rejectService(ctx, m, ue, c, eps.EMMCauseNoEPSBearerContextActivated)
 

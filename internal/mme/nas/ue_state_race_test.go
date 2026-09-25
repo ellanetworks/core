@@ -5,10 +5,12 @@ package nas
 
 import (
 	"context"
+	"net/netip"
 	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -27,8 +29,10 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
+		mod := models.EPSBearerModification{DNS: netip.MustParseAddr("9.9.9.9")}
+
 		for i := 0; i < iters; i++ {
-			m.ReconcileDataNetwork(ctx)
+			_ = m.ModifyEPSBearer(ctx, ue.IMSI(), mme.DefaultERABID, mod)
 		}
 	}()
 

@@ -18,7 +18,7 @@ func handleModifyBearerReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	if p != nil {
 		m.StopESMGuard(p)
-		ue.ClearPendingModify(p)
+		m.ConcludeBearerModification(ctx, ue, p, false)
 	}
 
 	ueConn.Log(ctx).Warn("UE rejected EPS bearer modification")

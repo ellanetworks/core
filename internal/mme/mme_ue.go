@@ -74,7 +74,6 @@ type PdnConnection struct {
 	UeIPv6Prefix  netip.Addr // /64 prefix base (for IPv6 / IPv4v6)
 	UeIPv6IID     [8]byte    // SLAAC interface identifier sent to the UE
 	Dns           netip.Addr // data-network DNS server, advertised to the UE via PCO
-	DnConfig      string     // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
 	PDUSessionID  uint8
 	Snssai        *models.Snssai
 	Transferred   bool
@@ -95,12 +94,7 @@ type PdnConnection struct {
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
 
-	Modifying            bool
-	PendingDNConfig      string
-	PendingSessAmbrDLBps uint64
-	PendingSessAmbrULBps uint64
-	PendingQCI           uint8
-	PendingARP           uint8
+	Modifying *models.EPSBearerModification
 
 	// guard supervises this bearer's outstanding ESM procedure (Modify/Deactivate,
 	// T3486/T3495). It is per-bearer because a UE with several PDN connections can
@@ -397,14 +391,13 @@ func (m *MME) AddDefaultPDN(ue *UeContext) *PdnConnection {
 // fillBearerLocked populates a PDN connection's addressing/QoS from a created EPS
 // bearer. The caller holds ue.mu, so a concurrent status snapshot or reconcile never
 // observes a half-written bearer (TS 24.301 §6.4; the PDN state is ue.mu-guarded).
-func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
+func fillBearerLocked(p *PdnConnection, apn string, bearer models.EPSBearer) {
 	p.SessionRef = bearer.Ref
-	p.Apn = qos.APN
-	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
-	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
-	p.Qci = qos.QCI
-	p.Arp = qos.ARP
+	p.Apn = apn
+	p.SessAmbrDLBps = bearer.QoS.APNAMBR.Downlink.Bps()
+	p.SessAmbrULBps = bearer.QoS.APNAMBR.Uplink.Bps()
+	p.Qci = bearer.QoS.QCI
+	p.Arp = bearer.QoS.ARP
 	p.PdnType = bearer.PDNType
 	p.UeIP = bearer.IPv4
 	p.UeIPv6Prefix = bearer.IPv6Prefix
@@ -421,16 +414,16 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 // addressing/QoS atomically under ue.mu, so a status read or reconcile never sees a
 // half-populated bearer. It returns the negotiated PDN type, DNS, and ESM cause
 // (captured under the lock) for the caller to log.
-func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer, transferred bool) (pdnType uint8, dns string, esmCause eps.ESMCause) {
+func (m *MME) InstallDefaultBearer(ue *UeContext, ueAmbr models.Ambr, apn string, bearer models.EPSBearer, transferred bool) (pdnType uint8, dns string, esmCause eps.ESMCause) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	// The UE-AMBR, not the per-APN Session-AMBR: this is what the S1 handover
 	// signals to the target eNB, matching the ICS and E-RAB Setup paths. The
 	// Session-AMBR is per PDN connection and lives on PdnConnection.
-	ue.Ambr = &models.Ambr{Uplink: qos.AMBRUL, Downlink: qos.AMBRDL}
+	ue.Ambr = &ueAmbr
 
-	p := ue.publishPDNLocked(DefaultERABID, qos, bearer, transferred)
+	p := ue.publishPDNLocked(DefaultERABID, apn, bearer, transferred)
 
 	return uint8(p.PdnType), p.Dns.String(), p.EsmCause
 }
@@ -439,14 +432,14 @@ func (ue *UeContext) UsesEPCO(p *PdnConnection) bool {
 	return p != nil && p.Transferred && ue.UeNetCap().SupportsEPCO()
 }
 
-func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer, transferred bool) *PdnConnection {
+func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, apn string, bearer models.EPSBearer, transferred bool) *PdnConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.publishPDNLocked(p.Ebi, qos, bearer, transferred)
+	return ue.publishPDNLocked(p.Ebi, apn, bearer, transferred)
 }
 
-func (ue *UeContext) publishPDNLocked(ebi uint8, qos *EpsQoS, bearer models.EPSBearer, transferred bool) *PdnConnection {
+func (ue *UeContext) publishPDNLocked(ebi uint8, apn string, bearer models.EPSBearer, transferred bool) *PdnConnection {
 	if ue.Pdns == nil {
 		ue.Pdns = make(map[uint8]*PdnConnection)
 	}
@@ -456,7 +449,7 @@ func (ue *UeContext) publishPDNLocked(ebi uint8, qos *EpsQoS, bearer models.EPSB
 		Transferred: transferred,
 	}
 
-	fillBearerLocked(p, qos, bearer)
+	fillBearerLocked(p, apn, bearer)
 
 	ue.Pdns[ebi] = p
 
@@ -732,6 +725,11 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	ue.mu.Lock()
 	for _, p := range ue.Pdns {
 		p.EnbFTEID = models.FTEID{}
+
+		if p.Modifying != nil {
+			p.guard.Stop()
+			p.Modifying = nil
+		}
 	}
 	ue.mu.Unlock()
 

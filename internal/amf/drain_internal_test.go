@@ -230,10 +230,6 @@ func (d *drainTestDB) GetProfileByID(context.Context, string) (*db.Profile, erro
 	return nil, errNotImplementedInDrainTest
 }
 
-func (d *drainTestDB) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
-	return nil, errNotImplementedInDrainTest
-}
-
 func (d *drainTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
 	return nil, errNotImplementedInDrainTest
 }
