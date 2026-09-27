@@ -129,3 +129,32 @@ func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string,
 
 	ueConn.SetN2SessionInactive(pduSessionID)
 }
+
+// ReconcileSessionsForUE re-evaluates every PDU session of a UE against the
+// current DB policy and applies any change (UPF, gNB, and UE) via the SMF.
+func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
+	if ue == nil || amf.Session == nil {
+		return
+	}
+
+	ue.mu.Lock()
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
+
+	for _, smCtx := range ue.SmContextList {
+		smContextRefs = append(smContextRefs, smCtx.Ref)
+	}
+
+	ue.mu.Unlock()
+
+	for _, ref := range smContextRefs {
+		if ref == "" {
+			continue
+		}
+
+		if err := amf.Session.ReconcileSession(ctx, ref); err != nil {
+			logger.AmfLog.Warn("session reconcile failed",
+				logger.SMContextRef(ref),
+				zap.Error(err))
+		}
+	}
+}

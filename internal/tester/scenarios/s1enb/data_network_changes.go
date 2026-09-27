@@ -188,9 +188,9 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 	return nil
 }
 
-// An MTU or IP-pool change cannot be adopted in place, so the MME deactivates the
-// bearer with ESM cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) and the
-// UE re-attaches.
+// An MTU or IP-pool change cannot be adopted in place. The UE's only PDN
+// connection must be re-established, so the MME detaches it with "re-attach
+// required" (TS 23.401 §5.4.4.1 step 4a) and the UE re-attaches.
 func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, label, mutation)
 	if err != nil {
@@ -199,19 +199,19 @@ func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNet
 
 	defer cleanup()
 
-	req, err := e.ReactivateBearer(ue, attach.ENBUES1APID, 20*time.Second)
+	req, err := e.AwaitNetworkDetach(ue, attach.ENBUES1APID, 20*time.Second)
 	if err != nil {
-		return fmt.Errorf("await bearer reactivation (%s): %w", label, err)
+		return fmt.Errorf("await network detach (%s): %w", label, err)
 	}
 
-	if req.Cause != eps.ESMCauseReactivationRequested {
-		return fmt.Errorf("ESM cause = %d, want %d (reactivation requested)", req.Cause, eps.ESMCauseReactivationRequested)
+	if req.TypeOfDetach != eps.DetachTypeReattachRequired {
+		return fmt.Errorf("detach type = %d, want %d (re-attach required)", req.TypeOfDetach, eps.DetachTypeReattachRequired)
 	}
 
-	logger.GnbLogger.Info("bearer deactivated with reactivation requested; re-attaching", zap.String("change", label))
+	logger.GnbLogger.Info("UE detached with re-attach required; re-attaching", zap.String("change", label))
 
 	// Re-attach with a fresh security context (new EPS-AKA, NAS counts reset),
-	// as a real UE does after a deactivation with reactivation requested.
+	// as a real UE does after a detach with re-attach required.
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
 		return err

@@ -943,48 +943,29 @@ func TestHandleDownlinkDataReport(t *testing.T) {
 	amfCb.mu.Unlock()
 }
 
-func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
+func TestReconcileSession_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "200 Mbps",
-			SessionAmbrDownlink: "300 Mbps",
-			Var5qi:              8,
-			Arp:                 14,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "200 Mbps",
+		SessionAmbrDownlink: "300 Mbps",
+		Var5qi:              8,
+		Arp:                 14,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	upf.mu.Lock()
-	if len(upf.modifyCalls) != 1 {
+	if len(upf.modifyCalls) != 0 {
 		upf.mu.Unlock()
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+		t.Fatalf("the UPF was updated before the UE accepted the modification: %d calls", len(upf.modifyCalls))
 	}
-
-	modifyReq := upf.modifyCalls[0]
 	upf.mu.Unlock()
-
-	if len(modifyReq.UpdateQERs) != 1 {
-		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
-	}
-
-	qer := modifyReq.UpdateQERs[0]
-	if qer.MBR == nil {
-		t.Fatal("expected QER MBR")
-	}
-
-	if qer.MBR.ULMBR != 200000 || qer.MBR.DLMBR != 300000 {
-		t.Fatalf("QER MBR = %d/%d, want 200000/300000", qer.MBR.ULMBR, qer.MBR.DLMBR)
-	}
 
 	amfCb.mu.Lock()
 	if len(amfCb.modifyCalls) != 1 {
@@ -1019,6 +1000,28 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 1 {
+		upf.mu.Unlock()
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+
+	modifyReq := upf.modifyCalls[0]
+	upf.mu.Unlock()
+
+	if len(modifyReq.UpdateQERs) != 1 {
+		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
+	}
+
+	qer := modifyReq.UpdateQERs[0]
+	if qer.MBR == nil {
+		t.Fatal("expected QER MBR")
+	}
+
+	if qer.MBR.ULMBR != 200000 || qer.MBR.DLMBR != 300000 {
+		t.Fatalf("QER MBR = %d/%d, want 200000/300000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	}
+
 	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("200 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("300 Mbps")) {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
@@ -1028,25 +1031,25 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	}
 }
 
-func TestReconcileSmContext_AmbrOnly(t *testing.T) {
+func TestReconcileSession_AmbrOnly(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "300 Mbps",
-			SessionAmbrDownlink: "400 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "300 Mbps",
+		SessionAmbrDownlink: "400 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
 	}
 
 	qer := upf.modifyCalls[0].UpdateQERs[0]
@@ -1065,30 +1068,29 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 	}
 }
 
-func TestReconcileSmContext_QoSOnly(t *testing.T) {
+func TestReconcileSession_QoSOnly(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              8,
-			Arp:                 14,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              8,
+		Arp:                 14,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
-	qer := upf.modifyCalls[0].UpdateQERs[0]
-	if qer.MBR.ULMBR != 100000 || qer.MBR.DLMBR != 200000 {
-		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionModificationComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("modification complete: %v", err)
+	}
+
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("a 5QI/ARP change reached the UPF, whose QER carries neither: %d calls", len(upf.modifyCalls))
 	}
 
 	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, 0, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil, nil)
@@ -1102,24 +1104,21 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 	}
 }
 
-// TestReconcileSmContext_SliceMismatchFullCleanup verifies that a slice-mismatch
+// TestReconcileSession_SliceMismatchFullCleanup verifies that a slice-mismatch
 // release performs full data-plane cleanup (IP release, PFCP deletion) before
 // signaling the UE (TS 23.502 §4.3.4.2 Step 2), and retains the session while
 // T3592 awaits the UE's Release Complete (TS 24.501 §6.3.3); the N2 release
 // response then removes it.
-func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
+func TestReconcileSession_SliceMismatchFullCleanup(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcileSliceMismatch,
-	})
+	err := reconcileSliceMismatch(ctx, s, pcf, ref)
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	amfCb.mu.Lock()
@@ -1177,48 +1176,42 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 	}
 }
 
-func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
+func TestReconcileSession_UnreachableUEDefersTheChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
-	// Simulate idle UE: ModifyN1N2 returns ErrUENotReachable.
 	amfCb.err = smf.ErrUENotReachable
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "500 Mbps",
-			SessionAmbrDownlink: "600 Mbps",
-			Var5qi:              7,
-			Arp:                 10,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "500 Mbps",
+		SessionAmbrDownlink: "600 Mbps",
+		Var5qi:              7,
+		Arp:                 10,
+		DNS:                 "1.1.1.1",
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
+		t.Fatalf("ReconcileSession should succeed for an unreachable UE, got: %v", err)
 	}
 
 	upf.mu.Lock()
 	pfcpModifyCalls := len(upf.modifyCalls)
 	upf.mu.Unlock()
 
-	if pfcpModifyCalls != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", pfcpModifyCalls)
+	if pfcpModifyCalls != 0 {
+		t.Fatalf("the UPF was updated for a change the UE never received: %d calls", pfcpModifyCalls)
 	}
 
-	// Policy should have been committed despite N1N2 skip.
-	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("500 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("600 Mbps")) {
-		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
-	}
+	smCtx.Mutex.Lock()
+	defer smCtx.Mutex.Unlock()
 
-	if smCtx.PolicyData.QosData.Var5qi != 7 {
-		t.Fatalf("policy not committed: 5QI = %d, want 7", smCtx.PolicyData.QosData.Var5qi)
+	if smCtx.PolicyData.QosData.Var5qi != 9 || smCtx.PolicyData.DNS != nil {
+		t.Fatalf("the change was committed without the UE: 5QI %d DNS %v", smCtx.PolicyData.QosData.Var5qi, smCtx.PolicyData.DNS)
 	}
 }
 
-func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
+func TestReconcileSession_ReleaseIdleUE_RemovesSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	// Simulate idle UE: ReleaseSession returns ErrUENotReachable.
 	amfCb.err = smf.ErrUENotReachable
@@ -1227,12 +1220,9 @@ func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcileSliceMismatch,
-	})
+	err := reconcileSliceMismatch(ctx, s, pcf, ref)
 	if err != nil {
-		t.Fatalf("ReconcileSmContext should succeed for idle UE release, got: %v", err)
+		t.Fatalf("ReconcileSession should succeed for idle UE release, got: %v", err)
 	}
 
 	// Session should be removed even though UE is idle.
@@ -1257,29 +1247,25 @@ func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
 	}
 }
 
-// TestReconcileSmContext_DNSChange verifies that a DNS change triggers a PDU
+// TestReconcileSession_DNSChange verifies that a DNS change triggers a PDU
 // Session Modification Command carrying the new DNS in Extended PCO (TS 24.501
 // §6.3.2), without releasing the session.
-func TestReconcileSmContext_DNSChange(t *testing.T) {
+func TestReconcileSession_DNSChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-			DNS:                 "8.8.4.4",
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DNS:                 "8.8.4.4",
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	// No PFCP modify should be called for DNS-only change.
@@ -1341,67 +1327,24 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 	smCtx.Mutex.Unlock()
 }
 
-// TestReconcileSmContext_InvalidDNS verifies that an invalid DNS address in the
-// new policy is rejected with an error.
-func TestReconcileSmContext_InvalidDNS(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	_, ref := setupSessionWithTunnel(t, s)
-
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-			DNS:                 "not-a-valid-ip",
-		},
-	})
-	if err == nil {
-		t.Fatal("expected error for invalid DNS address, got nil")
-	}
-
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 0 {
-		upf.mu.Unlock()
-		t.Fatalf("expected 0 PFCP modify calls, got %d", len(upf.modifyCalls))
-	}
-	upf.mu.Unlock()
-
-	amfCb.mu.Lock()
-	if len(amfCb.modifyCalls) != 0 {
-		amfCb.mu.Unlock()
-		t.Fatalf("expected 0 AMF modify calls, got %d", len(amfCb.modifyCalls))
-	}
-	amfCb.mu.Unlock()
-}
-
-// TestReconcileSmContext_MTUChange verifies that an MTU change triggers a
+// TestReconcileSession_MTUChange verifies that an MTU change triggers a
 // session release with cause #39 (TS 23.501 §5.6.10.4 NOTE 3).
-func TestReconcileSmContext_MTUChange(t *testing.T) {
+func TestReconcileSession_MTUChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-			MTU:                 1400,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		MTU:                 1400,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	// AMF release signaling should have been sent, the session retained and the user
@@ -1447,28 +1390,24 @@ func TestReconcileSmContext_MTUChange(t *testing.T) {
 	}
 }
 
-// TestReconcileSmContext_PoolChange verifies that an IP pool change triggers a
+// TestReconcileSession_PoolChange verifies that an IP pool change triggers a
 // session release with cause #39.
-func TestReconcileSmContext_PoolChange(t *testing.T) {
+func TestReconcileSession_PoolChange(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-			IPv4Pool:            "10.0.1.0/24",
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		IPv4Pool:            "10.0.1.0/24",
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	// AMF release signaling should have been sent, the session retained and the user
@@ -1514,9 +1453,9 @@ func TestReconcileSmContext_PoolChange(t *testing.T) {
 	}
 }
 
-// TestReconcileSmContext_DNSUnchanged verifies that no N1N2 call is made when
+// TestReconcileSession_DNSUnchanged verifies that no N1N2 call is made when
 // nothing in the delta actually changed.
-func TestReconcileSmContext_DNSUnchanged(t *testing.T) {
+func TestReconcileSession_DNSUnchanged(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
@@ -1524,18 +1463,14 @@ func TestReconcileSmContext_DNSUnchanged(t *testing.T) {
 	_, ref := setupSessionWithTunnel(t, s)
 
 	// Send the same values that are already in the session (no actual change).
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-		},
+	err := reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
 	})
 	if err != nil {
-		t.Fatalf("ReconcileSmContext failed: %v", err)
+		t.Fatalf("ReconcileSession failed: %v", err)
 	}
 
 	amfCb.mu.Lock()
@@ -1545,40 +1480,6 @@ func TestReconcileSmContext_DNSUnchanged(t *testing.T) {
 	if modifyCalls != 0 {
 		t.Fatalf("expected 0 modify calls when nothing changed, got %d", modifyCalls)
 	}
-}
-
-// TestReconcileSmContext_DNSIdleUE verifies that DNS policy is committed even
-// when the UE is idle (N1N2 delivery skipped).
-func TestReconcileSmContext_DNSIdleUE(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	amfCb.err = smf.ErrUENotReachable
-	s := newTestSMF(pcf, store, upf, amfCb)
-	ctx := context.Background()
-
-	smCtx, ref := setupSessionWithTunnel(t, s)
-
-	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-		SmContextRef: ref,
-		Reason:       models.ReconcilePolicyChange,
-		NewPolicy: &models.SessionPolicyDelta{
-			SessionAmbrUplink:   "100 Mbps",
-			SessionAmbrDownlink: "200 Mbps",
-			Var5qi:              9,
-			Arp:                 1,
-			DNS:                 "1.1.1.1",
-		},
-	})
-	if err != nil {
-		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
-	}
-
-	// Policy should have been committed despite N1N2 skip.
-	smCtx.Mutex.Lock()
-	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("1.1.1.1")) {
-		smCtx.Mutex.Unlock()
-		t.Fatalf("policy not committed: DNS = %v", smCtx.PolicyData.DNS)
-	}
-	smCtx.Mutex.Unlock()
 }
 
 // TestHandleDownlinkDataReportEPS checks that downlink data for a 4G EPS session

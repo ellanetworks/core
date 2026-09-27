@@ -25,6 +25,7 @@ var (
 	testUEIP      = netip.AddrFrom4([4]byte{10, 45, 0, 2})
 	testUEIPv6IID = [8]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
 	testSGWFTEID  = models.FTEID{TEID: 0x1234, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 2})}
+	testBearerQoS = models.EPSBearerQoS{QCI: 9, ARP: 15, APNAMBR: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}}
 )
 
 func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
@@ -33,13 +34,11 @@ func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) 
 	ue, cc := securedUE(t, m)
 	p := testPDN(ue)
 	p.Apn = "internet"
-
-	if qos, err := mme.ResolveQoSByAPN(context.Background(), m, ue.IMSI(), p.Apn); err == nil {
-		p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
-		p.SessAmbrULBps = qos.SessAmbrUL.Bps()
-		p.Qci = qos.QCI
-		p.Arp = qos.ARP
-	}
+	p.SessionRef = "ref-internet"
+	p.SessAmbrDLBps = testBearerQoS.APNAMBR.Downlink.Bps()
+	p.SessAmbrULBps = testBearerQoS.APNAMBR.Uplink.Bps()
+	p.Qci = testBearerQoS.QCI
+	p.Arp = testBearerQoS.ARP
 
 	return ue, cc
 }
@@ -91,6 +90,12 @@ type fakeSessionManager struct {
 	deactivated       bool
 	idleTransfers     []idleEPSTransfer
 	idleTransferErr   error
+	concluded         []bearerModificationOutcome
+}
+
+type bearerModificationOutcome struct {
+	ref      string
+	accepted bool
 }
 
 type idleEPSTransfer struct {
@@ -114,6 +119,10 @@ func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI
 		return models.EPSBearer{}, f.idleTransferErr
 	}
 
+	if dnn != "internet" && dnn != "ims" {
+		return models.EPSBearer{}, fmt.Errorf("no policy for APN %q", dnn)
+	}
+
 	return models.EPSBearer{
 		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
 		PDNType:      eps.PDNTypeIPv4,
@@ -132,7 +141,7 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 		pdnType = 1
 	}
 
-	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID}
+	bearer := models.EPSBearer{PDNType: eps.PDNType(pdnType), SGW: testSGWFTEID, QoS: testBearerQoS}
 	if pdnType == 1 || pdnType == 3 {
 		bearer.IPv4 = testUEIP
 	}
@@ -143,10 +152,6 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
 	f.modifiedENB = enb
 
-	return nil
-}
-
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _, _ models.BitRate) error {
 	return nil
 }
 
@@ -170,8 +175,12 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
-	return models.SubscriptionDelta{}, nil
+func (f *fakeSessionManager) ReconcileSession(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
+	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
 }
 
 type erroringSessionManager struct{ fakeSessionManager }

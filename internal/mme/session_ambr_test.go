@@ -4,31 +4,22 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func TestQosForPolicyDNSeparatesUEAndSessionAMBR(t *testing.T) {
-	profile := &db.Profile{UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps", Allow4G: true}
-	pol := &db.Policy{ID: "p1", Var5qi: 7, Arp: 15, SessionAmbrUplink: "30 Mbps", SessionAmbrDownlink: "60 Mbps"}
-	dn := &db.DataNetwork{Name: "enterprise", IPv4Pool: "10.46.0.0/16"}
+func TestSubscribedUEAMBRIsTheProfiles(t *testing.T) {
+	m := newTestMME(t)
 
-	qos, err := qosForPolicyDN(profile, pol, dn, nil)
+	ambr, err := SubscribedUEAMBR(context.Background(), m, testSubscriber.IMSI)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if qos.AMBRUL.Bps() != 500_000_000 || qos.AMBRDL.Bps() != 500_000_000 {
-		t.Errorf("UE-AMBR (S1AP) = %d/%d bps, want 500/500 Mbps from the profile", qos.AMBRUL.Bps(), qos.AMBRDL.Bps())
-	}
-
-	if !qos.SessAmbrUL.Equal(models.MustParseBitRate("30 Mbps")) || !qos.SessAmbrDL.Equal(models.MustParseBitRate("60 Mbps")) {
-		t.Errorf("Session-AMBR = %q/%q, want 30/60 Mbps from the policy", qos.SessAmbrUL, qos.SessAmbrDL)
-	}
-
-	if qos.QCI != 7 || qos.APN != "enterprise" {
-		t.Errorf("QCI=%d APN=%q, want 7/enterprise", qos.QCI, qos.APN)
+	want := models.MustParseBitRate("1 Gbps")
+	if !ambr.Uplink.Equal(want) || !ambr.Downlink.Equal(want) {
+		t.Errorf("UE-AMBR = %s/%s, want the profile's 1 Gbps", ambr.Uplink, ambr.Downlink)
 	}
 }

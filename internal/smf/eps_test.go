@@ -6,11 +6,13 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"net"
 	"net/netip"
 	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -42,13 +44,26 @@ func epsRequest(pdnType uint8) models.EPSBearerRequest {
 		IMSI:              "001010000000001",
 		EPSBearerIdentity: epsTestEBI,
 		APN:               "internet",
-		AMBRUplink:        models.MustParseBitRate("1 Gbps"),
-		AMBRDownlink:      models.MustParseBitRate("1 Gbps"),
-		IPv4Pool:          epsIPv4Pool,
-		IPv6Pool:          epsIPv6Pool,
-		MTU:               1400,
 		RequestedPDNType:  pdnType,
 	}
+}
+
+func epsPolicy() *smf.Policy {
+	return &smf.Policy{
+		PolicyID: "eps-policy",
+		Ambr:     models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
+		QosData:  models.QosData{QFI: models.DefaultQFI, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}},
+		MTU:      1400,
+		IPv4Pool: epsIPv4Pool,
+		IPv6Pool: epsIPv6Pool,
+	}
+}
+
+func epsPCF(mutate func(*smf.Policy)) *fakePCF {
+	policy := epsPolicy()
+	mutate(policy)
+
+	return &fakePCF{policy: policy}
 }
 
 func TestCreateEPSSessionIPv4(t *testing.T) {
@@ -115,10 +130,9 @@ func TestCreateEPSSessionSupersedesPriorBearer(t *testing.T) {
 // policy's network rules (SDF filters).
 func TestCreateEPSSessionBindsPolicyID(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(epsPCF(func(p *smf.Policy) { p.PolicyID = "policy-uuid-123" }), store, upf, &fakeAMF{})
 
 	req := epsRequest(1)
-	req.PolicyID = "policy-uuid-123"
 
 	if _, err := s.CreateEPSSession(context.Background(), req); err != nil {
 		t.Fatal(err)
@@ -244,8 +258,8 @@ func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 }
 
 // TestCreateEPSSessionRejectsInvalidRequest checks the EPS entry point rejects a
-// request with an out-of-range EBI, an unparseable AMBR, or a malformed DNS (F6).
-// The UPF must not be touched for a rejected request.
+// request with an out-of-range EBI (F6). The UPF must not be touched for a
+// rejected request.
 func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -253,8 +267,6 @@ func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 	}{
 		{"EBI below range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 4 }},
 		{"EBI above range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 16 }},
-		{"sub-Kbps downlink AMBR", func(r *models.EPSBearerRequest) { r.AMBRDownlink = models.BitRateFromBps(1) }},
-		{"malformed DNS", func(r *models.EPSBearerRequest) { r.DNS = "not-an-ip" }},
 	}
 
 	for _, tc := range cases {
@@ -278,10 +290,9 @@ func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 
 func TestCreateEPSSessionNoIPv6Pool(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(epsPCF(func(p *smf.Policy) { p.IPv6Pool = "" }), store, upf, &fakeAMF{})
 
 	req := epsRequest(2)
-	req.IPv6Pool = "" // data network offers no IPv6
 
 	if _, err := s.CreateEPSSession(context.Background(), req); err == nil {
 		t.Fatal("expected IPv6 request to fail with no IPv6 pool")
@@ -294,19 +305,18 @@ func TestCreateEPSSessionNoIPv6Pool(t *testing.T) {
 func TestCreateEPSSessionDowngradeCause(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
-		dropPool  func(*models.EPSBearerRequest)
+		dropPool  func(*smf.Policy)
 		wantType  uint8
 		wantCause eps.ESMCause
 	}{
-		{"IPv6-only DN", func(r *models.EPSBearerRequest) { r.IPv4Pool = "" }, 2, 51},
-		{"IPv4-only DN", func(r *models.EPSBearerRequest) { r.IPv6Pool = "" }, 1, 50},
+		{"IPv6-only DN", func(p *smf.Policy) { p.IPv4Pool = "" }, 2, 51},
+		{"IPv4-only DN", func(p *smf.Policy) { p.IPv6Pool = "" }, 1, 50},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, upf := epsTestSMF()
-			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+			s := newTestSMF(epsPCF(tc.dropPool), store, upf, &fakeAMF{})
 
 			req := epsRequest(3) // IPv4v6
-			tc.dropPool(&req)
 
 			bearer, err := s.CreateEPSSession(context.Background(), req)
 			if err != nil {
@@ -324,12 +334,9 @@ func TestCreateEPSSessionDowngradeCause(t *testing.T) {
 // the bearer for the MME to advertise via PCO.
 func TestCreateEPSSessionDNS(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(epsPCF(func(p *smf.Policy) { p.DNS = net.ParseIP("8.8.4.4") }), store, upf, &fakeAMF{})
 
-	req := epsRequest(1)
-	req.DNS = "8.8.4.4"
-
-	bearer, err := s.CreateEPSSession(context.Background(), req)
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {
 		t.Fatal(err)
 	}

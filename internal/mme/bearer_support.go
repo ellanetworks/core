@@ -32,14 +32,13 @@ func (ue *UeContext) ActiveEBIs() []uint8 {
 const DefaultERABID byte = 5
 
 // bearerStore is the subscription-data surface the MME needs to resolve a
-// subscriber's default-bearer QoS. *db.Database satisfies it.
+// subscriber's APNs and UE-AMBR. *db.Database satisfies it.
 type bearerStore interface {
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
 	GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*db.Policy, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
-	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	// NodeID is the cluster node identity, used to make each HA node's MME Code
 	// (and hence its GUMMEI) distinct.
@@ -66,34 +65,96 @@ func (ue *UeContext) PDNCount() int {
 	return len(ue.Pdns)
 }
 
-// CommitBearerModification commits a PDN connection's pending in-place
-// modification, reporting false (a no-op) if no modification was in flight
-// (TS 24.301 §6.4.2.3).
-func (ue *UeContext) CommitBearerModification(p *PdnConnection) bool {
+// ConcludeBearerModification ends a PDN connection's in-place modification and
+// reports its outcome to the SMF, committing the new values when the UE accepted
+// it (TS 24.301 §6.4.3.3) and dropping them otherwise (§6.4.3.4). A modification
+// that reconfigures the radio bearer also waits for the eNB's E-RAB Modify
+// Response (TS 23.401 §5.4.2.1 step 10). It reports false (a no-op) if no
+// modification was in flight.
+func (m *MME) ConcludeBearerModification(ctx context.Context, ue *UeContext, p *PdnConnection, accepted bool) bool {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
 
-	if !p.Modifying {
+	if p.Modifying == nil {
+		ue.mu.Unlock()
+
 		return false
 	}
 
-	p.DnConfig = p.PendingDNConfig
-	p.SessAmbrDLBps = p.PendingSessAmbrDLBps
-	p.SessAmbrULBps = p.PendingSessAmbrULBps
-	p.Qci = p.PendingQCI
-	p.Arp = p.PendingARP
-	ClearPendingModifyLocked(p)
+	if accepted && p.modifyAwaitingRadio {
+		p.modifyAcceptedByUE = true
+		ebi := p.Ebi
+
+		p.guard.ArmOnce(m.esmGuardCfg.ExpireTime, func() {
+			m.RadioBearerModified(context.Background(), ue, ebi, false)
+		})
+		ue.mu.Unlock()
+
+		return true
+	}
+
+	ref := p.SessionRef
+	finishModificationLocked(p, accepted)
+	ue.mu.Unlock()
+
+	m.Session.CommitEPSBearerModification(ctx, ref, accepted)
 
 	return true
 }
 
-// ClearPendingModify clears a PDN connection's in-flight modification
-// bookkeeping (TS 24.301 §6.4.2.4).
-func (ue *UeContext) ClearPendingModify(p *PdnConnection) {
+func (m *MME) RadioBearerModified(ctx context.Context, ue *UeContext, ebi uint8, modified bool) {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
 
-	ClearPendingModifyLocked(p)
+	p := ue.Pdns[ebi]
+	if p == nil || p.Modifying == nil || !p.modifyAwaitingRadio {
+		ue.mu.Unlock()
+
+		return
+	}
+
+	p.modifyAwaitingRadio = false
+
+	if modified && !p.modifyAcceptedByUE {
+		ue.mu.Unlock()
+
+		return
+	}
+
+	p.guard.Stop()
+
+	ref := p.SessionRef
+	finishModificationLocked(p, modified)
+	ue.mu.Unlock()
+
+	m.Session.CommitEPSBearerModification(ctx, ref, modified)
+}
+
+func finishModificationLocked(p *PdnConnection, accepted bool) {
+	mod := p.Modifying
+	p.clearModificationLocked()
+
+	if !accepted {
+		return
+	}
+
+	if mod.QoS != nil {
+		p.Qci = mod.QoS.QCI
+		p.Arp = mod.QoS.ARP
+	}
+
+	if mod.APNAMBR != nil {
+		p.SessAmbrDLBps = mod.APNAMBR.Downlink.Bps()
+		p.SessAmbrULBps = mod.APNAMBR.Uplink.Bps()
+	}
+
+	if mod.DNS.IsValid() {
+		p.Dns = mod.DNS
+	}
+}
+
+func (p *PdnConnection) clearModificationLocked() {
+	p.Modifying = nil
+	p.modifyAwaitingRadio = false
+	p.modifyAcceptedByUE = false
 }
 
 func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {

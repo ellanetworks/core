@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 )
 
@@ -52,15 +51,11 @@ func TestHandoverFromEPSCommitsWhileAPolicyChangeRacesIt(t *testing.T) {
 
 		<-start
 
-		_ = s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
-			SmContextRef: ref,
-			Reason:       models.ReconcilePolicyChange,
-			NewPolicy: &models.SessionPolicyDelta{
-				SessionAmbrUplink:   "100 Mbps",
-				SessionAmbrDownlink: "200 Mbps",
-				Var5qi:              6,
-				Arp:                 1,
-			},
+		_ = reconcileWithPolicy(ctx, s, pcf, ref, &policyChange{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              6,
+			Arp:                 1,
 		})
 	}()
 

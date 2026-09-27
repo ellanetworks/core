@@ -112,7 +112,7 @@ func TestStatus5GSM_UnrelatedCauseKeepsSessionAndDiscardsPendingPolicy(t *testin
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	reconcileAmbrChange(t, s, ref) // new AMBR 500/600 Mbps, held pending
+	reconcileAmbrChange(t, s, pcf, ref) // new AMBR 500/600 Mbps, held pending
 
 	if _, err := s.UpdateSmContextN1Msg(context.Background(), ref, build5GSMStatus(smCtx.PDUSessionID, 0, fgs.GSMCauseProtocolErrorUnspecified)); err != nil {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)

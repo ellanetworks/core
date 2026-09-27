@@ -176,7 +176,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("parse PDU session request failed: %v", err)
 	}
 
-	sc, _, err := s.establishSession(ctx, SessionRequest{
+	sc, err := s.establishSession(ctx, SessionRequest{
 		Supi:     supi,
 		Identity: SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity},
 		Dnn:      dnn,

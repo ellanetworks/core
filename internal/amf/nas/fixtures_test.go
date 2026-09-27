@@ -101,10 +101,6 @@ func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 	}, nil
 }
 
-func (fdb *fakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
-	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1", SessionAmbrDownlink: "200 Mbps", SessionAmbrUplink: "100 Mbps"}, nil
-}
-
 func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"},
@@ -408,12 +404,8 @@ func (s *fakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
 
 func (s *fakeSmf) SessionCount() int { return 0 }
 
-func (s *fakeSmf) ReconcileSmContext(_ context.Context, _ *models.SessionReconcileRequest) error {
-	return s.Error
-}
-
-func (s *fakeSmf) GetSessionPolicy(_ context.Context, _ etsi.SUPI, _ *models.Snssai, _ string) (*smf.Policy, error) {
-	return nil, nil
+func (s *fakeSmf) ReconcileSession(context.Context, string) error {
+	return nil
 }
 
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI5G {

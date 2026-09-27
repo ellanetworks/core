@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
 func TestCreateEPSSessionKeepsTheUEAllocatedIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	req := epsRequest(1)
 	req.PDUSessionID = 3
@@ -137,10 +138,9 @@ func TestCreateEPSSessionRefusesADivergentPDNType(t *testing.T) {
 
 func TestCreateEPSSessionReportsTheNarrowedFamily(t *testing.T) {
 	store, upf := epsTestSMF()
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(epsPCF(func(p *smf.Policy) { p.IPv6Pool = "" }), store, upf, &fakeAMF{})
 
 	req := epsRequest(uint8(eps.PDNTypeIPv6))
-	req.IPv6Pool = ""
 
 	_, err := s.CreateEPSSession(context.Background(), req)
 	if err == nil {

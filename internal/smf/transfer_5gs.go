@@ -75,12 +75,13 @@ func (s *SMF) transferTo5GS(
 		IPv4Address:    sc.PDUIPV4Address,
 		IPv6IID:        sc.IPv6IID,
 	}
+	retained := transferPolicy(sc.PolicyData, policy)
 	sc.Mutex.Unlock()
 
 	logger.From(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), logger.DNN(dnn))
 
-	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, retained, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
 		sc.abandonTransferTo(Access5G)
 
 		return "", nil, fmt.Errorf("failed to send the establishment accept for a moved session: %w", err)

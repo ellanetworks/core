@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -97,14 +98,14 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	reestablish := ueConn.ICS() != mme.ICSCompleted && req.ActiveFlag
 
-	var qos *mme.EpsQoS
+	var ueAmbr models.Ambr
 
 	if reestablish {
 		ue.PinKeNBFreshness()
 
-		qos, err = mme.ResolveQoS(ctx, m, ue.IMSI())
+		ueAmbr, err = mme.SubscribedUEAMBR(ctx, m, ue.IMSI())
 		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.Error(err))
+			logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscribed UE-AMBR", zap.Error(err))
 			return nasreply.Handled()
 		}
 	}
@@ -127,7 +128,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	case ueConn.ICS() == mme.ICSCompleted:
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted")
 	case reestablish:
-		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)
+		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, ue.SetSubscribedUEAMBR(ueAmbr))
 		if !ok {
 			return nasreply.Handled()
 		}

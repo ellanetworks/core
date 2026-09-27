@@ -35,7 +35,8 @@ func (s PagingState) String() string {
 }
 
 type MTRequest struct {
-	Req models.N1N2MessageTransferRequest
+	Req        models.N1N2MessageTransferRequest
+	Signalling bool
 }
 
 func (r *MTRequest) Request() *models.N1N2MessageTransferRequest {
@@ -44,6 +45,10 @@ func (r *MTRequest) Request() *models.N1N2MessageTransferRequest {
 	}
 
 	return &r.Req
+}
+
+func (r *MTRequest) SignallingOnly() bool {
+	return r != nil && r.Signalling
 }
 
 func outranks(candidate, current *models.Arp) bool {
@@ -101,7 +106,9 @@ func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1
 		return "", errUEConnected
 	}
 
-	if ue.paging.state == PagingAttempting && !outranks(req.arp(), ue.paging.pending.arp()) {
+	displacesSignalling := ue.paging.pending.SignallingOnly() && !req.SignallingOnly()
+
+	if ue.paging.state == PagingAttempting && !outranks(req.arp(), ue.paging.pending.arp()) && !displacesSignalling {
 		rejected := &models.N1N2MessageTransferError{
 			Cause:  models.N1N2ErrHigherPriorityRequestOngoing,
 			Detail: models.N1N2MsgTxfrErrDetail{HighestPrioArp: ue.paging.pending.arp()},
@@ -264,7 +271,7 @@ func (ue *UeContext) takePendingLocked() *MTRequest {
 }
 
 func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest, cause models.N1N2MessageTransferCause) {
-	if ue.smf == nil || req == nil || req.Req.Standalone() {
+	if ue.smf == nil || req == nil || req.Req.Standalone() || req.SignallingOnly() {
 		return
 	}
 
