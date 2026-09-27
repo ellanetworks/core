@@ -31,7 +31,7 @@ func NewSessionManager(d *db.Database) *SessionManager {
 type CreateSessionParams struct {
 	SUPI              string
 	RequestType       RequestType
-	Method            PositioningMethod
+	Method            RequestedMethod
 	QoSResponseTimeMs *int
 	QOSHAccuracyM     *int
 }

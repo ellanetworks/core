@@ -25,16 +25,16 @@ var (
 // DetermineLocation computes the current location of the UE identified by
 // supi using the configured positioning method. Returns the location result,
 // the session ID (if a session was created), and any error.
-func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
+func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method RequestedMethod) (*models.LocationResult, string, error) {
 	switch method {
-	case MethodCellID:
+	case RequestedCellID:
 		result, err := l.determineCellIDLocation(ctx, supi)
 		return result, "", err
-	case MethodECID:
+	case RequestedECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodAGNSSAssisted, MethodAGNSSBased:
-		return l.determineAGNSSLocation(ctx, supi, method)
+	case RequestedGNSS:
+		return l.determineGNSSLocation(ctx, supi)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
 	}
@@ -81,23 +81,12 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 
 	result := computeCellIDLocation(supi, loc)
 
-	// N3IWF has no cell coordinate — skip coordinate resolution.
-	if loc.N3gaLocation != nil && loc.EutraLocation == nil && loc.NrLocation == nil {
-		logger.LmfLog.Info("location computed",
-			logger.SUPI(supi.String()),
-			zap.String("method", "cell_id"),
-			zap.String("access_type", result.AccessType),
-		)
-
-		return result, nil
-	}
-
 	coord, ok := l.resolveCellCoordinate(ctx, loc, nil)
 	if !ok {
 		return nil, ErrNoLocationEstimate
 	}
 
-	applyCellCoordinate(result, coord)
+	result.Estimate = coord
 
 	logger.LmfLog.Info("location computed",
 		logger.SUPI(supi.String()),
@@ -108,46 +97,41 @@ func (l *LMF) determineCellIDLocation(ctx context.Context, supi etsi.SUPI) (*mod
 	return result, nil
 }
 
-// determineAGNSSLocation computes location using A-GNSS via the LPP state
-// machine. For AGNSS-assisted (UE-assisted): LMF requests capabilities, then
-// requests location, and extracts the fix from ProvideLocationInformation.
-// For AGNSS-based: LMF sends assistance data and waits for the UE to compute.
-// Returns the location result, session ID, and any error.
-func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
+// determineGNSSLocation computes location using GNSS via the LPP state
+// machine: the LMF requests the UE's capabilities, then a location estimate,
+// and extracts the fix from ProvideLocationInformation. Returns the location
+// result, session ID, and any error.
+func (l *LMF) determineGNSSLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	logger.LmfLog.Info("A-GNSS positioning via LPP",
-		logger.SUPI(supi.String()),
-		zap.String("method", string(method)),
-	)
+	logger.LmfLog.Info("GNSS positioning via LPP", logger.SUPI(supi.String()))
 
-	// Create LPP session
 	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
-		SUPI:              supi.String(),
-		Method:            method,
-		QoSResponseTimeMs: nil,
-		QOSHAccuracyM:     nil,
+		SUPI:   supi.String(),
+		Method: RequestedGNSS,
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("create LPP session: %w", err)
 	}
 
-	// TS 23.273 §6.11.1: one AMF-assigned LCS correlation identifier is used for
+	// TS 23.273 §6.11.1: one AMF- or MME-assigned LCS correlation identifier is used for
 	// every message of the positioning session (NOTE 11). Assign it before the
 	// session is registered for uplink routing.
-	if l.amf != nil {
-		session.SetCorrelationID(l.amf.AllocateLCSCorrelationID())
+	core := l.servingCore(supi)
+
+	if id := l.allocateLCSCorrelationID(core); id != nil {
+		session.SetCorrelationID(id)
 	}
 
 	// Wire transport functions.
 	// These closures are called from a different goroutine (AMF's UL NAS handler)
-	// and must not use the timeout ctx which may be cancelled when determineAGNSSLocation returns.
+	// and must not use the timeout ctx which may be cancelled when determineGNSSLocation returns.
 	detached := context.WithoutCancel(ctx)
 
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(detached, supi.String(), session.CorrelationID(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(detached, core, supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
 			return l.sessionMgr.CompleteSession(detached, session.SessionID(), result)
@@ -163,12 +147,16 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 		},
 	)
 
+	if deadline, ok := ctx.Deadline(); ok {
+		session.SetDeadline(deadline)
+	}
+
 	// Register with LMF for UL message routing
 	l.RegisterLPPSession(session.SessionID(), session)
 
 	// Start the LPP state machine (sends RequestLocationInformation for capabilities)
 	if err := session.StartSession(); err != nil {
-		session.Fail()
+		session.FailWith(err)
 		return nil, session.SessionID(), fmt.Errorf("start LPP session: %w", err)
 	}
 
@@ -182,11 +170,9 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 			session.Fail()
 
 			// Discard any buffered LPP: this session has failed.
-			if l.amf != nil {
-				l.amf.CancelBufferedN1N2(detached, supi, coremodels.N1ClassLPP, "")
-			}
+			l.cancelBufferedLPP(detached, core, supi, session.CorrelationID())
 
-			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())
+			return nil, session.SessionID(), fmt.Errorf("GNSS positioning timed out: %w", ctx.Err())
 		case <-ticker.C:
 			state := session.State()
 			if state == lpp.LocationReceived {
@@ -195,18 +181,14 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 					return nil, session.SessionID(), fmt.Errorf("location result is nil after LocationReceived")
 				}
 
-				return &models.LocationResult{
-					SUPI:               supi.String(),
-					Shape:              models.GADEllipsoidalPoint,
-					Latitude:           result.Latitude,
-					Longitude:          result.Longitude,
-					Altitude:           result.Altitude,
-					HorizontalAccuracy: result.HorizontalAccuracy,
-					VerticalAccuracy:   result.VerticalAccuracy,
-				}, session.SessionID(), nil
+				return result, session.SessionID(), nil
 			}
 
 			if state == lpp.SessionFailed {
+				if failure := session.Failure(); failure != nil {
+					return nil, session.SessionID(), fmt.Errorf("LPP session failed: %w", failure)
+				}
+
 				return nil, session.SessionID(), fmt.Errorf("LPP session failed (state=%s)", state)
 			}
 		}
@@ -219,7 +201,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.NrLocation != nil {
 		return &models.LocationResult{
 			SUPI:                supi.String(),
-			Shape:               models.GADCellID,
+			Method:              models.PositioningMethodCellID,
 			TAI:                 loc.NrLocation.Tai,
 			NCGI:                loc.NrLocation.Ncgi,
 			AccessType:          "NR",
@@ -232,7 +214,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.EutraLocation != nil {
 		return &models.LocationResult{
 			SUPI:                supi.String(),
-			Shape:               models.GADCellID,
+			Method:              models.PositioningMethodCellID,
 			TAI:                 loc.EutraLocation.Tai,
 			ECGI:                loc.EutraLocation.Ecgi,
 			AccessType:          "EUTRA",
@@ -245,7 +227,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.N3gaLocation != nil {
 		return &models.LocationResult{
 			SUPI:         supi.String(),
-			Shape:        models.GADCellID,
+			Method:       models.PositioningMethodCellID,
 			TAI:          loc.N3gaLocation.N3gppTai,
 			AccessType:   "N3IWF",
 			UserLocation: loc,

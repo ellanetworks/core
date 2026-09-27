@@ -3,6 +3,8 @@
 
 package models
 
+import lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
+
 // RequestLocationInformation is sent by LMF to UE to request a location fix.
 type RequestLocationInformation struct {
 	TransactionID     byte
@@ -90,16 +92,9 @@ type ProvideAssistanceData struct {
 
 // ProvideLocationInformation is sent by UE to LMF with the location fix.
 type ProvideLocationInformation struct {
-	TransactionID      byte
-	GNSSPositionResult GNSSPositionResult
-}
-
-// GNSSPositionResult contains the GNSS-derived location.
-type GNSSPositionResult struct {
-	Latitude           int32  // in 1e-7 degrees
-	Longitude          int32  // in 1e-7 degrees
-	Altitude           int32  // in cm (WGS84 ellipsoid)
-	HorizontalAccuracy uint32 // in meters
-	VerticalAccuracy   uint32 // in meters
-	Timestamp          int64  // Unix timestamp in ms
+	TransactionID            byte
+	LocationEstimate         *lmfmodels.GeographicEstimate
+	UnsupportedLocationShape bool
+	LocationFailureCause     *int64
+	GNSSErrorCause           *int64
 }

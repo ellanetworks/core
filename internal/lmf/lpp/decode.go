@@ -5,10 +5,10 @@ package lpp
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/per"
 )
 
@@ -185,50 +185,26 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
+	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GnssError != nil && a.GnssError.TargetDeviceErrorCauses != nil {
+		cause := a.GnssError.TargetDeviceErrorCauses.Cause
+		out.GNSSErrorCause = &cause
+	}
+
 	if r9.CommonIEsProvideLocationInformation == nil {
 		return out
 	}
 
 	common := r9.CommonIEsProvideLocationInformation
+	if common.LocationError != nil {
+		cause := common.LocationError.LocationFailureCause
+		out.LocationFailureCause = &cause
+	}
+
 	if common.LocationEstimate == nil {
 		return out
 	}
 
-	lc := common.LocationEstimate
-	switch {
-	case lc.EllipsoidPointWithAltitude != nil:
-		ep := lc.EllipsoidPointWithAltitude
-		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)
-		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
-		out.GNSSPositionResult.Altitude = decodeAltitude(ep.AltitudeDirection, ep.Altitude)
-
-	case lc.EllipsoidPoint != nil:
-		ep := lc.EllipsoidPoint
-		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)
-		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
-
-	case lc.EllipsoidPointWithUncertaintyCircle != nil:
-		ep := lc.EllipsoidPointWithUncertaintyCircle
-		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)
-		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
-		out.GNSSPositionResult.HorizontalAccuracy = uint32(decodeUncertainty(ep.Uncertainty))
-
-	case lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil:
-		ep := lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
-		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)
-		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
-		out.GNSSPositionResult.Altitude = decodeAltitude(ep.AltitudeDirection, ep.Altitude)
-		uncMajor := decodeUncertainty(ep.UncertaintySemiMajor)
-
-		uncMinor := decodeUncertainty(ep.UncertaintySemiMinor)
-		if uncMinor > uncMajor {
-			out.GNSSPositionResult.HorizontalAccuracy = uint32(uncMinor)
-		} else {
-			out.GNSSPositionResult.HorizontalAccuracy = uint32(uncMajor)
-		}
-
-		out.GNSSPositionResult.VerticalAccuracy = uint32(decodeUncertainty(ep.UncertaintyAltitude))
-	}
+	out.LocationEstimate, out.UnsupportedLocationShape = decodeLocationEstimate(common.LocationEstimate)
 
 	return out
 }
@@ -248,19 +224,87 @@ func decodeProvideAssistanceData(pad *lpptype.ProvideAssistanceData) *models.Pro
 	return &models.ProvideAssistanceData{}
 }
 
-// decodeUncertainty converts a TS 23.032 uncertainty code to metres.
-// r = C * ((1+x)^k - 1), C = uncertaintyConstantC, x = uncertaintyFactorX,
-// k = uncertainty value (0..maxUncertaintyCode).
-func decodeUncertainty(k int64) int64 {
-	if k <= 0 {
-		return 0
+func decodeLocationEstimate(lc *lpptype.LocationCoordinates) (*lmfmodels.GeographicEstimate, bool) {
+	switch {
+	case lc.EllipsoidPoint != nil:
+		ep := lc.EllipsoidPoint
+
+		return &lmfmodels.GeographicEstimate{
+			LatitudeDegrees:  latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
+			LongitudeDegrees: longitudeDegrees(ep.DegreesLongitude),
+		}, false
+
+	case lc.EllipsoidPointWithUncertaintyCircle != nil:
+		ep := lc.EllipsoidPointWithUncertaintyCircle
+		radius := lmfmodels.HorizontalUncertaintyMeters(ep.Uncertainty)
+
+		return &lmfmodels.GeographicEstimate{
+			LatitudeDegrees:         latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
+			LongitudeDegrees:        longitudeDegrees(ep.DegreesLongitude),
+			UncertaintyRadiusMeters: &radius,
+		}, false
+
+	case lc.EllipsoidPointWithUncertaintyEllipse != nil:
+		ep := lc.EllipsoidPointWithUncertaintyEllipse
+		confidence := int32(ep.Confidence)
+
+		return &lmfmodels.GeographicEstimate{
+			LatitudeDegrees:  latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
+			LongitudeDegrees: longitudeDegrees(ep.DegreesLongitude),
+			UncertaintyEllipse: &lmfmodels.UncertaintyEllipse{
+				SemiMajorMeters:         lmfmodels.HorizontalUncertaintyMeters(ep.UncertaintySemiMajor),
+				SemiMinorMeters:         lmfmodels.HorizontalUncertaintyMeters(ep.UncertaintySemiMinor),
+				OrientationMajorDegrees: int32(ep.OrientationMajorAxis),
+			},
+			ConfidencePercent: &confidence,
+		}, false
+
+	case lc.EllipsoidPointWithAltitude != nil:
+		ep := lc.EllipsoidPointWithAltitude
+		altitude := altitudeMeters(ep.AltitudeDirection, ep.Altitude)
+
+		return &lmfmodels.GeographicEstimate{
+			LatitudeDegrees:  latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
+			LongitudeDegrees: longitudeDegrees(ep.DegreesLongitude),
+			AltitudeMeters:   &altitude,
+		}, false
+
+	case lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil:
+		ep := lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
+
+		return lmfmodels.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid{
+			LatitudeDegrees:      latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
+			LongitudeDegrees:     longitudeDegrees(ep.DegreesLongitude),
+			AltitudeMeters:       altitudeMeters(ep.AltitudeDirection, ep.Altitude),
+			UncertaintySemiMajor: ep.UncertaintySemiMajor,
+			UncertaintySemiMinor: ep.UncertaintySemiMinor,
+			OrientationMajor:     ep.OrientationMajorAxis,
+			UncertaintyAltitude:  ep.UncertaintyAltitude,
+			Confidence:           ep.Confidence,
+		}.Estimate(), false
+
+	default:
+		return nil, true
+	}
+}
+
+func latitudeDegrees(sign, encoded int64) float64 {
+	degrees := float64(encoded) * 90 / latitudeResolution
+	if sign == lpptype.EllipsoidPointLatitudeSignSouth {
+		return -degrees
 	}
 
-	if k > maxUncertaintyCode {
-		k = maxUncertaintyCode
+	return degrees
+}
+
+func longitudeDegrees(encoded int64) float64 {
+	return float64(encoded-longitudeOffset) * 360 / longitudeResolution
+}
+
+func altitudeMeters(direction, encoded int64) float64 {
+	if direction == lpptype.EllipsoidPointWithAltitudeAltitudeDirectionDepth {
+		return -float64(encoded)
 	}
 
-	r := uncertaintyConstantC * (math.Pow(uncertaintyBase, float64(k)) - 1.0)
-
-	return int64(math.Round(r))
+	return float64(encoded)
 }

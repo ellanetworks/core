@@ -6,8 +6,10 @@ package lmf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -21,7 +23,7 @@ type captureLPPHandler struct {
 	correlationIDs [][]byte
 }
 
-func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ string, correlationID, _ []byte) error {
+func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, correlationID, _ []byte) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -74,11 +76,11 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	sessionCorrelationID := []byte{0xAA, 0xBB, 0xCC, 0xDD}
 	ueCorrelationID := []byte{0x11, 0x22, 0x33, 0x44}
 
-	session := lpp.NewSession(supi.String(), "session-1", string(MethodAGNSSAssisted))
+	session := lpp.NewSession(supi.String(), "session-1", string(RequestedGNSS))
 	session.SetCorrelationID(sessionCorrelationID)
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return handler.ForwardLPPToUE(context.Background(), supi.String(), session.CorrelationID(), lppMsg)
+			return handler.ForwardLPPToUE(context.Background(), CoreAMF, supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(*models.LocationResult) error { return nil },
 		func() error { return nil },
@@ -93,7 +95,7 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	}
 
 	inbound := provideCapabilitiesRequestingAck(t, 7)
-	if err := ForwardLPPToLMF(lmfInstance, context.Background(), supi, ueCorrelationID, inbound); err != nil {
+	if err := ForwardLPPToLMF(lmfInstance, context.Background(), CoreAMF, supi, ueCorrelationID, inbound); err != nil {
 		t.Fatalf("ForwardLPPToLMF: %v", err)
 	}
 
@@ -108,5 +110,66 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 		if !bytes.Equal(got, sessionCorrelationID) {
 			t.Errorf("downlink %d: correlation ID = %x, want session ID %x", i, got, sessionCorrelationID)
 		}
+	}
+}
+
+func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
+	handler := &captureLPPHandler{}
+	lmfInstance := New(amf.New(nil, nil, nil), nil, nil)
+	lmfInstance.SetLPPHandler(handler)
+
+	supi, err := etsi.NewSUPIFromIMSI("123456789012345")
+	if err != nil {
+		t.Fatalf("NewSUPIFromIMSI: %v", err)
+	}
+
+	failed, deregistered := false, false
+
+	session := lpp.NewSession(supi.String(), "session-deadline", string(RequestedGNSS))
+	session.SetTransport(
+		func([]byte) error { return nil },
+		func(*models.LocationResult) error { return nil },
+		func() error {
+			failed = true
+			return nil
+		},
+		func() error { return nil },
+		func() {
+			deregistered = true
+
+			lmfInstance.DeregisterLPPSession(session.SessionID())
+		},
+	)
+	session.SetDeadline(time.Now().Add(time.Second))
+
+	lmfInstance.RegisterLPPSession(session.SessionID(), session)
+
+	if err := session.StartSession(); err != nil {
+		t.Fatalf("StartSession: %v", err)
+	}
+
+	caps, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GnssIDGps})
+	if err != nil {
+		t.Fatalf("EncodeProvideCapabilities: %v", err)
+	}
+
+	if err := ForwardLPPToLMF(lmfInstance, context.Background(), CoreAMF, supi, nil, caps); err == nil {
+		t.Fatal("ForwardLPPToLMF accepted capabilities with no time left to request a location")
+	}
+
+	if session.State() != lpp.SessionFailed {
+		t.Errorf("state = %s, want %s", session.State(), lpp.SessionFailed)
+	}
+
+	if !errors.Is(session.Failure(), context.DeadlineExceeded) {
+		t.Errorf("Failure = %v, want it to wrap context.DeadlineExceeded", session.Failure())
+	}
+
+	if !failed || !deregistered {
+		t.Errorf("failFunc called = %t, deregister called = %t, want both", failed, deregistered)
+	}
+
+	if lmfInstance.GetLPPSession(session.SessionID()) != nil {
+		t.Error("the failed session is still registered")
 	}
 }

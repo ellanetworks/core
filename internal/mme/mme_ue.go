@@ -190,8 +190,9 @@ type UeContext struct {
 	radioMeasurements *lmfmodels.RadioMeasurements
 
 	// lppaBuf holds an LPPa message for delivery when the UE answers a page.
-	lppaBufMu sync.RWMutex
-	lppaBuf   *LPPaBuffered
+	lppaBuf pagingBuffer[LPPaBuffered]
+
+	lppBuf pagingBuffer[LPPBuffered]
 }
 
 // TouchLastSeen records the current time as the most recent evidence the UE was

@@ -165,7 +165,7 @@ func (ue *UeContext) clearPaging() {
 	ue.paging.state = PagingIdle
 	ue.paging.mu.Unlock()
 
-	ue.ClearLPPaBuffered()
+	ue.clearPagingBuffers()
 }
 
 // retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301
@@ -352,6 +352,20 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 		return fmt.Errorf("UE not found: %s", supi)
 	}
 
+	if err := m.pageToDeliver(ctx, ue, func() { ue.SetLPPaBuffered(measID, lppaPayload) }); err != nil {
+		return err
+	}
+
+	logger.MmeLog.Info("LPPa message buffered, paging ECM-IDLE UE",
+		logger.SUPI(ue.Supi().String()),
+		zap.Int64("measurement_id", measID),
+		zap.Int("lppa_len", len(lppaPayload)),
+	)
+
+	return nil
+}
+
+func (m *MME) pageToDeliver(ctx context.Context, ue *UeContext, buffer func()) error {
 	m.mu.RLock()
 
 	handover := ue.handover
@@ -371,7 +385,7 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 			return err
 		}
 
-		ue.SetLPPaBuffered(measID, lppaPayload)
+		buffer()
 
 		return nil
 	}
@@ -380,13 +394,14 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 		return fmt.Errorf("failed to page ECM-IDLE UE: %w", err)
 	}
 
-	logger.MmeLog.Info("LPPa message buffered, paging ECM-IDLE UE",
-		logger.SUPI(ue.Supi().String()),
-		zap.Int64("measurement_id", measID),
-		zap.Int("lppa_len", len(lppaPayload)),
-	)
-
 	return nil
+}
+
+func (m *MME) pagingInProgress(ue *UeContext) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return ue.paging.guard.Active()
 }
 
 // CancelBufferedLPPa discards the LPPa payload buffered under measID, once the LMF stops

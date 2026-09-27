@@ -4,7 +4,7 @@ description: RESTful API reference for locating subscribers and provisioning cel
 
 # Location (beta)
 
-Ella Core supports two positioning methods: Cell ID and Enhanced Cell ID (E-CID). The Location API requests a subscriber's location, tracks deferred positioning sessions, and provisions the cell positions those estimates are drawn from.
+Ella Core supports three positioning methods: Cell ID, Enhanced Cell ID (E-CID), and GNSS in standalone mode. The Location API requests a subscriber's location, tracks deferred positioning sessions, and provisions the cell positions those estimates are drawn from.
 
 !!! warning "Beta"
     The Location API is experimental and served under `/api/beta`. Its paths and payloads may change without notice.
@@ -21,13 +21,13 @@ This path requests a subscriber's current location. `immediate` returns an estim
 
 | Name      | In    | Type | Default | Allowed        | Description                                                        |
 | --------- | ----- | ---- | ------- | -------------- | ------------------------------------------------------------------ |
-| `verbose` | query | bool | `false` | `true`,`false` | Attach the `supplementaryMeasurements` block (raw NRPPa measurements). |
+| `verbose` | query | bool | `false` | `true`,`false` | Attach the `supplementaryMeasurements` block (raw E-CID measurements). |
 
 ### Parameters
 
 - `request_type` (string): `immediate`, `periodic`, `triggered`, or `cancel`.
 - `supi` (string): Subscriber identity. Required unless `request_type` is `cancel`.
-- `method` (string, optional): `cell_id` or `ecid`. Defaults to `cell_id`.
+- `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
 - `session_id` (string): Session to terminate. Required when `request_type` is `cancel`.
 - `qos_response_time_ms` (integer, optional): Requested response-time budget, in milliseconds.
 - `qos_horizontal_accuracy_m` (integer, optional): Requested horizontal accuracy, in metres.
@@ -53,12 +53,11 @@ This path requests a subscriber's current location. `immediate` returns an estim
             },
             "uncertainty": 150
         },
-        "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED",
         "positioningDataList": [
             {
                 "method": "CELLID",
                 "mode": "CONVENTIONAL",
-                "usage": "SUCCESS_RESULTS_USED"
+                "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
             }
         ],
         "ncgi": {
@@ -67,38 +66,6 @@ This path requests a subscriber's current location. `immediate` returns an estim
                 "mnc": "01"
             },
             "nrCellId": "000000010"
-        }
-    }
-}
-```
-
-For a 4G (E-UTRA) subscriber the serving cell is reported as `ecgi` with a 7-hex-digit `eutraCellId`, and E-CID uses the `ECID` positioning method:
-
-```json
-{
-    "result": {
-        "locationEstimate": {
-            "shape": "POINT_UNCERTAINTY_CIRCLE",
-            "point": {
-                "lat": 37.7749,
-                "lon": -122.4194
-            },
-            "uncertainty": 150
-        },
-        "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED",
-        "positioningDataList": [
-            {
-                "method": "ECID",
-                "mode": "CONVENTIONAL",
-                "usage": "SUCCESS_RESULTS_USED"
-            }
-        ],
-        "ecgi": {
-            "plmnId": {
-                "mcc": "001",
-                "mnc": "01"
-            },
-            "eutraCellId": "0000001"
         }
     }
 }
@@ -208,7 +175,13 @@ This path returns a positioning session, including its most recent location esti
                 },
                 "uncertainty": 50
             },
-            "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED"
+            "positioningDataList": [
+                {
+                    "method": "ECID",
+                    "mode": "UE_ASSISTED",
+                    "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
+                }
+            ]
         },
         "created_at": 1720000000,
         "updated_at": 1720000100

@@ -4735,7 +4735,7 @@ func (gNSSLocationInformation *GNSSLocationInformation) UnmarshalPER(r *per.Read
 
 func (gNSSLocationServerErrorCauses *GNSSLocationServerErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(gNSSLocationServerErrorCauses.Cause)); err != nil {
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(gNSSLocationServerErrorCauses.Cause)); err != nil {
 		return err
 	}
 	return nil
@@ -4746,7 +4746,7 @@ func (gNSSLocationServerErrorCauses *GNSSLocationServerErrorCauses) UnmarshalPER
 	if err != nil {
 		return err
 	}
-	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
@@ -5630,8 +5630,26 @@ func (gNSSSystemTime *GNSSSystemTime) UnmarshalPER(r *per.Reader, enc per.Encodi
 
 func (gNSSTargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true}, int64(gNSSTargetDeviceErrorCauses.Cause)); err != nil {
+	w.WriteBit(gNSSTargetDeviceErrorCauses.FineTimeAssistanceMeasurementsNotPossible != nil)
+	w.WriteBit(gNSSTargetDeviceErrorCauses.AdrMeasurementsNotPossible != nil)
+	w.WriteBit(gNSSTargetDeviceErrorCauses.MultiFrequencyMeasurementsNotPossible != nil)
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true}, int64(gNSSTargetDeviceErrorCauses.Cause)); err != nil {
 		return err
+	}
+	if gNSSTargetDeviceErrorCauses.FineTimeAssistanceMeasurementsNotPossible != nil {
+		if err := (*gNSSTargetDeviceErrorCauses.FineTimeAssistanceMeasurementsNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if gNSSTargetDeviceErrorCauses.AdrMeasurementsNotPossible != nil {
+		if err := (*gNSSTargetDeviceErrorCauses.AdrMeasurementsNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if gNSSTargetDeviceErrorCauses.MultiFrequencyMeasurementsNotPossible != nil {
+		if err := (*gNSSTargetDeviceErrorCauses.MultiFrequencyMeasurementsNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -5641,11 +5659,44 @@ func (gNSSTargetDeviceErrorCauses *GNSSTargetDeviceErrorCauses) UnmarshalPER(r *
 	if err != nil {
 		return err
 	}
-	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 2, HasUB: true, Extensible: true})
+	p_FineTimeAssistanceMeasurementsNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AdrMeasurementsNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_MultiFrequencyMeasurementsNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3, HasUB: true, Extensible: true})
 	if err != nil {
 		return err
 	}
 	gNSSTargetDeviceErrorCauses.Cause = int64(n0)
+	if p_FineTimeAssistanceMeasurementsNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		gNSSTargetDeviceErrorCauses.FineTimeAssistanceMeasurementsNotPossible = &v
+	}
+	if p_AdrMeasurementsNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		gNSSTargetDeviceErrorCauses.AdrMeasurementsNotPossible = &v
+	}
+	if p_MultiFrequencyMeasurementsNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		gNSSTargetDeviceErrorCauses.MultiFrequencyMeasurementsNotPossible = &v
+	}
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {

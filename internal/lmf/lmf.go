@@ -30,12 +30,12 @@ type LocationSource interface {
 	GetUELocation(supi etsi.SUPI) (models.UserLocation, bool)
 }
 
-// LPPHandler is the interface for sending LPP messages to a UE via the AMF.
+// LPPHandler is the interface for sending LPP messages to a UE via the AMF or MME.
 // correlationID is the LCS correlation identifier the UE uses to route the DL
 // message to its LPP session; echoing the UE's identifier keeps a reply on the
 // same session (TS 23.273).
 type LPPHandler interface {
-	ForwardLPPToUE(ctx context.Context, supi string, correlationID, lppData []byte) error
+	ForwardLPPToUE(ctx context.Context, core Core, supi string, correlationID, lppData []byte) error
 }
 
 // LMF is the Location Management Function. It orchestrates positioning
@@ -130,6 +130,45 @@ func firstLocation(srcs []LocationSource, supi etsi.SUPI) (models.UserLocation, 
 	return models.UserLocation{}, false
 }
 
+type Core int
+
+const (
+	CoreAMF Core = iota
+	CoreMME
+)
+
+func (l *LMF) servingCore(supi etsi.SUPI) Core {
+	if l.amf != nil && l.amf.IsUERegistered(supi) {
+		return CoreAMF
+	}
+
+	if l.mme != nil && l.mme.IsUERegistered(supi) {
+		return CoreMME
+	}
+
+	return CoreAMF
+}
+
+func (l *LMF) allocateLCSCorrelationID(core Core) []byte {
+	switch {
+	case core == CoreMME && l.mme != nil:
+		return l.mme.AllocateLCSCorrelationID()
+	case core == CoreAMF && l.amf != nil:
+		return l.amf.AllocateLCSCorrelationID()
+	default:
+		return nil
+	}
+}
+
+func (l *LMF) cancelBufferedLPP(ctx context.Context, core Core, supi etsi.SUPI, correlationID []byte) {
+	switch {
+	case core == CoreMME && l.mme != nil:
+		l.mme.CancelBufferedLPP(supi, correlationID)
+	case core == CoreAMF && l.amf != nil:
+		l.amf.CancelBufferedN1N2(ctx, supi, models.N1ClassLPP, "")
+	}
+}
+
 // SetLPPHandler configures the LPP message handler for UE communication.
 func (l *LMF) SetLPPHandler(h LPPHandler) {
 	l.lppHandler = h
@@ -140,9 +179,9 @@ func (l *LMF) SessionManager() *SessionManager {
 	return l.sessionMgr
 }
 
-// ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF to the LMF
-// for processing. Called by AMF when an UL NAS Transport carries LPP.
-func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
+// ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF or MME to the LMF
+// for processing. Called when an UL NAS Transport or Uplink Generic NAS Transport carries LPP.
+func ForwardLPPToLMF(lmf *LMF, ctx context.Context, core Core, supi etsi.SUPI, correlationID, lppData []byte) error {
 	if lmf == nil {
 		logger.LmfLog.Debug("LMF is nil, dropping LPP payload")
 		return nil
@@ -168,7 +207,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 
 	// TS 37.355 §4.3.3: acknowledging a UE reply is what stops its retransmission
 	// loop (§4.3.4), so it is owed even for a duplicate whose body is then dropped.
-	duplicate := lmf.acknowledgeLPP(ctx, supi, correlationID, lppData, decoded, activeSession)
+	duplicate := lmf.acknowledgeLPP(ctx, core, supi, correlationID, lppData, decoded, activeSession)
 
 	if activeSession == nil {
 		return fmt.Errorf("no active session")
@@ -186,7 +225,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 	}
 
 	if err := activeSession.HandleResponse(msg); err != nil {
-		activeSession.Fail()
+		activeSession.FailWith(err)
 
 		return fmt.Errorf("handle LPP response: %w", err)
 	}
@@ -196,7 +235,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationI
 
 // acknowledgeLPP sends an LPP Acknowledgement for a UE reply that requested one
 // (TS 37.355 §4.3.3), and reports whether the reply is a duplicate retransmission.
-func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte, decoded *lpp.DecodedMessage, session *lpp.Session) (duplicate bool) {
+func (lmf *LMF) acknowledgeLPP(ctx context.Context, core Core, supi etsi.SUPI, correlationID, lppData []byte, decoded *lpp.DecodedMessage, session *lpp.Session) (duplicate bool) {
 	if !decoded.AckRequested || decoded.SequenceNumber == nil {
 		return false
 	}
@@ -230,7 +269,7 @@ func (lmf *LMF) acknowledgeLPP(ctx context.Context, supi etsi.SUPI, correlationI
 	}
 
 	if lmf.lppHandler != nil {
-		if err := lmf.lppHandler.ForwardLPPToUE(ctx, supi.String(), ackCorrelationID, ack); err != nil {
+		if err := lmf.lppHandler.ForwardLPPToUE(ctx, core, supi.String(), ackCorrelationID, ack); err != nil {
 			logger.LmfLog.Error("failed to send LPP acknowledgement to UE",
 				logger.SUPI(supi.String()), zap.Error(err))
 		}

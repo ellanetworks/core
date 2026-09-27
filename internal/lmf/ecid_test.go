@@ -108,7 +108,7 @@ func TestHasRadioMeasurements(t *testing.T) {
 	}
 
 	// Serving cell / AP position only (no UE-specific quantity) is a Cell-ID fix.
-	pos := &models.APPosition{LatitudeDegrees: 45}
+	pos := &models.GeographicEstimate{LatitudeDegrees: 45}
 	if hasRadioMeasurements(&models.RadioMeasurements{APPosition: pos}) {
 		t.Fatal("AP position alone must not count as E-CID")
 	}

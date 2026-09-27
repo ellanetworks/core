@@ -44,6 +44,7 @@ func TestAppendBinaryEnforcesPDULimit(t *testing.T) {
 		&DetachAccept{},
 		&DetachRequestNetwork{},
 		&DetachRequestUE{EPSMobileIdentity: IMSIIdentity(IMSI("001010000000001"))},
+		&DownlinkGenericNASTransport{},
 		&EMMInformation{},
 		&EMMStatus{},
 		&ESMInformationRequest{},
@@ -68,6 +69,7 @@ func TestAppendBinaryEnforcesPDULimit(t *testing.T) {
 		&TrackingAreaUpdateAccept{},
 		&TrackingAreaUpdateComplete{},
 		&TrackingAreaUpdateReject{},
+		&UplinkGenericNASTransport{},
 		&TrackingAreaUpdateRequest{OldGUTI: IMSIIdentity(IMSI("001010000000001"))},
 	}
 

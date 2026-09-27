@@ -544,14 +544,15 @@ type ECIDProvideCapabilities struct {
 // =====================================================================
 
 const (
-	GNSSLocationServerErrorCausesUndefined                                       int64 = 0
-	GNSSLocationServerErrorCausesAssistanceDataNotSupportedByServer              int64 = 1
-	GNSSLocationServerErrorCausesAssistanceDataSupportedButCurrentlyNotAvailable int64 = 2
+	GNSSLocationServerErrorCausesUndefined                                             int64 = 0
+	GNSSLocationServerErrorCausesAssistanceDataNotSupportedByServer                    int64 = 1
+	GNSSLocationServerErrorCausesAssistanceDataSupportedButCurrentlyNotAvailable       int64 = 2
+	GNSSLocationServerErrorCausesAssistanceDataPartlyNotSupportedAndPartlyNotAvailable int64 = 3
 )
 
 type GNSSLocationServerErrorCauses struct {
 	_     [0]struct{} `per:"extseq"`
-	Cause int64       `per:",range:0..2,..."`
+	Cause int64       `per:",range:0..3,..."`
 }
 
 // =====================================================================
@@ -559,14 +560,18 @@ type GNSSLocationServerErrorCauses struct {
 // =====================================================================
 
 const (
-	GNSSTargetDeviceErrorCausesUndefined                  int64 = 0
-	GNSSTargetDeviceErrorCausesGNSSMeasurementUnavailable int64 = 1
-	GNSSTargetDeviceErrorCausesGNSSMeasurementInaccurate  int64 = 2
+	GNSSTargetDeviceErrorCausesUndefined                            int64 = 0
+	GNSSTargetDeviceErrorCausesThereWereNotEnoughSatellitesReceived int64 = 1
+	GNSSTargetDeviceErrorCausesAssistanceDataMissing                int64 = 2
+	GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible  int64 = 3
 )
 
 type GNSSTargetDeviceErrorCauses struct {
-	_     [0]struct{} `per:"extseq"`
-	Cause int64       `per:",range:0..2,..."`
+	_                                         [0]struct{} `per:"extseq"`
+	Cause                                     int64       `per:",range:0..3,..."`
+	FineTimeAssistanceMeasurementsNotPossible *per.Null   `per:",optional"`
+	AdrMeasurementsNotPossible                *per.Null   `per:",optional"`
+	MultiFrequencyMeasurementsNotPossible     *per.Null   `per:",optional"`
 }
 
 // =====================================================================

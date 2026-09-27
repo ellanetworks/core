@@ -129,6 +129,8 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 		return handleTrackingAreaUpdateComplete(ctx, m, ue, ueConn)
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
+	case *eps.UplinkGenericNASTransport:
+		return handleUplinkGenericNASTransport(ctx, m, ue, msg)
 	case *eps.UnknownEMMMessage:
 		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", logger.MessageType(msg.String()))
 

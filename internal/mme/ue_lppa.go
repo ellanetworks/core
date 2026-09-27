@@ -83,43 +83,24 @@ type LPPaBuffered struct {
 
 // SetLPPaBuffered stores an LPPa message for delivery when the UE connects.
 func (ue *UeContext) SetLPPaBuffered(measID int64, payload []byte) {
-	ue.lppaBufMu.Lock()
-	defer ue.lppaBufMu.Unlock()
-
-	ue.lppaBuf = &LPPaBuffered{
+	ue.lppaBuf.set(LPPaBuffered{
 		MeasurementID: measID,
 		Payload:       payload,
-	}
+	})
 }
 
 // PopLPPaBuffered clears and returns the buffered LPPa message, or nil.
 func (ue *UeContext) PopLPPaBuffered() *LPPaBuffered {
-	ue.lppaBufMu.Lock()
-	defer ue.lppaBufMu.Unlock()
-
-	buf := ue.lppaBuf
-	ue.lppaBuf = nil
-
-	return buf
+	return ue.lppaBuf.pop()
 }
 
 // ClearLPPaBuffered discards the buffered LPPa message once it is no longer deliverable.
 func (ue *UeContext) ClearLPPaBuffered() {
-	ue.lppaBufMu.Lock()
-	defer ue.lppaBufMu.Unlock()
-
-	ue.lppaBuf = nil
+	ue.lppaBuf.clear()
 }
 
 // ClearLPPaBufferedIf discards the buffered LPPa message only when it carries measID, so
 // one request cannot discard another's.
 func (ue *UeContext) ClearLPPaBufferedIf(measID int64) {
-	ue.lppaBufMu.Lock()
-	defer ue.lppaBufMu.Unlock()
-
-	if ue.lppaBuf == nil || ue.lppaBuf.MeasurementID != measID {
-		return
-	}
-
-	ue.lppaBuf = nil
+	ue.lppaBuf.clearIf(func(b *LPPaBuffered) bool { return b.MeasurementID == measID })
 }

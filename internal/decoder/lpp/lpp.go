@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 )
 
 // PDU is the decoder view of an LPP message carried inside a NAS Transport
@@ -44,9 +45,10 @@ type Capabilities struct {
 
 // LocationInformation is the decoded view of a ProvideLocationInformation message.
 type LocationInformation struct {
-	Latitude  int32 `json:"latitude"`
-	Longitude int32 `json:"longitude"`
-	Altitude  int32 `json:"altitude"`
+	LocationEstimate         *lmfmodels.GeographicEstimate `json:"location_estimate,omitempty"`
+	UnsupportedLocationShape bool                          `json:"unsupported_location_shape,omitempty"`
+	LocationFailureCause     *int64                        `json:"location_failure_cause,omitempty"`
+	GNSSErrorCause           *int64                        `json:"gnss_error_cause,omitempty"`
 }
 
 // Decode parses raw LPP APER bytes into the labeled view. On decode failure
@@ -127,12 +129,11 @@ func mapLocationInformation(li *lppmodels.ProvideLocationInformation) *LocationI
 		return nil
 	}
 
-	r := li.GNSSPositionResult
-
 	return &LocationInformation{
-		Latitude:  r.Latitude,
-		Longitude: r.Longitude,
-		Altitude:  r.Altitude,
+		LocationEstimate:         li.LocationEstimate,
+		UnsupportedLocationShape: li.UnsupportedLocationShape,
+		LocationFailureCause:     li.LocationFailureCause,
+		GNSSErrorCause:           li.GNSSErrorCause,
 	}
 }
 

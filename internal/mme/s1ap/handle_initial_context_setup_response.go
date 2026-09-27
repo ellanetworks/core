@@ -77,6 +77,8 @@ func handleInitialContextSetupResponse(ctx context.Context, m *mme.MME, radio *m
 		}
 	}
 
+	m.DeliverBufferedLPP(ctx, ue, ueConn)
+
 	if ueConn != nil {
 		ueConn.SetICS(mme.ICSCompleted)
 	}
