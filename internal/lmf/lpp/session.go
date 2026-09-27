@@ -5,8 +5,10 @@ package lpp
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
 	lmmodels "github.com/ellanetworks/core/internal/lmf/models"
@@ -65,6 +67,7 @@ type Session struct {
 	cancelFunc     func() error
 	deregisterFunc func()
 	failure        error
+	deadline       time.Time
 }
 
 // NewSession creates a new LPP session for the given SUPI and positioning method.
@@ -200,7 +203,13 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	// For AGNSS-assisted, now request actual location
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
+	responseTime, err := LocationResponseTime(s.deadline, time.Now())
+	if err != nil {
+		s.state = SessionFailed
+		return err
+	}
+
+	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS, responseTime)
 	if err != nil {
 		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)
@@ -220,6 +229,10 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 	if s.state != LocationRequested {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
+	}
+
+	if msg.UnsupportedLocationShape {
+		return ErrUnsupportedLocationShape
 	}
 
 	if !msg.HasLocationEstimate {
@@ -334,6 +347,26 @@ func (s *Session) Fail() {
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
+}
+
+func (s *Session) SetDeadline(deadline time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.deadline = deadline
+}
+
+func LocationResponseTime(deadline, now time.Time) (int64, error) {
+	if deadline.IsZero() {
+		return int64(maxLocationResponseTime / time.Second), nil
+	}
+
+	remaining := deadline.Sub(now) - locationResponseTimeMargin
+	if remaining < minLocationResponseTime {
+		return 0, fmt.Errorf("%w: no time left to request a location (%s remaining)", context.DeadlineExceeded, deadline.Sub(now).Round(time.Millisecond))
+	}
+
+	return int64(min(remaining, maxLocationResponseTime) / time.Second), nil
 }
 
 func (s *Session) FailWith(err error) {

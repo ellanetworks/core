@@ -4,9 +4,11 @@
 package lpp
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
@@ -198,7 +200,7 @@ func TestSessionFailWithRecordsTheFirstFailure(t *testing.T) {
 }
 
 func TestRequestLocationInformationCarriesResponseTime(t *testing.T) {
-	b, err := EncodeRequestLocationInformation(0x01, 0)
+	b, err := EncodeRequestLocationInformation(0x01, 0, 17)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +211,63 @@ func TestRequestLocationInformationCarriesResponseTime(t *testing.T) {
 	}
 
 	qos := msg.LppMessageBody.C1.RequestLocationInformation.CriticalExtensions.C1.RequestLocationInformationR9.CommonIEsRequestLocationInformation.QoS
-	if qos == nil || qos.ResponseTime == nil || qos.ResponseTime.Time != locationResponseTimeSeconds {
-		t.Fatalf("QoS = %+v, want a response time of %d s", qos, locationResponseTimeSeconds)
+	if qos == nil || qos.ResponseTime == nil || qos.ResponseTime.Time != 17 {
+		t.Fatalf("QoS = %+v, want a response time of 17 s", qos)
+	}
+}
+
+func TestLocationResponseTime(t *testing.T) {
+	now := time.Now()
+
+	for _, tc := range []struct {
+		name     string
+		deadline time.Time
+		want     int64
+		wantErr  bool
+	}{
+		{"no deadline", time.Time{}, 25, false},
+		{"plenty of time", now.Add(30 * time.Second), 25, false},
+		{"after paging", now.Add(12 * time.Second), 10, false},
+		{"almost expired", now.Add(2500 * time.Millisecond), 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := LocationResponseTime(tc.deadline, now)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %t", err, tc.wantErr)
+			}
+
+			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("err = %v, want it to wrap context.DeadlineExceeded", err)
+			}
+
+			if got != tc.want {
+				t.Errorf("response time = %d s, want %d s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSessionRejectsUnsupportedLocationShape(t *testing.T) {
+	point := lpptype.PolygonPoint{DegreesLatitude: 1, DegreesLongitude: 1}
+
+	decoded, err := DecodeLPPMessage(encodeProvideLocationInformationR9(t, &lpptype.ProvideLocationInformationR9IEs{
+		CommonIEsProvideLocationInformation: &lpptype.CommonIEsProvideLocationInformation{
+			LocationEstimate: &lpptype.LocationCoordinates{Polygon: &lpptype.Polygon{List: []lpptype.PolygonPoint{point, point, point}}},
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pli := decoded.ProvideLocationInformation
+	if pli.HasLocationEstimate || !pli.UnsupportedLocationShape {
+		t.Fatalf("ProvideLocationInformation = %+v, want an unsupported shape", pli)
+	}
+
+	s := NewSession("imsi-001010000000001", "session-4", "agnss")
+	s.state = LocationRequested
+
+	if err := s.HandleResponse(pli); !errors.Is(err, ErrUnsupportedLocationShape) {
+		t.Fatalf("HandleResponse = %v, want ErrUnsupportedLocationShape", err)
 	}
 }

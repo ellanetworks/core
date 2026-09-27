@@ -8,7 +8,10 @@ import (
 	"fmt"
 )
 
-var ErrUENoLocationEstimate = errors.New("UE provided no location estimate")
+var (
+	ErrUENoLocationEstimate     = errors.New("UE provided no location estimate")
+	ErrUnsupportedLocationShape = errors.New("UE location estimate uses a shape that cannot be reported as a point")
+)
 
 var locationFailureCauseNames = map[int64]string{
 	0: "undefined",

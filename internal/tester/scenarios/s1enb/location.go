@@ -139,7 +139,7 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 	agnssDone := make(chan locationOutcome, 1)
 
 	go func() {
-		result, err := common.GetLocation(ctx, cl, supi, "agnss_ue_assisted")
+		result, err := common.GetLocation(ctx, cl, supi, "agnss_ue_based")
 		agnssDone <- locationOutcome{result: result, err: err}
 	}()
 

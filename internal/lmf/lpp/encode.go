@@ -5,6 +5,7 @@ package lpp
 
 import (
 	"math"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/per"
@@ -59,7 +60,7 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 
 // EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byte, error) {
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, responseTimeSeconds int64) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
 			RequestLocationInformation: &lpptype.RequestLocationInformation{
@@ -72,7 +73,7 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byt
 								},
 								QoS: &lpptype.QoS{
 									VerticalCoordinateRequest: false,
-									ResponseTime:              &lpptype.ResponseTime{Time: locationResponseTimeSeconds},
+									ResponseTime:              &lpptype.ResponseTime{Time: responseTimeSeconds},
 									VelocityRequest:           false,
 								},
 							},
@@ -242,7 +243,9 @@ const (
 	gnssIdBitmapBitLength  = 7
 	gnssSignalIDsBitLength = 8
 
-	locationResponseTimeSeconds = 25
+	maxLocationResponseTime    = 25 * time.Second
+	locationResponseTimeMargin = 2 * time.Second
+	minLocationResponseTime    = time.Second
 )
 
 // makePosModes creates a PositioningModes bitmap.

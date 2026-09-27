@@ -189,7 +189,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Phase 4: A-GNSS location ---
 	logger.Logger.Info("=== Testing A-GNSS location ===")
 
-	agnssResult, err := common.GetLocation(ctx, cl, supi, "agnss_ue_assisted")
+	agnssResult, err := common.GetLocation(ctx, cl, supi, "agnss_ue_based")
 	if err != nil {
 		return fmt.Errorf("A-GNSS location failed: %v", err)
 	}

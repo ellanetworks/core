@@ -249,6 +249,7 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 
 	default:
 		out.HasLocationEstimate = false
+		out.UnsupportedLocationShape = true
 	}
 
 	return out

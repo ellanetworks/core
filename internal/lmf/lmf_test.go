@@ -74,7 +74,7 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	sessionCorrelationID := []byte{0xAA, 0xBB, 0xCC, 0xDD}
 	ueCorrelationID := []byte{0x11, 0x22, 0x33, 0x44}
 
-	session := lpp.NewSession(supi.String(), "session-1", string(MethodAGNSSAssisted))
+	session := lpp.NewSession(supi.String(), "session-1", string(MethodAGNSSBased))
 	session.SetCorrelationID(sessionCorrelationID)
 	session.SetTransport(
 		func(lppMsg []byte) error {

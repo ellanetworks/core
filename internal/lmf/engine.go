@@ -33,7 +33,7 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 	case MethodECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodAGNSSAssisted, MethodAGNSSBased:
+	case MethodAGNSSBased:
 		return l.determineAGNSSLocation(ctx, supi, method)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
@@ -164,6 +164,10 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 			l.DeregisterLPPSession(session.SessionID())
 		},
 	)
+
+	if deadline, ok := ctx.Deadline(); ok {
+		session.SetDeadline(deadline)
+	}
 
 	// Register with LMF for UL message routing
 	l.RegisterLPPSession(session.SessionID(), session)

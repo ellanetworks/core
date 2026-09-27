@@ -23,7 +23,7 @@ import (
 // idleLocationMethods are the positioning methods exercised from CM-IDLE. A-GNSS buffers an
 // LPP message for the UE (TS 23.273 §6.11.1), E-CID an NRPPa message for the RAN (§6.11.2),
 // so together they cover both halves of the buffer-and-page path.
-var idleLocationMethods = []string{"agnss_ue_assisted", "ecid"}
+var idleLocationMethods = []string{"agnss_ue_based", "ecid"}
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
@@ -32,7 +32,7 @@ func init() {
 			p := &locationIdleParams{}
 			fs.StringVar(&p.EllaAPIAddress, "ella-api-address", "", "Ella Core API address (e.g. http://10.3.0.2:5002)")
 			fs.StringVar(&p.EllaAPIToken, "ella-api-token", "", "Ella Core API token")
-			fs.StringVar(&p.Method, "location-method", "", "Restrict to one positioning method (agnss_ue_assisted or ecid); default exercises both")
+			fs.StringVar(&p.Method, "location-method", "", "Restrict to one positioning method (agnss_ue_based or ecid); default exercises both")
 
 			return p
 		},
@@ -210,7 +210,7 @@ func validateIdleResult(result *common.LocationData, method string) error {
 	}
 
 	switch method {
-	case "agnss_ue_assisted", "agnss_ue_based":
+	case "agnss_ue_based":
 		// A-GNSS: coordinates from UE tester (45.0N, 21.45E).
 		if m := common.PositioningMethod(result); m != "GNSS" {
 			return fmt.Errorf("expected GNSS method, got %q", m)

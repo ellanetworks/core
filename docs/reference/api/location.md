@@ -27,7 +27,7 @@ This path requests a subscriber's current location. `immediate` returns an estim
 
 - `request_type` (string): `immediate`, `periodic`, `triggered`, or `cancel`.
 - `supi` (string): Subscriber identity. Required unless `request_type` is `cancel`.
-- `method` (string, optional): `cell_id`, `ecid`, or `agnss_ue_assisted`. Defaults to `cell_id`.
+- `method` (string, optional): `cell_id`, `ecid`, or `agnss_ue_based`. Defaults to `cell_id`.
 - `session_id` (string): Session to terminate. Required when `request_type` is `cancel`.
 - `qos_response_time_ms` (integer, optional): Requested response-time budget, in milliseconds.
 - `qos_horizontal_accuracy_m` (integer, optional): Requested horizontal accuracy, in metres.
