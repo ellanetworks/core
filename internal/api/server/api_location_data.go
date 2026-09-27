@@ -19,15 +19,16 @@ import (
 // locationEstimate is currently always a point + circular uncertainty (the
 // uncertainty-ellipse form is a follow-up).
 type LocationData struct {
-	LocationEstimate            *GeographicArea             `json:"locationEstimate,omitempty"`
-	AccuracyFulfilmentIndicator string                      `json:"accuracyFulfilmentIndicator,omitempty"`
-	AgeOfLocationEstimate       *int32                      `json:"ageOfLocationEstimate,omitempty"`
-	TimestampOfLocationEstimate *string                     `json:"timestampOfLocationEstimate,omitempty"`
-	PositioningDataList         []PositioningMethodAndUsage `json:"positioningDataList,omitempty"`
-	LocNcgi                     *LocNcgi                    `json:"ncgi,omitempty"`
-	LocEcgi                     *LocEcgi                    `json:"ecgi,omitempty"`
-	LocTai                      *LocTai                     `json:"tai,omitempty"`
-	SupplementaryMeasurements   *SupplementaryMeasurements  `json:"supplementaryMeasurements,omitempty"`
+	LocationEstimate            *GeographicArea                 `json:"locationEstimate,omitempty"`
+	AccuracyFulfilmentIndicator string                          `json:"accuracyFulfilmentIndicator,omitempty"`
+	AgeOfLocationEstimate       *int32                          `json:"ageOfLocationEstimate,omitempty"`
+	TimestampOfLocationEstimate *string                         `json:"timestampOfLocationEstimate,omitempty"`
+	PositioningDataList         []PositioningMethodAndUsage     `json:"positioningDataList,omitempty"`
+	GnssPositioningDataList     []GnssPositioningMethodAndUsage `json:"gnssPositioningDataList,omitempty"`
+	LocNcgi                     *LocNcgi                        `json:"ncgi,omitempty"`
+	LocEcgi                     *LocEcgi                        `json:"ecgi,omitempty"`
+	Altitude                    *float64                        `json:"altitude,omitempty"`
+	SupplementaryMeasurements   *SupplementaryMeasurements      `json:"supplementaryMeasurements,omitempty"`
 }
 
 // GeographicArea is a subset of the TS 29.572 GeographicArea discriminated by
@@ -36,7 +37,6 @@ type GeographicArea struct {
 	Shape       string             `json:"shape"`
 	Point       *GeographicalCoord `json:"point,omitempty"`
 	Uncertainty *float64           `json:"uncertainty,omitempty"`
-	Altitude    *float64           `json:"altitude,omitempty"`
 }
 
 // GeographicalCoord holds WGS-84 decimal degrees.
@@ -53,8 +53,14 @@ type PositioningMethodAndUsage struct {
 	Usage  string `json:"usage"`
 }
 
-// LocPlmn / LocNcgi / LocEcgi / LocTai are SBI (lowerCamelCase) renderings of the cell and
-// tracking-area identities (TS 29.571).
+type GnssPositioningMethodAndUsage struct {
+	Mode  string `json:"mode"`
+	Gnss  string `json:"gnss"`
+	Usage string `json:"usage"`
+}
+
+// LocPlmn / LocNcgi / LocEcgi are SBI (lowerCamelCase) renderings of the cell
+// identities (TS 29.571).
 type LocPlmn struct {
 	Mcc string `json:"mcc"`
 	Mnc string `json:"mnc"`
@@ -68,11 +74,6 @@ type LocNcgi struct {
 type LocEcgi struct {
 	PlmnID      LocPlmn `json:"plmnId"`
 	EutraCellID string  `json:"eutraCellId"`
-}
-
-type LocTai struct {
-	PlmnID LocPlmn `json:"plmnId"`
-	Tac    string  `json:"tac"`
 }
 
 // SupplementaryMeasurements carries the raw NRPPa measurements. Non-standard;
@@ -97,12 +98,12 @@ const (
 	posMethodCellID = "CELLID"
 	posMethodECID   = "ECID"
 	posMethodNRECID = "NR_ECID"
-	posMethodGNSS   = "GNSS"
+	gnssGPS         = "GPS"
 
 	posModeUEAssisted = "UE_ASSISTED"
 	posModeUEBased    = "UE_BASED"
 	posModeConvention = "CONVENTIONAL"
-	usageSuccessUsed  = "SUCCESS_RESULTS_USED"
+	usageSuccessUsed  = "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
 	gadShapePoint     = "POINT"
 	gadShapeCircle    = "POINT_UNCERTAINTY_CIRCLE"
 	accuracyFulfilled = "REQUESTED_ACCURACY_FULFILLED"
@@ -136,28 +137,30 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 
 	if r.Altitude != 0 {
 		alt := float64(r.Altitude) * meters
-		area.Altitude = &alt
+		out.Altitude = &alt
 	}
 
 	out.LocationEstimate = area
 
 	// Method + usage.
-	method, mode := methodAndMode(r)
-	out.PositioningDataList = []PositioningMethodAndUsage{
-		{Method: method, Mode: mode, Usage: usageSuccessUsed},
+	if r.Shape == models.GADEllipsoidalPoint {
+		out.GnssPositioningDataList = []GnssPositioningMethodAndUsage{
+			{Mode: posModeUEBased, Gnss: gnssGPS, Usage: usageSuccessUsed},
+		}
+	} else {
+		method, mode := methodAndMode(r)
+		out.PositioningDataList = []PositioningMethodAndUsage{
+			{Method: method, Mode: mode, Usage: usageSuccessUsed},
+		}
 	}
 
-	// Cell / tracking-area identities.
+	// Cell identities.
 	if r.NCGI != nil && r.NCGI.PlmnID != nil {
 		out.LocNcgi = &LocNcgi{PlmnID: LocPlmn{Mcc: r.NCGI.PlmnID.Mcc, Mnc: r.NCGI.PlmnID.Mnc}, NrCellID: r.NCGI.NrCellID}
 	}
 
 	if r.ECGI != nil && r.ECGI.PlmnID != nil {
 		out.LocEcgi = &LocEcgi{PlmnID: LocPlmn{Mcc: r.ECGI.PlmnID.Mcc, Mnc: r.ECGI.PlmnID.Mnc}, EutraCellID: r.ECGI.EutraCellID}
-	}
-
-	if r.TAI != nil && r.TAI.PlmnID != nil {
-		out.LocTai = &LocTai{PlmnID: LocPlmn{Mcc: r.TAI.PlmnID.Mcc, Mnc: r.TAI.PlmnID.Mnc}, Tac: r.TAI.Tac}
 	}
 
 	if r.AgeOfLocationInfo > 0 {
@@ -200,8 +203,6 @@ func methodAndMode(r *models.LocationResult) (method, mode string) {
 		}
 
 		return posMethodECID, posModeUEAssisted
-	case models.GADEllipsoidalPoint:
-		return posMethodGNSS, posModeUEBased
 	default:
 		return posMethodCellID, posModeConvention
 	}

@@ -33,7 +33,7 @@ func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method Posi
 	case MethodECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodAGNSSBased:
+	case MethodGNSS:
 		return l.determineAGNSSLocation(ctx, supi, method)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)

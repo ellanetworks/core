@@ -76,7 +76,7 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	sessionCorrelationID := []byte{0xAA, 0xBB, 0xCC, 0xDD}
 	ueCorrelationID := []byte{0x11, 0x22, 0x33, 0x44}
 
-	session := lpp.NewSession(supi.String(), "session-1", string(MethodAGNSSBased))
+	session := lpp.NewSession(supi.String(), "session-1", string(MethodGNSS))
 	session.SetCorrelationID(sessionCorrelationID)
 	session.SetTransport(
 		func(lppMsg []byte) error {
@@ -125,7 +125,7 @@ func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
 
 	failed, deregistered := false, false
 
-	session := lpp.NewSession(supi.String(), "session-deadline", string(MethodAGNSSBased))
+	session := lpp.NewSession(supi.String(), "session-deadline", string(MethodGNSS))
 	session.SetTransport(
 		func([]byte) error { return nil },
 		func(*models.LocationResult) error { return nil },

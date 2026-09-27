@@ -36,9 +36,9 @@ const (
 type PositioningMethod string
 
 const (
-	MethodCellID     PositioningMethod = "cell_id"
-	MethodECID       PositioningMethod = "ecid"
-	MethodAGNSSBased PositioningMethod = "agnss_ue_based"
+	MethodCellID PositioningMethod = "cell_id"
+	MethodECID   PositioningMethod = "ecid"
+	MethodGNSS   PositioningMethod = "gnss"
 )
 
 // DefaultMethodForRequest returns the default positioning method for a request type.

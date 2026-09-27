@@ -189,7 +189,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Phase 4: A-GNSS location ---
 	logger.Logger.Info("=== Testing A-GNSS location ===")
 
-	agnssResult, err := common.GetLocation(ctx, cl, supi, "agnss_ue_based")
+	agnssResult, err := common.GetLocation(ctx, cl, supi, "gnss")
 	if err != nil {
 		return fmt.Errorf("A-GNSS location failed: %v", err)
 	}
@@ -198,8 +198,8 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		return fmt.Errorf("A-GNSS result missing locationEstimate point")
 	}
 
-	if m := common.PositioningMethod(agnssResult); m != "GNSS" {
-		return fmt.Errorf("expected GNSS positioning method, got %q", m)
+	if g := common.GNSSPositioning(agnssResult); g != "GPS" {
+		return fmt.Errorf("expected a GPS positioning result, got %q", g)
 	}
 
 	// A-GNSS coordinates come from the UE tester: 45.0°N, 21.45°E.

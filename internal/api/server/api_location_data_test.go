@@ -4,6 +4,8 @@
 package server
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/models"
@@ -80,8 +82,13 @@ func TestToLocationData_AGNSS(t *testing.T) {
 
 	ld := toLocationData(r, false)
 
-	if m := ld.PositioningDataList[0].Method; m != posMethodGNSS {
-		t.Errorf("expected GNSS, got %q", m)
+	if len(ld.PositioningDataList) != 0 {
+		t.Errorf("positioningDataList = %+v, want none for a GNSS fix", ld.PositioningDataList)
+	}
+
+	want := []GnssPositioningMethodAndUsage{{Mode: posModeUEBased, Gnss: gnssGPS, Usage: usageSuccessUsed}}
+	if !reflect.DeepEqual(ld.GnssPositioningDataList, want) {
+		t.Errorf("gnssPositioningDataList = %+v, want %+v", ld.GnssPositioningDataList, want)
 	}
 }
 
@@ -117,23 +124,61 @@ func TestToLocationData_AltitudeConversion(t *testing.T) {
 			}
 
 			if !tc.wantSet {
-				if ld.LocationEstimate.Altitude != nil {
-					t.Errorf("expected no altitude, got %v", *ld.LocationEstimate.Altitude)
+				if ld.Altitude != nil {
+					t.Errorf("expected no altitude, got %v", *ld.Altitude)
 				}
 
 				return
 			}
 
-			if ld.LocationEstimate.Altitude == nil {
+			if ld.Altitude == nil {
 				t.Fatalf("expected non-nil Altitude for %s", tc.name)
 			}
 
-			got := *ld.LocationEstimate.Altitude
+			got := *ld.Altitude
 
 			const eps = 1e-9
 			if got < tc.want-eps || got > tc.want+eps {
 				t.Errorf("altitude for %s: got %f m, want %f m", tc.name, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
+	r := &models.LocationResult{
+		Shape:              models.GADEllipsoidalPoint,
+		Latitude:           450000000,
+		Longitude:          214500000,
+		Altitude:           1600,
+		HorizontalAccuracy: 11,
+		TAI:                &coremodels.Tai{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+	}
+
+	b, err := json.Marshal(toLocationData(r, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wire map[string]any
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+
+	if wire["altitude"] != 16.0 {
+		t.Errorf("altitude = %v, want 16 at the top level of LocationData", wire["altitude"])
+	}
+
+	if _, ok := wire["locationEstimate"].(map[string]any)["altitude"]; ok {
+		t.Error("altitude is inside locationEstimate, which POINT_UNCERTAINTY_CIRCLE does not allow")
+	}
+
+	if _, ok := wire["tai"]; ok {
+		t.Error("tai is not a LocationData attribute")
+	}
+
+	gnss := wire["gnssPositioningDataList"].([]any)[0].(map[string]any)
+	if gnss["usage"] != "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION" {
+		t.Errorf("usage = %v, want SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION", gnss["usage"])
 	}
 }

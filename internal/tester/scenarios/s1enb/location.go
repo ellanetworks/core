@@ -139,7 +139,7 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 	agnssDone := make(chan locationOutcome, 1)
 
 	go func() {
-		result, err := common.GetLocation(ctx, cl, supi, "agnss_ue_based")
+		result, err := common.GetLocation(ctx, cl, supi, "gnss")
 		agnssDone <- locationOutcome{result: result, err: err}
 	}()
 
@@ -158,8 +158,8 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 		return fmt.Errorf("A-GNSS result missing locationEstimate point")
 	}
 
-	if m := common.PositioningMethod(agnss.result); m != "GNSS" {
-		return fmt.Errorf("expected GNSS positioning method, got %q", m)
+	if g := common.GNSSPositioning(agnss.result); g != "GPS" {
+		return fmt.Errorf("expected a GPS positioning result, got %q", g)
 	}
 
 	if lat := agnss.result.LocationEstimate.Point.Lat; lat < 44.99 || lat > 45.01 {
