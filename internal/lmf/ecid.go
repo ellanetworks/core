@@ -55,7 +55,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	result := computeCellIDLocation(supi, loc)
 
 	if hasRadioMeasurements(measurements) {
-		result.Shape = models.GADECID
+		result.Method = models.MethodECID
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
 		result.TA = measurements.TA
@@ -84,15 +84,15 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 		}
 	} else {
 		// Downgrade: no radio measurements, so this is a Cell-ID estimate.
-		result.Shape = models.GADCellID
+		result.Method = models.MethodCellID
 	}
 
-	applyCellCoordinate(result, coord)
+	result.Estimate = coord
 
 	logger.LmfLog.Info("E-CID location computed",
 		logger.SUPI(supi.String()),
 		zap.String("access_type", result.AccessType),
-		zap.Int("shape", int(result.Shape)),
+		zap.Int("method", int(result.Method)),
 		zap.Any("rsrp", result.RSRP),
 		zap.Any("nr_ta", result.NRTimingAdvance),
 		zap.Any("aoa_azimuth", result.AoAAzimuthDegrees),

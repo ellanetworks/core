@@ -53,7 +53,6 @@ This path requests a subscriber's current location. `immediate` returns an estim
             },
             "uncertainty": 150
         },
-        "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED",
         "positioningDataList": [
             {
                 "method": "CELLID",
@@ -67,38 +66,6 @@ This path requests a subscriber's current location. `immediate` returns an estim
                 "mnc": "01"
             },
             "nrCellId": "000000010"
-        }
-    }
-}
-```
-
-For a 4G (E-UTRA) subscriber the serving cell is reported as `ecgi` with a 7-hex-digit `eutraCellId`, and E-CID uses the `ECID` positioning method:
-
-```json
-{
-    "result": {
-        "locationEstimate": {
-            "shape": "POINT_UNCERTAINTY_CIRCLE",
-            "point": {
-                "lat": 37.7749,
-                "lon": -122.4194
-            },
-            "uncertainty": 150
-        },
-        "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED",
-        "positioningDataList": [
-            {
-                "method": "ECID",
-                "mode": "CONVENTIONAL",
-                "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
-            }
-        ],
-        "ecgi": {
-            "plmnId": {
-                "mcc": "001",
-                "mnc": "01"
-            },
-            "eutraCellId": "0000001"
         }
     }
 }
@@ -208,7 +175,13 @@ This path returns a positioning session, including its most recent location esti
                 },
                 "uncertainty": 50
             },
-            "accuracyFulfilmentIndicator": "REQUESTED_ACCURACY_FULFILLED"
+            "positioningDataList": [
+                {
+                    "method": "ECID",
+                    "mode": "UE_ASSISTED",
+                    "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
+                }
+            ]
         },
         "created_at": 1720000000,
         "updated_at": 1720000100

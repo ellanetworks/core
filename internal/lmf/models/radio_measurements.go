@@ -26,17 +26,5 @@ type RadioMeasurements struct {
 
 	// APPosition is the serving cell's access point position, when the RAN
 	// reports it in an E-CID measurement result (optional).
-	APPosition *APPosition
-}
-
-// APPosition is a decoded access point position (NG-RAN, TS 38.455 §9.2.2; or
-// E-UTRAN, TS 36.455 §9.2.1), converted to WGS-84 decimal degrees plus the
-// reported uncertainty.
-type APPosition struct {
-	LatitudeDegrees      float64
-	LongitudeDegrees     float64
-	Altitude             int64
-	UncertaintySemiMajor int64
-	UncertaintySemiMinor int64
-	Confidence           int64
+	APPosition *GeographicEstimate
 }

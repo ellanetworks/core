@@ -6,13 +6,13 @@ package lpp
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
-	lmmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/per"
 )
 
@@ -75,8 +75,8 @@ func TestDecodeProvideLocationInformationWithoutEstimate(t *testing.T) {
 		t.Fatal("ProvideLocationInformation not decoded")
 	}
 
-	if pli.HasLocationEstimate {
-		t.Error("HasLocationEstimate = true, want false")
+	if pli.LocationEstimate != nil {
+		t.Errorf("LocationEstimate = %+v, want none", pli.LocationEstimate)
 	}
 
 	if pli.LocationFailureCause == nil || *pli.LocationFailureCause != 1 {
@@ -95,7 +95,7 @@ func TestDecodeProvideLocationInformationWithEstimate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !decoded.ProvideLocationInformation.HasLocationEstimate || decoded.ProvideLocationInformation.LocationFailureCause != nil || decoded.ProvideLocationInformation.GNSSErrorCause != nil {
+	if decoded.ProvideLocationInformation.LocationEstimate == nil || decoded.ProvideLocationInformation.LocationFailureCause != nil || decoded.ProvideLocationInformation.GNSSErrorCause != nil {
 		t.Errorf("ProvideLocationInformation = %+v, want an estimate and no error", decoded.ProvideLocationInformation)
 	}
 }
@@ -103,13 +103,6 @@ func TestDecodeProvideLocationInformationWithEstimate(t *testing.T) {
 func TestSessionRejectsLocationWithoutEstimate(t *testing.T) {
 	s := NewSession("imsi-001010000000001", "session-1", "agnss")
 	s.state = LocationRequested
-
-	completed := false
-
-	s.SetTransport(nil, func(*lmmodels.LocationResult) error {
-		completed = true
-		return nil
-	}, nil, nil, nil)
 
 	cause := int64(2)
 
@@ -122,7 +115,7 @@ func TestSessionRejectsLocationWithoutEstimate(t *testing.T) {
 		t.Errorf("error %q does not name the location failure cause", err)
 	}
 
-	if s.State() == LocationReceived || completed {
+	if s.State() == LocationReceived || s.LocationResult() != nil {
 		t.Error("session completed without a location estimate")
 	}
 }
@@ -135,17 +128,25 @@ func TestDecodeProvideLocationInformationEllipse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pli := decoded.ProvideLocationInformation
-	if !pli.HasLocationEstimate {
-		t.Fatal("HasLocationEstimate = false for an ellipsoid point with uncertainty ellipse")
+	e := decoded.ProvideLocationInformation.LocationEstimate
+	if e == nil {
+		t.Fatal("no estimate for an ellipsoid point with uncertainty ellipse")
 	}
 
-	if abs(int(pli.GNSSPositionResult.Latitude)-450000000) > 1000000 || abs(int(pli.GNSSPositionResult.Longitude)-214500000) > 1000000 {
-		t.Errorf("position = %d, %d, want ~450000000, ~214500000", pli.GNSSPositionResult.Latitude, pli.GNSSPositionResult.Longitude)
+	if math.Abs(e.LatitudeDegrees-45) > 1e-4 || math.Abs(e.LongitudeDegrees-21.45) > 1e-4 {
+		t.Errorf("position = %f, %f, want ~45, ~21.45", e.LatitudeDegrees, e.LongitudeDegrees)
 	}
 
-	if pli.GNSSPositionResult.HorizontalAccuracy < 15 {
-		t.Errorf("horizontal accuracy = %d, want the semi-major axis (~20 m)", pli.GNSSPositionResult.HorizontalAccuracy)
+	if e.UncertaintyEllipse == nil || math.Abs(e.UncertaintyEllipse.SemiMajorMeters-20) > 2 || math.Abs(e.UncertaintyEllipse.SemiMinorMeters-10) > 1.5 {
+		t.Errorf("uncertainty ellipse = %+v, want ~20 m by ~10 m", e.UncertaintyEllipse)
+	}
+
+	if e.ConfidencePercent == nil || *e.ConfidencePercent != 68 {
+		t.Errorf("confidence = %v, want 68", e.ConfidencePercent)
+	}
+
+	if e.AltitudeMeters != nil {
+		t.Errorf("altitude = %v, want none for a 2D ellipse", *e.AltitudeMeters)
 	}
 }
 
@@ -166,7 +167,7 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 	}
 
 	pli := decoded.ProvideLocationInformation
-	if !pli.HasLocationEstimate || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != lpptype.GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible {
+	if pli.LocationEstimate == nil || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != lpptype.GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible {
 		t.Fatalf("ProvideLocationInformation = %+v, want an estimate and a GNSS error", pli)
 	}
 
@@ -260,7 +261,7 @@ func TestSessionRejectsUnsupportedLocationShape(t *testing.T) {
 	}
 
 	pli := decoded.ProvideLocationInformation
-	if pli.HasLocationEstimate || !pli.UnsupportedLocationShape {
+	if pli.LocationEstimate != nil || !pli.UnsupportedLocationShape {
 		t.Fatalf("ProvideLocationInformation = %+v, want an unsupported shape", pli)
 	}
 

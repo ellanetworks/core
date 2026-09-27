@@ -12,25 +12,29 @@ import (
 	coremodels "github.com/ellanetworks/core/internal/models"
 )
 
+func ptr[T any](v T) *T { return &v }
+
+func circleEstimate(radius float64) *models.GeographicEstimate {
+	return &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, UncertaintyRadiusMeters: &radius}
+}
+
 func TestToLocationData_CellID(t *testing.T) {
 	r := &models.LocationResult{
-		SUPI:               "imsi-001010000000001",
-		Shape:              models.GADCellID,
-		AccessType:         "NR",
-		NCGI:               &coremodels.Ncgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, NrCellID: "00066c000"},
-		Latitude:           450000000, // 45.0°
-		Longitude:          214500000, // 21.45°
-		HorizontalAccuracy: 150,
+		SUPI:       "imsi-001010000000001",
+		Method:     models.MethodCellID,
+		AccessType: "NR",
+		NCGI:       &coremodels.Ncgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, NrCellID: "00066c000"},
+		Estimate:   circleEstimate(150),
 	}
 
 	ld := toLocationData(r, false)
 
-	if ld.LocationEstimate == nil || ld.LocationEstimate.Shape != gadShapeCircle {
+	if ld.LocationEstimate.Shape != gadShapeCircle {
 		t.Fatalf("expected POINT_UNCERTAINTY_CIRCLE, got %+v", ld.LocationEstimate)
 	}
 
-	if ld.LocationEstimate.Point.Lat < 44.99 || ld.LocationEstimate.Point.Lat > 45.01 {
-		t.Errorf("lat: got %f, want ~45", ld.LocationEstimate.Point.Lat)
+	if ld.LocationEstimate.Point.Lat != 45 {
+		t.Errorf("lat: got %f, want 45", ld.LocationEstimate.Point.Lat)
 	}
 
 	if ld.LocationEstimate.Uncertainty == nil || *ld.LocationEstimate.Uncertainty != 150 {
@@ -53,12 +57,10 @@ func TestToLocationData_CellID(t *testing.T) {
 func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
 	rsrp := int32(-5600)
 	r := &models.LocationResult{
-		Shape:              models.GADECID,
-		AccessType:         "NR",
-		Latitude:           450000000,
-		Longitude:          214500000,
-		HorizontalAccuracy: 78,
-		SSRSRP:             &rsrp,
+		Method:     models.MethodECID,
+		AccessType: "NR",
+		Estimate:   circleEstimate(78),
+		SSRSRP:     &rsrp,
 	}
 
 	ld := toLocationData(r, true)
@@ -72,13 +74,8 @@ func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
 	}
 }
 
-func TestToLocationData_AGNSS(t *testing.T) {
-	r := &models.LocationResult{
-		Shape:              models.GADEllipsoidalPoint,
-		Latitude:           450000000,
-		Longitude:          214500000,
-		HorizontalAccuracy: 10,
-	}
+func TestToLocationData_GNSS(t *testing.T) {
+	r := &models.LocationResult{Method: models.MethodGNSS, Estimate: circleEstimate(10)}
 
 	ld := toLocationData(r, false)
 
@@ -92,54 +89,67 @@ func TestToLocationData_AGNSS(t *testing.T) {
 	}
 }
 
-// TestToLocationData_AltitudeConversion verifies that the internally stored
-// altitude (in centimeters) is rendered on the wire in meters. The 0.01
-// scaling factor is the unit under test; regression would surface as the raw
-// cm value leaking through (e.g. 123.45 m reported as 12345 m).
-func TestToLocationData_AltitudeConversion(t *testing.T) {
-	cases := []struct {
-		name    string
-		altCm   int32
-		want    float64
-		wantSet bool
+func TestToGeographicArea(t *testing.T) {
+	ellipse := &models.UncertaintyEllipse{SemiMajorMeters: 21.4, SemiMinorMeters: 11.4, OrientationMajorDegrees: 30}
+
+	for _, tc := range []struct {
+		name         string
+		estimate     *models.GeographicEstimate
+		want         GeographicArea
+		wantAltitude *float64
 	}{
-		{name: "positive", altCm: 12345, want: 123.45, wantSet: true},
-		{name: "below sea level", altCm: -5000, want: -50.0, wantSet: true},
-		{name: "zero is omitted", altCm: 0, wantSet: false},
-	}
-
-	for _, tc := range cases {
+		{
+			name:     "point",
+			estimate: &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45},
+			want:     GeographicArea{Shape: gadShapePoint, Point: GeographicalCoord{Lat: 45, Lon: 21.45}},
+		},
+		{
+			name:     "point with altitude",
+			estimate: &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0)},
+			want:     GeographicArea{Shape: gadShapePointAltitude, Point: GeographicalCoord{Lat: 45, Lon: 21.45}, Altitude: ptr(16.0)},
+		},
+		{
+			name:         "circle with altitude",
+			estimate:     &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0), UncertaintyRadiusMeters: ptr(150.0)},
+			want:         GeographicArea{Shape: gadShapeCircle, Point: GeographicalCoord{Lat: 45, Lon: 21.45}, Uncertainty: ptr(150.0)},
+			wantAltitude: ptr(16.0),
+		},
+		{
+			name:     "ellipse",
+			estimate: &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, UncertaintyEllipse: ellipse, ConfidencePercent: ptr(int32(68))},
+			want: GeographicArea{
+				Shape: gadShapeEllipse, Point: GeographicalCoord{Lat: 45, Lon: 21.45},
+				UncertaintyEllipse: &UncertaintyEllipse{SemiMajor: 21.4, SemiMinor: 11.4, OrientationMajor: 30},
+				Confidence:         ptr(int32(68)),
+			},
+		},
+		{
+			name: "ellipsoid with altitude",
+			estimate: &models.GeographicEstimate{
+				LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0),
+				UncertaintyEllipse: ellipse, UncertaintyAltitudeMeters: ptr(28.5), ConfidencePercent: ptr(int32(68)),
+			},
+			want: GeographicArea{
+				Shape: gadShapePointAltitudeUncertainty, Point: GeographicalCoord{Lat: 45, Lon: 21.45}, Altitude: ptr(16.0),
+				UncertaintyEllipse:  &UncertaintyEllipse{SemiMajor: 21.4, SemiMinor: 11.4, OrientationMajor: 30},
+				UncertaintyAltitude: ptr(28.5), Confidence: ptr(int32(68)),
+			},
+		},
+		{
+			name:     "ellipse without confidence falls back to a circle",
+			estimate: &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, UncertaintyEllipse: ellipse},
+			want:     GeographicArea{Shape: gadShapeCircle, Point: GeographicalCoord{Lat: 45, Lon: 21.45}, Uncertainty: ptr(21.4)},
+		},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &models.LocationResult{
-				Shape:              models.GADEllipsoidalPoint,
-				Latitude:           450000000,
-				Longitude:          214500000,
-				HorizontalAccuracy: 10,
-				Altitude:           tc.altCm,
+			got, altitude := toGeographicArea(tc.estimate)
+
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("area = %+v, want %+v", got, tc.want)
 			}
 
-			ld := toLocationData(r, false)
-			if ld.LocationEstimate == nil {
-				t.Fatalf("expected non-nil LocationEstimate")
-			}
-
-			if !tc.wantSet {
-				if ld.Altitude != nil {
-					t.Errorf("expected no altitude, got %v", *ld.Altitude)
-				}
-
-				return
-			}
-
-			if ld.Altitude == nil {
-				t.Fatalf("expected non-nil Altitude for %s", tc.name)
-			}
-
-			got := *ld.Altitude
-
-			const eps = 1e-9
-			if got < tc.want-eps || got > tc.want+eps {
-				t.Errorf("altitude for %s: got %f m, want %f m", tc.name, got, tc.want)
+			if !reflect.DeepEqual(altitude, tc.wantAltitude) {
+				t.Errorf("top-level altitude = %v, want %v", altitude, tc.wantAltitude)
 			}
 		})
 	}
@@ -147,12 +157,14 @@ func TestToLocationData_AltitudeConversion(t *testing.T) {
 
 func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 	r := &models.LocationResult{
-		Shape:              models.GADEllipsoidalPoint,
-		Latitude:           450000000,
-		Longitude:          214500000,
-		Altitude:           1600,
-		HorizontalAccuracy: 11,
-		TAI:                &coremodels.Tai{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+		Method: models.MethodGNSS,
+		Estimate: &models.GeographicEstimate{
+			LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0),
+			UncertaintyEllipse:        &models.UncertaintyEllipse{SemiMajorMeters: 21.4, SemiMinorMeters: 11.4, OrientationMajorDegrees: 30},
+			UncertaintyAltitudeMeters: ptr(28.5),
+			ConfidencePercent:         ptr(int32(68)),
+		},
+		TAI: &coremodels.Tai{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 	}
 
 	b, err := json.Marshal(toLocationData(r, false))
@@ -165,12 +177,22 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if wire["altitude"] != 16.0 {
-		t.Errorf("altitude = %v, want 16 at the top level of LocationData", wire["altitude"])
+	estimate := wire["locationEstimate"].(map[string]any)
+
+	want := map[string]any{
+		"shape":               "POINT_ALTITUDE_UNCERTAINTY",
+		"point":               map[string]any{"lat": 45.0, "lon": 21.45},
+		"altitude":            16.0,
+		"uncertaintyEllipse":  map[string]any{"semiMajor": 21.4, "semiMinor": 11.4, "orientationMajor": 30.0},
+		"uncertaintyAltitude": 28.5,
+		"confidence":          68.0,
+	}
+	if !reflect.DeepEqual(estimate, want) {
+		t.Errorf("locationEstimate = %v, want %v", estimate, want)
 	}
 
-	if _, ok := wire["locationEstimate"].(map[string]any)["altitude"]; ok {
-		t.Error("altitude is inside locationEstimate, which POINT_UNCERTAINTY_CIRCLE does not allow")
+	if _, ok := wire["altitude"]; ok {
+		t.Error("altitude is repeated at the top level although the shape carries it")
 	}
 
 	if _, ok := wire["tai"]; ok {
@@ -180,5 +202,23 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 	gnss := wire["gnssPositioningDataList"].([]any)[0].(map[string]any)
 	if gnss["usage"] != "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION" {
 		t.Errorf("usage = %v, want SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION", gnss["usage"])
+	}
+}
+
+func TestStoredLocationData(t *testing.T) {
+	stored, err := json.Marshal(&models.LocationResult{Method: models.MethodGNSS, Estimate: circleEstimate(10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := string(stored)
+
+	ld := storedLocationData(&s)
+	if ld == nil || ld.LocationEstimate.Shape != gadShapeCircle || len(ld.GnssPositioningDataList) != 1 {
+		t.Fatalf("storedLocationData = %+v, want the spec-shaped rendering of the stored result", ld)
+	}
+
+	if storedLocationData(nil) != nil {
+		t.Error("a session without a result rendered one")
 	}
 }

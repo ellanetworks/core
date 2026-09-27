@@ -89,12 +89,12 @@ func TestDetermineLocation_NR(t *testing.T) {
 		t.Errorf("expected SUPI %q, got %q", supi.String(), result.SUPI)
 	}
 
-	if result.Shape != models.GADCellID {
-		t.Errorf("expected shape GADCellID, got %d", result.Shape)
+	if result.Method != models.MethodCellID {
+		t.Errorf("expected method MethodCellID, got %d", result.Method)
 	}
 
-	if result.Latitude == 0 || result.Longitude == 0 {
-		t.Errorf("expected coordinate from cell-position table, got lat=%d lon=%d", result.Latitude, result.Longitude)
+	if result.Estimate == nil || result.Estimate.LatitudeDegrees != 45.0 || result.Estimate.LongitudeDegrees != 21.5 {
+		t.Errorf("expected coordinate from cell-position table, got %+v", result.Estimate)
 	}
 
 	if result.AccessType != "NR" {

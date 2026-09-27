@@ -15,12 +15,9 @@ import (
 //
 // Deviations from the SBI schema (documented, PR1): the response is wrapped in
 // the platform's standard {"result": ...} envelope; SupplementaryMeasurements
-// is a non-standard vendor extension returned only when ?verbose=true;
-// locationEstimate is currently always a point + circular uncertainty (the
-// uncertainty-ellipse form is a follow-up).
+// is a non-standard vendor extension returned only when ?verbose=true.
 type LocationData struct {
-	LocationEstimate            *GeographicArea                 `json:"locationEstimate,omitempty"`
-	AccuracyFulfilmentIndicator string                          `json:"accuracyFulfilmentIndicator,omitempty"`
+	LocationEstimate            GeographicArea                  `json:"locationEstimate"`
 	AgeOfLocationEstimate       *int32                          `json:"ageOfLocationEstimate,omitempty"`
 	TimestampOfLocationEstimate *string                         `json:"timestampOfLocationEstimate,omitempty"`
 	PositioningDataList         []PositioningMethodAndUsage     `json:"positioningDataList,omitempty"`
@@ -32,11 +29,22 @@ type LocationData struct {
 }
 
 // GeographicArea is a subset of the TS 29.572 GeographicArea discriminated by
-// shape. PR1 emits POINT and POINT_UNCERTAINTY_CIRCLE.
+// shape. It emits POINT, POINT_UNCERTAINTY_CIRCLE, POINT_UNCERTAINTY_ELLIPSE,
+// POINT_ALTITUDE and POINT_ALTITUDE_UNCERTAINTY.
 type GeographicArea struct {
-	Shape       string             `json:"shape"`
-	Point       *GeographicalCoord `json:"point,omitempty"`
-	Uncertainty *float64           `json:"uncertainty,omitempty"`
+	Shape               string              `json:"shape"`
+	Point               GeographicalCoord   `json:"point"`
+	Uncertainty         *float64            `json:"uncertainty,omitempty"`
+	UncertaintyEllipse  *UncertaintyEllipse `json:"uncertaintyEllipse,omitempty"`
+	Altitude            *float64            `json:"altitude,omitempty"`
+	UncertaintyAltitude *float64            `json:"uncertaintyAltitude,omitempty"`
+	Confidence          *int32              `json:"confidence,omitempty"`
+}
+
+type UncertaintyEllipse struct {
+	SemiMajor        float64 `json:"semiMajor"`
+	SemiMinor        float64 `json:"semiMinor"`
+	OrientationMajor int32   `json:"orientationMajor"`
 }
 
 // GeographicalCoord holds WGS-84 decimal degrees.
@@ -100,16 +108,16 @@ const (
 	posMethodNRECID = "NR_ECID"
 	gnssGPS         = "GPS"
 
-	posModeUEAssisted = "UE_ASSISTED"
-	posModeUEBased    = "UE_BASED"
-	posModeConvention = "CONVENTIONAL"
-	usageSuccessUsed  = "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
-	gadShapePoint     = "POINT"
-	gadShapeCircle    = "POINT_UNCERTAINTY_CIRCLE"
-	accuracyFulfilled = "REQUESTED_ACCURACY_FULFILLED"
+	posModeUEAssisted                = "UE_ASSISTED"
+	posModeUEBased                   = "UE_BASED"
+	posModeConvention                = "CONVENTIONAL"
+	usageSuccessUsed                 = "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
+	gadShapePoint                    = "POINT"
+	gadShapeCircle                   = "POINT_UNCERTAINTY_CIRCLE"
+	gadShapeEllipse                  = "POINT_UNCERTAINTY_ELLIPSE"
+	gadShapePointAltitude            = "POINT_ALTITUDE"
+	gadShapePointAltitudeUncertainty = "POINT_ALTITUDE_UNCERTAINTY"
 )
-
-const meters = 0.01
 
 // toLocationData maps the LMF's internal result onto the spec-shaped response.
 func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
@@ -117,33 +125,14 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 		return nil
 	}
 
-	out := &LocationData{
-		AccuracyFulfilmentIndicator: accuracyFulfilled,
+	out := &LocationData{}
+
+	if r.Estimate != nil {
+		out.LocationEstimate, out.Altitude = toGeographicArea(r.Estimate)
 	}
-
-	// Geographic estimate (point + optional circular uncertainty).
-	point := &GeographicalCoord{
-		Lat: float64(r.Latitude) / 1e7,
-		Lon: float64(r.Longitude) / 1e7,
-	}
-
-	area := &GeographicArea{Shape: gadShapePoint, Point: point}
-
-	if r.HorizontalAccuracy > 0 {
-		unc := float64(r.HorizontalAccuracy)
-		area.Shape = gadShapeCircle
-		area.Uncertainty = &unc
-	}
-
-	if r.Altitude != 0 {
-		alt := float64(r.Altitude) * meters
-		out.Altitude = &alt
-	}
-
-	out.LocationEstimate = area
 
 	// Method + usage.
-	if r.Shape == models.GADEllipsoidalPoint {
+	if r.Method == models.MethodGNSS {
 		out.GnssPositioningDataList = []GnssPositioningMethodAndUsage{
 			{Mode: posModeUEBased, Gnss: gnssGPS, Usage: usageSuccessUsed},
 		}
@@ -193,11 +182,63 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 	return out
 }
 
+func toGeographicArea(e *models.GeographicEstimate) (GeographicArea, *float64) {
+	area := GeographicArea{
+		Shape: gadShapePoint,
+		Point: GeographicalCoord{Lat: e.LatitudeDegrees, Lon: e.LongitudeDegrees},
+	}
+
+	hasEllipse := e.UncertaintyEllipse != nil && e.ConfidencePercent != nil
+
+	switch {
+	case hasEllipse && e.AltitudeMeters != nil && e.UncertaintyAltitudeMeters != nil:
+		area.Shape = gadShapePointAltitudeUncertainty
+		area.Altitude = e.AltitudeMeters
+		area.UncertaintyEllipse = toUncertaintyEllipse(e.UncertaintyEllipse)
+		area.UncertaintyAltitude = e.UncertaintyAltitudeMeters
+		area.Confidence = e.ConfidencePercent
+
+		return area, nil
+	case hasEllipse:
+		area.Shape = gadShapeEllipse
+		area.UncertaintyEllipse = toUncertaintyEllipse(e.UncertaintyEllipse)
+		area.Confidence = e.ConfidencePercent
+
+		return area, e.AltitudeMeters
+	case e.UncertaintyRadiusMeters != nil:
+		area.Shape = gadShapeCircle
+		area.Uncertainty = e.UncertaintyRadiusMeters
+
+		return area, e.AltitudeMeters
+	case e.UncertaintyEllipse != nil:
+		radius := e.UncertaintyEllipse.SemiMajorMeters
+		area.Shape = gadShapeCircle
+		area.Uncertainty = &radius
+
+		return area, e.AltitudeMeters
+	case e.AltitudeMeters != nil:
+		area.Shape = gadShapePointAltitude
+		area.Altitude = e.AltitudeMeters
+
+		return area, nil
+	default:
+		return area, nil
+	}
+}
+
+func toUncertaintyEllipse(e *models.UncertaintyEllipse) *UncertaintyEllipse {
+	return &UncertaintyEllipse{
+		SemiMajor:        e.SemiMajorMeters,
+		SemiMinor:        e.SemiMinorMeters,
+		OrientationMajor: e.OrientationMajorDegrees,
+	}
+}
+
 // methodAndMode derives the SBI positioning method + mode from the internal
-// result shape and access type.
+// result method and access type.
 func methodAndMode(r *models.LocationResult) (method, mode string) {
-	switch r.Shape {
-	case models.GADECID:
+	switch r.Method {
+	case models.MethodECID:
 		if r.AccessType == "NR" {
 			return posMethodNRECID, posModeUEAssisted
 		}

@@ -59,7 +59,7 @@ type Session struct {
 	correlationID  []byte
 	lastInbound    []byte
 	capabilities   *models.ProvideLocationCapabilities
-	locationResult *models.GNSSPositionResult
+	locationResult *lmmodels.LocationResult
 	log            *zap.Logger
 	transferFunc   func(lppMsg []byte) error
 	completeFunc   func(result *lmmodels.LocationResult) error
@@ -230,34 +230,27 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return ErrUnsupportedLocationShape
 	}
 
-	if !msg.HasLocationEstimate {
+	if msg.LocationEstimate == nil {
 		return fmt.Errorf("%w: location failure cause %s, GNSS error cause %s", ErrUENoLocationEstimate,
 			causeName(locationFailureCauseNames, msg.LocationFailureCause),
 			causeName(gnssErrorCauseNames, msg.GNSSErrorCause))
 	}
 
-	s.locationResult = &msg.GNSSPositionResult
+	s.locationResult = &lmmodels.LocationResult{
+		SUPI:     s.supi,
+		Method:   lmmodels.MethodGNSS,
+		Estimate: msg.LocationEstimate,
+	}
 	s.state = LocationReceived
 
 	s.log.Info("received location fix",
-		zap.Int32("lat", msg.GNSSPositionResult.Latitude),
-		zap.Int32("lon", msg.GNSSPositionResult.Longitude),
-		zap.Uint32("h_acc", msg.GNSSPositionResult.HorizontalAccuracy),
+		zap.Float64("lat", msg.LocationEstimate.LatitudeDegrees),
+		zap.Float64("lon", msg.LocationEstimate.LongitudeDegrees),
 	)
 
 	// Signal completion to session manager
 	if s.completeFunc != nil {
-		result := &lmmodels.LocationResult{
-			SUPI:               s.supi,
-			Shape:              lmmodels.GADEllipsoidalPoint,
-			Latitude:           msg.GNSSPositionResult.Latitude,
-			Longitude:          msg.GNSSPositionResult.Longitude,
-			Altitude:           msg.GNSSPositionResult.Altitude,
-			HorizontalAccuracy: msg.GNSSPositionResult.HorizontalAccuracy,
-			VerticalAccuracy:   msg.GNSSPositionResult.VerticalAccuracy,
-		}
-
-		if err := s.completeFunc(result); err != nil {
+		if err := s.completeFunc(s.locationResult); err != nil {
 			s.log.Error("failed to complete session", zap.Error(err))
 		}
 	}
@@ -306,7 +299,7 @@ func (s *Session) Method() string {
 }
 
 // LocationResult returns the extracted location fix, or nil if not yet received.
-func (s *Session) LocationResult() *models.GNSSPositionResult {
+func (s *Session) LocationResult() *lmmodels.LocationResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

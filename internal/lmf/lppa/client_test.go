@@ -4,9 +4,11 @@
 package lppa
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/lppa"
 )
@@ -125,5 +127,28 @@ func TestEUTRAConversions(t *testing.T) {
 
 	if m.AoAAzimuthDegrees == nil || *m.AoAAzimuthDegrees != 90.0 {
 		t.Fatalf("AoA = %v, want 90.0", m.AoAAzimuthDegrees)
+	}
+}
+
+func TestMapECIDResultKeepsTheFullAccessPointPosition(t *testing.T) {
+	m := mapECIDResult(&lppa.ECIDResult{APPosition: &lppa.APPosition{
+		LatitudeDegrees:        48.4,
+		LongitudeDegrees:       -68.6,
+		DirectionOfAltitude:    1,
+		Altitude:               12,
+		UncertaintySemiMajor:   20,
+		UncertaintySemiMinor:   10,
+		OrientationOfMajorAxis: 45,
+		UncertaintyAltitude:    19,
+		Confidence:             68,
+	}})
+
+	want := lmfmodels.GADEllipsoid{
+		LatitudeDegrees: 48.4, LongitudeDegrees: -68.6, AltitudeMeters: -12,
+		UncertaintySemiMajor: 20, UncertaintySemiMinor: 10, OrientationMajor: 45, UncertaintyAltitude: 19, Confidence: 68,
+	}.Estimate()
+
+	if !reflect.DeepEqual(m.APPosition, want) {
+		t.Errorf("APPosition = %+v, want %+v", m.APPosition, want)
 	}
 }

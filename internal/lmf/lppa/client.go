@@ -338,14 +338,16 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 			altitude = -altitude
 		}
 
-		m.APPosition = &lmfmodels.APPosition{
+		m.APPosition = lmfmodels.GADEllipsoid{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
-			Altitude:             altitude,
+			AltitudeMeters:       float64(altitude),
 			UncertaintySemiMajor: result.APPosition.UncertaintySemiMajor,
 			UncertaintySemiMinor: result.APPosition.UncertaintySemiMinor,
+			OrientationMajor:     result.APPosition.OrientationOfMajorAxis,
+			UncertaintyAltitude:  result.APPosition.UncertaintyAltitude,
 			Confidence:           result.APPosition.Confidence,
-		}
+		}.Estimate()
 	}
 
 	return m
