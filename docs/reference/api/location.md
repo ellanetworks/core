@@ -21,7 +21,7 @@ This path requests a subscriber's current location. `immediate` returns an estim
 
 | Name      | In    | Type | Default | Allowed        | Description                                                        |
 | --------- | ----- | ---- | ------- | -------------- | ------------------------------------------------------------------ |
-| `verbose` | query | bool | `false` | `true`,`false` | Attach the `supplementaryMeasurements` block (raw NRPPa measurements). |
+| `verbose` | query | bool | `false` | `true`,`false` | Attach the `supplementaryMeasurements` block (raw E-CID measurements). |
 
 ### Parameters
 

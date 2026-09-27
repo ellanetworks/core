@@ -6159,7 +6159,7 @@ components:
 
     SupplementaryMeasurements:
       type: object
-      description: "Raw NRPPa measurements. Only with `verbose=true`."
+      description: "Raw E-CID measurements. Only with `verbose=true`."
       properties:
         rsrp:
           type: integer

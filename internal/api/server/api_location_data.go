@@ -84,7 +84,7 @@ type LocEcgi struct {
 	EutraCellID string  `json:"eutraCellId"`
 }
 
-// SupplementaryMeasurements carries the raw NRPPa measurements. Non-standard;
+// SupplementaryMeasurements carries the raw E-CID measurements. Non-standard;
 // returned only with ?verbose=true for debugging.
 type SupplementaryMeasurements struct {
 	RSRP              *int32   `json:"rsrp,omitempty"`
