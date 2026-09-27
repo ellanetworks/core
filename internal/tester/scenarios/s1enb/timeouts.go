@@ -10,5 +10,6 @@ import "time"
 // differ, because EPS attaches where 5GS registers.
 const (
 	attachTimeout  = 15 * time.Second
+	lppTimeout     = 30 * time.Second
 	releaseTimeout = 10 * time.Second
 )

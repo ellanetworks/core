@@ -166,6 +166,7 @@ func (ue *UeContext) clearPaging() {
 	ue.paging.mu.Unlock()
 
 	ue.ClearLPPaBuffered()
+	ue.ClearLPPBuffered()
 }
 
 // retransmitPaging resends the Paging on each guard interval (T3413, TS 24.301

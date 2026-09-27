@@ -87,6 +87,8 @@ type MME struct {
 	NAS     NASHandler
 	FiveGS  interworking.FiveGSPeer
 
+	LPPHandler LPPHandler
+
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.
 	EPSNetworkFeatureSupport *eps.NetworkFeatureSupport
@@ -125,6 +127,8 @@ type MME struct {
 	handoverGuardTimeout time.Duration
 
 	handoversToFiveGS interworking.HandoverGroup
+
+	lcsCorrelationSeq atomic.Uint32
 }
 
 func (m *MME) HandoverGuardTimeout() time.Duration {

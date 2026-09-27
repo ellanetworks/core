@@ -185,16 +185,26 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
+	if r9.AGNSSProvideLocationInformation != nil && r9.AGNSSProvideLocationInformation.GnssError != nil {
+		out.LocationError = true
+	}
+
 	if r9.CommonIEsProvideLocationInformation == nil {
 		return out
 	}
 
 	common := r9.CommonIEsProvideLocationInformation
+	if common.LocationError != nil {
+		out.LocationError = true
+	}
+
 	if common.LocationEstimate == nil {
 		return out
 	}
 
 	lc := common.LocationEstimate
+	out.HasLocationEstimate = true
+
 	switch {
 	case lc.EllipsoidPointWithAltitude != nil:
 		ep := lc.EllipsoidPointWithAltitude
@@ -228,6 +238,9 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 		}
 
 		out.GNSSPositionResult.VerticalAccuracy = uint32(decodeUncertainty(ep.UncertaintyAltitude))
+
+	default:
+		out.HasLocationEstimate = false
 	}
 
 	return out

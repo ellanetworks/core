@@ -221,6 +221,10 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
 	}
 
+	if !msg.HasLocationEstimate || msg.LocationError {
+		return fmt.Errorf("UE provided no location estimate (location error: %t)", msg.LocationError)
+	}
+
 	s.locationResult = &msg.GNSSPositionResult
 	s.state = LocationReceived
 

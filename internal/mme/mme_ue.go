@@ -196,6 +196,9 @@ type UeContext struct {
 	// lppaBuf holds an LPPa message for delivery when the UE answers a page.
 	lppaBufMu sync.RWMutex
 	lppaBuf   *LPPaBuffered
+
+	lppBufMu sync.Mutex
+	lppBuf   *LPPBuffered
 }
 
 // TouchLastSeen records the current time as the most recent evidence the UE was

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/spf13/pflag"
@@ -72,7 +73,8 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 	ue := e.NewUE(s1enbLocationIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	if _, err := e.Attach(ue, attachTimeout); err != nil {
+	attached, err := e.Attach(ue, attachTimeout)
+	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
@@ -128,6 +130,49 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 	logger.Logger.Info("Cell ID location validated",
 		zap.String("shape", cellID.LocationEstimate.Shape),
 		zap.Float64("lat", cellID.LocationEstimate.Point.Lat))
+
+	type locationOutcome struct {
+		result *common.LocationData
+		err    error
+	}
+
+	agnssDone := make(chan locationOutcome, 1)
+
+	go func() {
+		result, err := common.GetLocation(ctx, cl, supi, "agnss_ue_assisted")
+		agnssDone <- locationOutcome{result: result, err: err}
+	}()
+
+	fix := s1enb.LPPFix{Latitude: 450000000, Longitude: 214500000, Altitude: 10000, HorizontalAccuracy: 10, VerticalAccuracy: 15}
+
+	if err := e.AnswerLPP(ue, attached.ENBUES1APID, fix, lppTimeout); err != nil {
+		return fmt.Errorf("answer LPP: %w", err)
+	}
+
+	agnss := <-agnssDone
+	if agnss.err != nil {
+		return fmt.Errorf("A-GNSS location failed: %w", agnss.err)
+	}
+
+	if agnss.result.LocationEstimate == nil || agnss.result.LocationEstimate.Point == nil {
+		return fmt.Errorf("A-GNSS result missing locationEstimate point")
+	}
+
+	if m := common.PositioningMethod(agnss.result); m != "GNSS" {
+		return fmt.Errorf("expected GNSS positioning method, got %q", m)
+	}
+
+	if lat := agnss.result.LocationEstimate.Point.Lat; lat < 44.99 || lat > 45.01 {
+		return fmt.Errorf("A-GNSS latitude mismatch: expected ~45.0, got %f", lat)
+	}
+
+	if lon := agnss.result.LocationEstimate.Point.Lon; lon < 21.44 || lon > 21.46 {
+		return fmt.Errorf("A-GNSS longitude mismatch: expected ~21.45, got %f", lon)
+	}
+
+	logger.Logger.Info("A-GNSS location validated",
+		zap.Float64("lat", agnss.result.LocationEstimate.Point.Lat),
+		zap.Float64("lon", agnss.result.LocationEstimate.Point.Lon))
 
 	return nil
 }

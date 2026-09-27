@@ -30,7 +30,7 @@ type LocationSource interface {
 	GetUELocation(supi etsi.SUPI) (models.UserLocation, bool)
 }
 
-// LPPHandler is the interface for sending LPP messages to a UE via the AMF.
+// LPPHandler is the interface for sending LPP messages to a UE via the AMF or MME.
 // correlationID is the LCS correlation identifier the UE uses to route the DL
 // message to its LPP session; echoing the UE's identifier keeps a reply on the
 // same session (TS 23.273).
@@ -130,6 +130,36 @@ func firstLocation(srcs []LocationSource, supi etsi.SUPI) (models.UserLocation, 
 	return models.UserLocation{}, false
 }
 
+func (l *LMF) ServedByMME(supi etsi.SUPI) bool {
+	if l.amf != nil && l.amf.IsUERegistered(supi) {
+		return false
+	}
+
+	return l.mme != nil && l.mme.IsUERegistered(supi)
+}
+
+func (l *LMF) allocateLCSCorrelationID(supi etsi.SUPI) []byte {
+	if l.ServedByMME(supi) {
+		return l.mme.AllocateLCSCorrelationID()
+	}
+
+	if l.amf != nil {
+		return l.amf.AllocateLCSCorrelationID()
+	}
+
+	return nil
+}
+
+func (l *LMF) cancelBufferedLPP(ctx context.Context, supi etsi.SUPI, correlationID []byte) {
+	if l.amf != nil {
+		l.amf.CancelBufferedN1N2(ctx, supi, models.N1ClassLPP, "")
+	}
+
+	if l.mme != nil {
+		l.mme.CancelBufferedLPP(supi, correlationID)
+	}
+}
+
 // SetLPPHandler configures the LPP message handler for UE communication.
 func (l *LMF) SetLPPHandler(h LPPHandler) {
 	l.lppHandler = h
@@ -140,8 +170,8 @@ func (l *LMF) SessionManager() *SessionManager {
 	return l.sessionMgr
 }
 
-// ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF to the LMF
-// for processing. Called by AMF when an UL NAS Transport carries LPP.
+// ForwardLPPToLMF is a helper that forwards an LPP payload from the AMF or MME to the LMF
+// for processing. Called when an UL NAS Transport or Uplink Generic NAS Transport carries LPP.
 func ForwardLPPToLMF(lmf *LMF, ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
 	if lmf == nil {
 		logger.LmfLog.Debug("LMF is nil, dropping LPP payload")
