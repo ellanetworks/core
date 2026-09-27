@@ -32,7 +32,7 @@ func TestSessionManager_CreateSession(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -98,7 +98,7 @@ func TestSessionManager_CreateSession_PersonicSessionType(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestPeriodic,
-		Method:      MethodECID,
+		Method:      RequestedECID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -134,7 +134,7 @@ func TestSessionManager_CreateSession_TriggeredSessionType(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestTriggered,
-		Method:      MethodECID,
+		Method:      RequestedECID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -170,7 +170,7 @@ func TestSessionManager_GetSession(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -210,7 +210,7 @@ func TestSessionManager_CompleteSession(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -218,7 +218,7 @@ func TestSessionManager_CompleteSession(t *testing.T) {
 
 	err = smgr.CompleteSession(context.Background(), sessionID, &models.LocationResult{
 		SUPI:   "imsi-123456789012345",
-		Method: models.MethodCellID,
+		Method: models.PositioningMethodCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -254,7 +254,7 @@ func TestSessionManager_FailSession(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -295,7 +295,7 @@ func TestSessionManager_CancelSession(t *testing.T) {
 		SUPI: "imsi-123456789012345",
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -338,7 +338,7 @@ func TestSessionManager_ListSessionsBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -348,7 +348,7 @@ func TestSessionManager_ListSessionsBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodGNSS,
+		Method:      RequestedGNSS,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -386,7 +386,7 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodCellID,
+		Method:      RequestedCellID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -396,7 +396,7 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 		SUPI: supi,
 
 		RequestType: RequestImmediate,
-		Method:      MethodGNSS,
+		Method:      RequestedGNSS,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -413,20 +413,20 @@ func TestSessionManager_GetActiveSessionBySupi(t *testing.T) {
 }
 
 func TestDefaultMethodForRequest(t *testing.T) {
-	if got := DefaultMethodForRequest(RequestImmediate); got != MethodCellID {
-		t.Errorf("DefaultMethodForRequest(immediate) = %s, want %s", got, MethodCellID)
+	if got := DefaultMethodForRequest(RequestImmediate); got != RequestedCellID {
+		t.Errorf("DefaultMethodForRequest(immediate) = %s, want %s", got, RequestedCellID)
 	}
 
-	if got := DefaultMethodForRequest(RequestPeriodic); got != MethodCellID {
-		t.Errorf("DefaultMethodForRequest(periodic) = %s, want %s", got, MethodCellID)
+	if got := DefaultMethodForRequest(RequestPeriodic); got != RequestedCellID {
+		t.Errorf("DefaultMethodForRequest(periodic) = %s, want %s", got, RequestedCellID)
 	}
 
-	if got := DefaultMethodForRequest(RequestTriggered); got != MethodCellID {
-		t.Errorf("DefaultMethodForRequest(triggered) = %s, want %s", got, MethodCellID)
+	if got := DefaultMethodForRequest(RequestTriggered); got != RequestedCellID {
+		t.Errorf("DefaultMethodForRequest(triggered) = %s, want %s", got, RequestedCellID)
 	}
 
-	if got := DefaultMethodForRequest(RequestCancel); got != MethodCellID {
-		t.Errorf("DefaultMethodForRequest(cancel) = %s, want %s", got, MethodCellID)
+	if got := DefaultMethodForRequest(RequestCancel); got != RequestedCellID {
+		t.Errorf("DefaultMethodForRequest(cancel) = %s, want %s", got, RequestedCellID)
 	}
 }
 

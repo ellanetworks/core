@@ -25,15 +25,15 @@ var (
 // DetermineLocation computes the current location of the UE identified by
 // supi using the configured positioning method. Returns the location result,
 // the session ID (if a session was created), and any error.
-func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method PositioningMethod) (*models.LocationResult, string, error) {
+func (l *LMF) DetermineLocation(ctx context.Context, supi etsi.SUPI, method RequestedMethod) (*models.LocationResult, string, error) {
 	switch method {
-	case MethodCellID:
+	case RequestedCellID:
 		result, err := l.determineCellIDLocation(ctx, supi)
 		return result, "", err
-	case MethodECID:
+	case RequestedECID:
 		result, err := l.determineECIDLocation(ctx, supi)
 		return result, "", err
-	case MethodGNSS:
+	case RequestedGNSS:
 		return l.determineGNSSLocation(ctx, supi)
 	default:
 		return nil, "", fmt.Errorf("unsupported positioning method: %s", method)
@@ -109,7 +109,7 @@ func (l *LMF) determineGNSSLocation(ctx context.Context, supi etsi.SUPI) (*model
 
 	session, err := l.sessionMgr.CreateLPPSession(ctx, CreateSessionParams{
 		SUPI:   supi.String(),
-		Method: MethodGNSS,
+		Method: RequestedGNSS,
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("create LPP session: %w", err)
@@ -201,7 +201,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.NrLocation != nil {
 		return &models.LocationResult{
 			SUPI:                supi.String(),
-			Method:              models.MethodCellID,
+			Method:              models.PositioningMethodCellID,
 			TAI:                 loc.NrLocation.Tai,
 			NCGI:                loc.NrLocation.Ncgi,
 			AccessType:          "NR",
@@ -214,7 +214,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.EutraLocation != nil {
 		return &models.LocationResult{
 			SUPI:                supi.String(),
-			Method:              models.MethodCellID,
+			Method:              models.PositioningMethodCellID,
 			TAI:                 loc.EutraLocation.Tai,
 			ECGI:                loc.EutraLocation.Ecgi,
 			AccessType:          "EUTRA",
@@ -227,7 +227,7 @@ func computeCellIDLocation(supi etsi.SUPI, loc coremodels.UserLocation) *models.
 	if loc.N3gaLocation != nil {
 		return &models.LocationResult{
 			SUPI:         supi.String(),
-			Method:       models.MethodCellID,
+			Method:       models.PositioningMethodCellID,
 			TAI:          loc.N3gaLocation.N3gppTai,
 			AccessType:   "N3IWF",
 			UserLocation: loc,

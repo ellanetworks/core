@@ -132,7 +132,7 @@ func toLocationData(r *models.LocationResult, verbose bool) *LocationData {
 	}
 
 	// Method + usage.
-	if r.Method == models.MethodGNSS {
+	if r.Method == models.PositioningMethodGNSS {
 		out.GnssPositioningDataList = []GnssPositioningMethodAndUsage{
 			{Mode: posModeUEBased, Gnss: gnssGPS, Usage: usageSuccessUsed},
 		}
@@ -235,14 +235,12 @@ func toUncertaintyEllipse(e *models.UncertaintyEllipse) *UncertaintyEllipse {
 }
 
 // methodAndMode derives the SBI positioning method + mode from the internal
-// result method and access type.
+// result method.
 func methodAndMode(r *models.LocationResult) (method, mode string) {
 	switch r.Method {
-	case models.MethodECID:
-		if r.AccessType == "NR" {
-			return posMethodNRECID, posModeUEAssisted
-		}
-
+	case models.PositioningMethodNRECID:
+		return posMethodNRECID, posModeUEAssisted
+	case models.PositioningMethodECID:
 		return posMethodECID, posModeUEAssisted
 	default:
 		return posMethodCellID, posModeConvention

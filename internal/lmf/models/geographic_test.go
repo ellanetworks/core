@@ -29,8 +29,8 @@ func TestGADUncertainty(t *testing.T) {
 	}
 }
 
-func TestGADEllipsoidEstimate(t *testing.T) {
-	e := GADEllipsoid{
+func TestEllipsoidPointWithAltitudeAndUncertaintyEllipsoidEstimate(t *testing.T) {
+	e := EllipsoidPointWithAltitudeAndUncertaintyEllipsoid{
 		LatitudeDegrees: 48.4, LongitudeDegrees: -68.6, AltitudeMeters: 16,
 		UncertaintySemiMajor: 12, UncertaintySemiMinor: 8, OrientationMajor: 30, UncertaintyAltitude: 19, Confidence: 68,
 	}.Estimate()

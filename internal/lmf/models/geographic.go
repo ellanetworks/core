@@ -45,7 +45,7 @@ func gadUncertainty(k int64, c, x float64) float64 {
 	return c * (math.Pow(1+x, float64(k)) - 1)
 }
 
-type GADEllipsoid struct {
+type EllipsoidPointWithAltitudeAndUncertaintyEllipsoid struct {
 	LatitudeDegrees      float64
 	LongitudeDegrees     float64
 	AltitudeMeters       float64
@@ -56,7 +56,7 @@ type GADEllipsoid struct {
 	Confidence           int64
 }
 
-func (g GADEllipsoid) Estimate() *GeographicEstimate {
+func (g EllipsoidPointWithAltitudeAndUncertaintyEllipsoid) Estimate() *GeographicEstimate {
 	altitude := g.AltitudeMeters
 	uncertaintyAltitude := AltitudeUncertaintyMeters(g.UncertaintyAltitude)
 	confidence := int32(g.Confidence)

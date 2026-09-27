@@ -21,7 +21,7 @@ func circleEstimate(radius float64) *models.GeographicEstimate {
 func TestToLocationData_CellID(t *testing.T) {
 	r := &models.LocationResult{
 		SUPI:       "imsi-001010000000001",
-		Method:     models.MethodCellID,
+		Method:     models.PositioningMethodCellID,
 		AccessType: "NR",
 		NCGI:       &coremodels.Ncgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, NrCellID: "00066c000"},
 		Estimate:   circleEstimate(150),
@@ -57,7 +57,7 @@ func TestToLocationData_CellID(t *testing.T) {
 func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
 	rsrp := int32(-5600)
 	r := &models.LocationResult{
-		Method:     models.MethodECID,
+		Method:     models.PositioningMethodNRECID,
 		AccessType: "NR",
 		Estimate:   circleEstimate(78),
 		SSRSRP:     &rsrp,
@@ -75,7 +75,7 @@ func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
 }
 
 func TestToLocationData_GNSS(t *testing.T) {
-	r := &models.LocationResult{Method: models.MethodGNSS, Estimate: circleEstimate(10)}
+	r := &models.LocationResult{Method: models.PositioningMethodGNSS, Estimate: circleEstimate(10)}
 
 	ld := toLocationData(r, false)
 
@@ -157,7 +157,7 @@ func TestToGeographicArea(t *testing.T) {
 
 func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 	r := &models.LocationResult{
-		Method: models.MethodGNSS,
+		Method: models.PositioningMethodGNSS,
 		Estimate: &models.GeographicEstimate{
 			LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0),
 			UncertaintyEllipse:        &models.UncertaintyEllipse{SemiMajorMeters: 21.4, SemiMinorMeters: 11.4, OrientationMajorDegrees: 30},
@@ -206,7 +206,7 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 }
 
 func TestStoredLocationData(t *testing.T) {
-	stored, err := json.Marshal(&models.LocationResult{Method: models.MethodGNSS, Estimate: circleEstimate(10)})
+	stored, err := json.Marshal(&models.LocationResult{Method: models.PositioningMethodGNSS, Estimate: circleEstimate(10)})
 	if err != nil {
 		t.Fatal(err)
 	}

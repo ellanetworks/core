@@ -55,7 +55,11 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 	result := computeCellIDLocation(supi, loc)
 
 	if hasRadioMeasurements(measurements) {
-		result.Method = models.MethodECID
+		result.Method = models.PositioningMethodECID
+		if result.AccessType == "NR" {
+			result.Method = models.PositioningMethodNRECID
+		}
+
 		result.RSRP = measurements.RSRP
 		result.RSRQ = measurements.RSRQ
 		result.TA = measurements.TA
@@ -84,7 +88,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 		}
 	} else {
 		// Downgrade: no radio measurements, so this is a Cell-ID estimate.
-		result.Method = models.MethodCellID
+		result.Method = models.PositioningMethodCellID
 	}
 
 	result.Estimate = coord
@@ -147,7 +151,7 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 
 	requestedAt := time.Now()
 
-	measID, err := client.RequestMeasurements(ctx, supi, string(MethodECID))
+	measID, err := client.RequestMeasurements(ctx, supi, string(RequestedECID))
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurement request failed; falling back to Cell ID",
 			logger.SUPI(supi.String()),

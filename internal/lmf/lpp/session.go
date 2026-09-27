@@ -238,7 +238,7 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 
 	s.locationResult = &lmmodels.LocationResult{
 		SUPI:     s.supi,
-		Method:   lmmodels.MethodGNSS,
+		Method:   lmmodels.PositioningMethodGNSS,
 		Estimate: msg.LocationEstimate,
 	}
 	s.state = LocationReceived

@@ -272,7 +272,7 @@ func decodeLocationEstimate(lc *lpptype.LocationCoordinates) (*lmfmodels.Geograp
 	case lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil:
 		ep := lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
 
-		return lmfmodels.GADEllipsoid{
+		return lmfmodels.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid{
 			LatitudeDegrees:      latitudeDegrees(ep.LatitudeSign, ep.DegreesLatitude),
 			LongitudeDegrees:     longitudeDegrees(ep.DegreesLongitude),
 			AltitudeMeters:       altitudeMeters(ep.AltitudeDirection, ep.Altitude),

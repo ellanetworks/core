@@ -143,7 +143,7 @@ func TestMapECIDResultKeepsTheFullAccessPointPosition(t *testing.T) {
 		Confidence:             68,
 	}})
 
-	want := lmfmodels.GADEllipsoid{
+	want := lmfmodels.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid{
 		LatitudeDegrees: 48.4, LongitudeDegrees: -68.6, AltitudeMeters: -12,
 		UncertaintySemiMajor: 20, UncertaintySemiMinor: 10, OrientationMajor: 45, UncertaintyAltitude: 19, Confidence: 68,
 	}.Estimate()

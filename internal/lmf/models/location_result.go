@@ -9,29 +9,30 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-type Method int
+type PositioningMethod int
 
 const (
-	MethodCellID Method = iota
-	MethodGNSS
-	MethodECID
+	PositioningMethodCellID PositioningMethod = iota
+	PositioningMethodGNSS
+	PositioningMethodECID
+	PositioningMethodNRECID
 )
 
 // LocationResult is the location expressed by the LMF for a given UE.
 // For Cell ID results, TAI/NCGI/ECGI are populated.
 type LocationResult struct {
-	SUPI                string       `json:"supi"`
-	Method              Method       `json:"method"`
-	TAI                 *models.Tai  `json:"tai,omitempty"`
-	NCGI                *models.Ncgi `json:"ncgi,omitempty"`
-	ECGI                *models.Ecgi `json:"ecgi,omitempty"`
-	AccessType          string       `json:"access_type,omitempty"`
-	AgeOfLocationInfo   int32        `json:"age_of_location_information,omitempty"`
-	UeLocationTimestamp *time.Time   `json:"ue_location_timestamp,omitempty"`
+	SUPI                string            `json:"supi"`
+	Method              PositioningMethod `json:"method"`
+	TAI                 *models.Tai       `json:"tai,omitempty"`
+	NCGI                *models.Ncgi      `json:"ncgi,omitempty"`
+	ECGI                *models.Ecgi      `json:"ecgi,omitempty"`
+	AccessType          string            `json:"access_type,omitempty"`
+	AgeOfLocationInfo   int32             `json:"age_of_location_information,omitempty"`
+	UeLocationTimestamp *time.Time        `json:"ue_location_timestamp,omitempty"`
 
 	Estimate *GeographicEstimate `json:"estimate,omitempty"`
 
-	// E-CID fields (populated when Method == MethodECID)
+	// E-CID fields (populated when Method == PositioningMethodECID)
 	RSRP     *int32   `json:"rsrp,omitempty"`           // dBm × 100 (e.g., -8500 = -85 dBm)
 	RSRQ     *int32   `json:"rsrq,omitempty"`           // dB × 100
 	TA       *int32   `json:"timing_advance,omitempty"` // slots

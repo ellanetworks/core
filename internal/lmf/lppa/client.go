@@ -338,7 +338,7 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 			altitude = -altitude
 		}
 
-		m.APPosition = lmfmodels.GADEllipsoid{
+		m.APPosition = lmfmodels.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid{
 			LatitudeDegrees:      result.APPosition.LatitudeDegrees,
 			LongitudeDegrees:     result.APPosition.LongitudeDegrees,
 			AltitudeMeters:       float64(altitude),
