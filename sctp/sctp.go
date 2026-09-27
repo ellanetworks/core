@@ -171,6 +171,8 @@ type SndRcvInfo struct {
 	AssocID int32
 }
 
+const SCTPUnordered uint16 = 1
+
 type SCTPState uint16
 
 const (
