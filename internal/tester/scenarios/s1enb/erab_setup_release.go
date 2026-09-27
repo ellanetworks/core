@@ -105,11 +105,14 @@ func assertERABSetup(res *s1enb.AttachResult, pdn *s1enb.PDNResult) error {
 		return fmt.Errorf("E-RAB Setup Request ARP priority = %d, want 15", pdn.ARP)
 	}
 
-	const wantAmbr = 300 * mbpsToBps
+	const (
+		wantAmbrDownlink = (100 + 60) * mbpsToBps
+		wantAmbrUplink   = (100 + 30) * mbpsToBps
+	)
 
-	if pdn.UEAmbrDownlinkBps != wantAmbr || pdn.UEAmbrUplinkBps != wantAmbr {
-		return fmt.Errorf("E-RAB Setup Request UE-AMBR = %d/%d bps, want the profile's %d/%d re-signalled to the eNB",
-			pdn.UEAmbrDownlinkBps, pdn.UEAmbrUplinkBps, wantAmbr, wantAmbr)
+	if pdn.UEAmbrDownlinkBps != wantAmbrDownlink || pdn.UEAmbrUplinkBps != wantAmbrUplink {
+		return fmt.Errorf("E-RAB Setup Request UE-AMBR = %d/%d bps, want the sum of both PDNs' APN-AMBRs %d/%d under the profile's 300 Mbps (TS 23.401 §4.7.3)",
+			pdn.UEAmbrDownlinkBps, pdn.UEAmbrUplinkBps, wantAmbrDownlink, wantAmbrUplink)
 	}
 
 	if pdn.SessAmbrDownlinkBps != 60*mbpsToBps || pdn.SessAmbrUplinkBps != 30*mbpsToBps {

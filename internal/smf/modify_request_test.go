@@ -134,7 +134,6 @@ func TestEPSBindModificationAimsTheDownlinkAtTheENB(t *testing.T) {
 	create.APN = testDNN
 	create.PDUSessionID = movedPDUSessionID
 	create.Snssai = testSnssai
-	create.PolicyID = "eps-policy"
 
 	bearer, err := s.CreateEPSSession(ctx, create)
 	if err != nil {
@@ -154,7 +153,7 @@ func TestEPSBindModificationAimsTheDownlinkAtTheENB(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="eps-policy" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[id=1 qfi=0]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=6; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("EPS downlink bind modification:\n got %s\nwant %s", got, want)
 	}

@@ -57,4 +57,5 @@ func handleHandoverFailure(ctx context.Context, m *mme.MME, radio *mme.Radio, va
 
 	m.CloseForwardingTunnels(ctx, ue)
 	m.FailHandoverToSource(ctx, ue, cause)
+	m.ResumeBearerReconfigurationAfterHandover(ctx, ue)
 }

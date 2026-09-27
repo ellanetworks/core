@@ -50,11 +50,15 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		return
 	}
 
+	m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachNotRequired)
+}
+
+func (m *MME) sendNetworkDetach(ctx context.Context, ue *UeContext, ueConn *UeConn, detachType eps.DetachTypeNetwork) {
 	ue.TransitionTo(ctx, EMMDeregistrationInitiated)
 
 	ueConn.Log(ctx).Info("UE deregistered", logger.RAT(metrics.RAT4G), zap.String("trigger", "network"))
 
-	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired}).MarshalBinary()
+	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: detachType}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Detach Request", zap.Error(err))
 		return

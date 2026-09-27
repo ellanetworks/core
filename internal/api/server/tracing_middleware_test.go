@@ -10,8 +10,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestTracingMiddlewareNamesSpansByRoute(t *testing.T) {
@@ -80,5 +82,97 @@ func TestTracingMiddlewareNamesSpansByRoute(t *testing.T) {
 				t.Errorf("expected http.route %q, got %q", tc.expectedRoute, route)
 			}
 		})
+	}
+}
+
+func useTestTracing(t *testing.T) *tracetest.InMemoryExporter {
+	t.Helper()
+
+	exporter := tracetest.NewInMemoryExporter()
+
+	originalProvider := otel.GetTracerProvider()
+	originalPropagator := otel.GetTextMapPropagator()
+
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter)))
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	t.Cleanup(func() {
+		otel.SetTracerProvider(originalProvider)
+		otel.SetTextMapPropagator(originalPropagator)
+	})
+
+	return exporter
+}
+
+func requestWithParent(t *testing.T, method, path string) (*http.Request, trace.SpanContext) {
+	t.Helper()
+
+	ctx, parent := sdktrace.NewTracerProvider().Tracer("test").Start(t.Context(), "peer")
+	defer parent.End()
+
+	req := httptest.NewRequestWithContext(t.Context(), method, path, nil)
+	propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+	return req, parent.SpanContext()
+}
+
+func TestClusterTracingMiddlewareContinuesPeerTrace(t *testing.T) {
+	exporter := useTestTracing(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /cluster/internal/propose", func(w http.ResponseWriter, r *http.Request) {})
+
+	req, parent := requestWithParent(t, http.MethodPost, "/cluster/internal/propose")
+
+	server.ClusterTracingMiddleware(mux).ServeHTTP(httptest.NewRecorder(), req)
+
+	spans := exporter.GetSpans()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 span, got %d", len(spans))
+	}
+
+	if spans[0].SpanContext.TraceID() != parent.TraceID() || spans[0].Parent.SpanID() != parent.SpanID() {
+		t.Fatal("cluster server span should be a child of the calling peer's span")
+	}
+
+	if spans[0].Name != "POST /cluster/internal/propose" {
+		t.Fatalf("expected span name %q, got %q", "POST /cluster/internal/propose", spans[0].Name)
+	}
+}
+
+func TestClusterTracingMiddlewareSkipsStatusProbes(t *testing.T) {
+	exporter := useTestTracing(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /cluster/status", func(w http.ResponseWriter, r *http.Request) {})
+
+	server.ClusterTracingMiddleware(mux).ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster/status", nil))
+
+	if spans := exporter.GetSpans(); len(spans) != 0 {
+		t.Fatalf("expected no spans for status probes, got %d", len(spans))
+	}
+}
+
+func TestPublicTracingMiddlewareLinksInsteadOfParenting(t *testing.T) {
+	exporter := useTestTracing(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {})
+
+	req, parent := requestWithParent(t, http.MethodGet, "/api/v1/status")
+
+	server.PublicTracingMiddleware("ella-core/api", mux).ServeHTTP(httptest.NewRecorder(), req)
+
+	spans := exporter.GetSpans()
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 span, got %d", len(spans))
+	}
+
+	if spans[0].Parent.IsValid() {
+		t.Fatal("public API span should start a new trace")
+	}
+
+	if len(spans[0].Links) != 1 || spans[0].Links[0].SpanContext.SpanID() != parent.SpanID() {
+		t.Fatal("public API span should link to the caller's span")
 	}
 }

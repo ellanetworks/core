@@ -5,9 +5,12 @@ package nas
 
 import (
 	"context"
+	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -83,8 +86,12 @@ func TestDeactivateBearerAcceptKeepsAUEWithAnotherPDN(t *testing.T) {
 func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := connectedBearerUE(t, m)
-	testPDN(ue).Modifying = true
-	testPDN(ue).PendingDNConfig = "10.45.0.0/16|fd45::/48|9.9.9.9|1500"
+	dns := netip.MustParseAddr("9.9.9.9")
+	testPDN(ue).Modifying = &models.EPSBearerModification{
+		QoS:     &models.EPSBearerQoS{QCI: 8, ARP: 2},
+		APNAMBR: &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")},
+		DNS:     dns,
+	}
 
 	plain, err := (&eps.ModifyEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}).MarshalBinary()
 	if err != nil {
@@ -98,12 +105,19 @@ func TestModifyBearerAcceptCommitsConfig(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), wire)
 
-	if testPDN(ue).Modifying {
+	p := testPDN(ue)
+
+	if p.Modifying != nil {
 		t.Fatal("UE still marked modifying after Modify Accept")
 	}
 
-	if testPDN(ue).DnConfig != "10.45.0.0/16|fd45::/48|9.9.9.9|1500" {
-		t.Fatalf("dnConfig = %q, want the committed pending fingerprint", testPDN(ue).DnConfig)
+	if p.Qci != 8 || p.Arp != 2 || p.Dns != dns || p.SessAmbrDLBps != 400_000_000 || p.SessAmbrULBps != 300_000_000 {
+		t.Fatalf("committed QCI %d ARP %d DNS %v AMBR %d/%d, want the accepted modification", p.Qci, p.Arp, p.Dns, p.SessAmbrDLBps, p.SessAmbrULBps)
+	}
+
+	want := []bearerModificationOutcome{{ref: "ref-internet", accepted: true}}
+	if got := m.Session.(*fakeSessionManager).concluded; !slices.Equal(got, want) {
+		t.Fatalf("SMF told %+v, want %+v", got, want)
 	}
 
 	if m.Session.(*fakeSessionManager).released {

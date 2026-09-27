@@ -89,8 +89,7 @@ type SmfSbi interface {
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
-	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
-	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
+	ReconcileSession(ctx context.Context, ref string) error
 	HandleN1N2TransferFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, cause models.N1N2MessageTransferCause) error
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
@@ -112,7 +111,6 @@ type DBer interface {
 	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
 	ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error)
 	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
-	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	AMFPointer() int

@@ -24,7 +24,7 @@ func (s *countingBearerStore) GetDataNetworkByID(ctx context.Context, id string)
 	return s.fakeBearerStore.GetDataNetworkByID(ctx, id)
 }
 
-func TestResolveQoSByAPNReadsDataNetworkOnce(t *testing.T) {
+func TestSubscribedAPNReadsDataNetworkOnce(t *testing.T) {
 	for _, tc := range []struct {
 		apn      string
 		examined int64
@@ -36,13 +36,13 @@ func TestResolveQoSByAPNReadsDataNetworkOnce(t *testing.T) {
 			store := &countingBearerStore{}
 			m := New(udm.New(newFakeCredStore(), noopKeyResolver), store, &fakeSessionManager{})
 
-			qos, err := ResolveQoSByAPN(context.Background(), m, testSubscriber.IMSI, tc.apn)
+			apn, err := SubscribedAPN(context.Background(), m, testSubscriber.IMSI, tc.apn)
 			if err != nil {
-				t.Fatalf("ResolveQoSByAPN: %v", err)
+				t.Fatalf("SubscribedAPN: %v", err)
 			}
 
-			if qos.APN != tc.apn {
-				t.Fatalf("APN = %q, want %q", qos.APN, tc.apn)
+			if apn != tc.apn {
+				t.Fatalf("APN = %q, want %q", apn, tc.apn)
 			}
 
 			if got := store.dataNetworkReads.Load(); got != tc.examined {
@@ -52,44 +52,24 @@ func TestResolveQoSByAPNReadsDataNetworkOnce(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.3
-func TestResolveAttachQoSDefaultWhenNoAPN(t *testing.T) {
+// TS 23.401 §5.3.2.1
+func TestSubscribedAPNDefaultWhenNoAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
-	qos, err := ResolveAttachQoS(context.Background(), m, ue, "")
+	apn, err := SubscribedAPN(context.Background(), m, testSubscriber.IMSI, "")
 	if err != nil {
-		t.Fatalf("ResolveAttachQoS: %v", err)
+		t.Fatalf("SubscribedAPN: %v", err)
 	}
 
-	if qos.APN != "internet" {
-		t.Errorf("APN = %q, want the default %q", qos.APN, "internet")
+	if apn != "internet" {
+		t.Errorf("APN = %q, want the default %q", apn, "internet")
 	}
 }
 
-func TestResolveAttachQoSSelectsRequestedAPN(t *testing.T) {
+func TestSubscribedAPNRejectsUnknownAPN(t *testing.T) {
 	m := newTestMME(t)
-	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 
-	qos, err := ResolveAttachQoS(context.Background(), m, ue, "ims")
-	if err != nil {
-		t.Fatalf("ResolveAttachQoS: %v", err)
-	}
-
-	if qos.APN != "ims" {
-		t.Errorf("APN = %q, want the requested %q", qos.APN, "ims")
-	}
-
-	if qos.IPv4Pool != "10.46.0.0/16" {
-		t.Errorf("IPv4Pool = %q, want the ims pool 10.46.0.0/16", qos.IPv4Pool)
-	}
-}
-
-func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
-	m := newTestMME(t)
-	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
-
-	if _, err := ResolveAttachQoS(context.Background(), m, ue, "nonexistent"); !errors.Is(err, ErrUnknownAPN) {
-		t.Fatalf("ResolveAttachQoS error = %v, want ErrUnknownAPN", err)
+	if _, err := SubscribedAPN(context.Background(), m, testSubscriber.IMSI, "nonexistent"); !errors.Is(err, ErrUnknownAPN) {
+		t.Fatalf("SubscribedAPN error = %v, want ErrUnknownAPN", err)
 	}
 }

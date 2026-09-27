@@ -292,7 +292,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	handler = MetricsMiddleware(handler)
 
 	if appCfg.Telemetry.Enabled {
-		handler = TracingMiddleware("ella-core/api", handler)
+		handler = PublicTracingMiddleware("ella-core/api", handler)
 	}
 
 	return handler
@@ -356,7 +356,7 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	handler = MetricsMiddleware(handler)
 
 	if appCfg.Telemetry.Enabled {
-		handler = TracingMiddleware("ella-core/api", handler)
+		handler = PublicTracingMiddleware("ella-core/api", handler)
 	}
 
 	return handler

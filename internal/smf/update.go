@@ -140,9 +140,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		if pti == networkRequestedPTI && smContext.pendingPolicy != nil {
-			smContext.PolicyData = smContext.pendingPolicy
-			smContext.pendingPolicy = nil
+		if pti == networkRequestedPTI {
+			s.commitPendingPolicy(ctx, smContext)
 		}
 
 		return nil, nil
@@ -208,6 +207,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
+
+	smContext.endActivation()
 
 	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data)
 	if err != nil {
@@ -291,6 +292,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
+
+	smContext.endActivation()
 
 	s.rejectUnforwardedEstablishment(ctx, smContext)
 

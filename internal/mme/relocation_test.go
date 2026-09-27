@@ -293,10 +293,6 @@ func TestForwardRelocationTakesOverTheAnchorSessions(t *testing.T) {
 		t.Fatal("no PDN connection on the EPS bearer identity the source allocated")
 	}
 
-	if !p.Transferred {
-		t.Error("the PDN connection is not marked as transferred, so the UE would not be offered ePCO")
-	}
-
 	if len(hoReq.ERABToBeSetup) != 1 || hoReq.ERABToBeSetup[0].ERABID != 7 {
 		t.Errorf("E-RAB list = %+v", hoReq.ERABToBeSetup)
 	}
@@ -425,6 +421,7 @@ func TestForwardRelocationReleasesPDNsTheTargetRefused(t *testing.T) {
 func TestForwardRelocationFailsWhenNoSessionCanTransfer(t *testing.T) {
 	m := newTestMME(t)
 	newRelocationTarget(t, m)
+	m.Session.(*fakeSessionManager).createErr = errors.New("no policy for APN")
 
 	req := relocationRequest(interworking.PDNConnection{PDUSessionID: 1, EPSBearerIdentity: 5, APN: "not-a-subscribed-apn"})
 

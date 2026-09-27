@@ -118,6 +118,12 @@ type fakeSessionManager struct {
 	modifyErr         map[uint8]error
 	modifiedEBIs      []uint8
 	releasedRefs      []string
+	concluded         []bearerModificationOutcome
+}
+
+type bearerModificationOutcome struct {
+	ref      string
+	accepted bool
 }
 
 func (f *fakeSessionManager) failModify(ebi uint8, err error) {
@@ -166,10 +172,6 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi u
 	return nil
 }
 
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _, _ models.BitRate) error {
-	return nil
-}
-
 func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string) error {
 	f.deactivated = true
 
@@ -191,8 +193,12 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) er
 	return nil
 }
 
-func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
-	return models.SubscriptionDelta{}, nil
+func (f *fakeSessionManager) ReconcileSession(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
+	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
 }
 
 type fakeBearerStore struct{}

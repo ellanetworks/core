@@ -31,7 +31,7 @@ func TestCreateSessionEmitsFramedRoutes(t *testing.T) {
 	store, upf := epsTestSMF()
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24", "2001:db8:aa::/48")
 
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	if _, err := s.CreateEPSSession(context.Background(), epsRequest(3)); err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func TestCreateSessionFramedRouteResolveFailsEstablishment(t *testing.T) {
 	store, upf := epsTestSMF()
 	store.framedRoutesErr = errors.New("db unavailable")
 
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
 	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err == nil {
 		t.Fatal("expected establishment to fail when framed-route resolution fails")
@@ -67,16 +67,13 @@ func TestFramedRoutesChanged(t *testing.T) {
 	store, upf := epsTestSMF()
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24", "192.168.11.0/24")
 
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
 
-	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	ref, mmeCb := connectedEPSSession(t, s)
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.11.0/24", "192.168.10.0/24")
 
-	changed, err := framedRoutesChanged(s, bearer.Ref)
+	changed, err := reconcileReactivates(s, mmeCb, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +84,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
 
-	changed, err = framedRoutesChanged(s, bearer.Ref)
+	changed, err = reconcileReactivates(s, mmeCb, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +93,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 		t.Fatal("a changed framed-route set was not detected")
 	}
 
-	changed, err = framedRoutesChanged(s, "no-such-session")
+	changed, err = reconcileReactivates(s, mmeCb, "no-such-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,33 +103,50 @@ func TestFramedRoutesChanged(t *testing.T) {
 	}
 }
 
-func framedRoutesChanged(s *smf.SMF, ref string) (bool, error) {
-	delta, err := s.EPSSubscriptionChanged(context.Background(), ref)
+func connectedEPSSession(t *testing.T, s *smf.SMF) (string, *fakeMME) {
+	t.Helper()
 
-	return delta.FramedRoutes, err
-}
-
-func TestEPSSubscriptionChangedResolvesDNNOnce(t *testing.T) {
-	store, upf := epsTestSMF()
-	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
-	store.staticIPv4 = store.allocatedIP
-
-	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
 
 	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	enb := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, epsTestEBI, enb); err != nil {
+		t.Fatal(err)
+	}
+
+	return bearer.Ref, mmeCb
+}
+
+func reconcileReactivates(s *smf.SMF, mmeCb *fakeMME, ref string) (bool, error) {
+	before := len(mmeCb.reactivations())
+	err := s.ReconcileSession(context.Background(), ref)
+
+	return len(mmeCb.reactivations()) > before, err
+}
+
+func TestEPSReconcileResolvesDNNOnce(t *testing.T) {
+	store, upf := epsTestSMF()
+	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
+	store.staticIPv4 = store.allocatedIP
+
+	s := newTestSMF(&fakePCF{policy: epsPolicy()}, store, upf, &fakeAMF{})
+
+	ref, mmeCb := connectedEPSSession(t, s)
+
 	before := store.dnnResolves()
 
-	delta, err := s.EPSSubscriptionChanged(context.Background(), bearer.Ref)
+	reactivated, err := reconcileReactivates(s, mmeCb, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if delta != (models.SubscriptionDelta{}) {
-		t.Fatalf("subscription delta = %+v, want no change", delta)
+	if reactivated {
+		t.Fatal("an unchanged subscription reactivated the bearer")
 	}
 
 	if got := store.dnnResolves() - before; got != 1 {

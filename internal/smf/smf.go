@@ -78,6 +78,7 @@ type PCF interface {
 	// GetSessionPolicy returns the PCC rules (QoS + traffic filters) and DNN
 	// configuration for a subscriber in one call (3GPP Npcf_SMPolicyControl_Create).
 	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
+	GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*Policy, *models.Snssai, error)
 }
 
 type DNNStore interface {
@@ -125,6 +126,8 @@ type AMFCallback interface {
 type MMECallback interface {
 	NotifyDownlinkData(ctx context.Context, imsi string, ebi uint8, cause models.DownlinkDataNotificationCause) error
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
+	ModifyEPSBearer(ctx context.Context, imsi string, ebi uint8, mod models.EPSBearerModification) error
+	ReactivateEPSBearer(ctx context.Context, imsi string, ebi uint8) error
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
