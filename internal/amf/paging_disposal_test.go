@@ -358,3 +358,42 @@ func TestPagingSupervisionIsNotArmedForAUEThatAnswered(t *testing.T) {
 		t.Fatal("T3513 armed for a UE that already re-established its connection")
 	}
 }
+
+func signallingPagedUE(t *testing.T) (*AMF, *UeContext, *deregisterTestSmf) {
+	t.Helper()
+
+	a, ue, fakeSmf := idleUEWithSmf(t)
+
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{N1Class: models.N1ClassSM, PduSessionID: 5}, Signalling: true}); err != nil {
+		t.Fatalf("beginPaging: %v", err)
+	}
+
+	return a, ue, fakeSmf
+}
+
+func TestUnansweredSignallingPageSuppressesNoDownlinkData(t *testing.T) {
+	a, ue, fakeSmf := signallingPagedUE(t)
+	ue.SmContextList[5] = &SmContext{Ref: "ref-5"}
+
+	a.abandonPaging(trace.SpanContext{}, ue, ue.paging.attempt)
+
+	if got := fakeSmf.transferFailures; len(got) != 0 {
+		t.Fatalf("transfer failures = %v, want none: no downlink transfer was ever accepted", got)
+	}
+}
+
+func TestDownlinkDataDisplacesASignallingPage(t *testing.T) {
+	_, ue, fakeSmf := signallingPagedUE(t)
+
+	if _, err := ue.beginPaging(t.Context(), &MTRequest{Req: models.N1N2MessageTransferRequest{PduSessionID: 6, BinaryDataN2Information: []byte{0x01}}}); err != nil {
+		t.Fatalf("a downlink data transfer was refused behind a signalling page: %v", err)
+	}
+
+	if pending := ue.PagingPending(); pending == nil || pending.Req.PduSessionID != 6 {
+		t.Fatalf("pending = %+v, want the downlink data transfer", pending)
+	}
+
+	if got := fakeSmf.transferFailures; len(got) != 0 {
+		t.Fatalf("transfer failures = %v, want none for the displaced signalling page", got)
+	}
+}

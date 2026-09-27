@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 
@@ -63,19 +64,22 @@ type fakeSessionManager struct {
 	idleTransfers     []idleEPSTransfer
 	idleTransferErr   error
 	lastRequest       models.EPSBearerRequest
+	createErr         error
 	modifiedENB       models.FTEID
 	released          bool
 	deactivated       bool
-	ambrUpdated       bool
-	ambrUplink        models.BitRate
-	ambrDownlink      models.BitRate
-	ambrErr           error
-	framedChanged     bool
-	staticIPChanged   bool
-	subscriptionErr   error
+	reconciled        []string
+
+	outcomeMu sync.Mutex
+	concluded []bearerModificationOutcome
 
 	suppressCalls         int
 	clearSuppressionCalls int
+}
+
+type bearerModificationOutcome struct {
+	ref      string
+	accepted bool
 }
 
 type idleEPSTransfer struct {
@@ -112,6 +116,10 @@ func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	f.lastRequest = req
 
+	if f.createErr != nil {
+		return models.EPSBearer{}, f.createErr
+	}
+
 	pdnType := req.RequestedPDNType
 	if pdnType == 0 {
 		pdnType = 1
@@ -133,18 +141,6 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 
 func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
 	f.modifiedENB = enb
-
-	return nil
-}
-
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, ambrUplink, ambrDownlink models.BitRate) error {
-	if f.ambrErr != nil {
-		return f.ambrErr
-	}
-
-	f.ambrUpdated = true
-	f.ambrUplink = ambrUplink
-	f.ambrDownlink = ambrDownlink
 
 	return nil
 }
@@ -171,12 +167,24 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
-	if f.subscriptionErr != nil {
-		return models.SubscriptionDelta{}, f.subscriptionErr
-	}
+func (f *fakeSessionManager) ReconcileSession(_ context.Context, ref string) error {
+	f.reconciled = append(f.reconciled, ref)
 
-	return models.SubscriptionDelta{FramedRoutes: f.framedChanged, StaticIP: f.staticIPChanged}, nil
+	return nil
+}
+
+func (f *fakeSessionManager) CommitEPSBearerModification(_ context.Context, ref string, accepted bool) {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	f.concluded = append(f.concluded, bearerModificationOutcome{ref: ref, accepted: accepted})
+}
+
+func (f *fakeSessionManager) outcomes() []bearerModificationOutcome {
+	f.outcomeMu.Lock()
+	defer f.outcomeMu.Unlock()
+
+	return slices.Clone(f.concluded)
 }
 
 type fakeBearerStore struct{}

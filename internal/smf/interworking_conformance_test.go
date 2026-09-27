@@ -505,8 +505,8 @@ func TestInterworkingRefusedPDNTypeNamesTheAllowedFamily(t *testing.T) {
 			req := epsRequest(uint8(eps.PDNTypeNonIP))
 			req.APN = testDNN
 			req.Snssai = testSnssai
-			req.IPv4Pool = tc.ipv4Pool
-			req.IPv6Pool = tc.ipv6Pool
+			pcf.policy.IPv4Pool = tc.ipv4Pool
+			pcf.policy.IPv6Pool = tc.ipv6Pool
 
 			_, err := s.CreateEPSSession(context.Background(), req)
 

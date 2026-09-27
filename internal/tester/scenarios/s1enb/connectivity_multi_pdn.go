@@ -111,8 +111,8 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	defaultExp := defaultExpectedAttach()
 	defaultExp.ARP = 15
-	defaultExp.UEAmbrDownlinkBps = 500 * mbpsToBps
-	defaultExp.UEAmbrUplinkBps = 500 * mbpsToBps
+	defaultExp.UEAmbrDownlinkBps = 100 * mbpsToBps
+	defaultExp.UEAmbrUplinkBps = 100 * mbpsToBps
 
 	if err := assertAttach(res, defaultExp); err != nil {
 		return fmt.Errorf("default APN: %w", err)

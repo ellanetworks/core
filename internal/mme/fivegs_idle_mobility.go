@@ -41,14 +41,6 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 	transferred := make([]uint8, 0, len(conns))
 
 	for _, c := range conns {
-		qos, err := ResolveQoSByAPN(ctx, m, ue.IMSI(), c.APN)
-		if err != nil {
-			logger.From(ctx, logger.MmeLog).Warn("arriving PDU session has no QoS in the subscriber profile; leaving it behind",
-				logger.SUPI(ue.Supi().String()), zap.String("apn", c.APN), zap.Error(err))
-
-			continue
-		}
-
 		snssai := c.Snssai
 
 		bearer, err := m.Session.TransferIdleToEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
@@ -59,7 +51,7 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 			continue
 		}
 
-		m.publishRelocatedPDN(ue, c.EPSBearerIdentity, qos, bearer)
+		m.publishRelocatedPDN(ue, c.EPSBearerIdentity, c.APN, bearer)
 
 		transferred = append(transferred, c.PDUSessionID)
 	}

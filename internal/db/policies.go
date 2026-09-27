@@ -506,6 +506,82 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	return nil, nil, nil, err
 }
 
+func (db *Database) GetEPSSessionPolicy(ctx context.Context, imsi string, apn string) (*Policy, []*NetworkRule, *DataNetwork, *NetworkSlice, error) {
+	ctx, span := tracer.Start(ctx, "db/get_eps_session_policy",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attrs.SUPIFromIMSI(imsi),
+			attrs.DNN(apn),
+		),
+	)
+	defer span.End()
+
+	sub, err := db.GetSubscriber(ctx, imsi)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
+	}
+
+	policies, err := db.ListPoliciesByProfile(ctx, sub.ProfileID)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, nil, nil, nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
+	}
+
+	var (
+		selected *Policy
+		dn       *DataNetwork
+	)
+
+	for i := range policies {
+		p := &policies[i]
+
+		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, nil, nil, nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
+		}
+
+		if dataNetwork.Name != apn {
+			continue
+		}
+
+		if selected == nil || p.IsDefault {
+			selected, dn = p, dataNetwork
+		}
+
+		if p.IsDefault {
+			break
+		}
+	}
+
+	if selected == nil {
+		err := fmt.Errorf("no policy matching apn=%q for profile %s: %w", apn, sub.ProfileID, ErrNoMatchingPolicy)
+		recordSpanError(span, err)
+
+		return nil, nil, nil, nil, err
+	}
+
+	slice, err := db.GetNetworkSliceByID(ctx, selected.SliceID)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, nil, nil, nil, fmt.Errorf("couldn't get network slice %s: %w", selected.SliceID, err)
+	}
+
+	rules, err := db.ListRulesForPolicy(ctx, selected.ID)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, nil, nil, nil, fmt.Errorf("list rules for policy %s: %w", selected.ID, err)
+	}
+
+	return selected, rules, dn, slice, nil
+}
+
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	querySummary := fmt.Sprintf("%s %s", "INSERT", PoliciesTableName)
 

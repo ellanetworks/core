@@ -26,7 +26,7 @@ func ipcpConfigureRequest(t *testing.T) []nas.PCOContainer {
 	return []nas.PCOContainer{{ID: nas.PCOProtocolIPCP, Content: content}}
 }
 
-func activateWithProtocolOptions(t *testing.T, p *mme.PdnConnection, qos *mme.EpsQoS, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
+func activateWithProtocolOptions(t *testing.T, p *mme.PdnConnection, qos models.EPSBearer, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
 	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO, ipcpConfigureRequest(t))
@@ -42,18 +42,15 @@ func activateWithProtocolOptions(t *testing.T, p *mme.PdnConnection, qos *mme.Ep
 	return act
 }
 
-func epsPdn() (*mme.PdnConnection, *mme.EpsQoS) {
+func epsPdn() (*mme.PdnConnection, models.EPSBearer) {
 	p := &mme.PdnConnection{
 		Ebi:     mme.DefaultERABID,
+		Apn:     "internet",
 		PdnType: eps.PDNTypeIPv4,
 		UeIP:    netip.MustParseAddr("10.45.0.1"),
 		Dns:     netip.MustParseAddr("8.8.8.8"),
 	}
-	qos := &mme.EpsQoS{
-		APN: "internet", QCI: 9, MTU: 1400,
-		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
-		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
-	}
+	qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("100 Mbps"), Uplink: models.MustParseBitRate("50 Mbps")}}, MTU: 1400}
 
 	return p, qos
 }

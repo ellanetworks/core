@@ -48,6 +48,10 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
+	if !shouldRelease {
+		amfInstance.ReconcileSessionsForUE(ctx, ue)
+	}
+
 	if shouldRelease {
 		ueConn := ue.Conn()
 		if ueConn == nil {

@@ -35,7 +35,8 @@ func (s PagingState) String() string {
 }
 
 type MTRequest struct {
-	Ebi uint8
+	Ebi        uint8
+	Signalling bool
 }
 
 type pagingProc struct {

@@ -62,10 +62,6 @@ func (d *configTestDB) GetProfileByID(_ context.Context, id string) (*db.Profile
 	return &db.Profile{ID: id, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
-func (d *configTestDB) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
-	return nil, nil
-}
-
 func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
 	if d.allSlices != nil {
 		return d.allSlices, nil

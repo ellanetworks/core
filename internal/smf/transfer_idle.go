@@ -31,7 +31,15 @@ func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionI
 		return models.EPSBearer{}, fmt.Errorf("%w: session %q left the pool as it moved", ErrSessionNotMovable, ref)
 	}
 
-	return epsBearerForSession(sc, sessionDNS(sc))
+	sc.Mutex.Lock()
+	policy := sc.PolicyData
+	sc.Mutex.Unlock()
+
+	if policy == nil {
+		return models.EPSBearer{}, fmt.Errorf("%w: session %q has no policy", ErrSessionNotMovable, ref)
+	}
+
+	return epsBearerForSession(sc, policy, ebi)
 }
 
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {

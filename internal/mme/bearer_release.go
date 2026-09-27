@@ -37,7 +37,16 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 	p.Deactivating = true
 	p.Disconnecting = disconnecting
+
+	interrupted := p.Modifying != nil
+	if interrupted {
+		p.clearModificationLocked()
+	}
 	ue.mu.Unlock()
+
+	if interrupted {
+		m.Session.CommitEPSBearerModification(ctx, p.SessionRef, false)
+	}
 
 	plain, err := (&eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
@@ -101,6 +110,22 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	}
 
 	m.ArmESMGuard(ctx, ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered)
+}
+
+func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	ueConn := ue.Conn()
+
+	if !ue.BearerReleaseOnly(p) && ueConn != nil && ue.Secured() {
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired)
+
+		return
+	}
+
+	if ueConn != nil && ue.BearerReleaseOnly(p) {
+		m.sendERABRelease(ctx, ueConn, p, nil)
+	}
+
+	m.DeactivatePDN(ctx, ue, p)
 }
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular

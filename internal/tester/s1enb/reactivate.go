@@ -62,6 +62,56 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 	}
 }
 
+// AwaitNetworkDetach answers a network-initiated DETACH REQUEST with a DETACH
+// ACCEPT and completes the S1 release that follows (TS 24.301 §5.5.2.3). It
+// returns the parsed request so the caller can assert the detach type.
+// Proactive downlink NAS (e.g. EMM INFORMATION) is skipped, as a real UE would.
+func (e *ENB) AwaitNetworkDetach(ue *UE, enbUEID int64, timeout time.Duration) (*eps.DetachRequestNetwork, error) {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, fmt.Errorf("timed out awaiting Detach Request")
+		}
+
+		wire, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, remaining)
+		if err != nil {
+			return nil, err
+		}
+
+		plain, err := ue.unprotectDownlink(wire)
+		if err != nil {
+			return nil, fmt.Errorf("unprotect downlink NAS: %w", err)
+		}
+
+		msg, err := parseDownlink(plain)
+		if err != nil {
+			return nil, err
+		}
+
+		req, ok := msg.(*eps.DetachRequestNetwork)
+		if !ok {
+			continue
+		}
+
+		accept, err := ue.buildDetachAccept()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, accept); err != nil {
+			return nil, fmt.Errorf("send Detach Accept: %w", err)
+		}
+
+		if err := e.completeContextRelease(enbUEID, time.Until(deadline)); err != nil {
+			return nil, err
+		}
+
+		return req, nil
+	}
+}
+
 // ModifyBearer handles a network-initiated bearer modification, the EPS reaction
 // to an in-place data-network change (a DNS update) that does not re-establish the
 // bearer (TS 24.301 §6.4.2). It returns the parsed request so the caller can assert
@@ -142,6 +192,23 @@ func (ue *UE) buildModifyEPSBearerContextAccept(ebi, pti uint8) ([]byte, error) 
 		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
 	if err != nil {
 		return nil, fmt.Errorf("protect Modify EPS Bearer Context Accept: %w", err)
+	}
+
+	ue.ulCount++
+
+	return out, nil
+}
+
+func (ue *UE) buildDetachAccept() ([]byte, error) {
+	plain, err := (&eps.DetachAccept{}).MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("build Detach Accept: %w", err)
+	}
+
+	out, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered,
+		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
+	if err != nil {
+		return nil, fmt.Errorf("protect Detach Accept: %w", err)
 	}
 
 	ue.ulCount++

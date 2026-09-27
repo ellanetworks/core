@@ -53,15 +53,15 @@ type ueAddresses struct {
 // the data path, and establishes the UPF (PFCP) session. On failure it rolls the
 // partial session back and wraps a sentinel error for the adapter to map to its
 // NAS cause.
-func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, ueAddresses, error) {
+func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, error) {
 	dn, err := s.store.ResolveDNN(ctx, req.Dnn)
 	if err != nil {
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
+		return nil, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
 	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
 	if err != nil {
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errSessionIdentity, err)
+		return nil, fmt.Errorf("%w: %v", errSessionIdentity, err)
 	}
 
 	committed := false
@@ -81,7 +81,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {
 		sc.Mutex.Unlock()
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
+		return nil, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
 	// Framed routes are per-subscriber subscription data (TS 23.501 §5.6.14): they
@@ -90,7 +90,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	framed, err := dn.ListFramedRoutes(ctx, req.Supi.IMSI())
 	if err != nil {
 		sc.Mutex.Unlock()
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
+		return nil, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
 	}
 
 	sc.FramedRoutes = framed
@@ -101,7 +101,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), false)
 		if err != nil {
 			sc.Mutex.Unlock()
-			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
+			return nil, fmt.Errorf("%w: %v", errStaticIPResolve, err)
 		}
 
 		if ok {
@@ -113,7 +113,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), true)
 		if err != nil {
 			sc.Mutex.Unlock()
-			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
+			return nil, fmt.Errorf("%w: %v", errStaticIPResolve, err)
 		}
 
 		if ok {
@@ -137,12 +137,12 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	s.indexSEID(sc, seid)
 
 	if err := s.establishPFCPSession(ctx, sc); err != nil {
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUPFSession, err)
+		return nil, fmt.Errorf("%w: %v", errUPFSession, err)
 	}
 
 	committed = true
 
-	return sc, addrs, nil
+	return sc, nil
 }
 
 // abortSession rolls back a partially-created session sc: it releases the UPF

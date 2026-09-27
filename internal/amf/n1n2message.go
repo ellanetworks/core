@@ -25,10 +25,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrUENotReachable is returned when the UE is in CM-IDLE state and the
-// requested signaling cannot be delivered. Per TS 23.502 the AMF may ignore
-// the N2 SM information when the UE is not reachable; delivery is deferred
-// until the UE transitions to CM-CONNECTED.
+// ErrUENotReachable is returned when the UE is in CM-IDLE state, or not yet
+// registered, and the requested signaling cannot be delivered. Per TS 23.502
+// the AMF may ignore the N2 SM information when the UE is not reachable;
+// delivery is deferred until the UE transitions to CM-CONNECTED.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
 var errNoRANUEContext = errors.New("the NG-RAN node holds no UE context for this connection")
@@ -198,6 +198,19 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 	return amf.pageIdleUE(ctx, ue, &MTRequest{Req: req})
 }
 
+func (amf *AMF) pageForSessionSignalling(ctx context.Context, ue *UeContext, pduSessionID uint8) {
+	if err := guardIdlePaging(ue); err != nil {
+		return
+	}
+
+	req := &MTRequest{Req: models.N1N2MessageTransferRequest{N1Class: models.N1ClassSM, PduSessionID: pduSessionID}, Signalling: true}
+
+	if _, err := amf.pageIdleUE(ctx, ue, req); err != nil {
+		logger.From(ctx, logger.AmfLog).Debug("could not page the UE for a PDU session modification",
+			logger.SUPI(ue.Supi().String()), logger.PDUSessionID(pduSessionID), zap.Error(err))
+	}
+}
+
 // ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
 // UE, optionally with a PDU Session Resource Modify Request (N2) to the gNB.
 //
@@ -224,10 +237,12 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		// Per TS 23.502, in CM-IDLE the AMF may ignore the N2 SM information.
-		// The gNB has released the session's radio resources, so there is
-		// nothing to modify; the updated QoS applies on the next CM-CONNECTED
-		// setup.
+		amf.pageForSessionSignalling(ctx, ue, pduSessionID)
+
+		return ErrUENotReachable
+	}
+
+	if ue.State() != Registered {
 		return ErrUENotReachable
 	}
 
@@ -293,7 +308,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	}
 
 	ueConn := ue.Conn()
-	if ueConn == nil {
+	if ueConn == nil || ue.State() != Registered {
 		return ErrUENotReachable
 	}
 
@@ -303,7 +318,7 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 	}
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		if !ueConn.RANHoldsUEContext() {
+		if n2Transfer == nil || !ueConn.RANHoldsUEContext() {
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send downlink NAS transport: %w", err)
 			}

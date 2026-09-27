@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
-// completes on the NAS Modify Accept, so a failed-to-modify list is logged but
-// does not itself abort the modification (TS 36.413 §8.2.2).
+// handleERABModifyResponse records the eNB's E-RAB Modify outcome. A modification
+// that reconfigured the radio bearer completes once both the eNB and the UE have
+// answered, and a failed E-RAB abandons it (TS 23.401 §5.4.2.1, TS 36.413 §8.2.2).
 func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
@@ -35,8 +35,16 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, resp.UserLocationInformation)
 
+	for _, item := range resp.ERABModify {
+		m.RadioBearerModified(ctx, ue, uint8(item.ERABID), true)
+	}
+
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.From(ctx, logger.MmeLog).Warn("eNB failed to modify E-RAB(s)",
 			logger.MMEUeS1apID(uint32(*resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
+	}
+
+	for _, item := range resp.ERABFailedToModify {
+		m.RadioBearerModified(ctx, ue, uint8(item.ERABID), false)
 	}
 }

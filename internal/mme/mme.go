@@ -36,12 +36,12 @@ type epsSessionManager interface {
 	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
 	OpenEPSForwardingTunnel(ctx context.Context, ref string, target models.FTEID) (models.ForwardingTunnel, error)
 	CloseEPSForwardingTunnel(ctx context.Context, ref string) error
-	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
 	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8, cause models.EPSPagingFailureCause) error
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
 	ReleaseEPSSession(ctx context.Context, ref string) error
-	EPSSubscriptionChanged(ctx context.Context, ref string) (models.SubscriptionDelta, error)
+	ReconcileSession(ctx context.Context, ref string) error
+	CommitEPSBearerModification(ctx context.Context, ref string, accepted bool)
 }
 
 type credentialProvider interface {
