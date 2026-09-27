@@ -76,6 +76,7 @@ Traces are collected for the following components:
 
  - **NGAP/S1AP**: Traces for NGAP (5G) and S1AP (4G) message handling between radios and Ella Core.
  - **API**: Traces for HTTP requests to the REST API.
+ - **Cluster**: Traces for requests forwarded between nodes in a high-availability deployment.
 
 For more information on configuring tracing in Ella Core, refer to the [Configuration File](config_file.md) documentation.
 
