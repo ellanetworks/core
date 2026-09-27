@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/lmf"
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -247,6 +248,10 @@ func writeLocationError(ctx context.Context, w http.ResponseWriter, err error) {
 		writeError(ctx, w, http.StatusNotFound, "UE not found or not registered", err, logger.APILog)
 	case errors.Is(err, lmf.ErrNoLocationEstimate):
 		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: no coordinate for serving cell", err, logger.APILog)
+	case errors.Is(err, lpp.ErrUENoLocationEstimate):
+		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: UE provided no location estimate", err, logger.APILog)
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(ctx, w, http.StatusGatewayTimeout, "location request timed out", err, logger.APILog)
 	default:
 		writeError(ctx, w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
 	}

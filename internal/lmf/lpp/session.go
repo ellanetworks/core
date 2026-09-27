@@ -64,6 +64,7 @@ type Session struct {
 	failFunc       func() error
 	cancelFunc     func() error
 	deregisterFunc func()
+	failure        error
 }
 
 // NewSession creates a new LPP session for the given SUPI and positioning method.
@@ -222,7 +223,9 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 	}
 
 	if !msg.HasLocationEstimate {
-		return fmt.Errorf("UE provided no location estimate (location error: %t)", msg.LocationError)
+		return fmt.Errorf("%w: location failure cause %s, GNSS error cause %s", ErrUENoLocationEstimate,
+			causeName(locationFailureCauseNames, msg.LocationFailureCause),
+			causeName(gnssErrorCauseNames, msg.GNSSErrorCause))
 	}
 
 	s.locationResult = &msg.GNSSPositionResult
@@ -331,6 +334,25 @@ func (s *Session) Fail() {
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
+}
+
+func (s *Session) FailWith(err error) {
+	s.mu.Lock()
+
+	if s.failure == nil && s.state != SessionFailed && s.state != LocationReceived {
+		s.failure = err
+	}
+
+	s.mu.Unlock()
+
+	s.Fail()
+}
+
+func (s *Session) Failure() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.failure
 }
 
 // Cancel cancels the session.

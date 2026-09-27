@@ -207,6 +207,10 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 			}
 
 			if state == lpp.SessionFailed {
+				if failure := session.Failure(); failure != nil {
+					return nil, session.SessionID(), fmt.Errorf("LPP session failed: %w", failure)
+				}
+
 				return nil, session.SessionID(), fmt.Errorf("LPP session failed (state=%s)", state)
 			}
 		}

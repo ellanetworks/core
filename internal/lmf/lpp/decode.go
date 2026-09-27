@@ -185,8 +185,9 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
-	if r9.AGNSSProvideLocationInformation != nil && r9.AGNSSProvideLocationInformation.GnssError != nil {
-		out.LocationError = true
+	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GnssError != nil && a.GnssError.TargetDeviceErrorCauses != nil {
+		cause := a.GnssError.TargetDeviceErrorCauses.Cause
+		out.GNSSErrorCause = &cause
 	}
 
 	if r9.CommonIEsProvideLocationInformation == nil {
@@ -195,7 +196,8 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 
 	common := r9.CommonIEsProvideLocationInformation
 	if common.LocationError != nil {
-		out.LocationError = true
+		cause := common.LocationError.LocationFailureCause
+		out.LocationFailureCause = &cause
 	}
 
 	if common.LocationEstimate == nil {

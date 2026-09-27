@@ -157,6 +157,13 @@ func (c *Client) WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measur
 			// measurement terminated once it returns the Initiation Response, so no
 			// Termination Command is sent (that procedure is for periodic reporting,
 			// §8.2.4.1).
+			if resp.Result == nil {
+				logger.LmfLog.Warn("eNB returned an E-CID measurement response without a measurement result",
+					logger.SUPI(supi.String()),
+					zap.Int64("esmlc_measurement_id", measurementID),
+				)
+			}
+
 			m := mapECIDResult(resp.Result)
 			ue.SetRadioMeasurements(m)
 

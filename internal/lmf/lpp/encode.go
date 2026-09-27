@@ -72,6 +72,7 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byt
 								},
 								QoS: &lpptype.QoS{
 									VerticalCoordinateRequest: false,
+									ResponseTime:              &lpptype.ResponseTime{Time: locationResponseTimeSeconds},
 									VelocityRequest:           false,
 								},
 							},
@@ -240,6 +241,8 @@ const (
 	posModesBitLength      = 3
 	gnssIdBitmapBitLength  = 7
 	gnssSignalIDsBitLength = 8
+
+	locationResponseTimeSeconds = 25
 )
 
 // makePosModes creates a PositioningModes bitmap.

@@ -225,7 +225,7 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, core Core, supi etsi.SUPI, c
 	}
 
 	if err := activeSession.HandleResponse(msg); err != nil {
-		activeSession.Fail()
+		activeSession.FailWith(err)
 
 		return fmt.Errorf("handle LPP response: %w", err)
 	}

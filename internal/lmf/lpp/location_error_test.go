@@ -4,6 +4,8 @@
 package lpp
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
@@ -75,8 +77,8 @@ func TestDecodeProvideLocationInformationWithoutEstimate(t *testing.T) {
 		t.Error("HasLocationEstimate = true, want false")
 	}
 
-	if !pli.LocationError {
-		t.Error("LocationError = false, want true")
+	if pli.LocationFailureCause == nil || *pli.LocationFailureCause != 1 {
+		t.Errorf("LocationFailureCause = %v, want 1", pli.LocationFailureCause)
 	}
 }
 
@@ -91,7 +93,7 @@ func TestDecodeProvideLocationInformationWithEstimate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !decoded.ProvideLocationInformation.HasLocationEstimate || decoded.ProvideLocationInformation.LocationError {
+	if !decoded.ProvideLocationInformation.HasLocationEstimate || decoded.ProvideLocationInformation.LocationFailureCause != nil || decoded.ProvideLocationInformation.GNSSErrorCause != nil {
 		t.Errorf("ProvideLocationInformation = %+v, want an estimate and no error", decoded.ProvideLocationInformation)
 	}
 }
@@ -107,9 +109,15 @@ func TestSessionRejectsLocationWithoutEstimate(t *testing.T) {
 		return nil
 	}, nil, nil, nil)
 
-	err := s.HandleResponse(&models.ProvideLocationInformation{LocationError: true})
-	if err == nil {
-		t.Fatal("HandleResponse accepted a ProvideLocationInformation with no estimate")
+	cause := int64(2)
+
+	err := s.HandleResponse(&models.ProvideLocationInformation{LocationFailureCause: &cause})
+	if !errors.Is(err, ErrUENoLocationEstimate) {
+		t.Fatalf("HandleResponse = %v, want ErrUENoLocationEstimate", err)
+	}
+
+	if !strings.Contains(err.Error(), "positionMethodFailure") {
+		t.Errorf("error %q does not name the location failure cause", err)
 	}
 
 	if s.State() == LocationReceived || completed {
@@ -156,7 +164,7 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 	}
 
 	pli := decoded.ProvideLocationInformation
-	if !pli.HasLocationEstimate || !pli.LocationError {
+	if !pli.HasLocationEstimate || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != lpptype.GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible {
 		t.Fatalf("ProvideLocationInformation = %+v, want an estimate and a GNSS error", pli)
 	}
 
@@ -169,5 +177,39 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 
 	if s.State() != LocationReceived {
 		t.Errorf("state = %s, want %s", s.State(), LocationReceived)
+	}
+}
+
+func TestSessionFailWithRecordsTheFirstFailure(t *testing.T) {
+	s := NewSession("imsi-001010000000001", "session-3", "agnss")
+	s.state = LocationRequested
+
+	first := errors.New("first")
+	s.FailWith(first)
+	s.FailWith(errors.New("second"))
+
+	if s.State() != SessionFailed {
+		t.Fatalf("state = %s, want %s", s.State(), SessionFailed)
+	}
+
+	if !errors.Is(s.Failure(), first) {
+		t.Errorf("Failure = %v, want %v", s.Failure(), first)
+	}
+}
+
+func TestRequestLocationInformationCarriesResponseTime(t *testing.T) {
+	b, err := EncodeRequestLocationInformation(0x01, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := Decoder(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qos := msg.LppMessageBody.C1.RequestLocationInformation.CriticalExtensions.C1.RequestLocationInformationR9.CommonIEsRequestLocationInformation.QoS
+	if qos == nil || qos.ResponseTime == nil || qos.ResponseTime.Time != locationResponseTimeSeconds {
+		t.Fatalf("QoS = %+v, want a response time of %d s", qos, locationResponseTimeSeconds)
 	}
 }

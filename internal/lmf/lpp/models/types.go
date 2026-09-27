@@ -90,10 +90,11 @@ type ProvideAssistanceData struct {
 
 // ProvideLocationInformation is sent by UE to LMF with the location fix.
 type ProvideLocationInformation struct {
-	TransactionID       byte
-	GNSSPositionResult  GNSSPositionResult
-	HasLocationEstimate bool
-	LocationError       bool
+	TransactionID        byte
+	GNSSPositionResult   GNSSPositionResult
+	HasLocationEstimate  bool
+	LocationFailureCause *int64
+	GNSSErrorCause       *int64
 }
 
 // GNSSPositionResult contains the GNSS-derived location.
