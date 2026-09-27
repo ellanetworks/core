@@ -71,7 +71,7 @@ type Server struct {
 
 func NewServer(cfg Config, cb Callbacks) *Server {
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(slog.DiscardHandler)
+		cfg.Logger = slog.Default()
 	}
 
 	return &Server{cfg: cfg, cb: cb}
@@ -81,7 +81,11 @@ type ListenConfig struct {
 	Control func(network, address string, c syscall.RawConn) error
 }
 
-func (lc ListenConfig) Listen(laddr *SCTPAddr) (*Listener, error) {
+func (lc *ListenConfig) Listen(ctx context.Context, laddr *SCTPAddr) (*Listener, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	cfg := serverSocketConfig
 	cfg.Control = lc.Control
 

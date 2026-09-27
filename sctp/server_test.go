@@ -120,5 +120,7 @@ func testListen(address string) (*Listener, error) {
 		return nil, err
 	}
 
-	return ListenConfig{}.Listen(&SCTPAddr{IPAddrs: []net.IPAddr{*ip}})
+	var lc ListenConfig
+
+	return lc.Listen(context.Background(), &SCTPAddr{IPAddrs: []net.IPAddr{*ip}})
 }

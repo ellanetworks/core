@@ -159,7 +159,7 @@ func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := sctp.ListenConfig{}.Listen(&sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
+	ln, err := new(sctp.ListenConfig).Listen(ctx, &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := sctp.ListenConfig{}.Listen(&sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
+	ln, err := new(sctp.ListenConfig).Listen(ctx, &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

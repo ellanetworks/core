@@ -596,7 +596,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   amf.NGAPPPID,
 		Name:   "NGAP",
-		Logger: slog.New(zapslog.NewHandler(logger.AmfLog.Core())),
+		Logger: sctpLogger(logger.AmfLog, "AMF"),
 	}, amfsctp.Callbacks{
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			ngap.Dispatch(ctx, amfInstance, conn, msg)
@@ -630,7 +630,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	mmeServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   mme.S1apPPID,
 		Name:   "S1-MME",
-		Logger: slog.New(zapslog.NewHandler(logger.MmeLog.Core())),
+		Logger: sctpLogger(logger.MmeLog, "MME"),
 	}, amfsctp.Callbacks{
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
@@ -1027,4 +1027,12 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	}
 
 	return pools
+}
+
+func sctpLogger(log *zap.Logger, name string) *slog.Logger {
+	return slog.New(zapslog.NewHandler(log.Core(),
+		zapslog.WithName(name),
+		zapslog.WithCaller(true),
+		zapslog.AddStacktraceAt(slog.LevelError+1),
+	))
 }

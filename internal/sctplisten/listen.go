@@ -95,7 +95,7 @@ func Listen(ctx context.Context, log *zap.Logger, address string, port int, inte
 			lc.Control = netutil.BindToDeviceControl(bindDevice)
 		}
 
-		l, err := lc.Listen(laddr)
+		l, err := lc.Listen(ctx, laddr)
 		if err != nil {
 			return err
 		}
