@@ -21,7 +21,7 @@ type captureLPPHandler struct {
 	correlationIDs [][]byte
 }
 
-func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ string, correlationID, _ []byte) error {
+func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, correlationID, _ []byte) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -78,7 +78,7 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	session.SetCorrelationID(sessionCorrelationID)
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return handler.ForwardLPPToUE(context.Background(), supi.String(), session.CorrelationID(), lppMsg)
+			return handler.ForwardLPPToUE(context.Background(), CoreAMF, supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(*models.LocationResult) error { return nil },
 		func() error { return nil },
@@ -93,7 +93,7 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 	}
 
 	inbound := provideCapabilitiesRequestingAck(t, 7)
-	if err := ForwardLPPToLMF(lmfInstance, context.Background(), supi, ueCorrelationID, inbound); err != nil {
+	if err := ForwardLPPToLMF(lmfInstance, context.Background(), CoreAMF, supi, ueCorrelationID, inbound); err != nil {
 		t.Fatalf("ForwardLPPToLMF: %v", err)
 	}
 

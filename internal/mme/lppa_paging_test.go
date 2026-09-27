@@ -147,10 +147,7 @@ func TestCancelBufferedLPPa(t *testing.T) {
 }
 
 func lppaBuffered(ue *UeContext) bool {
-	ue.lppaBufMu.RLock()
-	defer ue.lppaBufMu.RUnlock()
-
-	return ue.lppaBuf != nil
+	return ue.lppaBuf.pending()
 }
 
 func TestAbandonPaging_DiscardsBufferedLPPa(t *testing.T) {

@@ -118,7 +118,7 @@ func appendGenericNASTransport(b []byte, mt MessageType, containerType GenericMe
 	w.U8(uint8(containerType))
 	w.LVE(container)
 
-	if additionalInformation != nil {
+	if len(additionalInformation) > 0 {
 		o.TLV(ieiAdditionalInformation, additionalInformation)
 	}
 

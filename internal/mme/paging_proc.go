@@ -155,8 +155,7 @@ func (ue *UeContext) PagingFailed(ctx context.Context, cause models.EPSPagingFai
 	dropped := ue.takePendingLocked()
 	ue.paging.mu.Unlock()
 
-	ue.ClearLPPaBuffered()
-	ue.ClearLPPBuffered()
+	ue.clearPagingBuffers()
 
 	if dropped != nil {
 		ue.notifyMTDeliveryFailure(ctx, dropped, cause)
@@ -192,8 +191,7 @@ func (ue *UeContext) PagingUnanswered(ctx context.Context, attempt uint64, cause
 
 	ue.paging.mu.Unlock()
 
-	ue.ClearLPPaBuffered()
-	ue.ClearLPPBuffered()
+	ue.clearPagingBuffers()
 
 	if dropped != nil {
 		ue.notifyMTDeliveryFailure(ctx, dropped, cause)

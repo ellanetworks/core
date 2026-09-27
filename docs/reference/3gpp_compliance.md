@@ -51,7 +51,7 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 
 ### Location (beta)
 
-Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. See the [Location API](api/location.md).
+Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. A-GNSS positioning: LPP on 4G and 5G. See the [Location API](api/location.md).
 
 ## Limitations
 

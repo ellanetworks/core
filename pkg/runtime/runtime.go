@@ -538,7 +538,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	lmfAMF := &lmfBridge{amf: amfInstance, mme: mmeInstance, lmf: lmfInstance}
 	lmfInstance.SetLPPHandler(lmfAMF)
 	amfInstance.LPPHandler = lmfAMF
-	mmeInstance.LPPHandler = lmfAMF
+	mmeInstance.LPPHandler = &mmeLPPUplink{lmf: lmfInstance}
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.
@@ -859,8 +859,8 @@ func (a *mmeNASAdapter) HandleServiceRequest(ctx context.Context, conn mme.S1APW
 	mmenas.HandleServiceRequest(ctx, a.mme, conn, msg)
 }
 
-// lmfBridge implements amf.LPPHandler, mme.LPPHandler and lmf.LPPHandler, enabling bidirectional
-// LPP transport between the AMF or MME and the LMF. The AMF and MME use it to forward UL NAS payloads
+// lmfBridge implements both amf.LPPHandler and lmf.LPPHandler, enabling bidirectional
+// LPP transport between AMF and LMF. The AMF uses it to forward UL NAS payloads
 // containing LPP to the LMF; the LMF uses it to send LPP responses down to the UE
 // via the NAS stack of the core serving it.
 //
@@ -877,16 +877,24 @@ type lmfBridge struct {
 }
 
 func (b *lmfBridge) ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
-	return lmf.ForwardLPPToLMF(b.lmf, ctx, supi, correlationID, lppData)
+	return lmf.ForwardLPPToLMF(b.lmf, ctx, lmf.CoreAMF, supi, correlationID, lppData)
 }
 
-func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, correlationID, lppData []byte) error {
+type mmeLPPUplink struct {
+	lmf *lmf.LMF
+}
+
+func (u *mmeLPPUplink) ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error {
+	return lmf.ForwardLPPToLMF(u.lmf, ctx, lmf.CoreMME, supi, correlationID, lppData)
+}
+
+func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, core lmf.Core, supi string, correlationID, lppData []byte) error {
 	supiEtsi, err := etsi.NewSUPIFromPrefixed(supi)
 	if err != nil {
 		return fmt.Errorf("invalid SUPI %q: %w", supi, err)
 	}
 
-	if b.lmf.ServedByMME(supiEtsi) {
+	if core == lmf.CoreMME {
 		if err := b.mme.TransferLPPMsg(ctx, supiEtsi, correlationID, lppData); err != nil {
 			return fmt.Errorf("transfer LPP to UE: %w", err)
 		}

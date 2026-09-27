@@ -216,19 +216,42 @@ func TestAbandonPaging_DiscardsBufferedLPP(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 
-	for {
-		ue.lppBufMu.Lock()
-		buffered := ue.lppBuf != nil
-		ue.lppBufMu.Unlock()
-
-		if !buffered {
-			break
-		}
-
+	for ue.lppBuf.pending() {
 		if time.Now().After(deadline) {
 			t.Fatal("expected the buffered LPP message discarded when paging was abandoned")
 		}
 
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestTransferLPPMsg_IdleUE_JoinsPagingInProgress(t *testing.T) {
+	m := newTestMME(t)
+	m.pagingCfg.ExpireTime = time.Hour
+
+	ue := idleRegisteredUE(t, m)
+
+	_ = ue.beginPaging(&MTRequest{})
+	m.armPaging(t.Context(), ue, []byte{0x00})
+
+	defer func() {
+		m.mu.Lock()
+		ue.clearPaging()
+		m.mu.Unlock()
+	}()
+
+	correlationID := []byte{0x00, 0x00, 0x00, 0x09}
+
+	if err := m.TransferLPPMsg(context.Background(), lppaTestSUPI(t, ue), correlationID, []byte{0xaa}); err != nil {
+		t.Fatalf("TransferLPPMsg: %v", err)
+	}
+
+	buf := ue.PopLPPBuffered()
+	if buf == nil {
+		t.Fatal("expected the LPP message buffered on the paging procedure in progress")
+	}
+
+	if !bytes.Equal(buf.CorrelationID, correlationID) {
+		t.Errorf("correlation id = %x, want %x", buf.CorrelationID, correlationID)
 	}
 }

@@ -7,11 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -32,6 +35,11 @@ func (m *MME) AllocateLCSCorrelationID() []byte {
 }
 
 func (m *MME) TransferLPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
+	ctx, span := Tracer.Start(ctx, "mme/transfer_lpp_message",
+		trace.WithAttributes(attrs.SUPI(supi.String())),
+	)
+	defer span.End()
+
 	ue, ok := m.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("UE not found: %s", supi)
@@ -53,28 +61,30 @@ func (m *MME) TransferLPPMsg(ctx context.Context, supi etsi.SUPI, correlationID,
 }
 
 func (m *MME) pageForLPP(ctx context.Context, ue *UeContext, correlationID, lppMsg []byte) error {
-	m.mu.RLock()
+	buf := LPPBuffered{CorrelationID: bytes.Clone(correlationID), Payload: bytes.Clone(lppMsg)}
 
-	handover := ue.handover
-
-	m.mu.RUnlock()
-
-	if handover != nil {
-		return fmt.Errorf("temporary reject: handover ongoing")
-	}
-
-	arm := func() error {
-		if err := ue.beginPaging(&MTRequest{}); err != nil {
-			return err
+	err := m.pageToDeliver(ctx, ue, func() { ue.lppBuf.set(buf) })
+	if errors.Is(err, errPagingSkipped) {
+		if ueConn := ue.Conn(); ueConn != nil {
+			return sendLPP(ctx, ueConn, correlationID, lppMsg)
 		}
 
-		ue.SetLPPBuffered(correlationID, lppMsg)
+		if m.pagingInProgress(ue) {
+			ue.lppBuf.set(buf)
 
-		return nil
+			if ueConn := ue.Conn(); ueConn != nil {
+				m.DeliverBufferedLPP(ctx, ue, ueConn)
+			}
+
+			logger.From(ctx, logger.MmeLog).Info("LPP message buffered on the paging procedure in progress",
+				logger.SUPI(ue.Supi().String()))
+
+			return nil
+		}
 	}
 
-	if err := m.page(ctx, ue, arm); err != nil {
-		return fmt.Errorf("failed to page ECM-IDLE UE: %w", err)
+	if err != nil {
+		return err
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("LPP message buffered, paging ECM-IDLE UE",
@@ -95,8 +105,12 @@ func (m *MME) CancelBufferedLPP(supi etsi.SUPI, correlationID []byte) {
 }
 
 func (m *MME) DeliverBufferedLPP(ctx context.Context, ue *UeContext, ueConn *UeConn) {
+	if ueConn == nil {
+		return
+	}
+
 	buf := ue.PopLPPBuffered()
-	if buf == nil || ueConn == nil {
+	if buf == nil {
 		return
 	}
 
@@ -126,39 +140,16 @@ func sendLPP(ctx context.Context, ueConn *UeConn, correlationID, lppMsg []byte) 
 }
 
 func (ue *UeContext) SetLPPBuffered(correlationID, payload []byte) {
-	ue.lppBufMu.Lock()
-	defer ue.lppBufMu.Unlock()
-
-	ue.lppBuf = &LPPBuffered{
+	ue.lppBuf.set(LPPBuffered{
 		CorrelationID: bytes.Clone(correlationID),
 		Payload:       bytes.Clone(payload),
-	}
+	})
 }
 
 func (ue *UeContext) PopLPPBuffered() *LPPBuffered {
-	ue.lppBufMu.Lock()
-	defer ue.lppBufMu.Unlock()
-
-	buf := ue.lppBuf
-	ue.lppBuf = nil
-
-	return buf
-}
-
-func (ue *UeContext) ClearLPPBuffered() {
-	ue.lppBufMu.Lock()
-	defer ue.lppBufMu.Unlock()
-
-	ue.lppBuf = nil
+	return ue.lppBuf.pop()
 }
 
 func (ue *UeContext) ClearLPPBufferedIf(correlationID []byte) {
-	ue.lppBufMu.Lock()
-	defer ue.lppBufMu.Unlock()
-
-	if ue.lppBuf == nil || !bytes.Equal(ue.lppBuf.CorrelationID, correlationID) {
-		return
-	}
-
-	ue.lppBuf = nil
+	ue.lppBuf.clearIf(func(b *LPPBuffered) bool { return bytes.Equal(b.CorrelationID, correlationID) })
 }

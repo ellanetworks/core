@@ -136,7 +136,9 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 	// TS 23.273 §6.11.1: one AMF- or MME-assigned LCS correlation identifier is used for
 	// every message of the positioning session (NOTE 11). Assign it before the
 	// session is registered for uplink routing.
-	if id := l.allocateLCSCorrelationID(supi); id != nil {
+	core := l.servingCore(supi)
+
+	if id := l.allocateLCSCorrelationID(core); id != nil {
 		session.SetCorrelationID(id)
 	}
 
@@ -147,7 +149,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 
 	session.SetTransport(
 		func(lppMsg []byte) error {
-			return l.lppHandler.ForwardLPPToUE(detached, supi.String(), session.CorrelationID(), lppMsg)
+			return l.lppHandler.ForwardLPPToUE(detached, core, supi.String(), session.CorrelationID(), lppMsg)
 		},
 		func(result *models.LocationResult) error {
 			return l.sessionMgr.CompleteSession(detached, session.SessionID(), result)
@@ -182,7 +184,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 			session.Fail()
 
 			// Discard any buffered LPP: this session has failed.
-			l.cancelBufferedLPP(detached, supi, session.CorrelationID())
+			l.cancelBufferedLPP(detached, core, supi, session.CorrelationID())
 
 			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())
 		case <-ticker.C:

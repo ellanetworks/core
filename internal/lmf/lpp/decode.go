@@ -223,6 +223,12 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
 		out.GNSSPositionResult.HorizontalAccuracy = uint32(decodeUncertainty(ep.Uncertainty))
 
+	case lc.EllipsoidPointWithUncertaintyEllipse != nil:
+		ep := lc.EllipsoidPointWithUncertaintyEllipse
+		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)
+		out.GNSSPositionResult.Longitude = decodeLongitude(ep.DegreesLongitude)
+		out.GNSSPositionResult.HorizontalAccuracy = uint32(max(decodeUncertainty(ep.UncertaintySemiMajor), decodeUncertainty(ep.UncertaintySemiMinor)))
+
 	case lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid != nil:
 		ep := lc.EllipsoidPointWithAltitudeAndUncertaintyEllipsoid
 		out.GNSSPositionResult.Latitude = decodeLatitude(ep.LatitudeSign, ep.DegreesLatitude)

@@ -134,3 +134,19 @@ func TestGenericMessageContainerTypeName(t *testing.T) {
 		t.Errorf("unassigned name = %q, want empty", got)
 	}
 }
+
+func TestGenericNASTransportOmitsEmptyAdditionalInformation(t *testing.T) {
+	b, err := (&UplinkGenericNASTransport{
+		ContainerType:         GenericMessageContainerTypeLPP,
+		Container:             []byte{0xaa},
+		AdditionalInformation: []byte{},
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "0769010001aa"
+	if hex.EncodeToString(b) != want {
+		t.Fatalf("UPLINK GENERIC NAS TRANSPORT = %s, want %s", hex.EncodeToString(b), want)
+	}
+}
