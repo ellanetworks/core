@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 type captureConn struct {

@@ -13,18 +13,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"runtime/debug"
 	"sync"
+	"syscall"
 	"time"
-
-	"github.com/ellanetworks/core/internal/netutil"
-	"go.uber.org/zap"
 )
 
 const readBufSize uint32 = 131072
-
-var errNoInterfaceAddrs = errors.New("no IP addresses found")
 
 // RTO and association limits are the RFC 4960 §15 values, set explicitly to not
 // depend on host net.sctp.* sysctls. MaxAttempts and MaxInitTimeout apply only to
@@ -44,7 +41,7 @@ type Config struct {
 	// Name labels the interface in log messages, e.g. "NGAP" or "S1-MME".
 	Name string
 	// Logger receives the server's lifecycle and per-connection logs.
-	Logger *zap.Logger
+	Logger *slog.Logger
 }
 
 // Callbacks groups the functions the SCTP server calls into the upper layer.
@@ -53,7 +50,8 @@ type Config struct {
 // association's reads.
 type Callbacks struct {
 	// Dispatch is invoked for every complete message read from a connection.
-	Dispatch func(ctx context.Context, conn *SCTPConn, msg []byte)
+	Dispatch  func(ctx context.Context, conn *SCTPConn, msg []byte)
+	OnConnect func(conn *SCTPConn)
 	// Notify is invoked for SCTP association/shutdown events.
 	Notify func(conn *SCTPConn, notification Notification)
 	// OnDisconnect is invoked once per connection, after its socket is closed.
@@ -61,7 +59,7 @@ type Callbacks struct {
 }
 
 // Server accepts SCTP connections and dispatches application-layer messages.
-// Create one with NewServer, call ListenAndServe to start accepting, and
+// Create one with NewServer, call Serve with a listener to start accepting, and
 // Shutdown to stop cleanly.
 type Server struct {
 	cfg        Config
@@ -73,107 +71,33 @@ type Server struct {
 }
 
 func NewServer(cfg Config, cb Callbacks) *Server {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	return &Server{cfg: cfg, cb: cb}
 }
 
-func Listen(ctx context.Context, address string, port int, interfaceName string) (*Listener, error) {
-	var laddr *SCTPAddr
+type ListenConfig struct {
+	Control func(network, address string, c syscall.RawConn) error
+}
 
-	// A bind can transiently fail while a shared N2/N3 interface flaps; retry
-	// resolve and listen together.
-	bind := func() error {
-		if interfaceName != "" {
-			iface, err := net.InterfaceByName(interfaceName)
-			if err != nil {
-				return fmt.Errorf("failed to get interface %s: %w", interfaceName, err)
-			}
-
-			addrs, err := iface.Addrs()
-			if err != nil {
-				return fmt.Errorf("failed to get interface addresses: %w", err)
-			}
-
-			var ipAddrs []net.IPAddr
-
-			for _, addr := range addrs {
-				ipNet, ok := addr.(*net.IPNet)
-				if !ok {
-					continue
-				}
-
-				ip := ipNet.IP
-				if ip.IsLoopback() {
-					continue
-				}
-
-				if ip.IsLinkLocalUnicast() {
-					continue
-				}
-
-				ipAddrs = append(ipAddrs, net.IPAddr{IP: ip})
-			}
-
-			if len(ipAddrs) == 0 {
-				return fmt.Errorf("%w on interface %s", errNoInterfaceAddrs, interfaceName)
-			}
-
-			laddr = &SCTPAddr{IPAddrs: ipAddrs, Port: port}
-		} else {
-			netAddr, err := net.ResolveIPAddr("ip", address)
-			if err != nil {
-				return fmt.Errorf("error resolving address %q: %w", address, err)
-			}
-
-			laddr = &SCTPAddr{IPAddrs: []net.IPAddr{*netAddr}, Port: port}
-		}
-
-		return nil
-	}
-
-	isTransient := func(err error) bool {
-		return errors.Is(err, errNoInterfaceAddrs) || netutil.IsAddrNotAvailable(err)
-	}
-
-	var listener *Listener
-
-	var bindDevice string
-
-	err := netutil.Retry(ctx, netutil.BindTimeout, netutil.BindInterval, isTransient, func() error {
-		if err := bind(); err != nil {
-			return err
-		}
-
-		cfg := serverSocketConfig
-
-		device, err := netutil.VRFBindDevice(interfaceName, address)
-		if err != nil {
-			return err
-		}
-
-		bindDevice = device
-
-		if bindDevice != "" {
-			cfg.Control = netutil.BindToDeviceControl(bindDevice)
-		}
-
-		l, err := cfg.Listen("sctp", laddr)
-		if err != nil {
-			return fmt.Errorf("failed to listen on %s: %w", laddr, err)
-		}
-
-		listener = l
-
-		return nil
-	})
-	if err != nil {
+func (lc *ListenConfig) Listen(ctx context.Context, laddr *SCTPAddr) (*Listener, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	listener.ifaceName = interfaceName
-	listener.bindDevice = bindDevice
-	listener.reqAddr = &SCTPAddr{IPAddrs: laddr.IPAddrs, Port: listener.laddr.Port}
+	cfg := serverSocketConfig
+	cfg.Control = lc.Control
 
-	return listener, nil
+	ln, err := cfg.Listen("sctp", laddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on %s: %w", laddr, err)
+	}
+
+	ln.reqAddr = &SCTPAddr{IPAddrs: laddr.IPAddrs, Port: ln.laddr.Port}
+
+	return ln, nil
 }
 
 func (s *Server) Serve(ctx context.Context, ln *Listener) {
@@ -185,29 +109,9 @@ func (s *Server) Serve(ctx context.Context, ln *Listener) {
 		addr = ln.reqAddr
 	}
 
-	logFields := []zap.Field{zap.String("listener", s.cfg.Name), zap.String("address", addr.String())}
-	if ln.ifaceName != "" {
-		logFields = append(logFields, zap.String("interface_name", ln.ifaceName))
-	}
-
-	if ln.bindDevice != "" {
-		logFields = append(logFields, zap.String("vrf", ln.bindDevice))
-	}
-
-	s.cfg.Logger.Info("SCTP server started", logFields...)
+	s.cfg.Logger.Info("SCTP server started", slog.String("listener", s.cfg.Name), slog.String("address", addr.String()))
 
 	go s.acceptLoop(ctx)
-}
-
-func (s *Server) ListenAndServe(ctx context.Context, address string, port int, interfaceName string) error {
-	ln, err := Listen(ctx, address, port, interfaceName)
-	if err != nil {
-		return err
-	}
-
-	s.Serve(ctx, ln)
-
-	return nil
 }
 
 func (s *Server) acceptLoop(ctx context.Context) {
@@ -219,7 +123,7 @@ func (s *Server) acceptLoop(ctx context.Context) {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) || ctx.Err() != nil {
-				s.cfg.Logger.Debug("Accept loop exiting", zap.Error(err))
+				s.cfg.Logger.Debug("Accept loop exiting", slog.Any("error", err))
 				return
 			}
 
@@ -227,7 +131,7 @@ func (s *Server) acceptLoop(ctx context.Context) {
 			// association queued, so retrying immediately spins on the same error.
 			backoff = nextAcceptBackoff(backoff)
 
-			s.cfg.Logger.Error("Failed to accept", zap.Error(err), zap.Duration("retry_in", backoff))
+			s.cfg.Logger.Error("Failed to accept", slog.Any("error", err), slog.Duration("retry_in", backoff))
 
 			select {
 			case <-time.After(backoff):
@@ -261,7 +165,7 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 
 	defer func() {
 		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			s.cfg.Logger.Warn("close connection error", zap.Error(err))
+			s.cfg.Logger.Warn("close connection error", slog.Any("error", err))
 		}
 	}()
 
@@ -272,12 +176,12 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	// message is read as its continuation.
 	sctpEvents := sctpEventDataIO | sctpEventShutdown | sctpEventAssociation | sctpEventPartialDelivery
 	if err := conn.subscribeEvents(sctpEvents); err != nil {
-		s.cfg.Logger.Error("Failed to subscribe to SCTP events", zap.Error(err))
+		s.cfg.Logger.Error("Failed to subscribe to SCTP events", slog.Any("error", err))
 		return
 	}
 
 	if err := conn.setReadBuffer(int(readBufSize)); err != nil {
-		s.cfg.Logger.Error("Set read buffer error", zap.Error(err))
+		s.cfg.Logger.Error("Set read buffer error", slog.Any("error", err))
 		return
 	}
 
@@ -287,7 +191,11 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 		return
 	}
 
-	s.cfg.Logger.Info("New SCTP connection", zap.String("remote_address", remoteAddr.String()))
+	s.cfg.Logger.Info("New SCTP connection", slog.String("remote_address", remoteAddr.String()))
+
+	if s.cb.OnConnect != nil {
+		s.cb.OnConnect(conn)
+	}
 
 	buf := make([]byte, readBufSize)
 	discarded := 0
@@ -295,7 +203,7 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	defer func() {
 		if discarded > 0 {
 			s.cfg.Logger.Warn("discarded messages with an unexpected PPID",
-				zap.Uint32("expected", s.cfg.PPID), zap.Int("count", discarded))
+				slog.Uint64("expected", uint64(s.cfg.PPID)), slog.Int("count", discarded))
 		}
 	}()
 
@@ -308,7 +216,7 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 				errors.Is(err, errUnexpectedNotification) ||
 				errors.Is(err, errUnrecognizedDelivery) {
 				s.cfg.Logger.Warn("aborting association on unusable delivery",
-					zap.Error(err), zap.Int("read_buffer", len(buf)))
+					slog.Any("error", err), slog.Int("read_buffer", len(buf)))
 
 				_ = conn.Abort()
 
@@ -316,7 +224,7 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 			}
 
 			if err != io.EOF && !errors.Is(err, net.ErrClosed) {
-				s.cfg.Logger.Debug("readMsg terminated", zap.Error(err))
+				s.cfg.Logger.Debug("readMsg terminated", slog.Any("error", err))
 			}
 
 			return
@@ -368,7 +276,7 @@ func (s *Server) dispatch(ctx context.Context, conn *SCTPConn, msg []byte) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.cfg.Logger.Error("panic handling message; aborting association",
-				zap.Any("panic", r), zap.ByteString("stack", debug.Stack()))
+				slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
 
 			_ = conn.Abort()
 		}
@@ -383,7 +291,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	}
 
 	if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		s.cfg.Logger.Warn("could not close sctp listener", zap.Error(err))
+		s.cfg.Logger.Warn("could not close sctp listener", slog.Any("error", err))
 	}
 
 	select {
@@ -405,7 +313,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 			defer closing.Done()
 
 			if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				s.cfg.Logger.Warn("close connection error", zap.Error(err))
+				s.cfg.Logger.Warn("close connection error", slog.Any("error", err))
 			}
 		}()
 

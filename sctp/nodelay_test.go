@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 	"unsafe"
-
-	"go.uber.org/zap"
 )
 
 func nodelayValue(t *testing.T, conn *SCTPConn) int32 {
@@ -37,9 +35,8 @@ func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 	accepted := make(chan *SCTPConn, 1)
 
 	srv := NewServer(Config{
-		PPID:   testPPID,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: testPPID,
+		Name: "TEST",
 	}, Callbacks{
 		Dispatch: func(_ context.Context, conn *SCTPConn, _ []byte) {
 			select {
@@ -52,7 +49,7 @@ func TestServer_AcceptedConnHasNoDelay(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

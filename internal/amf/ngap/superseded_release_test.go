@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func supersedeOntoNewConnection(t *testing.T) (amfInstance *amf.AMF, ran *amf.Radio, sender *fakeNGAPSender, oldAmfID, oldRanID int64) {

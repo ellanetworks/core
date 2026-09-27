@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 type nopNGAPSender struct{}

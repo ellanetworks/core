@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func connectRadio(t *testing.T, a *amf.AMF, name, gnbID string) *amf.Radio {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // TS 23.401 §5.3.5

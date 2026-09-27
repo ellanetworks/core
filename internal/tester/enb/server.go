@@ -10,10 +10,10 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
 )
 

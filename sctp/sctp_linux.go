@@ -30,9 +30,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 func setsockopt(fd int, optname uintptr, optval unsafe.Pointer, optlen uintptr) error {
@@ -464,9 +461,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 	// close socket on error
 	defer func() {
 		if err != nil {
-			if cerr := syscall.Close(sock); cerr != nil {
-				logger.AmfLog.Warn("failed to close socket", zap.Error(cerr))
-			}
+			_ = syscall.Close(sock)
 		}
 	}()
 

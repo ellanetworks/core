@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func trackTestRadio(m *MME, conn S1APWriter, id string) *Radio {

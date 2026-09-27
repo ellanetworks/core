@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 func serverWithAcceptedConn(t *testing.T) (server *Server, accepted *SCTPConn, disconnected chan struct{}, client *SCTPConn) {
@@ -25,7 +23,7 @@ func serverWithAcceptedConn(t *testing.T) (server *Server, accepted *SCTPConn, d
 	acceptedCh := make(chan *SCTPConn, 1)
 	disconnected = make(chan struct{})
 
-	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()}, Callbacks{
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST"}, Callbacks{
 		Dispatch: func(_ context.Context, conn *SCTPConn, _ []byte) {
 			select {
 			case acceptedCh <- conn:
@@ -44,7 +42,7 @@ func serverWithAcceptedConn(t *testing.T) (server *Server, accepted *SCTPConn, d
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -197,7 +195,7 @@ func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
 
 	_ = conn.Close()
 
-	conn.startWriter(zap.NewNop())
+	conn.startWriter(nil)
 
 	done := make(chan struct{})
 

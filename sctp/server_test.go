@@ -6,10 +6,9 @@ package sctp
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // TestServer_DispatchesMatchingPPID verifies the shared Server delivers a
@@ -23,9 +22,8 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 	got := make(chan []byte, 2)
 
 	srv := NewServer(Config{
-		PPID:   ppid,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: ppid,
+		Name: "TEST",
 	}, Callbacks{
 		Dispatch: func(_ context.Context, _ *SCTPConn, msg []byte) {
 			got <- msg
@@ -35,7 +33,7 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -88,9 +86,8 @@ func TestServer_ShutdownWithoutContextCancel(t *testing.T) {
 	skipIfNoSCTP(t)
 
 	srv := NewServer(Config{
-		PPID:   testPPID,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: testPPID,
+		Name: "TEST",
 	}, Callbacks{
 		Dispatch: func(_ context.Context, _ *SCTPConn, _ []byte) {},
 	})
@@ -98,7 +95,7 @@ func TestServer_ShutdownWithoutContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -115,4 +112,15 @@ func TestServer_ShutdownWithoutContextCancel(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("Shutdown took %v; the accept loop did not exit when the listener closed", elapsed)
 	}
+}
+
+func testListen(address string) (*Listener, error) {
+	ip, err := net.ResolveIPAddr("ip", address)
+	if err != nil {
+		return nil, err
+	}
+
+	var lc ListenConfig
+
+	return lc.Listen(context.Background(), &SCTPAddr{IPAddrs: []net.IPAddr{*ip}})
 }

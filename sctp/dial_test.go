@@ -16,8 +16,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // dialTestInit keeps the INIT retry budget short.
@@ -31,9 +29,8 @@ func echoServer(t *testing.T) (*Server, int) {
 	t.Helper()
 
 	srv := NewServer(Config{
-		PPID:   testPPID,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: testPPID,
+		Name: "TEST",
 	}, Callbacks{
 		Dispatch: func(_ context.Context, conn *SCTPConn, msg []byte) {
 			if _, err := conn.WriteMsg(msg, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: echoStream}); err != nil {
@@ -44,7 +41,7 @@ func echoServer(t *testing.T) (*Server, int) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		cancel()
 		t.Fatalf("Listen: %v", err)
@@ -469,13 +466,13 @@ func TestDial_BoundToLocalAddress(t *testing.T) {
 func TestDial_Multihomed(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST"},
 		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
 
 	// Listening on the wildcard so the server answers on both loopback aliases.
 	srvCtx, srvCancel := context.WithCancel(context.Background())
 
-	ln, err := Listen(srvCtx, "0.0.0.0", 0, "")
+	ln, err := testListen("0.0.0.0")
 	if err != nil {
 		srvCancel()
 		t.Fatalf("Listen: %v", err)
@@ -531,12 +528,12 @@ func TestDial_Multihomed(t *testing.T) {
 func TestDial_IPv6(t *testing.T) {
 	skipIfNoSCTP(t)
 
-	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST"},
 		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
 
 	srvCtx, srvCancel := context.WithCancel(context.Background())
 
-	ln, err := Listen(srvCtx, "::1", 0, "")
+	ln, err := testListen("::1")
 	if err != nil {
 		srvCancel()
 		t.Skipf("no IPv6 loopback listener: %v", err)
