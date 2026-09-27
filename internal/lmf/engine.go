@@ -174,7 +174,7 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 
 	// Start the LPP state machine (sends RequestLocationInformation for capabilities)
 	if err := session.StartSession(); err != nil {
-		session.Fail()
+		session.FailWith(err)
 		return nil, session.SessionID(), fmt.Errorf("start LPP session: %w", err)
 	}
 

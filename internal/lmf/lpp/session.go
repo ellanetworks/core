@@ -155,12 +155,10 @@ func (s *Session) StartSession() error {
 
 	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
 	}
 
 	if err := s.send(msg); err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("send capabilities request: %w", err)
 	}
 
@@ -205,20 +203,17 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 
 	responseTime, err := LocationResponseTime(s.deadline, time.Now())
 	if err != nil {
-		s.state = SessionFailed
 		return err
 	}
 
 	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS, responseTime)
 	if err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("build request location: %w", err)
 	}
 
 	s.log.Info("sending RequestLocationInformation (location)")
 
 	if err := s.send(locMsg); err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("send location request: %w", err)
 	}
 

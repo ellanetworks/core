@@ -250,6 +250,8 @@ func writeLocationError(ctx context.Context, w http.ResponseWriter, err error) {
 		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: no coordinate for serving cell", err, logger.APILog)
 	case errors.Is(err, lpp.ErrUENoLocationEstimate):
 		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: UE provided no location estimate", err, logger.APILog)
+	case errors.Is(err, lpp.ErrUnsupportedLocationShape):
+		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: UE location estimate uses an unsupported shape", err, logger.APILog)
 	case errors.Is(err, context.DeadlineExceeded):
 		writeError(ctx, w, http.StatusGatewayTimeout, "location request timed out", err, logger.APILog)
 	default:

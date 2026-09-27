@@ -6,8 +6,10 @@ package lmf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -108,5 +110,66 @@ func TestAcknowledgementUsesSessionCorrelationID(t *testing.T) {
 		if !bytes.Equal(got, sessionCorrelationID) {
 			t.Errorf("downlink %d: correlation ID = %x, want session ID %x", i, got, sessionCorrelationID)
 		}
+	}
+}
+
+func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
+	handler := &captureLPPHandler{}
+	lmfInstance := New(amf.New(nil, nil, nil), nil, nil)
+	lmfInstance.SetLPPHandler(handler)
+
+	supi, err := etsi.NewSUPIFromIMSI("123456789012345")
+	if err != nil {
+		t.Fatalf("NewSUPIFromIMSI: %v", err)
+	}
+
+	failed, deregistered := false, false
+
+	session := lpp.NewSession(supi.String(), "session-deadline", string(MethodAGNSSBased))
+	session.SetTransport(
+		func([]byte) error { return nil },
+		func(*models.LocationResult) error { return nil },
+		func() error {
+			failed = true
+			return nil
+		},
+		func() error { return nil },
+		func() {
+			deregistered = true
+
+			lmfInstance.DeregisterLPPSession(session.SessionID())
+		},
+	)
+	session.SetDeadline(time.Now().Add(time.Second))
+
+	lmfInstance.RegisterLPPSession(session.SessionID(), session)
+
+	if err := session.StartSession(); err != nil {
+		t.Fatalf("StartSession: %v", err)
+	}
+
+	caps, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GnssIDGps})
+	if err != nil {
+		t.Fatalf("EncodeProvideCapabilities: %v", err)
+	}
+
+	if err := ForwardLPPToLMF(lmfInstance, context.Background(), CoreAMF, supi, nil, caps); err == nil {
+		t.Fatal("ForwardLPPToLMF accepted capabilities with no time left to request a location")
+	}
+
+	if session.State() != lpp.SessionFailed {
+		t.Errorf("state = %s, want %s", session.State(), lpp.SessionFailed)
+	}
+
+	if !errors.Is(session.Failure(), context.DeadlineExceeded) {
+		t.Errorf("Failure = %v, want it to wrap context.DeadlineExceeded", session.Failure())
+	}
+
+	if !failed || !deregistered {
+		t.Errorf("failFunc called = %t, deregister called = %t, want both", failed, deregistered)
+	}
+
+	if lmfInstance.GetLPPSession(session.SessionID()) != nil {
+		t.Error("the failed session is still registered")
 	}
 }

@@ -26,6 +26,7 @@ func TestWriteLocationError(t *testing.T) {
 		{"UE not found", lmf.ErrNotFound, http.StatusNotFound, "UE not found"},
 		{"no cell coordinate", lmf.ErrNoLocationEstimate, http.StatusNotFound, "no coordinate for serving cell"},
 		{"UE provided no estimate", fmt.Errorf("LPP session failed: %w", lpp.ErrUENoLocationEstimate), http.StatusNotFound, "UE provided no location estimate"},
+		{"unsupported shape", fmt.Errorf("LPP session failed: %w", lpp.ErrUnsupportedLocationShape), http.StatusNotFound, "unsupported shape"},
 		{"timeout", fmt.Errorf("AGNSS positioning timed out: %w", context.DeadlineExceeded), http.StatusGatewayTimeout, "timed out"},
 		{"other", errors.New("boom"), http.StatusInternalServerError, "Failed to determine location"},
 	} {
