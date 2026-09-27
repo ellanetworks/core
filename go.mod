@@ -31,7 +31,10 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require go.yaml.in/yaml/v3 v3.0.5 // indirect
+require (
+	go.uber.org/zap/exp v0.3.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -54,6 +57,7 @@ require (
 	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/sctp v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -122,6 +126,8 @@ replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0
 replace github.com/ellanetworks/core/lppa => ./lppa
 
 replace github.com/ellanetworks/core/s1ap => ./s1ap
+
+replace github.com/ellanetworks/core/sctp => ./sctp
 
 replace github.com/ellanetworks/core/nas => ./nas
 

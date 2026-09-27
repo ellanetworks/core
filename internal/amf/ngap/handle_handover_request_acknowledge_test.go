@@ -11,9 +11,9 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func setupHandoverAckTestContext(t *testing.T, candidates ...amf.HandoverCandidate) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {

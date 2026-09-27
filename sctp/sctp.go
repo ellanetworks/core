@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -34,9 +35,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 // drainBufSize is the scratch size for discarding queued data on close.
@@ -185,14 +183,11 @@ const (
 
 // toBuf serialises a fixed-size struct or scalar to its native-endian bytes for
 // a syscall buffer. binary.Write only errors on a variable-size type, which the
-// fixed-layout syscall structs passed here never are; the Warn is a backstop.
+// fixed-layout syscall structs passed here never are.
 func toBuf(v any) []byte {
 	var buf bytes.Buffer
 
-	err := binary.Write(&buf, binary.NativeEndian, v)
-	if err != nil {
-		logger.AmfLog.Warn("failed to write binary", zap.Error(err))
-	}
+	_ = binary.Write(&buf, binary.NativeEndian, v)
 
 	return buf.Bytes()
 }
@@ -412,7 +407,7 @@ type SCTPConn struct {
 	writerFlush  chan struct{}
 	writeCh      chan queuedWrite
 	writerExited chan struct{}
-	writeLogger  *zap.Logger
+	writeLogger  *slog.Logger
 }
 
 // controlFd runs fn with the raw file descriptor held by the runtime poller.
@@ -648,13 +643,11 @@ func (c *SCTPConn) setReadDeadline(t time.Time) error {
 }
 
 type Listener struct {
-	file       *os.File
-	rc         syscall.RawConn
-	laddr      *SCTPAddr
-	reqAddr    *SCTPAddr
-	ifaceName  string
-	bindDevice string
-	closed     atomic.Bool
+	file    *os.File
+	rc      syscall.RawConn
+	laddr   *SCTPAddr
+	reqAddr *SCTPAddr
+	closed  atomic.Bool
 }
 
 func (ln *Listener) Addr() net.Addr {

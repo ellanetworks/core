@@ -10,8 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 const goldenUplinkRANConfigTransfer = "0030402700000100634020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"

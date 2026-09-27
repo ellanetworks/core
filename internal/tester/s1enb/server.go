@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
 )
 

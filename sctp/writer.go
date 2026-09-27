@@ -6,10 +6,9 @@ package sctp
 
 import (
 	"errors"
+	"log/slog"
 	"net"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -36,7 +35,7 @@ type queuedWrite struct {
 	info *SndRcvInfo
 }
 
-func (c *SCTPConn) startWriter(logger *zap.Logger) {
+func (c *SCTPConn) startWriter(logger *slog.Logger) {
 	c.writeLogger = logger
 	c.writeCh = make(chan queuedWrite, writeQueueDepth)
 	c.writerExited = make(chan struct{})
@@ -154,7 +153,7 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 // the writer to finish.
 func (c *SCTPConn) failAssociation(op string, err error) {
 	if c.writeLogger != nil {
-		c.writeLogger.Warn("SCTP write failed; aborting association", zap.String("op", op), zap.Error(err))
+		c.writeLogger.Warn("SCTP write failed; aborting association", slog.String("op", op), slog.Any("error", err))
 	}
 
 	_ = c.Abort()

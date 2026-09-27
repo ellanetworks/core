@@ -8,8 +8,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func TestENBDisconnectRetainsRegisteredUE(t *testing.T) {

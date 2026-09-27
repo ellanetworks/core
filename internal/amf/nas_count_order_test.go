@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/guard"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 type downlinkOrderConn struct {

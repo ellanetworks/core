@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func connectENB(t *testing.T, m *MME, name string, id uint32) *sctp.SCTPConn {

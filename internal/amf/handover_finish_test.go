@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, *amf.UeConn) {

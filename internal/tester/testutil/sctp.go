@@ -6,7 +6,7 @@ package testutil
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func ValidateSCTP(info *sctp.SndRcvInfo, expectedPPID uint32, expectedStreamID uint16) error {

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func TestLastSeenRadioSurvivesIdleAndDeregistration(t *testing.T) {

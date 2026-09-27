@@ -26,11 +26,11 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/radioreg"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )

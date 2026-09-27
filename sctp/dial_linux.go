@@ -29,9 +29,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 // aLongTimeAgo unparks any goroutine waiting on the descriptor when installed
@@ -155,9 +152,7 @@ func dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 
 	defer func() {
 		if ownsSock {
-			if cerr := syscall.Close(sock); cerr != nil {
-				logger.AmfLog.Warn("failed to close socket", zap.Error(cerr))
-			}
+			_ = syscall.Close(sock)
 		}
 	}()
 

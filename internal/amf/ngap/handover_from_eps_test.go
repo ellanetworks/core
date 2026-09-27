@@ -15,12 +15,12 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 const (

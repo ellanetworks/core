@@ -14,11 +14,11 @@ import (
 	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 type captureConn struct {

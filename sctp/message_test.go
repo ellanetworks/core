@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // sendOneMessage sends size bytes as a single SCTP message on the given PPID.
@@ -39,7 +37,7 @@ func serverCollecting(t *testing.T, dispatch func(msg []byte)) (int, chan struct
 
 	disconnected := make(chan struct{})
 
-	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()}, Callbacks{
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST"}, Callbacks{
 		Dispatch: func(_ context.Context, _ *SCTPConn, msg []byte) { dispatch(msg) },
 		OnDisconnect: func(_ *SCTPConn) {
 			select {
@@ -53,7 +51,7 @@ func serverCollecting(t *testing.T, dispatch func(msg []byte)) (int, chan struct
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

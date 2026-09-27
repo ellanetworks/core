@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	coremodels "github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // countingNGAPSender stands in for a gNB association, counting PDUs written to it.

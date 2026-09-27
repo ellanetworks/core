@@ -14,8 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
 	coremodels "github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	ngaplib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // locationReportingControlProcCode is the NGAP procedure code for

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // TS 33.501 §6.9.2.1.1

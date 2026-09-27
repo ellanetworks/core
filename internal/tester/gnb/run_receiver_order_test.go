@@ -16,11 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
+	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -146,9 +145,8 @@ func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 	acceptedCh := make(chan *sctp.SCTPConn, 1)
 
 	srv := sctp.NewServer(sctp.Config{
-		PPID:   60,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: 60,
+		Name: "TEST",
 	}, sctp.Callbacks{
 		Dispatch: func(_ context.Context, conn *sctp.SCTPConn, _ []byte) {
 			select {
@@ -161,7 +159,7 @@ func TestRunReceiverDeliversFramesInOrder(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := sctp.Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := sctp.ListenConfig{}.Listen(&sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -290,9 +288,8 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 	acceptedCh := make(chan *sctp.SCTPConn, 1)
 
 	srv := sctp.NewServer(sctp.Config{
-		PPID:   60,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: 60,
+		Name: "TEST",
 	}, sctp.Callbacks{
 		Dispatch: func(_ context.Context, conn *sctp.SCTPConn, _ []byte) {
 			select {
@@ -305,7 +302,7 @@ func TestRunReceiverDoesNotBlockOtherUEs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	ln, err := sctp.Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := sctp.ListenConfig{}.Listen(&sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.IPv4(127, 0, 0, 1)}}})
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

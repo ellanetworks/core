@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func cancelWindowUE(t *testing.T) (*AMF, *UeContext, *Radio, etsi.SUPI) {

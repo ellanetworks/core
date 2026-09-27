@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // Repeated LocalAddr/RemoteAddr calls return the cached resolution.
@@ -18,9 +16,8 @@ func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 	skipIfNoSCTP(t)
 
 	srv := NewServer(Config{
-		PPID:   testPPID,
-		Name:   "TEST",
-		Logger: zap.NewNop(),
+		PPID: testPPID,
+		Name: "TEST",
 	}, Callbacks{
 		Dispatch: func(_ context.Context, _ *SCTPConn, _ []byte) {},
 	})
@@ -28,7 +25,7 @@ func TestSCTPConn_AddrAccessorsCached(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ln, err := Listen(ctx, "127.0.0.1", 0, "")
+	ln, err := testListen("127.0.0.1")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

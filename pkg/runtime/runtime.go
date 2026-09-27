@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"os"
@@ -43,7 +44,7 @@ import (
 	"github.com/ellanetworks/core/internal/netutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/reconciler"
-	amfsctp "github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/internal/sctplisten"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
@@ -52,9 +53,11 @@ import (
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/s1ap"
+	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 var getInterfaceIPs = config.GetInterfaceIPs
@@ -593,7 +596,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   amf.NGAPPPID,
 		Name:   "NGAP",
-		Logger: logger.AmfLog,
+		Logger: slog.New(zapslog.NewHandler(logger.AmfLog.Core())),
 	}, amfsctp.Callbacks{
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			ngap.Dispatch(ctx, amfInstance, conn, msg)
@@ -614,10 +617,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		interfaceName = cfg.Interfaces.N2.Name
 	}
 
-	err = sctpServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, interfaceName)
+	ngapListener, err := sctplisten.Listen(ctx, logger.AmfLog, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, interfaceName)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
+
+	sctpServer.Serve(ctx, ngapListener)
 
 	// 4G S1-MME control plane. The composition root owns the SCTP listener and
 	// routes decoded PDUs into the S1AP transport layer (mirrors the AMF/NGAP
@@ -625,7 +630,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	mmeServer := amfsctp.NewServer(amfsctp.Config{
 		PPID:   mme.S1apPPID,
 		Name:   "S1-MME",
-		Logger: logger.MmeLog,
+		Logger: slog.New(zapslog.NewHandler(logger.MmeLog.Core())),
 	}, amfsctp.Callbacks{
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
@@ -635,9 +640,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		},
 	})
 
-	if err := mmeServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.S1APPort, interfaceName); err != nil {
+	s1apListener, err := sctplisten.Listen(ctx, logger.MmeLog, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.S1APPort, interfaceName)
+	if err != nil {
 		return fmt.Errorf("couldn't start MME: %w", err)
 	}
+
+	mmeServer.Serve(ctx, s1apListener)
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
 		return amfInstance.ExportUEs(ctx)

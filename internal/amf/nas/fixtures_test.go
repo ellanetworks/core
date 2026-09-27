@@ -12,10 +12,10 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func setTestUESecurityCapability(ue *amf.UeContext) {

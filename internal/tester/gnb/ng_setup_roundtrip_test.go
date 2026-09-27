@@ -10,9 +10,9 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	amfngap "github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // TestNGSetupGNBToAMF drives the whole procedure across both sides of the

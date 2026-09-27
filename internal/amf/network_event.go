@@ -8,7 +8,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/sctp"
 )
 
 // AddrString renders an SCTP address for logging, returning "" for a nil address (a

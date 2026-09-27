@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
+	"github.com/ellanetworks/core/sctp"
 )
 
 func testENBID(value uint32) s1ap.GlobalENBID {

@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/sctp"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
