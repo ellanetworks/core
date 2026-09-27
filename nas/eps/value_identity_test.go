@@ -43,6 +43,16 @@ func TestValueIdentity(t *testing.T) {
 			func(b []byte) (any, error) { return ParseDetachRequestNetwork(b) },
 		},
 		{
+			"DownlinkGenericNASTransport",
+			&DownlinkGenericNASTransport{ContainerType: GenericMessageContainerTypeLPP, Container: []byte{0x92, 0x00}, AdditionalInformation: []byte{0x01}},
+			func(b []byte) (any, error) { return ParseDownlinkGenericNASTransport(b) },
+		},
+		{
+			"UplinkGenericNASTransport",
+			&UplinkGenericNASTransport{ContainerType: GenericMessageContainerTypeLPP, Container: []byte{0x92, 0x00}},
+			func(b []byte) (any, error) { return ParseUplinkGenericNASTransport(b) },
+		},
+		{
 			"ESMStatus", &ESMStatus{EPSBearerIdentity: 5, PTI: 1, Cause: ESMCauseInvalidEPSBearerIdentity},
 			func(b []byte) (any, error) { return ParseESMStatus(b) },
 		},

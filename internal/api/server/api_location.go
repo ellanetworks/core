@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/lmf"
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -94,8 +95,8 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		}
 
 		if req.Method != "" {
-			switch lmf.PositioningMethod(req.Method) {
-			case lmf.MethodCellID, lmf.MethodECID, lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
+			switch lmf.RequestedMethod(req.Method) {
+			case lmf.RequestedCellID, lmf.RequestedECID, lmf.RequestedGNSS:
 			default:
 				writeError(r.Context(), w, http.StatusBadRequest,
 					fmt.Sprintf("unsupported method: %s", req.Method), nil, logger.APILog)
@@ -122,12 +123,12 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		// Cell ID is the only method that returns a result directly without
 		// needing session tracking (no LPP/NRPPa exchange required).
 		if requestType == lmf.RequestImmediate {
-			method := lmf.PositioningMethod(req.Method)
+			method := lmf.RequestedMethod(req.Method)
 			if method == "" {
 				method = lmf.DefaultMethodForRequest(lmf.RequestImmediate)
 			}
 
-			if method == lmf.MethodCellID {
+			if method == lmf.RequestedCellID {
 				supi, err := etsi.NewSUPIFromPrefixed(req.SUPI)
 				if err != nil {
 					writeError(r.Context(), w, http.StatusBadRequest, "Invalid SUPI", err, logger.APILog)
@@ -152,7 +153,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 			return
 		}
 
-		method := lmf.PositioningMethod(req.Method)
+		method := lmf.RequestedMethod(req.Method)
 		if method == "" {
 			method = lmf.DefaultMethodForRequest(lmf.RequestType(req.RequestType))
 		}
@@ -161,7 +162,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 		// session and run the positioning procedure synchronously. The handler
 		// completes the session after the procedure returns.
 		switch method {
-		case lmf.MethodECID:
+		case lmf.RequestedECID:
 			sessionID, err := lmfInstance.SessionManager().CreateSession(r.Context(), lmf.CreateSessionParams{
 				SUPI:              req.SUPI,
 				RequestType:       lmf.RequestType(req.RequestType),
@@ -200,7 +201,7 @@ func GetSubscriberLocation(lmfInstance *lmf.LMF) http.Handler {
 
 			return
 
-		case lmf.MethodAGNSSAssisted, lmf.MethodAGNSSBased:
+		case lmf.RequestedGNSS:
 			// A-GNSS creates its own LPP session via DetermineLocation.
 			// The LPP state machine completes the session when done.
 			result, sessionID, err := lmfInstance.DetermineLocation(r.Context(), supi, method)
@@ -247,6 +248,12 @@ func writeLocationError(ctx context.Context, w http.ResponseWriter, err error) {
 		writeError(ctx, w, http.StatusNotFound, "UE not found or not registered", err, logger.APILog)
 	case errors.Is(err, lmf.ErrNoLocationEstimate):
 		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: no coordinate for serving cell", err, logger.APILog)
+	case errors.Is(err, lpp.ErrUENoLocationEstimate):
+		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: UE provided no location estimate", err, logger.APILog)
+	case errors.Is(err, lpp.ErrUnsupportedLocationShape):
+		writeError(ctx, w, http.StatusNotFound, "location estimate unavailable: UE location estimate uses an unsupported shape", err, logger.APILog)
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(ctx, w, http.StatusGatewayTimeout, "location request timed out", err, logger.APILog)
 	default:
 		writeError(ctx, w, http.StatusInternalServerError, "Failed to determine location", err, logger.APILog)
 	}

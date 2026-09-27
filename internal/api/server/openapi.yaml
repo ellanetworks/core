@@ -6008,7 +6008,7 @@ components:
           description: Kind of location request.
         method:
           type: string
-          enum: [cell_id, ecid]
+          enum: [cell_id, ecid, gnss]
           description: Positioning method. Defaults to `cell_id`.
         session_id:
           type: string
@@ -6023,11 +6023,10 @@ components:
     LocationData:
       type: object
       description: Location estimate (TS 29.572 LocationData).
+      required: [locationEstimate]
       properties:
         locationEstimate:
           $ref: "#/components/schemas/GeographicArea"
-        accuracyFulfilmentIndicator:
-          type: string
         ageOfLocationEstimate:
           type: integer
           format: int32
@@ -6039,29 +6038,60 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PositioningMethodAndUsage"
+        gnssPositioningDataList:
+          type: array
+          items:
+            $ref: "#/components/schemas/GnssPositioningMethodAndUsage"
         ncgi:
           $ref: "#/components/schemas/LocNcgi"
         ecgi:
           $ref: "#/components/schemas/LocEcgi"
-        tai:
-          $ref: "#/components/schemas/LocTai"
+        altitude:
+          type: number
+          description: Altitude, in metres, when the locationEstimate shape does not carry it.
         supplementaryMeasurements:
           $ref: "#/components/schemas/SupplementaryMeasurements"
 
     GeographicArea:
       type: object
-      required: [shape]
+      description: TS 29.572 GeographicArea. The fields present depend on `shape`.
+      required: [shape, point]
       properties:
         shape:
           type: string
-          enum: [POINT, POINT_UNCERTAINTY_CIRCLE]
+          enum: [POINT, POINT_UNCERTAINTY_CIRCLE, POINT_UNCERTAINTY_ELLIPSE, POINT_ALTITUDE, POINT_ALTITUDE_UNCERTAINTY]
         point:
           $ref: "#/components/schemas/GeographicalCoord"
         uncertainty:
           type: number
           description: Uncertainty radius, in metres.
+        uncertaintyEllipse:
+          $ref: "#/components/schemas/UncertaintyEllipse"
         altitude:
           type: number
+          description: Altitude, in metres.
+        uncertaintyAltitude:
+          type: number
+          description: Altitude uncertainty, in metres.
+        confidence:
+          type: integer
+          format: int32
+          description: Confidence, in percent.
+
+    UncertaintyEllipse:
+      type: object
+      required: [semiMajor, semiMinor, orientationMajor]
+      properties:
+        semiMajor:
+          type: number
+          description: Semi-major axis, in metres.
+        semiMinor:
+          type: number
+          description: Semi-minor axis, in metres.
+        orientationMajor:
+          type: integer
+          format: int32
+          description: Orientation of the semi-major axis, in degrees clockwise from north.
 
     GeographicalCoord:
       type: object
@@ -6069,23 +6099,40 @@ components:
       properties:
         lat:
           type: number
-          description: WGS-84 latitude in decimal degrees.
         lon:
           type: number
-          description: WGS-84 longitude in decimal degrees.
 
     PositioningMethodAndUsage:
       type: object
+      required: [method, mode, usage]
       properties:
         method:
           type: string
+          enum: [CELLID, ECID, NR_ECID]
         mode:
           type: string
+          enum: [CONVENTIONAL, UE_ASSISTED]
         usage:
           type: string
+          enum: [SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION]
+
+    GnssPositioningMethodAndUsage:
+      type: object
+      required: [mode, gnss, usage]
+      properties:
+        mode:
+          type: string
+          enum: [UE_BASED]
+        gnss:
+          type: string
+          enum: [GPS]
+        usage:
+          type: string
+          enum: [SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION]
 
     LocPlmn:
       type: object
+      required: [mcc, mnc]
       properties:
         mcc:
           type: string
@@ -6094,6 +6141,7 @@ components:
 
     LocNcgi:
       type: object
+      required: [plmnId, nrCellId]
       properties:
         plmnId:
           $ref: "#/components/schemas/LocPlmn"
@@ -6102,23 +6150,16 @@ components:
 
     LocEcgi:
       type: object
+      required: [plmnId, eutraCellId]
       properties:
         plmnId:
           $ref: "#/components/schemas/LocPlmn"
         eutraCellId:
           type: string
 
-    LocTai:
-      type: object
-      properties:
-        plmnId:
-          $ref: "#/components/schemas/LocPlmn"
-        tac:
-          type: string
-
     SupplementaryMeasurements:
       type: object
-      description: "Raw NRPPa measurements. Only with `verbose=true`."
+      description: "Raw E-CID measurements. Only with `verbose=true`."
       properties:
         rsrp:
           type: integer

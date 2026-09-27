@@ -16,10 +16,11 @@ import (
 // LocationData is a view of the spec-shaped LocationData response (TS 29.572)
 // from POST /api/beta/location. Ncgi is set for NR, Ecgi for E-UTRA.
 type LocationData struct {
-	LocationEstimate    *GeoArea      `json:"locationEstimate"`
-	PositioningDataList []MethodUsage `json:"positioningDataList"`
-	Ncgi                *Ncgi         `json:"ncgi"`
-	Ecgi                *Ecgi         `json:"ecgi"`
+	LocationEstimate        *GeoArea          `json:"locationEstimate"`
+	PositioningDataList     []MethodUsage     `json:"positioningDataList"`
+	GnssPositioningDataList []GnssMethodUsage `json:"gnssPositioningDataList"`
+	Ncgi                    *Ncgi             `json:"ncgi"`
+	Ecgi                    *Ecgi             `json:"ecgi"`
 }
 
 type GeoArea struct {
@@ -37,6 +38,12 @@ type MethodUsage struct {
 	Method string `json:"method"`
 	Mode   string `json:"mode"`
 	Usage  string `json:"usage"`
+}
+
+type GnssMethodUsage struct {
+	Mode  string `json:"mode"`
+	Gnss  string `json:"gnss"`
+	Usage string `json:"usage"`
 }
 
 type Plmn struct {
@@ -61,6 +68,14 @@ func PositioningMethod(d *LocationData) string {
 	}
 
 	return d.PositioningDataList[0].Method
+}
+
+func GNSSPositioning(d *LocationData) string {
+	if len(d.GnssPositioningDataList) == 0 {
+		return ""
+	}
+
+	return d.GnssPositioningDataList[0].Gnss
 }
 
 // GetLocation calls POST /api/beta/location for the given method and decodes the

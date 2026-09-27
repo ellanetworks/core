@@ -32,19 +32,18 @@ const (
 	SessionStatusCancelled SessionStatus = 3
 )
 
-// PositioningMethod identifies the positioning algorithm to use.
-type PositioningMethod string
+// RequestedMethod identifies the positioning algorithm to use.
+type RequestedMethod string
 
 const (
-	MethodCellID        PositioningMethod = "cell_id"
-	MethodECID          PositioningMethod = "ecid"
-	MethodAGNSSAssisted PositioningMethod = "agnss_ue_assisted"
-	MethodAGNSSBased    PositioningMethod = "agnss_ue_based"
+	RequestedCellID RequestedMethod = "cell_id"
+	RequestedECID   RequestedMethod = "ecid"
+	RequestedGNSS   RequestedMethod = "gnss"
 )
 
 // DefaultMethodForRequest returns the default positioning method for a request type.
-func DefaultMethodForRequest(rt RequestType) PositioningMethod {
-	return MethodCellID
+func DefaultMethodForRequest(rt RequestType) RequestedMethod {
+	return RequestedCellID
 }
 
 // SessionTypeFromRequest maps RequestType to the internal SessionType.

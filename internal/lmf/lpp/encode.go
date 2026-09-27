@@ -5,6 +5,7 @@ package lpp
 
 import (
 	"math"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/per"
@@ -59,7 +60,7 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 
 // EncodeRequestLocationInformation encodes an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
-func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byte, error) {
+func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, responseTimeSeconds int64) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
 			RequestLocationInformation: &lpptype.RequestLocationInformation{
@@ -72,6 +73,7 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte) ([]byt
 								},
 								QoS: &lpptype.QoS{
 									VerticalCoordinateRequest: false,
+									ResponseTime:              &lpptype.ResponseTime{Time: responseTimeSeconds},
 									VelocityRequest:           false,
 								},
 							},
@@ -165,7 +167,7 @@ func EncodeProvideLocationInformation(transactionID byte, lat int32, lon int32, 
 
 	uncSemiMajor := encodeUncertainty(hAcc)
 	uncSemiMinor := uncSemiMajor
-	uncAltitude := encodeUncertainty(vAcc)
+	uncAltitude := encodeAltitudeUncertainty(vAcc)
 
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
@@ -240,6 +242,10 @@ const (
 	posModesBitLength      = 3
 	gnssIdBitmapBitLength  = 7
 	gnssSignalIDsBitLength = 8
+
+	maxLocationResponseTime    = 25 * time.Second
+	locationResponseTimeMargin = 2 * time.Second
+	minLocationResponseTime    = time.Second
 )
 
 // makePosModes creates a PositioningModes bitmap.
@@ -322,35 +328,8 @@ func encodeAltitude(altCm int32) (int64, int64) {
 	return lpptype.EllipsoidPointWithAltitudeAltitudeDirectionHeight, altM
 }
 
-// decodeLatitude converts TS 23.032 encoded latitude back to 1e-7 degrees.
-func decodeLatitude(sign, encoded int64) int32 {
-	latE7 := encoded * maxLatitudeE7 / latitudeResolution
-	if sign == lpptype.EllipsoidPointLatitudeSignSouth {
-		return -int32(latE7)
-	}
-
-	return int32(latE7)
-}
-
-// decodeLongitude converts TS 23.032 encoded longitude (unsigned offset) back to 1e-7 degrees.
-func decodeLongitude(encoded int64) int32 {
-	// Convert unsigned offset back to signed value: N = offset - longitudeOffset
-	signed := encoded - longitudeOffset
-	return int32(signed * maxLongitudeE7 / longitudeResolution)
-}
-
-// decodeAltitude converts TS 23.032 encoded altitude back to centimetres.
-func decodeAltitude(dir, encoded int64) int32 {
-	altCm := encoded * centimetresPerMetre
-	if dir == lpptype.EllipsoidPointWithAltitudeAltitudeDirectionDepth {
-		return -int32(altCm)
-	}
-
-	return int32(altCm)
-}
-
 // encodeUncertainty converts a distance in metres to a TS 23.032 uncertainty
-// code (0..maxUncertaintyCode). It is the inverse of decodeUncertainty: given r
+// code (0..maxUncertaintyCode). It is the inverse of models.HorizontalUncertaintyMeters: given r
 // metres, find k such that r = C * ((1+x)^k - 1) with C = uncertaintyConstantC
 // and x = uncertaintyFactorX.
 func encodeUncertainty(meters uint32) int64 {
@@ -371,4 +350,14 @@ func encodeUncertainty(meters uint32) int64 {
 	}
 
 	return code
+}
+
+func encodeAltitudeUncertainty(meters uint32) int64 {
+	if meters == 0 {
+		return 0
+	}
+
+	k := math.Log(float64(meters)/altitudeUncertaintyConstantC+1.0) / math.Log(altitudeUncertaintyBase)
+
+	return min(max(int64(math.Round(k)), 0), maxUncertaintyCode)
 }

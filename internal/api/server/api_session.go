@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf"
+	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -26,16 +27,16 @@ type SessionListItem struct {
 
 // SessionDetail is a session record with result.
 type SessionDetail struct {
-	ID                string          `json:"id"`
-	SUPI              string          `json:"supi"`
-	SessionType       int             `json:"session_type"`
-	Method            string          `json:"method"`
-	Status            int             `json:"status"`
-	QoSResponseTimeMs *int            `json:"qos_response_time_ms,omitempty"`
-	QOSHAccuracyM     *int            `json:"qos_horizontal_accuracy_m,omitempty"`
-	LastResult        json.RawMessage `json:"last_result,omitempty"`
-	CreatedAt         int64           `json:"created_at"`
-	UpdatedAt         int64           `json:"updated_at"`
+	ID                string        `json:"id"`
+	SUPI              string        `json:"supi"`
+	SessionType       int           `json:"session_type"`
+	Method            string        `json:"method"`
+	Status            int           `json:"status"`
+	QoSResponseTimeMs *int          `json:"qos_response_time_ms,omitempty"`
+	QOSHAccuracyM     *int          `json:"qos_horizontal_accuracy_m,omitempty"`
+	LastResult        *LocationData `json:"last_result,omitempty"`
+	CreatedAt         int64         `json:"created_at"`
+	UpdatedAt         int64         `json:"updated_at"`
 }
 
 func ListSessions(dbInstance *db.Database) http.Handler {
@@ -81,11 +82,6 @@ func GetSession(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var result json.RawMessage
-		if session.LastResult != nil {
-			result = json.RawMessage(*session.LastResult)
-		}
-
 		createdAt, _ := time.Parse(time.RFC3339, session.CreatedAt)
 		updatedAt, _ := time.Parse(time.RFC3339, session.UpdatedAt)
 		writeResponse(r.Context(), w, SessionDetail{
@@ -96,7 +92,7 @@ func GetSession(dbInstance *db.Database) http.Handler {
 			Status:            session.Status,
 			QoSResponseTimeMs: session.QoSResponseTimeMs,
 			QOSHAccuracyM:     session.QOSHAccuracyM,
-			LastResult:        result,
+			LastResult:        storedLocationData(session.LastResult),
 			CreatedAt:         createdAt.Unix(),
 			UpdatedAt:         updatedAt.Unix(),
 		}, http.StatusOK, logger.APILog)
@@ -114,4 +110,17 @@ func CancelSession(lmfInst *lmf.LMF) http.Handler {
 
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func storedLocationData(stored *string) *LocationData {
+	if stored == nil {
+		return nil
+	}
+
+	var result models.LocationResult
+	if err := json.Unmarshal([]byte(*stored), &result); err != nil || result.Estimate == nil {
+		return nil
+	}
+
+	return toLocationData(&result, false)
 }

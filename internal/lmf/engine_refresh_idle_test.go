@@ -118,7 +118,7 @@ func TestDetermineLocation_IdleUE_RefreshUnanswered_ReturnsLastKnownWithAge(t *t
 
 	start := time.Now()
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, MethodCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
 	if err != nil {
 		t.Fatalf("expected the last known location to be returned, got error: %v", err)
 	}
@@ -150,9 +150,8 @@ func TestDetermineLocation_IdleUE_RefreshUnanswered_ReturnsLastKnownWithAge(t *t
 	}
 
 	// Still usable: the stale cell resolves to its provisioned coordinate.
-	if result.Latitude == 0 || result.Longitude == 0 {
-		t.Errorf("expected the stale cell's provisioned coordinate, got lat=%d lon=%d",
-			result.Latitude, result.Longitude)
+	if result.Estimate == nil || result.Estimate.LatitudeDegrees == 0 || result.Estimate.LongitudeDegrees == 0 {
+		t.Errorf("expected the stale cell's provisioned coordinate, got %+v", result.Estimate)
 	}
 
 	// The configured refresh timeout must be honoured, not the 5s default.

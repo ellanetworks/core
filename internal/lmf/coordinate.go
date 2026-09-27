@@ -6,7 +6,6 @@ package lmf
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf/models"
@@ -20,60 +19,30 @@ import (
 // API turns this into a failure response rather than a coordinate-less body.
 var ErrNoLocationEstimate = errors.New("no location estimate available for serving cell")
 
-// cellCoordinate is an absolute antenna/coverage anchor resolved for a serving
-// cell: WGS-84 degrees plus a horizontal uncertainty radius in metres.
-type cellCoordinate struct {
-	latitudeDegrees  float64
-	longitudeDegrees float64
-	altitudeMeters   *float64
-	horizontalAccM   uint32
-}
-
 // resolveCellCoordinate returns the geographic anchor for the UE's serving
 // cell, preferring a RAN-supplied NG-RAN Access Point Position (E-CID) and
 // falling back to the provisioned cell-position table. Returns false when no
 // coordinate is available from any source.
-func (l *LMF) resolveCellCoordinate(ctx context.Context, loc coremodels.UserLocation, measurements *models.RadioMeasurements) (cellCoordinate, bool) {
-	// 1. RAN-supplied antenna position (only available via E-CID measurements).
+func (l *LMF) resolveCellCoordinate(ctx context.Context, loc coremodels.UserLocation, measurements *models.RadioMeasurements) (*models.GeographicEstimate, bool) {
 	if measurements != nil && measurements.APPosition != nil {
-		ap := measurements.APPosition
-
-		acc := uncertaintyCodeToMeters(ap.UncertaintySemiMajor)
-		if minor := uncertaintyCodeToMeters(ap.UncertaintySemiMinor); minor > acc {
-			acc = minor
-		}
-
-		alt := float64(ap.Altitude)
-
-		return cellCoordinate{
-			latitudeDegrees:  ap.LatitudeDegrees,
-			longitudeDegrees: ap.LongitudeDegrees,
-			altitudeMeters:   &alt,
-			horizontalAccM:   uint32(math.Round(acc)),
-		}, true
+		return measurements.APPosition, true
 	}
 
-	// 2. Provisioned cell-position table, keyed on the serving NCGI/ECGI.
 	if l.db == nil {
-		return cellCoordinate{}, false
+		return nil, false
 	}
 
 	rat, mcc, mnc, cellID, ok := servingCellKey(loc)
 	if !ok {
-		return cellCoordinate{}, false
+		return nil, false
 	}
 
 	cp, err := l.db.GetCellPositionByCell(ctx, rat, mcc, mnc, cellID)
 	if err != nil {
-		return cellCoordinate{}, false
+		return nil, false
 	}
 
-	return cellCoordinate{
-		latitudeDegrees:  cp.Latitude,
-		longitudeDegrees: cp.Longitude,
-		altitudeMeters:   cp.Altitude,
-		horizontalAccM:   coverageRadiusMeters(cp),
-	}, true
+	return cellPositionEstimate(cp), true
 }
 
 // servingCellKey extracts the (rat, mcc, mnc, cellIdentity) natural key of the
@@ -90,47 +59,33 @@ func servingCellKey(loc coremodels.UserLocation) (rat, mcc, mnc, cellID string, 
 	return "", "", "", "", false
 }
 
-// coverageRadiusMeters derives a single horizontal-accuracy radius (metres)
-// from a provisioned cell position. Uses the larger uncertainty semi-axis when
-// present; otherwise 0 (unknown).
-func coverageRadiusMeters(cp *db.CellPosition) uint32 {
-	var r float64
-
-	if cp.UncertaintySemiMajor != nil {
-		r = *cp.UncertaintySemiMajor
+func cellPositionEstimate(cp *db.CellPosition) *models.GeographicEstimate {
+	e := &models.GeographicEstimate{
+		LatitudeDegrees:  cp.Latitude,
+		LongitudeDegrees: cp.Longitude,
+		AltitudeMeters:   cp.Altitude,
 	}
 
-	if cp.UncertaintySemiMinor != nil && *cp.UncertaintySemiMinor > r {
-		r = *cp.UncertaintySemiMinor
+	switch {
+	case cp.UncertaintySemiMajor != nil && cp.UncertaintySemiMinor != nil && cp.OrientationMajor != nil:
+		e.UncertaintyEllipse = &models.UncertaintyEllipse{
+			SemiMajorMeters:         max(*cp.UncertaintySemiMajor, *cp.UncertaintySemiMinor),
+			SemiMinorMeters:         min(*cp.UncertaintySemiMajor, *cp.UncertaintySemiMinor),
+			OrientationMajorDegrees: int32(*cp.OrientationMajor),
+		}
+	case cp.UncertaintySemiMajor != nil && cp.UncertaintySemiMinor != nil:
+		radius := max(*cp.UncertaintySemiMajor, *cp.UncertaintySemiMinor)
+		e.UncertaintyRadiusMeters = &radius
+	case cp.UncertaintySemiMajor != nil:
+		e.UncertaintyRadiusMeters = cp.UncertaintySemiMajor
+	case cp.UncertaintySemiMinor != nil:
+		e.UncertaintyRadiusMeters = cp.UncertaintySemiMinor
 	}
 
-	if r < 0 {
-		return 0
+	if cp.Confidence != nil {
+		confidence := int32(*cp.Confidence)
+		e.ConfidencePercent = &confidence
 	}
 
-	return uint32(math.Round(r))
-}
-
-// applyCellCoordinate writes a resolved coordinate onto a location result.
-// Latitude/longitude are stored in 1e-7 degrees and altitude in metres, per the
-// LocationResult contract.
-func applyCellCoordinate(result *models.LocationResult, c cellCoordinate) {
-	result.Latitude = int32(math.Round(c.latitudeDegrees * 1e7))
-	result.Longitude = int32(math.Round(c.longitudeDegrees * 1e7))
-
-	if c.altitudeMeters != nil {
-		result.Altitude = int32(math.Round(*c.altitudeMeters))
-	}
-
-	result.HorizontalAccuracy = c.horizontalAccM
-}
-
-// uncertaintyCodeToMeters decodes a TS 23.032 uncertainty code (0..127) into
-// metres: r = C·((1+x)^k − 1) with C = 10 and x = 0.1.
-func uncertaintyCodeToMeters(code int64) float64 {
-	if code <= 0 {
-		return 0
-	}
-
-	return 10.0 * (math.Pow(1.1, float64(code)) - 1.0)
+	return e
 }

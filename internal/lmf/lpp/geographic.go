@@ -14,8 +14,8 @@ package lpp
 //   - Altitude:  15 bits, range 0..2^15-1,      resolution 1 metre
 //   - Uncertainty: 7 bits, range 0..127,         resolution C*((1+x)^k - 1)
 //
-// Latitude and longitude are stored as 1e-7-degree integers in the public API.
-// Altitude is stored in centimetres and converted to metres for the wire format.
+// The encoders take latitude and longitude as 1e-7-degree integers and altitude
+// in centimetres; the decoders return WGS-84 degrees and metres.
 const (
 	// Latitude encoding: 2^23 range (23 bits).
 	latitudeResolution = 8388608     // 2^23
@@ -38,6 +38,9 @@ const (
 	uncertaintyFactorX   = 0.1
 	uncertaintyBase      = 1.1 // 1 + x
 	maxUncertaintyCode   = 127
+
+	altitudeUncertaintyConstantC = 45.0
+	altitudeUncertaintyBase      = 1.025
 
 	// Default confidence value for uncertainty ellipses (percent).
 	// TS 23.032 recommends 67% as a typical confidence level.

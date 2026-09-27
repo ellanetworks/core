@@ -57,6 +57,7 @@ func FuzzParseMessage(f *testing.F) {
 	// same optional chain truncated mid-TLV (N1 UE network capability IEI with no
 	// length octet) to exercise the walk's bounds checks.
 	f.Add(mustHex("0741310bf600f1100001010000000103f070c000040201d0111901020332"))
+	f.Add(mustHex("0769010004deadbeef650107"))
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		for _, dir := range []nas.Direction{nas.DirectionUplink, nas.DirectionDownlink} {

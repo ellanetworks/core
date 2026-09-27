@@ -66,6 +66,10 @@ func EmmMessageTypeName(mt eps.MessageType) string {
 		return "EMMStatus"
 	case 0x61:
 		return "EMMInformation"
+	case 0x68:
+		return "DownlinkGenericNASTransport"
+	case 0x69:
+		return "UplinkGenericNASTransport"
 	default:
 		return fmt.Sprintf("Unknown message type: 0x%02x", uint8(mt))
 	}

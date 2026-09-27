@@ -5,8 +5,10 @@ package lpp
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
 	lmmodels "github.com/ellanetworks/core/internal/lmf/models"
@@ -57,13 +59,15 @@ type Session struct {
 	correlationID  []byte
 	lastInbound    []byte
 	capabilities   *models.ProvideLocationCapabilities
-	locationResult *models.GNSSPositionResult
+	locationResult *lmmodels.LocationResult
 	log            *zap.Logger
 	transferFunc   func(lppMsg []byte) error
 	completeFunc   func(result *lmmodels.LocationResult) error
 	failFunc       func() error
 	cancelFunc     func() error
 	deregisterFunc func()
+	failure        error
+	deadline       time.Time
 }
 
 // NewSession creates a new LPP session for the given SUPI and positioning method.
@@ -151,12 +155,10 @@ func (s *Session) StartSession() error {
 
 	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
 	if err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("build request capabilities: %w", err)
 	}
 
 	if err := s.send(msg); err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("send capabilities request: %w", err)
 	}
 
@@ -199,16 +201,19 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 	// For AGNSS-assisted, now request actual location
 	s.state = LocationRequested
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS)
+	responseTime, err := LocationResponseTime(s.deadline, time.Now())
 	if err != nil {
-		s.state = SessionFailed
+		return err
+	}
+
+	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS, responseTime)
+	if err != nil {
 		return fmt.Errorf("build request location: %w", err)
 	}
 
 	s.log.Info("sending RequestLocationInformation (location)")
 
 	if err := s.send(locMsg); err != nil {
-		s.state = SessionFailed
 		return fmt.Errorf("send location request: %w", err)
 	}
 
@@ -221,28 +226,31 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
 	}
 
-	s.locationResult = &msg.GNSSPositionResult
+	if msg.UnsupportedLocationShape {
+		return ErrUnsupportedLocationShape
+	}
+
+	if msg.LocationEstimate == nil {
+		return fmt.Errorf("%w: location failure cause %s, GNSS error cause %s", ErrUENoLocationEstimate,
+			causeName(locationFailureCauseNames, msg.LocationFailureCause),
+			causeName(gnssErrorCauseNames, msg.GNSSErrorCause))
+	}
+
+	s.locationResult = &lmmodels.LocationResult{
+		SUPI:     s.supi,
+		Method:   lmmodels.PositioningMethodGNSS,
+		Estimate: msg.LocationEstimate,
+	}
 	s.state = LocationReceived
 
 	s.log.Info("received location fix",
-		zap.Int32("lat", msg.GNSSPositionResult.Latitude),
-		zap.Int32("lon", msg.GNSSPositionResult.Longitude),
-		zap.Uint32("h_acc", msg.GNSSPositionResult.HorizontalAccuracy),
+		zap.Float64("lat", msg.LocationEstimate.LatitudeDegrees),
+		zap.Float64("lon", msg.LocationEstimate.LongitudeDegrees),
 	)
 
 	// Signal completion to session manager
 	if s.completeFunc != nil {
-		result := &lmmodels.LocationResult{
-			SUPI:               s.supi,
-			Shape:              lmmodels.GADEllipsoidalPoint,
-			Latitude:           msg.GNSSPositionResult.Latitude,
-			Longitude:          msg.GNSSPositionResult.Longitude,
-			Altitude:           msg.GNSSPositionResult.Altitude,
-			HorizontalAccuracy: msg.GNSSPositionResult.HorizontalAccuracy,
-			VerticalAccuracy:   msg.GNSSPositionResult.VerticalAccuracy,
-		}
-
-		if err := s.completeFunc(result); err != nil {
+		if err := s.completeFunc(s.locationResult); err != nil {
 			s.log.Error("failed to complete session", zap.Error(err))
 		}
 	}
@@ -291,7 +299,7 @@ func (s *Session) Method() string {
 }
 
 // LocationResult returns the extracted location fix, or nil if not yet received.
-func (s *Session) LocationResult() *models.GNSSPositionResult {
+func (s *Session) LocationResult() *lmmodels.LocationResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -327,6 +335,45 @@ func (s *Session) Fail() {
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
+}
+
+func (s *Session) SetDeadline(deadline time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.deadline = deadline
+}
+
+func LocationResponseTime(deadline, now time.Time) (int64, error) {
+	if deadline.IsZero() {
+		return int64(maxLocationResponseTime / time.Second), nil
+	}
+
+	remaining := deadline.Sub(now) - locationResponseTimeMargin
+	if remaining < minLocationResponseTime {
+		return 0, fmt.Errorf("%w: no time left to request a location (%s remaining)", context.DeadlineExceeded, deadline.Sub(now).Round(time.Millisecond))
+	}
+
+	return int64(min(remaining, maxLocationResponseTime) / time.Second), nil
+}
+
+func (s *Session) FailWith(err error) {
+	s.mu.Lock()
+
+	if s.failure == nil && s.state != SessionFailed && s.state != LocationReceived {
+		s.failure = err
+	}
+
+	s.mu.Unlock()
+
+	s.Fail()
+}
+
+func (s *Session) Failure() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.failure
 }
 
 // Cancel cancels the session.

@@ -5,6 +5,7 @@ package lpp
 
 import (
 	"encoding/hex"
+	"math"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
@@ -40,7 +41,7 @@ func TestEncodeDecodeRequestCapabilities(t *testing.T) {
 }
 
 func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
-	encoded, err := EncodeRequestLocationInformation(0x02, 0x00)
+	encoded, err := EncodeRequestLocationInformation(0x02, 0x00, 25)
 	if err != nil {
 		t.Fatalf("EncodeRequestLocationInformation: %v", err)
 	}
@@ -134,39 +135,29 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 		t.Fatal("expected ProvideLocationInformation to be non-nil")
 	}
 
-	result := decoded.ProvideLocationInformation.GNSSPositionResult
-
-	// Verify latitude is within 1 degree (TS 23.032 encoding resolution).
-	if abs(int(result.Latitude)-int(originalLat)) > 1000000 {
-		t.Errorf("latitude mismatch: expected ~%d, got %d", originalLat, result.Latitude)
+	e := decoded.ProvideLocationInformation.LocationEstimate
+	if e == nil {
+		t.Fatal("expected a location estimate")
 	}
 
-	// Verify longitude is within 1 degree.
-	if abs(int(result.Longitude)-int(originalLon)) > 1000000 {
-		t.Errorf("longitude mismatch: expected ~%d, got %d", originalLon, result.Longitude)
+	if math.Abs(e.LatitudeDegrees-float64(originalLat)/1e7) > 1e-4 || math.Abs(e.LongitudeDegrees-float64(originalLon)/1e7) > 1e-4 {
+		t.Errorf("position = %f, %f, want ~%f, ~%f", e.LatitudeDegrees, e.LongitudeDegrees, float64(originalLat)/1e7, float64(originalLon)/1e7)
 	}
 
-	// Verify altitude is within 100m (TS 23.032 altitude resolution is 1m).
-	if abs(int(result.Altitude)-int(originalAlt)) > 10000 {
-		t.Errorf("altitude mismatch: expected ~%d, got %d", originalAlt, result.Altitude)
+	if e.AltitudeMeters == nil || *e.AltitudeMeters != 350 {
+		t.Errorf("altitude = %v, want 350 m", e.AltitudeMeters)
 	}
 
-	// Verify horizontal accuracy round-trips (10m input, allow quantization slack).
-	if result.HorizontalAccuracy == 0 {
-		t.Error("expected non-zero horizontal accuracy")
+	if e.UncertaintyEllipse == nil || math.Abs(e.UncertaintyEllipse.SemiMajorMeters-10) > 1.5 || math.Abs(e.UncertaintyEllipse.SemiMinorMeters-10) > 1.5 {
+		t.Errorf("uncertainty ellipse = %+v, want ~10 m axes", e.UncertaintyEllipse)
 	}
 
-	if result.HorizontalAccuracy > 30 || result.HorizontalAccuracy < 5 {
-		t.Errorf("horizontal accuracy: expected ~10m, got %d", result.HorizontalAccuracy)
+	if e.UncertaintyAltitudeMeters == nil || math.Abs(*e.UncertaintyAltitudeMeters-15) > 1.5 {
+		t.Errorf("altitude uncertainty = %v, want ~15 m", e.UncertaintyAltitudeMeters)
 	}
 
-	// Verify vertical accuracy round-trips (15m input, allow quantization slack).
-	if result.VerticalAccuracy == 0 {
-		t.Error("expected non-zero vertical accuracy")
-	}
-
-	if result.VerticalAccuracy > 40 || result.VerticalAccuracy < 8 {
-		t.Errorf("vertical accuracy: expected ~15m, got %d", result.VerticalAccuracy)
+	if e.ConfidencePercent == nil || *e.ConfidencePercent != defaultConfidence {
+		t.Errorf("confidence = %v, want %d", e.ConfidencePercent, defaultConfidence)
 	}
 }
 
@@ -328,7 +319,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 3: LMF → UE: RequestLocationInformation
-	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0x00)
+	lmfReqLoc, err := EncodeRequestLocationInformation(0x02, 0x00, 25)
 	if err != nil {
 		t.Fatalf("step 3 encode: %v", err)
 	}
@@ -362,23 +353,10 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Verify location is roughly correct (within encoding resolution).
-	result := lmfDecoded2.ProvideLocationInformation.GNSSPositionResult
-
-	if abs(int(result.Latitude)-450000000) > 1000000 {
-		t.Errorf("step 4: latitude ~450000000, got %d", result.Latitude)
+	e := lmfDecoded2.ProvideLocationInformation.LocationEstimate
+	if e == nil || math.Abs(e.LatitudeDegrees-45) > 1e-4 || math.Abs(e.LongitudeDegrees-21.45) > 1e-4 {
+		t.Errorf("step 4: position = %+v, want ~45, ~21.45", e)
 	}
-
-	if abs(int(result.Longitude)-214500000) > 1000000 {
-		t.Errorf("step 4: longitude ~214500000, got %d", result.Longitude)
-	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-
-	return x
 }
 
 // buildLocationInformation constructs an LPP ProvideLocationInformation message

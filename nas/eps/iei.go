@@ -56,6 +56,7 @@ const (
 	ieiT3412Value                     uint8 = 0x5A // TAU ACCEPT (GPRS timer)
 	ieiT3423Value                     uint8 = 0x59 // ATTACH ACCEPT / TAU ACCEPT (GPRS timer)
 	ieiNetworkFeatureSupport          uint8 = 0x64 // ATTACH ACCEPT / TAU ACCEPT
+	ieiAdditionalInformation          uint8 = 0x65
 	ieiT3324Value                     uint8 = 0x6A
 	ieiUEStatus                       uint8 = 0x6D
 	ieiExtendedDRXParameters          uint8 = 0x6E
