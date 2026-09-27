@@ -50,7 +50,8 @@ type Config struct {
 // association's reads.
 type Callbacks struct {
 	// Dispatch is invoked for every complete message read from a connection.
-	Dispatch func(ctx context.Context, conn *SCTPConn, msg []byte)
+	Dispatch  func(ctx context.Context, conn *SCTPConn, msg []byte)
+	OnConnect func(conn *SCTPConn)
 	// Notify is invoked for SCTP association/shutdown events.
 	Notify func(conn *SCTPConn, notification Notification)
 	// OnDisconnect is invoked once per connection, after its socket is closed.
@@ -191,6 +192,10 @@ func (s *Server) serveConn(ctx context.Context, conn *SCTPConn) {
 	}
 
 	s.cfg.Logger.Info("New SCTP connection", slog.String("remote_address", remoteAddr.String()))
+
+	if s.cb.OnConnect != nil {
+		s.cb.OnConnect(conn)
+	}
 
 	buf := make([]byte, readBufSize)
 	discarded := 0
