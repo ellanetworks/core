@@ -96,8 +96,14 @@ func EUTRARSRQExtendedDB(v int64) float64 {
 	}
 }
 
-func NRRSRPDBm(v int64) float64 {
-	return float64(v - 157)
+func NRRSRPDBm(v int64) *float64 {
+	if v >= 127 {
+		return nil
+	}
+
+	dbm := float64(v - 157)
+
+	return &dbm
 }
 
 func NRRSRQDB(v int64) float64 {

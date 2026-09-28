@@ -29,10 +29,6 @@ func TestReportValueConversions(t *testing.T) {
 		{"E-UTRA extended RSRQ legacy ceiling", EUTRARSRQExtendedDB, 34, -3},
 		{"E-UTRA extended RSRQ high floor", EUTRARSRQExtendedDB, 35, -3},
 		{"E-UTRA extended RSRQ high ceiling", EUTRARSRQExtendedDB, 46, 2.5},
-		{"NR RSRP below range", NRRSRPDBm, 0, -157},
-		{"NR RSRP floor", NRRSRPDBm, 1, -156},
-		{"NR RSRP", NRRSRPDBm, 101, -56},
-		{"NR RSRP ceiling", NRRSRPDBm, 127, -30},
 		{"NR RSRQ below range", NRRSRQDB, 0, -43.5},
 		{"NR RSRQ floor", NRRSRQDB, 1, -43},
 		{"NR RSRQ", NRRSRQDB, 66, -10.5},
@@ -43,5 +39,27 @@ func TestReportValueConversions(t *testing.T) {
 		if got := tc.convert(tc.in); got != tc.want {
 			t.Errorf("%s: %d -> %v, want %v", tc.name, tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestNRRSRPReportMapping(t *testing.T) {
+	cases := []struct {
+		in   int64
+		want float64
+	}{
+		{0, -157},
+		{1, -156},
+		{101, -56},
+		{126, -31},
+	}
+
+	for _, tc := range cases {
+		if got := NRRSRPDBm(tc.in); got == nil || *got != tc.want {
+			t.Errorf("NRRSRPDBm(%d) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+
+	if got := NRRSRPDBm(127); got != nil {
+		t.Errorf("NRRSRPDBm(127) = %v, want nil: RSRP_127 is a threshold value, not a measurement", *got)
 	}
 }

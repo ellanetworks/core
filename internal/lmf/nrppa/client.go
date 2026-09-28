@@ -286,11 +286,10 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 
 	for _, it := range result.SSRSRP {
 		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
-		cell.SSRSRP = nrValue(it.Value, lmfmodels.NRRSRPDBm)
+		cell.SSRSRP = nrRSRP(it.Value)
 
 		for _, b := range it.PerSSB {
-			v := lmfmodels.NRRSRPDBm(b.Value)
-			lmfmodels.Beam(&cell.SSBBeams, b.SSBIndex).RSRP = &v
+			lmfmodels.Beam(&cell.SSBBeams, b.SSBIndex).RSRP = lmfmodels.NRRSRPDBm(b.Value)
 		}
 	}
 
@@ -306,11 +305,10 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 
 	for _, it := range result.CSIRSRP {
 		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
-		cell.CSIRSRP = nrValue(it.Value, lmfmodels.NRRSRPDBm)
+		cell.CSIRSRP = nrRSRP(it.Value)
 
 		for _, b := range it.PerCSIRS {
-			v := lmfmodels.NRRSRPDBm(b.Value)
-			lmfmodels.Beam(&cell.CSIRSBeams, b.CSIRSIndex).RSRP = &v
+			lmfmodels.Beam(&cell.CSIRSBeams, b.CSIRSIndex).RSRP = lmfmodels.NRRSRPDBm(b.Value)
 		}
 	}
 
@@ -392,6 +390,14 @@ func eutraCGI(cgi *nrppa.CGIEUTRA) *coremodels.Ecgi {
 	}
 
 	return lmfmodels.NewEcgi(plmn, cgi.EUTRACellID)
+}
+
+func nrRSRP(v *int64) *float64 {
+	if v == nil {
+		return nil
+	}
+
+	return lmfmodels.NRRSRPDBm(*v)
 }
 
 func nrValue(v *int64, convert func(int64) float64) *float64 {

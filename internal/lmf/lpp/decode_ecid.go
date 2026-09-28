@@ -138,28 +138,36 @@ func nrCell(cells *lmfmodels.CellCollector, e *lpptype.NRMeasuredResultsElement)
 	}
 
 	if r := e.ResultsSSBCell; r != nil {
-		cell.SSRSRP = reportValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
+		cell.SSRSRP = nrRSRP(r.NRRSRP)
 		cell.SSRSRQ = reportValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	if r := e.ResultsCSIRSCell; r != nil {
-		cell.CSIRSRP = reportValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
+		cell.CSIRSRP = nrRSRP(r.NRRSRP)
 		cell.CSIRSRQ = reportValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	for _, r := range e.ResultsSSBIndexes {
 		beam := lmfmodels.Beam(&cell.SSBBeams, r.SSBIndex)
-		beam.RSRP = reportValue(r.SSBResults.NRRSRP, lmfmodels.NRRSRPDBm)
+		beam.RSRP = nrRSRP(r.SSBResults.NRRSRP)
 		beam.RSRQ = reportValue(r.SSBResults.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	for _, r := range e.ResultsCSIRSIndexes {
 		beam := lmfmodels.Beam(&cell.CSIRSBeams, r.CSIRSIndex)
-		beam.RSRP = reportValue(r.CSIRSResults.NRRSRP, lmfmodels.NRRSRPDBm)
+		beam.RSRP = nrRSRP(r.CSIRSResults.NRRSRP)
 		beam.RSRQ = reportValue(r.CSIRSResults.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	return cell
+}
+
+func nrRSRP(v *int64) *float64 {
+	if v == nil {
+		return nil
+	}
+
+	return lmfmodels.NRRSRPDBm(*v)
 }
 
 func reportValue(v *int64, convert func(int64) float64) *float64 {
