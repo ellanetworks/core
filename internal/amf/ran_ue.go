@@ -97,6 +97,7 @@ type UeConn struct {
 	// is lost it fires once (releaseGuardTimeout) and runs the action-keyed cleanup.
 	releaseGuard guard.Guard
 	icsGuard     guard.Guard
+	ranUEAMBR    atomic.Pointer[models.Ambr]
 
 	// nasGuard is the single supervision timer for the 5GMM common procedures. They are
 	// mutually exclusive, so one guard suffices.

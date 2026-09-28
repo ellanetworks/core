@@ -133,7 +133,13 @@ func (a *AMF) deactivateSession(ctx context.Context, ueConn *UeConn, ref string,
 // ReconcileSessionsForUE re-evaluates every PDU session of a UE against the
 // current DB policy and applies any change (UPF, gNB, and UE) via the SMF.
 func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
-	if ue == nil || amf.Session == nil {
+	if ue == nil {
+		return
+	}
+
+	amf.SyncUEAMBR(ctx, ue)
+
+	if amf.Session == nil {
 		return
 	}
 

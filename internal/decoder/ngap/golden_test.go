@@ -146,6 +146,30 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		AllowedNSSAI: lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
 	})
 
+	corpus["ue_context_modification_request_full"] = mustMarshal(t, &lib.UEContextModificationRequest{
+		AMFUENGAPID:               7,
+		RANUENGAPID:               3,
+		UEAggregateMaximumBitRate: &lib.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+	})
+
+	corpus["ue_context_modification_response_full"] = mustMarshal(t, &lib.UEContextModificationResponse{
+		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
+		UserLocationInformation: &lib.UserLocationInformation{
+			Kind:         lib.UserLocationNR,
+			PLMNIdentity: testPLMN,
+			CellIdentity: 0x000000010,
+			TAI:          testTAI,
+		},
+		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcUEContextModification)},
+	})
+
+	corpus["ue_context_modification_failure_full"] = mustMarshal(t, &lib.UEContextModificationFailure{
+		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
+		Cause:       &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: lib.CauseRadioNetworkUnspecified},
+	})
+
 	corpus["path_switch_request_failure_full"] = mustMarshal(t, &lib.PathSwitchRequestFailure{
 		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
 		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
@@ -620,7 +644,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcNGSetup, lib.ProcInitialUEMessage, lib.ProcDownlinkNASTransport,
 			lib.ProcUplinkNASTransport, lib.ProcInitialContextSetup,
 			lib.ProcPDUSessionResourceSetup, lib.ProcUEContextReleaseRequest,
-			lib.ProcUEContextRelease, lib.ProcPDUSessionResourceRelease,
+			lib.ProcUEContextRelease, lib.ProcUEContextModification, lib.ProcPDUSessionResourceRelease,
 			lib.ProcUERadioCapabilityInfoIndication, lib.ProcAMFStatusIndication,
 			lib.ProcPaging, lib.ProcDownlinkUEAssociatedNRPPaTransport,
 			lib.ProcUplinkUEAssociatedNRPPaTransport,
@@ -637,14 +661,14 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
-			lib.ProcUEContextRelease, lib.ProcPDUSessionResourceRelease,
+			lib.ProcUEContextRelease, lib.ProcUEContextModification, lib.ProcPDUSessionResourceRelease,
 			lib.ProcNGReset, lib.ProcPathSwitchRequest,
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
 			lib.ProcRANConfigurationUpdate, lib.ProcHandoverPreparation,
 			lib.ProcHandoverResourceAllocation, lib.ProcHandoverCancel,
 		},
 		"UnsuccessfulOutcome": {
-			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,
+			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcUEContextModification, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,
 			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
 		},
 	}

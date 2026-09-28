@@ -256,6 +256,14 @@ func frameRANUEID(f SCTPFrame) (int64, bool) {
 
 		return 0, false
 
+	case ngap.ProcUEContextModification:
+		m, err := ngap.ParseUEContextModificationRequest(f.Value)
+		if err != nil {
+			return 0, false
+		}
+
+		return int64(m.RANUENGAPID), true
+
 	case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
 		m, err := ngap.ParseDownlinkUEAssociatedNRPPaTransport(f.Value)
 		if err != nil {
