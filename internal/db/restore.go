@@ -223,7 +223,7 @@ func ExtractForRestore(bundlePath, dbPath string) error {
 		return err
 	}
 
-	if err := resetUERegistrationsPurgedInRestoredDB(ctx, partialPath); err != nil {
+	if err := resetUERegistrationsInRestoredDB(ctx, partialPath); err != nil {
 		return err
 	}
 
@@ -530,7 +530,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
-	if err := resetUERegistrationsPurgedInRestoredDB(ctx, stagedDB); err != nil {
+	if err := resetUERegistrationsInRestoredDB(ctx, stagedDB); err != nil {
 		recordSpanError(span, err)
 
 		return err

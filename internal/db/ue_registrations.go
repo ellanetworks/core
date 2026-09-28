@@ -32,7 +32,7 @@ const (
 	getUERegistrationStmt            = "SELECT &UERegistration.* FROM %s WHERE imsi==$UERegistration.imsi AND type==$UERegistration.type"
 	listUERegistrationsSinceStmt     = "SELECT &UERegistration.* FROM %s WHERE version>$UERegistration.version ORDER BY version"
 	maxUERegistrationVersionStmt     = "SELECT COALESCE(MAX(version), 0) AS &ueRegistrationVersion.version FROM %s"
-	resetUERegistrationsPurgedSQL    = "UPDATE %s SET purged=0 WHERE purged!=0"
+	resetUERegistrationsSQL          = "UPDATE %s SET purged=0, version=0"
 	ueRegistrationsTableExistsSQLFmt = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'"
 )
 
@@ -246,7 +246,7 @@ func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	unchanged := err == nil && existing.NodeID == p.NodeID && !existing.Purged
+	unchanged := err == nil && existing.NodeID == p.NodeID && !existing.Purged && existing.Version != 0
 
 	next, err := db.nextUERegistrationVersion(ctx)
 	if err != nil {
@@ -316,7 +316,7 @@ func (db *Database) purgeUERegistrationsByNode(ctx context.Context, nodeID strin
 	return nil
 }
 
-func resetUERegistrationsPurgedInRestoredDB(ctx context.Context, dbPath string) error {
+func resetUERegistrationsInRestoredDB(ctx context.Context, dbPath string) error {
 	conn, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return fmt.Errorf("open restored db: %w", err)
@@ -333,8 +333,8 @@ func resetUERegistrationsPurgedInRestoredDB(ctx context.Context, dbPath string) 
 		return nil
 	}
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(resetUERegistrationsPurgedSQL, UERegistrationsTableName)); err != nil {
-		return fmt.Errorf("reset %s purged flags: %w", UERegistrationsTableName, err)
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(resetUERegistrationsSQL, UERegistrationsTableName)); err != nil {
+		return fmt.Errorf("reset %s: %w", UERegistrationsTableName, err)
 	}
 
 	return nil

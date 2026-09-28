@@ -50,6 +50,7 @@ type Registry struct {
 	mu      sync.Mutex
 	holders map[string]Holder
 	pending map[purgeKey]struct{}
+	retries map[string]struct{}
 	kick    chan struct{}
 }
 
@@ -63,6 +64,7 @@ func New(store Store, nodeID string, log *zap.Logger) *Registry {
 		purgeRetry: defaultPurgeRetry,
 		holders:    map[string]Holder{},
 		pending:    map[purgeKey]struct{}{},
+		retries:    map[string]struct{}{},
 		kick:       make(chan struct{}, 1),
 	}
 }
@@ -97,6 +99,7 @@ func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}) {
 			r.flushPurges(ctx)
 		case <-retry.C:
 			r.flushPurges(ctx)
+			r.retryReconciles(ctx)
 		case <-backstop.C:
 			watermark = r.reconcileChanges(ctx, watermark)
 			r.reconcileAll(ctx)
@@ -124,6 +127,10 @@ func (r *Registry) holder(regType string) Holder {
 }
 
 func (r *Registry) reconcileChanges(ctx context.Context, watermark int64) int64 {
+	if highest, err := r.store.MaxUERegistrationVersion(ctx); err == nil && highest < watermark {
+		watermark = 0
+	}
+
 	rows, err := r.store.ListUERegistrationsSince(ctx, watermark)
 	if err != nil {
 		r.log.Debug("could not list UE registration changes", zap.Error(err))
@@ -158,6 +165,32 @@ func (r *Registry) reconcileAll(ctx context.Context) {
 	}
 }
 
+func (r *Registry) retryLater(imsi string) {
+	r.mu.Lock()
+	r.retries[imsi] = struct{}{}
+	r.mu.Unlock()
+}
+
+func (r *Registry) retryReconciles(ctx context.Context) {
+	r.mu.Lock()
+	imsis := make([]string, 0, len(r.retries))
+
+	for imsi := range r.retries {
+		imsis = append(imsis, imsi)
+	}
+
+	r.retries = map[string]struct{}{}
+	r.mu.Unlock()
+
+	holders := r.snapshotHolders()
+
+	for _, imsi := range imsis {
+		for _, h := range holders {
+			h.ReconcileRegistration(ctx, imsi)
+		}
+	}
+}
+
 func (r *Registry) enqueuePurge(regType, imsi string) {
 	r.mu.Lock()
 	r.pending[purgeKey{regType: regType, imsi: imsi}] = struct{}{}
@@ -179,29 +212,30 @@ func (r *Registry) flushPurges(ctx context.Context) {
 	r.mu.Unlock()
 
 	for _, k := range keys {
-		if r.purge(ctx, k) {
-			r.mu.Lock()
-			delete(r.pending, k)
-			r.mu.Unlock()
+		if err := r.purge(ctx, k); err != nil {
+			r.log.Warn("failed to mark UE registration purged; will retry", logger.SUPIFromIMSI(k.imsi), zap.String("type", k.regType), zap.Error(err))
+			return
 		}
+
+		r.mu.Lock()
+		delete(r.pending, k)
+		r.mu.Unlock()
 	}
 }
 
-func (r *Registry) purge(ctx context.Context, k purgeKey) bool {
+func (r *Registry) purge(ctx context.Context, k purgeKey) error {
 	defer r.locks.lock(k.imsi)()
 
 	if h := r.holder(k.regType); h != nil && h.HoldsUE(k.imsi) {
-		return true
+		return nil
 	}
 
 	err := r.store.PurgeUERegistration(ctx, k.imsi, k.regType, r.nodeID)
-	if err == nil || errors.Is(err, db.ErrMigrationPending) {
-		return true
+	if errors.Is(err, db.ErrMigrationPending) {
+		return nil
 	}
 
-	r.log.Warn("failed to mark UE registration purged; will retry", logger.SUPIFromIMSI(k.imsi), zap.String("type", k.regType), zap.Error(err))
-
-	return false
+	return err
 }
 
 type Binding struct {
@@ -231,18 +265,18 @@ func (b *Binding) Confirmed(ctx context.Context, imsi string, version int64) boo
 		return false
 	}
 
-	return reg.NodeID == b.r.nodeID && !reg.Purged
+	return reg.NodeID == b.r.nodeID && !reg.Purged && reg.Version != 0
 }
 
 func (b *Binding) Purge(imsi string) {
 	b.r.enqueuePurge(b.regType, imsi)
 }
 
-func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
+func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context) bool) {
 	defer b.r.locks.lock(imsi)()
 
-	if b.superseded(ctx, imsi, held()) {
-		release(ctx)
+	if b.superseded(ctx, imsi, held()) && !release(ctx) {
+		b.r.retryLater(imsi)
 	}
 }
 

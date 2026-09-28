@@ -21,6 +21,7 @@ type fakeRegistrar struct {
 	superseded  map[string]bool
 	held        map[string]int64
 	purged      []string
+	released    []bool
 }
 
 func newFakeRegistrar() *fakeRegistrar {
@@ -60,14 +61,14 @@ func (f *fakeRegistrar) Purge(imsi string) {
 	f.purged = append(f.purged, imsi)
 }
 
-func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
+func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context) bool) {
 	f.mu.Lock()
 	f.held[imsi] = held()
 	supersede := f.superseded[imsi]
 	f.mu.Unlock()
 
 	if supersede {
-		release(ctx)
+		f.released = append(f.released, release(ctx))
 	}
 }
 

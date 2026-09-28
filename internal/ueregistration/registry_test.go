@@ -301,7 +301,7 @@ func TestReconcile(t *testing.T) {
 
 			released := false
 
-			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held }, func(context.Context) { released = true })
+			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held }, func(context.Context) bool { released = true; return true })
 
 			if released != tc.want {
 				t.Fatalf("released = %v, want %v", released, tc.want)
@@ -325,9 +325,11 @@ func TestReconcile_SerializesWithRegister(t *testing.T) {
 	reconciled := make(chan struct{})
 
 	go func() {
-		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) {
+		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) bool {
 			close(inRelease)
 			<-unblock
+
+			return true
 		})
 		close(reconciled)
 	}()
@@ -479,4 +481,106 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 
 	t.Fatal("condition not met")
+}
+
+func TestConfirmed_RestoredRegistrationIsNotConfirmed(t *testing.T) {
+	store := newFakeStore()
+	store.set(amfType, "node-a", false, 0)
+
+	_, b, _ := newAMFBinding(store)
+
+	if b.Confirmed(context.Background(), imsi, 5) {
+		t.Fatal("a registration restored from a backup must be confirmed again")
+	}
+}
+
+func TestRun_StopsFlushAtFirstFailure(t *testing.T) {
+	store := newFakeStore()
+	store.purgeErr = errors.New("no leader")
+
+	r, b, _ := newAMFBinding(store)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	b.Purge(imsi)
+	b.Purge("001010000000002")
+
+	go r.Run(ctx, nil)
+
+	waitFor(t, func() bool {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+
+		return store.purges >= 1
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if store.purges != 1 {
+		t.Fatalf("purge attempts = %d, want 1: a failing leader must not be retried for every pending purge", store.purges)
+	}
+}
+
+func TestRun_RetriesSkippedRelease(t *testing.T) {
+	store := newFakeStore()
+	store.set(amfType, "node-b", false, 20)
+
+	r, b, h := newAMFBinding(store)
+	r.SetRetryIntervalForTest(20 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go r.Run(ctx, nil)
+
+	b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) bool { return false })
+
+	select {
+	case got := <-h.reconciled:
+		if got != imsi {
+			t.Fatalf("retried %s, want %s", got, imsi)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected the skipped release to be retried")
+	}
+}
+
+func TestRun_LowersWatermarkAfterRestore(t *testing.T) {
+	store := newFakeStore()
+	store.set(amfType, "node-b", false, 500)
+
+	r, _, h := newAMFBinding(store)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wakeup := make(chan struct{}, 1)
+
+	go r.Run(ctx, wakeup)
+
+	time.Sleep(20 * time.Millisecond)
+
+	const moved = "001010000000002"
+
+	store.mu.Lock()
+	store.rows = map[string]db.UERegistration{
+		rowKey(imsi, amfType):  {Imsi: imsi, Type: amfType, NodeID: "node-b"},
+		rowKey(moved, amfType): {Imsi: moved, Type: amfType, NodeID: "node-b", Version: 10},
+	}
+	store.mu.Unlock()
+
+	wakeup <- struct{}{}
+
+	select {
+	case got := <-h.reconciled:
+		if got != moved {
+			t.Fatalf("reconciled %s, want %s", got, moved)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected a registration written after the restore to be reconciled")
+	}
 }
