@@ -77,6 +77,22 @@ func EUTRARSRQDB(v int64) float64 {
 	return -20 + 0.5*float64(v)
 }
 
+func EUTRARSRPExtendedDBm(v int64) float64 {
+	if v <= -17 {
+		return -157
+	}
+
+	return float64(v - 140)
+}
+
+func EUTRARSRQExtendedDB(v int64) float64 {
+	if v < 0 {
+		return -19.5 + 0.5*float64(v)
+	}
+
+	return -20.5 + 0.5*float64(v)
+}
+
 func NRRSRPDBm(v int64) float64 {
 	if v <= 0 {
 		return -156

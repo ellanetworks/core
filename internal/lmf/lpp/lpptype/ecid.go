@@ -88,14 +88,26 @@ type MeasuredResultsList struct {
 //	       rsrq-Result-v1470	INTEGER (-30..46)		OPTIONAL ]]
 //	}
 type MeasuredResultsElement struct {
-	_                 [0]struct{}               `per:"extseq"`
-	PhysCellID        int64                     `per:",range:0..503"`
-	CellGlobalID      *CellGlobalIdEUTRAAndUTRA `per:",optional"`
-	ARFCNEUTRA        int64                     `per:",range:0..65535"`
-	SystemFrameNumber []bool                    `per:",optional,size:10"`
-	RSRPResult        *int64                    `per:",optional,range:0..97"`
-	RSRQResult        *int64                    `per:",optional,range:0..34"`
-	UERxTxTimeDiff    *int64                    `per:",optional,range:0..4095"`
+	_                 [0]struct{}                           `per:"extseq"`
+	PhysCellID        int64                                 `per:",range:0..503"`
+	CellGlobalID      *CellGlobalIdEUTRAAndUTRA             `per:",optional"`
+	ARFCNEUTRA        int64                                 `per:",range:0..65535"`
+	SystemFrameNumber []bool                                `per:",optional,size:10"`
+	RSRPResult        *int64                                `per:",optional,range:0..97"`
+	RSRQResult        *int64                                `per:",optional,range:0..34"`
+	UERxTxTimeDiff    *int64                                `per:",optional,range:0..4095"`
+	V9a0Additions     *MeasuredResultsElementV9a0Additions  `per:",ext"`
+	R14Additions      *UnmodelledExtension                  `per:",ext"`
+	V1470Additions    *MeasuredResultsElementV1470Additions `per:",ext"`
+}
+
+type MeasuredResultsElementV9a0Additions struct {
+	ARFCNEUTRA *int64 `per:",optional,range:65536..262143"`
+}
+
+type MeasuredResultsElementV1470Additions struct {
+	RSRPResult *int64 `per:",optional,range:-17..-1"`
+	RSRQResult *int64 `per:",optional,range:-30..46"`
 }
 
 // =====================================================================

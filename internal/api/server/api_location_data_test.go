@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/lmf/models"
 	coremodels "github.com/ellanetworks/core/internal/models"
@@ -252,9 +253,12 @@ func TestStoredLocationData(t *testing.T) {
 }
 
 func TestToLocationData_MeasurementsWithoutEstimate(t *testing.T) {
+	measuredAt := time.Date(2026, 9, 28, 21, 0, 13, 0, time.UTC)
 	r := &models.LocationResult{
-		AccessType: "EUTRA",
-		ECGI:       &coremodels.Ecgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, EutraCellID: "5ee0000"},
+		AccessType:          "EUTRA",
+		UeLocationTimestamp: &measuredAt,
+		AgeOfLocationInfo:   2,
+		ECGI:                &coremodels.Ecgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, EutraCellID: "5ee0000"},
 		Positioning: []models.PositioningAttempt{
 			{Method: models.PositioningMethodECID, Mode: models.PositioningModeUEAssisted, Usage: models.PositioningUsageResultsNotUsed},
 		},
@@ -273,6 +277,12 @@ func TestToLocationData_MeasurementsWithoutEstimate(t *testing.T) {
 
 	if _, ok := wire["locationEstimate"]; ok {
 		t.Errorf("locationEstimate = %v, want it absent without an estimate", wire["locationEstimate"])
+	}
+
+	for _, attr := range []string{"timestampOfLocationEstimate", "ageOfLocationEstimate"} {
+		if _, ok := wire[attr]; ok {
+			t.Errorf("%s = %v, want it absent without an estimate", attr, wire[attr])
+		}
 	}
 
 	if m, ok := wire["radioMeasurements"].([]any); !ok || len(m) != 1 {

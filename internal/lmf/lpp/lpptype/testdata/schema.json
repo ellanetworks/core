@@ -257,6 +257,13 @@
     65535
    ]
   },
+  "ARFCN-ValueEUTRA-v9a0": {
+   "kind": "INTEGER",
+   "range": [
+    65536,
+    262143
+   ]
+  },
   "ARFCN-ValueNR-r15": {
    "kind": "INTEGER",
    "range": [
@@ -7210,7 +7217,9 @@
      "comps": [
       {
        "name": "arfcnEUTRA-v9a0",
-       "type": null
+       "type": {
+        "ref": "ARFCN-ValueEUTRA-v9a0"
+       }
       }
      ],
      "group": true
@@ -7240,11 +7249,23 @@
      "comps": [
       {
        "name": "rsrp-Result-v1470",
-       "type": null
+       "type": {
+        "kind": "INTEGER",
+        "range": [
+         -17,
+         -1
+        ]
+       }
       },
       {
        "name": "rsrq-Result-v1470",
-       "type": null
+       "type": {
+        "kind": "INTEGER",
+        "range": [
+         -30,
+         46
+        ]
+       }
       }
      ],
      "group": true

@@ -42,8 +42,12 @@ func decodeECIDLocationInformation(r9 *lpptype.ProvideLocationInformationR9IEs, 
 				eutraCell(cells, info.PrimaryCellMeasuredResults).Serving = true
 			}
 
+			primaryOnly := info.PrimaryCellMeasuredResults == nil && len(info.MeasuredResultsList.List) == 1
+
 			for i := range info.MeasuredResultsList.List {
-				eutraCell(cells, &info.MeasuredResultsList.List[i])
+				e := &info.MeasuredResultsList.List[i]
+				cell := eutraCell(cells, e)
+				cell.Serving = cell.Serving || primaryOnly || e.UERxTxTimeDiff != nil
 			}
 		}
 
@@ -74,7 +78,12 @@ func decodeECIDLocationInformation(r9 *lpptype.ProvideLocationInformationR9IEs, 
 }
 
 func eutraCell(cells *lmfmodels.CellCollector, e *lpptype.MeasuredResultsElement) *lmfmodels.CellMeasurement {
-	cell := cells.Cell(lmfmodels.RATEUTRA, e.PhysCellID, e.ARFCNEUTRA)
+	arfcn := e.ARFCNEUTRA
+	if e.V9a0Additions != nil && e.V9a0Additions.ARFCNEUTRA != nil {
+		arfcn = *e.V9a0Additions.ARFCNEUTRA
+	}
+
+	cell := cells.Cell(lmfmodels.RATEUTRA, e.PhysCellID, arfcn)
 
 	if cgi := e.CellGlobalID; cgi != nil && cgi.CellIdentity.EUTRA != nil {
 		cell.ECGI = &coremodels.Ecgi{
@@ -83,14 +92,23 @@ func eutraCell(cells *lmfmodels.CellCollector, e *lpptype.MeasuredResultsElement
 		}
 	}
 
-	if e.RSRPResult != nil {
-		v := lmfmodels.EUTRARSRPDBm(*e.RSRPResult)
-		cell.RSRP = &v
+	ext := e.V1470Additions
+	if ext == nil {
+		ext = &lpptype.MeasuredResultsElementV1470Additions{}
 	}
 
-	if e.RSRQResult != nil {
-		v := lmfmodels.EUTRARSRQDB(*e.RSRQResult)
-		cell.RSRQ = &v
+	switch {
+	case ext.RSRPResult != nil:
+		cell.RSRP = reportValue(ext.RSRPResult, lmfmodels.EUTRARSRPExtendedDBm)
+	case e.RSRPResult != nil:
+		cell.RSRP = reportValue(e.RSRPResult, lmfmodels.EUTRARSRPDBm)
+	}
+
+	switch {
+	case ext.RSRQResult != nil:
+		cell.RSRQ = reportValue(ext.RSRQResult, lmfmodels.EUTRARSRQExtendedDB)
+	case e.RSRQResult != nil:
+		cell.RSRQ = reportValue(e.RSRQResult, lmfmodels.EUTRARSRQDB)
 	}
 
 	cell.UERxTxTimeDiff = e.UERxTxTimeDiff
@@ -122,31 +140,31 @@ func nrCell(cells *lmfmodels.CellCollector, e *lpptype.NRMeasuredResultsElement)
 	}
 
 	if r := e.ResultsSSBCell; r != nil {
-		cell.SSRSRP = nrValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
-		cell.SSRSRQ = nrValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
+		cell.SSRSRP = reportValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
+		cell.SSRSRQ = reportValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	if r := e.ResultsCSIRSCell; r != nil {
-		cell.CSIRSRP = nrValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
-		cell.CSIRSRQ = nrValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
+		cell.CSIRSRP = reportValue(r.NRRSRP, lmfmodels.NRRSRPDBm)
+		cell.CSIRSRQ = reportValue(r.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	for _, r := range e.ResultsSSBIndexes {
 		beam := lmfmodels.Beam(&cell.SSBBeams, r.SSBIndex)
-		beam.RSRP = nrValue(r.SSBResults.NRRSRP, lmfmodels.NRRSRPDBm)
-		beam.RSRQ = nrValue(r.SSBResults.NRRSRQ, lmfmodels.NRRSRQDB)
+		beam.RSRP = reportValue(r.SSBResults.NRRSRP, lmfmodels.NRRSRPDBm)
+		beam.RSRQ = reportValue(r.SSBResults.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	for _, r := range e.ResultsCSIRSIndexes {
 		beam := lmfmodels.Beam(&cell.CSIRSBeams, r.CSIRSIndex)
-		beam.RSRP = nrValue(r.CSIRSResults.NRRSRP, lmfmodels.NRRSRPDBm)
-		beam.RSRQ = nrValue(r.CSIRSResults.NRRSRQ, lmfmodels.NRRSRQDB)
+		beam.RSRP = reportValue(r.CSIRSResults.NRRSRP, lmfmodels.NRRSRPDBm)
+		beam.RSRQ = reportValue(r.CSIRSResults.NRRSRQ, lmfmodels.NRRSRQDB)
 	}
 
 	return cell
 }
 
-func nrValue(v *int64, convert func(int64) float64) *float64 {
+func reportValue(v *int64, convert func(int64) float64) *float64 {
 	if v == nil {
 		return nil
 	}

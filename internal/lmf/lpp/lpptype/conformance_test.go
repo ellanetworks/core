@@ -17,11 +17,11 @@ import (
 )
 
 type conformanceVector struct {
-	Name      string                     `json:"name"`
-	Hex       string                     `json:"hex"`
-	RoundTrip bool                       `json:"roundTrip"`
-	Value     json.RawMessage            `json:"value"`
-	Ext       map[string]json.RawMessage `json:"ext"`
+	Name      string          `json:"name"`
+	Hex       string          `json:"hex"`
+	RoundTrip bool            `json:"roundTrip"`
+	Value     json.RawMessage `json:"value"`
+	Ext       json.RawMessage `json:"ext"`
 }
 
 type conformanceVectors struct {
@@ -227,24 +227,27 @@ func canonicalStruct(v reflect.Value) any {
 	return out
 }
 
-func checkModelledExtensions(t *testing.T, msg LPPMessage, want map[string]json.RawMessage) {
+func checkModelledExtensions(t *testing.T, msg LPPMessage, want json.RawMessage) {
 	t.Helper()
 
-	got := map[string]any{}
-	collectModelledExtensions(reflect.ValueOf(msg), got)
+	var got []any
+	collectModelledExtensions(reflect.ValueOf(msg), &got)
 
-	wantNorm := map[string]any{}
+	dec := json.NewDecoder(bytes.NewReader(want))
+	dec.UseNumber()
 
-	for name, raw := range want {
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.UseNumber()
+	var pairs [][2]any
+	if err := dec.Decode(&pairs); err != nil {
+		t.Fatalf("expected extensions: %v", err)
+	}
 
-		var value any
-		if err := dec.Decode(&value); err != nil {
-			t.Fatalf("expected extension %s: %v", name, err)
-		}
+	wantNorm := make([]any, 0, len(pairs))
+	for _, p := range pairs {
+		wantNorm = append(wantNorm, []any{normalizeName(p[0].(string)), p[1]})
+	}
 
-		wantNorm[normalizeName(name)] = value
+	if len(got) == 0 && len(wantNorm) == 0 {
+		return
 	}
 
 	if !reflect.DeepEqual(got, wantNorm) {
@@ -254,7 +257,7 @@ func checkModelledExtensions(t *testing.T, msg LPPMessage, want map[string]json.
 	}
 }
 
-func collectModelledExtensions(v reflect.Value, out map[string]any) {
+func collectModelledExtensions(v reflect.Value, out *[]any) {
 	switch v.Kind() {
 	case reflect.Pointer:
 		if !v.IsNil() {
@@ -281,8 +284,11 @@ func collectModelledExtensions(v reflect.Value, out map[string]any) {
 						continue
 					}
 
-					out[normalizeName(group.Type().Field(j).Name)] = canonicalValue(member)
+					*out = append(*out, []any{normalizeName(group.Type().Field(j).Name), canonicalValue(member)})
+					collectModelledExtensions(member, out)
 				}
+
+				continue
 			}
 
 			collectModelledExtensions(field, out)

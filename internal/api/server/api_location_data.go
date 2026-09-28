@@ -171,12 +171,12 @@ func toLocationData(r *models.LocationResult) *LocationData {
 		out.LocEcgi = toLocEcgi(r.ECGI)
 	}
 
-	if r.AgeOfLocationInfo > 0 {
+	if r.AgeOfLocationInfo > 0 && r.Estimate != nil {
 		age := r.AgeOfLocationInfo
 		out.AgeOfLocationEstimate = &age
 	}
 
-	if r.UeLocationTimestamp != nil {
+	if r.UeLocationTimestamp != nil && r.Estimate != nil {
 		ts := r.UeLocationTimestamp.Format(time.RFC3339)
 		out.TimestampOfLocationEstimate = &ts
 	}

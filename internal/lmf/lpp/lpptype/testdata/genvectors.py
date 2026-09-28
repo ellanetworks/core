@@ -34,6 +34,9 @@ CAPTURES = [
 ]
 
 MODELLED_EXTENSIONS = {
+    "arfcnEUTRA-v9a0",
+    "rsrp-Result-v1470",
+    "rsrq-Result-v1470",
     "nr-ECID-RequestCapabilities-r16",
     "nr-ECID-ProvideCapabilities-r16",
     "nr-ECID-RequestLocationInformation-r16",
@@ -93,7 +96,18 @@ TARGETED = [
             "acknowledgement": {"ackRequested": True},
             "lpp-MessageBody": ("c1", ("provideLocationInformation", {"criticalExtensions": ("c1", ("provideLocationInformation-r9", {
                 "ecid-ProvideLocationInformation": {"ecid-SignalMeasurementInformation": {
-                    "measuredResultsList": [{"physCellId": 148, "arfcnEUTRA": 9310, "rsrp-Result": 43, "rsrq-Result": 25}],
+                    "measuredResultsList": [
+                        {"physCellId": 148, "arfcnEUTRA": 9310, "rsrp-Result": 43, "rsrq-Result": 25},
+                        {
+                            "physCellId": 149,
+                            "arfcnEUTRA": 65535,
+                            "rsrp-Result": 0,
+                            "rsrq-Result": 34,
+                            "arfcnEUTRA-v9a0": 66536,
+                            "rsrp-Result-v1470": -3,
+                            "rsrq-Result-v1470": 40,
+                        },
+                    ],
                 }},
                 "nr-ECID-ProvideLocationInformation-r16": {"nr-ECID-SignalMeasurementInformation-r16": {
                     "nr-PrimaryCellMeasuredResults-r16": {
@@ -294,7 +308,7 @@ def modelled_extensions(obj, val, out):
     if kind in ("SEQUENCE", "SET"):
         for name, inner in val.items():
             if name in MODELLED_EXTENSIONS:
-                out[name] = canonical(obj._cont[name], inner)
+                out.append([name, canonical(obj._cont[name], inner)])
             modelled_extensions(obj._cont[name], inner, out)
     elif kind == "CHOICE":
         name, inner = val
@@ -344,7 +358,7 @@ def vector(name, msg):
         "hex": raw.hex(),
         "roundTrip": not uses_extensions(MESSAGE, decoded),
         "value": canonical(MESSAGE, decoded),
-        "ext": modelled_extensions(MESSAGE, decoded, {}),
+        "ext": modelled_extensions(MESSAGE, decoded, []),
     }
 
 
@@ -461,7 +475,7 @@ def main():
                 "hex": hexstr,
                 "roundTrip": not uses_extensions(MESSAGE, decoded),
                 "value": canonical(MESSAGE, decoded),
-                "ext": modelled_extensions(MESSAGE, decoded, {}),
+                "ext": modelled_extensions(MESSAGE, decoded, []),
             }
         )
 

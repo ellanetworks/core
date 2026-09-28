@@ -20,7 +20,7 @@ const (
 	pycrateRequestECIDCapabilities         = "d000000088050180"
 	pycrateRequestECIDLocationInformation  = "d0020120c820881c5c0a050380"
 	pycrateProvideECIDCapabilities         = "f0010342224e0140a09e00"
-	pycrateProvideECIDLocationInformation  = "f003044a2240064a122f2b640a3909545a0a1c40999380000007e0f2608207260893c0042d650dc04c80"
+	pycrateProvideECIDLocationInformation  = "f003044a2240464a122f2b6664affff80881503807d0002dd18028e4255168287102664e0000001f83c982081c98224f0010b59437013200"
 	pycrateProvideECIDLocationInformErrors = "90032888a040a070522000"
 )
 
@@ -119,6 +119,10 @@ func TestDecodeProvideECIDLocationInformation(t *testing.T) {
 			PCI: integer(148), ARFCN: integer(9310), RSRP: float(-98), RSRQ: float(-7.5),
 		},
 		{
+			Source: lmfmodels.MeasurementSourceUE, RAT: lmfmodels.RATEUTRA,
+			PCI: integer(149), ARFCN: integer(66536), RSRP: float(-143), RSRQ: float(-0.5),
+		},
+		{
 			Source: lmfmodels.MeasurementSourceUE, RAT: lmfmodels.RATNR, Serving: true,
 			PCI: integer(180), ARFCN: integer(662592), ARFCNType: lmfmodels.ARFCNTypeSSB,
 			NCGI:   &coremodels.Ncgi{PlmnID: plmn, NrCellID: "000000fc1"},
@@ -198,6 +202,43 @@ func TestProvideECIDEncodersRoundTrip(t *testing.T) {
 	cells := decoded.ProvideLocationInformation.Measurements
 	if len(cells) != 1 || !cells[0].Serving || *cells[0].SSRSRP != -84 {
 		t.Fatalf("measurements = %+v", cells)
+	}
+}
+
+func TestDecodeECIDPrimaryCellReportedInTheList(t *testing.T) {
+	rsrp, rxTx := int64(64), int64(8)
+
+	for _, tc := range []struct {
+		name string
+		info *lpptype.ECIDSignalMeasurementInformation
+	}{
+		{"primary cell only", &lpptype.ECIDSignalMeasurementInformation{
+			MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{{PhysCellID: 448, ARFCNEUTRA: 1825, RSRPResult: &rsrp}}},
+		}},
+		{"UE Rx-Tx marks the primary cell", &lpptype.ECIDSignalMeasurementInformation{
+			MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{
+				{PhysCellID: 1, ARFCNEUTRA: 1825, RSRPResult: &rsrp},
+				{PhysCellID: 448, ARFCNEUTRA: 1825, RSRPResult: &rsrp, UERxTxTimeDiff: &rxTx},
+			}},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, err := EncodeProvideECIDLocationInformation(0, 0, tc.info, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			decoded, err := DecodeLPPMessage(msg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, c := range decoded.ProvideLocationInformation.Measurements {
+				if want := *c.PCI == 448; c.Serving != want {
+					t.Errorf("PCI %d serving = %t, want %t", *c.PCI, c.Serving, want)
+				}
+			}
+		})
 	}
 }
 

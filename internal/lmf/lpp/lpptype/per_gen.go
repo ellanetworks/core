@@ -10764,7 +10764,7 @@ func (measQuantityResults *MeasQuantityResults) UnmarshalPER(r *per.Reader, enc 
 }
 
 func (measuredResultsElement *MeasuredResultsElement) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(measuredResultsElement.V9a0Additions != nil || measuredResultsElement.R14Additions != nil || measuredResultsElement.V1470Additions != nil)
 	w.WriteBit(measuredResultsElement.CellGlobalID != nil)
 	w.WriteBit(measuredResultsElement.SystemFrameNumber != nil)
 	w.WriteBit(measuredResultsElement.RSRPResult != nil)
@@ -10799,6 +10799,31 @@ func (measuredResultsElement *MeasuredResultsElement) MarshalPER(w *per.Writer, 
 	if measuredResultsElement.UERxTxTimeDiff != nil {
 		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64((*measuredResultsElement.UERxTxTimeDiff))); err != nil {
 			return err
+		}
+	}
+	if measuredResultsElement.V9a0Additions != nil || measuredResultsElement.R14Additions != nil || measuredResultsElement.V1470Additions != nil {
+		if err := per.EncodeNormallySmallLength(w, enc, 3, func(_ int64) error {
+			w.WriteBit(measuredResultsElement.V9a0Additions != nil)
+			w.WriteBit(measuredResultsElement.R14Additions != nil)
+			w.WriteBit(measuredResultsElement.V1470Additions != nil)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if measuredResultsElement.V9a0Additions != nil {
+			if err := per.EncodeOpenType(w, enc, measuredResultsElement.V9a0Additions); err != nil {
+				return err
+			}
+		}
+		if measuredResultsElement.R14Additions != nil {
+			if err := per.EncodeOpenType(w, enc, measuredResultsElement.R14Additions); err != nil {
+				return err
+			}
+		}
+		if measuredResultsElement.V1470Additions != nil {
+			if err := per.EncodeOpenType(w, enc, measuredResultsElement.V1470Additions); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -10894,14 +10919,108 @@ func (measuredResultsElement *MeasuredResultsElement) UnmarshalPER(r *per.Reader
 		}); err != nil {
 			return err
 		}
-		for _, present := range extBits {
+		for i, present := range extBits {
 			if !present {
 				continue
 			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
+			switch i {
+			case 0:
+				var v MeasuredResultsElementV9a0Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				measuredResultsElement.V9a0Additions = &v
+			case 1:
+				var v UnmodelledExtension
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				measuredResultsElement.R14Additions = &v
+			case 2:
+				var v MeasuredResultsElementV1470Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				measuredResultsElement.V1470Additions = &v
+			default:
+				if err := per.SkipOpenType(r, enc); err != nil {
+					return err
+				}
 			}
 		}
+	}
+	return nil
+}
+
+func (measuredResultsElementV1470Additions *MeasuredResultsElementV1470Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(measuredResultsElementV1470Additions.RSRPResult != nil)
+	w.WriteBit(measuredResultsElementV1470Additions.RSRQResult != nil)
+	if measuredResultsElementV1470Additions.RSRPResult != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true}, int64((*measuredResultsElementV1470Additions.RSRPResult))); err != nil {
+			return err
+		}
+	}
+	if measuredResultsElementV1470Additions.RSRQResult != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true}, int64((*measuredResultsElementV1470Additions.RSRQResult))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (measuredResultsElementV1470Additions *MeasuredResultsElementV1470Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_RSRPResult, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RSRQResult, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_RSRPResult {
+		var v int64
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: -17, HasLB: true, UB: -1, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n0)
+		measuredResultsElementV1470Additions.RSRPResult = &v
+	}
+	if p_RSRQResult {
+		var v int64
+		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: -30, HasLB: true, UB: 46, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n1)
+		measuredResultsElementV1470Additions.RSRQResult = &v
+	}
+	return nil
+}
+
+func (measuredResultsElementV9a0Additions *MeasuredResultsElementV9a0Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(measuredResultsElementV9a0Additions.ARFCNEUTRA != nil)
+	if measuredResultsElementV9a0Additions.ARFCNEUTRA != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 65536, HasLB: true, UB: 262143, HasUB: true}, int64((*measuredResultsElementV9a0Additions.ARFCNEUTRA))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (measuredResultsElementV9a0Additions *MeasuredResultsElementV9a0Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_ARFCNEUTRA, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_ARFCNEUTRA {
+		var v int64
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 65536, HasLB: true, UB: 262143, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n0)
+		measuredResultsElementV9a0Additions.ARFCNEUTRA = &v
 	}
 	return nil
 }
