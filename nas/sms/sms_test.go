@@ -183,24 +183,65 @@ func TestRPRejects(t *testing.T) {
 		{"RP-SMMA downlink", "0601", nas.DirectionDownlink, ErrUnknownMessageType},
 		{"MTI 7", "0701", nas.DirectionDownlink, ErrUnknownMessageType},
 		{"RP-DATA truncated", "00010007914477", nas.DirectionUplink, nas.ErrTruncated},
-		{"RP-ERROR no cause", "0401", nas.DirectionUplink, nas.ErrTruncated},
+		{"MO without destination", "0001000001aa", nas.DirectionUplink, ErrInvalidMandatoryIE},
+		{"MT without originator", "0101000001aa", nas.DirectionDownlink, ErrInvalidMandatoryIE},
+		{"MO with a 1-octet destination", "0001000191010a", nas.DirectionUplink, ErrInvalidMandatoryIE},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := ParseRP(mustHex(tc.wire), tc.dir); !errors.Is(err, tc.want) {
-				t.Fatalf("err = %v, want %v", err, tc.want)
+			m, err := ParseRP(mustHex(tc.wire), tc.dir)
+			if m != nil || !errors.Is(err, tc.want) {
+				t.Fatalf("ParseRP = %v, %v; want nil, %v", m, err, tc.want)
 			}
 		})
 	}
+}
 
-	if _, err := ParseRP(mustHex("04010000"), nas.DirectionUplink); err == nil {
-		t.Error("empty RP-Cause parsed")
+func TestRPHeaderSurvivesAFailedParse(t *testing.T) {
+	for _, tc := range []struct {
+		wire string
+		dir  nas.Direction
+		mti  MessageTypeIndicator
+	}{
+		{"002a000191010a", nas.DirectionUplink, MTIDataMSToNetwork},
+		{"012a", nas.DirectionUplink, MTIDataNetworkToMS},
+	} {
+		if _, err := ParseRP(mustHex(tc.wire), tc.dir); err == nil {
+			t.Fatalf("ParseRP(%s) succeeded", tc.wire)
+		}
+
+		h, _ := ParseRPHeader(mustHex(tc.wire), tc.dir)
+		if h.Reference != 0x2a || h.MTI != tc.mti {
+			t.Fatalf("ParseRPHeader(%s) = %+v, want reference 0x2a", tc.wire, h)
+		}
+	}
+}
+
+func TestRPErrorWithInvalidCauseIsCause111(t *testing.T) {
+	for _, wire := range []string{"050100", "0401", "040105"} {
+		dir := MessageTypeIndicator(mustHex(wire)[0]).Direction()
+
+		m, err := ParseRP(mustHex(wire), dir)
+		if err == nil || !nas.SoftOnly(err) {
+			t.Fatalf("ParseRP(%s): err = %v, want a soft error", wire, err)
+		}
+
+		e, ok := m.(*RPError)
+		if !ok || e.Cause != RPCauseProtocolErrorUnspecified || e.Diagnostic != nil || e.UserData != nil || e.Reference != 1 {
+			t.Fatalf("ParseRP(%s) = %+v, want RP-ERROR #111 for reference 1", wire, m)
+		}
 	}
 }
 
 func TestOverlongElementsAreNotSyntaxErrors(t *testing.T) {
 	cp := append(mustHex("0901f9"), make([]byte, 249)...)
-	if m, err := ParseCP(cp); err != nil || len(m.(*CPData).UserData) != 249 {
+
+	m, err := ParseCP(cp)
+	if err != nil || len(m.(*CPData).UserData) != 249 {
 		t.Fatalf("249-octet CP-User data: %v", err)
+	}
+
+	if _, err := m.MarshalBinary(); !errors.Is(err, ErrElementTooLong) {
+		t.Fatalf("re-encode: err = %v, want ErrElementTooLong", err)
 	}
 
 	for _, tc := range []struct {
@@ -211,6 +252,7 @@ func TestOverlongElementsAreNotSyntaxErrors(t *testing.T) {
 		{"RP-DATA user data", append(mustHex("00010003912143e9"), make([]byte, 233)...), nas.DirectionUplink},
 		{"RP-ACK user data", append(mustHex("034241e9"), make([]byte, 233)...), nas.DirectionDownlink},
 		{"RP-DATA destination", mustHex("0001000d91214365870921436587092143010a"), nas.DirectionUplink},
+		{"RP-ERROR diagnostic", mustHex("050103290507"), nas.DirectionDownlink},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, err := ParseRP(tc.wire, tc.dir)
@@ -218,15 +260,47 @@ func TestOverlongElementsAreNotSyntaxErrors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			b, err := m.MarshalBinary()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if !bytes.Equal(b, tc.wire) {
-				t.Fatalf("re-encode = % x, want % x", b, tc.wire)
+			if _, err := m.MarshalBinary(); !errors.Is(err, ErrElementTooLong) {
+				t.Fatalf("re-encode: err = %v, want ErrElementTooLong", err)
 			}
 		})
+	}
+}
+
+func TestEncoderLimits(t *testing.T) {
+	sc := E164Address("447785016005")
+
+	for _, tc := range []struct {
+		name string
+		msg  interface{ MarshalBinary() ([]byte, error) }
+		want error
+	}{
+		{"CP-User data 249", &CPData{UserData: make([]byte, 249)}, ErrElementTooLong},
+		{"RP-DATA user data 233", &RPData{Destination: sc, UserData: make([]byte, 233)}, ErrElementTooLong},
+		{"RP-ACK user data 233", &RPAck{UserData: make([]byte, 233)}, ErrElementTooLong},
+		{"RP-ERROR user data 233", &RPError{UserData: make([]byte, 233)}, ErrElementTooLong},
+		{"RP-ERROR diagnostic 2", &RPError{Diagnostic: []byte{1, 2}}, ErrElementTooLong},
+		{"address 21 digits", &RPData{Destination: E164Address("123456789012345678901")}, ErrElementTooLong},
+		{"MO without destination", &RPData{Direction: nas.DirectionUplink, Originator: sc}, ErrInvalidMandatoryIE},
+		{"MT without originator", &RPData{Direction: nas.DirectionDownlink, Destination: sc}, ErrInvalidMandatoryIE},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tc.msg.MarshalBinary(); !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+
+	for _, tc := range []interface{ MarshalBinary() ([]byte, error) }{
+		&CPData{UserData: make([]byte, 248)},
+		&RPData{Destination: sc, UserData: make([]byte, 232)},
+		&RPAck{UserData: make([]byte, 232)},
+		&RPError{Diagnostic: []byte{1}, UserData: make([]byte, 232)},
+		&RPData{Destination: E164Address("12345678901234567890")},
+	} {
+		if _, err := tc.MarshalBinary(); err != nil {
+			t.Errorf("%T at its limit: %v", tc, err)
+		}
 	}
 }
 
@@ -239,19 +313,22 @@ func TestRPDataUnusedAddressMalformed(t *testing.T) {
 	}
 
 	data := m.(*RPData)
-	if data.Originator != nil || data.Destination.Digits != "12345" {
+	if data.Originator == nil || !bytes.Equal(data.Originator.Raw, []byte{0x91}) || data.Destination.Digits != "12345" {
 		t.Fatalf("parsed %+v", data)
 	}
 
-	if _, err := ParseRP(mustHex("0001000191010a"), nas.DirectionUplink); err == nil || nas.SoftOnly(err) {
-		t.Fatalf("malformed destination on MO: err = %v, want a hard error", err)
+	b, err := data.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(b, wire) {
+		t.Fatalf("re-encode = % x, want % x", b, wire)
 	}
 }
 
 func TestRPErrorKeepsEveryDiagnosticOctet(t *testing.T) {
-	wire := mustHex("0501032905074101aa")
-
-	m, err := ParseRP(wire, nas.DirectionDownlink)
+	m, err := ParseRP(mustHex("0501032905074101aa"), nas.DirectionDownlink)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,14 +336,30 @@ func TestRPErrorKeepsEveryDiagnosticOctet(t *testing.T) {
 	if e := m.(*RPError); !bytes.Equal(e.Diagnostic, []byte{0x05, 0x07}) || !bytes.Equal(e.UserData, []byte{0xaa}) {
 		t.Fatalf("parsed %+v", e)
 	}
+}
 
-	b, err := m.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
+func TestEffectiveCause(t *testing.T) {
+	for _, tc := range []struct {
+		got, want RPCause
+	}{
+		{RPCauseMemoryCapacityExceeded.Effective(TransferMobileTerminated), RPCauseMemoryCapacityExceeded},
+		{RPCauseMemoryCapacityExceeded.Effective(TransferMobileOriginated), RPCauseTemporaryFailure},
+		{RPCause(2).Effective(TransferMobileOriginated), RPCauseTemporaryFailure},
+		{RPCause(2).Effective(TransferMobileTerminated), RPCauseProtocolErrorUnspecified},
+		{RPCauseCallBarred.Effective(TransferMemoryAvailable), RPCauseTemporaryFailure},
+		{RPCauseUnknownSubscriber.Effective(TransferMemoryAvailable), RPCauseUnknownSubscriber},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("Effective = %s, want %s", tc.got, tc.want)
+		}
 	}
 
-	if !bytes.Equal(b, wire) {
-		t.Fatalf("re-encode = % x, want % x", b, wire)
+	if got := CPCause(5).Effective(); got != CPCauseProtocolErrorUnspecified {
+		t.Errorf("CPCause(5).Effective() = %s", got)
+	}
+
+	if got := CPCauseCongestion.Effective(); got != CPCauseCongestion {
+		t.Errorf("CPCauseCongestion.Effective() = %s", got)
 	}
 }
 
@@ -331,7 +424,7 @@ func TestAddress(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got != tc.addr {
+		if !reflect.DeepEqual(got, tc.addr) {
 			t.Fatalf("ParseAddress(% x) = %+v, want %+v", wire, got, tc.addr)
 		}
 	}

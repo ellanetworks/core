@@ -23,13 +23,10 @@ type AttachAccept struct {
 	TAIList             TAIList
 	ESMMessageContainer []byte
 	GUTI                *EPSMobileIdentity // assigned GUTI (IEI 0x50), when present
-	LAI                 *nas.LAI
-	MSIdentity          *MobileIdentity
-	Cause               *EMMCause // EMM cause (IEI 0x53), when present
+	Cause               *EMMCause          // EMM cause (IEI 0x53), when present
 	// EPS network feature support (IEI 0x64), when present (TS 24.301).
-	NetworkFeatureSupport  *NetworkFeatureSupport
-	AdditionalUpdateResult *AdditionalUpdateResult
-	SMSServicesStatus      *SMSServicesStatus
+	NetworkFeatureSupport *NetworkFeatureSupport
+	NonEPSServices
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -186,7 +183,7 @@ func (m *AttachAccept) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiGUTI, raw)
 	}
 
-	if err := m.csDomainIEs().appendLocation(&o); err != nil {
+	if err := m.appendLocation(&o); err != nil {
 		return b, err
 	}
 
@@ -203,7 +200,7 @@ func (m *AttachAccept) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiNetworkFeatureSupport, raw)
 	}
 
-	m.csDomainIEs().appendResult(&o)
+	m.appendResult(&o)
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -276,7 +273,7 @@ func ParseAttachAccept(b []byte) (*AttachAccept, error) {
 
 			m.NetworkFeatureSupport = &parsed
 		default:
-			return m.csDomainIEs().parse(iei, value)
+			return m.parse(iei, value)
 		}
 
 		return true, nil

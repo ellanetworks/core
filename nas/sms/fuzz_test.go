@@ -5,6 +5,7 @@ package sms
 
 import (
 	"bytes"
+	"errors"
 	"slices"
 	"testing"
 
@@ -22,6 +23,10 @@ func roundTrip[T interface{ MarshalBinary() ([]byte, error) }](t *testing.T, par
 	}
 
 	raw, err := msg.MarshalBinary()
+	if errors.Is(err, ErrElementTooLong) {
+		return
+	}
+
 	if err != nil {
 		t.Fatalf("decoded % x but would not encode: %v", b, err)
 	}

@@ -51,7 +51,7 @@ func TestAttachAcceptSMSOnlyWire(t *testing.T) {
 
 func TestTrackingAreaUpdateAcceptSMSServicesStatus(t *testing.T) {
 	status := SMSServicesNotAvailableInPLMN
-	m := &TrackingAreaUpdateAccept{EPSUpdateResult: EPSUpdateResultTA, SMSServicesStatus: &status}
+	m := &TrackingAreaUpdateAccept{EPSUpdateResult: EPSUpdateResultTA, NonEPSServices: NonEPSServices{SMSServicesStatus: &status}}
 
 	b, err := m.MarshalBinary()
 	if err != nil {

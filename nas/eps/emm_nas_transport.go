@@ -9,10 +9,7 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-const (
-	minNASMessageContainerLen = 2
-	maxNASMessageContainerLen = 251
-)
+const minNASMessageContainerLen = 2
 
 // DownlinkNASTransport is the DOWNLINK NAS TRANSPORT message (TS 24.301 §8.2.12).
 type DownlinkNASTransport struct {
@@ -65,9 +62,8 @@ func ParseUplinkNASTransport(b []byte) (*UplinkNASTransport, error) {
 }
 
 func checkNASMessageContainer(c []byte) error {
-	if len(c) < minNASMessageContainerLen || len(c) > maxNASMessageContainerLen {
-		return fmt.Errorf("nas/eps: NAS message container is %d octets, want %d to %d",
-			len(c), minNASMessageContainerLen, maxNASMessageContainerLen)
+	if len(c) < minNASMessageContainerLen {
+		return fmt.Errorf("nas/eps: NAS message container is %d octets, want at least %d", len(c), minNASMessageContainerLen)
 	}
 
 	return nil

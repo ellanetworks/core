@@ -53,22 +53,18 @@ func (s SMSServicesStatus) Name() string { return smsServicesStatusNames[uint8(s
 
 func (s SMSServicesStatus) String() string { return enumString(uint8(s), smsServicesStatusNames) }
 
-type csDomainIEs struct {
-	lai                    **nas.LAI
-	msIdentity             **MobileIdentity
-	additionalUpdateResult **AdditionalUpdateResult
-	smsServicesStatus      **SMSServicesStatus
+// NonEPSServices are the ATTACH ACCEPT and TRACKING AREA UPDATE ACCEPT elements
+// that report the outcome for non-EPS services: the location area and MS
+// identity of a combined procedure, the additional update result, and the SMS
+// services status (TS 24.301 §8.2.1, §8.2.26, §5.5.1.3.4).
+type NonEPSServices struct {
+	LAI                    *nas.LAI
+	MSIdentity             *MobileIdentity
+	AdditionalUpdateResult *AdditionalUpdateResult
+	SMSServicesStatus      *SMSServicesStatus
 }
 
-func (m *AttachAccept) csDomainIEs() csDomainIEs {
-	return csDomainIEs{&m.LAI, &m.MSIdentity, &m.AdditionalUpdateResult, &m.SMSServicesStatus}
-}
-
-func (m *TrackingAreaUpdateAccept) csDomainIEs() csDomainIEs {
-	return csDomainIEs{&m.LAI, &m.MSIdentity, &m.AdditionalUpdateResult, &m.SMSServicesStatus}
-}
-
-func (c csDomainIEs) parse(iei uint8, value []byte) (bool, error) {
+func (n *NonEPSServices) parse(iei uint8, value []byte) (bool, error) {
 	switch iei {
 	case ieiLocationAreaID:
 		parsed, err := nas.ParseLAI(value)
@@ -76,14 +72,14 @@ func (c csDomainIEs) parse(iei uint8, value []byte) (bool, error) {
 			return false, err
 		}
 
-		*c.lai = &parsed
+		n.LAI = &parsed
 	case ieiMSIdentity:
 		parsed, err := ParseMobileIdentity(value)
 		if err != nil {
 			return false, err
 		}
 
-		*c.msIdentity = &parsed
+		n.MSIdentity = &parsed
 	case ieiAdditionalUpdateResult:
 		v := tv1Value(value)
 		if v == nil {
@@ -91,7 +87,7 @@ func (c csDomainIEs) parse(iei uint8, value []byte) (bool, error) {
 		}
 
 		r := AdditionalUpdateResult(*v & 0x03)
-		*c.additionalUpdateResult = &r
+		n.AdditionalUpdateResult = &r
 	case ieiSMSServicesStatus:
 		v := tv1Value(value)
 		if v == nil {
@@ -99,7 +95,7 @@ func (c csDomainIEs) parse(iei uint8, value []byte) (bool, error) {
 		}
 
 		s := SMSServicesStatus(*v & 0x07)
-		*c.smsServicesStatus = &s
+		n.SMSServicesStatus = &s
 	default:
 		return false, nil
 	}
@@ -107,9 +103,9 @@ func (c csDomainIEs) parse(iei uint8, value []byte) (bool, error) {
 	return true, nil
 }
 
-func (c csDomainIEs) appendLocation(o *nas.OptionalWriter) error {
-	if lai := *c.lai; lai != nil {
-		raw, err := lai.MarshalBinary()
+func (n NonEPSServices) appendLocation(o *nas.OptionalWriter) error {
+	if n.LAI != nil {
+		raw, err := n.LAI.MarshalBinary()
 		if err != nil {
 			return err
 		}
@@ -117,8 +113,8 @@ func (c csDomainIEs) appendLocation(o *nas.OptionalWriter) error {
 		o.TV3(ieiLocationAreaID, raw)
 	}
 
-	if id := *c.msIdentity; id != nil {
-		raw, err := id.MarshalBinary()
+	if n.MSIdentity != nil {
+		raw, err := n.MSIdentity.MarshalBinary()
 		if err != nil {
 			return err
 		}
@@ -129,12 +125,12 @@ func (c csDomainIEs) appendLocation(o *nas.OptionalWriter) error {
 	return nil
 }
 
-func (c csDomainIEs) appendResult(o *nas.OptionalWriter) {
-	if r := *c.additionalUpdateResult; r != nil {
-		o.TV1(ieiAdditionalUpdateResult, uint8(*r)&0x03)
+func (n NonEPSServices) appendResult(o *nas.OptionalWriter) {
+	if n.AdditionalUpdateResult != nil {
+		o.TV1(ieiAdditionalUpdateResult, uint8(*n.AdditionalUpdateResult)&0x03)
 	}
 
-	if s := *c.smsServicesStatus; s != nil {
-		o.TV1(ieiSMSServicesStatus, uint8(*s)&0x07)
+	if n.SMSServicesStatus != nil {
+		o.TV1(ieiSMSServicesStatus, uint8(*n.SMSServicesStatus)&0x07)
 	}
 }

@@ -36,7 +36,7 @@ const (
 
 const (
 	minAddressLen = 2
-	maxAddressLen = 255
+	maxAddressLen = 11
 	bcdDigits     = "0123456789*#abc"
 )
 
@@ -47,6 +47,8 @@ type Address struct {
 	TypeOfNumber  TypeOfNumber
 	NumberingPlan NumberingPlan
 	Digits        string
+
+	Raw []byte
 }
 
 // E164Address returns an international E.164 address of the given digits.
@@ -56,6 +58,10 @@ func E164Address(digits string) *Address {
 
 // String renders the digits, prefixed with "+" for an international number.
 func (a Address) String() string {
+	if a.Raw != nil {
+		return fmt.Sprintf("undecodable address %x", a.Raw)
+	}
+
 	if a.TypeOfNumber == TypeOfNumberInternational {
 		return "+" + a.Digits
 	}
@@ -63,10 +69,11 @@ func (a Address) String() string {
 	return a.Digits
 }
 
-// ParseAddress decodes a non-empty RP address value.
+// ParseAddress decodes a non-empty RP address value. A value longer than the
+// TS 24.011 maximum is accepted (§9.1).
 func ParseAddress(b []byte) (Address, error) {
-	if len(b) < minAddressLen || len(b) > maxAddressLen {
-		return Address{}, fmt.Errorf("sms: address is %d octets, want %d to %d", len(b), minAddressLen, maxAddressLen)
+	if len(b) < minAddressLen {
+		return Address{}, fmt.Errorf("sms: address is %d octets, want at least %d", len(b), minAddressLen)
 	}
 
 	a := Address{TypeOfNumber: TypeOfNumber(b[0] >> 4 & 0x07), NumberingPlan: NumberingPlan(b[0] & 0x0F)}
@@ -93,14 +100,24 @@ func ParseAddress(b []byte) (Address, error) {
 	return a, nil
 }
 
-// AppendBinary encodes the address value onto b.
+// AppendBinary encodes the address value onto b. Raw, when set, is written as
+// it arrived.
 func (a Address) AppendBinary(b []byte) ([]byte, error) {
+	if a.Raw != nil {
+		return append(b, a.Raw...), nil
+	}
+
 	if a.TypeOfNumber > 0x07 || a.NumberingPlan > 0x0F {
 		return b, fmt.Errorf("sms: address type of number %d or numbering plan %d out of range", a.TypeOfNumber, a.NumberingPlan)
 	}
 
-	if n := 1 + (len(a.Digits)+1)/2; n < minAddressLen || n > maxAddressLen {
-		return b, fmt.Errorf("sms: address of %d digits is %d octets, want %d to %d", len(a.Digits), n, minAddressLen, maxAddressLen)
+	n := 1 + (len(a.Digits)+1)/2
+	if n < minAddressLen {
+		return b, fmt.Errorf("sms: address has no digits")
+	}
+
+	if n > maxAddressLen {
+		return b, fmt.Errorf("sms: address of %d digits is %d octets, want at most %d: %w", len(a.Digits), n, maxAddressLen, ErrElementTooLong)
 	}
 
 	out := append(b, 0x80|uint8(a.TypeOfNumber)<<4|uint8(a.NumberingPlan))

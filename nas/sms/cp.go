@@ -13,16 +13,22 @@ import (
 // ProtocolDiscriminator is the SMS protocol discriminator (TS 24.007 table 11.2).
 const ProtocolDiscriminator uint8 = 0x09
 
-// Errors a CP or RP decode reports for a message the SMC or SMR entity answers
-// with CP-ERROR or RP-ERROR (TS 24.011 §9).
+// Errors the CP and RP codecs report (TS 24.011 §9). A message with the wrong
+// protocol discriminator or TI value 7 is ignored rather than answered (§9.2.2,
+// TS 24.007 §11.2.3.1.1); an unknown message type is answered with cause #97,
+// and invalid mandatory information with cause #96. ErrElementTooLong is an
+// encode failure for an element over its TS 24.011 maximum.
 var (
 	ErrProtocolDiscriminator = errors.New("not an SMS protocol discriminator")
 	ErrTransactionIdentifier = errors.New("invalid transaction identifier")
 	ErrUnknownMessageType    = errors.New("unknown SMS message type")
+	ErrInvalidMandatoryIE    = errors.New("invalid mandatory information")
+	ErrElementTooLong        = errors.New("element exceeds its TS 24.011 maximum")
 )
 
 const (
 	maxTIValue     = 6
+	maxCPUserData  = 248
 	cpHeaderLength = 2
 )
 
@@ -111,6 +117,16 @@ var cpCauseNames = map[CPCause]string{
 // is not one TS 24.011 assigns.
 func (c CPCause) Name() string { return cpCauseNames[c] }
 
+// Effective returns the cause a receiver acts on: an unassigned value is treated
+// as #111 (TS 24.011 table 8.2).
+func (c CPCause) Effective() CPCause {
+	if _, ok := cpCauseNames[c]; ok {
+		return c
+	}
+
+	return CPCauseProtocolErrorUnspecified
+}
+
 func (c CPCause) String() string {
 	if name, ok := cpCauseNames[c]; ok {
 		return name
@@ -153,6 +169,10 @@ type CPError struct {
 
 // AppendBinary encodes the message onto b.
 func (m *CPData) AppendBinary(b []byte) ([]byte, error) {
+	if len(m.UserData) > maxCPUserData {
+		return b, fmt.Errorf("sms: CP-User data is %d octets, want at most %d: %w", len(m.UserData), maxCPUserData, ErrElementTooLong)
+	}
+
 	w, err := writeCPHeader(b, m.TransactionIdentifier, CPMessageTypeData)
 	if err != nil {
 		return b, err

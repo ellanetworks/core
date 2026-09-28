@@ -13,6 +13,8 @@ import (
 const (
 	ieiRPUserData  = 0x41
 	rpHeaderLength = 2
+	maxRPUserData  = 232
+	maxDiagnostic  = 1
 )
 
 // MessageTypeIndicator is the RP message type indicator (TS 24.011 table 8.3),
@@ -131,6 +133,71 @@ var rpCauseNames = map[RPCause]string{
 // is not one TS 24.011 assigns.
 func (c RPCause) Name() string { return rpCauseNames[c] }
 
+// Transfer is the kind of transfer an RP-ERROR answers, which decides how an
+// unassigned RP-Cause value is treated (TS 24.011 table 8.4).
+type Transfer uint8
+
+// Transfers (TS 24.011 table 8.4 parts 1 to 3).
+const (
+	TransferMobileOriginated Transfer = iota
+	TransferMobileTerminated
+	TransferMemoryAvailable
+)
+
+var rpCausesPerTransfer = map[Transfer]struct {
+	assigned []RPCause
+	fallback RPCause
+}{
+	TransferMobileOriginated: {
+		[]RPCause{
+			RPCauseUnassignedNumber, RPCauseOperatorDeterminedBarring, RPCauseCallBarred, RPCauseReserved,
+			RPCauseShortMessageTransferRejected, RPCauseDestinationOutOfOrder, RPCauseUnidentifiedSubscriber,
+			RPCauseFacilityRejected, RPCauseUnknownSubscriber, RPCauseNetworkOutOfOrder, RPCauseTemporaryFailure,
+			RPCauseCongestion, RPCauseResourcesUnavailable, RPCauseRequestedFacilityNotSubscribed,
+			RPCauseRequestedFacilityNotImplemented, RPCauseInvalidShortMessageReference,
+			RPCauseSemanticallyIncorrectMessage, RPCauseInvalidMandatoryInformation, RPCauseMessageTypeNonExistent,
+			RPCauseMessageNotCompatibleWithState, RPCauseInformationElementNonExistent, RPCauseProtocolErrorUnspecified,
+			RPCauseInterworkingUnspecified,
+		},
+		RPCauseTemporaryFailure,
+	},
+	TransferMobileTerminated: {
+		[]RPCause{
+			RPCauseMemoryCapacityExceeded, RPCauseInvalidShortMessageReference, RPCauseSemanticallyIncorrectMessage,
+			RPCauseInvalidMandatoryInformation, RPCauseMessageTypeNonExistent, RPCauseMessageNotCompatibleWithState,
+			RPCauseInformationElementNonExistent, RPCauseProtocolErrorUnspecified,
+		},
+		RPCauseProtocolErrorUnspecified,
+	},
+	TransferMemoryAvailable: {
+		[]RPCause{
+			RPCauseUnknownSubscriber, RPCauseNetworkOutOfOrder, RPCauseTemporaryFailure, RPCauseCongestion,
+			RPCauseResourcesUnavailable, RPCauseRequestedFacilityNotImplemented, RPCauseSemanticallyIncorrectMessage,
+			RPCauseInvalidMandatoryInformation, RPCauseMessageTypeNonExistent, RPCauseMessageNotCompatibleWithState,
+			RPCauseInformationElementNonExistent, RPCauseProtocolErrorUnspecified, RPCauseInterworkingUnspecified,
+		},
+		RPCauseTemporaryFailure,
+	},
+}
+
+// Effective returns the cause a receiver acts on for an RP-ERROR answering
+// transfer t: a value table 8.4 does not assign for that transfer is treated as
+// the table's fallback, #41 or #111.
+func (c RPCause) Effective(t Transfer) RPCause {
+	causes, ok := rpCausesPerTransfer[t]
+	if !ok {
+		return c
+	}
+
+	for _, assigned := range causes.assigned {
+		if c == assigned {
+			return c
+		}
+	}
+
+	return causes.fallback
+}
+
 func (c RPCause) String() string {
 	if name, ok := rpCauseNames[c]; ok {
 		return name
@@ -148,8 +215,9 @@ type RPMessage interface {
 	isRPMessage()
 }
 
-// RPData is the RP-DATA message (TS 24.011 §7.3.1); a nil address is sent with
-// zero length, and UserData carries the TPDU.
+// RPData is the RP-DATA message (TS 24.011 §7.3.1). The address the direction
+// uses (Destination from the MS, Originator from the network) is mandatory; the
+// other is sent with zero length when nil. UserData carries the TPDU.
 type RPData struct {
 	Direction   nas.Direction
 	Reference   uint8
@@ -187,22 +255,43 @@ type RPSMMA struct {
 	Unrecognized []nas.RawIE
 }
 
+func (m *RPData) addresses() [2]rpAddress {
+	return [2]rpAddress{
+		{&m.Originator, "RP-Originator Address", m.Direction == nas.DirectionDownlink},
+		{&m.Destination, "RP-Destination Address", m.Direction == nas.DirectionUplink},
+	}
+}
+
+type rpAddress struct {
+	field     **Address
+	name      string
+	mandatory bool
+}
+
 // AppendBinary encodes the message onto b.
 func (m *RPData) AppendBinary(b []byte) ([]byte, error) {
+	if err := checkRPUserData(m.UserData); err != nil {
+		return b, err
+	}
+
 	w := nas.NewWriter(b)
 	w.U8(uint8(m.MTI()))
 	w.U8(m.Reference)
 
-	for _, a := range []*Address{m.Originator, m.Destination} {
-		if a == nil {
+	for _, a := range m.addresses() {
+		if *a.field == nil {
+			if a.mandatory {
+				return b, fmt.Errorf("sms: RP-DATA %s without %s: %w", m.Direction, a.name, ErrInvalidMandatoryIE)
+			}
+
 			w.U8(0)
 
 			continue
 		}
 
-		raw, err := a.MarshalBinary()
+		raw, err := (*a.field).MarshalBinary()
 		if err != nil {
-			return b, err
+			return b, fmt.Errorf("sms: %s: %w", a.name, err)
 		}
 
 		w.LV(raw)
@@ -215,6 +304,10 @@ func (m *RPData) AppendBinary(b []byte) ([]byte, error) {
 
 // AppendBinary encodes the message onto b.
 func (m *RPAck) AppendBinary(b []byte) ([]byte, error) {
+	if err := checkRPUserData(m.UserData); err != nil {
+		return b, err
+	}
+
 	w := nas.NewWriter(b)
 	w.U8(uint8(m.MTI()))
 	w.U8(m.Reference)
@@ -224,6 +317,14 @@ func (m *RPAck) AppendBinary(b []byte) ([]byte, error) {
 
 // AppendBinary encodes the message onto b.
 func (m *RPError) AppendBinary(b []byte) ([]byte, error) {
+	if err := checkRPUserData(m.UserData); err != nil {
+		return b, err
+	}
+
+	if len(m.Diagnostic) > maxDiagnostic {
+		return b, fmt.Errorf("sms: RP-Cause diagnostic is %d octets, want at most %d: %w", len(m.Diagnostic), maxDiagnostic, ErrElementTooLong)
+	}
+
 	w := nas.NewWriter(b)
 	w.U8(uint8(m.MTI()))
 	w.U8(m.Reference)
@@ -239,6 +340,14 @@ func (m *RPSMMA) AppendBinary(b []byte) ([]byte, error) {
 	w.U8(m.Reference)
 
 	return finishIEs(w, b, m.Unrecognized)
+}
+
+func checkRPUserData(userData []byte) error {
+	if len(userData) > maxRPUserData {
+		return fmt.Errorf("sms: RP-User data is %d octets, want at most %d: %w", len(userData), maxRPUserData, ErrElementTooLong)
+	}
+
+	return nil
 }
 
 func finishWithUserData(w *nas.Writer, b, userData []byte, unrecognized []nas.RawIE) ([]byte, error) {
@@ -262,37 +371,55 @@ var rpOptionalIEs = []nas.OptionalIE{
 	{IEI: ieiRPUserData, Format: nas.IETLV, Name: "RP-User Data"},
 }
 
-// ParseRP decodes an RP message travelling in direction dir. A message type
-// indicator reserved in that direction is ErrUnknownMessageType.
-func ParseRP(b []byte, dir nas.Direction) (RPMessage, error) {
+// RPHeader is the message type indicator and message reference every RP message
+// starts with.
+type RPHeader struct {
+	MTI       MessageTypeIndicator
+	Reference uint8
+}
+
+// ParseRPHeader decodes the header of an RP message travelling in direction dir.
+// For a message type indicator reserved in that direction it returns the header
+// with ErrUnknownMessageType, so the receiver can answer RP-ERROR #97 with the
+// received reference (TS 24.011 §9.3.3).
+func ParseRPHeader(b []byte, dir nas.Direction) (RPHeader, error) {
 	if len(b) < rpHeaderLength {
-		return nil, &nas.Error{Op: "RP header", Offset: len(b), Err: nas.ErrTruncated}
+		return RPHeader{}, &nas.Error{Op: "RP header", Offset: len(b), Err: nas.ErrTruncated}
 	}
 
-	m := MessageTypeIndicator(b[0] & 0x07)
-	if _, ok := mtiNames[m]; !ok || m.Direction() != dir {
-		return nil, fmt.Errorf("sms: MTI %d %s: %w", uint8(m), dir, ErrUnknownMessageType)
+	h := RPHeader{MTI: MessageTypeIndicator(b[0] & 0x07), Reference: b[1]}
+	if _, ok := mtiNames[h.MTI]; !ok || h.MTI.Direction() != dir {
+		return h, fmt.Errorf("sms: MTI %d %s: %w", uint8(h.MTI), dir, ErrUnknownMessageType)
+	}
+
+	return h, nil
+}
+
+// ParseRP decodes an RP message travelling in direction dir. When it fails, the
+// header is still available from ParseRPHeader so the receiver can answer with
+// the received reference: ErrUnknownMessageType maps to cause #97, and
+// ErrInvalidMandatoryIE or nas.ErrTruncated to cause #96 (TS 24.011 §9.3).
+func ParseRP(b []byte, dir nas.Direction) (RPMessage, error) {
+	h, err := ParseRPHeader(b, dir)
+	if err != nil {
+		return nil, err
 	}
 
 	r := nas.NewReader(b[rpHeaderLength:])
-	ref := b[1]
 
-	var (
-		out RPMessage
-		err error
-	)
+	var out RPMessage
 
-	switch m {
+	switch h.MTI {
 	case MTIDataMSToNetwork, MTIDataNetworkToMS:
-		out, err = parseRPData(r, dir, ref)
+		out, err = parseRPData(r, dir, h.Reference)
 	case MTIAckMSToNetwork, MTIAckNetworkToMS:
-		ack := &RPAck{Direction: dir, Reference: ref}
+		ack := &RPAck{Direction: dir, Reference: h.Reference}
 		ack.Unrecognized, err = walkIEs(r, rpOptionalIEs, &ack.UserData)
 		out = ack
 	case MTIErrorMSToNetwork, MTIErrorNetworkToMS:
-		out, err = parseRPError(r, dir, ref)
+		out, err = parseRPError(r, dir, h.Reference)
 	default:
-		smma := &RPSMMA{Reference: ref}
+		smma := &RPSMMA{Reference: h.Reference}
 		smma.Unrecognized, err = walkIEs(r, nil, nil)
 		out = smma
 	}
@@ -309,35 +436,33 @@ func parseRPData(r *nas.Reader, dir nas.Direction, ref uint8) (RPMessage, error)
 
 	var soft []error
 
-	for _, f := range []struct {
-		dst  **Address
-		name string
-		used bool
-	}{
-		{&out.Originator, "RP-Originator Address", dir == nas.DirectionDownlink},
-		{&out.Destination, "RP-Destination Address", dir == nas.DirectionUplink},
-	} {
+	for _, a := range out.addresses() {
 		raw, err := r.LV()
 		if err != nil {
 			return nil, err
 		}
 
 		if len(raw) == 0 {
-			continue
-		}
-
-		a, err := ParseAddress(raw)
-		if err != nil {
-			if f.used {
-				return nil, err
+			if a.mandatory {
+				return nil, fmt.Errorf("sms: RP-DATA %s without %s: %w", dir, a.name, ErrInvalidMandatoryIE)
 			}
 
-			soft = append(soft, &nas.IEError{Name: f.name, Format: nas.IETLV, Raw: raw, Err: err})
+			continue
+		}
+
+		parsed, err := ParseAddress(raw)
+		if err == nil {
+			*a.field = &parsed
 
 			continue
 		}
 
-		*f.dst = &a
+		if a.mandatory {
+			return nil, fmt.Errorf("sms: %s: %w: %w", a.name, ErrInvalidMandatoryIE, err)
+		}
+
+		*a.field = &Address{Raw: raw}
+		soft = append(soft, &nas.IEError{Name: a.name, Format: nas.IETLV, Raw: raw, Err: err})
 	}
 
 	userData, err := r.LV()
@@ -352,16 +477,20 @@ func parseRPData(r *nas.Reader, dir nas.Direction, ref uint8) (RPMessage, error)
 }
 
 func parseRPError(r *nas.Reader, dir nas.Direction, ref uint8) (RPMessage, error) {
+	out := &RPError{Direction: dir, Reference: ref}
+
 	cause, err := r.LV()
-	if err != nil {
-		return nil, err
+	if err != nil || len(cause) == 0 {
+		out.Cause = RPCauseProtocolErrorUnspecified
+
+		if err == nil {
+			err = fmt.Errorf("sms: empty RP-Cause")
+		}
+
+		return out, &nas.IEError{Name: "RP-Cause", Format: nas.IETLV, Raw: cause, Err: err}
 	}
 
-	if len(cause) == 0 {
-		return nil, fmt.Errorf("sms: empty RP-Cause")
-	}
-
-	out := &RPError{Direction: dir, Reference: ref, Cause: RPCause(cause[0] & 0x7F)}
+	out.Cause = RPCause(cause[0] & 0x7F)
 
 	if len(cause) > 1 {
 		out.Diagnostic = cause[1:]

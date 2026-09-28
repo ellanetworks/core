@@ -77,7 +77,7 @@ func TestNASTransportDispatch(t *testing.T) {
 }
 
 func TestNASMessageContainerBounds(t *testing.T) {
-	for _, n := range []int{0, 1, 252} {
+	for _, n := range []int{0, 1, 256} {
 		if _, err := (&UplinkNASTransport{NASMessageContainer: make([]byte, n)}).MarshalBinary(); err == nil {
 			t.Errorf("%d-octet container encoded, want an error", n)
 		}
@@ -91,6 +91,18 @@ func TestNASMessageContainerBounds(t *testing.T) {
 
 	if _, err := ParseUplinkNASTransport(mustHex("07630109")); err == nil {
 		t.Error("1-octet container parsed, want an error")
+	}
+
+	overlong := append(mustHex("0763fc"), make([]byte, 252)...)
+
+	m, err := ParseUplinkNASTransport(overlong)
+	if err != nil {
+		t.Fatalf("252-octet container: %v", err)
+	}
+
+	b, err := m.MarshalBinary()
+	if err != nil || !bytes.Equal(b, overlong) {
+		t.Fatalf("re-encode of a 252-octet container = %v", err)
 	}
 }
 
