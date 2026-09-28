@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/api/server"
 )
 
 type RestoreResponseResult struct {
@@ -170,4 +172,71 @@ func TestRestoreEndpoint(t *testing.T) {
 			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, restoreResponse.Error)
 		}
 	})
+}
+
+func TestRestoreEndpointRejectsBackupAheadOfCurrentState(t *testing.T) {
+	ctx := context.Background()
+
+	env, err := setupServerWithRaft(filepath.Join(t.TempDir(), "ella.db"))
+	if err != nil {
+		t.Fatalf("create test server: %v", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("initialize server: %v", err)
+	}
+
+	if _, err := env.DB.PlainDB().ExecContext(ctx,
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1", 42); err != nil {
+		t.Fatalf("set backup lastApplied: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup.tar.gz")
+
+	backupFile, err := os.Create(backupPath)
+	if err != nil {
+		t.Fatalf("create backup file: %v", err)
+	}
+
+	if err := env.DB.Backup(ctx, backupFile); err != nil {
+		_ = backupFile.Close()
+
+		t.Fatalf("create backup: %v", err)
+	}
+
+	if err := backupFile.Close(); err != nil {
+		t.Fatalf("close backup file: %v", err)
+	}
+
+	if _, err := env.DB.PlainDB().ExecContext(ctx,
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1", 41); err != nil {
+		t.Fatalf("set current lastApplied: %v", err)
+	}
+
+	statusCode, response, err := restore(env.Server.URL, client, token, backupPath)
+	if err != nil {
+		t.Fatalf("restore request: %v", err)
+	}
+
+	if statusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", statusCode, http.StatusConflict)
+	}
+
+	if response.Error != server.RestoreBackupAheadMessage {
+		t.Fatalf("error = %q, want %q", response.Error, server.RestoreBackupAheadMessage)
+	}
+
+	var currentLastApplied int64
+	if err := env.DB.PlainDB().QueryRowContext(ctx,
+		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&currentLastApplied); err != nil {
+		t.Fatalf("read current lastApplied: %v", err)
+	}
+
+	if currentLastApplied != 41 {
+		t.Fatalf("current lastApplied = %d, want 41 after rejected restore", currentLastApplied)
+	}
 }
