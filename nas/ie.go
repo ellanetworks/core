@@ -132,13 +132,20 @@ const (
 	// range is narrower than the 5GS one, and 3GPP has left 0x70-0x77 unassigned
 	// in EPS so that the difference stays invisible on the wire.
 	UnknownIESkipEPS
+	// UnknownIESkipTLV applies the rule of every other protocol: any full-octet
+	// IEI marks a type-4 TLV.
+	UnknownIESkipTLV
 )
 
 // tlvEMask returns the IEI mask whose bits, when all set, mark a TLV-E under
-// this rule (TS 24.007 §11.2.4).
+// this rule (TS 24.007 §11.2.4), or 0 when the rule has no TLV-E.
 func (u UnknownIE) tlvEMask() uint8 {
 	if u == UnknownIESkipEPS {
 		return 0x78
+	}
+
+	if u == UnknownIESkipTLV {
+		return 0
 	}
 
 	return 0x70
@@ -426,7 +433,7 @@ func skipSelfDelimiting(r *Reader, iei uint8, unknown UnknownIE) (RawIE, error) 
 	format := IETLV
 	read := r.LV
 
-	if mask := unknown.tlvEMask(); iei&mask == mask {
+	if mask := unknown.tlvEMask(); mask != 0 && iei&mask == mask {
 		format = IETLVE
 		read = r.LVE
 	}

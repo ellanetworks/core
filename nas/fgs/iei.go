@@ -81,4 +81,6 @@ const (
 	ieiNetworkSlicingInd      uint8 = 0x90 // network slicing indication (type 1)
 	ieiNSSAIInclusionMode     uint8 = 0xA0 // NSSAI inclusion mode (type 1)
 	ieiNon3GppNwPolicies      uint8 = 0xD0 // non-3GPP NW policies (type 1)
+
+	ieiSMSIndication uint8 = 0xF0
 )

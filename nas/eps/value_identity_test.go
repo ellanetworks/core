@@ -53,6 +53,16 @@ func TestValueIdentity(t *testing.T) {
 			func(b []byte) (any, error) { return ParseUplinkGenericNASTransport(b) },
 		},
 		{
+			"DownlinkNASTransport",
+			&DownlinkNASTransport{NASMessageContainer: []byte{0x09, 0x01, 0x03, 0x01, 0x00, 0x00}},
+			func(b []byte) (any, error) { return ParseDownlinkNASTransport(b) },
+		},
+		{
+			"UplinkNASTransport",
+			&UplinkNASTransport{NASMessageContainer: []byte{0x89, 0x04}},
+			func(b []byte) (any, error) { return ParseUplinkNASTransport(b) },
+		},
+		{
 			"ESMStatus", &ESMStatus{EPSBearerIdentity: 5, PTI: 1, Cause: ESMCauseInvalidEPSBearerIdentity},
 			func(b []byte) (any, error) { return ParseESMStatus(b) },
 		},

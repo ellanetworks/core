@@ -396,7 +396,11 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 // mandatory 5GS registration result is followed by optional elements, emitted in
 // the order TS 24.501 table 8.2.7.1.1 lists them.
 type RegistrationAccept struct {
-	RegistrationResult           RegistrationResult     // 5GS registration result value (bits 1-3)
+	RegistrationResult           RegistrationResult // 5GS registration result value (bits 1-3)
+	SMSAllowed                   bool
+	NSSAAToBePerformed           bool
+	EmergencyRegistered          bool
+	DisasterRoamingResult        bool
 	RegistrationResultRest       []byte                 // octets beyond the first, present from Rel-16
 	GUTI                         *MobileIdentity        // optional (IEI 0x77): 5G-GUTI
 	TAIList                      *TAIList               // optional (IEI 0x54)
@@ -466,7 +470,13 @@ func ParseRegistrationAccept(b []byte) (*RegistrationAccept, error) {
 		return nil, fmt.Errorf("nas/fgs: registration accept: empty 5GS registration result")
 	}
 
-	out := &RegistrationAccept{RegistrationResult: RegistrationResult(result[0])}
+	out := &RegistrationAccept{
+		RegistrationResult:    RegistrationResult(result[0] & 0x07),
+		SMSAllowed:            result[0]&0x08 != 0,
+		NSSAAToBePerformed:    result[0]&0x10 != 0,
+		EmergencyRegistered:   result[0]&0x20 != 0,
+		DisasterRoamingResult: result[0]&0x40 != 0,
+	}
 
 	if len(result) > 1 {
 		out.RegistrationResultRest = result[1:]
@@ -615,7 +625,8 @@ func (m *RegistrationAccept) AppendBinary(b []byte) ([]byte, error) {
 	// (bits 1-3), SMS-allowed (bit 4), NSSAA (bit 5), emergency-registered
 	// (bit 6) — TS 24.501 §9.11.3.6.
 	w.LVFunc(func(c *nas.Writer) {
-		c.U8(uint8(m.RegistrationResult))
+		c.U8(uint8(m.RegistrationResult)&0x07 | boolBit(m.SMSAllowed, 3) | boolBit(m.NSSAAToBePerformed, 4) |
+			boolBit(m.EmergencyRegistered, 5) | boolBit(m.DisasterRoamingResult, 6))
 		c.Raw(m.RegistrationResultRest)
 	})
 

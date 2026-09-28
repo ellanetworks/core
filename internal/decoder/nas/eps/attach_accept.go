@@ -9,13 +9,17 @@ import (
 )
 
 type AttachAccept struct {
-	TAIList               []TAI                  `json:"tai_list,omitempty"`
-	NetworkFeatureSupport *NetworkFeatureSupport `json:"network_feature_support,omitempty"`
-	AttachResult          utils.EnumField        `json:"attach_result"`
-	T3412                 uint8                  `json:"t3412"`
-	GUTI                  *MobileIdentity        `json:"guti,omitempty"`
-	EMMCause              *uint8                 `json:"emm_cause,omitempty"`
-	ESMContainer          *ESMMessage            `json:"esm_container,omitempty"`
+	TAIList                []TAI                       `json:"tai_list,omitempty"`
+	NetworkFeatureSupport  *NetworkFeatureSupport      `json:"network_feature_support,omitempty"`
+	AttachResult           utils.EnumField             `json:"attach_result"`
+	T3412                  uint8                       `json:"t3412"`
+	GUTI                   *MobileIdentity             `json:"guti,omitempty"`
+	LAI                    *LocationAreaIdentification `json:"location_area_identification,omitempty"`
+	MSIdentity             *string                     `json:"ms_identity,omitempty"`
+	EMMCause               *uint8                      `json:"emm_cause,omitempty"`
+	ESMContainer           *ESMMessage                 `json:"esm_container,omitempty"`
+	AdditionalUpdateResult *utils.EnumField            `json:"additional_update_result,omitempty"`
+	SMSServicesStatus      *utils.EnumField            `json:"sms_services_status,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -34,6 +38,10 @@ func buildAttachAccept(msg *eps.AttachAccept) *AttachAccept {
 
 	out.TAIList = taiList(msg.TAIList)
 	out.NetworkFeatureSupport = networkFeatureSupport(msg.NetworkFeatureSupport)
+	out.LAI = locationAreaIdentification(msg.LAI)
+	out.MSIdentity = msIdentity(msg.MSIdentity)
+	out.AdditionalUpdateResult = additionalUpdateResult(msg.AdditionalUpdateResult)
+	out.SMSServicesStatus = smsServicesStatus(msg.SMSServicesStatus)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 
 	return out

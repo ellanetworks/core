@@ -58,6 +58,8 @@ func FuzzParseMessage(f *testing.F) {
 	// length octet) to exercise the walk's bounds checks.
 	f.Add(mustHex("0741310bf600f1100001010000000103f070c000040201d0111901020332"))
 	f.Add(mustHex("0769010004deadbeef650107"))
+	f.Add(mustHex("0763028904"))
+	f.Add(mustHex("07420221060000f110000100040201d0111300f110fffe2305f401020304f2"))
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		for _, dir := range []nas.Direction{nas.DirectionUplink, nas.DirectionDownlink} {

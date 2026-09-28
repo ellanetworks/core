@@ -18,6 +18,8 @@ var canonicalValues = map[uint8][]byte{
 	ieiT3402Value:                    {0x21},
 	ieiAccessPointName:               {0x03, 'a', 'b', 'c'},
 	ieiAdditionalUpdateType:          {0x00},
+	ieiLocationAreaID:                {0x00, 0xf1, 0x10, 0xff, 0xfe},
+	ieiMSIdentity:                    {0xf4, 0x01, 0x02, 0x03, 0x04},
 	ieiEMMCause:                      {uint8(EMMCauseIllegalUE)},
 	ieiEPSBearerContextStatus:        {0x00, 0x00},
 	ieiESMCause:                      {uint8(ESMCauseRegularDeactivation)},
@@ -66,6 +68,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 	// EPS reuses 0x58 for the UE network capability in TAU REQUEST and the ESM
 	// cause in ESM messages.
 	ueNetCap := map[uint8][]byte{ieiUENetworkCapability: {0xf0, 0x70}}
+	smsOnly := map[uint8][]byte{ieiAdditionalUpdateResult: {0x02}, ieiSMSServicesStatus: {0x01}}
 
 	return []canonicalCase{
 		{
@@ -86,7 +89,8 @@ func canonicalCases(t *testing.T) []canonicalCase {
 				TAIList:             TAIList{{Type: PartialTAIListConsecutive, TAIs: []TAI{{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, TAC: 1}}}},
 				ESMMessageContainer: []byte{0x02, 0x01, 0xD0, 0x11},
 			},
-			order: []canonicalIE{{ieiGUTI, nas.IETLV}, {ieiEMMCause, nas.IETV3}, {ieiNetworkFeatureSupport, nas.IETLV}},
+			order:  []canonicalIE{{ieiGUTI, nas.IETLV}, {ieiLocationAreaID, nas.IETV3}, {ieiMSIdentity, nas.IETLV}, {ieiEMMCause, nas.IETV3}, {ieiNetworkFeatureSupport, nas.IETLV}, {ieiAdditionalUpdateResult, nas.IETV1}, {ieiSMSServicesStatus, nas.IETV1}},
+			values: smsOnly,
 		},
 		{
 			name:  "EMMInformation (TS 24.301 §8.2.13)",
@@ -115,9 +119,10 @@ func canonicalCases(t *testing.T) []canonicalCase {
 			order: []canonicalIE{{ieiEPSBearerContextStatus, nas.IETLV}, {ieiT3448Value, nas.IETLV}},
 		},
 		{
-			name:  "TrackingAreaUpdateAccept (TS 24.301 §8.2.26)",
-			bare:  &TrackingAreaUpdateAccept{},
-			order: []canonicalIE{{ieiGUTI, nas.IETLV}, {ieiTAIList, nas.IETLV}, {ieiEPSBearerContextStatus, nas.IETLV}, {ieiEMMCause, nas.IETV3}, {ieiNetworkFeatureSupport, nas.IETLV}},
+			name:   "TrackingAreaUpdateAccept (TS 24.301 §8.2.26)",
+			bare:   &TrackingAreaUpdateAccept{},
+			order:  []canonicalIE{{ieiGUTI, nas.IETLV}, {ieiTAIList, nas.IETLV}, {ieiEPSBearerContextStatus, nas.IETLV}, {ieiLocationAreaID, nas.IETV3}, {ieiMSIdentity, nas.IETLV}, {ieiEMMCause, nas.IETV3}, {ieiNetworkFeatureSupport, nas.IETLV}, {ieiAdditionalUpdateResult, nas.IETV1}, {ieiSMSServicesStatus, nas.IETV1}},
+			values: smsOnly,
 		},
 		{
 			name: "ActivateDefaultEPSBearerContextRequest (TS 24.301 §8.3.6)",
@@ -170,6 +175,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 				{ieiUENetworkCapability, nas.IETLV},
 				{ieiEPSBearerContextStatus, nas.IETLV},
 				{ieiMSNetworkCapability, nas.IETLV},
+				{ieiAdditionalUpdateType, nas.IETV1},
 			},
 			values: ueNetCap,
 		},

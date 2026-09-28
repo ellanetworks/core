@@ -34,6 +34,7 @@ type ConfigurationUpdateCommand struct {
 	LocalTimeZone                 *string                        `json:"local_time_zone,omitempty"`
 	UniversalTime                 *string                        `json:"universal_time,omitempty"`
 	DaylightSavingTime            *uint8                         `json:"daylight_saving_time,omitempty"`
+	SMSAvailable                  *bool                          `json:"sms_available,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -61,6 +62,7 @@ func buildConfigurationUpdateCommand(msg *fgs.ConfigurationUpdateCommand) *Confi
 		FullNameForNetwork:  networkName(msg.FullNameForNetwork),
 		ShortNameForNetwork: networkName(msg.ShortNameForNetwork),
 		LocalTimeZone:       timeZone(msg.LocalTimeZone),
+		SMSAvailable:        msg.SMSAvailable,
 	}
 
 	if ind := msg.ConfigurationUpdateIndication; ind != nil {
