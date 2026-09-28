@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/models"
+	coremodels "github.com/ellanetworks/core/internal/models"
 )
 
 // TestNrTAToDistance checks the NR-TADV report-mapping bins against TS 38.133
@@ -119,6 +120,7 @@ func TestECIDPositioning(t *testing.T) {
 		wantUE      bool
 		network     *models.RadioMeasurements
 		ueErr       error
+		noAnchor    bool
 		want        []models.PositioningAttempt
 	}{
 		{
@@ -154,6 +156,17 @@ func TestECIDPositioning(t *testing.T) {
 			},
 		},
 		{
+			name:        "no position for the serving cell, measurements still reported",
+			wantNetwork: true,
+			wantUE:      true,
+			network:     &models.RadioMeasurements{Cells: cells},
+			noAnchor:    true,
+			want: []models.PositioningAttempt{
+				attempt(models.PositioningModeNetworkBased, models.PositioningUsageResultsNotUsed),
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageResultsNotUsed),
+			},
+		},
+		{
 			name:   "UE-assisted only",
 			wantUE: true,
 			want: []models.PositioningAttempt{
@@ -165,7 +178,7 @@ func TestECIDPositioning(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := ecidPositioning(models.PositioningMethodNRECID, tc.wantNetwork, tc.wantUE, tc.network, tc.ueErr)
+			got := ecidPositioning(models.PositioningMethodNRECID, tc.wantNetwork, tc.wantUE, tc.network, tc.ueErr, !tc.noAnchor)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
@@ -220,6 +233,25 @@ func TestValidateMode(t *testing.T) {
 
 		if err != nil && !errors.Is(err, ErrUnsupportedMode) {
 			t.Errorf("ValidateMode(%q, %q) = %v, want ErrUnsupportedMode", tc.method, tc.mode, err)
+		}
+	}
+}
+
+func TestMarkServingMatchesTheServingCellGlobalID(t *testing.T) {
+	plmn := &coremodels.PlmnID{Mcc: "001", Mnc: "01"}
+	serving := &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0000"}
+
+	cells := markServing([]models.CellMeasurement{
+		{RAT: models.RATEUTRA, ECGI: &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0000"}},
+		{RAT: models.RATEUTRA, ECGI: &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0001"}},
+		{RAT: models.RATEUTRA},
+		{RAT: models.RATNR, Serving: true},
+	}, nil, serving)
+
+	want := []bool{true, false, false, true}
+	for i, c := range cells {
+		if c.Serving != want[i] {
+			t.Errorf("cell %d serving = %t, want %t", i, c.Serving, want[i])
 		}
 	}
 }

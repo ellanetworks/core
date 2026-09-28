@@ -250,3 +250,42 @@ func TestStoredLocationData(t *testing.T) {
 		t.Error("a session without a result rendered one")
 	}
 }
+
+func TestToLocationData_MeasurementsWithoutEstimate(t *testing.T) {
+	r := &models.LocationResult{
+		AccessType: "EUTRA",
+		ECGI:       &coremodels.Ecgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, EutraCellID: "5ee0000"},
+		Positioning: []models.PositioningAttempt{
+			{Method: models.PositioningMethodECID, Mode: models.PositioningModeUEAssisted, Usage: models.PositioningUsageResultsNotUsed},
+		},
+		Measurements: []models.CellMeasurement{{Source: models.MeasurementSourceUE, RAT: models.RATEUTRA, Serving: true, RSRP: ptr(-76.0)}},
+	}
+
+	b, err := json.Marshal(toLocationData(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wire map[string]any
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := wire["locationEstimate"]; ok {
+		t.Errorf("locationEstimate = %v, want it absent without an estimate", wire["locationEstimate"])
+	}
+
+	if m, ok := wire["radioMeasurements"].([]any); !ok || len(m) != 1 {
+		t.Errorf("radioMeasurements = %v, want the measured cell", wire["radioMeasurements"])
+	}
+
+	stored, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := string(stored)
+	if ld := storedLocationData(&s); ld == nil || len(ld.RadioMeasurements) != 1 {
+		t.Errorf("storedLocationData = %+v, want the stored measurements", ld)
+	}
+}

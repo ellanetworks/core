@@ -6012,8 +6012,7 @@ components:
 
     LocationData:
       type: object
-      description: Location estimate (TS 29.572 LocationData).
-      required: [locationEstimate]
+      description: Location estimate (TS 29.572 LocationData). `locationEstimate` is absent when E-CID returned measurements but no position is available for the serving cell.
       properties:
         locationEstimate:
           $ref: "#/components/schemas/GeographicArea"

@@ -114,7 +114,7 @@ func storedLocationData(stored *string) *LocationData {
 	}
 
 	var result models.LocationResult
-	if err := json.Unmarshal([]byte(*stored), &result); err != nil || result.Estimate == nil {
+	if err := json.Unmarshal([]byte(*stored), &result); err != nil || (result.Estimate == nil && len(result.Measurements) == 0) {
 		return nil
 	}
 

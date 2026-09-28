@@ -16,9 +16,10 @@ import (
 //
 // Deviations from the SBI schema (documented, PR1): the response is wrapped in
 // the platform's standard {"result": ...} envelope; RadioMeasurements is a
-// non-standard vendor extension.
+// non-standard vendor extension; LocationEstimate is absent when E-CID returned
+// measurements but no position was available for the serving cell.
 type LocationData struct {
-	LocationEstimate            GeographicArea                  `json:"locationEstimate"`
+	LocationEstimate            *GeographicArea                 `json:"locationEstimate,omitempty"`
 	AgeOfLocationEstimate       *int32                          `json:"ageOfLocationEstimate,omitempty"`
 	TimestampOfLocationEstimate *string                         `json:"timestampOfLocationEstimate,omitempty"`
 	PositioningDataList         []PositioningMethodAndUsage     `json:"positioningDataList,omitempty"`
@@ -142,7 +143,8 @@ func toLocationData(r *models.LocationResult) *LocationData {
 	out := &LocationData{}
 
 	if r.Estimate != nil {
-		out.LocationEstimate, out.Altitude = toGeographicArea(r.Estimate)
+		area, altitude := toGeographicArea(r.Estimate)
+		out.LocationEstimate, out.Altitude = &area, altitude
 	}
 
 	// Method + usage.

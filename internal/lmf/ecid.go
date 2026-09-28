@@ -29,8 +29,9 @@ const ecidUETimeout = 20 * time.Second
 // to estimate the UE's distance from the gNB. It requires a geographic anchor
 // for the serving cell (RAN-supplied NG-RAN Access Point Position or the
 // provisioned cell-position table); with no anchor it returns
-// ErrNoLocationEstimate. When no radio measurements are available it degrades
-// to a Cell-ID estimate (still requiring the anchor).
+// ErrNoLocationEstimate, unless E-CID produced radio measurements, which are then
+// returned without an estimate. When no radio measurements are available it
+// degrades to a Cell-ID estimate (still requiring the anchor).
 func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode) (*models.LocationResult, string, error) {
 	loc, ok := l.getUELocation(supi)
 	if !ok {
@@ -101,15 +102,11 @@ func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc
 	// Anchor the estimate to a geographic coordinate: prefer the RAN-supplied
 	// NG-RAN Access Point Position, else the provisioned cell-position table.
 	// Without a coordinate there is no valid location estimate.
-	coord, ok := l.resolveCellCoordinate(ctx, loc, network)
-	if !ok {
-		return nil, ErrNoLocationEstimate
-	}
+	coord, anchored := l.resolveCellCoordinate(ctx, loc, network)
 
 	result := computeCellIDLocation(supi, loc)
 	result.Estimate = coord
-
-	result.Positioning = ecidPositioning(method, wantNetwork, wantUE, network, ueErr)
+	result.Positioning = ecidPositioning(method, wantNetwork, wantUE, network, ueErr, anchored)
 
 	if ueErr != nil {
 		logger.LmfLog.Warn("UE-assisted E-CID measurements unavailable",
@@ -122,7 +119,17 @@ func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc
 		result.Measurements = append(result.Measurements, withDistance(network.Cells)...)
 	}
 
-	result.Measurements = append(result.Measurements, ue...)
+	result.Measurements = append(result.Measurements, markServing(ue, result.NCGI, result.ECGI)...)
+
+	if !anchored && len(result.Measurements) == 0 {
+		return nil, ErrNoLocationEstimate
+	}
+
+	if len(result.Measurements) > 0 {
+		now := time.Now()
+		result.UeLocationTimestamp = &now
+		result.AgeOfLocationInfo = 0
+	}
 
 	logger.LmfLog.Info("E-CID location computed",
 		logger.SUPI(supi.String()),
@@ -135,11 +142,11 @@ func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc
 	return result, nil
 }
 
-func ecidPositioning(method models.PositioningMethod, wantNetwork, wantUE bool, network *models.RadioMeasurements, ueErr error) []models.PositioningAttempt {
+func ecidPositioning(method models.PositioningMethod, wantNetwork, wantUE bool, network *models.RadioMeasurements, ueErr error, anchored bool) []models.PositioningAttempt {
 	var attempts []models.PositioningAttempt
 
 	anchoredByRAN := network != nil && network.APPosition != nil
-	if !anchoredByRAN {
+	if anchored && !anchoredByRAN {
 		attempts = append(attempts, cellIDAttempt())
 	}
 
@@ -166,6 +173,25 @@ func ecidPositioning(method models.PositioningMethod, wantNetwork, wantUE bool, 
 	}
 
 	return attempts
+}
+
+func markServing(cells []models.CellMeasurement, ncgi *coremodels.Ncgi, ecgi *coremodels.Ecgi) []models.CellMeasurement {
+	for i := range cells {
+		c := &cells[i]
+
+		switch {
+		case c.NCGI != nil && ncgi != nil:
+			c.Serving = c.Serving || (c.NCGI.NrCellID == ncgi.NrCellID && samePlmn(c.NCGI.PlmnID, ncgi.PlmnID))
+		case c.ECGI != nil && ecgi != nil:
+			c.Serving = c.Serving || (c.ECGI.EutraCellID == ecgi.EutraCellID && samePlmn(c.ECGI.PlmnID, ecgi.PlmnID))
+		}
+	}
+
+	return cells
+}
+
+func samePlmn(a, b *coremodels.PlmnID) bool {
+	return a != nil && b != nil && a.Equal(*b)
 }
 
 func (l *LMF) fetchUEECIDMeasurements(ctx context.Context, supi etsi.SUPI, sessionID string, nr bool) ([]models.CellMeasurement, error) {
