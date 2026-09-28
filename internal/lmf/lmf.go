@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/lmf/lpp"
+	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lppa"
 	"github.com/ellanetworks/core/internal/lmf/nrppa"
 	"github.com/ellanetworks/core/internal/logger"
@@ -187,23 +188,14 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, core Core, supi etsi.SUPI, c
 		return nil
 	}
 
+	activeSession := lmf.activeLPPSession(supi)
+
 	decoded, err := lpp.DecodeLPPMessage(lppData)
 	if err != nil {
+		lmf.rejectUndecodableLPP(ctx, core, supi, correlationID, lppData, activeSession, err)
+
 		return fmt.Errorf("parse LPP message: %w", err)
 	}
-
-	lmf.lppMu.RLock()
-
-	var activeSession *lpp.Session
-
-	for _, session := range lmf.lppSessions {
-		if session.Supi() == supi.String() && session.State() != lpp.SessionFailed {
-			activeSession = session
-			break
-		}
-	}
-
-	lmf.lppMu.RUnlock()
 
 	// TS 37.355 §4.3.3: acknowledging a UE reply is what stops its retransmission
 	// loop (§4.3.4), so it is owed even for a duplicate whose body is then dropped.
@@ -231,6 +223,69 @@ func ForwardLPPToLMF(lmf *LMF, ctx context.Context, core Core, supi etsi.SUPI, c
 	}
 
 	return nil
+}
+
+func (lmf *LMF) activeLPPSession(supi etsi.SUPI) *lpp.Session {
+	lmf.lppMu.RLock()
+	defer lmf.lppMu.RUnlock()
+
+	for _, session := range lmf.lppSessions {
+		if session.Supi() == supi.String() && session.State() != lpp.SessionFailed {
+			return session
+		}
+	}
+
+	return nil
+}
+
+func (lmf *LMF) rejectUndecodableLPP(ctx context.Context, core Core, supi etsi.SUPI, correlationID, lppData []byte, session *lpp.Session, decodeErr error) {
+	if session != nil {
+		defer session.FailWith(fmt.Errorf("%w: %w", lpp.ErrUndecodableMessage, decodeErr))
+	}
+
+	header, headerErr := lpp.DecodeLPPHeader(lppData)
+
+	cause := lpptype.ErrorCauseLPPMessageHeaderError
+
+	if headerErr == nil {
+		lmf.acknowledgeLPP(ctx, core, supi, correlationID, lppData, header, session)
+
+		if header.BodyKind == lpptype.LPPMessageBodyC1PresentAbort || header.BodyKind == lpptype.LPPMessageBodyC1PresentError {
+			return
+		}
+
+		cause = lpptype.ErrorCauseLPPMessageBodyError
+	} else {
+		header = nil
+	}
+
+	var seq byte
+
+	replyCorrelationID := correlationID
+
+	if session != nil {
+		seq = session.ReserveSequenceNumber()
+
+		if id := session.CorrelationID(); len(id) > 0 {
+			replyCorrelationID = id
+		}
+	} else {
+		seq = byte(lmf.ackSeq.Add(1))
+	}
+
+	msg, err := lpp.EncodeError(seq, header, cause)
+	if err != nil {
+		logger.LmfLog.Error("failed to build LPP error", logger.SUPI(supi.String()), zap.Error(err))
+		return
+	}
+
+	if lmf.lppHandler == nil {
+		return
+	}
+
+	if err := lmf.lppHandler.ForwardLPPToUE(ctx, core, supi.String(), replyCorrelationID, msg); err != nil {
+		logger.LmfLog.Error("failed to send LPP error to UE", logger.SUPI(supi.String()), zap.Error(err))
+	}
 }
 
 // acknowledgeLPP sends an LPP Acknowledgement for a UE reply that requested one

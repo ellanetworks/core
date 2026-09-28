@@ -19,17 +19,17 @@ func Encoder(msg *lpptype.LPPMessage) ([]byte, error) {
 // encodeLPPMessage is a convenience wrapper that builds and encodes an LPP-Message.
 // Every server message carries a sequenceNumber: a UE that uses the acknowledgement
 // mechanism expects all peer messages to be sequenced (TS 37.355 §4.3.2).
-func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMessageBody, endTransaction bool, sequenceNumber byte) ([]byte, error) {
+func encodeLPPMessage(transactionID byte, initiator lpptype.Initiator, body *lpptype.LPPMessageBody, endTransaction bool, sequenceNumber byte) ([]byte, error) {
 	seq := int64(sequenceNumber)
 
 	msg := &lpptype.LPPMessage{
 		TransactionID: &lpptype.LPPTransactionID{
-			Initiator:         lpptype.Initiator{Value: initiator},
+			Initiator:         initiator,
 			TransactionNumber: int64(transactionID),
 		},
 		EndTransaction: endTransaction,
 		SequenceNumber: &seq,
-		LppMessageBody: body,
+		LPPMessageBody: body,
 	}
 
 	return Encoder(msg)
@@ -44,7 +44,7 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 					C1: &lpptype.RequestCapabilitiesCriticalExtensionsC1{
 						RequestCapabilitiesR9: &lpptype.RequestCapabilitiesR9IEs{
 							AGNSSRequestCapabilities: &lpptype.AGNSSRequestCapabilities{
-								GnssSupportListReq:           true,
+								GNSSSupportListReq:           true,
 								AssistanceDataSupportListReq: true,
 								LocationVelocityTypesReq:     true,
 							},
@@ -68,22 +68,29 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, respon
 					C1: &lpptype.RequestLocationInformationCriticalExtensionsC1{
 						RequestLocationInformationR9: &lpptype.RequestLocationInformationR9IEs{
 							CommonIEsRequestLocationInformation: &lpptype.CommonIEsRequestLocationInformation{
-								LocationInformationType: lpptype.LocationInformationType{
-									Value: lpptype.LocationInformationTypeLocationEstimateRequired,
-								},
+								LocationInformationType: lpptype.LocationInformationTypeLocationEstimateRequired,
 								QoS: &lpptype.QoS{
 									VerticalCoordinateRequest: false,
 									ResponseTime:              &lpptype.ResponseTime{Time: responseTimeSeconds},
 									VelocityRequest:           false,
 								},
+								LocationCoordinateTypes: &lpptype.LocationCoordinateTypes{
+									EllipsoidPoint:                                    true,
+									EllipsoidPointWithUncertaintyCircle:               true,
+									EllipsoidPointWithUncertaintyEllipse:              true,
+									Polygon:                                           false,
+									EllipsoidPointWithAltitude:                        true,
+									EllipsoidPointWithAltitudeAndUncertaintyEllipsoid: true,
+									EllipsoidArc:                                      false,
+								},
 							},
 							AGNSSRequestLocationInformation: &lpptype.AGNSSRequestLocationInformation{
-								GnssPositioningInstructions: lpptype.GNSSPositioningInstructions{
-									GnssMethods: lpptype.GNSSIDBitmap{
-										GnssIDs: makeGnssIdBitmap(0), // GPS only
+								GNSSPositioningInstructions: lpptype.GNSSPositioningInstructions{
+									GNSSMethods: lpptype.GNSSIDBitmap{
+										GNSSIDs: makeGnssIdBitmap(lpptype.GNSSIDBitmapGPS), // GPS only
 									},
 									FineTimeAssistanceMeasReq: false,
-									AdrMeasReq:                false,
+									ADRMeasReq:                false,
 									MultiFreqMeasReq:          false,
 									AssistanceAvailability:    false,
 								},
@@ -100,17 +107,17 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, respon
 
 // EncodeProvideCapabilities encodes an LPP ProvideCapabilities message
 // indicating support for the given GNSS constellations.
-func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, error) {
+func EncodeProvideCapabilities(transactionID byte, gnssIDs []lpptype.GNSSIDValue) ([]byte, error) {
 	supportList := &lpptype.GNSSSupportList{}
 
 	for _, id := range gnssIDs {
 		supportList.List = append(supportList.List, lpptype.GNSSSupportElement{
-			GnssID:     lpptype.GNSSID{Value: id},
+			GNSSID:     lpptype.GNSSID{GNSSID: id},
 			AGNSSModes: lpptype.PositioningModes{PosModes: makePosModes(true, false, true)}, // standalone + ue-assisted
-			GnssSignals: lpptype.GNSSSignalIDs{
-				GnssSignalIDs: makeGnssSignalBitmap(0), // first signal type
+			GNSSSignals: lpptype.GNSSSignalIDs{
+				GNSSSignalIDs: makeGnssSignalBitmap(0), // first signal type
 			},
-			AdrSupport:                 false,
+			ADRSupport:                 false,
 			VelocityMeasurementSupport: false,
 		})
 	}
@@ -122,7 +129,7 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, err
 					C1: &lpptype.ProvideCapabilitiesCriticalExtensionsC1{
 						ProvideCapabilitiesR9: &lpptype.ProvideCapabilitiesR9IEs{
 							AGNSSProvideCapabilities: &lpptype.AGNSSProvideCapabilities{
-								GnssSupportList: supportList,
+								GNSSSupportList: supportList,
 							},
 						},
 					},
@@ -134,18 +141,20 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, err
 	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true, 0)
 }
 
-// EncodeProvideAssistanceData encodes an LPP ProvideAssistanceData message.
-// For the MVP, the assistance data payload is opaque (not fully encoded per ASN.1).
-func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]byte, error) {
-	_ = assistanceData // MVP: assistance data encoding is Phase 3+
-
+func EncodeAssistanceDataNotSupported(transactionID byte, sequenceNumber byte) ([]byte, error) {
 	body := &lpptype.LPPMessageBody{
 		C1: &lpptype.LPPMessageBodyC1{
 			ProvideAssistanceData: &lpptype.ProvideAssistanceData{
 				CriticalExtensions: lpptype.ProvideAssistanceDataCriticalExtensions{
 					C1: &lpptype.ProvideAssistanceDataCriticalExtensionsC1{
 						ProvideAssistanceDataR9: &lpptype.ProvideAssistanceDataR9IEs{
-							AGNSSProvideAssistanceData: &lpptype.AGNSSProvideAssistanceData{},
+							AGNSSProvideAssistanceData: &lpptype.AGNSSProvideAssistanceData{
+								GNSSError: &lpptype.AGNSSError{
+									LocationServerErrorCauses: &lpptype.GNSSLocationServerErrorCauses{
+										Cause: lpptype.GNSSLocationServerErrorCauseUndeliveredAssistanceDataIsNotSupportedByServer,
+									},
+								},
+							},
 						},
 					},
 				},
@@ -153,7 +162,34 @@ func EncodeProvideAssistanceData(transactionID byte, assistanceData []byte) ([]b
 		},
 	}
 
-	return encodeLPPMessage(transactionID, lpptype.InitiatorLocationServer, body, true, 0)
+	return encodeLPPMessage(transactionID, lpptype.InitiatorTargetDevice, body, true, sequenceNumber)
+}
+
+func EncodeError(sequenceNumber byte, received *DecodedMessage, cause lpptype.ErrorCause) ([]byte, error) {
+	seq := int64(sequenceNumber)
+
+	msg := &lpptype.LPPMessage{
+		EndTransaction: true,
+		SequenceNumber: &seq,
+		LPPMessageBody: &lpptype.LPPMessageBody{
+			C1: &lpptype.LPPMessageBodyC1{
+				Error: &lpptype.Error{
+					ErrorR9: &lpptype.ErrorR9IEs{
+						CommonIEsError: &lpptype.CommonIEsError{ErrorCause: cause},
+					},
+				},
+			},
+		},
+	}
+
+	if received != nil && received.TransactionIDPresent {
+		msg.TransactionID = &lpptype.LPPTransactionID{
+			Initiator:         received.Initiator,
+			TransactionNumber: int64(received.TransactionID),
+		}
+	}
+
+	return Encoder(msg)
 }
 
 // EncodeProvideLocationInformation encodes an LPP ProvideLocationInformation
@@ -232,13 +268,7 @@ func makeGnssSignalBitmap(signalBits ...int) []bool {
 	return bs
 }
 
-// PositioningModes bitmap bit masks (TS 37.355 §6.4.1).
-// Bit 0 = standalone, 1 = ue-based, 2 = ue-assisted.
 const (
-	posModeStandaloneBit = 0
-	posModeUeBasedBit    = 1
-	posModeUeAssistedBit = 2
-
 	posModesBitLength      = 3
 	gnssIdBitmapBitLength  = 7
 	gnssSignalIDsBitLength = 8
@@ -253,15 +283,15 @@ func makePosModes(standalone, ueBased, ueAssisted bool) []bool {
 	bs := make([]bool, posModesBitLength)
 
 	if standalone {
-		bs[posModeStandaloneBit] = true
+		bs[lpptype.PosModesStandalone] = true
 	}
 
 	if ueBased {
-		bs[posModeUeBasedBit] = true
+		bs[lpptype.PosModesUEBased] = true
 	}
 
 	if ueAssisted {
-		bs[posModeUeAssistedBit] = true
+		bs[lpptype.PosModesUEAssisted] = true
 	}
 
 	return bs
@@ -270,7 +300,7 @@ func makePosModes(standalone, ueBased, ueAssisted bool) []bool {
 // encodeLatitude converts a signed 1e-7-degree latitude to TS 23.032 encoding.
 // Returns (latitudeSign, degreesLatitude) where degreesLatitude is 0..maxDegreesLatitude.
 // TS 23.032: latitude = N * 90 / 2^23, so N = lat_deg * 2^23 / 90.
-func encodeLatitude(latE7 int32) (int64, int64) {
+func encodeLatitude(latE7 int32) (lpptype.LatitudeSign, int64) {
 	latAbs := int64(latE7)
 	if latAbs < 0 {
 		latAbs = -latAbs
@@ -282,42 +312,44 @@ func encodeLatitude(latE7 int32) (int64, int64) {
 	}
 
 	if latE7 < 0 {
-		return lpptype.EllipsoidPointLatitudeSignSouth, encoded
+		return lpptype.LatitudeSignSouth, encoded
 	}
 
-	return lpptype.EllipsoidPointLatitudeSignNorth, encoded
+	return lpptype.LatitudeSignNorth, encoded
 }
 
 // encodeLongitude converts a signed 1e-7-degree longitude to TS 23.032 encoding.
-// Returns the unsigned offset (value + longitudeOffset) in range 0..maxDegreesLongitude.
-// TS 23.032: longitude = N * 360 / 2^24, so N = lon_deg * 2^24 / 360.
-// The spec uses signed N in range -2^23..2^23-1, but we store the unsigned
-// offset (N + longitudeOffset) for simpler handling of large negative bounds.
+// TS 23.032: N <= lon_deg * 2^24 / 360 < N+1, with N in range
+// minDegreesLongitude..maxDegreesLongitude.
 func encodeLongitude(lonE7 int32) int64 {
-	encoded := int64(lonE7) * longitudeResolution / maxLongitudeE7
-	// Shift to unsigned range: offset = N + longitudeOffset
-	offset := encoded + longitudeOffset
-	if offset > maxDegreesLongitude {
-		offset = maxDegreesLongitude
+	scaled := int64(lonE7) * longitudeResolution
+
+	encoded := scaled / maxLongitudeE7
+	if scaled%maxLongitudeE7 != 0 && scaled < 0 {
+		encoded--
 	}
 
-	if offset < 0 {
-		offset = 0
+	if encoded > maxDegreesLongitude {
+		encoded = maxDegreesLongitude
 	}
 
-	return offset
+	if encoded < minDegreesLongitude {
+		encoded = minDegreesLongitude
+	}
+
+	return encoded
 }
 
 // encodeAltitude converts a signed centimetre altitude to TS 23.032 encoding.
 // Returns (altitudeDirection, altitude) where altitude is 0..maxAltitude.
-func encodeAltitude(altCm int32) (int64, int64) {
+func encodeAltitude(altCm int32) (lpptype.AltitudeDirection, int64) {
 	if altCm < 0 {
 		altM := int64(-altCm) / centimetresPerMetre
 		if altM > maxAltitude {
 			altM = maxAltitude
 		}
 
-		return lpptype.EllipsoidPointWithAltitudeAltitudeDirectionDepth, altM
+		return lpptype.AltitudeDirectionDepth, altM
 	}
 
 	altM := int64(altCm) / centimetresPerMetre
@@ -325,7 +357,7 @@ func encodeAltitude(altCm int32) (int64, int64) {
 		altM = maxAltitude
 	}
 
-	return lpptype.EllipsoidPointWithAltitudeAltitudeDirectionHeight, altM
+	return lpptype.AltitudeDirectionHeight, altM
 }
 
 // encodeUncertainty converts a distance in metres to a TS 23.032 uncertainty

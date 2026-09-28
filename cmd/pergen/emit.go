@@ -82,8 +82,9 @@ type fieldInfo struct {
 
 	boundsExpr string // e.g. `per.Bounds{LB: 0, UB: 255, HasLB: true, HasUB: true}`
 
-	enumRoot int64
-	enumExt  bool
+	enumRoot  int64
+	enumExt   bool
+	enumTotal int64
 
 	// charTypeExpr is the per.Char* constant for a known-multiplier string
 	// type, or "" for UTF8String and untyped strings.
@@ -163,6 +164,14 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 		fi.kind = kindEnum
 		fi.enumRoot = fi.tag.RangeUB + 1
 		fi.enumExt = fi.tag.RangeExtensible
+
+		if fi.tag.HasEnumExtValues {
+			if !fi.enumExt {
+				return fi, fmt.Errorf("field %s: extvalues requires an extensible ENUMERATED range", f.Name())
+			}
+
+			fi.enumTotal = fi.enumRoot + fi.tag.EnumExtValues
+		}
 	case isBool(ft):
 		fi.kind = kindBool
 	case isByteSlice(ft):

@@ -65,7 +65,7 @@ func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
 }
 
 func TestEncodeDecodeProvideCapabilities(t *testing.T) {
-	encoded, err := EncodeProvideCapabilities(0x03, []int64{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
+	encoded, err := EncodeProvideCapabilities(0x03, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS, lpptype.GNSSIDGLONASS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -101,6 +101,55 @@ func TestEncodeDecodeProvideCapabilities(t *testing.T) {
 
 	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGlonass) {
 		t.Error("expected GLO capability to be true")
+	}
+}
+
+func TestDecodeProvideCapabilitiesAGNSSGPS(t *testing.T) {
+	raw, err := hex.DecodeString("f0010142087800174027a68050300bf80ea15020701000100720641ec0501f0080")
+	if err != nil {
+		t.Fatalf("hex: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(raw)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideCapabilities {
+		t.Fatalf("expected body kind ProvideCapabilities, got %d", decoded.BodyKind)
+	}
+
+	if !decoded.AckRequested {
+		t.Error("expected an acknowledgement request")
+	}
+
+	if decoded.SequenceNumber == nil || *decoded.SequenceNumber != 1 {
+		t.Errorf("expected sequence number 1, got %v", decoded.SequenceNumber)
+	}
+
+	supported := decoded.ProvideCapabilities.GNSSCapability.Supported()
+	if len(supported) != 1 || supported[0] != models.GnssIDGps {
+		t.Errorf("expected GPS only, got %v", supported)
+	}
+}
+
+func TestEncodeDecodeProvideCapabilitiesExtensionGNSS(t *testing.T) {
+	encoded, err := EncodeProvideCapabilities(0x04, []lpptype.GNSSIDValue{lpptype.GNSSIDBDS, lpptype.GNSSIDNavIC})
+	if err != nil {
+		t.Fatalf("EncodeProvideCapabilities: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(encoded)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDBds) {
+		t.Error("expected BDS capability to be true")
+	}
+
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDNavic) {
+		t.Error("expected NavIC capability to be true")
 	}
 }
 
@@ -161,14 +210,39 @@ func TestEncodeDecodeProvideLocationInformation(t *testing.T) {
 	}
 }
 
-func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
-	encoded, err := EncodeProvideAssistanceData(0x05, nil)
+func TestEncodeAssistanceDataNotSupported(t *testing.T) {
+	encoded, err := EncodeAssistanceDataNotSupported(0x05, 0x07)
 	if err != nil {
-		t.Fatalf("EncodeProvideAssistanceData: %v", err)
+		t.Fatalf("EncodeAssistanceDataNotSupported: %v", err)
 	}
 
-	if len(encoded) == 0 {
-		t.Fatal("expected non-empty encoded data")
+	msg, err := Decoder(encoded)
+	if err != nil {
+		t.Fatalf("Decoder: %v", err)
+	}
+
+	if msg.TransactionID == nil || msg.TransactionID.TransactionNumber != 0x05 || msg.TransactionID.Initiator != lpptype.InitiatorTargetDevice {
+		t.Fatalf("transaction ID = %+v, want targetDevice/5", msg.TransactionID)
+	}
+
+	if !msg.EndTransaction {
+		t.Error("expected endTransaction")
+	}
+
+	r9 := msg.LPPMessageBody.C1.ProvideAssistanceData.CriticalExtensions.C1.ProvideAssistanceDataR9
+	causes := r9.AGNSSProvideAssistanceData.GNSSError.LocationServerErrorCauses
+
+	if causes == nil || causes.Cause != lpptype.GNSSLocationServerErrorCauseUndeliveredAssistanceDataIsNotSupportedByServer {
+		t.Errorf("GNSS error = %+v, want undeliveredAssistanceDataIsNotSupportedByServer", causes)
+	}
+}
+
+func TestEncodeErrorEchoesTransactionID(t *testing.T) {
+	received := &DecodedMessage{TransactionID: 9, TransactionIDPresent: true, Initiator: lpptype.InitiatorTargetDevice}
+
+	encoded, err := EncodeError(3, received, lpptype.ErrorCauseLPPMessageBodyError)
+	if err != nil {
+		t.Fatalf("EncodeError: %v", err)
 	}
 
 	decoded, err := DecodeLPPMessage(encoded)
@@ -176,18 +250,121 @@ func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
 		t.Fatalf("DecodeLPPMessage: %v", err)
 	}
 
-	if decoded.TransactionID != 0x05 {
-		t.Errorf("expected transaction ID 0x05, got 0x%02x", decoded.TransactionID)
+	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentError {
+		t.Fatalf("body kind = %d, want Error", decoded.BodyKind)
 	}
 
-	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideAssistanceData {
-		t.Errorf("expected body kind ProvideAssistanceData, got %d", decoded.BodyKind)
+	if !decoded.TransactionIDPresent || decoded.TransactionID != 9 || decoded.Initiator != lpptype.InitiatorTargetDevice {
+		t.Errorf("transaction ID = %d/%d present=%t, want targetDevice/9", decoded.Initiator, decoded.TransactionID, decoded.TransactionIDPresent)
+	}
+
+	if decoded.Error.Cause == nil || *decoded.Error.Cause != int64(lpptype.ErrorCauseLPPMessageBodyError) {
+		t.Errorf("cause = %v, want lppMessageBodyError", decoded.Error.Cause)
+	}
+}
+
+func TestEncodeErrorWithoutTransactionID(t *testing.T) {
+	encoded, err := EncodeError(3, nil, lpptype.ErrorCauseLPPMessageHeaderError)
+	if err != nil {
+		t.Fatalf("EncodeError: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(encoded)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if decoded.TransactionIDPresent {
+		t.Error("expected no transaction ID")
+	}
+}
+
+func TestDecodeAbortAndError(t *testing.T) {
+	cases := []struct {
+		name string
+		body *lpptype.LPPMessageBodyC1
+		kind int
+	}{
+		{
+			name: "abort",
+			body: &lpptype.LPPMessageBodyC1{Abort: &lpptype.Abort{CriticalExtensions: lpptype.AbortCriticalExtensions{
+				C1: &lpptype.AbortCriticalExtensionsC1{AbortR9: &lpptype.AbortR9IEs{
+					CommonIEsAbort: &lpptype.CommonIEsAbort{AbortCause: lpptype.AbortCauseTargetDeviceAbort},
+				}},
+			}}},
+			kind: lpptype.LPPMessageBodyC1PresentAbort,
+		},
+		{
+			name: "error",
+			body: &lpptype.LPPMessageBodyC1{Error: &lpptype.Error{ErrorR9: &lpptype.ErrorR9IEs{
+				CommonIEsError: &lpptype.CommonIEsError{ErrorCause: lpptype.ErrorCauseLPPSegmentationError},
+			}}},
+			kind: lpptype.LPPMessageBodyC1PresentError,
+		},
+		{
+			name: "request assistance data",
+			body: &lpptype.LPPMessageBodyC1{RequestAssistanceData: &lpptype.RequestAssistanceData{CriticalExtensions: lpptype.RequestAssistanceDataCriticalExtensions{
+				C1: &lpptype.RequestAssistanceDataCriticalExtensionsC1{RequestAssistanceDataR9: &lpptype.RequestAssistanceDataR9IEs{
+					AGNSSRequestAssistanceData: &lpptype.AGNSSRequestAssistanceData{},
+				}},
+			}}},
+			kind: lpptype.LPPMessageBodyC1PresentRequestAssistanceData,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			encoded, err := encodeLPPMessage(4, lpptype.InitiatorTargetDevice, &lpptype.LPPMessageBody{C1: tc.body}, true, 1)
+			if err != nil {
+				t.Fatalf("encode: %v", err)
+			}
+
+			decoded, err := DecodeLPPMessage(encoded)
+			if err != nil {
+				t.Fatalf("DecodeLPPMessage: %v", err)
+			}
+
+			if decoded.BodyKind != tc.kind {
+				t.Fatalf("body kind = %d, want %d", decoded.BodyKind, tc.kind)
+			}
+
+			payload, err := decoded.Payload()
+			if err != nil || payload == nil {
+				t.Fatalf("Payload() = %v, %v", payload, err)
+			}
+		})
+	}
+}
+
+func TestDecodeLPPHeaderOfUndecodableBody(t *testing.T) {
+	encoded, err := EncodeProvideCapabilities(0x06, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS})
+	if err != nil {
+		t.Fatalf("EncodeProvideCapabilities: %v", err)
+	}
+
+	truncated := encoded[:len(encoded)-2]
+
+	if _, err := DecodeLPPMessage(truncated); err == nil {
+		t.Fatal("expected the truncated body to fail decoding")
+	}
+
+	header, err := DecodeLPPHeader(truncated)
+	if err != nil {
+		t.Fatalf("DecodeLPPHeader: %v", err)
+	}
+
+	if !header.TransactionIDPresent || header.TransactionID != 0x06 || header.Initiator != lpptype.InitiatorTargetDevice {
+		t.Errorf("transaction ID = %d/%d present=%t", header.Initiator, header.TransactionID, header.TransactionIDPresent)
+	}
+
+	if header.BodyKind != lpptype.LPPMessageBodyC1PresentProvideCapabilities {
+		t.Errorf("body kind = %d, want ProvideCapabilities", header.BodyKind)
 	}
 }
 
 func TestParseLPPMessage(t *testing.T) {
 	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
-	encoded, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
+	encoded, err := EncodeProvideCapabilities(0x01, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -231,26 +408,6 @@ func TestBuildRequestCapabilities(t *testing.T) {
 
 	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentRequestCapabilities {
 		t.Errorf("expected RequestCapabilities, got %d", decoded.BodyKind)
-	}
-}
-
-func TestBuildAssistanceData(t *testing.T) {
-	data, err := BuildAssistanceData(0x02)
-	if err != nil {
-		t.Fatalf("BuildAssistanceData: %v", err)
-	}
-
-	if len(data) == 0 {
-		t.Fatal("expected non-empty encoded data")
-	}
-
-	decoded, err := DecodeLPPMessage(data)
-	if err != nil {
-		t.Fatalf("DecodeLPPMessage: %v", err)
-	}
-
-	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideAssistanceData {
-		t.Errorf("expected ProvideAssistanceData, got %d", decoded.BodyKind)
 	}
 }
 
@@ -300,7 +457,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 2: UE → LMF: ProvideCapabilities
-	ueProvCaps, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
+	ueProvCaps, err := EncodeProvideCapabilities(0x01, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("step 2 encode: %v", err)
 	}

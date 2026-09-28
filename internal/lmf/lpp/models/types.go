@@ -98,3 +98,18 @@ type ProvideLocationInformation struct {
 	LocationFailureCause     *int64
 	GNSSErrorCause           *int64
 }
+
+type RequestAssistanceData struct {
+	TransactionID byte
+	AGNSS         bool
+}
+
+type Abort struct {
+	TransactionID byte
+	Cause         *int64
+}
+
+type Error struct {
+	TransactionID byte
+	Cause         *int64
+}
