@@ -255,3 +255,13 @@ func TestMarkServingMatchesTheServingCellGlobalID(t *testing.T) {
 		}
 	}
 }
+
+func TestUEECIDTimeoutKeepsTheDefaultWithinTheNetworkBudget(t *testing.T) {
+	if got := ueECIDTimeout(""); got != ecidMeasurementTimeout {
+		t.Errorf("default mode UE timeout = %s, want %s", got, ecidMeasurementTimeout)
+	}
+
+	if got := ueECIDTimeout(models.PositioningModeUEAssisted); got != ecidUETimeout {
+		t.Errorf("ue_assisted UE timeout = %s, want %s", got, ecidUETimeout)
+	}
+}

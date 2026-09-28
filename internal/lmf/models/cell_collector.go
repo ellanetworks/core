@@ -45,7 +45,7 @@ func (c *CellCollector) Serving(rat RAT, ncgi *models.Ncgi, ecgi *models.Ecgi) *
 			continue
 		}
 
-		if (ncgi != nil && sameNcgi(cell.NCGI, ncgi)) || (ecgi != nil && sameEcgi(cell.ECGI, ecgi)) {
+		if (ncgi != nil && SameNcgi(cell.NCGI, ncgi)) || (ecgi != nil && SameEcgi(cell.ECGI, ecgi)) {
 			cell.Serving = true
 			return cell
 		}
@@ -103,11 +103,11 @@ func NewEcgi(plmn *models.PlmnID, cellID uint64) *models.Ecgi {
 	return &models.Ecgi{PlmnID: plmn, EutraCellID: fmt.Sprintf("%07x", cellID)}
 }
 
-func sameNcgi(a, b *models.Ncgi) bool {
+func SameNcgi(a, b *models.Ncgi) bool {
 	return a != nil && b != nil && a.NrCellID == b.NrCellID && samePlmn(a.PlmnID, b.PlmnID)
 }
 
-func sameEcgi(a, b *models.Ecgi) bool {
+func SameEcgi(a, b *models.Ecgi) bool {
 	return a != nil && b != nil && a.EutraCellID == b.EutraCellID && samePlmn(a.PlmnID, b.PlmnID)
 }
 

@@ -42,12 +42,10 @@ func decodeECIDLocationInformation(r9 *lpptype.ProvideLocationInformationR9IEs, 
 				eutraCell(cells, info.PrimaryCellMeasuredResults).Serving = true
 			}
 
-			primaryOnly := info.PrimaryCellMeasuredResults == nil && len(info.MeasuredResultsList.List) == 1
-
 			for i := range info.MeasuredResultsList.List {
 				e := &info.MeasuredResultsList.List[i]
 				cell := eutraCell(cells, e)
-				cell.Serving = cell.Serving || primaryOnly || e.UERxTxTimeDiff != nil
+				cell.Serving = cell.Serving || e.UERxTxTimeDiff != nil
 			}
 		}
 

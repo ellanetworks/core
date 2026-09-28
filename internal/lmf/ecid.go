@@ -93,7 +93,7 @@ func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc
 
 	if wantUE {
 		wg.Go(func() {
-			ue, ueErr = l.fetchUEECIDMeasurements(ctx, supi, sessionID, nr)
+			ue, ueErr = l.fetchUEECIDMeasurements(ctx, supi, sessionID, nr, ueECIDTimeout(mode))
 		})
 	}
 
@@ -179,23 +179,22 @@ func markServing(cells []models.CellMeasurement, ncgi *coremodels.Ncgi, ecgi *co
 	for i := range cells {
 		c := &cells[i]
 
-		switch {
-		case c.NCGI != nil && ncgi != nil:
-			c.Serving = c.Serving || (c.NCGI.NrCellID == ncgi.NrCellID && samePlmn(c.NCGI.PlmnID, ncgi.PlmnID))
-		case c.ECGI != nil && ecgi != nil:
-			c.Serving = c.Serving || (c.ECGI.EutraCellID == ecgi.EutraCellID && samePlmn(c.ECGI.PlmnID, ecgi.PlmnID))
-		}
+		c.Serving = c.Serving || models.SameNcgi(c.NCGI, ncgi) || models.SameEcgi(c.ECGI, ecgi)
 	}
 
 	return cells
 }
 
-func samePlmn(a, b *coremodels.PlmnID) bool {
-	return a != nil && b != nil && a.Equal(*b)
+func ueECIDTimeout(mode models.PositioningMode) time.Duration {
+	if mode == "" {
+		return ecidMeasurementTimeout
+	}
+
+	return ecidUETimeout
 }
 
-func (l *LMF) fetchUEECIDMeasurements(ctx context.Context, supi etsi.SUPI, sessionID string, nr bool) ([]models.CellMeasurement, error) {
-	ctx, cancel := context.WithTimeout(ctx, ecidUETimeout)
+func (l *LMF) fetchUEECIDMeasurements(ctx context.Context, supi etsi.SUPI, sessionID string, nr bool, timeout time.Duration) ([]models.CellMeasurement, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	session := lpp.NewSession(supi.String(), sessionID, lpp.MethodECID)

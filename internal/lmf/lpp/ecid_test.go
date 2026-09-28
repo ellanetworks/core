@@ -205,38 +205,54 @@ func TestProvideECIDEncodersRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDecodeECIDPrimaryCellReportedInTheList(t *testing.T) {
+func TestDecodeECIDUERxTxMarksThePrimaryCell(t *testing.T) {
 	rsrp, rxTx := int64(64), int64(8)
 
+	msg, err := EncodeProvideECIDLocationInformation(0, 0, &lpptype.ECIDSignalMeasurementInformation{
+		MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{
+			{PhysCellID: 1, ARFCNEUTRA: 1825, RSRPResult: &rsrp},
+			{PhysCellID: 448, ARFCNEUTRA: 1825, RSRPResult: &rsrp, UERxTxTimeDiff: &rxTx},
+		}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decoded, err := DecodeLPPMessage(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range decoded.ProvideLocationInformation.Measurements {
+		if want := *c.PCI == 448; c.Serving != want {
+			t.Errorf("PCI %d serving = %t, want %t", *c.PCI, c.Serving, want)
+		}
+	}
+}
+
+func TestECIDSessionPrimaryCellOnlyInTheList(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		info *lpptype.ECIDSignalMeasurementInformation
+		name    string
+		nr      bool
+		serving bool
 	}{
-		{"primary cell only", &lpptype.ECIDSignalMeasurementInformation{
-			MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{{PhysCellID: 448, ARFCNEUTRA: 1825, RSRPResult: &rsrp}}},
-		}},
-		{"UE Rx-Tx marks the primary cell", &lpptype.ECIDSignalMeasurementInformation{
-			MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{
-				{PhysCellID: 1, ARFCNEUTRA: 1825, RSRPResult: &rsrp},
-				{PhysCellID: 448, ARFCNEUTRA: 1825, RSRPResult: &rsrp, UERxTxTimeDiff: &rxTx},
-			}},
-		}},
+		{"E-UTRA access: the single cell is the primary cell", false, true},
+		{"NR access: the single LTE cell is a neighbour", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			msg, err := EncodeProvideECIDLocationInformation(0, 0, tc.info, nil)
-			if err != nil {
+			s, rec := newECIDSession(t, tc.nr)
+
+			if err := s.HandleResponse(&models.ProvideLocationCapabilities{ECID: &models.ECIDMeasurements{RSRP: true}}); err != nil {
 				t.Fatal(err)
 			}
 
-			decoded, err := DecodeLPPMessage(msg)
-			if err != nil {
+			cells := []lmfmodels.CellMeasurement{{Source: lmfmodels.MeasurementSourceUE, RAT: lmfmodels.RATEUTRA, PCI: integer(148)}}
+			if err := s.HandleResponse(&models.ProvideLocationInformation{Measurements: cells}); err != nil {
 				t.Fatal(err)
 			}
 
-			for _, c := range decoded.ProvideLocationInformation.Measurements {
-				if want := *c.PCI == 448; c.Serving != want {
-					t.Errorf("PCI %d serving = %t, want %t", *c.PCI, c.Serving, want)
-				}
+			if got := rec.completed.Measurements[0].Serving; got != tc.serving {
+				t.Fatalf("serving = %t, want %t", got, tc.serving)
 			}
 		})
 	}

@@ -316,11 +316,42 @@ func (s *Session) handleECIDMeasurements(msg *models.ProvideLocationInformation)
 			causeName(ecidErrorCauseNames, msg.NRECIDErrorCause))
 	}
 
+	if msg.ECIDErrorCause != nil || msg.NRECIDErrorCause != nil {
+		s.log.Info("UE provided partial E-CID measurements",
+			zap.String("ecid_error_cause", causeName(ecidErrorCauseNames, msg.ECIDErrorCause)),
+			zap.String("nr_ecid_error_cause", causeName(ecidErrorCauseNames, msg.NRECIDErrorCause)),
+		)
+	}
+
+	if !s.nrAccess {
+		markEUTRAPrimaryCell(msg.Measurements)
+	}
+
 	s.log.Info("received E-CID measurements", zap.Int("cells", len(msg.Measurements)))
 
 	s.complete(&lmmodels.LocationResult{SUPI: s.supi, Measurements: msg.Measurements})
 
 	return nil
+}
+
+func markEUTRAPrimaryCell(cells []lmmodels.CellMeasurement) {
+	var eutra []int
+
+	for i, c := range cells {
+		if c.RAT != lmmodels.RATEUTRA {
+			continue
+		}
+
+		if c.Serving {
+			return
+		}
+
+		eutra = append(eutra, i)
+	}
+
+	if len(eutra) == 1 {
+		cells[eutra[0]].Serving = true
+	}
 }
 
 func (s *Session) complete(result *lmmodels.LocationResult) {

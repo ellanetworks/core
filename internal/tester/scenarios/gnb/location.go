@@ -239,5 +239,11 @@ func validateNRECID(result *common.LocationData) error {
 		return fmt.Errorf("expected gNB and UE measurements, got %+v", result.RadioMeasurements)
 	}
 
+	for _, m := range result.RadioMeasurements {
+		if m.Serving && m.RAT != "NR" {
+			return fmt.Errorf("a %s cell is marked serving on NR access: %+v", m.RAT, result.RadioMeasurements)
+		}
+	}
+
 	return nil
 }

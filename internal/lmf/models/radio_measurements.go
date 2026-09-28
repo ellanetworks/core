@@ -86,25 +86,20 @@ func EUTRARSRPExtendedDBm(v int64) float64 {
 }
 
 func EUTRARSRQExtendedDB(v int64) float64 {
-	if v < 0 {
+	switch {
+	case v < 0:
 		return -19.5 + 0.5*float64(v)
+	case v <= 34:
+		return EUTRARSRQDB(v)
+	default:
+		return -20.5 + 0.5*float64(v)
 	}
-
-	return -20.5 + 0.5*float64(v)
 }
 
 func NRRSRPDBm(v int64) float64 {
-	if v <= 0 {
-		return -156
-	}
-
 	return float64(v - 157)
 }
 
 func NRRSRQDB(v int64) float64 {
-	if v <= 0 {
-		return -43
-	}
-
 	return -43 + 0.5*float64(v-1)
 }
