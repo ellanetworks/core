@@ -68,7 +68,11 @@ func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 
 	if last {
 		m.DeregisterEmptyUE(ctx, ue)
+
+		return
 	}
+
+	m.SyncUEAMBR(ctx, ue)
 }
 
 func (m *MME) DeregisterEmptyUE(ctx context.Context, ue *UeContext) {

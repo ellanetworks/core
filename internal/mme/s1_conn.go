@@ -77,6 +77,7 @@ type UeConn struct {
 	releaseGuard              guard.Guard
 	icsGuard                  guard.Guard
 	releasing                 bool
+	ranUEAMBR                 atomic.Pointer[models.Ambr]
 }
 
 type ESMRequest struct {

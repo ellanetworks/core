@@ -848,6 +848,8 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
+	ueConn.holdUEAMBR(ambrUp, ambrDown)
+
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
@@ -1007,6 +1009,10 @@ func (ueConn *UeConn) SendInitialContextSetup(
 	)
 	if err != nil {
 		return err
+	}
+
+	if len(sessions) > 0 {
+		ueConn.holdUEAMBR(ambrUp, ambrDown)
 	}
 
 	if err := amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt); err != nil {
@@ -1208,6 +1214,8 @@ func (ueConn *UeConn) SendHandoverRequest(ctx context.Context, opts HandoverRequ
 	if err != nil {
 		return err
 	}
+
+	ueConn.holdUEAMBR(opts.UplinkAmbr, opts.DownlinkAmbr)
 
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureHandoverRequest, pkt)
 }

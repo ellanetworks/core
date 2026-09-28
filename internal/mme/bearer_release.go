@@ -74,7 +74,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 
 	if releaseOnly {
 		write = func(wire []byte) error {
-			m.sendERABRelease(ctx, ueConn, p, wire)
+			m.sendERABRelease(ctx, ue, ueConn, p, wire)
 
 			return nil
 		}
@@ -122,7 +122,7 @@ func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *Pdn
 	}
 
 	if ueConn != nil && ue.BearerReleaseOnly(p) {
-		m.sendERABRelease(ctx, ueConn, p, nil)
+		m.sendERABRelease(ctx, ue, ueConn, p, nil)
 	}
 
 	m.DeactivatePDN(ctx, ue, p)
@@ -137,13 +137,17 @@ func (m *MME) DisconnectBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,
 // carrying the DEACTIVATE EPS BEARER CONTEXT REQUEST in the NAS-PDU so the eNB
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).
-func (m *MME) sendERABRelease(ctx context.Context, ueConn *UeConn, p *PdnConnection, naspdu []byte) {
+func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, ueConn *UeConn, p *PdnConnection, naspdu []byte) {
 	cmd := &s1ap.ERABReleaseCommand{
 		ERABToBeReleased: []s1ap.ERABItem{{
 			ERABID: s1ap.ERABID(p.Ebi),
 			Cause:  CauseNASNormalRelease,
 		}},
 		NASPDU: s1ap.NASPDU(naspdu),
+	}
+
+	if ul, dl := ue.AmbrRates(); !ul.IsZero() || !dl.IsZero() {
+		cmd.UEAggregateMaximumBitRate = new(S1APUEAMBR(ue.RANUEAMBRWithout(p.Ebi)))
 	}
 
 	if err := ueConn.SendERABRelease(ctx, cmd); err != nil {

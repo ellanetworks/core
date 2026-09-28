@@ -131,19 +131,18 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 		return none, err
 	}
 
-	targetMMEID, outcome, ok := m.prepareRelocation(ue, target.Conn, candidates)
+	ueAMBR := S1APUEAMBR(ue.RANUEAMBR())
+
+	targetMMEID, outcome, ok := m.prepareRelocation(ue, target.Conn, candidates, ueAMBR)
 	if !ok {
 		return none, fmt.Errorf("mme: could not prepare a handover to eNB %s", targetID)
 	}
 
 	hoReq := &s1ap.HandoverRequest{
-		MMEUES1APID:  targetMMEID,
-		HandoverType: s1ap.HandoverTypeFiveGSToEPS,
-		Cause:        s1ap.Ptr(req.Cause),
-		UEAMBR: s1ap.UEAggregateMaximumBitRate{
-			DL: s1ap.BitRate(req.UEAMBRDownlink.Bps()),
-			UL: s1ap.BitRate(req.UEAMBRUplink.Bps()),
-		},
+		MMEUES1APID:             targetMMEID,
+		HandoverType:            s1ap.HandoverTypeFiveGSToEPS,
+		Cause:                   s1ap.Ptr(req.Cause),
+		UEAMBR:                  ueAMBR,
 		ERABToBeSetup:           bearers,
 		SourceToTarget:          s1ap.TransparentContainer(req.SourceToTarget),
 		UESecurityCapabilities:  S1apSecurityCapabilities(ue.UeNetCap()),

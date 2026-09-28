@@ -30,6 +30,7 @@ const (
 	NGAPProcedurePDUSessionResourceReleaseResponse NGAPProcedure = "PDUSessionResourceReleaseResponse"
 	NGAPProcedureUEContextReleaseComplete          NGAPProcedure = "UEContextReleaseComplete"
 	NGAPProcedureUEContextReleaseRequest           NGAPProcedure = "UEContextReleaseRequest"
+	NGAPProcedureUEContextModificationResponse     NGAPProcedure = "UEContextModificationResponse"
 	NGAPProcedurePathSwitchRequest                 NGAPProcedure = "PathSwitchRequest"
 	NGAPProcedureHandoverRequired                  NGAPProcedure = "HandoverRequired"
 	NGAPProcedureHandoverRequestAcknowledge        NGAPProcedure = "HandoverRequestAcknowledge"
@@ -52,7 +53,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedureInitialContextSetupResponse, NGAPProcedurePDUSessionResourceSetupResponse,
 		NGAPProcedurePDUSessionResourceModifyResponse, NGAPProcedurePDUSessionResourceReleaseResponse,
 		NGAPProcedureUEContextReleaseComplete, NGAPProcedureUEContextReleaseRequest,
-		NGAPProcedurePathSwitchRequest,
+		NGAPProcedureUEContextModificationResponse, NGAPProcedurePathSwitchRequest,
 		NGAPProcedureHandoverRequired, NGAPProcedureHandoverRequestAcknowledge,
 		NGAPProcedureHandoverNotify, NGAPProcedureHandoverFailure,
 		NGAPProcedureHandoverCancel, NGAPProcedureUplinkRANStatusTransfer,

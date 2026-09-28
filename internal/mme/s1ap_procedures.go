@@ -23,6 +23,9 @@ const (
 	S1APProcedureUEContextReleaseRequest     S1APProcedure = "UEContextReleaseRequest"
 	S1APProcedureUEContextReleaseCommand     S1APProcedure = "UEContextReleaseCommand"
 	S1APProcedureUEContextReleaseComplete    S1APProcedure = "UEContextReleaseComplete"
+	S1APProcedureUEContextModRequest         S1APProcedure = "UEContextModificationRequest"
+	S1APProcedureUEContextModResponse        S1APProcedure = "UEContextModificationResponse"
+	S1APProcedureUEContextModFailure         S1APProcedure = "UEContextModificationFailure"
 	S1APProcedureUECapabilityInfoIndication  S1APProcedure = "UECapabilityInfoIndication"
 	S1APProcedureErrorIndication             S1APProcedure = "ErrorIndication"
 	S1APProcedureReset                       S1APProcedure = "Reset"
@@ -100,6 +103,8 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureUEContextReleaseRequest
 	case s1ap.ProcUEContextRelease:
 		return S1APProcedureUEContextReleaseCommand
+	case s1ap.ProcUEContextModification:
+		return S1APProcedureUEContextModRequest
 	case s1ap.ProcUECapabilityInfoIndication:
 		return S1APProcedureUECapabilityInfoIndication
 	case s1ap.ProcErrorIndication:
@@ -155,6 +160,8 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureInitialContextSetupResponse
 	case s1ap.ProcUEContextRelease:
 		return S1APProcedureUEContextReleaseComplete
+	case s1ap.ProcUEContextModification:
+		return S1APProcedureUEContextModResponse
 	case s1ap.ProcReset:
 		return S1APProcedureResetAcknowledge
 	case s1ap.ProcENBConfigurationUpdate:
@@ -188,6 +195,8 @@ func s1apUnsuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureS1SetupFailure
 	case s1ap.ProcInitialContextSetup:
 		return S1APProcedureInitialContextSetupFailure
+	case s1ap.ProcUEContextModification:
+		return S1APProcedureUEContextModFailure
 	case s1ap.ProcENBConfigurationUpdate:
 		return S1APProcedureENBConfigUpdateFailure
 	case s1ap.ProcMMEConfigurationUpdate:

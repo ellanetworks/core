@@ -94,7 +94,9 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		return
 	}
 
-	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates, direct)
+	ueAMBR := handoverUEAMBR(ue)
+
+	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates, direct, ueAMBR)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
@@ -111,7 +113,7 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		MMEUES1APID:            targetMMEID,
 		HandoverType:           s1ap.HandoverTypeIntraLTE,
 		Cause:                  cause,
-		UEAMBR:                 handoverUEAMBR(ue),
+		UEAMBR:                 ueAMBR,
 		ERABToBeSetup:          bearers,
 		SourceToTarget:         req.SourceToTarget,
 		UESecurityCapabilities: handoverSecurityCapabilities(ue),
@@ -140,12 +142,7 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 }
 
 func handoverUEAMBR(ue *mme.UeContext) s1ap.UEAggregateMaximumBitRate {
-	ambr := ue.RANUEAMBR()
-
-	return s1ap.UEAggregateMaximumBitRate{
-		DL: s1ap.BitRate(ambr.Downlink.Bps()),
-		UL: s1ap.BitRate(ambr.Uplink.Bps()),
-	}
+	return mme.S1APUEAMBR(ue.RANUEAMBR())
 }
 
 func handoverSecurityCapabilities(ue *mme.UeContext) s1ap.UESecurityCapabilities {

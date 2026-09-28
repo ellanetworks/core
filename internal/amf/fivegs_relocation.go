@@ -131,7 +131,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
-	ue.SetAmbr(&models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink})
+	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllowedNssai(snssaiList)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 	ue.AttestS1Mode()
@@ -178,6 +178,8 @@ func (a *AMF) relocateFromEPS(
 		return none, fmt.Errorf("amf: encode the S1 mode to N1 mode NAS transparent container: %w", err)
 	}
 
+	ueAMBRUplink, ueAMBRDownlink, _ := ue.AmbrRates()
+
 	targetUe, outcome, ok := a.prepareRelocationFromEPS(ctx, ue, radio, candidates)
 	if !ok {
 		return none, fmt.Errorf("amf: could not prepare a handover from EPS for %s", ue.Supi())
@@ -194,8 +196,8 @@ func (a *AMF) relocateFromEPS(
 
 	err = targetUe.SendHandoverRequest(ctx, HandoverRequestOpts{
 		HandoverType:         ngap.HandoverTypeEPSToFiveGS,
-		UplinkAmbr:           req.UEAMBRUplink,
-		DownlinkAmbr:         req.UEAMBRDownlink,
+		UplinkAmbr:           ueAMBRUplink,
+		DownlinkAmbr:         ueAMBRDownlink,
 		UESecurityCapability: ue.UESecCap(),
 		NCC:                  0,
 		NH:                   mapped.Context.TemporaryKgNB[:],

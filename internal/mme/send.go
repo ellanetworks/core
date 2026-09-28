@@ -170,6 +170,8 @@ func (c *UeConn) SendInitialContextSetup(ctx context.Context, req *s1ap.InitialC
 		return fmt.Errorf("marshal Initial Context Setup Request: %w", err)
 	}
 
+	c.holdUEAMBR(&req.UEAggregateMaximumBitRate)
+
 	_ = c.SendS1AP(ctx, S1APProcedureInitialContextSetupRequest, b)
 
 	return nil
@@ -187,6 +189,8 @@ func (c *UeConn) SendERABSetup(ctx context.Context, req *s1ap.ERABSetupRequest) 
 	if err != nil {
 		return fmt.Errorf("marshal E-RAB Setup Request: %w", err)
 	}
+
+	c.holdUEAMBR(req.UEAggregateMaximumBitRate)
 
 	_ = c.SendS1AP(ctx, S1APProcedureERABSetupRequest, b)
 
@@ -206,6 +210,8 @@ func (c *UeConn) SendERABModify(ctx context.Context, req *s1ap.ERABModifyRequest
 		return fmt.Errorf("marshal E-RAB Modify Request: %w", err)
 	}
 
+	c.holdUEAMBR(req.UEAggregateMaximumBitRate)
+
 	_ = c.SendS1AP(ctx, S1APProcedureERABModifyRequest, b)
 
 	return nil
@@ -223,6 +229,8 @@ func (c *UeConn) SendERABRelease(ctx context.Context, cmd *s1ap.ERABReleaseComma
 	if err != nil {
 		return fmt.Errorf("marshal E-RAB Release Command: %w", err)
 	}
+
+	c.holdUEAMBR(cmd.UEAggregateMaximumBitRate)
 
 	_ = c.SendS1AP(ctx, S1APProcedureERABReleaseCommand, b)
 
@@ -243,6 +251,8 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 	if err != nil {
 		return fmt.Errorf("marshal Path Switch Request Acknowledge: %w", err)
 	}
+
+	c.holdUEAMBR(ack.UEAggregateMaximumBitRate)
 
 	_ = c.SendS1AP(ctx, S1APProcedurePathSwitchRequestAck, b)
 
