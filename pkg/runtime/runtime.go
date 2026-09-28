@@ -50,6 +50,7 @@ import (
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/s1ap"
@@ -533,6 +534,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance
+	ueRegistrations := ueregistration.New(dbInstance, raftID, logger.EllaLog)
+	amfInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, amfInstance)
+	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
@@ -558,6 +562,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return wakeup
 	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
+
+	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
+
+	wg.Go(func() {
+		defer stopRegistrationsWakeup()
+
+		ueRegistrations.Run(ctx, registrationsWakeup)
+	})
 
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---

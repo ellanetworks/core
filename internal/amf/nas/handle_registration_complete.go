@@ -59,7 +59,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+		ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
 
 		ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}

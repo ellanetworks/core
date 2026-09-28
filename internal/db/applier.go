@@ -1555,6 +1555,10 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 		return nil, ErrNotFound
 	}
 
+	if err := db.purgeUERegistrationsByNode(ctx, string(p.Value)); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 

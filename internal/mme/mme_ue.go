@@ -134,6 +134,8 @@ type UeContext struct {
 
 	lastSeen atomic.Int64
 
+	registrationVersion atomic.Int64
+
 	session  epsSessionManager
 	Pdns     map[uint8]*PdnConnection
 	Ambr     *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
@@ -779,6 +781,7 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
 		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
+		m.purgeRegistration(supi)
 	}
 }
 

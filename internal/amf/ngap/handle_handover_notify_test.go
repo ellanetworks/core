@@ -138,8 +138,8 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		t.Errorf("cause = %v, want successful-handover", cmd.Cause)
 	}
 
-	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
-		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover, got %d", sourceUe.ReleaseAction)
+	if sourceUe.ReleaseAction() != amf.UeContextReleaseHandover {
+		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover, got %d", sourceUe.ReleaseAction())
 	}
 
 	if amfUe.Conn() != targetUe {
@@ -298,8 +298,8 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 		t.Fatalf("expected 1 UEContextReleaseCommand to source RAN even when SMF fails, got %d", len(sourceNGAPSender.SentUEContextReleaseCommands))
 	}
 
-	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
-		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover even when SMF fails, got %d", sourceUe.ReleaseAction)
+	if sourceUe.ReleaseAction() != amf.UeContextReleaseHandover {
+		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover even when SMF fails, got %d", sourceUe.ReleaseAction())
 	}
 
 	if amfUe.Conn() != targetUe {

@@ -154,6 +154,7 @@ type AMF struct {
 	relocationIDs atomic.Uint64
 
 	DBInstance               DBer
+	Registrations            Registrar
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext
 	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE; the full GUTI is rebuilt from the constant GUAMI
@@ -300,6 +301,20 @@ func (amf *AMF) claimRelease(ueConn *UeConn) bool {
 	return true
 }
 
+func (amf *AMF) claimReleaseWithAction(ueConn *UeConn, action RelAction) bool {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	if ueConn.releasing {
+		return false
+	}
+
+	ueConn.releasing = true
+	ueConn.SetReleaseAction(action)
+
+	return true
+}
+
 func (amf *AMF) ReleaseClaimed(ueConn *UeConn) bool {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -342,6 +357,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	// context is torn down, and deleting unconditionally would drop the live registration.
 	if ue.supi.IsValid() && amf.UEs[ue.supi] == ue {
 		delete(amf.UEs, ue.supi)
+		amf.purgeRegistration(ue.supi)
 	}
 
 	amf.mu.Unlock()

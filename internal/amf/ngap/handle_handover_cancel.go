@@ -58,7 +58,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	target, aborted := amfInstance.CancelHandover(amfUe)
 	if aborted && target != nil {
-		target.ReleaseAction = amf.UeContextReleaseHandover
+		target.SetReleaseAction(amf.UeContextReleaseHandover)
 
 		target.SendUEContextReleaseCommand(ctx, cause)
 	}

@@ -160,9 +160,14 @@ var (
 // Cluster members. cluster_members table introduced in v9.
 var (
 	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
-	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9))
+	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations))
 	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
 	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
+)
+
+var (
+	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;

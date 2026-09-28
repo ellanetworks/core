@@ -74,7 +74,7 @@ type UeConn struct {
 	// amf is the owning registry; connection-lifecycle methods reach amf.mu through it.
 	// Always set at creation.
 	amf              *AMF
-	ReleaseAction    RelAction
+	releaseAction    atomic.Int64
 	UeContextRequest bool
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
@@ -650,7 +650,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 	if amfUe != nil && amfUe.State() != Registered {
 		ueConn.Log(ctx).Info("Ue Context in Non GMM-Registered")
 
-		ueConn.ReleaseAction = UeContextReleaseUeContext
+		ueConn.SetReleaseAction(UeContextReleaseUeContext)
 
 		ueConn.SendUEContextReleaseCommand(ctx, cause)
 
@@ -669,7 +669,7 @@ func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause nga
 		a.deactivateReleasedSessions(ctx, ueConn, amfUe, reported)
 	}
 
-	ueConn.ReleaseAction = UeContextN2NormalRelease
+	ueConn.SetReleaseAction(UeContextN2NormalRelease)
 
 	ueConn.SendUEContextReleaseCommand(ctx, cause)
 }
@@ -712,6 +712,14 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	a.ReleaseUeConnServedBy(ctx, ueConn, nil)
 }
 
+func (ueConn *UeConn) SetReleaseAction(action RelAction) {
+	ueConn.releaseAction.Store(int64(action))
+}
+
+func (ueConn *UeConn) ReleaseAction() RelAction {
+	return RelAction(ueConn.releaseAction.Load())
+}
+
 func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served []uint8) (wentIdle bool) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
@@ -737,7 +745,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 		a.StartMobileReachable(amfUe)
 	}
 
-	switch ueConn.ReleaseAction {
+	switch ueConn.ReleaseAction() {
 	case UeContextN2NormalRelease:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
@@ -783,7 +791,7 @@ func (a *AMF) ReleaseUeConnServedBy(ctx context.Context, ueConn *UeConn, served 
 			ueConn.Log(ctx).Error("failed to remove RAN UE connection", zap.Error(err))
 		}
 	default:
-		ueConn.Log(ctx).Error("Invalid Release Action", zap.Any("release_action", ueConn.ReleaseAction))
+		ueConn.Log(ctx).Error("Invalid Release Action", zap.Any("release_action", ueConn.ReleaseAction()))
 	}
 
 	return false
@@ -821,7 +829,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 		a.UnbindHandoverTarget(ctx, ue)
 
 		if target != nil {
-			target.ReleaseAction = UeContextReleaseHandover
+			target.SetReleaseAction(UeContextReleaseHandover)
 
 			target.SendUEContextReleaseCommand(ctx,
 				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})

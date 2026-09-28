@@ -63,6 +63,7 @@ const (
 	CauseRadioNetworkUnknownPDUSessionID              = 26 // unknown-PDU-session-ID
 	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances
 	CauseRadioNetworkSliceNotSupported                = 39 // slice-not-supported
+	CauseRadioNetworkReleaseDueToCNDetectedMobility   = 44 // release-due-to-cn-detected-mobility
 
 	// encryption-and-or-integrity-protection-algorithms-not-supported
 	CauseRadioNetworkEncryptionAlgorithmsNotSupported = 30

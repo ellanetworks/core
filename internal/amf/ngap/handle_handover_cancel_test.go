@@ -100,8 +100,8 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 		t.Fatalf("expected 1 UEContextReleaseCommand on target, got %d", len(targetSender.SentUEContextReleaseCommands))
 	}
 
-	if targetUe.ReleaseAction != amf.UeContextReleaseHandover {
-		t.Errorf("expected targetUe.ReleaseAction = UeContextReleaseHandover, got %d", targetUe.ReleaseAction)
+	if targetUe.ReleaseAction() != amf.UeContextReleaseHandover {
+		t.Errorf("expected targetUe.ReleaseAction = UeContextReleaseHandover, got %d", targetUe.ReleaseAction())
 	}
 
 	if len(sourceSender.SentHandoverCancelAcknowledges) != 1 {

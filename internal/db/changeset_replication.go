@@ -62,6 +62,7 @@ var replicatedChangesetTables = []string{
 	ClusterJoinHMACTableName,
 	DailyUsageTableName,
 	CellPositionsTableName,
+	UERegistrationsTableName,
 	"schema_version",
 }
 

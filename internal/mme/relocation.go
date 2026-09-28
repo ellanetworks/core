@@ -268,6 +268,11 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 			logger.SUPI(supi.String()), zap.Error(err))
 	}
 
+	if err := m.RegisterUE(ctx, ue); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to register a UE that arrived from 5GS",
+			logger.SUPI(supi.String()), zap.Error(err))
+	}
+
 	m.endRelocation(supi, ue)
 
 	logger.From(ctx, logger.MmeLog).Info("handover from 5GS complete", logger.SUPI(supi.String()))

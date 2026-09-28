@@ -46,7 +46,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nasreply.Handled()
 	}
 
-	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
+	ueConn.SetReleaseAction(amf.UeContextReleaseUeContext)
 
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASDeregister})
 

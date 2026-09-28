@@ -585,7 +585,7 @@ func rejectService(ctx context.Context, ueConn *amf.UeConn, cause fgs.GMMCause) 
 		return
 	}
 
-	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+	ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 }
 

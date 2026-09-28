@@ -38,7 +38,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.UeContext, msg *fgs.S
 		return nasreply.Handled()
 	}
 
-	ueConn.ReleaseAction = amf.UeContextReleaseUeContext
+	ueConn.SetReleaseAction(amf.UeContextReleaseUeContext)
 
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 

@@ -29,7 +29,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 		t.Fatalf("SetHandoverForTest: %v", err)
 	}
 
-	targetUeConn.ReleaseAction = amf.UeContextReleaseHandover
+	targetUeConn.SetReleaseAction(amf.UeContextReleaseHandover)
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
