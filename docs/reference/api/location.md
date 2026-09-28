@@ -17,20 +17,13 @@ This path requests a subscriber's current location. `immediate` returns an estim
 | ------ | ------------------- |
 | POST   | `/api/beta/location` |
 
-### Query Parameters
-
-| Name      | In    | Type | Default | Allowed        | Description                                                        |
-| --------- | ----- | ---- | ------- | -------------- | ------------------------------------------------------------------ |
-| `verbose` | query | bool | `false` | `true`,`false` | Attach the `supplementaryMeasurements` block (raw E-CID measurements). |
-
 ### Parameters
 
 - `request_type` (string): `immediate`, `periodic`, `triggered`, or `cancel`.
 - `supi` (string): Subscriber identity. Required unless `request_type` is `cancel`.
 - `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
+- `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
 - `session_id` (string): Session to terminate. Required when `request_type` is `cancel`.
-- `qos_response_time_ms` (integer, optional): Requested response-time budget, in milliseconds.
-- `qos_horizontal_accuracy_m` (integer, optional): Requested horizontal accuracy, in metres.
 
 ### Responses
 
@@ -67,6 +60,75 @@ This path requests a subscriber's current location. `immediate` returns an estim
             },
             "nrCellId": "000000010"
         }
+    }
+}
+```
+
+### Sample Response (`immediate`, `ecid`)
+
+```json
+{
+    "result": {
+        "locationEstimate": {
+            "shape": "POINT_UNCERTAINTY_CIRCLE",
+            "point": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            },
+            "uncertainty": 150
+        },
+        "positioningDataList": [
+            {
+                "method": "CELLID",
+                "mode": "CONVENTIONAL",
+                "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
+            },
+            {
+                "method": "NR_ECID",
+                "mode": "CONVENTIONAL",
+                "usage": "UNSUCCESS"
+            },
+            {
+                "method": "NR_ECID",
+                "mode": "UE_ASSISTED",
+                "usage": "SUCCESS_RESULTS_NOT_USED"
+            }
+        ],
+        "ncgi": {
+            "plmnId": {
+                "mcc": "001",
+                "mnc": "01"
+            },
+            "nrCellId": "000000010"
+        },
+        "radioMeasurements": [
+            {
+                "source": "UE",
+                "rat": "NR",
+                "serving": true,
+                "pci": 180,
+                "arfcn": 662592,
+                "arfcnType": "SSB",
+                "ssRsrp": -84,
+                "ssRsrq": -11,
+                "ssbBeams": [
+                    {
+                        "index": 0,
+                        "rsrp": -84,
+                        "rsrq": -11
+                    }
+                ]
+            },
+            {
+                "source": "UE",
+                "rat": "EUTRA",
+                "serving": false,
+                "pci": 148,
+                "arfcn": 9310,
+                "rsrp": -98,
+                "rsrq": -7.5
+            }
+        ]
     }
 }
 ```
@@ -148,8 +210,6 @@ This path returns a positioning session, including its most recent location esti
 | `session_type`              | integer | `0` immediate, `1` periodic, `2` triggered.           |
 | `method`                    | string  | Positioning method.                                   |
 | `status`                    | integer | `0` active, `1` completed, `2` failed, `3` cancelled. |
-| `qos_response_time_ms`      | integer | Requested response-time budget, in milliseconds.      |
-| `qos_horizontal_accuracy_m` | integer | Requested horizontal accuracy, in metres.             |
 | `last_result`               | object  | Most recent location estimate.                        |
 | `created_at`                | integer | Creation time, Unix seconds.                          |
 | `updated_at`                | integer | Last update time, Unix seconds.                       |
@@ -164,8 +224,6 @@ This path returns a positioning session, including its most recent location esti
         "session_type": 1,
         "method": "ecid",
         "status": 1,
-        "qos_response_time_ms": 5000,
-        "qos_horizontal_accuracy_m": 50,
         "last_result": {
             "locationEstimate": {
                 "shape": "POINT_UNCERTAINTY_CIRCLE",
@@ -178,7 +236,7 @@ This path returns a positioning session, including its most recent location esti
             "positioningDataList": [
                 {
                     "method": "ECID",
-                    "mode": "UE_ASSISTED",
+                    "mode": "CONVENTIONAL",
                     "usage": "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"
                 }
             ]

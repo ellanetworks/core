@@ -56,11 +56,11 @@ func TestRadioMeasurementsCopy(t *testing.T) {
 		t.Fatal("SetRadioMeasurements(nil) should be a no-op")
 	}
 
-	rsrp := int32(-8000)
-	ue.SetRadioMeasurements(&lmfmodels.RadioMeasurements{RSRP: &rsrp})
+	rsrp := -80.0
+	ue.SetRadioMeasurements(&lmfmodels.RadioMeasurements{Cells: []lmfmodels.CellMeasurement{{RSRP: &rsrp}}})
 
 	got := ue.GetRadioMeasurements()
-	if got == nil || got.RSRP == nil || *got.RSRP != -8000 {
+	if got == nil || len(got.Cells) != 1 || *got.Cells[0].RSRP != -80 {
 		t.Fatalf("measurements = %+v", got)
 	}
 

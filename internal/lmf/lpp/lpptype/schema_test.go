@@ -22,16 +22,17 @@ import (
 )
 
 type asnType struct {
-	Ref   string    `json:"ref"`
-	Kind  string    `json:"kind"`
-	Ext   any       `json:"ext"`
-	Comps []asnComp `json:"comps"`
-	Alts  []asnComp `json:"alts"`
-	Elem  *asnType  `json:"elem"`
-	Range []int64   `json:"range"`
-	Size  []int64   `json:"size"`
-	Root  []string  `json:"root"`
-	Names []string  `json:"names"`
+	Ref       string        `json:"ref"`
+	Kind      string        `json:"kind"`
+	Ext       any           `json:"ext"`
+	Additions []asnAddition `json:"additions"`
+	Comps     []asnComp     `json:"comps"`
+	Alts      []asnComp     `json:"alts"`
+	Elem      *asnType      `json:"elem"`
+	Range     []int64       `json:"range"`
+	Size      []int64       `json:"size"`
+	Root      []string      `json:"root"`
+	Names     []string      `json:"names"`
 }
 
 type asnComp struct {
@@ -39,6 +40,16 @@ type asnComp struct {
 	Optional bool    `json:"optional"`
 	Default  bool    `json:"default"`
 	Type     asnType `json:"type"`
+}
+
+type asnAddition struct {
+	Group bool         `json:"group"`
+	Comps []asnExtComp `json:"comps"`
+}
+
+type asnExtComp struct {
+	Name string   `json:"name"`
+	Type *asnType `json:"type"`
 }
 
 type asnSchema struct {
@@ -161,6 +172,25 @@ type goField struct {
 	isPtr bool
 }
 
+var unmodelledType = reflect.TypeFor[UnmodelledExtension]()
+
+func isExtensionAddition(sf reflect.StructField) bool {
+	return slices.Contains(strings.Split(sf.Tag.Get("per"), ","), "ext")
+}
+
+func extensionFields(t reflect.Type) []goField {
+	var fields []goField
+
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		if isExtensionAddition(sf) {
+			fields = append(fields, goField{name: sf.Name, typ: sf.Type.Elem(), isPtr: true})
+		}
+	}
+
+	return fields
+}
+
 func structFields(t reflect.Type) ([]goField, bool) {
 	var (
 		fields     []goField
@@ -173,6 +203,10 @@ func structFields(t reflect.Type) ([]goField, bool) {
 
 		if raw == "extseq" {
 			extensible = true
+			continue
+		}
+
+		if isExtensionAddition(sf) {
 			continue
 		}
 
@@ -279,6 +313,70 @@ func (c *schemaChecker) checkSequence(path string, gt reflect.Type, a asnType) {
 
 		c.check(fpath, f.typ, f.tag, comp.Type)
 	}
+
+	c.checkAdditions(path, gt, a)
+}
+
+func (c *schemaChecker) checkAdditions(path string, gt reflect.Type, a asnType) {
+	fields := extensionFields(gt)
+
+	if len(fields) > len(a.Additions) {
+		c.errorf(path, "%s has %d extension additions, want at most %d", gt.Name(), len(fields), len(a.Additions))
+		return
+	}
+
+	for i, f := range fields {
+		addition := a.Additions[i]
+		apath := fmt.Sprintf("%s.<addition %d>", path, i)
+
+		if f.typ == unmodelledType {
+			continue
+		}
+
+		if !addition.Group {
+			c.checkExtComp(apath+"."+addition.Comps[0].Name, f.typ, goTag{choice: -1}, addition.Comps[0])
+			continue
+		}
+
+		members, extensible := structFields(f.typ)
+		if extensible || f.typ.Kind() != reflect.Struct {
+			c.errorf(apath, "extension addition group modelled as %s", f.typ)
+			continue
+		}
+
+		if len(members) != len(addition.Comps) {
+			c.errorf(apath, "%s has %d fields, want %d group components", f.typ.Name(), len(members), len(addition.Comps))
+			continue
+		}
+
+		for j, comp := range addition.Comps {
+			m := members[j]
+			mpath := apath + "." + comp.Name
+
+			if normalizeName(m.name) != normalizeName(comp.Name) {
+				c.errorf(mpath, "field %d is %s.%s", j, f.typ.Name(), m.name)
+			}
+
+			if !m.isPtr && !m.tag.optional {
+				c.errorf(mpath, "extension addition group component is not optional")
+			}
+
+			if m.typ == unmodelledType {
+				continue
+			}
+
+			c.checkExtComp(mpath, m.typ, m.tag, comp)
+		}
+	}
+}
+
+func (c *schemaChecker) checkExtComp(path string, gt reflect.Type, tag goTag, comp asnExtComp) {
+	if comp.Type == nil {
+		c.errorf(path, "modelled as %s but the schema does not describe it", gt)
+		return
+	}
+
+	c.check(path, gt, tag, *comp.Type)
 }
 
 func (c *schemaChecker) checkChoice(path string, gt reflect.Type, a asnType) {
@@ -537,14 +635,16 @@ func checkConstNames(t *testing.T, group string, consts []sourceConst, names []s
 }
 
 var namedBitConsts = map[string][2]string{
-	"GNSSIDBitmap":              {"GNSS-ID-Bitmap", "gnss-ids"},
-	"SBASIDs":                   {"SBAS-IDs", "sbas-IDs"},
-	"PosModes":                  {"PositioningModes", "posModes"},
-	"AccessTypes":               {"AccessTypes", "accessTypes"},
-	"IonoModel":                 {"GNSS-IonosphericModelSupport", "ionoModel"},
-	"OTDOAMode":                 {"OTDOA-ProvideCapabilities", "otdoa-Mode"},
-	"ECIDMeasSupported":         {"ECID-ProvideCapabilities", "ecid-MeasSupported"},
-	"ECIDRequestedMeasurements": {"ECID-RequestLocationInformation", "requestedMeasurements"},
+	"GNSSIDBitmap":                {"GNSS-ID-Bitmap", "gnss-ids"},
+	"SBASIDs":                     {"SBAS-IDs", "sbas-IDs"},
+	"PosModes":                    {"PositioningModes", "posModes"},
+	"AccessTypes":                 {"AccessTypes", "accessTypes"},
+	"IonoModel":                   {"GNSS-IonosphericModelSupport", "ionoModel"},
+	"OTDOAMode":                   {"OTDOA-ProvideCapabilities", "otdoa-Mode"},
+	"ECIDMeasSupported":           {"ECID-ProvideCapabilities", "ecid-MeasSupported"},
+	"ECIDRequestedMeasurements":   {"ECID-RequestLocationInformation", "requestedMeasurements"},
+	"NRECIDMeasSupported":         {"NR-ECID-ProvideCapabilities-r16", "nr-ECID-MeasSupported-r16"},
+	"NRECIDRequestedMeasurements": {"NR-ECID-RequestLocationInformation-r16", "requestedMeasurements-r16"},
 }
 
 func TestModelMatchesSchema(t *testing.T) {

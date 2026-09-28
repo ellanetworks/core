@@ -10717,6 +10717,52 @@ func (mCCMNCDigit *MCCMNCDigit) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
+func (measQuantityResults *MeasQuantityResults) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(measQuantityResults.NRRSRP != nil)
+	w.WriteBit(measQuantityResults.NRRSRQ != nil)
+	if measQuantityResults.NRRSRP != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*measQuantityResults.NRRSRP))); err != nil {
+			return err
+		}
+	}
+	if measQuantityResults.NRRSRQ != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*measQuantityResults.NRRSRQ))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (measQuantityResults *MeasQuantityResults) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_NRRSRP, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRRSRQ, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRRSRP {
+		var v int64
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n0)
+		measQuantityResults.NRRSRP = &v
+	}
+	if p_NRRSRQ {
+		var v int64
+		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n1)
+		measQuantityResults.NRRSRQ = &v
+	}
+	return nil
+}
+
 func (measuredResultsElement *MeasuredResultsElement) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(measuredResultsElement.CellGlobalID != nil)
@@ -11389,6 +11435,841 @@ func (nAVClockModel *NAVClockModel) UnmarshalPER(r *per.Reader, enc per.Encoding
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func (nCGI *NCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	off0 := 0
+	if err := per.EncodeLength(w, enc, 3, 3, true, int64(len(nCGI.MCC)), func(count int64) error {
+		end := off0 + int(count)
+		for i := off0; i < end; i++ {
+			if err := nCGI.MCC[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off0 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 2, 3, true, int64(len(nCGI.MNC)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := nCGI.MNC[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := per.EncodeBitString(w, enc, 36, 36, true, true, false, per.BoolsToBits(nCGI.NRCellIdentity), len(nCGI.NRCellIdentity)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (nCGI *NCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	nCGI.MCC = nil
+	if err := per.DecodeLength(r, enc, 3, 3, true, func(count int64) error {
+		start := len(nCGI.MCC)
+		nCGI.MCC = append(nCGI.MCC, make([]MCCMNCDigit, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&nCGI.MCC[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	nCGI.MNC = nil
+	if err := per.DecodeLength(r, enc, 2, 3, true, func(count int64) error {
+		start := len(nCGI.MNC)
+		nCGI.MNC = append(nCGI.MNC, make([]MCCMNCDigit, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&nCGI.MNC[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	bs2, nbits2, err := per.DecodeBitString(r, enc, 36, 36, true, true, false)
+	if err != nil {
+		return err
+	}
+	nCGI.NRCellIdentity = per.BitsToBools(bs2, nbits2)
+	return nil
+}
+
+func (nRECIDError *NRECIDError) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	switch {
+	case nRECIDError.LocationServerErrorCauses != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*nRECIDError.LocationServerErrorCauses).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case nRECIDError.TargetDeviceErrorCauses != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*nRECIDError.TargetDeviceErrorCauses).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (nRECIDError *NRECIDError) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		if _, err := per.DecodeNormallySmall(r, enc); err != nil {
+			return err
+		}
+		return per.SkipOpenType(r, enc)
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v NRECIDLocationServerErrorCauses
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDError.LocationServerErrorCauses = &v
+	case 1:
+		var v NRECIDTargetDeviceErrorCauses
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDError.TargetDeviceErrorCauses = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (nRECIDLocationServerErrorCauses *NRECIDLocationServerErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	if v := int64(nRECIDLocationServerErrorCauses.Cause); v < 0 || v >= 1 {
+		return per.ErrOverflow
+	}
+	if err := per.EncodeEnumerated(w, enc, 1, true, int64(nRECIDLocationServerErrorCauses.Cause)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (nRECIDLocationServerErrorCauses *NRECIDLocationServerErrorCauses) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	e0, err := per.DecodeEnumerated(r, enc, 1, true)
+	if err != nil {
+		return err
+	}
+	nRECIDLocationServerErrorCauses.Cause = NRECIDLocationServerErrorCause(e0)
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDProvideCapabilities *NRECIDProvideCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nRECIDProvideCapabilities.PeriodicalReporting != nil)
+	w.WriteBit(nRECIDProvideCapabilities.TriggeredReporting != nil)
+	if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits(nRECIDProvideCapabilities.NRECIDMeasSupported), len(nRECIDProvideCapabilities.NRECIDMeasSupported)); err != nil {
+		return err
+	}
+	if nRECIDProvideCapabilities.PeriodicalReporting != nil {
+		if err := per.EncodeEnumerated(w, enc, 1, false, int64((*nRECIDProvideCapabilities.PeriodicalReporting))); err != nil {
+			return err
+		}
+	}
+	if nRECIDProvideCapabilities.TriggeredReporting != nil {
+		if err := per.EncodeEnumerated(w, enc, 1, false, int64((*nRECIDProvideCapabilities.TriggeredReporting))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRECIDProvideCapabilities *NRECIDProvideCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_PeriodicalReporting, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TriggeredReporting, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	bs0, nbits0, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
+	if err != nil {
+		return err
+	}
+	nRECIDProvideCapabilities.NRECIDMeasSupported = per.BitsToBools(bs0, nbits0)
+	if p_PeriodicalReporting {
+		var v NRECIDReportingSupport
+		e1, err := per.DecodeEnumerated(r, enc, 1, false)
+		if err != nil {
+			return err
+		}
+		v = NRECIDReportingSupport(e1)
+		nRECIDProvideCapabilities.PeriodicalReporting = &v
+	}
+	if p_TriggeredReporting {
+		var v NRECIDReportingSupport
+		e2, err := per.DecodeEnumerated(r, enc, 1, false)
+		if err != nil {
+			return err
+		}
+		v = NRECIDReportingSupport(e2)
+		nRECIDProvideCapabilities.TriggeredReporting = &v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDProvideLocationInformation *NRECIDProvideLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nRECIDProvideLocationInformation.NRECIDSignalMeasurementInformation != nil)
+	w.WriteBit(nRECIDProvideLocationInformation.NRECIDError != nil)
+	if nRECIDProvideLocationInformation.NRECIDSignalMeasurementInformation != nil {
+		if err := (*nRECIDProvideLocationInformation.NRECIDSignalMeasurementInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRECIDProvideLocationInformation.NRECIDError != nil {
+		if err := (*nRECIDProvideLocationInformation.NRECIDError).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRECIDProvideLocationInformation *NRECIDProvideLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRECIDSignalMeasurementInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRECIDError, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRECIDSignalMeasurementInformation {
+		var v NRECIDSignalMeasurementInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDProvideLocationInformation.NRECIDSignalMeasurementInformation = &v
+	}
+	if p_NRECIDError {
+		var v NRECIDError
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDProvideLocationInformation.NRECIDError = &v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDRequestCapabilities *NRECIDRequestCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	return nil
+}
+
+func (nRECIDRequestCapabilities *NRECIDRequestCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDRequestLocationInformation *NRECIDRequestLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	if err := per.EncodeBitString(w, enc, 1, 8, true, true, false, per.BoolsToBits(nRECIDRequestLocationInformation.RequestedMeasurements), len(nRECIDRequestLocationInformation.RequestedMeasurements)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (nRECIDRequestLocationInformation *NRECIDRequestLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	bs0, nbits0, err := per.DecodeBitString(r, enc, 1, 8, true, true, false)
+	if err != nil {
+		return err
+	}
+	nRECIDRequestLocationInformation.RequestedMeasurements = per.BitsToBools(bs0, nbits0)
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDSignalMeasurementInformation *NRECIDSignalMeasurementInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nRECIDSignalMeasurementInformation.NRMeasuredResultsList != nil)
+	if err := nRECIDSignalMeasurementInformation.NRPrimaryCellMeasuredResults.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if nRECIDSignalMeasurementInformation.NRMeasuredResultsList != nil {
+		off1 := 0
+		if err := per.EncodeLength(w, enc, 1, 32, true, int64(len(nRECIDSignalMeasurementInformation.NRMeasuredResultsList)), func(count int64) error {
+			end := off1 + int(count)
+			for i := off1; i < end; i++ {
+				if err := nRECIDSignalMeasurementInformation.NRMeasuredResultsList[i].MarshalPER(w, enc); err != nil {
+					return err
+				}
+			}
+			off1 = end
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRECIDSignalMeasurementInformation *NRECIDSignalMeasurementInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRMeasuredResultsList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&nRECIDSignalMeasurementInformation.NRPrimaryCellMeasuredResults).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_NRMeasuredResultsList {
+		nRECIDSignalMeasurementInformation.NRMeasuredResultsList = nil
+		if err := per.DecodeLength(r, enc, 1, 32, true, func(count int64) error {
+			start := len(nRECIDSignalMeasurementInformation.NRMeasuredResultsList)
+			nRECIDSignalMeasurementInformation.NRMeasuredResultsList = append(nRECIDSignalMeasurementInformation.NRMeasuredResultsList, make([]NRMeasuredResultsElement, count)...)
+			for i := int64(0); i < count; i++ {
+				if err := (&nRECIDSignalMeasurementInformation.NRMeasuredResultsList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRECIDTargetDeviceErrorCauses *NRECIDTargetDeviceErrorCauses) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nRECIDTargetDeviceErrorCauses.SSRSRPMeasurementNotPossible != nil)
+	w.WriteBit(nRECIDTargetDeviceErrorCauses.SSRSRQMeasurementNotPossible != nil)
+	w.WriteBit(nRECIDTargetDeviceErrorCauses.CSIRSRPMeasurementNotPossible != nil)
+	w.WriteBit(nRECIDTargetDeviceErrorCauses.CSIRSRQMeasurementNotPossible != nil)
+	if v := int64(nRECIDTargetDeviceErrorCauses.Cause); v < 0 || v >= 3 {
+		return per.ErrOverflow
+	}
+	if err := per.EncodeEnumerated(w, enc, 3, true, int64(nRECIDTargetDeviceErrorCauses.Cause)); err != nil {
+		return err
+	}
+	if nRECIDTargetDeviceErrorCauses.SSRSRPMeasurementNotPossible != nil {
+		if err := (*nRECIDTargetDeviceErrorCauses.SSRSRPMeasurementNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRECIDTargetDeviceErrorCauses.SSRSRQMeasurementNotPossible != nil {
+		if err := (*nRECIDTargetDeviceErrorCauses.SSRSRQMeasurementNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRECIDTargetDeviceErrorCauses.CSIRSRPMeasurementNotPossible != nil {
+		if err := (*nRECIDTargetDeviceErrorCauses.CSIRSRPMeasurementNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRECIDTargetDeviceErrorCauses.CSIRSRQMeasurementNotPossible != nil {
+		if err := (*nRECIDTargetDeviceErrorCauses.CSIRSRQMeasurementNotPossible).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRECIDTargetDeviceErrorCauses *NRECIDTargetDeviceErrorCauses) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SSRSRPMeasurementNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SSRSRQMeasurementNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_CSIRSRPMeasurementNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_CSIRSRQMeasurementNotPossible, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	e0, err := per.DecodeEnumerated(r, enc, 3, true)
+	if err != nil {
+		return err
+	}
+	nRECIDTargetDeviceErrorCauses.Cause = NRECIDTargetDeviceErrorCause(e0)
+	if p_SSRSRPMeasurementNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDTargetDeviceErrorCauses.SSRSRPMeasurementNotPossible = &v
+	}
+	if p_SSRSRQMeasurementNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDTargetDeviceErrorCauses.SSRSRQMeasurementNotPossible = &v
+	}
+	if p_CSIRSRPMeasurementNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDTargetDeviceErrorCauses.CSIRSRPMeasurementNotPossible = &v
+	}
+	if p_CSIRSRQMeasurementNotPossible {
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRECIDTargetDeviceErrorCauses.CSIRSRQMeasurementNotPossible = &v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRMeasuredResultsElement *NRMeasuredResultsElement) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nRMeasuredResultsElement.NRCellGlobalID != nil)
+	w.WriteBit(nRMeasuredResultsElement.SystemFrameNumber != nil)
+	w.WriteBit(nRMeasuredResultsElement.ResultsSSBCell != nil)
+	w.WriteBit(nRMeasuredResultsElement.ResultsCSIRSCell != nil)
+	w.WriteBit(nRMeasuredResultsElement.ResultsSSBIndexes != nil)
+	w.WriteBit(nRMeasuredResultsElement.ResultsCSIRSIndexes != nil)
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1007, HasUB: true}, int64(nRMeasuredResultsElement.NRPhysCellID)); err != nil {
+		return err
+	}
+	if err := nRMeasuredResultsElement.NRARFCN.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if nRMeasuredResultsElement.NRCellGlobalID != nil {
+		if err := (*nRMeasuredResultsElement.NRCellGlobalID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRMeasuredResultsElement.SystemFrameNumber != nil {
+		if err := per.EncodeBitString(w, enc, 10, 10, true, true, false, per.BoolsToBits(nRMeasuredResultsElement.SystemFrameNumber), len(nRMeasuredResultsElement.SystemFrameNumber)); err != nil {
+			return err
+		}
+	}
+	if nRMeasuredResultsElement.ResultsSSBCell != nil {
+		if err := (*nRMeasuredResultsElement.ResultsSSBCell).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRMeasuredResultsElement.ResultsCSIRSCell != nil {
+		if err := (*nRMeasuredResultsElement.ResultsCSIRSCell).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if nRMeasuredResultsElement.ResultsSSBIndexes != nil {
+		off6 := 0
+		if err := per.EncodeLength(w, enc, 1, 64, true, int64(len(nRMeasuredResultsElement.ResultsSSBIndexes)), func(count int64) error {
+			end := off6 + int(count)
+			for i := off6; i < end; i++ {
+				if err := nRMeasuredResultsElement.ResultsSSBIndexes[i].MarshalPER(w, enc); err != nil {
+					return err
+				}
+			}
+			off6 = end
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if nRMeasuredResultsElement.ResultsCSIRSIndexes != nil {
+		off7 := 0
+		if err := per.EncodeLength(w, enc, 1, 64, true, int64(len(nRMeasuredResultsElement.ResultsCSIRSIndexes)), func(count int64) error {
+			end := off7 + int(count)
+			for i := off7; i < end; i++ {
+				if err := nRMeasuredResultsElement.ResultsCSIRSIndexes[i].MarshalPER(w, enc); err != nil {
+					return err
+				}
+			}
+			off7 = end
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRMeasuredResultsElement *NRMeasuredResultsElement) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRCellGlobalID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SystemFrameNumber, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ResultsSSBCell, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ResultsCSIRSCell, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ResultsSSBIndexes, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ResultsCSIRSIndexes, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1007, HasUB: true})
+	if err != nil {
+		return err
+	}
+	nRMeasuredResultsElement.NRPhysCellID = int64(n0)
+	if err := (&nRMeasuredResultsElement.NRARFCN).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_NRCellGlobalID {
+		var v NCGI
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRMeasuredResultsElement.NRCellGlobalID = &v
+	}
+	if p_SystemFrameNumber {
+		bs3, nbits3, err := per.DecodeBitString(r, enc, 10, 10, true, true, false)
+		if err != nil {
+			return err
+		}
+		nRMeasuredResultsElement.SystemFrameNumber = per.BitsToBools(bs3, nbits3)
+	}
+	if p_ResultsSSBCell {
+		var v MeasQuantityResults
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRMeasuredResultsElement.ResultsSSBCell = &v
+	}
+	if p_ResultsCSIRSCell {
+		var v MeasQuantityResults
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nRMeasuredResultsElement.ResultsCSIRSCell = &v
+	}
+	if p_ResultsSSBIndexes {
+		nRMeasuredResultsElement.ResultsSSBIndexes = nil
+		if err := per.DecodeLength(r, enc, 1, 64, true, func(count int64) error {
+			start := len(nRMeasuredResultsElement.ResultsSSBIndexes)
+			nRMeasuredResultsElement.ResultsSSBIndexes = append(nRMeasuredResultsElement.ResultsSSBIndexes, make([]ResultsPerSSBIndex, count)...)
+			for i := int64(0); i < count; i++ {
+				if err := (&nRMeasuredResultsElement.ResultsSSBIndexes[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if p_ResultsCSIRSIndexes {
+		nRMeasuredResultsElement.ResultsCSIRSIndexes = nil
+		if err := per.DecodeLength(r, enc, 1, 64, true, func(count int64) error {
+			start := len(nRMeasuredResultsElement.ResultsCSIRSIndexes)
+			nRMeasuredResultsElement.ResultsCSIRSIndexes = append(nRMeasuredResultsElement.ResultsCSIRSIndexes, make([]ResultsPerCSIRSIndex, count)...)
+			for i := int64(0); i < count; i++ {
+				if err := (&nRMeasuredResultsElement.ResultsCSIRSIndexes[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (nRMeasuredResultsElementARFCN *NRMeasuredResultsElementARFCN) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	switch {
+	case nRMeasuredResultsElementARFCN.SSBARFCN != nil:
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true}, int64((*nRMeasuredResultsElementARFCN.SSBARFCN))); err != nil {
+			return err
+		}
+	case nRMeasuredResultsElementARFCN.CSIRSPointA != nil:
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true}, int64((*nRMeasuredResultsElementARFCN.CSIRSPointA))); err != nil {
+			return err
+		}
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (nRMeasuredResultsElementARFCN *NRMeasuredResultsElementARFCN) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v int64
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n0)
+		nRMeasuredResultsElementARFCN.SSBARFCN = &v
+	case 1:
+		var v int64
+		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = int64(n1)
+		nRMeasuredResultsElementARFCN.CSIRSPointA = &v
+	default:
+		return per.ErrOverflow
 	}
 	return nil
 }
@@ -14539,8 +15420,101 @@ func (provideCapabilitiesCriticalExtensionsC1 *ProvideCapabilitiesCriticalExtens
 	return nil
 }
 
+func (provideCapabilitiesR16Additions *ProvideCapabilitiesR16Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(provideCapabilitiesR16Additions.NRECIDProvideCapabilities != nil)
+	w.WriteBit(provideCapabilitiesR16Additions.NRMultiRTTProvideCapabilities != nil)
+	w.WriteBit(provideCapabilitiesR16Additions.NRDLAoDProvideCapabilities != nil)
+	w.WriteBit(provideCapabilitiesR16Additions.NRDLTDOAProvideCapabilities != nil)
+	w.WriteBit(provideCapabilitiesR16Additions.NRULProvideCapabilities != nil)
+	if provideCapabilitiesR16Additions.NRECIDProvideCapabilities != nil {
+		if err := (*provideCapabilitiesR16Additions.NRECIDProvideCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideCapabilitiesR16Additions.NRMultiRTTProvideCapabilities != nil {
+		if err := (*provideCapabilitiesR16Additions.NRMultiRTTProvideCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideCapabilitiesR16Additions.NRDLAoDProvideCapabilities != nil {
+		if err := (*provideCapabilitiesR16Additions.NRDLAoDProvideCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideCapabilitiesR16Additions.NRDLTDOAProvideCapabilities != nil {
+		if err := (*provideCapabilitiesR16Additions.NRDLTDOAProvideCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideCapabilitiesR16Additions.NRULProvideCapabilities != nil {
+		if err := (*provideCapabilitiesR16Additions.NRULProvideCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (provideCapabilitiesR16Additions *ProvideCapabilitiesR16Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_NRECIDProvideCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRMultiRTTProvideCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLAoDProvideCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLTDOAProvideCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRULProvideCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRECIDProvideCapabilities {
+		var v NRECIDProvideCapabilities
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideCapabilitiesR16Additions.NRECIDProvideCapabilities = &v
+	}
+	if p_NRMultiRTTProvideCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideCapabilitiesR16Additions.NRMultiRTTProvideCapabilities = &v
+	}
+	if p_NRDLAoDProvideCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideCapabilitiesR16Additions.NRDLAoDProvideCapabilities = &v
+	}
+	if p_NRDLTDOAProvideCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideCapabilitiesR16Additions.NRDLTDOAProvideCapabilities = &v
+	}
+	if p_NRULProvideCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideCapabilitiesR16Additions.NRULProvideCapabilities = &v
+	}
+	return nil
+}
+
 func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(provideCapabilitiesR9IEs.R13Additions != nil || provideCapabilitiesR9IEs.R16Additions != nil)
 	w.WriteBit(provideCapabilitiesR9IEs.CommonIEsProvideCapabilities != nil)
 	w.WriteBit(provideCapabilitiesR9IEs.AGNSSProvideCapabilities != nil)
 	w.WriteBit(provideCapabilitiesR9IEs.OTDOAProvideCapabilities != nil)
@@ -14569,6 +15543,25 @@ func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) MarshalPER(w *per.Writ
 	if provideCapabilitiesR9IEs.EPDUProvideCapabilities != nil {
 		if err := (*provideCapabilitiesR9IEs.EPDUProvideCapabilities).MarshalPER(w, enc); err != nil {
 			return err
+		}
+	}
+	if provideCapabilitiesR9IEs.R13Additions != nil || provideCapabilitiesR9IEs.R16Additions != nil {
+		if err := per.EncodeNormallySmallLength(w, enc, 2, func(_ int64) error {
+			w.WriteBit(provideCapabilitiesR9IEs.R13Additions != nil)
+			w.WriteBit(provideCapabilitiesR9IEs.R16Additions != nil)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if provideCapabilitiesR9IEs.R13Additions != nil {
+			if err := per.EncodeOpenType(w, enc, provideCapabilitiesR9IEs.R13Additions); err != nil {
+				return err
+			}
+		}
+		if provideCapabilitiesR9IEs.R16Additions != nil {
+			if err := per.EncodeOpenType(w, enc, provideCapabilitiesR9IEs.R16Additions); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -14648,12 +15641,27 @@ func (provideCapabilitiesR9IEs *ProvideCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 		}); err != nil {
 			return err
 		}
-		for _, present := range extBits {
+		for i, present := range extBits {
 			if !present {
 				continue
 			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
+			switch i {
+			case 0:
+				var v UnmodelledExtension
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				provideCapabilitiesR9IEs.R13Additions = &v
+			case 1:
+				var v ProvideCapabilitiesR16Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				provideCapabilitiesR9IEs.R16Additions = &v
+			default:
+				if err := per.SkipOpenType(r, enc); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -14792,8 +15800,84 @@ func (provideLocationInformationCriticalExtensionsC1 *ProvideLocationInformation
 	return nil
 }
 
+func (provideLocationInformationR16Additions *ProvideLocationInformationR16Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(provideLocationInformationR16Additions.NRECIDProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR16Additions.NRMultiRTTProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR16Additions.NRDLAoDProvideLocationInformation != nil)
+	w.WriteBit(provideLocationInformationR16Additions.NRDLTDOAProvideLocationInformation != nil)
+	if provideLocationInformationR16Additions.NRECIDProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR16Additions.NRECIDProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR16Additions.NRMultiRTTProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR16Additions.NRMultiRTTProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR16Additions.NRDLAoDProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR16Additions.NRDLAoDProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if provideLocationInformationR16Additions.NRDLTDOAProvideLocationInformation != nil {
+		if err := (*provideLocationInformationR16Additions.NRDLTDOAProvideLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (provideLocationInformationR16Additions *ProvideLocationInformationR16Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_NRECIDProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRMultiRTTProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLAoDProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLTDOAProvideLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRECIDProvideLocationInformation {
+		var v NRECIDProvideLocationInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR16Additions.NRECIDProvideLocationInformation = &v
+	}
+	if p_NRMultiRTTProvideLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR16Additions.NRMultiRTTProvideLocationInformation = &v
+	}
+	if p_NRDLAoDProvideLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR16Additions.NRDLAoDProvideLocationInformation = &v
+	}
+	if p_NRDLTDOAProvideLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		provideLocationInformationR16Additions.NRDLTDOAProvideLocationInformation = &v
+	}
+	return nil
+}
+
 func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(provideLocationInformationR9IEs.R13Additions != nil || provideLocationInformationR9IEs.R16Additions != nil)
 	w.WriteBit(provideLocationInformationR9IEs.CommonIEsProvideLocationInformation != nil)
 	w.WriteBit(provideLocationInformationR9IEs.AGNSSProvideLocationInformation != nil)
 	w.WriteBit(provideLocationInformationR9IEs.OTDOAProvideLocationInformation != nil)
@@ -14822,6 +15906,25 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) MarshalP
 	if provideLocationInformationR9IEs.EPDUProvideLocationInformation != nil {
 		if err := (*provideLocationInformationR9IEs.EPDUProvideLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
+		}
+	}
+	if provideLocationInformationR9IEs.R13Additions != nil || provideLocationInformationR9IEs.R16Additions != nil {
+		if err := per.EncodeNormallySmallLength(w, enc, 2, func(_ int64) error {
+			w.WriteBit(provideLocationInformationR9IEs.R13Additions != nil)
+			w.WriteBit(provideLocationInformationR9IEs.R16Additions != nil)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if provideLocationInformationR9IEs.R13Additions != nil {
+			if err := per.EncodeOpenType(w, enc, provideLocationInformationR9IEs.R13Additions); err != nil {
+				return err
+			}
+		}
+		if provideLocationInformationR9IEs.R16Additions != nil {
+			if err := per.EncodeOpenType(w, enc, provideLocationInformationR9IEs.R16Additions); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -14901,12 +16004,27 @@ func (provideLocationInformationR9IEs *ProvideLocationInformationR9IEs) Unmarsha
 		}); err != nil {
 			return err
 		}
-		for _, present := range extBits {
+		for i, present := range extBits {
 			if !present {
 				continue
 			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
+			switch i {
+			case 0:
+				var v UnmodelledExtension
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				provideLocationInformationR9IEs.R13Additions = &v
+			case 1:
+				var v ProvideLocationInformationR16Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				provideLocationInformationR9IEs.R16Additions = &v
+			default:
+				if err := per.SkipOpenType(r, enc); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -15511,8 +16629,101 @@ func (requestCapabilitiesCriticalExtensionsC1 *RequestCapabilitiesCriticalExtens
 	return nil
 }
 
+func (requestCapabilitiesR16Additions *RequestCapabilitiesR16Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(requestCapabilitiesR16Additions.NRECIDRequestCapabilities != nil)
+	w.WriteBit(requestCapabilitiesR16Additions.NRMultiRTTRequestCapabilities != nil)
+	w.WriteBit(requestCapabilitiesR16Additions.NRDLAoDRequestCapabilities != nil)
+	w.WriteBit(requestCapabilitiesR16Additions.NRDLTDOARequestCapabilities != nil)
+	w.WriteBit(requestCapabilitiesR16Additions.NRULRequestCapabilities != nil)
+	if requestCapabilitiesR16Additions.NRECIDRequestCapabilities != nil {
+		if err := (*requestCapabilitiesR16Additions.NRECIDRequestCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestCapabilitiesR16Additions.NRMultiRTTRequestCapabilities != nil {
+		if err := (*requestCapabilitiesR16Additions.NRMultiRTTRequestCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestCapabilitiesR16Additions.NRDLAoDRequestCapabilities != nil {
+		if err := (*requestCapabilitiesR16Additions.NRDLAoDRequestCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestCapabilitiesR16Additions.NRDLTDOARequestCapabilities != nil {
+		if err := (*requestCapabilitiesR16Additions.NRDLTDOARequestCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestCapabilitiesR16Additions.NRULRequestCapabilities != nil {
+		if err := (*requestCapabilitiesR16Additions.NRULRequestCapabilities).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (requestCapabilitiesR16Additions *RequestCapabilitiesR16Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_NRECIDRequestCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRMultiRTTRequestCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLAoDRequestCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLTDOARequestCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRULRequestCapabilities, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRECIDRequestCapabilities {
+		var v NRECIDRequestCapabilities
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestCapabilitiesR16Additions.NRECIDRequestCapabilities = &v
+	}
+	if p_NRMultiRTTRequestCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestCapabilitiesR16Additions.NRMultiRTTRequestCapabilities = &v
+	}
+	if p_NRDLAoDRequestCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestCapabilitiesR16Additions.NRDLAoDRequestCapabilities = &v
+	}
+	if p_NRDLTDOARequestCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestCapabilitiesR16Additions.NRDLTDOARequestCapabilities = &v
+	}
+	if p_NRULRequestCapabilities {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestCapabilitiesR16Additions.NRULRequestCapabilities = &v
+	}
+	return nil
+}
+
 func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(requestCapabilitiesR9IEs.R13Additions != nil || requestCapabilitiesR9IEs.R16Additions != nil)
 	w.WriteBit(requestCapabilitiesR9IEs.CommonIEsRequestCapabilities != nil)
 	w.WriteBit(requestCapabilitiesR9IEs.AGNSSRequestCapabilities != nil)
 	w.WriteBit(requestCapabilitiesR9IEs.OTDOARequestCapabilities != nil)
@@ -15541,6 +16752,25 @@ func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) MarshalPER(w *per.Writ
 	if requestCapabilitiesR9IEs.EPDURequestCapabilities != nil {
 		if err := (*requestCapabilitiesR9IEs.EPDURequestCapabilities).MarshalPER(w, enc); err != nil {
 			return err
+		}
+	}
+	if requestCapabilitiesR9IEs.R13Additions != nil || requestCapabilitiesR9IEs.R16Additions != nil {
+		if err := per.EncodeNormallySmallLength(w, enc, 2, func(_ int64) error {
+			w.WriteBit(requestCapabilitiesR9IEs.R13Additions != nil)
+			w.WriteBit(requestCapabilitiesR9IEs.R16Additions != nil)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if requestCapabilitiesR9IEs.R13Additions != nil {
+			if err := per.EncodeOpenType(w, enc, requestCapabilitiesR9IEs.R13Additions); err != nil {
+				return err
+			}
+		}
+		if requestCapabilitiesR9IEs.R16Additions != nil {
+			if err := per.EncodeOpenType(w, enc, requestCapabilitiesR9IEs.R16Additions); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -15620,12 +16850,27 @@ func (requestCapabilitiesR9IEs *RequestCapabilitiesR9IEs) UnmarshalPER(r *per.Re
 		}); err != nil {
 			return err
 		}
-		for _, present := range extBits {
+		for i, present := range extBits {
 			if !present {
 				continue
 			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
+			switch i {
+			case 0:
+				var v UnmodelledExtension
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				requestCapabilitiesR9IEs.R13Additions = &v
+			case 1:
+				var v RequestCapabilitiesR16Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				requestCapabilitiesR9IEs.R16Additions = &v
+			default:
+				if err := per.SkipOpenType(r, enc); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -15764,8 +17009,84 @@ func (requestLocationInformationCriticalExtensionsC1 *RequestLocationInformation
 	return nil
 }
 
+func (requestLocationInformationR16Additions *RequestLocationInformationR16Additions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(requestLocationInformationR16Additions.NRECIDRequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR16Additions.NRMultiRTTRequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR16Additions.NRDLAoDRequestLocationInformation != nil)
+	w.WriteBit(requestLocationInformationR16Additions.NRDLTDOARequestLocationInformation != nil)
+	if requestLocationInformationR16Additions.NRECIDRequestLocationInformation != nil {
+		if err := (*requestLocationInformationR16Additions.NRECIDRequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR16Additions.NRMultiRTTRequestLocationInformation != nil {
+		if err := (*requestLocationInformationR16Additions.NRMultiRTTRequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR16Additions.NRDLAoDRequestLocationInformation != nil {
+		if err := (*requestLocationInformationR16Additions.NRDLAoDRequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestLocationInformationR16Additions.NRDLTDOARequestLocationInformation != nil {
+		if err := (*requestLocationInformationR16Additions.NRDLTDOARequestLocationInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (requestLocationInformationR16Additions *RequestLocationInformationR16Additions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_NRECIDRequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRMultiRTTRequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLAoDRequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NRDLTDOARequestLocationInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NRECIDRequestLocationInformation {
+		var v NRECIDRequestLocationInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR16Additions.NRECIDRequestLocationInformation = &v
+	}
+	if p_NRMultiRTTRequestLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR16Additions.NRMultiRTTRequestLocationInformation = &v
+	}
+	if p_NRDLAoDRequestLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR16Additions.NRDLAoDRequestLocationInformation = &v
+	}
+	if p_NRDLTDOARequestLocationInformation {
+		var v UnmodelledExtension
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestLocationInformationR16Additions.NRDLTDOARequestLocationInformation = &v
+	}
+	return nil
+}
+
 func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(requestLocationInformationR9IEs.R13Additions != nil || requestLocationInformationR9IEs.R16Additions != nil)
 	w.WriteBit(requestLocationInformationR9IEs.CommonIEsRequestLocationInformation != nil)
 	w.WriteBit(requestLocationInformationR9IEs.AGNSSRequestLocationInformation != nil)
 	w.WriteBit(requestLocationInformationR9IEs.OTDOARequestLocationInformation != nil)
@@ -15794,6 +17115,25 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) MarshalP
 	if requestLocationInformationR9IEs.EPDURequestLocationInformation != nil {
 		if err := (*requestLocationInformationR9IEs.EPDURequestLocationInformation).MarshalPER(w, enc); err != nil {
 			return err
+		}
+	}
+	if requestLocationInformationR9IEs.R13Additions != nil || requestLocationInformationR9IEs.R16Additions != nil {
+		if err := per.EncodeNormallySmallLength(w, enc, 2, func(_ int64) error {
+			w.WriteBit(requestLocationInformationR9IEs.R13Additions != nil)
+			w.WriteBit(requestLocationInformationR9IEs.R16Additions != nil)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if requestLocationInformationR9IEs.R13Additions != nil {
+			if err := per.EncodeOpenType(w, enc, requestLocationInformationR9IEs.R13Additions); err != nil {
+				return err
+			}
+		}
+		if requestLocationInformationR9IEs.R16Additions != nil {
+			if err := per.EncodeOpenType(w, enc, requestLocationInformationR9IEs.R16Additions); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -15873,12 +17213,27 @@ func (requestLocationInformationR9IEs *RequestLocationInformationR9IEs) Unmarsha
 		}); err != nil {
 			return err
 		}
-		for _, present := range extBits {
+		for i, present := range extBits {
 			if !present {
 				continue
 			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
+			switch i {
+			case 0:
+				var v UnmodelledExtension
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				requestLocationInformationR9IEs.R13Additions = &v
+			case 1:
+				var v RequestLocationInformationR16Additions
+				if err := per.DecodeOpenType(r, enc, &v); err != nil {
+					return err
+				}
+				requestLocationInformationR9IEs.R16Additions = &v
+			default:
+				if err := per.SkipOpenType(r, enc); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -15925,6 +17280,50 @@ func (responseTime *ResponseTime) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func (resultsPerCSIRSIndex *ResultsPerCSIRSIndex) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 95, HasUB: true}, int64(resultsPerCSIRSIndex.CSIRSIndex)); err != nil {
+		return err
+	}
+	if err := resultsPerCSIRSIndex.CSIRSResults.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (resultsPerCSIRSIndex *ResultsPerCSIRSIndex) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 95, HasUB: true})
+	if err != nil {
+		return err
+	}
+	resultsPerCSIRSIndex.CSIRSIndex = int64(n0)
+	if err := (&resultsPerCSIRSIndex.CSIRSResults).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (resultsPerSSBIndex *ResultsPerSSBIndex) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true}, int64(resultsPerSSBIndex.SSBIndex)); err != nil {
+		return err
+	}
+	if err := resultsPerSSBIndex.SSBResults.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (resultsPerSSBIndex *ResultsPerSSBIndex) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 63, HasUB: true})
+	if err != nil {
+		return err
+	}
+	resultsPerSSBIndex.SSBIndex = int64(n0)
+	if err := (&resultsPerSSBIndex.SSBResults).UnmarshalPER(r, enc); err != nil {
+		return err
 	}
 	return nil
 }

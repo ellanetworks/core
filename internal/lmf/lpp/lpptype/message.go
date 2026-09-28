@@ -166,12 +166,14 @@ type RequestCapabilitiesCriticalExtensionsC1 struct {
 
 // RequestCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type RequestCapabilitiesR9IEs struct {
-	_                            [0]struct{}                   `per:"extseq"`
-	CommonIEsRequestCapabilities *CommonIEsRequestCapabilities `per:",optional"`
-	AGNSSRequestCapabilities     *AGNSSRequestCapabilities     `per:",optional"`
-	OTDOARequestCapabilities     *OTDOARequestCapabilities     `per:",optional"`
-	ECIDRequestCapabilities      *ECIDRequestCapabilities      `per:",optional"`
-	EPDURequestCapabilities      *EPDUSequence                 `per:",optional"`
+	_                            [0]struct{}                      `per:"extseq"`
+	CommonIEsRequestCapabilities *CommonIEsRequestCapabilities    `per:",optional"`
+	AGNSSRequestCapabilities     *AGNSSRequestCapabilities        `per:",optional"`
+	OTDOARequestCapabilities     *OTDOARequestCapabilities        `per:",optional"`
+	ECIDRequestCapabilities      *ECIDRequestCapabilities         `per:",optional"`
+	EPDURequestCapabilities      *EPDUSequence                    `per:",optional"`
+	R13Additions                 *UnmodelledExtension             `per:",ext"`
+	R16Additions                 *RequestCapabilitiesR16Additions `per:",ext"`
 }
 
 // =====================================================================
@@ -196,12 +198,14 @@ type ProvideCapabilitiesCriticalExtensionsC1 struct {
 
 // ProvideCapabilities-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 type ProvideCapabilitiesR9IEs struct {
-	_                            [0]struct{}                   `per:"extseq"`
-	CommonIEsProvideCapabilities *CommonIEsProvideCapabilities `per:",optional"`
-	AGNSSProvideCapabilities     *AGNSSProvideCapabilities     `per:",optional"`
-	OTDOAProvideCapabilities     *OTDOAProvideCapabilities     `per:",optional"`
-	ECIDProvideCapabilities      *ECIDProvideCapabilities      `per:",optional"`
-	EPDUProvideCapabilities      *EPDUSequence                 `per:",optional"`
+	_                            [0]struct{}                      `per:"extseq"`
+	CommonIEsProvideCapabilities *CommonIEsProvideCapabilities    `per:",optional"`
+	AGNSSProvideCapabilities     *AGNSSProvideCapabilities        `per:",optional"`
+	OTDOAProvideCapabilities     *OTDOAProvideCapabilities        `per:",optional"`
+	ECIDProvideCapabilities      *ECIDProvideCapabilities         `per:",optional"`
+	EPDUProvideCapabilities      *EPDUSequence                    `per:",optional"`
+	R13Additions                 *UnmodelledExtension             `per:",ext"`
+	R16Additions                 *ProvideCapabilitiesR16Additions `per:",ext"`
 }
 
 // =====================================================================
@@ -287,12 +291,14 @@ type RequestLocationInformationCriticalExtensionsC1 struct {
 // RequestLocationInformation-r9-IEs: extensible SEQUENCE with 5 root optional fields.
 // TS 37.355 §6.3 line 2781-2793.
 type RequestLocationInformationR9IEs struct {
-	_                                   [0]struct{}                          `per:"extseq"`
-	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation `per:",optional"`
-	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation     `per:",optional"`
-	OTDOARequestLocationInformation     *OTDOARequestLocationInformation     `per:",optional"`
-	ECIDRequestLocationInformation      *ECIDRequestLocationInformation      `per:",optional"`
-	EPDURequestLocationInformation      *EPDUSequence                        `per:",optional"`
+	_                                   [0]struct{}                             `per:"extseq"`
+	CommonIEsRequestLocationInformation *CommonIEsRequestLocationInformation    `per:",optional"`
+	AGNSSRequestLocationInformation     *AGNSSRequestLocationInformation        `per:",optional"`
+	OTDOARequestLocationInformation     *OTDOARequestLocationInformation        `per:",optional"`
+	ECIDRequestLocationInformation      *ECIDRequestLocationInformation         `per:",optional"`
+	EPDURequestLocationInformation      *EPDUSequence                           `per:",optional"`
+	R13Additions                        *UnmodelledExtension                    `per:",ext"`
+	R16Additions                        *RequestLocationInformationR16Additions `per:",ext"`
 }
 
 // =====================================================================
@@ -318,12 +324,14 @@ type ProvideLocationInformationCriticalExtensionsC1 struct {
 // ProvideLocationInformation-r9-IEs: extensible SEQUENCE.
 // TS 37.355 §6.3 line 2935-2943.
 type ProvideLocationInformationR9IEs struct {
-	_                                   [0]struct{}                          `per:"extseq"`
-	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation `per:",optional"`
-	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation     `per:",optional"`
-	OTDOAProvideLocationInformation     *OTDOAProvideLocationInformation     `per:",optional"`
-	ECIDProvideLocationInformation      *ECIDProvideLocationInformation      `per:",optional"`
-	EPDUProvideLocationInformation      *EPDUSequence                        `per:",optional"`
+	_                                   [0]struct{}                             `per:"extseq"`
+	CommonIEsProvideLocationInformation *CommonIEsProvideLocationInformation    `per:",optional"`
+	AGNSSProvideLocationInformation     *AGNSSProvideLocationInformation        `per:",optional"`
+	OTDOAProvideLocationInformation     *OTDOAProvideLocationInformation        `per:",optional"`
+	ECIDProvideLocationInformation      *ECIDProvideLocationInformation         `per:",optional"`
+	EPDUProvideLocationInformation      *EPDUSequence                           `per:",optional"`
+	R13Additions                        *UnmodelledExtension                    `per:",ext"`
+	R16Additions                        *ProvideLocationInformationR16Additions `per:",ext"`
 }
 
 // =====================================================================
@@ -440,3 +448,33 @@ type EPDUIdentifier struct {
 
 //	EPDU-Body ::= OCTET STRING
 // (encoded as []byte in EPDU struct)
+
+type RequestCapabilitiesR16Additions struct {
+	NRECIDRequestCapabilities     *NRECIDRequestCapabilities `per:",optional"`
+	NRMultiRTTRequestCapabilities *UnmodelledExtension       `per:",optional"`
+	NRDLAoDRequestCapabilities    *UnmodelledExtension       `per:",optional"`
+	NRDLTDOARequestCapabilities   *UnmodelledExtension       `per:",optional"`
+	NRULRequestCapabilities       *UnmodelledExtension       `per:",optional"`
+}
+
+type ProvideCapabilitiesR16Additions struct {
+	NRECIDProvideCapabilities     *NRECIDProvideCapabilities `per:",optional"`
+	NRMultiRTTProvideCapabilities *UnmodelledExtension       `per:",optional"`
+	NRDLAoDProvideCapabilities    *UnmodelledExtension       `per:",optional"`
+	NRDLTDOAProvideCapabilities   *UnmodelledExtension       `per:",optional"`
+	NRULProvideCapabilities       *UnmodelledExtension       `per:",optional"`
+}
+
+type RequestLocationInformationR16Additions struct {
+	NRECIDRequestLocationInformation     *NRECIDRequestLocationInformation `per:",optional"`
+	NRMultiRTTRequestLocationInformation *UnmodelledExtension              `per:",optional"`
+	NRDLAoDRequestLocationInformation    *UnmodelledExtension              `per:",optional"`
+	NRDLTDOARequestLocationInformation   *UnmodelledExtension              `per:",optional"`
+}
+
+type ProvideLocationInformationR16Additions struct {
+	NRECIDProvideLocationInformation     *NRECIDProvideLocationInformation `per:",optional"`
+	NRMultiRTTProvideLocationInformation *UnmodelledExtension              `per:",optional"`
+	NRDLAoDProvideLocationInformation    *UnmodelledExtension              `per:",optional"`
+	NRDLTDOAProvideLocationInformation   *UnmodelledExtension              `per:",optional"`
+}

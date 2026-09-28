@@ -14,20 +14,24 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+func gnssAttempt() []models.PositioningAttempt {
+	return []models.PositioningAttempt{{Method: models.PositioningMethodGNSS, Mode: models.PositioningModeStandalone, Usage: models.PositioningUsageResultsUsedToGenerate}}
+}
+
 func circleEstimate(radius float64) *models.GeographicEstimate {
 	return &models.GeographicEstimate{LatitudeDegrees: 45, LongitudeDegrees: 21.45, UncertaintyRadiusMeters: &radius}
 }
 
 func TestToLocationData_CellID(t *testing.T) {
 	r := &models.LocationResult{
-		SUPI:       "imsi-001010000000001",
-		Method:     models.PositioningMethodCellID,
-		AccessType: "NR",
-		NCGI:       &coremodels.Ncgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, NrCellID: "00066c000"},
-		Estimate:   circleEstimate(150),
+		SUPI:        "imsi-001010000000001",
+		Positioning: []models.PositioningAttempt{{Method: models.PositioningMethodCellID, Mode: models.PositioningModeNetworkBased, Usage: models.PositioningUsageResultsUsedToGenerate}},
+		AccessType:  "NR",
+		NCGI:        &coremodels.Ncgi{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, NrCellID: "00066c000"},
+		Estimate:    circleEstimate(150),
 	}
 
-	ld := toLocationData(r, false)
+	ld := toLocationData(r)
 
 	if ld.LocationEstimate.Shape != gadShapeCircle {
 		t.Fatalf("expected POINT_UNCERTAINTY_CIRCLE, got %+v", ld.LocationEstimate)
@@ -41,49 +45,73 @@ func TestToLocationData_CellID(t *testing.T) {
 		t.Errorf("uncertainty: got %v, want 150", ld.LocationEstimate.Uncertainty)
 	}
 
-	if len(ld.PositioningDataList) != 1 || ld.PositioningDataList[0].Method != posMethodCellID {
-		t.Errorf("expected CELLID method, got %+v", ld.PositioningDataList)
+	want := []PositioningMethodAndUsage{{Method: posMethodCellID, Mode: posModeConvention, Usage: "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"}}
+	if !reflect.DeepEqual(ld.PositioningDataList, want) {
+		t.Errorf("positioningDataList = %+v, want %+v", ld.PositioningDataList, want)
 	}
 
 	if ld.LocNcgi == nil || ld.LocNcgi.NrCellID != "00066c000" {
 		t.Errorf("ncgi mismatch: %+v", ld.LocNcgi)
 	}
 
-	if ld.SupplementaryMeasurements != nil {
-		t.Errorf("supplementary measurements must be absent without verbose")
+	if ld.RadioMeasurements != nil {
+		t.Errorf("radio measurements = %+v, want none", ld.RadioMeasurements)
 	}
 }
 
-func TestToLocationData_ECID_NR_Verbose(t *testing.T) {
-	rsrp := int32(-5600)
+func TestToLocationData_ECID(t *testing.T) {
+	plmn := &coremodels.PlmnID{Mcc: "999", Mnc: "70"}
 	r := &models.LocationResult{
-		Method:     models.PositioningMethodNRECID,
 		AccessType: "NR",
 		Estimate:   circleEstimate(78),
-		SSRSRP:     &rsrp,
+		Positioning: []models.PositioningAttempt{
+			{Method: models.PositioningMethodCellID, Mode: models.PositioningModeNetworkBased, Usage: models.PositioningUsageResultsUsedToGenerate},
+			{Method: models.PositioningMethodNRECID, Mode: models.PositioningModeNetworkBased, Usage: models.PositioningUsageUnsuccess},
+			{Method: models.PositioningMethodNRECID, Mode: models.PositioningModeUEAssisted, Usage: models.PositioningUsageResultsNotUsed},
+		},
+		Measurements: []models.CellMeasurement{{
+			Source: models.MeasurementSourceUE, RAT: models.RATNR, Serving: true,
+			PCI: ptr(int64(180)), ARFCN: ptr(int64(662592)), ARFCNType: models.ARFCNTypeSSB,
+			NCGI:     &coremodels.Ncgi{PlmnID: plmn, NrCellID: "000000fc1"},
+			SSRSRP:   ptr(-84.0),
+			SSBBeams: []models.BeamMeasurement{{Index: 0, RSRP: ptr(-84.0), RSRQ: ptr(-11.0)}},
+		}},
 	}
 
-	ld := toLocationData(r, true)
+	ld := toLocationData(r)
 
-	if m := ld.PositioningDataList[0].Method; m != posMethodNRECID {
-		t.Errorf("expected NR_ECID, got %q", m)
+	wantList := []PositioningMethodAndUsage{
+		{Method: posMethodCellID, Mode: posModeConvention, Usage: "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"},
+		{Method: posMethodNRECID, Mode: posModeConvention, Usage: "UNSUCCESS"},
+		{Method: posMethodNRECID, Mode: posModeUEAssisted, Usage: "SUCCESS_RESULTS_NOT_USED"},
+	}
+	if !reflect.DeepEqual(ld.PositioningDataList, wantList) {
+		t.Errorf("positioningDataList = %+v, want %+v", ld.PositioningDataList, wantList)
 	}
 
-	if ld.SupplementaryMeasurements == nil || ld.SupplementaryMeasurements.SSRSRP == nil || *ld.SupplementaryMeasurements.SSRSRP != -5600 {
-		t.Errorf("expected verbose SS-RSRP -5600, got %+v", ld.SupplementaryMeasurements)
+	b, err := json.Marshal(ld.RadioMeasurements)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `[{"source":"UE","rat":"NR","serving":true,"pci":180,"arfcn":662592,"arfcnType":"SSB",` +
+		`"ncgi":{"plmnId":{"mcc":"999","mnc":"70"},"nrCellId":"000000fc1"},"ssRsrp":-84,` +
+		`"ssbBeams":[{"index":0,"rsrp":-84,"rsrq":-11}]}]`
+	if string(b) != want {
+		t.Errorf("radioMeasurements =\n%s\nwant\n%s", b, want)
 	}
 }
 
 func TestToLocationData_GNSS(t *testing.T) {
-	r := &models.LocationResult{Method: models.PositioningMethodGNSS, Estimate: circleEstimate(10)}
+	r := &models.LocationResult{Positioning: gnssAttempt(), Estimate: circleEstimate(10)}
 
-	ld := toLocationData(r, false)
+	ld := toLocationData(r)
 
 	if len(ld.PositioningDataList) != 0 {
 		t.Errorf("positioningDataList = %+v, want none for a GNSS fix", ld.PositioningDataList)
 	}
 
-	want := []GnssPositioningMethodAndUsage{{Mode: posModeUEBased, Gnss: gnssGPS, Usage: usageSuccessUsed}}
+	want := []GnssPositioningMethodAndUsage{{Mode: posModeConvention, Gnss: gnssGPS, Usage: "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION"}}
 	if !reflect.DeepEqual(ld.GnssPositioningDataList, want) {
 		t.Errorf("gnssPositioningDataList = %+v, want %+v", ld.GnssPositioningDataList, want)
 	}
@@ -157,7 +185,7 @@ func TestToGeographicArea(t *testing.T) {
 
 func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 	r := &models.LocationResult{
-		Method: models.PositioningMethodGNSS,
+		Positioning: gnssAttempt(),
 		Estimate: &models.GeographicEstimate{
 			LatitudeDegrees: 45, LongitudeDegrees: 21.45, AltitudeMeters: ptr(16.0),
 			UncertaintyEllipse:        &models.UncertaintyEllipse{SemiMajorMeters: 21.4, SemiMinorMeters: 11.4, OrientationMajorDegrees: 30},
@@ -167,7 +195,7 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 		TAI: &coremodels.Tai{PlmnID: &coremodels.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 	}
 
-	b, err := json.Marshal(toLocationData(r, false))
+	b, err := json.Marshal(toLocationData(r))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +234,7 @@ func TestToLocationData_WireFormatMatchesSpec(t *testing.T) {
 }
 
 func TestStoredLocationData(t *testing.T) {
-	stored, err := json.Marshal(&models.LocationResult{Method: models.PositioningMethodGNSS, Estimate: circleEstimate(10)})
+	stored, err := json.Marshal(&models.LocationResult{Positioning: gnssAttempt(), Estimate: circleEstimate(10)})
 	if err != nil {
 		t.Fatal(err)
 	}

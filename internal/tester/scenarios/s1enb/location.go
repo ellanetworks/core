@@ -84,7 +84,7 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 
 	// E-CID is anchored by the eNB's access-point position (in the LPPa response),
 	// so it yields a coordinate without any provisioning.
-	ecid, err := common.GetLocation(ctx, cl, supi, "ecid")
+	ecid, err := common.GetLocation(ctx, cl, supi, "ecid", "network_based")
 	if err != nil {
 		return fmt.Errorf("E-CID location failed: %w", err)
 	}
@@ -97,8 +97,12 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 		return fmt.Errorf("E-CID result missing ecgi")
 	}
 
-	if m := common.PositioningMethod(ecid); m != "ECID" {
-		return fmt.Errorf("expected ECID positioning method, got %q", m)
+	if !common.HasPositioning(ecid, "ECID", "CONVENTIONAL", "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION") {
+		return fmt.Errorf("expected a network-based ECID result that generated the location, got %+v", ecid.PositioningDataList)
+	}
+
+	if n := common.CountMeasurements(ecid, "NETWORK"); n == 0 {
+		return fmt.Errorf("network-based E-CID returned no eNB measurements")
 	}
 
 	logger.Logger.Info("E-CID location validated",
@@ -110,7 +114,7 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 		logger.Logger.Warn("cell position provisioning returned an error (may already exist)", zap.Error(err))
 	}
 
-	cellID, err := common.GetLocation(ctx, cl, supi, "cell_id")
+	cellID, err := common.GetLocation(ctx, cl, supi, "cell_id", "")
 	if err != nil {
 		return fmt.Errorf("cell ID location failed: %w", err)
 	}
@@ -136,14 +140,44 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 		err    error
 	}
 
+	fix := s1enb.LPPFix{Latitude: 450000000, Longitude: 214500000, Altitude: 10000, HorizontalAccuracy: 10, VerticalAccuracy: 15}
+
+	ueECIDDone := make(chan locationOutcome, 1)
+
+	go func() {
+		result, err := common.GetLocation(ctx, cl, supi, "ecid", "ue_assisted")
+		ueECIDDone <- locationOutcome{result: result, err: err}
+	}()
+
+	if err := e.AnswerLPP(ue, attached.ENBUES1APID, fix, lppTimeout); err != nil {
+		return fmt.Errorf("answer LPP E-CID: %w", err)
+	}
+
+	ueECID := <-ueECIDDone
+	if ueECID.err != nil {
+		return fmt.Errorf("UE-assisted E-CID location failed: %w", ueECID.err)
+	}
+
+	if !common.HasPositioning(ueECID.result, "ECID", "UE_ASSISTED", "SUCCESS_RESULTS_NOT_USED") {
+		return fmt.Errorf("expected a successful UE-assisted ECID result, got %+v", ueECID.result.PositioningDataList)
+	}
+
+	if !common.HasPositioning(ueECID.result, "CELLID", "CONVENTIONAL", "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION") {
+		return fmt.Errorf("expected the provisioned cell to generate the location, got %+v", ueECID.result.PositioningDataList)
+	}
+
+	if n := common.CountMeasurements(ueECID.result, "UE"); n != 2 {
+		return fmt.Errorf("expected 2 UE-reported cells, got %d", n)
+	}
+
+	logger.Logger.Info("UE-assisted E-CID location validated")
+
 	agnssDone := make(chan locationOutcome, 1)
 
 	go func() {
-		result, err := common.GetLocation(ctx, cl, supi, "gnss")
+		result, err := common.GetLocation(ctx, cl, supi, "gnss", "")
 		agnssDone <- locationOutcome{result: result, err: err}
 	}()
-
-	fix := s1enb.LPPFix{Latitude: 450000000, Longitude: 214500000, Altitude: 10000, HorizontalAccuracy: 10, VerticalAccuracy: 15}
 
 	if err := e.AnswerLPP(ue, attached.ENBUES1APID, fix, lppTimeout); err != nil {
 		return fmt.Errorf("answer LPP: %w", err)

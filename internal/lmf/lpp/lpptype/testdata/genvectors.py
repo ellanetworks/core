@@ -33,6 +33,106 @@ CAPTURES = [
     ),
 ]
 
+MODELLED_EXTENSIONS = {
+    "nr-ECID-RequestCapabilities-r16",
+    "nr-ECID-ProvideCapabilities-r16",
+    "nr-ECID-RequestLocationInformation-r16",
+    "nr-ECID-ProvideLocationInformation-r16",
+}
+
+NCGI = {"mcc-r15": [9, 9, 9], "mnc-r15": [7, 0], "nr-cellidentity-r15": (0xFC1, 36)}
+
+TARGETED = [
+    (
+        "targeted/request-capabilities-ecid",
+        {
+            "transactionID": {"initiator": "locationServer", "transactionNumber": 0},
+            "endTransaction": False,
+            "sequenceNumber": 0,
+            "lpp-MessageBody": ("c1", ("requestCapabilities", {"criticalExtensions": ("c1", ("requestCapabilities-r9", {
+                "ecid-RequestCapabilities": {},
+                "nr-ECID-RequestCapabilities-r16": {},
+            }))})),
+        },
+    ),
+    (
+        "targeted/request-location-information-ecid",
+        {
+            "transactionID": {"initiator": "locationServer", "transactionNumber": 1},
+            "endTransaction": False,
+            "sequenceNumber": 1,
+            "lpp-MessageBody": ("c1", ("requestLocationInformation", {"criticalExtensions": ("c1", ("requestLocationInformation-r9", {
+                "commonIEsRequestLocationInformation": {
+                    "locationInformationType": "locationMeasurementsRequired",
+                    "qos": {"responseTime": {"time": 8}, "velocityRequest": False, "verticalCoordinateRequest": False},
+                },
+                "ecid-RequestLocationInformation": {"requestedMeasurements": (0b111, 3)},
+                "nr-ECID-RequestLocationInformation-r16": {"requestedMeasurements-r16": (0b11, 2)},
+            }))})),
+        },
+    ),
+    (
+        "targeted/provide-capabilities-ecid",
+        {
+            "transactionID": {"initiator": "locationServer", "transactionNumber": 0},
+            "endTransaction": True,
+            "sequenceNumber": 3,
+            "acknowledgement": {"ackRequested": True},
+            "lpp-MessageBody": ("c1", ("provideCapabilities", {"criticalExtensions": ("c1", ("provideCapabilities-r9", {
+                "ecid-ProvideCapabilities": {"ecid-MeasSupported": (0b11100, 5)},
+                "nr-ECID-ProvideCapabilities-r16": {"nr-ECID-MeasSupported-r16": (0b1100, 4), "periodicalReporting-r16": "supported"},
+            }))})),
+        },
+    ),
+    (
+        "targeted/provide-location-information-ecid",
+        {
+            "transactionID": {"initiator": "locationServer", "transactionNumber": 1},
+            "endTransaction": True,
+            "sequenceNumber": 4,
+            "acknowledgement": {"ackRequested": True},
+            "lpp-MessageBody": ("c1", ("provideLocationInformation", {"criticalExtensions": ("c1", ("provideLocationInformation-r9", {
+                "ecid-ProvideLocationInformation": {"ecid-SignalMeasurementInformation": {
+                    "measuredResultsList": [{"physCellId": 148, "arfcnEUTRA": 9310, "rsrp-Result": 43, "rsrq-Result": 25}],
+                }},
+                "nr-ECID-ProvideLocationInformation-r16": {"nr-ECID-SignalMeasurementInformation-r16": {
+                    "nr-PrimaryCellMeasuredResults-r16": {
+                        "nr-PhysCellID-r16": 180,
+                        "nr-ARFCN-r16": ("ssb-ARFCN-r16", 662592),
+                        "nr-CellGlobalID-r16": NCGI,
+                        "resultsSSB-Cell-r16": {"nr-RSRP-r16": 73, "nr-RSRQ-r16": 65},
+                        "resultsSSB-Indexes-r16": [
+                            {"ssb-Index-r16": 0, "ssb-Results-r16": {"nr-RSRP-r16": 73, "nr-RSRQ-r16": 65}},
+                            {"ssb-Index-r16": 4, "ssb-Results-r16": {"nr-RSRP-r16": 60}},
+                        ],
+                    },
+                    "nr-MeasuredResultsList-r16": [
+                        {
+                            "nr-PhysCellID-r16": 181,
+                            "nr-ARFCN-r16": ("csi-RS-pointA-r16", 662400),
+                            "resultsCSI-RS-Cell-r16": {"nr-RSRP-r16": 50},
+                        },
+                    ],
+                }},
+            }))})),
+        },
+    ),
+    (
+        "targeted/provide-location-information-ecid-error",
+        {
+            "transactionID": {"initiator": "locationServer", "transactionNumber": 1},
+            "endTransaction": True,
+            "lpp-MessageBody": ("c1", ("provideLocationInformation", {"criticalExtensions": ("c1", ("provideLocationInformation-r9", {
+                "ecid-ProvideLocationInformation": {"ecid-Error": ("targetDeviceErrorCauses", {"cause": "requestedMeasurementNotAvailable"})},
+                "nr-ECID-ProvideLocationInformation-r16": {"nr-ECID-Error-r16": ("targetDeviceErrorCauses-r16", {
+                    "cause-r16": "notAllrequestedMeasurementsPossible",
+                    "ss-RSRQMeasurementNotPossible-r16": 0,
+                })},
+            }))})),
+        },
+    ),
+]
+
 MAX_LIST = 3
 MAX_BITS = 40
 MAX_DEPTH = 40
@@ -174,7 +274,7 @@ def uses_extensions(obj, val):
         return False
     if kind in ("SEQUENCE", "SET"):
         for name, inner in val.items():
-            if name not in obj._root:
+            if name not in obj._root and name not in MODELLED_EXTENSIONS:
                 return True
             if uses_extensions(obj._cont[name], inner):
                 return True
@@ -187,6 +287,22 @@ def uses_extensions(obj, val):
     if kind in ("SEQUENCE OF", "SET OF"):
         return any(uses_extensions(obj._cont, v) for v in val)
     return False
+
+
+def modelled_extensions(obj, val, out):
+    kind = obj.TYPE
+    if kind in ("SEQUENCE", "SET"):
+        for name, inner in val.items():
+            if name in MODELLED_EXTENSIONS:
+                out[name] = canonical(obj._cont[name], inner)
+            modelled_extensions(obj._cont[name], inner, out)
+    elif kind == "CHOICE":
+        name, inner = val
+        modelled_extensions(obj._cont[name], inner, out)
+    elif kind in ("SEQUENCE OF", "SET OF"):
+        for inner in val:
+            modelled_extensions(obj._cont, inner, out)
+    return out
 
 
 def features(obj, val, path, out):
@@ -228,6 +344,7 @@ def vector(name, msg):
         "hex": raw.hex(),
         "roundTrip": not uses_extensions(MESSAGE, decoded),
         "value": canonical(MESSAGE, decoded),
+        "ext": modelled_extensions(MESSAGE, decoded, {}),
     }
 
 
@@ -250,6 +367,24 @@ def describe(obj, types):
     return describe_inline(obj, types)
 
 
+def describe_additions(obj, types):
+    additions = []
+    idents = getattr(obj, "_ext_ident", None) or {}
+    last = None
+    for name in obj._ext or []:
+        comp = {
+            "name": name,
+            "type": describe(obj._cont[name], types) if name in MODELLED_EXTENSIONS else None,
+        }
+        group = idents.get(name)
+        if group is not None and group == last:
+            additions[-1]["comps"].append(comp)
+            continue
+        additions.append({"group": group is not None, "comps": [comp]})
+        last = group
+    return additions
+
+
 def describe_inline(obj, types):
     kind = obj.TYPE
     if kind in ("SEQUENCE", "SET"):
@@ -257,6 +392,7 @@ def describe_inline(obj, types):
         return {
             "kind": "SEQUENCE",
             "ext": obj._ext is not None,
+            "additions": describe_additions(obj, types),
             "comps": [
                 {
                     "name": name,
@@ -325,8 +461,12 @@ def main():
                 "hex": hexstr,
                 "roundTrip": not uses_extensions(MESSAGE, decoded),
                 "value": canonical(MESSAGE, decoded),
+                "ext": modelled_extensions(MESSAGE, decoded, {}),
             }
         )
+
+    for name, msg in TARGETED:
+        vectors.append(vector(name, msg))
 
     for body in BODIES:
         for with_ext in (False, True):

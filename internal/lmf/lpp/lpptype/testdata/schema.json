@@ -20,6 +20,17 @@
    "kind": "CHOICE"
   },
   "A-GNSS-ProvideAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-PeriodicAssistData-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -50,6 +61,48 @@
    "kind": "SEQUENCE"
   },
   "A-GNSS-ProvideCapabilities": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "periodicalReportingNotSupported-r14",
+       "type": null
+      },
+      {
+       "name": "idleStateForMeasurements-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicAssistanceData-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "scheduledLocationRequestSupported-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicReportingIntervalMsSupport-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -88,6 +141,7 @@
    "kind": "SEQUENCE"
   },
   "A-GNSS-ProvideLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -118,6 +172,17 @@
    "kind": "SEQUENCE"
   },
   "A-GNSS-RequestAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-PeriodicAssistDataReq-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -140,6 +205,7 @@
    "kind": "SEQUENCE"
   },
   "A-GNSS-RequestCapabilities": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -170,6 +236,7 @@
    "kind": "SEQUENCE"
   },
   "A-GNSS-RequestLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -190,6 +257,13 @@
     65535
    ]
   },
+  "ARFCN-ValueNR-r15": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    3279165
+   ]
+  },
   "ARFCN-ValueUTRA": {
    "kind": "INTEGER",
    "range": [
@@ -198,6 +272,7 @@
    ]
   },
   "Abort": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -241,6 +316,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -256,6 +332,17 @@
    "kind": "SEQUENCE"
   },
   "Abort-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "epdu-Abort",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -270,6 +357,7 @@
    "kind": "SEQUENCE"
   },
   "AccessTypes": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -295,6 +383,7 @@
    "kind": "SEQUENCE"
   },
   "Acknowledgement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -325,6 +414,7 @@
    ]
   },
   "AlmanacECEF-SBAS-AlmanacSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -448,6 +538,7 @@
    "kind": "SEQUENCE"
   },
   "AlmanacGLONASS-AlmanacSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -611,6 +702,7 @@
    "kind": "SEQUENCE"
   },
   "AlmanacKeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -759,6 +851,7 @@
    "kind": "SEQUENCE"
   },
   "AlmanacMidiAlmanacSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -905,6 +998,7 @@
    "kind": "SEQUENCE"
   },
   "AlmanacNAV-KeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1039,6 +1133,7 @@
    "kind": "SEQUENCE"
   },
   "AlmanacReducedKeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1113,6 +1208,7 @@
    "kind": "SEQUENCE"
   },
   "AssistanceDataSupportList": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1135,6 +1231,7 @@
    "kind": "SEQUENCE"
   },
   "BadSignalElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1157,6 +1254,7 @@
    "kind": "SEQUENCE"
   },
   "CNAV-ClockModel": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1343,12 +1441,14 @@
    "kind": "SEQUENCE"
   },
   "CellGlobalIdEUTRA-AndUTRA": {
+   "additions": [],
    "comps": [
     {
      "default": false,
      "name": "plmn-Identity",
      "optional": false,
      "type": {
+      "additions": [],
       "comps": [
        {
         "default": false,
@@ -1431,12 +1531,14 @@
    "kind": "SEQUENCE"
   },
   "CellGlobalIdGERAN": {
+   "additions": [],
    "comps": [
     {
      "default": false,
      "name": "plmn-Identity",
      "optional": false,
      "type": {
+      "additions": [],
       "comps": [
        {
         "default": false,
@@ -1512,6 +1614,7 @@
    "kind": "SEQUENCE"
   },
   "CommonIEsAbort": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1535,6 +1638,7 @@
    "kind": "SEQUENCE"
   },
   "CommonIEsError": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1559,16 +1663,106 @@
    "kind": "SEQUENCE"
   },
   "CommonIEsProvideAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "segmentationInfo-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicAssistanceData-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "CommonIEsProvideCapabilities": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "segmentationInfo-r14",
+       "type": null
+      },
+      {
+       "name": "lpp-message-segmentation-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "remoteUE-Indication-r18",
+       "type": null
+      },
+      {
+       "name": "locationEstimateAndMeasurementReporting-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "CommonIEsProvideLocationInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "earlyFixReport-r12",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "locationSource-r13",
+       "type": null
+      },
+      {
+       "name": "locationTimestamp-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "segmentationInfo-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "integrityInfo-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -1599,6 +1793,30 @@
    "kind": "SEQUENCE"
   },
   "CommonIEsRequestAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "segmentationInfo-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicAssistanceDataReq-r15",
+       "type": null
+      },
+      {
+       "name": "primaryCellID-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -1613,11 +1831,73 @@
    "kind": "SEQUENCE"
   },
   "CommonIEsRequestCapabilities": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "lpp-message-segmentation-req-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "remoteUE-IndicationReq-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "CommonIEsRequestLocationInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "messageSizeLimitNB-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "segmentationInfo-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "scheduledLocationTime-r17",
+       "type": null
+      },
+      {
+       "name": "targetIntegrityRisk-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicalReportingExt-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -1688,6 +1968,7 @@
    "kind": "SEQUENCE"
   },
   "DGNSS-CorrectionsElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1785,6 +2066,7 @@
    ]
   },
   "DGNSS-SgnTypeElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1829,6 +2111,7 @@
    ]
   },
   "ECGI": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1904,6 +2187,7 @@
    "kind": "CHOICE"
   },
   "ECID-LocationServerErrorCauses": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1922,6 +2206,52 @@
    "kind": "SEQUENCE"
   },
   "ECID-ProvideCapabilities": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "ueRxTxSupTDD-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicalReporting-r14",
+       "type": null
+      },
+      {
+       "name": "triggeredReporting-r14",
+       "type": null
+      },
+      {
+       "name": "idleStateForMeasurements-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "scheduledLocationRequestSupported-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicReportingIntervalMsSupport-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -1947,6 +2277,7 @@
    "kind": "SEQUENCE"
   },
   "ECID-ProvideLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1969,11 +2300,13 @@
    "kind": "SEQUENCE"
   },
   "ECID-RequestCapabilities": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "ECID-RequestLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -1999,6 +2332,7 @@
    "kind": "SEQUENCE"
   },
   "ECID-SignalMeasurementInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2021,6 +2355,21 @@
    "kind": "SEQUENCE"
   },
   "ECID-TargetDeviceErrorCauses": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "nrsrpMeasurementNotPossible-r14",
+       "type": null
+      },
+      {
+       "name": "nrsrqMeasurementNotPossible-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -2065,6 +2414,7 @@
    "kind": "SEQUENCE"
   },
   "EPDU": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2098,6 +2448,7 @@
    ]
   },
   "EPDU-Identifier": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2137,6 +2488,7 @@
    ]
   },
   "Ellipsoid-Point": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2180,6 +2532,7 @@
    "kind": "SEQUENCE"
   },
   "Ellipsoid-PointWithUncertaintyCircle": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2235,6 +2588,7 @@
    "kind": "SEQUENCE"
   },
   "EllipsoidArc": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2338,6 +2692,7 @@
    "kind": "SEQUENCE"
   },
   "EllipsoidPointWithAltitude": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2406,6 +2761,7 @@
    "kind": "SEQUENCE"
   },
   "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2534,6 +2890,7 @@
    "kind": "SEQUENCE"
   },
   "EllipsoidPointWithUncertaintyEllipse": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2644,6 +3001,7 @@
     {
      "name": "criticalExtensionsFuture",
      "type": {
+      "additions": [],
       "comps": [],
       "ext": false,
       "kind": "SEQUENCE"
@@ -2654,6 +3012,17 @@
    "kind": "CHOICE"
   },
   "Error-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "epdu-Error",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -2668,6 +3037,7 @@
    "kind": "SEQUENCE"
   },
   "GLONASS-ClockModel": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2710,6 +3080,26 @@
    "kind": "SEQUENCE"
   },
   "GNSS-AcquisitionAssistElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "codePhase1023",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "dopplerUncertaintyExt-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -2830,6 +3220,17 @@
    ]
   },
   "GNSS-AcquisitionAssistance": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "confidence-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -2852,6 +3253,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-AcquisitionAssistanceReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2866,11 +3268,59 @@
    "kind": "SEQUENCE"
   },
   "GNSS-AcquisitionAssistanceSupport": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "confidenceSupport-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "dopplerUncertaintyExtSupport-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-Almanac": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "toa-ext-v1240",
+       "type": null
+      },
+      {
+       "name": "ioda-ext-v1240",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "weekNumber-ext-r16",
+       "type": null
+      },
+      {
+       "name": "toa-ext2-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -2981,6 +3431,7 @@
    ]
   },
   "GNSS-AlmanacReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -2999,6 +3450,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-AlmanacSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3045,11 +3497,13 @@
    "kind": "CHOICE"
   },
   "GNSS-AuxiliaryInformationReq": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-AuxiliaryInformationSupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
@@ -3101,6 +3555,60 @@
    "kind": "CHOICE"
   },
   "GNSS-CommonAssistData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-ReferenceStationInfo-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-CommonObservationInfo-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-AuxiliaryStationData-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-CorrectionPoints-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-Integrity-ServiceParameters-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-Integrity-ServiceAlert-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-los-nlos-GridPoints-r18",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-IOD-Update-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3139,6 +3647,52 @@
    "kind": "SEQUENCE"
   },
   "GNSS-CommonAssistDataReq": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-ReferenceStationInfoReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-AuxiliaryStationDataReq-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-CorrectionPointsReq-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-Integrity-ServiceParametersReq-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-Integrity-ServiceAlertReq-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-IOD-UpdateReq-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3177,6 +3731,43 @@
    "kind": "SEQUENCE"
   },
   "GNSS-CommonAssistanceDataSupport": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-ReferenceStationInfoSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-AuxiliaryStationDataSupport-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-Integrity-ServiceParametersSupport-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-Integrity-ServiceAlertSupport-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-IOD-UpdateSupport-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3215,6 +3806,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-DataBitAssistance": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3253,6 +3845,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-DataBitAssistanceReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3311,11 +3904,13 @@
    "kind": "SEQUENCE"
   },
   "GNSS-DataBitAssistanceSupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-DataBitsReqSatElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3340,6 +3935,7 @@
    ]
   },
   "GNSS-DataBitsSatElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3372,6 +3968,7 @@
    ]
   },
   "GNSS-DataBitsSgnElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3409,6 +4006,7 @@
    ]
   },
   "GNSS-DifferentialCorrections": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3435,6 +4033,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-DifferentialCorrectionsReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3457,6 +4056,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-DifferentialCorrectionsSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3479,6 +4079,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-EarthOrientationParameters": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3569,11 +4170,13 @@
    "kind": "SEQUENCE"
   },
   "GNSS-EarthOrientationParametersReq": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-EarthOrientationParametersSupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
@@ -3589,6 +4192,117 @@
    ]
   },
   "GNSS-GenericAssistDataElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "bds-DifferentialCorrections-r12",
+       "type": null
+      },
+      {
+       "name": "bds-GridModel-r12",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-Observations-r15",
+       "type": null
+      },
+      {
+       "name": "glo-RTK-BiasInformation-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-MAC-CorrectionDifferences-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-Residuals-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-FKP-Gradients-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-OrbitCorrections-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrections-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-CodeBias-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-URA-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-PhaseBias-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-STEC-Correction-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-GriddedCorrection-r16",
+       "type": null
+      },
+      {
+       "name": "navic-DifferentialCorrections-r16",
+       "type": null
+      },
+      {
+       "name": "navic-GridModel-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-OrbitCorrectionsSet2-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrectionsSet2-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-URA-Set2-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-LOS-NLOS-GriddedIndications-r18",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-SatellitePCVResiduals-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3693,6 +4407,117 @@
    ]
   },
   "GNSS-GenericAssistDataReqElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "bds-DifferentialCorrectionsReq-r12",
+       "type": null
+      },
+      {
+       "name": "bds-GridModelReq-r12",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-ObservationsReq-r15",
+       "type": null
+      },
+      {
+       "name": "glo-RTK-BiasInformationReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-MAC-CorrectionDifferencesReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-ResidualsReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-FKP-GradientsReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-OrbitCorrectionsReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrectionsReq-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-CodeBiasReq-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-URA-Req-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-PhaseBiasReq-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-STEC-CorrectionReq-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-GriddedCorrectionReq-r16",
+       "type": null
+      },
+      {
+       "name": "navic-DifferentialCorrectionsReq-r16",
+       "type": null
+      },
+      {
+       "name": "navic-GridModelReq-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-OrbitCorrectionsSet2Req-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrectionsSet2Req-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-URA-Set2Req-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-LOS-NLOS-GriddedIndicationsReq-r18",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-SatellitePCVResidualsReq-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3787,6 +4612,117 @@
    "kind": "SEQUENCE"
   },
   "GNSS-GenericAssistDataSupportElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "bds-DifferentialCorrectionsSupport-r12",
+       "type": null
+      },
+      {
+       "name": "bds-GridModelSupport-r12",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-RTK-ObservationsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "glo-RTK-BiasInformationSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-MAC-CorrectionDifferencesSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-ResidualsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-RTK-FKP-GradientsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-OrbitCorrectionsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrectionsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-CodeBiasSupport-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-URA-Support-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-PhaseBiasSupport-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-STEC-CorrectionSupport-r16",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-GriddedCorrectionSupport-r16",
+       "type": null
+      },
+      {
+       "name": "navic-DifferentialCorrectionsSupport-r16",
+       "type": null
+      },
+      {
+       "name": "navic-GridModelSupport-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-SSR-OrbitCorrectionsSet2Support-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-ClockCorrectionsSet2Support-r17",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-URA-Set2Support-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "gnss-LOS-NLOS-GriddedIndicationsSupport-r18",
+       "type": null
+      },
+      {
+       "name": "gnss-SSR-SatellitePCVResidualsSupport-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -3891,6 +4827,7 @@
    ]
   },
   "GNSS-ID": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3916,6 +4853,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-ID-Bitmap": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3953,6 +4891,7 @@
    ]
   },
   "GNSS-ID-GLONASS-SatElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -3997,6 +4936,7 @@
    ]
   },
   "GNSS-ID-GPS-SatElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4019,6 +4959,17 @@
    "kind": "SEQUENCE"
   },
   "GNSS-IonosphericModel": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "klobucharModel2-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4041,6 +4992,17 @@
    "kind": "SEQUENCE"
   },
   "GNSS-IonosphericModelReq": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "klobucharModel2Req-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4068,6 +5030,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-IonosphericModelSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4091,6 +5054,17 @@
    "kind": "SEQUENCE"
   },
   "GNSS-LocationInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "ha-GNSS-Metrics-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4113,6 +5087,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-LocationServerErrorCauses": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4139,6 +5114,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-MeasurementForOneGNSS": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4171,6 +5147,17 @@
    ]
   },
   "GNSS-NavModelSatelliteElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "svHealthExt-v1240",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4237,6 +5224,7 @@
    ]
   },
   "GNSS-NavigationModel": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4281,6 +5269,7 @@
    "kind": "CHOICE"
   },
   "GNSS-NavigationModelSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4367,6 +5356,26 @@
    "kind": "CHOICE"
   },
   "GNSS-PositioningInstructions": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "ha-GNSS-Req-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "ha-GNSS-MetricsReq-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4413,6 +5422,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-RealTimeIntegrity": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4427,16 +5437,19 @@
    "kind": "SEQUENCE"
   },
   "GNSS-RealTimeIntegrityReq": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-RealTimeIntegritySupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceLocation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4451,16 +5464,19 @@
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceLocationReq": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceLocationSupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceTime": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4502,6 +5518,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceTimeForOneCell": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4540,6 +5557,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceTimeReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4577,6 +5595,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-ReferenceTimeSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4599,6 +5618,29 @@
    "kind": "SEQUENCE"
   },
   "GNSS-SatMeasElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "adrMSB-r15",
+       "type": null
+      },
+      {
+       "name": "adrSign-r15",
+       "type": null
+      },
+      {
+       "name": "adrRMSerror-r15",
+       "type": null
+      },
+      {
+       "name": "delta-codePhase-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4722,6 +5764,7 @@
    ]
   },
   "GNSS-SgnMeasElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4766,6 +5809,17 @@
    ]
   },
   "GNSS-SignalID": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-SignalID-Ext-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4784,6 +5838,17 @@
    "kind": "SEQUENCE"
   },
   "GNSS-SignalIDs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "gnss-SignalIDs-Ext-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4803,6 +5868,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-SignalMeasurementInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4825,6 +5891,30 @@
    "kind": "SEQUENCE"
   },
   "GNSS-SupportElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "adrEnhancementsSupport-r15",
+       "type": null
+      },
+      {
+       "name": "ha-gnss-Modes-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "ha-gnss-MetricsSupport-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -4863,6 +5953,7 @@
      "name": "fta-MeasSupport",
      "optional": true,
      "type": {
+      "additions": [],
       "comps": [
        {
         "default": false,
@@ -4916,6 +6007,7 @@
    ]
   },
   "GNSS-SystemTime": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -4987,6 +6079,17 @@
    "kind": "SEQUENCE"
   },
   "GNSS-TargetDeviceErrorCauses": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "remoteUE-Indication-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -5032,6 +6135,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-TimeModelElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5122,6 +6226,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-TimeModelElementReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5168,6 +6273,7 @@
    ]
   },
   "GNSS-TimeModelListSupport": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
@@ -5203,6 +6309,7 @@
    "kind": "CHOICE"
   },
   "GNSS-UTC-ModelReq": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5221,6 +6328,7 @@
    "kind": "SEQUENCE"
   },
   "GNSS-UTC-ModelSupport": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5256,6 +6364,7 @@
    ]
   },
   "GPS-TOW-AssistElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5322,6 +6431,7 @@
    "kind": "SEQUENCE"
   },
   "HorizontalAccuracy": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5352,6 +6462,7 @@
    "kind": "SEQUENCE"
   },
   "HorizontalVelocity": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5382,6 +6493,7 @@
    "kind": "SEQUENCE"
   },
   "HorizontalVelocityWithUncertainty": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5424,6 +6536,7 @@
    "kind": "SEQUENCE"
   },
   "HorizontalWithVerticalVelocity": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5479,6 +6592,7 @@
    "kind": "SEQUENCE"
   },
   "HorizontalWithVerticalVelocityAndUncertainty": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5566,6 +6680,7 @@
    ]
   },
   "KlobucharModelParameter": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5681,6 +6796,7 @@
    "kind": "SEQUENCE"
   },
   "LPP-Message": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5836,6 +6952,7 @@
     {
      "name": "messageClassExtension",
      "type": {
+      "additions": [],
       "comps": [],
       "ext": false,
       "kind": "SEQUENCE"
@@ -5846,6 +6963,7 @@
    "kind": "CHOICE"
   },
   "LPP-TransactionID": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -5868,6 +6986,47 @@
    "kind": "SEQUENCE"
   },
   "LocationCoordinateTypes": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "highAccuracyEllipsoidPointWithUncertaintyEllipse-r15",
+       "type": null
+      },
+      {
+       "name": "highAccuracyEllipsoidPointWithAltitudeAndUncertaintyEllipsoid-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "ha-EllipsoidPointWithScalableUncertaintyEllipse-r16",
+       "type": null
+      },
+      {
+       "name": "ha-EllipsoidPointWithAltitudeAndScalableUncertaintyEllipsoid-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "local2dPointWithUncertaintyEllipse-r18",
+       "type": null
+      },
+      {
+       "name": "local3dPointWithUncertaintyEllipsoid-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -5978,6 +7137,7 @@
    "kind": "CHOICE"
   },
   "LocationError": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6013,7 +7173,83 @@
     "locationMeasurementsPreferred"
    ]
   },
+  "MeasQuantityResults-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "nr-RSRP-r16",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-RSRQ-r16",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
   "MeasuredResultsElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "arfcnEUTRA-v9a0",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nrsrp-Result-r14",
+       "type": null
+      },
+      {
+       "name": "nrsrq-Result-r14",
+       "type": null
+      },
+      {
+       "name": "carrierFreqOffsetNB-r14",
+       "type": null
+      },
+      {
+       "name": "hyperSFN-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "rsrp-Result-v1470",
+       "type": null
+      },
+      {
+       "name": "rsrq-Result-v1470",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -6107,6 +7343,7 @@
    ]
   },
   "MeasurementReferenceTime": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6161,6 +7398,7 @@
        {
         "name": "eUTRA",
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -6203,6 +7441,7 @@
        {
         "name": "uTRA",
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -6213,6 +7452,7 @@
              {
               "name": "fdd",
               "type": {
+               "additions": [],
                "comps": [
                 {
                  "default": false,
@@ -6234,6 +7474,7 @@
              {
               "name": "tdd",
               "type": {
+               "additions": [],
                "comps": [
                 {
                  "default": false,
@@ -6285,6 +7526,7 @@
        {
         "name": "gSM",
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -6323,6 +7565,7 @@
            "name": "referenceFrame",
            "optional": false,
            "type": {
+            "additions": [],
             "comps": [
              {
               "default": false,
@@ -6380,6 +7623,7 @@
    "kind": "SEQUENCE"
   },
   "NAV-ClockModel": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6445,7 +7689,423 @@
    "ext": true,
    "kind": "SEQUENCE"
   },
+  "NCGI-r15": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "mcc-r15",
+     "optional": false,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        0,
+        9
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       3,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "mnc-r15",
+     "optional": false,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        0,
+        9
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       2,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-cellidentity-r15",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       36,
+       36
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-Error-r16": {
+   "alts": [
+    {
+     "name": "locationServerErrorCauses-r16",
+     "type": {
+      "ref": "NR-ECID-LocationServerErrorCauses-r16"
+     }
+    },
+    {
+     "name": "targetDeviceErrorCauses-r16",
+     "type": {
+      "ref": "NR-ECID-TargetDeviceErrorCauses-r16"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "NR-ECID-LocationServerErrorCauses-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "cause-r16",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-ProvideCapabilities-r16": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "ten-ms-unit-ResponseTime-r17",
+       "type": null
+      },
+      {
+       "name": "scheduledLocationRequestSupported-r17",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicReportingIntervalMsSupport-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
+   "comps": [
+    {
+     "default": false,
+     "name": "nr-ECID-MeasSupported-r16",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "ssrsrpSup",
+       "ssrsrqSup",
+       "csirsrpSup",
+       "csirsrqSup"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "periodicalReporting-r16",
+     "optional": true,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "supported"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "triggeredReporting-r16",
+     "optional": true,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "supported"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-ProvideLocationInformation-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "nr-ECID-SignalMeasurementInformation-r16",
+     "optional": true,
+     "type": {
+      "ref": "NR-ECID-SignalMeasurementInformation-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-ECID-Error-r16",
+     "optional": true,
+     "type": {
+      "ref": "NR-ECID-Error-r16"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-RequestCapabilities-r16": {
+   "additions": [],
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-RequestLocationInformation-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "requestedMeasurements-r16",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "ssrsrpReq",
+       "ssrsrqReq",
+       "csirsrpReq",
+       "csirsrqReq"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-SignalMeasurementInformation-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "nr-PrimaryCellMeasuredResults-r16",
+     "optional": false,
+     "type": {
+      "ref": "NR-MeasuredResultsElement-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-MeasuredResultsList-r16",
+     "optional": true,
+     "type": {
+      "ref": "NR-MeasuredResultsList-r16"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-ECID-TargetDeviceErrorCauses-r16": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "remoteUE-Indication-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
+   "comps": [
+    {
+     "default": false,
+     "name": "cause-r16",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "requestedMeasurementNotAvailable",
+       "notAllrequestedMeasurementsPossible"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ss-RSRPMeasurementNotPossible-r16",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "ss-RSRQMeasurementNotPossible-r16",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "csi-RSRPMeasurementNotPossible-r16",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "csi-RSRQMeasurementNotPossible-r16",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-MeasuredResultsElement-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "nr-PhysCellID-r16",
+     "optional": false,
+     "type": {
+      "ref": "NR-PhysCellID-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-ARFCN-r16",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "ssb-ARFCN-r16",
+        "type": {
+         "ref": "ARFCN-ValueNR-r15"
+        }
+       },
+       {
+        "name": "csi-RS-pointA-r16",
+        "type": {
+         "ref": "ARFCN-ValueNR-r15"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    },
+    {
+     "default": false,
+     "name": "nr-CellGlobalID-r16",
+     "optional": true,
+     "type": {
+      "ref": "NCGI-r15"
+     }
+    },
+    {
+     "default": false,
+     "name": "systemFrameNumber-r16",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       10,
+       10
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "resultsSSB-Cell-r16",
+     "optional": true,
+     "type": {
+      "ref": "MeasQuantityResults-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "resultsCSI-RS-Cell-r16",
+     "optional": true,
+     "type": {
+      "ref": "MeasQuantityResults-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "resultsSSB-Indexes-r16",
+     "optional": true,
+     "type": {
+      "ref": "ResultsPerSSB-IndexList-r16"
+     }
+    },
+    {
+     "default": false,
+     "name": "resultsCSI-RS-Indexes-r16",
+     "optional": true,
+     "type": {
+      "ref": "ResultsPerCSI-RS-IndexList-r16"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NR-MeasuredResultsList-r16": {
+   "elem": {
+    "ref": "NR-MeasuredResultsElement-r16"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    32
+   ]
+  },
+  "NR-PhysCellID-r16": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    1007
+   ]
+  },
   "NavModel-GLONASS-ECEF": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6605,6 +8265,7 @@
    "kind": "SEQUENCE"
   },
   "NavModel-SBAS-ECEF": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6744,6 +8405,7 @@
    "kind": "SEQUENCE"
   },
   "NavModelCNAV-KeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -6978,6 +8640,7 @@
    "kind": "SEQUENCE"
   },
   "NavModelKeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7176,6 +8839,7 @@
    "kind": "SEQUENCE"
   },
   "NavModelNAV-KeplerianSet": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7398,6 +9062,7 @@
      "name": "addNAVparam",
      "optional": true,
      "type": {
+      "additions": [],
       "comps": [
        {
         "default": false,
@@ -7428,6 +9093,7 @@
         "name": "ephemSF1Rsvd",
         "optional": false,
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -7504,6 +9170,7 @@
    "kind": "SEQUENCE"
   },
   "NeQuickModelParameter": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7606,6 +9273,55 @@
    "kind": "SEQUENCE"
   },
   "NeighbourMeasurementElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "earfcnNeighbour-v9a0",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tpIdNeighbour-r14",
+       "type": null
+      },
+      {
+       "name": "prsIdNeighbour-r14",
+       "type": null
+      },
+      {
+       "name": "delta-rstd-r14",
+       "type": null
+      },
+      {
+       "name": "additionalPathsNeighbour-r14",
+       "type": null
+      },
+      {
+       "name": "nprsIdNeighbour-r14",
+       "type": null
+      },
+      {
+       "name": "carrierFreqOffsetNB-Neighbour-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "delta-SFN-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -7670,6 +9386,7 @@
    ]
   },
   "NetworkTime": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7716,6 +9433,17 @@
        {
         "name": "eUTRA",
         "type": {
+         "additions": [
+          {
+           "comps": [
+            {
+             "name": "earfcn-v9a0",
+             "type": null
+            }
+           ],
+           "group": true
+          }
+         ],
          "comps": [
           {
            "default": false,
@@ -7753,6 +9481,7 @@
        {
         "name": "uTRA",
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -7763,6 +9492,7 @@
              {
               "name": "fdd",
               "type": {
+               "additions": [],
                "comps": [
                 {
                  "default": false,
@@ -7784,6 +9514,7 @@
              {
               "name": "tdd",
               "type": {
+               "additions": [],
                "comps": [
                 {
                  "default": false,
@@ -7831,6 +9562,7 @@
        {
         "name": "gSM",
         "type": {
+         "additions": [],
          "comps": [
           {
            "default": false,
@@ -7897,6 +9629,7 @@
    "kind": "CHOICE"
   },
   "OTDOA-LocationServerErrorCauses": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7917,6 +9650,7 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-MeasQuality": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -7962,6 +9696,55 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-NeighbourCellInfoElement": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "earfcn-v9a0",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tpId-r14",
+       "type": null
+      },
+      {
+       "name": "prs-only-tp-r14",
+       "type": null
+      },
+      {
+       "name": "cpLengthCRS-r14",
+       "type": null
+      },
+      {
+       "name": "sameMBSFNconfigNeighbour-r14",
+       "type": null
+      },
+      {
+       "name": "dlBandwidth-r14",
+       "type": null
+      },
+      {
+       "name": "addPRSconfigNeighbour-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tdd-config-v1520",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8098,6 +9881,21 @@
    ]
   },
   "OTDOA-ProvideAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "otdoa-ReferenceCellInfoNB-r14",
+       "type": null
+      },
+      {
+       "name": "otdoa-NeighbourCellInfoNB-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8128,6 +9926,206 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-ProvideCapabilities": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "supportedBandListEUTRA",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "supportedBandListEUTRA-v9a0",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "interFreqRSTDmeasurement-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "additionalNeighbourCellInfoList-r10",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "prs-id-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "tp-separation-via-muting-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "additional-prs-config-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "prs-based-tbs-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "additionalPathsReport-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "densePrsConfig-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "maxSupportedPrsBandwidth-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "prsOccGroup-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "prsFrequencyHopping-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "maxSupportedPrsConfigs-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicalReporting-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "multiPrbNprs-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "idleStateForMeasurements-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "numberOfRXantennas-r14",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "motionMeasurements-r15",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "interRAT-RSTDmeasurement-r15",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "scheduledLocationRequestSupported-r17",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "periodicReportingIntervalMsSupport-r18",
+       "type": null
+      }
+     ],
+     "group": false
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8151,6 +10149,17 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-ProvideLocationInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "otdoaSignalMeasurementInformation-NB-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8173,6 +10182,64 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-ReferenceCellInfo": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "earfcnRef-v9a0",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tpId-r14",
+       "type": null
+      },
+      {
+       "name": "cpLengthCRS-r14",
+       "type": null
+      },
+      {
+       "name": "sameMBSFNconfigRef-r14",
+       "type": null
+      },
+      {
+       "name": "dlBandwidth-r14",
+       "type": null
+      },
+      {
+       "name": "addPRSconfigRef-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-LTE-SFN-Offset-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tdd-config-v1520",
+       "type": null
+      },
+      {
+       "name": "nr-LTE-fineTiming-Offset-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8241,6 +10308,26 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-RequestAssistanceData": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "adType-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nrPhysCellId-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8259,11 +10346,36 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-RequestCapabilities": {
+   "additions": [],
    "comps": [],
    "ext": true,
    "kind": "SEQUENCE"
   },
   "OTDOA-RequestLocationInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "multipathRSTD-r14",
+       "type": null
+      },
+      {
+       "name": "maxNoOfRSTDmeas-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "motionMeasurements-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8278,6 +10390,55 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-SignalMeasurementInformation": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "earfcnRef-v9a0",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "tpIdRef-r14",
+       "type": null
+      },
+      {
+       "name": "prsIdRef-r14",
+       "type": null
+      },
+      {
+       "name": "additionalPathsRef-r14",
+       "type": null
+      },
+      {
+       "name": "nprsIdRef-r14",
+       "type": null
+      },
+      {
+       "name": "carrierFreqOffsetNB-Ref-r14",
+       "type": null
+      },
+      {
+       "name": "hyperSFN-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "motionTimeSource-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8341,6 +10502,7 @@
    "kind": "SEQUENCE"
   },
   "OTDOA-TargetDeviceErrorCauses": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8363,6 +10525,38 @@
    "kind": "SEQUENCE"
   },
   "PRS-Info": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "prs-MutingInfo-r9",
+       "type": null
+      }
+     ],
+     "group": false
+    },
+    {
+     "comps": [
+      {
+       "name": "prsID-r14",
+       "type": null
+      },
+      {
+       "name": "add-numDL-Frames-r14",
+       "type": null
+      },
+      {
+       "name": "prsOccGroupLen-r14",
+       "type": null
+      },
+      {
+       "name": "prsHoppingInfo-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8415,6 +10609,7 @@
    "kind": "SEQUENCE"
   },
   "PeriodicalReportingCriteria": {
+   "additions": [],
    "comps": [
     {
      "default": true,
@@ -8471,6 +10666,7 @@
    ]
   },
   "PolygonPoints": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8514,6 +10710,7 @@
    "kind": "SEQUENCE"
   },
   "PositioningModes": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8537,6 +10734,7 @@
    "kind": "SEQUENCE"
   },
   "ProvideAssistanceData": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8580,6 +10778,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -8595,6 +10794,51 @@
    "kind": "SEQUENCE"
   },
   "ProvideAssistanceData-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-ProvideAssistanceData-r14",
+       "type": null
+      },
+      {
+       "name": "tbs-ProvideAssistanceData-r14",
+       "type": null
+      },
+      {
+       "name": "wlan-ProvideAssistanceData-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-Multi-RTT-ProvideAssistanceData-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-ProvideAssistanceData-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-ProvideAssistanceData-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "bt-ProvideAssistanceData-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8633,6 +10877,7 @@
    "kind": "SEQUENCE"
   },
   "ProvideCapabilities": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8676,6 +10921,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -8691,6 +10937,56 @@
    "kind": "SEQUENCE"
   },
   "ProvideCapabilities-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-ProvideCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "tbs-ProvideCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "wlan-ProvideCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "bt-ProvideCapabilities-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-ECID-ProvideCapabilities-r16",
+       "type": {
+        "ref": "NR-ECID-ProvideCapabilities-r16"
+       }
+      },
+      {
+       "name": "nr-Multi-RTT-ProvideCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-ProvideCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-ProvideCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-UL-ProvideCapabilities-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8737,6 +11033,7 @@
    "kind": "SEQUENCE"
   },
   "ProvideLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8780,6 +11077,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -8795,6 +11093,52 @@
    "kind": "SEQUENCE"
   },
   "ProvideLocationInformation-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-ProvideLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "tbs-ProvideLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "wlan-ProvideLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "bt-ProvideLocationInformation-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-ECID-ProvideLocationInformation-r16",
+       "type": {
+        "ref": "NR-ECID-ProvideLocationInformation-r16"
+       }
+      },
+      {
+       "name": "nr-Multi-RTT-ProvideLocationInformation-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-ProvideLocationInformation-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-ProvideLocationInformation-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8841,6 +11185,30 @@
    "kind": "SEQUENCE"
   },
   "QoS": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "responseTimeNB-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "horizontalAccuracyExt-r15",
+       "type": null
+      },
+      {
+       "name": "verticalAccuracyExt-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -8894,6 +11262,7 @@
    ]
   },
   "ReqNavListInfo": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -8959,6 +11328,7 @@
    "kind": "SEQUENCE"
   },
   "RequestAssistanceData": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9002,6 +11372,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -9017,6 +11388,51 @@
    "kind": "SEQUENCE"
   },
   "RequestAssistanceData-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-RequestAssistanceData-r14",
+       "type": null
+      },
+      {
+       "name": "tbs-RequestAssistanceData-r14",
+       "type": null
+      },
+      {
+       "name": "wlan-RequestAssistanceData-r14",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-Multi-RTT-RequestAssistanceData-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-RequestAssistanceData-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-RequestAssistanceData-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "bt-RequestAssistanceData-r18",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -9055,6 +11471,7 @@
    "kind": "SEQUENCE"
   },
   "RequestCapabilities": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9098,6 +11515,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -9113,6 +11531,56 @@
    "kind": "SEQUENCE"
   },
   "RequestCapabilities-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-RequestCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "tbs-RequestCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "wlan-RequestCapabilities-r13",
+       "type": null
+      },
+      {
+       "name": "bt-RequestCapabilities-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-ECID-RequestCapabilities-r16",
+       "type": {
+        "ref": "NR-ECID-RequestCapabilities-r16"
+       }
+      },
+      {
+       "name": "nr-Multi-RTT-RequestCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-RequestCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-RequestCapabilities-r16",
+       "type": null
+      },
+      {
+       "name": "nr-UL-RequestCapabilities-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -9159,6 +11627,7 @@
    "kind": "SEQUENCE"
   },
   "RequestLocationInformation": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9202,6 +11671,7 @@
        {
         "name": "criticalExtensionsFuture",
         "type": {
+         "additions": [],
          "comps": [],
          "ext": false,
          "kind": "SEQUENCE"
@@ -9217,6 +11687,52 @@
    "kind": "SEQUENCE"
   },
   "RequestLocationInformation-r9-IEs": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "sensor-RequestLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "tbs-RequestLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "wlan-RequestLocationInformation-r13",
+       "type": null
+      },
+      {
+       "name": "bt-RequestLocationInformation-r13",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "nr-ECID-RequestLocationInformation-r16",
+       "type": {
+        "ref": "NR-ECID-RequestLocationInformation-r16"
+       }
+      },
+      {
+       "name": "nr-Multi-RTT-RequestLocationInformation-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-AoD-RequestLocationInformation-r16",
+       "type": null
+      },
+      {
+       "name": "nr-DL-TDOA-RequestLocationInformation-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -9263,6 +11779,26 @@
    "kind": "SEQUENCE"
   },
   "ResponseTime": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "responseTimeEarlyFix-r12",
+       "type": null
+      }
+     ],
+     "group": true
+    },
+    {
+     "comps": [
+      {
+       "name": "unit-r15",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -9280,7 +11816,82 @@
    "ext": true,
    "kind": "SEQUENCE"
   },
+  "ResultsPerCSI-RS-Index-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "csi-RS-Index-r16",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       95
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "csi-RS-Results-r16",
+     "optional": false,
+     "type": {
+      "ref": "MeasQuantityResults-r16"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ResultsPerCSI-RS-IndexList-r16": {
+   "elem": {
+    "ref": "ResultsPerCSI-RS-Index-r16"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "ResultsPerSSB-Index-r16": {
+   "additions": [],
+   "comps": [
+    {
+     "default": false,
+     "name": "ssb-Index-r16",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ssb-Results-r16",
+     "optional": false,
+     "type": {
+      "ref": "MeasQuantityResults-r16"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ResultsPerSSB-IndexList-r16": {
+   "elem": {
+    "ref": "ResultsPerSSB-Index-r16"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
   "SBAS-ClockModel": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9323,6 +11934,7 @@
    "kind": "SEQUENCE"
   },
   "SBAS-ID": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9344,6 +11956,7 @@
    "kind": "SEQUENCE"
   },
   "SBAS-IDs": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9368,6 +11981,7 @@
    "kind": "SEQUENCE"
   },
   "SV-ID": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9386,6 +12000,7 @@
    "kind": "SEQUENCE"
   },
   "SatListRelatedDataElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9454,6 +12069,7 @@
    ]
   },
   "StandardClockModelElement": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9554,6 +12170,7 @@
    ]
   },
   "StoredNavListInfo": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9611,6 +12228,7 @@
    ]
   },
   "TriggeredReportingCriteria": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9633,6 +12251,7 @@
    "kind": "SEQUENCE"
   },
   "UTC-ModelSet1": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9735,6 +12354,17 @@
    "kind": "SEQUENCE"
   },
   "UTC-ModelSet2": {
+   "additions": [
+    {
+     "comps": [
+      {
+       "name": "utcWNlsf-ext-r16",
+       "type": null
+      }
+     ],
+     "group": true
+    }
+   ],
    "comps": [
     {
      "default": false,
@@ -9850,6 +12480,7 @@
    "kind": "SEQUENCE"
   },
   "UTC-ModelSet3": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -9917,6 +12548,7 @@
    "kind": "SEQUENCE"
   },
   "UTC-ModelSet4": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -10061,6 +12693,7 @@
    "kind": "CHOICE"
   },
   "VelocityTypes": {
+   "additions": [],
    "comps": [
     {
      "default": false,
@@ -10099,6 +12732,7 @@
    "kind": "SEQUENCE"
   },
   "VerticalAccuracy": {
+   "additions": [],
    "comps": [
     {
      "default": false,

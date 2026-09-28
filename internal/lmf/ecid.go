@@ -6,11 +6,14 @@ package lmf
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
+	coremodels "github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -19,6 +22,8 @@ import (
 // Increased from 3s to 10s to account for gNB processing time and network latency.
 const ecidMeasurementTimeout = 10 * time.Second
 
+const ecidUETimeout = 20 * time.Second
+
 // determineECIDLocation computes location using the E-CID (Enhanced Cell ID) method.
 // E-CID extends basic Cell ID with radio measurements (RSRP, RSRQ, TA, Rx-Tx)
 // to estimate the UE's distance from the gNB. It requires a geographic anchor
@@ -26,84 +31,182 @@ const ecidMeasurementTimeout = 10 * time.Second
 // provisioned cell-position table); with no anchor it returns
 // ErrNoLocationEstimate. When no radio measurements are available it degrades
 // to a Cell-ID estimate (still requiring the anchor).
-func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*models.LocationResult, error) {
-	// 1. Get serving cell location (same as Cell ID)
+func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI, mode models.PositioningMode) (*models.LocationResult, string, error) {
 	loc, ok := l.getUELocation(supi)
 	if !ok {
-		return nil, fmt.Errorf("UE location not available: %w", ErrNotFound)
+		return nil, "", fmt.Errorf("UE location not available: %w", ErrNotFound)
 	}
 
 	if loc.NrLocation == nil && loc.EutraLocation == nil && loc.N3gaLocation == nil {
-		return nil, fmt.Errorf("no location available for UE: %w", ErrNotFound)
+		return nil, "", fmt.Errorf("no location available for UE: %w", ErrNotFound)
 	}
 
-	// 2. Request radio measurements from the RAN over NRPPa and wait for the
-	//    asynchronous response. On any failure (no RAN connection, timeout,
-	//    decode error) measurements are left nil and E-CID degrades to Cell ID.
-	measurements := l.fetchECIDMeasurements(ctx, supi)
+	sessionID, err := l.sessionMgr.CreateSession(ctx, CreateSessionParams{
+		SUPI:        supi.String(),
+		RequestType: RequestImmediate,
+		Method:      RequestedECID,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("create positioning session: %w", err)
+	}
 
-	// 3. Anchor the estimate to a geographic coordinate: prefer the RAN-supplied
-	//    NG-RAN Access Point Position, else the provisioned cell-position table.
-	//    Without a coordinate there is no valid location estimate.
-	coord, ok := l.resolveCellCoordinate(ctx, loc, measurements)
+	result, err := l.runECID(ctx, supi, sessionID, loc, mode)
+	if err != nil {
+		if failErr := l.sessionMgr.FailSession(ctx, sessionID); failErr != nil {
+			logger.LmfLog.Warn("failed to record E-CID session failure", zap.String("session_id", sessionID), zap.Error(failErr))
+		}
+
+		return nil, sessionID, err
+	}
+
+	if err := l.sessionMgr.CompleteSession(ctx, sessionID, result); err != nil {
+		return nil, sessionID, fmt.Errorf("complete positioning session: %w", err)
+	}
+
+	return result, sessionID, nil
+}
+
+func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc coremodels.UserLocation, mode models.PositioningMode) (*models.LocationResult, error) {
+	nr := loc.NrLocation != nil
+
+	method := models.PositioningMethodECID
+	if nr {
+		method = models.PositioningMethodNRECID
+	}
+
+	wantNetwork := mode == "" || mode == models.PositioningModeNetworkBased
+	wantUE := mode == "" || mode == models.PositioningModeUEAssisted
+
+	var (
+		wg      sync.WaitGroup
+		network *models.RadioMeasurements
+		ue      []models.CellMeasurement
+		ueErr   error
+	)
+
+	if wantNetwork {
+		wg.Go(func() {
+			network = l.fetchECIDMeasurements(ctx, supi)
+		})
+	}
+
+	if wantUE {
+		wg.Go(func() {
+			ue, ueErr = l.fetchUEECIDMeasurements(ctx, supi, sessionID, nr)
+		})
+	}
+
+	wg.Wait()
+
+	// Anchor the estimate to a geographic coordinate: prefer the RAN-supplied
+	// NG-RAN Access Point Position, else the provisioned cell-position table.
+	// Without a coordinate there is no valid location estimate.
+	coord, ok := l.resolveCellCoordinate(ctx, loc, network)
 	if !ok {
 		return nil, ErrNoLocationEstimate
 	}
 
-	// 4. Build the result. With measurements it is an E-CID estimate; without
-	//    them it degrades to Cell-ID.
 	result := computeCellIDLocation(supi, loc)
+	result.Estimate = coord
 
-	if hasRadioMeasurements(measurements) {
-		result.Method = models.PositioningMethodECID
-		if result.AccessType == "NR" {
-			result.Method = models.PositioningMethodNRECID
-		}
+	result.Positioning = ecidPositioning(method, wantNetwork, wantUE, network, ueErr)
 
-		result.RSRP = measurements.RSRP
-		result.RSRQ = measurements.RSRQ
-		result.TA = measurements.TA
-		result.SSRSRP = measurements.SSRSRP
-		result.SSRSRQ = measurements.SSRSRQ
-		result.CSIRSRP = measurements.CSIRSRP
-		result.CSIRSRQ = measurements.CSIRSRQ
-		result.NRTimingAdvance = measurements.NRTimingAdvance
-		result.UERxTxTimeDiff = measurements.RxTxTimeDifference
-		result.AoAAzimuthDegrees = measurements.AoAAzimuthDegrees
-		result.AoAZenithDegrees = measurements.AoAZenithDegrees
-
-		// Estimate distance from the best available timing measurement. Prefer
-		// the NR timing advance (TS 38.455 Value Timing Advance NR), then the
-		// legacy E-UTRA timing advance, then Rx-Tx.
-		switch {
-		case measurements.NRTimingAdvance != nil:
-			dist := nrTAToDistance(*measurements.NRTimingAdvance)
-			result.Distance = &dist
-		case measurements.TA != nil:
-			dist := taToDistance(*measurements.TA)
-			result.Distance = &dist
-		case measurements.RxTxTimeDifference != nil:
-			dist := rxTxToDistance(*measurements.RxTxTimeDifference)
-			result.Distance = &dist
-		}
-	} else {
-		// Downgrade: no radio measurements, so this is a Cell-ID estimate.
-		result.Method = models.PositioningMethodCellID
+	if ueErr != nil {
+		logger.LmfLog.Warn("UE-assisted E-CID measurements unavailable",
+			logger.SUPI(supi.String()),
+			zap.Error(ueErr),
+		)
 	}
 
-	result.Estimate = coord
+	if network != nil {
+		result.Measurements = append(result.Measurements, withDistance(network.Cells)...)
+	}
+
+	result.Measurements = append(result.Measurements, ue...)
 
 	logger.LmfLog.Info("E-CID location computed",
 		logger.SUPI(supi.String()),
 		zap.String("access_type", result.AccessType),
-		zap.Int("method", int(result.Method)),
-		zap.Any("rsrp", result.RSRP),
-		zap.Any("nr_ta", result.NRTimingAdvance),
-		zap.Any("aoa_azimuth", result.AoAAzimuthDegrees),
-		zap.Any("distance_m", result.Distance),
+		zap.String("mode", string(mode)),
+		zap.Int("cells", len(result.Measurements)),
+		zap.Bool("anchored_by_ran", network != nil && network.APPosition != nil),
 	)
 
 	return result, nil
+}
+
+func ecidPositioning(method models.PositioningMethod, wantNetwork, wantUE bool, network *models.RadioMeasurements, ueErr error) []models.PositioningAttempt {
+	var attempts []models.PositioningAttempt
+
+	anchoredByRAN := network != nil && network.APPosition != nil
+	if !anchoredByRAN {
+		attempts = append(attempts, cellIDAttempt())
+	}
+
+	if wantNetwork {
+		usage := models.PositioningUsageUnsuccess
+
+		switch {
+		case anchoredByRAN:
+			usage = models.PositioningUsageResultsUsedToGenerate
+		case network != nil && len(network.Cells) > 0:
+			usage = models.PositioningUsageResultsNotUsed
+		}
+
+		attempts = append(attempts, models.PositioningAttempt{Method: method, Mode: models.PositioningModeNetworkBased, Usage: usage})
+	}
+
+	if wantUE {
+		usage := models.PositioningUsageResultsNotUsed
+		if ueErr != nil {
+			usage = models.PositioningUsageUnsuccess
+		}
+
+		attempts = append(attempts, models.PositioningAttempt{Method: method, Mode: models.PositioningModeUEAssisted, Usage: usage})
+	}
+
+	return attempts
+}
+
+func (l *LMF) fetchUEECIDMeasurements(ctx context.Context, supi etsi.SUPI, sessionID string, nr bool) ([]models.CellMeasurement, error) {
+	ctx, cancel := context.WithTimeout(ctx, ecidUETimeout)
+	defer cancel()
+
+	session := lpp.NewSession(supi.String(), sessionID, lpp.MethodECID)
+	session.SetNRAccess(nr)
+
+	result, err := l.runLPPSession(ctx, supi, session, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Measurements, nil
+}
+
+// Estimate distance from the best available timing measurement. Prefer
+// the NR timing advance (TS 38.455 Value Timing Advance NR), then the
+// legacy E-UTRA timing advance, then Rx-Tx.
+func withDistance(cells []models.CellMeasurement) []models.CellMeasurement {
+	for i := range cells {
+		c := &cells[i]
+
+		var dist float64
+
+		switch {
+		case c.NRTimingAdvance != nil:
+			dist = nrTAToDistance(int32(*c.NRTimingAdvance))
+		case c.TimingAdvance != nil:
+			dist = taToDistance(int32(*c.TimingAdvance))
+		case c.UERxTxTimeDiff != nil:
+			dist = rxTxToDistance(int32(*c.UERxTxTimeDiff))
+		default:
+			continue
+		}
+
+		c.DistanceMeters = &dist
+	}
+
+	return cells
 }
 
 // ecidMeasurementClient requests and collects E-CID radio measurements from a
@@ -151,7 +254,15 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 
 	requestedAt := time.Now()
 
-	measID, err := client.RequestMeasurements(ctx, supi, string(RequestedECID))
+	var measID int64
+
+	err := retryWhilePaging(ctx, func() error {
+		var err error
+
+		measID, err = client.RequestMeasurements(ctx, supi, string(RequestedECID))
+
+		return err
+	})
 	if err != nil {
 		logger.LmfLog.Warn("E-CID measurement request failed; falling back to Cell ID",
 			logger.SUPI(supi.String()),
@@ -174,19 +285,6 @@ func (l *LMF) fetchECIDMeasurements(ctx context.Context, supi etsi.SUPI) *models
 	}
 
 	return measurements
-}
-
-// hasRadioMeasurements reports whether the RAN returned any UE-specific radio
-// measurement, as opposed to only the serving cell / access-point position
-// (which is a plain Cell-ID fix). It selects the E-CID vs Cell-ID method label.
-func hasRadioMeasurements(m *models.RadioMeasurements) bool {
-	if m == nil {
-		return false
-	}
-
-	return m.RSRP != nil || m.RSRQ != nil || m.TA != nil || m.RxTxTimeDifference != nil ||
-		m.SSRSRP != nil || m.SSRSRQ != nil || m.CSIRSRP != nil || m.CSIRSRQ != nil ||
-		m.NRTimingAdvance != nil || m.AoAAzimuthDegrees != nil || m.AoAZenithDegrees != nil
 }
 
 // taToDistance converts the E-UTRA Timing Advance report value (LPPa

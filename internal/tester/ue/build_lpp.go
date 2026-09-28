@@ -4,8 +4,6 @@
 package ue
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 )
@@ -59,15 +57,4 @@ func BuildLPPLocationResponse(opts *LPPLocationResponseOpts) ([]byte, error) {
 	}
 
 	return lpp.EncodeProvideLocationInformation(opts.TransactionID, opts.Latitude, opts.Longitude, opts.Altitude, uint32(opts.HorizontalAccuracy), uint32(opts.VerticalAccuracy))
-}
-
-// DecodeLPPMessage decodes an APER-encoded LPP message from the LMF.
-// Returns the transaction ID and the message body kind (lpptype.LPPMessageBodyC1Present*).
-func DecodeLPPMessage(data []byte) (transactionID byte, bodyKind int, err error) {
-	decoded, err := lpp.DecodeLPPMessage(data)
-	if err != nil {
-		return 0, 0, fmt.Errorf("decode LPP message: %w", err)
-	}
-
-	return decoded.TransactionID, decoded.BodyKind, nil
 }

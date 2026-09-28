@@ -17,10 +17,11 @@ import (
 )
 
 type conformanceVector struct {
-	Name      string          `json:"name"`
-	Hex       string          `json:"hex"`
-	RoundTrip bool            `json:"roundTrip"`
-	Value     json.RawMessage `json:"value"`
+	Name      string                     `json:"name"`
+	Hex       string                     `json:"hex"`
+	RoundTrip bool                       `json:"roundTrip"`
+	Value     json.RawMessage            `json:"value"`
+	Ext       map[string]json.RawMessage `json:"ext"`
 }
 
 type conformanceVectors struct {
@@ -80,6 +81,8 @@ func TestConformanceVectors(t *testing.T) {
 				gotJSON, _ := json.Marshal(got)
 				t.Fatalf("decoded value mismatch\n got: %s\nwant: %s", gotJSON, v.Value)
 			}
+
+			checkModelledExtensions(t, msg, v.Ext)
 
 			if !v.RoundTrip {
 				return
@@ -174,6 +177,10 @@ func canonicalStruct(v reflect.Value) any {
 			continue
 		}
 
+		if isExtensionAddition(sf) {
+			continue
+		}
+
 		f := canonicalField{value: v.Field(i), choice: -1, optional: v.Field(i).Kind() == reflect.Pointer}
 
 		for opt := range strings.SplitSeq(tag, ",") {
@@ -218,4 +225,67 @@ func canonicalStruct(v reflect.Value) any {
 	}
 
 	return out
+}
+
+func checkModelledExtensions(t *testing.T, msg LPPMessage, want map[string]json.RawMessage) {
+	t.Helper()
+
+	got := map[string]any{}
+	collectModelledExtensions(reflect.ValueOf(msg), got)
+
+	wantNorm := map[string]any{}
+
+	for name, raw := range want {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+
+		var value any
+		if err := dec.Decode(&value); err != nil {
+			t.Fatalf("expected extension %s: %v", name, err)
+		}
+
+		wantNorm[normalizeName(name)] = value
+	}
+
+	if !reflect.DeepEqual(got, wantNorm) {
+		gotJSON, _ := json.Marshal(got)
+		wantJSON, _ := json.Marshal(wantNorm)
+		t.Fatalf("decoded extension additions mismatch\n got: %s\nwant: %s", gotJSON, wantJSON)
+	}
+}
+
+func collectModelledExtensions(v reflect.Value, out map[string]any) {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if !v.IsNil() {
+			collectModelledExtensions(v.Elem(), out)
+		}
+	case reflect.Slice:
+		for i := range v.Len() {
+			collectModelledExtensions(v.Index(i), out)
+		}
+	case reflect.Struct:
+		for i := range v.NumField() {
+			sf := v.Type().Field(i)
+			if !sf.IsExported() {
+				continue
+			}
+
+			field := v.Field(i)
+
+			if isExtensionAddition(sf) && field.Kind() == reflect.Pointer && !field.IsNil() && field.Type().Elem() != unmodelledType {
+				group := field.Elem()
+				for j := range group.NumField() {
+					member := group.Field(j)
+					if member.IsNil() || member.Type().Elem() == unmodelledType {
+						continue
+					}
+
+					out[normalizeName(group.Type().Field(j).Name)] = canonicalValue(member)
+				}
+			}
+
+			collectModelledExtensions(field, out)
+		}
+	}
 }

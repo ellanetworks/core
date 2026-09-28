@@ -50,16 +50,30 @@ func TestMatchMeasurementResponse(t *testing.T) {
 		}
 
 		m := mapECIDResult(resp.Result)
-		if m.TA == nil || *m.TA != 100 {
-			t.Errorf("TA = %v, want 100", m.TA)
+		if len(m.Cells) != 2 {
+			t.Fatalf("cells = %+v, want the measured cell and the serving cell", m.Cells)
 		}
 
-		if m.RSRP == nil || *m.RSRP != -6100 {
-			t.Errorf("RSRP = %v, want -6100 (dBm×100 for ValueRSRP 80)", m.RSRP)
+		measured, serving := m.Cells[0], m.Cells[1]
+
+		if measured.Serving || *measured.PCI != 1 || *measured.ARFCN != 100 {
+			t.Errorf("measured cell = %+v", measured)
 		}
 
-		if m.RSRQ == nil || *m.RSRQ != -1000 {
-			t.Errorf("RSRQ = %v, want -1000 (dB×100 for ValueRSRQ 20)", m.RSRQ)
+		if measured.RSRP == nil || *measured.RSRP != -61 {
+			t.Errorf("RSRP = %v, want -61 dBm for ValueRSRP 80", measured.RSRP)
+		}
+
+		if measured.RSRQ == nil || *measured.RSRQ != -10 {
+			t.Errorf("RSRQ = %v, want -10 dB for ValueRSRQ 20", measured.RSRQ)
+		}
+
+		if !serving.Serving || serving.ECGI == nil || serving.ECGI.EutraCellID != "0abcde1" {
+			t.Errorf("serving cell = %+v", serving)
+		}
+
+		if serving.TimingAdvance == nil || *serving.TimingAdvance != 100 {
+			t.Errorf("TA = %v, want 100", serving.TimingAdvance)
 		}
 	})
 
@@ -106,27 +120,27 @@ func TestMatchMeasurementResponseFailure(t *testing.T) {
 	}
 }
 
-func TestEUTRAConversions(t *testing.T) {
-	rsrp := []struct{ in, want int64 }{{0, -14100}, {80, -6100}, {97, -4400}}
-	for _, tc := range rsrp {
-		if got := valueRSRPToDBm(tc.in); int64(got) != tc.want {
-			t.Errorf("valueRSRPToDBm(%d) = %d, want %d", tc.in, got, tc.want)
-		}
-	}
-
-	rsrq := []struct{ in, want int64 }{{0, -2000}, {20, -1000}, {34, -300}}
-	for _, tc := range rsrq {
-		if got := valueRSRQToDB(tc.in); int64(got) != tc.want {
-			t.Errorf("valueRSRQToDB(%d) = %d, want %d", tc.in, got, tc.want)
-		}
-	}
-
-	// Angle of Arrival is 0.5-degree units: 180 → 90.0°.
+func TestMapECIDResultTagsTheServingCell(t *testing.T) {
 	aoa := int64(180)
-	m := mapECIDResult(&lppa.ECIDResult{AngleOfArrival: &aoa})
+	m := mapECIDResult(&lppa.ECIDResult{
+		ServingCell:    lppa.ECGI{PLMNIdentity: []byte{0x00, 0xf1, 0x10}, EUTRACellID: 0x0abcde1},
+		AngleOfArrival: &aoa,
+		RSRP: []lppa.RSRPItem{
+			{PCI: 2, EARFCN: 100, ValueRSRP: 50},
+			{PCI: 1, EARFCN: 100, ECGI: &lppa.ECGI{PLMNIdentity: []byte{0x00, 0xf1, 0x10}, EUTRACellID: 0x0abcde1}, ValueRSRP: 80},
+		},
+	})
 
-	if m.AoAAzimuthDegrees == nil || *m.AoAAzimuthDegrees != 90.0 {
-		t.Fatalf("AoA = %v, want 90.0", m.AoAAzimuthDegrees)
+	if len(m.Cells) != 2 {
+		t.Fatalf("cells = %+v, want 2", m.Cells)
+	}
+
+	if m.Cells[0].Serving || !m.Cells[1].Serving {
+		t.Fatalf("serving flags = %t, %t, want the cell naming the serving ECGI", m.Cells[0].Serving, m.Cells[1].Serving)
+	}
+
+	if az := m.Cells[1].AoAAzimuthDegrees; az == nil || *az != 90.0 {
+		t.Fatalf("AoA = %v, want 90.0 for 0.5-degree unit 180", az)
 	}
 }
 

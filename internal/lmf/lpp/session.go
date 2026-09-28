@@ -68,6 +68,7 @@ type Session struct {
 	deregisterFunc func()
 	failure        error
 	deadline       time.Time
+	nrAccess       bool
 }
 
 // NewSession creates a new LPP session for the given SUPI and positioning method.
@@ -90,6 +91,10 @@ func (s *Session) SetTransport(transfer func(lppMsg []byte) error, complete func
 	s.failFunc = fail
 	s.cancelFunc = cancel
 	s.deregisterFunc = deregister
+}
+
+func (s *Session) SetNRAccess(nr bool) {
+	s.nrAccess = nr
 }
 
 // SetCorrelationID sets the session's LCS correlation identifier.
@@ -153,7 +158,17 @@ func (s *Session) StartSession() error {
 
 	s.state = CapabilitiesRequested
 
-	msg, err := BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
+	var (
+		msg []byte
+		err error
+	)
+
+	if s.method == MethodECID {
+		msg, err = EncodeRequestECIDCapabilities(s.NextTransactionID(), s.NextSequenceNumber(), s.nrAccess)
+	} else {
+		msg, err = BuildRequestCapabilities(s.NextTransactionID(), s.NextSequenceNumber())
+	}
+
 	if err != nil {
 		return fmt.Errorf("build request capabilities: %w", err)
 	}
@@ -212,7 +227,19 @@ func (s *Session) handleCapabilities(capMsg *models.ProvideLocationCapabilities)
 		return err
 	}
 
-	locMsg, err := BuildRequestLocationInfo(s.NextTransactionID(), s.NextSequenceNumber(), PosMethodGNSS, responseTime)
+	var locMsg []byte
+
+	if s.method == MethodECID {
+		ecid, nr := s.ecidRequest(capMsg)
+		if ecid == nil && nr == nil {
+			return ErrUEECIDNotSupported
+		}
+
+		locMsg, err = EncodeRequestECIDLocationInformation(s.NextTransactionID(), s.NextSequenceNumber(), responseTime, ecid, nr)
+	} else {
+		locMsg, err = EncodeRequestLocationInformation(s.NextTransactionID(), s.NextSequenceNumber(), responseTime)
+	}
+
 	if err != nil {
 		return fmt.Errorf("build request location: %w", err)
 	}
@@ -232,6 +259,10 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 		return fmt.Errorf("unexpected ProvideLocationInformation in state %s", s.state)
 	}
 
+	if s.method == MethodECID {
+		return s.handleECIDMeasurements(msg)
+	}
+
 	if msg.UnsupportedLocationShape {
 		return ErrUnsupportedLocationShape
 	}
@@ -242,17 +273,59 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 			causeName(gnssErrorCauseNames, msg.GNSSErrorCause))
 	}
 
-	s.locationResult = &lmmodels.LocationResult{
-		SUPI:     s.supi,
-		Method:   lmmodels.PositioningMethodGNSS,
-		Estimate: msg.LocationEstimate,
-	}
-	s.state = LocationReceived
-
 	s.log.Info("received location fix",
 		zap.Float64("lat", msg.LocationEstimate.LatitudeDegrees),
 		zap.Float64("lon", msg.LocationEstimate.LongitudeDegrees),
 	)
+
+	s.complete(&lmmodels.LocationResult{
+		SUPI:     s.supi,
+		Estimate: msg.LocationEstimate,
+		Positioning: []lmmodels.PositioningAttempt{{
+			Method: lmmodels.PositioningMethodGNSS,
+			Mode:   lmmodels.PositioningModeStandalone,
+			Usage:  lmmodels.PositioningUsageResultsUsedToGenerate,
+		}},
+	})
+
+	return nil
+}
+
+func (s *Session) ecidRequest(caps *models.ProvideLocationCapabilities) (*models.ECIDMeasurements, *models.NRECIDMeasurements) {
+	var (
+		ecid *models.ECIDMeasurements
+		nr   *models.NRECIDMeasurements
+	)
+
+	if caps.ECID != nil && caps.ECID.Any() {
+		ecid = caps.ECID
+	}
+
+	if s.nrAccess && caps.NRECID != nil && caps.NRECID.Any() {
+		nr = caps.NRECID
+	}
+
+	return ecid, nr
+}
+
+func (s *Session) handleECIDMeasurements(msg *models.ProvideLocationInformation) error {
+	if len(msg.Measurements) == 0 {
+		return fmt.Errorf("%w: location failure cause %s, E-CID error cause %s, NR E-CID error cause %s", ErrUENoMeasurements,
+			causeName(locationFailureCauseNames, msg.LocationFailureCause),
+			causeName(ecidErrorCauseNames, msg.ECIDErrorCause),
+			causeName(ecidErrorCauseNames, msg.NRECIDErrorCause))
+	}
+
+	s.log.Info("received E-CID measurements", zap.Int("cells", len(msg.Measurements)))
+
+	s.complete(&lmmodels.LocationResult{SUPI: s.supi, Measurements: msg.Measurements})
+
+	return nil
+}
+
+func (s *Session) complete(result *lmmodels.LocationResult) {
+	s.locationResult = result
+	s.state = LocationReceived
 
 	// Signal completion to session manager
 	if s.completeFunc != nil {
@@ -264,8 +337,6 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 	if s.deregisterFunc != nil {
 		s.deregisterFunc()
 	}
-
-	return nil
 }
 
 func (s *Session) handleAssistanceRequest(req *models.RequestAssistanceData) error {
