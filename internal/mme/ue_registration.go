@@ -14,7 +14,7 @@ type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context) bool)
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context))
 }
 
 func (m *MME) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -67,8 +67,8 @@ func (m *MME) ReconcileRegistration(ctx context.Context, imsi string) {
 		return
 	}
 
-	m.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) bool {
-		return m.releaseSuperseded(ctx, ue)
+	m.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
+		m.releaseSuperseded(ctx, ue)
 	})
 }
 
@@ -101,20 +101,20 @@ func (m *MME) inHandover(ue *UeContext) bool {
 	return ue.handover != nil
 }
 
-func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) bool {
+func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) {
 	supi := ue.Supi()
 
 	held, ok := m.LookupUeBySupi(supi)
 	if !ok || held != ue || ue.EMMState() != EMMRegistered {
-		return true
+		return
 	}
 
 	if _, relocating := m.RelocationToFiveGS(ue); relocating {
-		return false
+		return
 	}
 
 	if ue.IdleMobilityTo5GSPending() || m.inHandover(ue) {
-		return false
+		return
 	}
 
 	m.ReleaseAllSessions(ctx, ue)
@@ -123,6 +123,4 @@ func (m *MME) releaseSuperseded(ctx context.Context, ue *UeContext) bool {
 
 	logger.From(ctx, logger.MmeLog).Info("UE registered on another node; dropping its local EPS registration and PDN connections",
 		logger.SUPI(supi.String()))
-
-	return true
 }

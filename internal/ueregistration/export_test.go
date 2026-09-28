@@ -5,6 +5,6 @@ package ueregistration
 
 import "time"
 
-func (r *Registry) SetRetryIntervalForTest(d time.Duration) {
-	r.purgeRetry = d
+func (r *Registry) SetIntervalForTest(d time.Duration) {
+	r.interval = d
 }

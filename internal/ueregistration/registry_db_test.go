@@ -78,7 +78,7 @@ func register(t *testing.T, b *ueregistration.Binding) int64 {
 func superseded(b *ueregistration.Binding, held int64) bool {
 	released := false
 
-	b.Reconcile(context.Background(), imsi, func() int64 { return held }, func(context.Context) bool { released = true; return true })
+	b.Reconcile(context.Background(), imsi, func() int64 { return held }, func(context.Context) { released = true })
 
 	return released
 }

@@ -6,7 +6,6 @@ package ueregistration_test
 import (
 	"context"
 	"errors"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ func newFakeStore() *fakeStore {
 
 func rowKey(imsi, regType string) string { return imsi + "/" + regType }
 
-func (f *fakeStore) RegisterUE(_ context.Context, imsi, regType, nodeID string, cancel ...string) (int64, error) {
+func (f *fakeStore) RegisterUE(_ context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -53,12 +52,10 @@ func (f *fakeStore) RegisterUE(_ context.Context, imsi, regType, nodeID string, 
 		f.rows[rowKey(imsi, regType)] = row
 	}
 
-	for _, c := range cancel {
-		if other, ok := f.rows[rowKey(imsi, c)]; ok && !other.Purged {
-			other.Purged = true
-			other.Version = f.version
-			f.rows[rowKey(imsi, c)] = other
-		}
+	if other, ok := f.rows[rowKey(imsi, cancel)]; ok && !other.Purged {
+		other.Purged = true
+		other.Version = f.version
+		f.rows[rowKey(imsi, cancel)] = other
 	}
 
 	return row.Version, nil
@@ -96,38 +93,6 @@ func (f *fakeStore) GetUERegistration(_ context.Context, imsi, regType string) (
 	return &row, nil
 }
 
-func (f *fakeStore) ListUERegistrationsSince(_ context.Context, version int64) ([]db.UERegistration, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	var out []db.UERegistration
-
-	for _, row := range f.rows {
-		if row.Version > version {
-			out = append(out, row)
-		}
-	}
-
-	sort.Slice(out, func(i, j int) bool { return out[i].Version < out[j].Version })
-
-	return out, nil
-}
-
-func (f *fakeStore) MaxUERegistrationVersion(_ context.Context) (int64, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	var highest int64
-
-	for _, row := range f.rows {
-		if row.Version > highest {
-			highest = row.Version
-		}
-	}
-
-	return highest, nil
-}
-
 func (f *fakeStore) set(regType, nodeID string, purged bool, version int64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -145,17 +110,15 @@ func (f *fakeStore) get(regType string) (db.UERegistration, bool) {
 }
 
 type fakeHolder struct {
-	mu         sync.Mutex
-	holds      map[string]bool
-	reconciled chan string
-	all        chan struct{}
+	mu    sync.Mutex
+	holds map[string]bool
+	all   chan struct{}
 }
 
 func newFakeHolder() *fakeHolder {
 	return &fakeHolder{
-		holds:      map[string]bool{},
-		reconciled: make(chan string, 16),
-		all:        make(chan struct{}, 4),
+		holds: map[string]bool{},
+		all:   make(chan struct{}, 4),
 	}
 }
 
@@ -166,16 +129,17 @@ func (h *fakeHolder) HoldsUE(imsi string) bool {
 	return h.holds[imsi]
 }
 
-func (h *fakeHolder) ReconcileRegistration(_ context.Context, imsi string) {
-	h.reconciled <- imsi
-}
-
 func (h *fakeHolder) ReconcileRegistrations(context.Context) {
-	h.all <- struct{}{}
+	select {
+	case h.all <- struct{}{}:
+	default:
+	}
 }
 
 func newAMFBinding(store ueregistration.Store) (*ueregistration.Registry, *ueregistration.Binding, *fakeHolder) {
 	r := ueregistration.New(store, "node-a", zap.NewNop())
+	r.SetIntervalForTest(20 * time.Millisecond)
+
 	h := newFakeHolder()
 
 	return r, r.Bind(amfType, mmeType, h), h
@@ -301,7 +265,7 @@ func TestReconcile(t *testing.T) {
 
 			released := false
 
-			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held }, func(context.Context) bool { released = true; return true })
+			b.Reconcile(context.Background(), imsi, func() int64 { return tc.held }, func(context.Context) { released = true })
 
 			if released != tc.want {
 				t.Fatalf("released = %v, want %v", released, tc.want)
@@ -325,11 +289,9 @@ func TestReconcile_SerializesWithRegister(t *testing.T) {
 	reconciled := make(chan struct{})
 
 	go func() {
-		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) bool {
+		b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) {
 			close(inRelease)
 			<-unblock
-
-			return true
 		})
 		close(reconciled)
 	}()
@@ -396,45 +358,6 @@ func TestRun_PurgesWhenNoContextIsHeld(t *testing.T) {
 	})
 }
 
-func TestRun_ReconcilesChangedSubscribersOnly(t *testing.T) {
-	store := newFakeStore()
-	store.set(amfType, "node-b", false, 50)
-
-	r, _, h := newAMFBinding(store)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	wakeup := make(chan struct{}, 1)
-
-	go r.Run(ctx, wakeup)
-
-	time.Sleep(20 * time.Millisecond)
-
-	const changed = "001010000000002"
-
-	store.mu.Lock()
-	store.rows[rowKey(changed, mmeType)] = db.UERegistration{Imsi: changed, Type: mmeType, NodeID: "node-b", Version: 60}
-	store.mu.Unlock()
-
-	wakeup <- struct{}{}
-
-	select {
-	case got := <-h.reconciled:
-		if got != changed {
-			t.Fatalf("reconciled %s, want only the changed subscriber %s", got, changed)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("expected the changed subscriber to be reconciled")
-	}
-
-	select {
-	case got := <-h.reconciled:
-		t.Fatalf("unexpected reconcile of %s", got)
-	case <-time.After(50 * time.Millisecond):
-	}
-}
-
 func TestRun_RetriesFailedPurges(t *testing.T) {
 	store := newFakeStore()
 	store.set(amfType, "node-a", false, 10)
@@ -499,6 +422,7 @@ func TestRun_StopsFlushAtFirstFailure(t *testing.T) {
 	store.purgeErr = errors.New("no leader")
 
 	r, b, _ := newAMFBinding(store)
+	r.SetIntervalForTest(200 * time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -525,35 +449,12 @@ func TestRun_StopsFlushAtFirstFailure(t *testing.T) {
 	}
 }
 
-func TestRun_RetriesSkippedRelease(t *testing.T) {
+func TestRun_WakeupReconcilesHeldUEs(t *testing.T) {
 	store := newFakeStore()
-	store.set(amfType, "node-b", false, 20)
 
-	r, b, h := newAMFBinding(store)
-	r.SetRetryIntervalForTest(20 * time.Millisecond)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go r.Run(ctx, nil)
-
-	b.Reconcile(context.Background(), imsi, func() int64 { return 10 }, func(context.Context) bool { return false })
-
-	select {
-	case got := <-h.reconciled:
-		if got != imsi {
-			t.Fatalf("retried %s, want %s", got, imsi)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("expected the skipped release to be retried")
-	}
-}
-
-func TestRun_LowersWatermarkAfterRestore(t *testing.T) {
-	store := newFakeStore()
-	store.set(amfType, "node-b", false, 500)
-
-	r, _, h := newAMFBinding(store)
+	r := ueregistration.New(store, "node-a", zap.NewNop())
+	h := newFakeHolder()
+	r.Bind(amfType, mmeType, h)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -562,25 +463,28 @@ func TestRun_LowersWatermarkAfterRestore(t *testing.T) {
 
 	go r.Run(ctx, wakeup)
 
-	time.Sleep(20 * time.Millisecond)
-
-	const moved = "001010000000002"
-
-	store.mu.Lock()
-	store.rows = map[string]db.UERegistration{
-		rowKey(imsi, amfType):  {Imsi: imsi, Type: amfType, NodeID: "node-b"},
-		rowKey(moved, amfType): {Imsi: moved, Type: amfType, NodeID: "node-b", Version: 10},
-	}
-	store.mu.Unlock()
-
 	wakeup <- struct{}{}
 
 	select {
-	case got := <-h.reconciled:
-		if got != moved {
-			t.Fatalf("reconciled %s, want %s", got, moved)
-		}
+	case <-h.all:
 	case <-time.After(time.Second):
-		t.Fatal("expected a registration written after the restore to be reconciled")
+		t.Fatal("expected a wakeup to reconcile the held UEs")
+	}
+}
+
+func TestRun_TickReconcilesHeldUEs(t *testing.T) {
+	store := newFakeStore()
+
+	r, _, h := newAMFBinding(store)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go r.Run(ctx, nil)
+
+	select {
+	case <-h.all:
+	case <-time.After(time.Second):
+		t.Fatal("expected the periodic tick to reconcile the held UEs, retrying any skipped release")
 	}
 }

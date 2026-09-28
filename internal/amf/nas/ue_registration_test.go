@@ -21,7 +21,7 @@ func (failingRegistrar) Confirmed(context.Context, string, int64) bool { return 
 
 func (failingRegistrar) Purge(string) {}
 
-func (failingRegistrar) Reconcile(context.Context, string, func() int64, func(context.Context) bool) {
+func (failingRegistrar) Reconcile(context.Context, string, func() int64, func(context.Context)) {
 }
 
 func TestMobilityReg_AcceptedWhenRegistrationFails(t *testing.T) {

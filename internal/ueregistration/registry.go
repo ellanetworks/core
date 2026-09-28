@@ -14,22 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	defaultBackstop   = 5 * time.Minute
-	defaultPurgeRetry = 10 * time.Second
-)
+const defaultInterval = 10 * time.Second
 
 type Store interface {
-	RegisterUE(ctx context.Context, imsi, regType, nodeID string, cancel ...string) (int64, error)
+	RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error)
 	PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) error
 	GetUERegistration(ctx context.Context, imsi, regType string) (*db.UERegistration, error)
-	ListUERegistrationsSince(ctx context.Context, version int64) ([]db.UERegistration, error)
-	MaxUERegistrationVersion(ctx context.Context) (int64, error)
 }
 
 type Holder interface {
 	HoldsUE(imsi string) bool
-	ReconcileRegistration(ctx context.Context, imsi string)
 	ReconcileRegistrations(ctx context.Context)
 }
 
@@ -39,33 +33,26 @@ type purgeKey struct {
 }
 
 type Registry struct {
-	store  Store
-	nodeID string
-	log    *zap.Logger
-	locks  keyedMutex
-
-	backstop   time.Duration
-	purgeRetry time.Duration
+	store    Store
+	nodeID   string
+	log      *zap.Logger
+	locks    keyedMutex
+	interval time.Duration
 
 	mu      sync.Mutex
 	holders map[string]Holder
 	pending map[purgeKey]struct{}
-	retries map[string]struct{}
-	kick    chan struct{}
 }
 
 func New(store Store, nodeID string, log *zap.Logger) *Registry {
 	return &Registry{
-		store:      store,
-		nodeID:     nodeID,
-		log:        log,
-		locks:      keyedMutex{entries: map[string]*keyedEntry{}},
-		backstop:   defaultBackstop,
-		purgeRetry: defaultPurgeRetry,
-		holders:    map[string]Holder{},
-		pending:    map[purgeKey]struct{}{},
-		retries:    map[string]struct{}{},
-		kick:       make(chan struct{}, 1),
+		store:    store,
+		nodeID:   nodeID,
+		log:      log,
+		locks:    keyedMutex{entries: map[string]*keyedEntry{}},
+		interval: defaultInterval,
+		holders:  map[string]Holder{},
+		pending:  map[purgeKey]struct{}{},
 	}
 }
 
@@ -78,30 +65,17 @@ func (r *Registry) Bind(regType, otherType string, h Holder) *Binding {
 }
 
 func (r *Registry) Run(ctx context.Context, wakeup <-chan struct{}) {
-	backstop := time.NewTicker(r.backstop)
-	defer backstop.Stop()
-
-	retry := time.NewTicker(r.purgeRetry)
-	defer retry.Stop()
-
-	watermark, err := r.store.MaxUERegistrationVersion(ctx)
-	if err != nil {
-		watermark = 0
-	}
+	tick := time.NewTicker(r.interval)
+	defer tick.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-wakeup:
-			watermark = r.reconcileChanges(ctx, watermark)
-		case <-r.kick:
+			r.reconcileAll(ctx)
+		case <-tick.C:
 			r.flushPurges(ctx)
-		case <-retry.C:
-			r.flushPurges(ctx)
-			r.retryReconciles(ctx)
-		case <-backstop.C:
-			watermark = r.reconcileChanges(ctx, watermark)
 			r.reconcileAll(ctx)
 		}
 	}
@@ -126,80 +100,17 @@ func (r *Registry) holder(regType string) Holder {
 	return r.holders[regType]
 }
 
-func (r *Registry) reconcileChanges(ctx context.Context, watermark int64) int64 {
-	if highest, err := r.store.MaxUERegistrationVersion(ctx); err == nil && highest < watermark {
-		watermark = 0
-	}
-
-	rows, err := r.store.ListUERegistrationsSince(ctx, watermark)
-	if err != nil {
-		r.log.Debug("could not list UE registration changes", zap.Error(err))
-		return watermark
-	}
-
-	seen := map[string]struct{}{}
-	holders := r.snapshotHolders()
-
-	for _, row := range rows {
-		if row.Version > watermark {
-			watermark = row.Version
-		}
-
-		if _, done := seen[row.Imsi]; done {
-			continue
-		}
-
-		seen[row.Imsi] = struct{}{}
-
-		for _, h := range holders {
-			h.ReconcileRegistration(ctx, row.Imsi)
-		}
-	}
-
-	return watermark
-}
-
 func (r *Registry) reconcileAll(ctx context.Context) {
 	for _, h := range r.snapshotHolders() {
 		h.ReconcileRegistrations(ctx)
 	}
 }
 
-func (r *Registry) retryLater(imsi string) {
-	r.mu.Lock()
-	r.retries[imsi] = struct{}{}
-	r.mu.Unlock()
-}
-
-func (r *Registry) retryReconciles(ctx context.Context) {
-	r.mu.Lock()
-	imsis := make([]string, 0, len(r.retries))
-
-	for imsi := range r.retries {
-		imsis = append(imsis, imsi)
-	}
-
-	r.retries = map[string]struct{}{}
-	r.mu.Unlock()
-
-	holders := r.snapshotHolders()
-
-	for _, imsi := range imsis {
-		for _, h := range holders {
-			h.ReconcileRegistration(ctx, imsi)
-		}
-	}
-}
-
 func (r *Registry) enqueuePurge(regType, imsi string) {
 	r.mu.Lock()
-	r.pending[purgeKey{regType: regType, imsi: imsi}] = struct{}{}
-	r.mu.Unlock()
+	defer r.mu.Unlock()
 
-	select {
-	case r.kick <- struct{}{}:
-	default:
-	}
+	r.pending[purgeKey{regType: regType, imsi: imsi}] = struct{}{}
 }
 
 func (r *Registry) flushPurges(ctx context.Context) {
@@ -272,11 +183,11 @@ func (b *Binding) Purge(imsi string) {
 	b.r.enqueuePurge(b.regType, imsi)
 }
 
-func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context) bool) {
+func (b *Binding) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
 	defer b.r.locks.lock(imsi)()
 
-	if b.superseded(ctx, imsi, held()) && !release(ctx) {
-		b.r.retryLater(imsi)
+	if b.superseded(ctx, imsi, held()) {
+		release(ctx)
 	}
 }
 

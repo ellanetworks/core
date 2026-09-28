@@ -17,7 +17,7 @@ type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context) bool)
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -81,8 +81,8 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 		return
 	}
 
-	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) bool {
-		return amf.releaseSuperseded(ctx, ue)
+	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
+		amf.releaseSuperseded(ctx, ue)
 	})
 }
 
@@ -94,20 +94,20 @@ func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
 	}
 }
 
-func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) bool {
+func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
 	supi := ue.Supi()
 
 	if !amf.ServesUeContext(ue) || ue.State() != Registered {
-		return true
+		return
 	}
 
 	if amf.HandoverInProgress(ue) || amf.HandoverToEPSInProgress(ue) || amf.RelocationFromEPSInProgress(supi) {
-		return false
+		return
 	}
 
 	ueConn := ue.Conn()
 	if ueConn != nil && !ueConn.ReleaseWithAction(ctx, UeContextReleaseDueToNwInitiatedDeregistraion, causeReleaseDueToCNDetectedMobility) {
-		return false
+		return
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("UE registered on another node; dropping its local 5GS registration and PDU sessions",
@@ -115,10 +115,8 @@ func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) bool {
 
 	if ueConn == nil {
 		amf.DeregisterAndRemoveUeContext(ctx, ue)
-		return true
+		return
 	}
 
 	ue.Deregister(ctx)
-
-	return true
 }

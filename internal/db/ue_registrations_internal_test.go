@@ -22,10 +22,10 @@ func TestResetUERegistrationsPurgedInRestoredDB(t *testing.T) {
 	defer func() { _ = conn.Close() }()
 
 	stmts := []string{
-		"CREATE TABLE ue_registrations (imsi TEXT NOT NULL, type TEXT NOT NULL, nodeID TEXT NOT NULL, purged INTEGER NOT NULL DEFAULT 0, registrationTime INTEGER NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (imsi, type))",
-		"INSERT INTO ue_registrations VALUES ('001010000000001', 'mme', '1', 1, 1, 1)",
-		"INSERT INTO ue_registrations VALUES ('001010000000001', 'amf-3gpp-access', '2', 0, 1, 2)",
-		"INSERT INTO ue_registrations VALUES ('001010000000002', 'amf-3gpp-access', '1', 1, 1, 3)",
+		"CREATE TABLE ue_registrations (imsi TEXT NOT NULL, type TEXT NOT NULL, nodeID TEXT NOT NULL, purged INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL, PRIMARY KEY (imsi, type))",
+		"INSERT INTO ue_registrations VALUES ('001010000000001', 'mme', '1', 1, 1)",
+		"INSERT INTO ue_registrations VALUES ('001010000000001', 'amf-3gpp-access', '2', 0, 2)",
+		"INSERT INTO ue_registrations VALUES ('001010000000002', 'amf-3gpp-access', '1', 1, 3)",
 	}
 
 	for _, stmt := range stmts {
@@ -107,7 +107,7 @@ func TestRegisterUE_RewritesRestoredRegistration(t *testing.T) {
 		t.Fatalf("CreateSubscriber: %s", err)
 	}
 
-	if _, err := database.RegisterUE(ctx, "001010000000001", UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, "001010000000001", UERegistrationTypeMME, "node-a", ""); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -115,7 +115,7 @@ func TestRegisterUE_RewritesRestoredRegistration(t *testing.T) {
 		t.Fatalf("zero versions: %s", err)
 	}
 
-	version, err := database.RegisterUE(ctx, "001010000000001", UERegistrationTypeMME, "node-a")
+	version, err := database.RegisterUE(ctx, "001010000000001", UERegistrationTypeMME, "node-a", "")
 	if err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
