@@ -126,7 +126,7 @@ func (l *LMF) runECID(ctx context.Context, supi etsi.SUPI, sessionID string, loc
 	}
 
 	if len(result.Measurements) > 0 {
-		now := time.Now()
+		now := time.Now().UTC()
 		result.UeLocationTimestamp = &now
 		result.AgeOfLocationInfo = 0
 	}
