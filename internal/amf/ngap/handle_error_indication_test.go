@@ -62,8 +62,8 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 		t.Fatalf("expected the named UE released, got %d UEContextReleaseCommands", len(sender.SentUEContextReleaseCommands))
 	}
 
-	if ueConn.ReleaseAction != amf.UeContextN2NormalRelease {
-		t.Fatalf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ueConn.ReleaseAction)
+	if ueConn.ReleaseAction() != amf.UeContextN2NormalRelease {
+		t.Fatalf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ueConn.ReleaseAction())
 	}
 }
 

@@ -7,21 +7,25 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"go.uber.org/zap"
 )
 
-func newTestDatabase(t *testing.T) *db.Database {
+func newRaftTestDatabase(t *testing.T) *db.Database {
 	t.Helper()
 
 	ctx := context.Background()
 
-	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	database, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "db.sqlite3"), ellaraft.FastTestConfig())
 	if err != nil {
-		t.Fatalf("NewDatabaseWithoutRaft: %s", err)
+		t.Fatalf("NewDatabase: %s", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("WaitUntilReady: %s", err)
 	}
 
 	t.Cleanup(func() {
@@ -54,87 +58,103 @@ func newTestDatabase(t *testing.T) *db.Database {
 	return database
 }
 
-func registerAt(t *testing.T, r *ueregistration.Registry) int64 {
+func bind(t *testing.T, database *db.Database, nodeID, regType, otherType string) *ueregistration.Binding {
 	t.Helper()
 
-	time.Sleep(2 * time.Millisecond)
+	return ueregistration.New(database, nodeID, zap.NewNop()).Bind(regType, otherType, newFakeHolder())
+}
 
-	start := time.Now().UnixMilli()
+func register(t *testing.T, b *ueregistration.Binding) int64 {
+	t.Helper()
 
-	if err := r.Register(context.Background(), imsi); err != nil {
+	version, err := b.Register(context.Background(), imsi)
+	if err != nil {
 		t.Fatalf("Register: %s", err)
 	}
 
-	time.Sleep(2 * time.Millisecond)
+	return version
+}
 
-	return start
+func superseded(b *ueregistration.Binding, held int64) bool {
+	released := false
+
+	b.Reconcile(context.Background(), imsi, func() int64 { return held }, func(context.Context) { released = true })
+
+	return released
 }
 
 func TestRegistry_UEMovesBetweenNodes(t *testing.T) {
-	database := newTestDatabase(t)
-	ctx := context.Background()
+	database := newRaftTestDatabase(t)
 
-	amfA := ueregistration.New(database, "node-a", db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, zap.NewNop())
-	amfB := ueregistration.New(database, "node-b", db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, zap.NewNop())
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+	amfB := bind(t, database, "node-b", amfType, mmeType)
 
-	atA := registerAt(t, amfA)
-	atB := registerAt(t, amfB)
+	atA := register(t, amfA)
+	atB := register(t, amfB)
 
-	if !amfA.Superseded(ctx, imsi, atA) {
+	if !superseded(amfA, atA) {
 		t.Fatal("expected node-a's context to be superseded by node-b")
 	}
 
-	if amfB.Superseded(ctx, imsi, atB) {
+	if superseded(amfB, atB) {
 		t.Fatal("expected node-b's context to be kept")
 	}
 
-	amfA.Purge(ctx, imsi, func() bool { return true })
-
-	reg, err := database.GetUERegistration(ctx, imsi, db.UERegistrationTypeAMF3GPPAccess)
-	if err != nil {
-		t.Fatalf("GetUERegistration: %s", err)
-	}
-
-	if reg.NodeID != "node-b" || reg.Purged {
-		t.Fatalf("node-a's purge changed node-b's registration: %+v", reg)
+	if again := register(t, amfA); !superseded(amfB, atB) || superseded(amfA, again) {
+		t.Fatal("expected the UE's return to node-a to supersede node-b")
 	}
 }
 
 func TestRegistry_EPSAttachOnAnotherNodeCancels5GS(t *testing.T) {
-	database := newTestDatabase(t)
-	ctx := context.Background()
+	database := newRaftTestDatabase(t)
 
-	amfA := ueregistration.New(database, "node-a", db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, zap.NewNop())
-	mmeA := ueregistration.New(database, "node-a", db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, zap.NewNop())
-	mmeB := ueregistration.New(database, "node-b", db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, zap.NewNop())
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+	mmeA := bind(t, database, "node-a", mmeType, amfType)
+	mmeB := bind(t, database, "node-b", mmeType, amfType)
 
-	atA := registerAt(t, amfA)
+	atA := register(t, amfA)
 
-	registerAt(t, mmeA)
+	register(t, mmeA)
 
-	if amfA.Superseded(ctx, imsi, atA) {
+	if superseded(amfA, atA) {
 		t.Fatal("an EPS registration on the same node is left to the in-process interworking")
 	}
 
-	registerAt(t, mmeB)
+	register(t, mmeB)
 
-	if !amfA.Superseded(ctx, imsi, atA) {
+	if !superseded(amfA, atA) {
 		t.Fatal("expected node-a's 5GS context to be superseded by node-b's EPS registration")
 	}
 }
 
-func TestRegistry_RestoredRegistrationDoesNotSupersedeNewerContext(t *testing.T) {
-	database := newTestDatabase(t)
+func TestRegistry_OlderRegistrationElsewhereDoesNotSupersede(t *testing.T) {
+	database := newRaftTestDatabase(t)
+
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+	amfB := bind(t, database, "node-b", amfType, mmeType)
+
+	atB := register(t, amfB)
+
+	if superseded(amfA, atB+1000) {
+		t.Fatal("a registration older than the local context, as after a restore, must not supersede it")
+	}
+}
+
+func TestRegistry_PurgedRegistrationElsewhereDoesNotSupersede(t *testing.T) {
+	database := newRaftTestDatabase(t)
 	ctx := context.Background()
 
-	amfA := ueregistration.New(database, "node-a", db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, zap.NewNop())
-	amfB := ueregistration.New(database, "node-b", db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, zap.NewNop())
+	amfA := bind(t, database, "node-a", amfType, mmeType)
+	amfB := bind(t, database, "node-b", amfType, mmeType)
 
-	registerAt(t, amfB)
+	atA := register(t, amfA)
+	register(t, amfB)
 
-	atA := time.Now().UnixMilli() + 1000
+	if err := database.PurgeUERegistration(ctx, imsi, amfType, "node-b"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
 
-	if amfA.Superseded(ctx, imsi, atA) {
-		t.Fatal("an older registration on another node must not supersede a newer local context")
+	if superseded(amfA, atA) {
+		t.Fatal("a purged registration on another node must not supersede a live context")
 	}
 }

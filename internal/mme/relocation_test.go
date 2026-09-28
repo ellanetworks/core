@@ -491,6 +491,8 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 	m := newTestMME(t)
 	peer := &fakeFiveGSPeer{}
 	m.FiveGS = peer
+	reg := newFakeRegistrar()
+	m.Registrations = reg
 	target := newRelocationTarget(t, m)
 	req := relocationRequest()
 
@@ -534,6 +536,10 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 
 	if ue.EMMState() != EMMRegistered {
 		t.Errorf("EMM state = %v, want EMM-REGISTERED", ue.EMMState())
+	}
+
+	if len(reg.registered) != 1 || reg.registered[0] != req.SUPI.IMSI() || ue.registrationVersion.Load() == 0 {
+		t.Errorf("the arrived UE was not registered: %v (version %d)", reg.registered, ue.registrationVersion.Load())
 	}
 
 	if err := m.RelocationCancel(context.Background(), req.SUPI, req.ID); !errors.Is(err, ErrNoRelocation) {

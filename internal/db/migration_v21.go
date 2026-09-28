@@ -17,9 +17,11 @@ func migrateV21(ctx context.Context, tx *sql.Tx) error {
 			nodeID           TEXT    NOT NULL,
 			purged           INTEGER NOT NULL DEFAULT 0,
 			registrationTime INTEGER NOT NULL,
+			version          INTEGER NOT NULL,
 			PRIMARY KEY (imsi, type)
 		)`, UERegistrationsTableName),
 		fmt.Sprintf("CREATE INDEX idx_ue_registrations_node ON %s(nodeID)", UERegistrationsTableName),
+		fmt.Sprintf("CREATE INDEX idx_ue_registrations_version ON %s(version)", UERegistrationsTableName),
 	}
 
 	for _, stmt := range stmts {

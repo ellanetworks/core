@@ -286,7 +286,7 @@ func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeConte
 		return
 	}
 
-	ueConn.ReleaseAction = UeContextN2NormalRelease
+	ueConn.SetReleaseAction(UeContextN2NormalRelease)
 
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
 }
@@ -763,6 +763,27 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 		return
 	}
 
+	ueConn.sendClaimedRelease(ctx, amfInstance, conn, cause)
+}
+
+func (ueConn *UeConn) ReleaseWithAction(ctx context.Context, action RelAction, cause ngap.Cause) bool {
+	amfInstance, conn, err := ueConn.sendTarget()
+	if err != nil {
+		ueConn.Log(ctx).Error("failed to resolve send target for UE Context Release Command", zap.Error(err))
+		return false
+	}
+
+	if !amfInstance.claimReleaseWithAction(ueConn, action) {
+		ueConn.Log(ctx).Debug("UE Context Release already in progress; leaving it in place")
+		return false
+	}
+
+	ueConn.sendClaimedRelease(ctx, amfInstance, conn, cause)
+
+	return true
+}
+
+func (ueConn *UeConn) sendClaimedRelease(ctx context.Context, amfInstance *AMF, conn NGAPWriter, cause ngap.Cause) {
 	pkt, err := ueContextReleaseCommandBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID()), cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release

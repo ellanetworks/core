@@ -357,7 +357,7 @@ func (a *AMF) unwindHandoverFromEPS(ctx context.Context, ue *UeContext, targetUe
 	settleRelocation(delivery, relocationOutcome{err: ErrRelocationAbandoned})
 
 	if targetUe != nil {
-		targetUe.ReleaseAction = UeContextReleaseHandover
+		targetUe.SetReleaseAction(UeContextReleaseHandover)
 		targetUe.SendUEContextReleaseCommand(ctx, cause)
 	}
 
@@ -385,6 +385,11 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 
 	if err := a.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not index a UE that arrived from EPS",
+			logger.SUPI(supi.String()), zap.Error(err))
+	}
+
+	if err := a.RegisterUE(ctx, ue); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to register a UE that arrived from EPS",
 			logger.SUPI(supi.String()), zap.Error(err))
 	}
 

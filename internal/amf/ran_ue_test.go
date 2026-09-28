@@ -257,7 +257,7 @@ func TestReleaseUeConn_HandoverKeepsTheContextOfANonRegisteredUE(t *testing.T) {
 				t.Fatalf("CommitUEIdentity: %v", err)
 			}
 
-			ueConn.ReleaseAction = amf.UeContextReleaseHandover
+			ueConn.SetReleaseAction(amf.UeContextReleaseHandover)
 			amfInstance.ReleaseUeConn(context.Background(), ueConn)
 
 			if _, ok := amfInstance.LookupUeBySupi(supi); !ok {
@@ -306,7 +306,7 @@ func TestReleaseUeConnServedBy_ReportsWhetherTheUEWentIdle(t *testing.T) {
 			ue.ForceStateForTest(tc.state)
 			ue.SetSupiForTest(mustSUPI(t))
 
-			ueConn.ReleaseAction = tc.action
+			ueConn.SetReleaseAction(tc.action)
 
 			if got := radio.AMFForTest().ReleaseUeConnServedBy(context.Background(), ueConn, nil); got != tc.wantIdle {
 				t.Errorf("wentIdle = %v, want %v", got, tc.wantIdle)

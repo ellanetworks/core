@@ -66,7 +66,7 @@ func TestRegisterUE_CreatesRegistration(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -84,11 +84,11 @@ func TestRegisterUE_OtherNodeReplaces(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-b"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-b"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -99,13 +99,13 @@ func TestRegisterUE_SameNodeKeepsRegistrationTime(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
 	before := mustGetUERegistration(t, database, db.UERegistrationTypeMME)
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -119,7 +119,7 @@ func TestRegisterUE_ClearsPurged(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -129,7 +129,7 @@ func TestRegisterUE_ClearsPurged(t *testing.T) {
 
 	assertUERegistration(t, database, db.UERegistrationTypeMME, "node-a", true)
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -140,7 +140,7 @@ func TestPurgeUERegistration_OnlyByRegisteredNode(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-b"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-b"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -168,11 +168,11 @@ func TestRegisterUE_CancelsOtherTypeOnAnyNode(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-b", db.UERegistrationTypeAMF3GPPAccess); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-b", db.UERegistrationTypeAMF3GPPAccess); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -184,7 +184,7 @@ func TestRegisterUE_CancelWithoutOtherRegistration(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a", db.UERegistrationTypeAMF3GPPAccess); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a", db.UERegistrationTypeAMF3GPPAccess); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -211,7 +211,7 @@ func TestRegisterUE_InvalidInput(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := database.RegisterUE(ctx, ueRegIMSI, tc.regType, tc.nodeID, tc.cancel...); err == nil {
+			if _, err := database.RegisterUE(ctx, ueRegIMSI, tc.regType, tc.nodeID, tc.cancel...); err == nil {
 				t.Fatal("expected error")
 			}
 		})
@@ -225,7 +225,7 @@ func TestRegisterUE_InvalidInput(t *testing.T) {
 func TestRegisterUE_UnknownSubscriber(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 
-	err := database.RegisterUE(context.Background(), "001019999999999", db.UERegistrationTypeMME, "node-a")
+	_, err := database.RegisterUE(context.Background(), "001019999999999", db.UERegistrationTypeMME, "node-a")
 	if !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -235,11 +235,11 @@ func TestDeleteSubscriber_DeletesUERegistrations(t *testing.T) {
 	database := setupUERegistrationsTestDB(t)
 	ctx := context.Background()
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -268,15 +268,15 @@ func TestDeleteClusterMember_PurgesItsUERegistrations(t *testing.T) {
 		}
 	}
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "1"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "1"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "1"); err != nil {
+	if _, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "1"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if err := database.RegisterUE(ctx, otherIMSI, db.UERegistrationTypeMME, "2"); err != nil {
+	if _, err := database.RegisterUE(ctx, otherIMSI, db.UERegistrationTypeMME, "2"); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
@@ -294,5 +294,134 @@ func TestDeleteClusterMember_PurgesItsUERegistrations(t *testing.T) {
 
 	if other.NodeID != "2" || other.Purged {
 		t.Fatalf("other node's registration changed: %+v", other)
+	}
+}
+
+func TestRegisterUE_Versions(t *testing.T) {
+	database := setupUERegistrationsTestDB(t)
+	ctx := context.Background()
+
+	v1, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	same, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	if same != v1 {
+		t.Fatalf("unchanged registration version = %d, want %d", same, v1)
+	}
+
+	v2, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-b")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	if v2 <= v1 {
+		t.Fatalf("replaced registration version = %d, want > %d", v2, v1)
+	}
+
+	if err := database.PurgeUERegistration(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-b"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	purged := mustGetUERegistration(t, database, db.UERegistrationTypeAMF3GPPAccess)
+	if purged.Version <= v2 {
+		t.Fatalf("purged registration version = %d, want > %d", purged.Version, v2)
+	}
+
+	highest, err := database.MaxUERegistrationVersion(ctx)
+	if err != nil {
+		t.Fatalf("MaxUERegistrationVersion: %s", err)
+	}
+
+	if highest != purged.Version {
+		t.Fatalf("max version = %d, want %d", highest, purged.Version)
+	}
+}
+
+func TestRegisterUE_CancelBumpsVersion(t *testing.T) {
+	database := setupUERegistrationsTestDB(t)
+	ctx := context.Background()
+
+	amf, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	mme, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-b", db.UERegistrationTypeAMF3GPPAccess)
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	cancelled := mustGetUERegistration(t, database, db.UERegistrationTypeAMF3GPPAccess)
+	if !cancelled.Purged || cancelled.Version != mme || cancelled.Version <= amf {
+		t.Fatalf("cancelled registration = %+v, want purged at version %d", cancelled, mme)
+	}
+}
+
+func TestListUERegistrationsSince(t *testing.T) {
+	database := setupUERegistrationsTestDB(t)
+	ctx := context.Background()
+
+	v1, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-a")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	v2, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-a")
+	if err != nil {
+		t.Fatalf("RegisterUE: %s", err)
+	}
+
+	rows, err := database.ListUERegistrationsSince(ctx, v1)
+	if err != nil {
+		t.Fatalf("ListUERegistrationsSince: %s", err)
+	}
+
+	if len(rows) != 1 || rows[0].Type != db.UERegistrationTypeAMF3GPPAccess || rows[0].Version != v2 {
+		t.Fatalf("unexpected rows since %d: %+v", v1, rows)
+	}
+
+	rows, err = database.ListUERegistrationsSince(ctx, v2)
+	if err != nil {
+		t.Fatalf("ListUERegistrationsSince: %s", err)
+	}
+
+	if len(rows) != 0 {
+		t.Fatalf("expected no rows after %d, got %+v", v2, rows)
+	}
+}
+
+func TestRegisterUE_VersionsIncreaseUnderRaft(t *testing.T) {
+	database := setupRaftTestDB(t)
+	ctx := context.Background()
+
+	createSubscriber(t, database, ueRegIMSI)
+
+	var last int64
+
+	for _, nodeID := range []string{"node-a", "node-b", "node-a", "node-c"} {
+		v, err := database.RegisterUE(ctx, ueRegIMSI, db.UERegistrationTypeMME, nodeID, db.UERegistrationTypeAMF3GPPAccess)
+		if err != nil {
+			t.Fatalf("RegisterUE(%s): %s", nodeID, err)
+		}
+
+		if v <= last {
+			t.Fatalf("RegisterUE(%s) version = %d, want > %d", nodeID, v, last)
+		}
+
+		last = v
+	}
+
+	if err := database.PurgeUERegistration(ctx, ueRegIMSI, db.UERegistrationTypeMME, "node-c"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	if reg := mustGetUERegistration(t, database, db.UERegistrationTypeMME); reg.Version <= last || !reg.Purged {
+		t.Fatalf("purged registration = %+v, want purged with version > %d", reg, last)
 	}
 }

@@ -79,7 +79,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
+	sourceUe.SetReleaseAction(amf.UeContextReleaseHandover)
 
 	sourceUe.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 

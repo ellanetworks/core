@@ -195,8 +195,8 @@ func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 
 	a.CancelRegistration(context.Background(), supi)
 
-	if ueConn.ReleaseAction != UeContextReleaseToEPS {
-		t.Errorf("release action = %v, want UeContextReleaseToEPS", ueConn.ReleaseAction)
+	if ueConn.ReleaseAction() != UeContextReleaseToEPS {
+		t.Errorf("release action = %v, want UeContextReleaseToEPS", ueConn.ReleaseAction())
 	}
 
 	a.ReleaseUeConn(context.Background(), ueConn)

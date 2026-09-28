@@ -8,55 +8,75 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 )
 
 type fakeRegistrar struct {
 	mu          sync.Mutex
 	registerErr error
+	next        int64
 	registered  []string
+	confirmed   map[string]bool
 	superseded  map[string]bool
-	checkedAt   map[string]int64
-	purged      chan purgeCall
-}
-
-type purgeCall struct {
-	imsi   string
-	absent bool
+	held        map[string]int64
+	purged      []string
 }
 
 func newFakeRegistrar() *fakeRegistrar {
 	return &fakeRegistrar{
+		next:       100,
+		confirmed:  map[string]bool{},
 		superseded: map[string]bool{},
-		checkedAt:  map[string]int64{},
-		purged:     make(chan purgeCall, 8),
+		held:       map[string]int64{},
 	}
 }
 
-func (f *fakeRegistrar) Register(_ context.Context, imsi string) error {
+func (f *fakeRegistrar) Register(_ context.Context, imsi string) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.registerErr != nil {
-		return f.registerErr
+		return 0, f.registerErr
 	}
 
+	f.next++
 	f.registered = append(f.registered, imsi)
 
-	return nil
+	return f.next, nil
 }
 
-func (f *fakeRegistrar) Purge(_ context.Context, imsi string, stillAbsent func() bool) {
-	f.purged <- purgeCall{imsi: imsi, absent: stillAbsent()}
-}
-
-func (f *fakeRegistrar) Superseded(_ context.Context, imsi string, registeredAt int64) bool {
+func (f *fakeRegistrar) Confirmed(_ context.Context, imsi string, _ int64) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.checkedAt[imsi] = registeredAt
+	return f.confirmed[imsi]
+}
 
-	return f.superseded[imsi]
+func (f *fakeRegistrar) Purge(imsi string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.purged = append(f.purged, imsi)
+}
+
+func (f *fakeRegistrar) Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context)) {
+	f.mu.Lock()
+	f.held[imsi] = held()
+	supersede := f.superseded[imsi]
+	f.mu.Unlock()
+
+	if supersede {
+		release(ctx)
+	}
+}
+
+func newRegistrarTestMME(t *testing.T) (*MME, *fakeRegistrar) {
+	t.Helper()
+
+	m := newTestMME(t)
+	reg := newFakeRegistrar()
+	m.Registrations = reg
+
+	return m, reg
 }
 
 func newRegisteredTestUE(m *MME, imsi string) *UeContext {
@@ -68,123 +88,120 @@ func newRegisteredTestUE(m *MME, imsi string) *UeContext {
 	return ue
 }
 
-func TestRegisterUE_RecordsRegistrationTime(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
-	m.Registrations = reg
+func TestRegisterUE_StoresVersion(t *testing.T) {
+	m, _ := newRegistrarTestMME(t)
 	ue := newRegisteredTestUE(m, "001010000000001")
-
-	before := time.Now().UnixMilli()
 
 	if err := m.RegisterUE(context.Background(), ue); err != nil {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if got := ue.registeredAt.Load(); got < before {
-		t.Fatalf("registeredAt = %d, want >= %d", got, before)
-	}
-
-	if len(reg.registered) != 1 || reg.registered[0] != "001010000000001" {
-		t.Fatalf("unexpected registrations %v", reg.registered)
+	if got := ue.registrationVersion.Load(); got != 101 {
+		t.Fatalf("registration version = %d, want 101", got)
 	}
 }
 
-func TestRegisterUE_ErrorKeepsRegistrationTime(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
+func TestRegisterUE_ErrorKeepsVersion(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
 	reg.registerErr = errors.New("no leader")
-	m.Registrations = reg
 	ue := newRegisteredTestUE(m, "001010000000001")
+	ue.registrationVersion.Store(7)
 
 	if err := m.RegisterUE(context.Background(), ue); err == nil {
 		t.Fatal("expected error")
 	}
 
-	if got := ue.registeredAt.Load(); got != 0 {
-		t.Fatalf("registeredAt = %d, want 0", got)
+	if got := ue.registrationVersion.Load(); got != 7 {
+		t.Fatalf("registration version = %d, want 7", got)
 	}
 }
 
-func TestRemoveUe_PurgesRegistration(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
-	m.Registrations = reg
+func TestConfirmRegistration(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
+	ue := newRegisteredTestUE(m, "001010000000001")
+
+	reg.confirmed["001010000000001"] = true
+
+	if err := m.ConfirmRegistration(context.Background(), ue); err != nil {
+		t.Fatalf("ConfirmRegistration: %s", err)
+	}
+
+	if len(reg.registered) != 0 {
+		t.Fatalf("a confirmed registration must not be written again, got %v", reg.registered)
+	}
+
+	reg.confirmed["001010000000001"] = false
+
+	if err := m.ConfirmRegistration(context.Background(), ue); err != nil {
+		t.Fatalf("ConfirmRegistration: %s", err)
+	}
+
+	if len(reg.registered) != 1 || ue.registrationVersion.Load() != 101 {
+		t.Fatalf("an unconfirmed registration must be written, got %v (version %d)", reg.registered, ue.registrationVersion.Load())
+	}
+}
+
+func TestRemoveUe_QueuesPurge(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
 	ue := newRegisteredTestUE(m, "001010000000001")
 
 	m.RemoveUe(ue)
 
-	select {
-	case call := <-reg.purged:
-		if call.imsi != "001010000000001" || !call.absent {
-			t.Fatalf("unexpected purge %+v", call)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("expected a purge")
+	if len(reg.purged) != 1 || reg.purged[0] != "001010000000001" {
+		t.Fatalf("purges = %v, want the removed UE", reg.purged)
 	}
 }
 
 func TestRemoveUe_NotIndexedDoesNotPurge(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
-	m.Registrations = reg
+	m, reg := newRegistrarTestMME(t)
 	old := newRegisteredTestUE(m, "001010000000001")
 	newRegisteredTestUE(m, "001010000000001")
 
 	m.RemoveUe(old)
 
-	select {
-	case call := <-reg.purged:
-		t.Fatalf("unexpected purge %+v", call)
-	case <-time.After(50 * time.Millisecond):
+	if len(reg.purged) != 0 {
+		t.Fatalf("unexpected purges %v", reg.purged)
 	}
 }
 
-func TestReconcileRegistrations_ReleasesSupersededUE(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
-	m.Registrations = reg
+func TestReconcileRegistration_ReleasesSupersededUE(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
 	moved := newRegisteredTestUE(m, "001010000000001")
 	kept := newRegisteredTestUE(m, "001010000000002")
 
-	moved.registeredAt.Store(42)
+	moved.registrationVersion.Store(42)
 
 	reg.superseded["001010000000001"] = true
 
 	m.ReconcileRegistrations(context.Background())
 
-	if _, ok := m.LookupUeByIMSI("001010000000001"); ok {
-		t.Fatal("expected the superseded UE context to be removed")
-	}
-
-	if moved.EMMState() != EMMDeregistered {
-		t.Fatalf("superseded UE state = %v, want Deregistered", moved.EMMState())
+	if m.HoldsUE("001010000000001") || moved.EMMState() != EMMDeregistered {
+		t.Fatal("expected the superseded UE to be deregistered and removed")
 	}
 
 	if held, ok := m.LookupUeByIMSI("001010000000002"); !ok || held != kept || kept.EMMState() != EMMRegistered {
 		t.Fatal("expected the other UE to be kept")
 	}
 
-	if reg.checkedAt["001010000000001"] != 42 {
-		t.Fatalf("Superseded checked with registeredAt %d, want 42", reg.checkedAt["001010000000001"])
+	if reg.held["001010000000001"] != 42 {
+		t.Fatalf("held version = %d, want 42", reg.held["001010000000001"])
 	}
 }
 
-func TestReconcileRegistrations_IgnoresDeregisteredUE(t *testing.T) {
-	m := newTestMME(t)
-	reg := newFakeRegistrar()
-	m.Registrations = reg
+func TestReconcileRegistration_IgnoresDeregisteredUE(t *testing.T) {
+	m, reg := newRegistrarTestMME(t)
 	ue := NewUeContext()
 	m.RegisterUEForTest(ue, "001010000000001")
 
 	reg.superseded["001010000000001"] = true
 
-	m.ReconcileRegistrations(context.Background())
+	m.ReconcileRegistration(context.Background(), "001010000000001")
 
 	if held, ok := m.LookupUeByIMSI("001010000000001"); !ok || held != ue {
 		t.Fatal("expected the deregistered UE context to be left alone")
 	}
 
-	if _, checked := reg.checkedAt["001010000000001"]; checked {
+	if _, checked := reg.held["001010000000001"]; checked {
 		t.Fatal("expected no registration check for a deregistered UE")
 	}
 }

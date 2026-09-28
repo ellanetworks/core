@@ -37,7 +37,7 @@ func (a *AMF) releaseToEPS(ctx context.Context, ue *UeContext, conn *UeConn, cau
 		return
 	}
 
-	conn.ReleaseAction = UeContextReleaseToEPS
+	conn.SetReleaseAction(UeContextReleaseToEPS)
 	conn.SendUEContextReleaseCommand(ctx, cause)
 }
 

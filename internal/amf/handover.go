@@ -292,7 +292,7 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) procedure.CancelFun
 
 		a.UnbindHandoverTarget(cctx, amfUe)
 
-		targetUe.ReleaseAction = UeContextReleaseHandover
+		targetUe.SetReleaseAction(UeContextReleaseHandover)
 
 		targetUe.SendUEContextReleaseCommand(cctx,
 			ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTNGRelocOverallExpiry})

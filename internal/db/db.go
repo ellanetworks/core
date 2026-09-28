@@ -257,6 +257,8 @@ type Database struct {
 	cancelUERegistrationStmt       *sqlair.Statement
 	purgeUERegistrationsByNodeStmt *sqlair.Statement
 	getUERegistrationStmt          *sqlair.Statement
+	listUERegistrationsSinceStmt   *sqlair.Statement
+	maxUERegistrationVersionStmt   *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -1793,6 +1795,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.cancelUERegistrationStmt, fmt.Sprintf(cancelUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.purgeUERegistrationsByNodeStmt, fmt.Sprintf(purgeUERegistrationsByNodeStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.getUERegistrationStmt, fmt.Sprintf(getUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.listUERegistrationsSinceStmt, fmt.Sprintf(listUERegistrationsSinceStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.maxUERegistrationVersionStmt, fmt.Sprintf(maxUERegistrationVersionStmt, UERegistrationsTableName), []any{ueRegistrationVersion{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},

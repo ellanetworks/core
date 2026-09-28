@@ -5,17 +5,19 @@ package amf
 
 import (
 	"context"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 )
 
+var causeReleaseDueToCNDetectedMobility = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueToCNDetectedMobility}
+
 type Registrar interface {
-	Register(ctx context.Context, imsi string) error
-	Purge(ctx context.Context, imsi string, stillAbsent func() bool)
-	Superseded(ctx context.Context, imsi string, registeredAt int64) bool
+	Register(ctx context.Context, imsi string) (int64, error)
+	Confirmed(ctx context.Context, imsi string, version int64) bool
+	Purge(imsi string)
+	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -24,40 +26,71 @@ func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
 		return nil
 	}
 
-	start := time.Now().UnixMilli()
-
-	if err := amf.Registrations.Register(ctx, supi.IMSI()); err != nil {
+	version, err := amf.Registrations.Register(ctx, supi.IMSI())
+	if err != nil {
 		return err
 	}
 
-	ue.registeredAt.Store(start)
+	ue.registrationVersion.Store(version)
 
 	return nil
 }
 
-func (amf *AMF) purgeRegistrationAsync(supi etsi.SUPI) {
+func (amf *AMF) ConfirmRegistration(ctx context.Context, ue *UeContext) error {
+	supi := ue.Supi()
+	if amf.Registrations == nil || !supi.IsIMSI() {
+		return nil
+	}
+
+	if amf.Registrations.Confirmed(ctx, supi.IMSI(), ue.registrationVersion.Load()) {
+		return nil
+	}
+
+	return amf.RegisterUE(ctx, ue)
+}
+
+func (amf *AMF) purgeRegistration(supi etsi.SUPI) {
 	if amf.Registrations == nil || !supi.IsIMSI() {
 		return
 	}
 
-	go amf.Registrations.Purge(context.Background(), supi.IMSI(), func() bool {
-		_, ok := amf.LookupUeBySupi(supi)
-		return !ok
-	})
+	amf.Registrations.Purge(supi.IMSI())
 }
 
-func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
+func (amf *AMF) HoldsUE(imsi string) bool {
+	_, ok := amf.lookupUeByIMSI(imsi)
+	return ok
+}
+
+func (amf *AMF) lookupUeByIMSI(imsi string) (*UeContext, bool) {
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return nil, false
+	}
+
+	return amf.LookupUeBySupi(supi)
+}
+
+func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 	if amf.Registrations == nil {
 		return
 	}
 
-	for _, ue := range amf.registeredUEs() {
-		supi := ue.Supi()
-		if !supi.IsIMSI() || !amf.Registrations.Superseded(ctx, supi.IMSI(), ue.registeredAt.Load()) {
-			continue
-		}
+	ue, ok := amf.lookupUeByIMSI(imsi)
+	if !ok || ue.State() != Registered {
+		return
+	}
 
+	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
 		amf.releaseSuperseded(ctx, ue)
+	})
+}
+
+func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
+	for _, ue := range amf.registeredUEs() {
+		if supi := ue.Supi(); supi.IsIMSI() {
+			amf.ReconcileRegistration(ctx, supi.IMSI())
+		}
 	}
 }
 
@@ -68,21 +101,22 @@ func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	if amf.HandoverToEPSInProgress(ue) || amf.RelocationFromEPSInProgress(supi) {
+	if amf.HandoverInProgress(ue) || amf.HandoverToEPSInProgress(ue) || amf.RelocationFromEPSInProgress(supi) {
+		return
+	}
+
+	ueConn := ue.Conn()
+	if ueConn != nil && !ueConn.ReleaseWithAction(ctx, UeContextReleaseDueToNwInitiatedDeregistraion, causeReleaseDueToCNDetectedMobility) {
 		return
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("UE registered on another node; dropping its local 5GS registration and PDU sessions",
 		logger.SUPI(supi.String()))
 
-	ueConn := ue.Conn()
 	if ueConn == nil {
 		amf.DeregisterAndRemoveUeContext(ctx, ue)
 		return
 	}
-
-	ueConn.ReleaseAction = UeContextReleaseDueToNwInitiatedDeregistraion
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueTo5GCGeneratedReason})
 
 	ue.Deregister(ctx)
 }

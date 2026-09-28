@@ -36,7 +36,7 @@ func abortRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCont
 // Complete to delete the (never fully registered) UE context. The network initiates the
 // release of the NAS signalling connection (TS 24.501 §5.3.1.3).
 func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
-	ueConn.ReleaseAction = amf.UeContextReleaseAbortRegistration
+	ueConn.SetReleaseAction(amf.UeContextReleaseAbortRegistration)
 
 	// SendUEContextReleaseCommand releases locally on a send failure and logs it.
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})

@@ -193,7 +193,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			}
 		}
 
-		targetUe.ReleaseAction = amf.UeContextReleaseHandover
+		targetUe.SetReleaseAction(amf.UeContextReleaseHandover)
 		targetUe.SendUEContextReleaseCommand(ctx, causeHOFailureInTarget)
 
 		return

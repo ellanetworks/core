@@ -69,8 +69,8 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.UENGAPIDs.AMFUENGAPID, cmd.UENGAPIDs.RANUENGAPID)
 	}
 
-	if ueConn.ReleaseAction != amf.UeContextN2NormalRelease {
-		t.Errorf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ueConn.ReleaseAction)
+	if ueConn.ReleaseAction() != amf.UeContextN2NormalRelease {
+		t.Errorf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ueConn.ReleaseAction())
 	}
 }
 
@@ -282,8 +282,8 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillRel
 		t.Fatalf("UEContextReleaseCommand count = %d, want 1 once the pending signalling settles", len(sender.SentUEContextReleaseCommands))
 	}
 
-	if ueConn.ReleaseAction != amf.UeContextReleaseUeContext {
-		t.Errorf("ReleaseAction = %v, want the context-releasing action for a UE that is not registered", ueConn.ReleaseAction)
+	if ueConn.ReleaseAction() != amf.UeContextReleaseUeContext {
+		t.Errorf("ReleaseAction = %v, want the context-releasing action for a UE that is not registered", ueConn.ReleaseAction())
 	}
 
 	if got := fakeSmf.ReleaseSmContextCalls; len(got) != 1 || got[0] != "ref-1" {

@@ -152,7 +152,7 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		return
 	}
 
-	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+	ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
 
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified})
 }

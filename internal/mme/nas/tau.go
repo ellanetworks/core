@@ -86,7 +86,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	if err := m.RegisterUE(ctx, ue); err != nil {
+	if err := m.ConfirmRegistration(ctx, ue); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to register the UE on Tracking Area Update", zap.Error(err))
 	}
 

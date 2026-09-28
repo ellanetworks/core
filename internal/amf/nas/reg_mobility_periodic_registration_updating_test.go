@@ -148,8 +148,8 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
-		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
+	if ue.Conn().ReleaseAction() != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction())
 	}
 }
 
@@ -269,8 +269,8 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
-		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
+	if ue.Conn().ReleaseAction() != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction())
 	}
 }
 
@@ -606,8 +606,8 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
-		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
+	if ue.Conn().ReleaseAction() != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction())
 	}
 }
 

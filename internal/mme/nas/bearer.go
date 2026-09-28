@@ -68,7 +68,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	if err := m.RegisterUE(ctx, ue); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseNetworkFailure)
 
 		return
 	}

@@ -47,7 +47,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 	}
 
 	ue.SetSecuredForTest(true)
-	ue.Conn().ReleaseAction = amf.UeContextN2NormalRelease
+	ue.Conn().SetReleaseAction(amf.UeContextN2NormalRelease)
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	conn := ue.Conn()
 	conn.NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})

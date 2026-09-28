@@ -534,8 +534,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfInstance.SetMME(&smfMMEAdapter{MME: mmeInstance})
 	amfInstance.EPS = mmeInstance
 	mmeInstance.FiveGS = amfInstance
-	amfInstance.Registrations = ueregistration.New(dbInstance, raftID, db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, logger.AmfLog)
-	mmeInstance.Registrations = ueregistration.New(dbInstance, raftID, db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, logger.MmeLog)
+	ueRegistrations := ueregistration.New(dbInstance, raftID, logger.EllaLog)
+	amfInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeAMF3GPPAccess, db.UERegistrationTypeMME, amfInstance)
+	mmeInstance.Registrations = ueRegistrations.Bind(db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess, mmeInstance)
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
@@ -562,17 +563,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
 
-	registrationReconciler := reconciler.New(func() <-chan struct{} {
-		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
+	registrationsWakeup, stopRegistrationsWakeup := dbInstance.Changefeed().Wakeup(db.TopicUERegistrations)
 
-		go func() {
-			<-ctx.Done()
-			stop()
-		}()
+	wg.Go(func() {
+		defer stopRegistrationsWakeup()
 
-		return wakeup
-	}(), amfInstance.ReconcileRegistrations, mmeInstance.ReconcileRegistrations)
-	registrationReconciler.Start()
+		ueRegistrations.Run(ctx, registrationsWakeup)
+	})
 
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---
@@ -715,7 +712,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// on a shutting-down SMF, gNB or eNB.
 		logger.EllaLog.Info("Shutting down session reconciler")
 		sessionReconciler.Stop()
-		registrationReconciler.Stop()
 
 		handoverDrainTimeout := max(amfInstance.HandoverGuardTimeout(), mmeInstance.HandoverGuardTimeout()) + stepTimeout
 
