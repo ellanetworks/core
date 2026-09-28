@@ -48,6 +48,12 @@ func TestEnumNames(t *testing.T) {
 		{"RequestTypeHandover", RequestTypeHandover.Name(), "Handover"},
 		{"RequestType(0)", RequestType(0).Name(), ""},
 
+		{"AdditionalUpdateResultSMSOnly", AdditionalUpdateResultSMSOnly.Name(), "SMS only"},
+		{"AdditionalUpdateResult(3)", AdditionalUpdateResult(3).Name(), ""},
+
+		{"SMSServicesCongestion", SMSServicesCongestion.Name(), "Congestion"},
+		{"SMSServicesStatus(4)", SMSServicesStatus(4).Name(), ""},
+
 		{"EMMCauseMACFailure", EMMCauseMACFailure.Name(), "MAC failure"},
 		{"EMMCause(0)", EMMCause(0).Name(), ""},
 	} {

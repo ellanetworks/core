@@ -39,6 +39,7 @@ type TrackingAreaUpdateRequest struct {
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
 	UENetworkCapability    *UENetworkCapability // §9.9.3.34
 	MSNetworkCapability    *MSNetworkCapability // §9.9.3.20
+	AdditionalUpdateType   *AdditionalUpdateType
 
 	// The three elements a TAU after an inter-system handover from 5GS carries
 	// (TS 24.301 §5.5.3.2.2 case zd): the native 4G-GUTI when the UE holds one,
@@ -145,6 +146,10 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiMSNetworkCapability, raw)
 	}
 
+	if m.AdditionalUpdateType != nil {
+		o.TV1(ieiAdditionalUpdateType, m.AdditionalUpdateType.Nibble())
+	}
+
 	if m.OldGUTIType != nil {
 		o.TV1(ieiOldGUTIType, uint8(*m.OldGUTIType)&0x01)
 	}
@@ -236,6 +241,13 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 			m.AdditionalGUTI = &parsed
 
 			return true, nil
+		case ieiAdditionalUpdateType:
+			if v := tv1Value(value); v != nil {
+				aut := ParseAdditionalUpdateType(*v)
+				m.AdditionalUpdateType = &aut
+			}
+
+			return true, nil
 		case ieiOldGUTIType:
 			if v := tv1Value(value); v != nil {
 				t := GUTIType(*v & 0x01)
@@ -271,7 +283,7 @@ const ieiTAIList = 0x54
 
 // TrackingAreaUpdateAccept accepts a tracking area updating procedure
 // (TS 24.301). The mandatory EPS update result is encoded; the optional
-// GUTI, TAI list, EMM cause, and EPS network feature support follow when present.
+// elements the struct models follow when present.
 type TrackingAreaUpdateAccept struct {
 	EPSUpdateResult EPSUpdateResult
 	GUTI            *EPSMobileIdentity // reallocated GUTI (IEI 0x50), when present
@@ -282,22 +294,26 @@ type TrackingAreaUpdateAccept struct {
 	Cause                  *EMMCause // EMM cause (IEI 0x53), when present
 	// EPS network feature support (IEI 0x64), when present (TS 24.301).
 	NetworkFeatureSupport *NetworkFeatureSupport
+	NonEPSServices
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
 }
 
-// tauAcceptIEs are the optional IEs Ella Core emits in a TRACKING AREA UPDATE
-// ACCEPT (TS 24.301): the reallocated GUTI, the TAI list, the EPS bearer
-// context status, the EMM cause, and the EPS network feature support. EMM cause
-// is a type-3 IE with a one-octet value; the others are type-4 TLVs.
+// tauAcceptIEs are the full-octet optional IEs of a TRACKING AREA UPDATE ACCEPT
+// (TS 24.301 table 8.2.26.1) the walker must delimit: the T3412 value, the
+// reallocated GUTI, the TAI list, the EPS bearer context status, the location
+// area identification, the MS identity, the EMM cause, the T3402 and T3423
+// values, and the EPS network feature support. The additional update result
+// and SMS services status are type-1 IEs, delimited generically.
 var tauAcceptIEs = []nas.OptionalIE{
 	{IEI: ieiT3412Value, Format: nas.IETV3, Len: 1, Name: "T3412 value"},
 	{IEI: ieiGUTI, Format: nas.IETLV, Name: "GUTI"},
 	{IEI: ieiTAIList, Format: nas.IETLV, Name: "TAI list"},
 	{IEI: ieiEPSBearerContextStatus, Format: nas.IETLV, Name: "EPS bearer context status"},
 	{IEI: ieiLocationAreaID, Format: nas.IETV3, Len: 5, Name: "Location area identification"},
+	{IEI: ieiMSIdentity, Format: nas.IETLV, Name: "MS identity"},
 	{IEI: ieiEMMCause, Format: nas.IETV3, Len: 1, Name: "EMM cause"},
 	{IEI: ieiT3402ValueAccept, Format: nas.IETV3, Len: 1, Name: "T3402 value"},
 	{IEI: ieiT3423Value, Format: nas.IETV3, Len: 1, Name: "T3423 value"},
@@ -343,6 +359,10 @@ func (m *TrackingAreaUpdateAccept) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiEPSBearerContextStatus, raw)
 	}
 
+	if err := m.appendLocation(&o); err != nil {
+		return b, err
+	}
+
 	if m.Cause != nil {
 		o.TV3(ieiEMMCause, []byte{uint8(*m.Cause)})
 	}
@@ -355,6 +375,8 @@ func (m *TrackingAreaUpdateAccept) AppendBinary(b []byte) ([]byte, error) {
 
 		o.TLV(ieiNetworkFeatureSupport, raw)
 	}
+
+	m.appendResult(&o)
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -418,7 +440,7 @@ func ParseTrackingAreaUpdateAccept(b []byte) (*TrackingAreaUpdateAccept, error) 
 
 			m.NetworkFeatureSupport = &parsed
 		default:
-			return false, nil
+			return m.parse(iei, value)
 		}
 
 		return true, nil

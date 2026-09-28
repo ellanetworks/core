@@ -19,6 +19,7 @@ go get github.com/ellanetworks/core/nas
 | `nas`         | Wire primitives, elements both generations share, security algorithms |
 | `nas/fgs`     | 5GS: 5GMM and 5GSM messages and elements (TS 24.501)                  |
 | `nas/eps`     | EPS: EMM and ESM messages and elements (TS 24.301)                    |
+| `nas/sms`     | SMS over NAS: CP and RP layers (TS 24.011)                           |
 | `nas/nastest` | Builders for malformed PDUs, for negative tests                       |
 
 `fgs` and `eps` are deliberately symmetric: the same concept carries the same

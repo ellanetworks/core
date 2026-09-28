@@ -302,6 +302,7 @@ var emmParsers = map[MessageType]func([]byte) (Message, error){
 	MsgAuthenticationResponse:      emmParser(ParseAuthenticationResponse),
 	MsgDetachAccept:                emmParser(ParseDetachAccept),
 	MsgDownlinkGenericNASTransport: emmParser(ParseDownlinkGenericNASTransport),
+	MsgDownlinkNASTransport:        emmParser(ParseDownlinkNASTransport),
 	MsgEMMInformation:              emmParser(ParseEMMInformation),
 	MsgEMMStatus:                   emmParser(ParseEMMStatus),
 	MsgGUTIReallocationCommand:     emmParser(ParseGUTIReallocationCommand),
@@ -318,6 +319,7 @@ var emmParsers = map[MessageType]func([]byte) (Message, error){
 	MsgTrackingAreaUpdateReject:    emmParser(ParseTrackingAreaUpdateReject),
 	MsgTrackingAreaUpdateRequest:   emmParser(ParseTrackingAreaUpdateRequest),
 	MsgUplinkGenericNASTransport:   emmParser(ParseUplinkGenericNASTransport),
+	MsgUplinkNASTransport:          emmParser(ParseUplinkNASTransport),
 }
 
 // esmParsers dispatches an ESM message type to its parser.

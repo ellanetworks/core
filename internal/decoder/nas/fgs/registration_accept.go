@@ -54,6 +54,10 @@ type SNSSAI struct {
 
 type RegistrationAccept struct {
 	RegistrationResult5GS                  utils.EnumField           `json:"registration_result_5gs"`
+	SMSAllowed                             bool                      `json:"sms_allowed"`
+	NSSAAToBePerformed                     bool                      `json:"nssaa_to_be_performed"`
+	EmergencyRegistered                    bool                      `json:"emergency_registered"`
+	DisasterRoamingResult                  bool                      `json:"disaster_roaming_result"`
 	RegistrationResultRestHex              string                    `json:"registration_result_rest_hex,omitempty"`
 	GUTI5G                                 *GUTI5GContent            `json:"guti_5g,omitempty"`
 	EquivalentPLMNs                        []PLMNID                  `json:"equivalent_plmns,omitempty"`
@@ -86,6 +90,10 @@ func registrationResult5GSEnum(value fgs.RegistrationResult) utils.EnumField {
 func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {
 	out := &RegistrationAccept{
 		RegistrationResult5GS: registrationResult5GSEnum(msg.RegistrationResult),
+		SMSAllowed:            msg.SMSAllowed,
+		NSSAAToBePerformed:    msg.NSSAAToBePerformed,
+		EmergencyRegistered:   msg.EmergencyRegistered,
+		DisasterRoamingResult: msg.DisasterRoamingResult,
 	}
 
 	if msg.GUTI != nil {

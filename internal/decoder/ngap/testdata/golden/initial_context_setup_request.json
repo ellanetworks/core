@@ -180,6 +180,10 @@
                   "label": "3GPP access",
                   "unknown": false
                 },
+                "sms_allowed": false,
+                "nssaa_to_be_performed": false,
+                "emergency_registered": false,
+                "disaster_roaming_result": false,
                 "guti_5g": {
                   "mcc": "001",
                   "mnc": "01",

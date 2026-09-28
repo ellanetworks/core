@@ -51,6 +51,8 @@ type EMMMessage struct {
 	TrackingAreaUpdateComplete  *TrackingAreaUpdateComplete `json:"tracking_area_update_complete,omitempty"`
 	DownlinkGenericNASTransport *GenericNASTransport        `json:"downlink_generic_nas_transport,omitempty"`
 	UplinkGenericNASTransport   *GenericNASTransport        `json:"uplink_generic_nas_transport,omitempty"`
+	DownlinkNASTransport        *NASTransport               `json:"downlink_nas_transport,omitempty"`
+	UplinkNASTransport          *NASTransport               `json:"uplink_nas_transport,omitempty"`
 }
 
 type GUTI struct {
@@ -150,6 +152,10 @@ func buildEMMMessage(b []byte) *EMMMessage {
 		m.DownlinkGenericNASTransport = buildDownlinkGenericNASTransport(msg)
 	case *eps.UplinkGenericNASTransport:
 		m.UplinkGenericNASTransport = buildUplinkGenericNASTransport(msg)
+	case *eps.DownlinkNASTransport:
+		m.DownlinkNASTransport = buildNASTransport(msg.NASMessageContainer, msg.Unrecognized)
+	case *eps.UplinkNASTransport:
+		m.UplinkNASTransport = buildNASTransport(msg.NASMessageContainer, msg.Unrecognized)
 	}
 
 	return m

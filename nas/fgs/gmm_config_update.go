@@ -17,6 +17,7 @@ type ConfigurationUpdateCommand struct {
 	LocalTimeZone                 *nas.TimeZone                  // optional (IEI 0x46)
 	UniversalTime                 *nas.TimeZoneAndTime           // optional (IEI 0x47)
 	DaylightSavingTime            *nas.DaylightSavingTime        // optional (IEI 0x49)
+	SMSAvailable                  *bool
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -88,6 +89,10 @@ func (m *ConfigurationUpdateCommand) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiNetworkDaylightSavingTime, raw)
+	}
+
+	if m.SMSAvailable != nil {
+		o.TV1(ieiSMSIndication, boolBit(*m.SMSAvailable, 0))
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -172,7 +177,13 @@ func ParseConfigurationUpdateCommand(b []byte) (*ConfigurationUpdateCommand, err
 			}
 
 			out.DaylightSavingTime = &parsed
+		case ieiSMSIndication:
+			if len(value) == 0 {
+				return false, nil
+			}
 
+			available := value[0]&0x01 != 0
+			out.SMSAvailable = &available
 		default:
 			return false, nil
 		}

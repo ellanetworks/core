@@ -17,6 +17,7 @@ type TrackingAreaUpdateRequest struct {
 	AdditionalGUTI         *MobileIdentity                    `json:"additional_guti,omitempty"`
 	OldGUTIType            *utils.EnumField                   `json:"old_guti_type,omitempty"`
 	UEStatus               *UEStatus                          `json:"ue_status,omitempty"`
+	AdditionalUpdateType   *AdditionalUpdateType              `json:"additional_update_type,omitempty"`
 	EPSBearerContextStatus []nasie.EPSBearerContextStatusItem `json:"eps_bearer_context_status,omitempty"`
 	UpdateType             utils.EnumField                    `json:"update_type"`
 	ActiveFlag             bool                               `json:"active_flag"`
@@ -42,6 +43,7 @@ func buildTrackingAreaUpdateRequest(msg *eps.TrackingAreaUpdateRequest) *Trackin
 
 	out.MSNetworkCapability = msNetworkCapability(msg.MSNetworkCapability)
 	out.UEStatus = ueStatus(msg.UEStatus)
+	out.AdditionalUpdateType = additionalUpdateType(msg.AdditionalUpdateType)
 	out.EPSBearerContextStatus = nasie.EPSBearerContextStatus(msg.EPSBearerContextStatus)
 
 	if msg.AdditionalGUTI != nil {

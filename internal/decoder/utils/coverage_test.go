@@ -310,6 +310,14 @@ func exportedFields(files []*ast.File, typeName string) []string {
 			}
 
 			for _, field := range st.Fields.List {
+				if len(field.Names) == 0 {
+					if embedded, ok := field.Type.(*ast.Ident); ok && embedded.IsExported() {
+						out = append(out, exportedFields(files, embedded.Name)...)
+					}
+
+					continue
+				}
+
 				for _, name := range field.Names {
 					if name.IsExported() {
 						out = append(out, name.Name)

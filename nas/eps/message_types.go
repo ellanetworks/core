@@ -41,6 +41,8 @@ func (m *DownlinkGenericNASTransport) MessageType() MessageType {
 	return MsgDownlinkGenericNASTransport
 }
 func (m *UplinkGenericNASTransport) MessageType() MessageType { return MsgUplinkGenericNASTransport }
+func (m *DownlinkNASTransport) MessageType() MessageType      { return MsgDownlinkNASTransport }
+func (m *UplinkNASTransport) MessageType() MessageType        { return MsgUplinkNASTransport }
 
 // Every ESM message reports its type.
 func (m *ActivateDefaultEPSBearerContextRequest) MessageType() ESMMessageType {
@@ -126,6 +128,8 @@ func (m *TrackingAreaUpdateComplete) isMessage()             {}
 func (m *TrackingAreaUpdateReject) isMessage()               {}
 func (m *DownlinkGenericNASTransport) isMessage()            {}
 func (m *UplinkGenericNASTransport) isMessage()              {}
+func (m *DownlinkNASTransport) isMessage()                   {}
+func (m *UplinkNASTransport) isMessage()                     {}
 func (m *ActivateDefaultEPSBearerContextRequest) isMessage() {}
 func (m *ActivateDefaultEPSBearerContextAccept) isMessage()  {}
 func (m *ActivateDefaultEPSBearerContextReject) isMessage()  {}
@@ -178,6 +182,8 @@ var (
 	_ EMMMessage = (*TrackingAreaUpdateReject)(nil)
 	_ EMMMessage = (*DownlinkGenericNASTransport)(nil)
 	_ EMMMessage = (*UplinkGenericNASTransport)(nil)
+	_ EMMMessage = (*DownlinkNASTransport)(nil)
+	_ EMMMessage = (*UplinkNASTransport)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextRequest)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextAccept)(nil)
 	_ ESMMessage = (*ActivateDefaultEPSBearerContextReject)(nil)

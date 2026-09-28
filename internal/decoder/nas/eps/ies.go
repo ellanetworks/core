@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -132,4 +133,48 @@ func apnAMBR(a *eps.APNAMBR) *APNAMBR {
 		UplinkOctet:   a.UplinkOctet,
 		ExtendedHex:   hex.EncodeToString(a.Extended),
 	}
+}
+
+type LocationAreaIdentification struct {
+	MCC string `json:"mcc"`
+	MNC string `json:"mnc"`
+	LAC uint16 `json:"lac"`
+}
+
+func locationAreaIdentification(l *nas.LAI) *LocationAreaIdentification {
+	if l == nil {
+		return nil
+	}
+
+	return &LocationAreaIdentification{MCC: l.PLMN.MCC, MNC: l.PLMN.MNC, LAC: l.LAC}
+}
+
+func msIdentity(m *eps.MobileIdentity) *string {
+	if m == nil {
+		return nil
+	}
+
+	s := m.String()
+
+	return &s
+}
+
+func additionalUpdateResult(r *eps.AdditionalUpdateResult) *utils.EnumField {
+	if r == nil {
+		return nil
+	}
+
+	e := utils.NamedEnum(uint8(*r), r.Name())
+
+	return &e
+}
+
+func smsServicesStatus(s *eps.SMSServicesStatus) *utils.EnumField {
+	if s == nil {
+		return nil
+	}
+
+	e := utils.NamedEnum(uint8(*s), s.Name())
+
+	return &e
 }
