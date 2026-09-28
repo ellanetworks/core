@@ -280,6 +280,47 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextModificationRequest §9.1.4.8",
+			(&UEContextModificationRequest{
+				MMEUES1APID:               1,
+				ENBUES1APID:               2,
+				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextModificationResponse §9.1.4.9",
+			(&UEContextModificationResponse{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextModificationFailure §9.1.4.10",
+			(&UEContextModificationFailure{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				Cause:                  cause,
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
 			"UEContextReleaseRequest §9.1.4.5",
 			(&UEContextReleaseRequest{
 				MMEUES1APID: 1,

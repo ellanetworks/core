@@ -87,17 +87,31 @@ func (ue *UeContext) SetSubscribedUEAMBR(subscribed models.Ambr) models.Ambr {
 
 	ue.Ambr = &subscribed
 
-	return ue.ranUEAMBRLocked()
+	return ue.ranUEAMBRLocked(0, nil)
 }
 
 func (ue *UeContext) RANUEAMBR() models.Ambr {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.ranUEAMBRLocked()
+	return ue.ranUEAMBRLocked(0, nil)
 }
 
-func (ue *UeContext) ranUEAMBRLocked() models.Ambr {
+func (ue *UeContext) RANUEAMBRWithout(ebi uint8) models.Ambr {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ranUEAMBRLocked(ebi, nil)
+}
+
+func (ue *UeContext) RANUEAMBRWithAPNAMBR(ebi uint8, apnAMBR models.Ambr) models.Ambr {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.ranUEAMBRLocked(ebi, &apnAMBR)
+}
+
+func (ue *UeContext) ranUEAMBRLocked(ebi uint8, apnAMBR *models.Ambr) models.Ambr {
 	if ue.Ambr == nil {
 		return models.Ambr{}
 	}
@@ -109,6 +123,18 @@ func (ue *UeContext) ranUEAMBRLocked() models.Ambr {
 
 	for _, p := range ue.Pdns {
 		if p.SessionRef == "" {
+			continue
+		}
+
+		if ebi != 0 && p.Ebi == ebi {
+			if apnAMBR == nil {
+				continue
+			}
+
+			active = true
+			downlink += apnAMBR.Downlink.Bps()
+			uplink += apnAMBR.Uplink.Bps()
+
 			continue
 		}
 

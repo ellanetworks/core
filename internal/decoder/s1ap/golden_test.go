@@ -120,6 +120,24 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		RequestType: &s1ap.RequestType{EventType: s1ap.EventTypeChangeOfServeCell, ReportArea: s1ap.ReportAreaECGI},
 	})
 
+	corpus["ue_context_modification_request_full"] = mustMarshal(t, &s1ap.UEContextModificationRequest{
+		MMEUES1APID:               1,
+		ENBUES1APID:               2,
+		UEAggregateMaximumBitRate: &s1ap.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
+	})
+
+	corpus["ue_context_modification_response_full"] = mustMarshal(t, &s1ap.UEContextModificationResponse{
+		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(1)),
+		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(2)),
+		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcUEContextModification)},
+	})
+
+	corpus["ue_context_modification_failure_full"] = mustMarshal(t, &s1ap.UEContextModificationFailure{
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(1)),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
+		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+	})
+
 	corpus["erab_modify_request_full"] = mustMarshal(t, &s1ap.ERABModifyRequest{
 		MMEUES1APID:               1,
 		ENBUES1APID:               2,
@@ -484,7 +502,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 		"InitiatingMessage": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialUEMessage, s1ap.ProcUplinkNASTransport,
 			s1ap.ProcDownlinkNASTransport, s1ap.ProcInitialContextSetup,
-			s1ap.ProcUEContextReleaseRequest, s1ap.ProcUEContextRelease,
+			s1ap.ProcUEContextReleaseRequest, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
 			s1ap.ProcUECapabilityInfoIndication, s1ap.ProcPaging, s1ap.ProcErrorIndication,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
 			s1ap.ProcHandoverNotification, s1ap.ProcHandoverCancel,
@@ -498,7 +516,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
 		},
 		"SuccessfulOutcome": {
-			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease,
+			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation, s1ap.ProcHandoverCancel,
 			s1ap.ProcERABSetup, s1ap.ProcERABRelease,
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
@@ -506,7 +524,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcENBConfigurationUpdate,
 		},
 		"UnsuccessfulOutcome": {
-			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup,
+			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextModification,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
 			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate,
 		},

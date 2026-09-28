@@ -97,6 +97,7 @@ func (m *MME) ConcludeBearerModification(ctx context.Context, ue *UeContext, p *
 	ue.mu.Unlock()
 
 	m.Session.CommitEPSBearerModification(ctx, ref, accepted)
+	m.SyncUEAMBR(ctx, ue)
 
 	return true
 }
@@ -126,6 +127,7 @@ func (m *MME) RadioBearerModified(ctx context.Context, ue *UeContext, ebi uint8,
 	ue.mu.Unlock()
 
 	m.Session.CommitEPSBearerModification(ctx, ref, modified)
+	m.SyncUEAMBR(ctx, ue)
 }
 
 func finishModificationLocked(p *PdnConnection, accepted bool) {

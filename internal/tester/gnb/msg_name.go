@@ -23,6 +23,7 @@ func messageName(cat Category, code ngap.ProcedureCode) string {
 		ngap.ProcInitialUEMessage:         "InitialUEMessage",
 		ngap.ProcUEContextRelease:         "UEContextRelease",
 		ngap.ProcUEContextReleaseRequest:  "UEContextReleaseRequest",
+		ngap.ProcUEContextModification:    "UEContextModification",
 		ngap.ProcPathSwitchRequest:        "PathSwitchRequest",
 		ngap.ProcPaging:                   "Paging",
 		ngap.ProcErrorIndication:          "ErrorIndication",

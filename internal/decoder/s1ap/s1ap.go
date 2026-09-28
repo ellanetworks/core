@@ -84,6 +84,8 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildUEContextReleaseRequest(m.Value)
 	case s1ap.ProcUEContextRelease:
 		msg.Value, msg.Summary = buildUEContextReleaseCommand(m.Value)
+	case s1ap.ProcUEContextModification:
+		msg.Value, msg.Summary = buildUEContextModificationRequest(m.Value)
 	case s1ap.ProcUECapabilityInfoIndication:
 		msg.Value, msg.Summary = buildUECapabilityInfoIndication(m.Value)
 	case s1ap.ProcERABSetup:
@@ -155,6 +157,8 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildInitialContextSetupResponse(m.Value)
 	case s1ap.ProcUEContextRelease:
 		msg.Value, msg.Summary = buildUEContextReleaseComplete(m.Value)
+	case s1ap.ProcUEContextModification:
+		msg.Value, msg.Summary = buildUEContextModificationResponse(m.Value)
 	case s1ap.ProcERABSetup:
 		msg.Value, msg.Summary = buildERABSetupResponse(m.Value)
 	case s1ap.ProcERABRelease:
@@ -196,6 +200,8 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildS1SetupFailure(m.Value)
 	case s1ap.ProcInitialContextSetup:
 		msg.Value, msg.Summary = buildInitialContextSetupFailure(m.Value)
+	case s1ap.ProcUEContextModification:
+		msg.Value, msg.Summary = buildUEContextModificationFailure(m.Value)
 	case s1ap.ProcHandoverPreparation:
 		msg.Value, msg.Summary = buildHandoverPreparationFailure(m.Value)
 	case s1ap.ProcHandoverResourceAllocation:

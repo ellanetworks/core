@@ -212,25 +212,45 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
 	}
 
-	ambrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
+	ambr, err := profileUEAMBR(profile)
 	if err != nil {
-		return nil, fmt.Errorf("profile %s UE-AMBR downlink: %w", subscriber.ProfileID, err)
-	}
-
-	ambrUL, err := models.ParseBitRate(profile.UeAmbrUplink)
-	if err != nil {
-		return nil, fmt.Errorf("profile %s UE-AMBR uplink: %w", subscriber.ProfileID, err)
+		return nil, err
 	}
 
 	return &SubscriberProfile{
 		AllowedNssai: allowedNssai,
-		Ambr: &models.Ambr{
-			Downlink: ambrDL,
-			Uplink:   ambrUL,
-		},
-		Allow5G: profile.Allow5G,
-		Allow4G: profile.Allow4G,
+		Ambr:         ambr,
+		Allow5G:      profile.Allow5G,
+		Allow4G:      profile.Allow4G,
 	}, nil
+}
+
+func (amf *AMF) SubscribedUEAMBR(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, supi.IMSI())
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi.IMSI(), err)
+	}
+
+	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %s: %w", subscriber.ProfileID, err)
+	}
+
+	return profileUEAMBR(profile)
+}
+
+func profileUEAMBR(profile *db.Profile) (*models.Ambr, error) {
+	ambrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
+	if err != nil {
+		return nil, fmt.Errorf("profile %s UE-AMBR downlink: %w", profile.ID, err)
+	}
+
+	ambrUL, err := models.ParseBitRate(profile.UeAmbrUplink)
+	if err != nil {
+		return nil, fmt.Errorf("profile %s UE-AMBR uplink: %w", profile.ID, err)
+	}
+
+	return &models.Ambr{Downlink: ambrDL, Uplink: ambrUL}, nil
 }
 
 func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {

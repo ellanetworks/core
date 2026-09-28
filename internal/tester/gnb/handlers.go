@@ -70,6 +70,8 @@ func handleInitiatingMessage(gnb *GnodeB, frame SCTPFrame) error {
 		return handlePDUSessionResourceReleaseCommand(gnb, frame.Value)
 	case ngap.ProcUEContextRelease:
 		return handleUEContextReleaseCommand(gnb, frame.Value)
+	case ngap.ProcUEContextModification:
+		return handleUEContextModificationRequest(gnb, frame.Value)
 	case ngap.ProcPaging:
 		return handlePaging(gnb, frame.Value)
 	case ngap.ProcErrorIndication:

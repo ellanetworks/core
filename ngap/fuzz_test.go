@@ -27,6 +27,7 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		goldenUEContextReleaseRequest, goldenUEContextReleaseRequestMin,
 		goldenUEContextReleaseCommandPair, goldenUEContextReleaseCommandAMF,
 		goldenUEContextReleaseComplete, goldenUEContextReleaseCompleteMin,
+		goldenUEContextModificationRequest, goldenUEContextModificationResponse, goldenUEContextModificationFailure,
 		goldenInitialContextSetupRequest, goldenInitialContextSetupRequestNoSessions,
 		goldenInitialContextSetupResponse, goldenInitialContextSetupFailure,
 		goldenUERadioCapabilityInfoIndication, goldenUERadioCapabilityInfoIndicationFull,

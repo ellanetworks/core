@@ -65,6 +65,8 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 			HandleERABSetupResponse(ctx, m, radio, p.Value)
 		case s1ap.ProcERABModify:
 			handleERABModifyResponse(ctx, m, radio, p.Value)
+		case s1ap.ProcUEContextModification:
+			handleUEContextModificationResponse(ctx, m, radio, p.Value)
 		case s1ap.ProcERABRelease:
 			HandleERABReleaseResponse(ctx, m, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
@@ -78,6 +80,8 @@ func Route(ctx context.Context, m *mme.MME, radio *mme.Radio, pdu any) {
 		switch p.ProcedureCode {
 		case s1ap.ProcInitialContextSetup:
 			handleInitialContextSetupFailure(ctx, m, radio, p.Value)
+		case s1ap.ProcUEContextModification:
+			handleUEContextModificationFailure(ctx, m, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverFailure(ctx, m, radio, p.Value)
 		case s1ap.ProcMMEConfigurationUpdate:

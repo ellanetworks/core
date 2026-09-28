@@ -30,6 +30,8 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	m.SyncUEAMBR(ctx, ue)
+
 	for _, p := range m.SnapshotPDNs(ue) {
 		if err := m.Session.ReconcileSession(ctx, p.SessionRef); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("session reconcile failed", zap.String("apn", p.Apn), zap.Error(err))
@@ -250,7 +252,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
 		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
 		write = func(wire []byte) error {
-			m.sendERABModify(ctx, ueConn, p, *mod.QoS, wire)
+			m.sendERABModify(ctx, ue, ueConn, p, mod, wire)
 
 			return nil
 		}
@@ -280,16 +282,20 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 // the eNB, carrying the MODIFY EPS BEARER CONTEXT REQUEST piggybacked in the
 // NAS-PDU for the UE. Completion is the NAS Modify Accept, not the E-RAB Modify
 // Response, so this does not block on it.
-func (m *MME) sendERABModify(ctx context.Context, ueConn *UeConn, p *PdnConnection, qos models.EPSBearerQoS, naspdu []byte) {
+func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, ueConn *UeConn, p *PdnConnection, mod models.EPSBearerModification, naspdu []byte) {
 	req := &s1ap.ERABModifyRequest{
 		ERABToBeModified: []s1ap.ERABToBeModifiedItemBearerModReq{{
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
-				QCI: s1ap.QCI(qos.QCI),
-				ARP: BearerARP(qos.ARP),
+				QCI: s1ap.QCI(mod.QoS.QCI),
+				ARP: BearerARP(mod.QoS.ARP),
 			},
 			NASPDU: s1ap.NASPDU(naspdu),
 		}},
+	}
+
+	if ul, dl := ue.AmbrRates(); mod.APNAMBR != nil && (!ul.IsZero() || !dl.IsZero()) {
+		req.UEAggregateMaximumBitRate = new(S1APUEAMBR(ue.RANUEAMBRWithAPNAMBR(p.Ebi, *mod.APNAMBR)))
 	}
 
 	if err := ueConn.SendERABModify(ctx, req); err != nil {

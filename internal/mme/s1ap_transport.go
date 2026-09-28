@@ -59,6 +59,7 @@ func s1apStreamForProcedure(p S1APProcedure) (uint16, error) {
 		S1APProcedureMMEConfigurationTransfer:
 		return S1apStreamNonUE, nil
 	case S1APProcedureInitialContextSetupRequest, S1APProcedureUEContextReleaseCommand,
+		S1APProcedureUEContextModRequest,
 		S1APProcedureDownlinkNASTransport,
 		S1APProcedureERABSetupRequest, S1APProcedureERABModifyRequest, S1APProcedureERABReleaseCommand,
 		S1APProcedureERABModificationConfirm,

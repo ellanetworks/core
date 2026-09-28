@@ -160,6 +160,45 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextModificationRequest §9.2.2.7",
+			goldUEContextModificationRequest().encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+				{IDUEAggregateMaximumBitRate, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextModificationResponse §9.2.2.8",
+			(&UEContextModificationResponse{
+				AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:             Ptr(RANUENGAPID(2)),
+				UserLocationInformation: goldUEContextModificationResponse().UserLocationInformation,
+				CriticalityDiagnostics:  &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityIgnore},
+				{IDRANUENGAPID, CriticalityIgnore},
+				{IDUserLocationInformation, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextModificationFailure §9.2.2.9",
+			(&UEContextModificationFailure{
+				AMFUENGAPID:            Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:            Ptr(RANUENGAPID(2)),
+				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityIgnore},
+				{IDRANUENGAPID, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupFailure §9.2.2.3",
 			(&InitialContextSetupFailure{
 				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),

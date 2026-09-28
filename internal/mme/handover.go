@@ -70,7 +70,7 @@ type relocationOutcome struct {
 
 var ErrRelocationAbandoned = errors.New("mme: handover preparation abandoned")
 
-func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate, direct bool) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
+func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate, direct bool, ueAMBR s1ap.UEAggregateMaximumBitRate) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
@@ -110,6 +110,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
+	targetConn.holdUEAMBR(&ueAMBR)
 	m.conns[tid] = targetConn
 
 	ho := &handoverContext{
@@ -216,7 +217,7 @@ func (m *MME) MarkRelocationToFiveGSPrepared(ue *UeContext, accepted map[uint8]s
 	return unadmitted, true
 }
 
-func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, outcome <-chan relocationOutcome, ok bool) {
+func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []HandoverCandidate, ueAMBR s1ap.UEAggregateMaximumBitRate) (targetMMEID s1ap.MMEUES1APID, outcome <-chan relocationOutcome, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -243,6 +244,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
 	targetConn.bindLogFields(m.nodeLogFieldsLocked(target))
+	targetConn.holdUEAMBR(&ueAMBR)
 	m.conns[tid] = targetConn
 
 	delivery := make(chan relocationOutcome, 1)
