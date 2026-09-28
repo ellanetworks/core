@@ -24,6 +24,8 @@ import (
 func FuzzParseMessage(f *testing.F) {
 	f.Add([]byte{uint8(EPD5GSM), 5, 1, uint8(MsgPDUSessionEstablishmentRequest), 0xFF, 0xFF, 0x91, 0xA1, iei5GSMCapability, 0x01, 0x03, 0xB1})
 	f.Add([]byte{uint8(EPD5GSM), 5, 1, uint8(MsgGSMStatus), 0x2F})
+	f.Add([]byte{uint8(EPD5GMM), 0x00, uint8(MsgRegistrationAccept), 0x01, 0x7b})
+	f.Add([]byte{uint8(EPD5GMM), 0x00, uint8(MsgConfigurationUpdateCommand), 0xd1, 0xf1})
 	// A PDU SESSION MODIFICATION REQUEST: header, 5GSM cause (TV), always-on requested (type 1).
 	f.Add([]byte{uint8(EPD5GSM), 5, 1, uint8(MsgPDUSessionModificationRequest), iei5GSMCause, 0x24, 0xB1})
 	f.Add([]byte{uint8(EPD5GSM), 5, 1, uint8(MsgPDUSessionReleaseRequest), iei5GSMCause, 0x24})

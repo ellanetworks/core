@@ -16,6 +16,10 @@ type TrackingAreaUpdateAccept struct {
 	UpdateResult           utils.EnumField                    `json:"update_result"`
 	GUTI                   *MobileIdentity                    `json:"guti,omitempty"`
 	EMMCause               *uint8                             `json:"emm_cause,omitempty"`
+	LAI                    *LocationAreaIdentification        `json:"location_area_identification,omitempty"`
+	MSIdentity             *string                            `json:"ms_identity,omitempty"`
+	AdditionalUpdateResult *utils.EnumField                   `json:"additional_update_result,omitempty"`
+	SMSServicesStatus      *utils.EnumField                   `json:"sms_services_status,omitempty"`
 
 	UnrecognizedIEs []utils.RawIE `json:"unrecognized_ies,omitempty"`
 }
@@ -35,6 +39,10 @@ func buildTrackingAreaUpdateAccept(msg *eps.TrackingAreaUpdateAccept) *TrackingA
 	}
 
 	out.NetworkFeatureSupport = networkFeatureSupport(msg.NetworkFeatureSupport)
+	out.LAI = locationAreaIdentification(msg.LAI)
+	out.MSIdentity = msIdentity(msg.MSIdentity)
+	out.AdditionalUpdateResult = additionalUpdateResult(msg.AdditionalUpdateResult)
+	out.SMSServicesStatus = smsServicesStatus(msg.SMSServicesStatus)
 	out.EPSBearerContextStatus = nasie.EPSBearerContextStatus(msg.EPSBearerContextStatus)
 	out.UnrecognizedIEs = utils.RawIEs(msg.Unrecognized)
 

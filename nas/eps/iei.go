@@ -19,6 +19,7 @@ const (
 	ieiOldPTMSISignature              uint8 = 0x19
 	ieiMobileStationClassmark3        uint8 = 0x20
 	ieiIMEISV                         uint8 = 0x23 // SECURITY MODE COMPLETE: IMEISV mobile identity
+	ieiMSIdentity                     uint8 = 0x23
 	ieiMSNetworkCapability            uint8 = 0x31
 	ieiN1UENetworkCapability          uint8 = 0x32
 	ieiNegotiatedLLCSAPI              uint8 = 0x32 // ESM bearer context messages (same octet as the N1 UE network capability in EMM)
@@ -68,4 +69,6 @@ const (
 	ieiDeviceProperties        uint8 = 0xD0
 	ieiOldGUTIType             uint8 = 0xE0
 	ieiAdditionalUpdateType    uint8 = 0xF0
+	ieiAdditionalUpdateResult  uint8 = 0xF0
+	ieiSMSServicesStatus       uint8 = 0xE0
 )

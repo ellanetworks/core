@@ -38,6 +38,7 @@ var canonicalValues = map[uint8][]byte{
 	ieiIntegrityProtMaxRate:          {0xff, 0xff},
 	ieiLocalTimeZone:                 {0x00},
 	ieiMICOIndication:                {0x01},
+	ieiSMSIndication:                 {0x01},
 	ieiMaxPacketFilters:              {0x00, 0x10},
 	ieiNASMessageContainer:           {uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest), 0x01, 0x00, 0x01, 0x00},
 	ieiNetworkDaylightSavingTime:     {0x00},
@@ -132,7 +133,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		{
 			name:  "ConfigurationUpdateCommand (TS 24.501 §8.2.19)",
 			bare:  &ConfigurationUpdateCommand{},
-			order: []canonicalIE{{ieiConfigUpdateInd, nas.IETV1}, {ieiGUTI5G, nas.IETLVE}, {ieiFullNameForNet, nas.IETLV}, {ieiShortNameForNet, nas.IETLV}, {ieiLocalTimeZone, nas.IETV3}, {ieiUniversalTimeAndLocalTimeZone, nas.IETV3}, {ieiNetworkDaylightSavingTime, nas.IETLV}},
+			order: []canonicalIE{{ieiConfigUpdateInd, nas.IETV1}, {ieiGUTI5G, nas.IETLVE}, {ieiFullNameForNet, nas.IETLV}, {ieiShortNameForNet, nas.IETLV}, {ieiLocalTimeZone, nas.IETV3}, {ieiUniversalTimeAndLocalTimeZone, nas.IETV3}, {ieiNetworkDaylightSavingTime, nas.IETLV}, {ieiSMSIndication, nas.IETV1}},
 		},
 		{
 			name:  "DeregistrationRequestUETerminated (TS 24.501 §8.2.14)",
