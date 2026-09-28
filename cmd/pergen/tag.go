@@ -48,6 +48,9 @@ type FieldTag struct {
 	// ExtSeq marks the parent type extensible ("...") with no extension
 	// additions; it sits on a placeholder field that carries no encoding.
 	ExtSeq bool
+
+	EnumExtValues    int64
+	HasEnumExtValues bool
 }
 
 type TagMode uint8
@@ -73,6 +76,7 @@ const (
 //	            | "default:" goexpr
 //	            | "choice:" int
 //	            | "tag:" tagmode
+//	            | "extvalues:" int
 //	range      := [bound] ".." [bound] [",..."]   -- at least one bound
 //	            | bound [",..."]                    -- single value
 //	            | "..."
@@ -147,7 +151,7 @@ func looksLikeOption(token string) bool {
 	if i := strings.IndexByte(token, ':'); i > 0 {
 		key := strings.TrimSpace(token[:i])
 		switch key {
-		case "range", "size", "default", "choice", "tag", "extadd":
+		case "range", "size", "default", "choice", "tag", "extadd", "extvalues":
 			return true
 		}
 		// Unknown "key:value" is claimed here so parseOption reports an error
@@ -221,6 +225,20 @@ func parseOption(t *FieldTag, opt string) error {
 		}
 
 		t.ExtAdd = n
+
+		return nil
+	case "extvalues":
+		n, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return fmt.Errorf("extvalues: %w", err)
+		}
+
+		if n < 0 {
+			return fmt.Errorf("extvalues: negative count %d", n)
+		}
+
+		t.EnumExtValues = n
+		t.HasEnumExtValues = true
 
 		return nil
 	default:

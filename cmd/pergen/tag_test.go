@@ -252,6 +252,23 @@ func TestParseTagExtAdd(t *testing.T) {
 	}
 }
 
+func TestParseTagExtValues(t *testing.T) {
+	t.Parallel()
+
+	tag, err := ParseTag("ENUMERATED,range:0..4,...,extvalues:2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !tag.RangeExtensible || tag.RangeUB != 4 {
+		t.Fatalf("Range = %d..%d ext=%t", tag.RangeLB, tag.RangeUB, tag.RangeExtensible)
+	}
+
+	if !tag.HasEnumExtValues || tag.EnumExtValues != 2 {
+		t.Fatalf("EnumExtValues = %d has=%t", tag.EnumExtValues, tag.HasEnumExtValues)
+	}
+}
+
 func TestParseTagCombined(t *testing.T) {
 	t.Parallel()
 
@@ -313,6 +330,8 @@ func TestParseTagErrors(t *testing.T) {
 		"tag:wrong",
 		"choice:abc",
 		"extadd:xyz",
+		"extvalues:xyz",
+		"extvalues:-1",
 		"range:abc..5",
 		"range:5..xyz",
 		"unknownkey:5",

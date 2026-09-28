@@ -1,0 +1,53 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package tgpp
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/ellanetworks/core/diameter"
+)
+
+func TestParseResult(t *testing.T) {
+	req := &diameter.Message{Flags: diameter.FlagRequest}
+
+	r, err := ParseResult(NewAnswer(req, testIdentity, diameter.ResultSuccess))
+	if err != nil || !r.Success() || r.Experimental {
+		t.Fatalf("success = %+v, %v", r, err)
+	}
+
+	r, err = ParseResult(NewAnswer(req, testIdentity, diameter.ResultUnableToComply))
+	if err != nil || r.Success() || r.Code != diameter.ResultUnableToComply {
+		t.Fatalf("base error = %+v, %v", r, err)
+	}
+
+	r, err = ParseResult(NewExperimentalAnswer(req, testIdentity, ResultErrorAbsentUser))
+	if err != nil || r.Success() || !r.IsExperimental(ResultErrorAbsentUser) || r.IsExperimental(ResultErrorUserUnknown) {
+		t.Fatalf("experimental = %+v, %v", r, err)
+	}
+
+	other := &diameter.Message{AVPs: []diameter.AVP{diameter.Grouped(diameter.AVPExperimentalResult, diameter.AVPFlagMandatory, 0,
+		diameter.Unsigned32(diameter.AVPVendorID, diameter.AVPFlagMandatory, 0, 9999),
+		diameter.Unsigned32(diameter.AVPExperimentalResultCode, diameter.AVPFlagMandatory, 0, ResultErrorAbsentUser))}}
+
+	if r, err := ParseResult(other); err != nil || r.VendorID != 9999 || r.IsExperimental(ResultErrorAbsentUser) {
+		t.Fatalf("other vendor = %+v, %v", r, err)
+	}
+}
+
+func TestParseResultMalformed(t *testing.T) {
+	for name, m := range map[string]*diameter.Message{
+		"empty":             {},
+		"short Result-Code": {AVPs: []diameter.AVP{diameter.OctetString(diameter.AVPResultCode, diameter.AVPFlagMandatory, 0, []byte{0x01})}},
+		"no Vendor-Id": {AVPs: []diameter.AVP{diameter.Grouped(diameter.AVPExperimentalResult, diameter.AVPFlagMandatory, 0,
+			diameter.Unsigned32(diameter.AVPExperimentalResultCode, diameter.AVPFlagMandatory, 0, ResultErrorAbsentUser))}},
+		"no code": {AVPs: []diameter.AVP{diameter.Grouped(diameter.AVPExperimentalResult, diameter.AVPFlagMandatory, 0,
+			diameter.Unsigned32(diameter.AVPVendorID, diameter.AVPFlagMandatory, 0, VendorID))}},
+	} {
+		if _, err := ParseResult(m); !errors.Is(err, ErrMalformedResult) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}

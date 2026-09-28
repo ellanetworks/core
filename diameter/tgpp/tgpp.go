@@ -1,0 +1,132 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package tgpp
+
+import (
+	"github.com/ellanetworks/core/diameter"
+)
+
+const VendorID uint32 = 10415
+
+const (
+	AVPSupportedFeatures      uint32 = 628
+	AVPFeatureListID          uint32 = 629
+	AVPFeatureList            uint32 = 630
+	AVPMSISDN                 uint32 = 701
+	AVPSGSNNumber             uint32 = 1489
+	AVPMMENumberForMTSMS      uint32 = 1645
+	AVPUserIdentifier         uint32 = 3102
+	AVPSCAddress              uint32 = 3300
+	AVPSMDeliveryOutcome      uint32 = 3316
+	AVPAbsentUserDiagnosticSM uint32 = 3322
+	AVPSMSMICorrelationID     uint32 = 3324
+)
+
+const (
+	ResultErrorUserUnknown          uint32 = 5001
+	ResultErrorAbsentUser           uint32 = 5550
+	ResultErrorUserBusyForMTSMS     uint32 = 5551
+	ResultErrorFacilityNotSupported uint32 = 5552
+	ResultErrorIllegalUser          uint32 = 5553
+	ResultErrorIllegalEquipment     uint32 = 5554
+	ResultErrorSMDeliveryFailure    uint32 = 5555
+	ResultErrorServiceNotSubscribed uint32 = 5556
+	ResultErrorServiceBarred        uint32 = 5557
+	ResultErrorMWDListFull          uint32 = 5558
+)
+
+const (
+	AbsentUserNoPagingResponseMSC        uint32 = 0
+	AbsentUserIMSIDetached               uint32 = 1
+	AbsentUserRoamingRestriction         uint32 = 2
+	AbsentUserDeregisteredNonGPRS        uint32 = 3
+	AbsentUserPurgedNonGPRS              uint32 = 4
+	AbsentUserNoPagingResponseSGSN       uint32 = 5
+	AbsentUserGPRSDetached               uint32 = 6
+	AbsentUserDeregisteredGPRS           uint32 = 7
+	AbsentUserPurgedGPRS                 uint32 = 8
+	AbsentUserUnidentifiedSubscriberMSC  uint32 = 9
+	AbsentUserUnidentifiedSubscriberSGSN uint32 = 10
+	AbsentUserDeregisteredIMS            uint32 = 11
+	AbsentUserNoResponseIPSMGW           uint32 = 12
+	AbsentUserTemporarilyUnavailable     uint32 = 13
+)
+
+type Envelope struct {
+	SessionID        string
+	Origin           diameter.Identity
+	DestinationHost  string
+	DestinationRealm string
+}
+
+func (e Envelope) AVPs() []diameter.AVP {
+	avps := []diameter.AVP{
+		diameter.UTF8String(diameter.AVPSessionID, diameter.AVPFlagMandatory, 0, e.SessionID),
+		diameter.Unsigned32(diameter.AVPAuthSessionState, diameter.AVPFlagMandatory, 0, diameter.AuthSessionStateNoStateMaintained),
+		diameter.UTF8String(diameter.AVPOriginHost, diameter.AVPFlagMandatory, 0, e.Origin.OriginHost),
+		diameter.UTF8String(diameter.AVPOriginRealm, diameter.AVPFlagMandatory, 0, e.Origin.OriginRealm),
+	}
+
+	if e.DestinationHost != "" {
+		avps = append(avps, diameter.UTF8String(diameter.AVPDestinationHost, diameter.AVPFlagMandatory, 0, e.DestinationHost))
+	}
+
+	return append(avps, diameter.UTF8String(diameter.AVPDestinationRealm, diameter.AVPFlagMandatory, 0, e.DestinationRealm))
+}
+
+func ParseEnvelope(m *diameter.Message) Envelope {
+	var e Envelope
+
+	for _, f := range []struct {
+		code uint32
+		dst  *string
+	}{
+		{diameter.AVPSessionID, &e.SessionID},
+		{diameter.AVPOriginHost, &e.Origin.OriginHost},
+		{diameter.AVPOriginRealm, &e.Origin.OriginRealm},
+		{diameter.AVPDestinationHost, &e.DestinationHost},
+		{diameter.AVPDestinationRealm, &e.DestinationRealm},
+	} {
+		if a, ok := m.Find(f.code, 0); ok {
+			*f.dst = a.UTF8String()
+		}
+	}
+
+	return e
+}
+
+func NewAnswer(req *diameter.Message, id diameter.Identity, resultCode uint32) *diameter.Message {
+	return withAuthSessionState(diameter.NewAnswer(req, id, resultCode))
+}
+
+func NewExperimentalAnswer(req *diameter.Message, id diameter.Identity, resultCode uint32) *diameter.Message {
+	return withAuthSessionState(diameter.NewExperimentalAnswer(req, id, VendorID, resultCode))
+}
+
+func NewResultAnswer(req *diameter.Message, id diameter.Identity, r Result) *diameter.Message {
+	if r.Experimental {
+		return withAuthSessionState(diameter.NewExperimentalAnswer(req, id, r.VendorID, r.Code))
+	}
+
+	return NewAnswer(req, id, r.Code)
+}
+
+func NewErrorAnswer(req *diameter.Message, id diameter.Identity, err error) *diameter.Message {
+	return withAuthSessionState(diameter.NewErrorAnswer(req, id, err))
+}
+
+func InvalidAVP(a diameter.AVP) error {
+	return diameter.NewAVPError(diameter.ResultInvalidAVPValue, a)
+}
+
+func MissingAVP(code, vendorID uint32) error {
+	return diameter.NewAVPError(diameter.ResultMissingAVP, diameter.OctetString(code, diameter.AVPFlagMandatory, vendorID, nil))
+}
+
+func withAuthSessionState(ans *diameter.Message) *diameter.Message {
+	ans.AVPs = append(ans.AVPs, diameter.Unsigned32(diameter.AVPAuthSessionState, diameter.AVPFlagMandatory, 0,
+		diameter.AuthSessionStateNoStateMaintained))
+
+	return ans
+}

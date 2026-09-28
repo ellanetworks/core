@@ -15,7 +15,7 @@ jobs:
       matrix:
         # golangci-lint does not descend into nested modules, so each is linted
         # in its own job.
-        module: [".", "lppa", "nas", "ngap", "per", "s1ap", "sctp"]
+        module: [".", "diameter", "lppa", "nas", "ngap", "per", "s1ap", "sctp"]
     steps:
       - uses: actions/checkout@v7
 

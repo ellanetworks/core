@@ -192,12 +192,16 @@ func (g *generator) emitFieldMarshal(r *bytes.Buffer, _ string, fi fieldInfo, ex
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindEnum:
-		// An extensible ENUMERATED goes through encodeRootEnumerated, which
-		// refuses a value outside the root instead of emitting it as an
-		// extension addition 3GPP has not defined.
-		if fi.enumExt {
+		// An extensible ENUMERATED without extvalues: goes through
+		// encodeRootEnumerated, which refuses a value outside the root instead
+		// of emitting it as an extension addition 3GPP has not defined.
+		switch {
+		case fi.enumTotal > 0:
+			fmt.Fprintf(r, "%sif v := int64(%s); v < 0 || v >= %d {\n%s\treturn per.ErrOverflow\n%s}\n", prefix, expr, fi.enumTotal, prefix, prefix)
+			fmt.Fprintf(r, "%sif err := per.EncodeEnumerated(w, enc, %d, true, int64(%s)); err != nil {\n", prefix, fi.enumRoot, expr)
+		case fi.enumExt:
 			fmt.Fprintf(r, "%sif err := encodeRootEnumerated(w, enc, %d, int64(%s), %q); err != nil {\n", prefix, fi.enumRoot, expr, fi.typeStr)
-		} else {
+		default:
 			fmt.Fprintf(r, "%sif err := per.EncodeEnumerated(w, enc, %d, false, int64(%s)); err != nil {\n", prefix, fi.enumRoot, expr)
 		}
 
@@ -408,27 +412,31 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(n%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindEnum:
-		// An extensible ENUMERATED goes through decodeRootEnumerated, which
-		// refuses an extension addition rather than let nRoot+k narrow back
-		// onto a root value in the enumeration's small Go type.
-		if fi.enumExt {
+		// An extensible ENUMERATED without extvalues: goes through
+		// decodeRootEnumerated, which refuses an extension addition rather than
+		// let nRoot+k narrow back onto a root value in the enumeration's small
+		// Go type.
+		switch {
+		case fi.enumTotal > 0:
+			fmt.Fprintf(r, "%se%d, err := per.DecodeEnumerated(r, enc, %d, true)\n", prefix, fi.fieldIdx, fi.enumRoot)
+		case fi.enumExt:
 			fmt.Fprintf(r, "%se%d, err := decodeRootEnumerated(r, enc, %d, %q)\n", prefix, fi.fieldIdx, fi.enumRoot, fi.typeStr)
-		} else {
+		default:
 			fmt.Fprintf(r, "%se%d, err := per.DecodeEnumerated(r, enc, %d, false)\n", prefix, fi.fieldIdx, fi.enumRoot)
 		}
 
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(e%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindOctetString:
-		fmt.Fprintf(r, "%sp, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
-			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+		fmt.Fprintf(r, "%sp%d, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
+			prefix, fi.fieldIdx, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s%s = p\n", prefix, target)
+		fmt.Fprintf(r, "%s%s = p%d\n", prefix, target, fi.fieldIdx)
 	case kindBitString:
-		fmt.Fprintf(r, "%sbs, nbits, err := per.DecodeBitString(r, enc, %d, %d, %t, %t, %t)\n",
-			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+		fmt.Fprintf(r, "%sbs%d, nbits%d, err := per.DecodeBitString(r, enc, %d, %d, %t, %t, %t)\n",
+			prefix, fi.fieldIdx, fi.fieldIdx, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s_ = nbits\n%s%s = per.BitsToBools(bs, nbits)\n", prefix, prefix, target)
+		fmt.Fprintf(r, "%s%s = per.BitsToBools(bs%d, nbits%d)\n", prefix, target, fi.fieldIdx, fi.fieldIdx)
 	case kindDelegate:
 		if fi.delegateIsValue {
 			fmt.Fprintf(r, "%sif err := (&%s).UnmarshalPER(r, enc); err != nil {\n", prefix, target)
@@ -440,25 +448,25 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 	case kindString:
 		switch {
 		case fi.charTypeExpr != "":
-			fmt.Fprintf(r, "%ssp, err := per.DecodeKnownMultiplierString(r, enc, %s, %d, %d, %t, %t, %t)\n",
-				prefix, fi.charTypeExpr, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+			fmt.Fprintf(r, "%ssp%d, err := per.DecodeKnownMultiplierString(r, enc, %s, %d, %d, %t, %t, %t)\n",
+				prefix, fi.fieldIdx, fi.charTypeExpr, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 			fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-			fmt.Fprintf(r, "%s%s = sp\n", prefix, target)
+			fmt.Fprintf(r, "%s%s = sp%d\n", prefix, target, fi.fieldIdx)
 
 			return
 		case fi.hasSizeLB || fi.hasSizeUB:
-			fmt.Fprintf(r, "%ssp, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
-				prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+			fmt.Fprintf(r, "%ssp%d, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
+				prefix, fi.fieldIdx, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 		default:
-			fmt.Fprintf(r, "%ssp, err := per.DecodeString(r, enc)\n", prefix)
+			fmt.Fprintf(r, "%ssp%d, err := per.DecodeString(r, enc)\n", prefix, fi.fieldIdx)
 		}
 
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s%s = string(sp)\n", prefix, target)
+		fmt.Fprintf(r, "%s%s = string(sp%d)\n", prefix, target, fi.fieldIdx)
 	case kindREAL:
-		fmt.Fprintf(r, "%sf, err := per.DecodeREAL(r, enc)\n", prefix)
+		fmt.Fprintf(r, "%sf%d, err := per.DecodeREAL(r, enc)\n", prefix, fi.fieldIdx)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s%s = f\n", prefix, target)
+		fmt.Fprintf(r, "%s%s = f%d\n", prefix, target, fi.fieldIdx)
 	case kindSequenceOf:
 		g.emitSequenceOfUnmarshal(r, fi, target, indent)
 	default:

@@ -154,10 +154,10 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 	decoded, err := DecodeLPPMessage(encodeProvideLocationInformationR9(t, &lpptype.ProvideLocationInformationR9IEs{
 		CommonIEsProvideLocationInformation: &lpptype.CommonIEsProvideLocationInformation{LocationEstimate: ellipseEstimate()},
 		AGNSSProvideLocationInformation: &lpptype.AGNSSProvideLocationInformation{
-			GnssError: &lpptype.GNSSError{
+			GNSSError: &lpptype.AGNSSError{
 				TargetDeviceErrorCauses: &lpptype.GNSSTargetDeviceErrorCauses{
-					Cause:                      lpptype.GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible,
-					AdrMeasurementsNotPossible: &per.Null{},
+					Cause:                      lpptype.GNSSTargetDeviceErrorCauseNotAllRequestedMeasurementsPossible,
+					ADRMeasurementsNotPossible: &per.Null{},
 				},
 			},
 		},
@@ -167,7 +167,7 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 	}
 
 	pli := decoded.ProvideLocationInformation
-	if pli.LocationEstimate == nil || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != lpptype.GNSSTargetDeviceErrorCausesNotAllRequestedMeasurementsPossible {
+	if pli.LocationEstimate == nil || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != int64(lpptype.GNSSTargetDeviceErrorCauseNotAllRequestedMeasurementsPossible) {
 		t.Fatalf("ProvideLocationInformation = %+v, want an estimate and a GNSS error", pli)
 	}
 
@@ -211,7 +211,7 @@ func TestRequestLocationInformationCarriesResponseTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qos := msg.LppMessageBody.C1.RequestLocationInformation.CriticalExtensions.C1.RequestLocationInformationR9.CommonIEsRequestLocationInformation.QoS
+	qos := msg.LPPMessageBody.C1.RequestLocationInformation.CriticalExtensions.C1.RequestLocationInformationR9.CommonIEsRequestLocationInformation.QoS
 	if qos == nil || qos.ResponseTime == nil || qos.ResponseTime.Time != 17 {
 		t.Fatalf("QoS = %+v, want a response time of 17 s", qos)
 	}
@@ -249,11 +249,11 @@ func TestLocationResponseTime(t *testing.T) {
 }
 
 func TestSessionRejectsUnsupportedLocationShape(t *testing.T) {
-	point := lpptype.PolygonPoint{DegreesLatitude: 1, DegreesLongitude: 1}
+	point := lpptype.PolygonPoints{DegreesLatitude: 1, DegreesLongitude: 1}
 
 	decoded, err := DecodeLPPMessage(encodeProvideLocationInformationR9(t, &lpptype.ProvideLocationInformationR9IEs{
 		CommonIEsProvideLocationInformation: &lpptype.CommonIEsProvideLocationInformation{
-			LocationEstimate: &lpptype.LocationCoordinates{Polygon: &lpptype.Polygon{List: []lpptype.PolygonPoint{point, point, point}}},
+			LocationEstimate: &lpptype.LocationCoordinates{Polygon: &lpptype.Polygon{List: []lpptype.PolygonPoints{point, point, point}}},
 		},
 	}))
 	if err != nil {

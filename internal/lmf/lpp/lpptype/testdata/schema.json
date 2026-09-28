@@ -1,0 +1,10132 @@
+{
+ "root": "LPP-Message",
+ "types": {
+  "A-GNSS-Error": {
+   "alts": [
+    {
+     "name": "locationServerErrorCauses",
+     "type": {
+      "ref": "GNSS-LocationServerErrorCauses"
+     }
+    },
+    {
+     "name": "targetDeviceErrorCauses",
+     "type": {
+      "ref": "GNSS-TargetDeviceErrorCauses"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "A-GNSS-ProvideAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-CommonAssistData",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-CommonAssistData"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-GenericAssistData",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-GenericAssistData"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Error",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-Error"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "A-GNSS-ProvideCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SupportList",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-SupportList"
+     }
+    },
+    {
+     "default": false,
+     "name": "assistanceDataSupportList",
+     "optional": true,
+     "type": {
+      "ref": "AssistanceDataSupportList"
+     }
+    },
+    {
+     "default": false,
+     "name": "locationCoordinateTypes",
+     "optional": true,
+     "type": {
+      "ref": "LocationCoordinateTypes"
+     }
+    },
+    {
+     "default": false,
+     "name": "velocityTypes",
+     "optional": true,
+     "type": {
+      "ref": "VelocityTypes"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "A-GNSS-ProvideLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalMeasurementInformation",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-SignalMeasurementInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-LocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-LocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Error",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-Error"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "A-GNSS-RequestAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-CommonAssistDataReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-CommonAssistDataReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-GenericAssistDataReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-GenericAssistDataReq"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "A-GNSS-RequestCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SupportListReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "assistanceDataSupportListReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "locationVelocityTypesReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "A-GNSS-RequestLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-PositioningInstructions",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-PositioningInstructions"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ARFCN-ValueEUTRA": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    65535
+   ]
+  },
+  "ARFCN-ValueUTRA": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    16383
+   ]
+  },
+  "Abort": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "abort-r9",
+           "type": {
+            "ref": "Abort-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "Abort-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsAbort",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsAbort"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AccessTypes": {
+   "comps": [
+    {
+     "default": false,
+     "name": "accessTypes",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "eutra",
+       "utra",
+       "gsm",
+       "nb-iot",
+       "nr-v1510"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "Acknowledgement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ackRequested",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ackIndicator",
+     "optional": true,
+     "type": {
+      "ref": "SequenceNumber"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "AdditionalInformation": {
+   "ext": [],
+   "kind": "ENUMERATED",
+   "root": [
+    "onlyReturnInformationRequested",
+    "mayReturnAdditionalInformation"
+   ]
+  },
+  "AlmanacECEF-SBAS-AlmanacSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "sbasAlmDataID",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmHealth",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       8,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmXg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16384,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmYg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16384,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmZg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -256,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmXgdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmYgDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmZgDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8,
+       7
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAlmTo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AlmanacGLONASS-AlmanacSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gloAlm-NA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       1461
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmnA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       24
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmHA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       31
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmLambdaA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmtlambdaA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2097151
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmDeltaIa",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -131072,
+       131071
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmDeltaTA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2097152,
+       2097151
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmDeltaTdotA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmEpsilonA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmOmegaA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmTauA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmCA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloAlmMA",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AlmanacKeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacDeltaI",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacOmegaDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepSV-StatusINAV",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       4,
+       4
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepSV-StatusFNAV",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacAPowerHalf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacOmega0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacW",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacM0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacAF0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kepAlmanacAF1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AlmanacMidiAlmanacSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmDeltaI",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmOmegaDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmSqrtA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       131071
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmOmega0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmOmega",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmMo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmaf0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmaf1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmL1Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmL2Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "midiAlmL5Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AlmanacNAV-KeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmDeltaI",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmOMEGADOT",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmSVHealth",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmSqrtA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       16777215
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmOMEGAo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmOmega",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmMo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmaf0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAlmaf1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AlmanacReducedKeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmDeltaA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmOmega0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmPhi0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmL1Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmL2Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "redAlmL5Health",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "AssistanceDataSupportList": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-CommonAssistanceDataSupport",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-CommonAssistanceDataSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-GenericAssistanceDataSupport",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-GenericAssistanceDataSupport"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "BadSignalElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "badSVID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "badSignalID",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CNAV-ClockModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cnavToc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2015
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavTop",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2015
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavURA0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavURA1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavURA2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavAf2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavAf1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -524288,
+       524287
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavAf0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -33554432,
+       33554431
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavTgd",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl1cp",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl1cd",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl1ca",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl2c",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl5i5",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavISCl5q5",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CellGlobalIdEUTRA-AndUTRA": {
+   "comps": [
+    {
+     "default": false,
+     "name": "plmn-Identity",
+     "optional": false,
+     "type": {
+      "comps": [
+       {
+        "default": false,
+        "name": "mcc",
+        "optional": false,
+        "type": {
+         "elem": {
+          "kind": "INTEGER",
+          "range": [
+           0,
+           9
+          ]
+         },
+         "kind": "SEQUENCE OF",
+         "size": [
+          3,
+          3
+         ]
+        }
+       },
+       {
+        "default": false,
+        "name": "mnc",
+        "optional": false,
+        "type": {
+         "elem": {
+          "kind": "INTEGER",
+          "range": [
+           0,
+           9
+          ]
+         },
+         "kind": "SEQUENCE OF",
+         "size": [
+          2,
+          3
+         ]
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "SEQUENCE"
+     }
+    },
+    {
+     "default": false,
+     "name": "cellIdentity",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "eutra",
+        "type": {
+         "kind": "BIT STRING",
+         "names": [],
+         "size": [
+          28,
+          28
+         ]
+        }
+       },
+       {
+        "name": "utra",
+        "type": {
+         "kind": "BIT STRING",
+         "names": [],
+         "size": [
+          32,
+          32
+         ]
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CellGlobalIdGERAN": {
+   "comps": [
+    {
+     "default": false,
+     "name": "plmn-Identity",
+     "optional": false,
+     "type": {
+      "comps": [
+       {
+        "default": false,
+        "name": "mcc",
+        "optional": false,
+        "type": {
+         "elem": {
+          "kind": "INTEGER",
+          "range": [
+           0,
+           9
+          ]
+         },
+         "kind": "SEQUENCE OF",
+         "size": [
+          3,
+          3
+         ]
+        }
+       },
+       {
+        "default": false,
+        "name": "mnc",
+        "optional": false,
+        "type": {
+         "elem": {
+          "kind": "INTEGER",
+          "range": [
+           0,
+           9
+          ]
+         },
+         "kind": "SEQUENCE OF",
+         "size": [
+          2,
+          3
+         ]
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "SEQUENCE"
+     }
+    },
+    {
+     "default": false,
+     "name": "locationAreaCode",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       16,
+       16
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellIdentity",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       16,
+       16
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsAbort": {
+   "comps": [
+    {
+     "default": false,
+     "name": "abortCause",
+     "optional": false,
+     "type": {
+      "ext": [
+       "stopPeriodicAssistanceDataDelivery-v1510"
+      ],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "stopPeriodicReporting",
+       "targetDeviceAbort",
+       "networkAbort"
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsError": {
+   "comps": [
+    {
+     "default": false,
+     "name": "errorCause",
+     "optional": false,
+     "type": {
+      "ext": [
+       "lppSegmentationError-v1450"
+      ],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "lppMessageHeaderError",
+       "lppMessageBodyError",
+       "epduError",
+       "incorrectDataValue"
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsProvideAssistanceData": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsProvideCapabilities": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsProvideLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "locationEstimate",
+     "optional": true,
+     "type": {
+      "ref": "LocationCoordinates"
+     }
+    },
+    {
+     "default": false,
+     "name": "velocityEstimate",
+     "optional": true,
+     "type": {
+      "ref": "Velocity"
+     }
+    },
+    {
+     "default": false,
+     "name": "locationError",
+     "optional": true,
+     "type": {
+      "ref": "LocationError"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsRequestAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "primaryCellID",
+     "optional": true,
+     "type": {
+      "ref": "ECGI"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsRequestCapabilities": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "CommonIEsRequestLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "locationInformationType",
+     "optional": false,
+     "type": {
+      "ref": "LocationInformationType"
+     }
+    },
+    {
+     "default": false,
+     "name": "triggeredReporting",
+     "optional": true,
+     "type": {
+      "ref": "TriggeredReportingCriteria"
+     }
+    },
+    {
+     "default": false,
+     "name": "periodicalReporting",
+     "optional": true,
+     "type": {
+      "ref": "PeriodicalReportingCriteria"
+     }
+    },
+    {
+     "default": false,
+     "name": "additionalInformation",
+     "optional": true,
+     "type": {
+      "ref": "AdditionalInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "qos",
+     "optional": true,
+     "type": {
+      "ref": "QoS"
+     }
+    },
+    {
+     "default": false,
+     "name": "environment",
+     "optional": true,
+     "type": {
+      "ref": "Environment"
+     }
+    },
+    {
+     "default": false,
+     "name": "locationCoordinateTypes",
+     "optional": true,
+     "type": {
+      "ref": "LocationCoordinateTypes"
+     }
+    },
+    {
+     "default": false,
+     "name": "velocityTypes",
+     "optional": true,
+     "type": {
+      "ref": "VelocityTypes"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "DGNSS-CorrectionsElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "iod",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       11,
+       11
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "udre",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "pseudoRangeCor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2047,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "rangeRateCor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -127,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "udreGrowthRate",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "udreValidityTime",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "DGNSS-SatList": {
+   "elem": {
+    "ref": "DGNSS-CorrectionsElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "DGNSS-SgnTypeElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-StatusHealth",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "dgnss-SatList",
+     "optional": false,
+     "type": {
+      "ref": "DGNSS-SatList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "DGNSS-SgnTypeList": {
+   "elem": {
+    "ref": "DGNSS-SgnTypeElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    3
+   ]
+  },
+  "ECGI": {
+   "comps": [
+    {
+     "default": false,
+     "name": "mcc",
+     "optional": false,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        0,
+        9
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       3,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "mnc",
+     "optional": false,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        0,
+        9
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       2,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellidentity",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       28,
+       28
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ECID-Error": {
+   "alts": [
+    {
+     "name": "locationServerErrorCauses",
+     "type": {
+      "ref": "ECID-LocationServerErrorCauses"
+     }
+    },
+    {
+     "name": "targetDeviceErrorCauses",
+     "type": {
+      "ref": "ECID-TargetDeviceErrorCauses"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "ECID-LocationServerErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-ProvideCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ecid-MeasSupported",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "rsrpSup",
+       "rsrqSup",
+       "ueRxTxSup",
+       "nrsrpSup-r14",
+       "nrsrqSup-r14"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-ProvideLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ecid-SignalMeasurementInformation",
+     "optional": true,
+     "type": {
+      "ref": "ECID-SignalMeasurementInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "ecid-Error",
+     "optional": true,
+     "type": {
+      "ref": "ECID-Error"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-RequestCapabilities": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-RequestLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "requestedMeasurements",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "rsrpReq",
+       "rsrqReq",
+       "ueRxTxReq",
+       "nrsrpReq-r14",
+       "nrsrqReq-r14"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-SignalMeasurementInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "primaryCellMeasuredResults",
+     "optional": true,
+     "type": {
+      "ref": "MeasuredResultsElement"
+     }
+    },
+    {
+     "default": false,
+     "name": "measuredResultsList",
+     "optional": false,
+     "type": {
+      "ref": "MeasuredResultsList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ECID-TargetDeviceErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "requestedMeasurementNotAvailable",
+       "notAllrequestedMeasurementsPossible"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "rsrpMeasurementNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "rsrqMeasurementNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "ueRxTxMeasurementNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "EPDU": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ePDU-Identifier",
+     "optional": false,
+     "type": {
+      "ref": "EPDU-Identifier"
+     }
+    },
+    {
+     "default": false,
+     "name": "ePDU-Body",
+     "optional": false,
+     "type": {
+      "ref": "EPDU-Body"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "EPDU-Body": {
+   "kind": "OCTET STRING",
+   "size": null
+  },
+  "EPDU-ID": {
+   "kind": "INTEGER",
+   "range": [
+    1,
+    256
+   ]
+  },
+  "EPDU-Identifier": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ePDU-ID",
+     "optional": false,
+     "type": {
+      "ref": "EPDU-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "ePDU-Name",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Name"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "EPDU-Name": {
+   "kind": "VisibleString",
+   "size": [
+    1,
+    32
+   ]
+  },
+  "EPDU-Sequence": {
+   "elem": {
+    "ref": "EPDU"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "Ellipsoid-Point": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "Ellipsoid-PointWithUncertaintyCircle": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertainty",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "EllipsoidArc": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "innerRadius",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintyRadius",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "offsetAngle",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       179
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "includedAngle",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       179
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "confidence",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       100
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "EllipsoidPointWithAltitude": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "altitudeDirection",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "height",
+       "depth"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "altitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       32767
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "altitudeDirection",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "height",
+       "depth"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "altitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintySemiMajor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintySemiMinor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "orientationMajorAxis",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       179
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintyAltitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "confidence",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       100
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "EllipsoidPointWithUncertaintyEllipse": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintySemiMajor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintySemiMinor",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "orientationMajorAxis",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       179
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "confidence",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       100
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "Environment": {
+   "ext": [],
+   "kind": "ENUMERATED",
+   "root": [
+    "badArea",
+    "notBadArea",
+    "mixedArea"
+   ]
+  },
+  "Error": {
+   "alts": [
+    {
+     "name": "error-r9",
+     "type": {
+      "ref": "Error-r9-IEs"
+     }
+    },
+    {
+     "name": "criticalExtensionsFuture",
+     "type": {
+      "comps": [],
+      "ext": false,
+      "kind": "SEQUENCE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "CHOICE"
+  },
+  "Error-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsError",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsError"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GLONASS-ClockModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gloTau",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2097152,
+       2097151
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloGamma",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloDeltaTau",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AcquisitionAssistElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "doppler0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2048,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "doppler1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "dopplerUncertainty",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "codePhase",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1022
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "intCodePhase",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "codePhaseSearchWindow",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       31
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "azimuth",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "elevation",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AcquisitionAssistList": {
+   "elem": {
+    "ref": "GNSS-AcquisitionAssistElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-AcquisitionAssistance": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AcquisitionAssistList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-AcquisitionAssistList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AcquisitionAssistanceReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalID-Req",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalID"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AcquisitionAssistanceSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-Almanac": {
+   "comps": [
+    {
+     "default": false,
+     "name": "weekNumber",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "toa",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ioda",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "completeAlmanacProvided",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AlmanacList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-AlmanacList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AlmanacElement": {
+   "alts": [
+    {
+     "name": "keplerianAlmanacSet",
+     "type": {
+      "ref": "AlmanacKeplerianSet"
+     }
+    },
+    {
+     "name": "keplerianNAV-Almanac",
+     "type": {
+      "ref": "AlmanacNAV-KeplerianSet"
+     }
+    },
+    {
+     "name": "keplerianReducedAlmanac",
+     "type": {
+      "ref": "AlmanacReducedKeplerianSet"
+     }
+    },
+    {
+     "name": "keplerianMidiAlmanac",
+     "type": {
+      "ref": "AlmanacMidiAlmanacSet"
+     }
+    },
+    {
+     "name": "keplerianGLONASS",
+     "type": {
+      "ref": "AlmanacGLONASS-AlmanacSet"
+     }
+    },
+    {
+     "name": "ecef-SBAS-Almanac",
+     "type": {
+      "ref": "AlmanacECEF-SBAS-AlmanacSet"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-AlmanacList": {
+   "elem": {
+    "ref": "GNSS-AlmanacElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-AlmanacReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "modelID",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AlmanacSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "almanacModel",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "model-1",
+       "model-2",
+       "model-3",
+       "model-4",
+       "model-5",
+       "model-6",
+       "model-7",
+       "model-8-v16e0"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AuxiliaryInformation": {
+   "alts": [
+    {
+     "name": "gnss-ID-GPS",
+     "type": {
+      "ref": "GNSS-ID-GPS"
+     }
+    },
+    {
+     "name": "gnss-ID-GLONASS",
+     "type": {
+      "ref": "GNSS-ID-GLONASS"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-AuxiliaryInformationReq": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-AuxiliaryInformationSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-BadSignalList": {
+   "elem": {
+    "ref": "BadSignalElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-ClockModel": {
+   "alts": [
+    {
+     "name": "standardClockModelList",
+     "type": {
+      "ref": "StandardClockModelList"
+     }
+    },
+    {
+     "name": "nav-ClockModel",
+     "type": {
+      "ref": "NAV-ClockModel"
+     }
+    },
+    {
+     "name": "cnav-ClockModel",
+     "type": {
+      "ref": "CNAV-ClockModel"
+     }
+    },
+    {
+     "name": "glonass-ClockModel",
+     "type": {
+      "ref": "GLONASS-ClockModel"
+     }
+    },
+    {
+     "name": "sbas-ClockModel",
+     "type": {
+      "ref": "SBAS-ClockModel"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-CommonAssistData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ReferenceTime",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-ReferenceLocation",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceLocation"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-IonosphericModel",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-IonosphericModel"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-EarthOrientationParameters",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-EarthOrientationParameters"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-CommonAssistDataReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ReferenceTimeReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceTimeReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-ReferenceLocationReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceLocationReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-IonosphericModelReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-IonosphericModelReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-EarthOrientationParametersReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-EarthOrientationParametersReq"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-CommonAssistanceDataSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ReferenceTimeSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceTimeSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-ReferenceLocationSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-ReferenceLocationSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-IonosphericModelSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-IonosphericModelSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-EarthOrientationParametersSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-EarthOrientationParametersSupport"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitAssistance": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TOD",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3599
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TODfrac",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitsSatList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-DataBitsSatList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitAssistanceReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TOD-Req",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3599
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TOD-FracReq",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "dataBitInterval",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-SignalType",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitsReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DataBitsReqSatList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitAssistanceSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitsReqSatElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitsReqSatList": {
+   "elem": {
+    "ref": "GNSS-DataBitsReqSatElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-DataBitsSatElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitsSgnList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-DataBitsSgnList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitsSatList": {
+   "elem": {
+    "ref": "GNSS-DataBitsSatElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-DataBitsSgnElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalType",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBits",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       1,
+       1024
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DataBitsSgnList": {
+   "elem": {
+    "ref": "GNSS-DataBitsSgnElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    8
+   ]
+  },
+  "GNSS-DifferentialCorrections": {
+   "comps": [
+    {
+     "default": false,
+     "name": "dgnss-RefTime",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3599
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "dgnss-SgnTypeList",
+     "optional": false,
+     "type": {
+      "ref": "DGNSS-SgnTypeList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DifferentialCorrectionsReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "dgnss-SignalsReq",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "dgnss-ValidityTimeReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-DifferentialCorrectionsSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnssSignalIDs",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "dgnss-ValidityTimeSup",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-EarthOrientationParameters": {
+   "comps": [
+    {
+     "default": false,
+     "name": "teop",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "pmX",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "pmXdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16384,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "pmY",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "pmYdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16384,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "deltaUT1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1073741824,
+       1073741823
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "deltaUT1dot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -262144,
+       262143
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-EarthOrientationParametersReq": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-EarthOrientationParametersSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-GenericAssistData": {
+   "elem": {
+    "ref": "GNSS-GenericAssistDataElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "GNSS-GenericAssistDataElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "sbas-ID",
+     "optional": true,
+     "type": {
+      "ref": "SBAS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeModels",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-TimeModelList"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DifferentialCorrections",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DifferentialCorrections"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-NavigationModel",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-NavigationModel"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-RealTimeIntegrity",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-RealTimeIntegrity"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitAssistance",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DataBitAssistance"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AcquisitionAssistance",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AcquisitionAssistance"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Almanac",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-Almanac"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-UTC-Model",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-UTC-Model"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AuxiliaryInformation",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AuxiliaryInformation"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-GenericAssistDataReq": {
+   "elem": {
+    "ref": "GNSS-GenericAssistDataReqElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "GNSS-GenericAssistDataReqElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "sbas-ID",
+     "optional": true,
+     "type": {
+      "ref": "SBAS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeModelsReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-TimeModelListReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DifferentialCorrectionsReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DifferentialCorrectionsReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-NavigationModelReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-NavigationModelReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-RealTimeIntegrityReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-RealTimeIntegrityReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitAssistanceReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DataBitAssistanceReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AcquisitionAssistanceReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AcquisitionAssistanceReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AlmanacReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AlmanacReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-UTCModelReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-UTC-ModelReq"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AuxiliaryInformationReq",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AuxiliaryInformationReq"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-GenericAssistDataSupportElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "sbas-ID",
+     "optional": true,
+     "type": {
+      "ref": "SBAS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeModelsSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-TimeModelListSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DifferentialCorrectionsSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DifferentialCorrectionsSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-NavigationModelSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-NavigationModelSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-RealTimeIntegritySupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-RealTimeIntegritySupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DataBitAssistanceSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-DataBitAssistanceSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AcquisitionAssistanceSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AcquisitionAssistanceSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AlmanacSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AlmanacSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-UTC-ModelSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-UTC-ModelSupport"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-AuxiliaryInformationSupport",
+     "optional": true,
+     "type": {
+      "ref": "GNSS-AuxiliaryInformationSupport"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-GenericAssistanceDataSupport": {
+   "elem": {
+    "ref": "GNSS-GenericAssistDataSupportElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "GNSS-ID": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-id",
+     "optional": false,
+     "type": {
+      "ext": [
+       "bds",
+       "navic-v1610"
+      ],
+      "kind": "ENUMERATED",
+      "root": [
+       "gps",
+       "sbas",
+       "qzss",
+       "galileo",
+       "glonass"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ID-Bitmap": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ids",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "gps",
+       "sbas",
+       "qzss",
+       "galileo",
+       "glonass",
+       "bds",
+       "navic-v1610"
+      ],
+      "size": [
+       1,
+       16
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ID-GLONASS": {
+   "elem": {
+    "ref": "GNSS-ID-GLONASS-SatElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-ID-GLONASS-SatElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "signalsAvailable",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "channelNumber",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -7,
+       13
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ID-GPS": {
+   "elem": {
+    "ref": "GNSS-ID-GPS-SatElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-ID-GPS-SatElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "signalsAvailable",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-IonosphericModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "klobucharModel",
+     "optional": true,
+     "type": {
+      "ref": "KlobucharModelParameter"
+     }
+    },
+    {
+     "default": false,
+     "name": "neQuickModel",
+     "optional": true,
+     "type": {
+      "ref": "NeQuickModelParameter"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-IonosphericModelReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "klobucharModelReq",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "neQuickModelReq",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-IonosphericModelSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ionoModel",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "klobuchar",
+       "neQuick",
+       "klobuchar2-r16"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-LocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "measurementReferenceTime",
+     "optional": false,
+     "type": {
+      "ref": "MeasurementReferenceTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "agnss-List",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID-Bitmap"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-LocationServerErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [
+       "unconfirmedPeriodicAssistanceDataIsNotSupported-v1510",
+       "unconfirmedPeriodicAssistanceDataIsSupportedButCurrentlyNotAvailable-v1510",
+       "unconfirmedPeriodicAssistanceDataIsPartlyNotSupportedAndPartlyNotAvailable-v1510",
+       "undeliveredPeriodicAssistanceDataIsCurrentlyNotAvailable-v1510"
+      ],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "undeliveredAssistanceDataIsNotSupportedByServer",
+       "undeliveredAssistanceDataIsSupportedButCurrentlyNotAvailableByServer",
+       "undeliveredAssistanceDataIsPartlyNotSupportedAndPartlyNotAvailableByServer"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-MeasurementForOneGNSS": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-SgnMeasList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SgnMeasList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-MeasurementList": {
+   "elem": {
+    "ref": "GNSS-MeasurementForOneGNSS"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "GNSS-NavModelSatelliteElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "svHealth",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       8,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "iod",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       11,
+       11
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-ClockModel",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ClockModel"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-OrbitModel",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-OrbitModel"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-NavModelSatelliteList": {
+   "elem": {
+    "ref": "GNSS-NavModelSatelliteElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-NavigationModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "nonBroadcastIndFlag",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-SatelliteList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-NavModelSatelliteList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-NavigationModelReq": {
+   "alts": [
+    {
+     "name": "storedNavList",
+     "type": {
+      "ref": "StoredNavListInfo"
+     }
+    },
+    {
+     "name": "reqNavList",
+     "type": {
+      "ref": "ReqNavListInfo"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-NavigationModelSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "clockModel",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "model-1",
+       "model-2",
+       "model-3",
+       "model-4",
+       "model-5",
+       "model-6",
+       "model-7-r16",
+       "model-8-r16"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "orbitModel",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "model-1",
+       "model-2",
+       "model-3",
+       "model-4",
+       "model-5",
+       "model-6",
+       "model-7-r16",
+       "model-8-r16"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-OrbitModel": {
+   "alts": [
+    {
+     "name": "keplerianSet",
+     "type": {
+      "ref": "NavModelKeplerianSet"
+     }
+    },
+    {
+     "name": "nav-KeplerianSet",
+     "type": {
+      "ref": "NavModelNAV-KeplerianSet"
+     }
+    },
+    {
+     "name": "cnav-KeplerianSet",
+     "type": {
+      "ref": "NavModelCNAV-KeplerianSet"
+     }
+    },
+    {
+     "name": "glonass-ECEF",
+     "type": {
+      "ref": "NavModel-GLONASS-ECEF"
+     }
+    },
+    {
+     "name": "sbas-ECEF",
+     "type": {
+      "ref": "NavModel-SBAS-ECEF"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-PositioningInstructions": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-Methods",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID-Bitmap"
+     }
+    },
+    {
+     "default": false,
+     "name": "fineTimeAssistanceMeasReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "adrMeasReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "multiFreqMeasReq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "assistanceAvailability",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-RealTimeIntegrity": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-BadSignalList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-BadSignalList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-RealTimeIntegrityReq": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-RealTimeIntegritySupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceLocation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "threeDlocation",
+     "optional": false,
+     "type": {
+      "ref": "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceLocationReq": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceLocationSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceTime": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SystemTime",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SystemTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "referenceTimeUnc",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-ReferenceTimeForCells",
+     "optional": true,
+     "type": {
+      "elem": {
+       "ref": "GNSS-ReferenceTimeForOneCell"
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       1,
+       16
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceTimeForOneCell": {
+   "comps": [
+    {
+     "default": false,
+     "name": "networkTime",
+     "optional": false,
+     "type": {
+      "ref": "NetworkTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "referenceTimeUnc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "bsAlign",
+     "optional": true,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "true"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceTimeReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TimeReqPrefList",
+     "optional": false,
+     "type": {
+      "elem": {
+       "ref": "GNSS-ID"
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gps-TOW-assistReq",
+     "optional": true,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "notOfLeapSecReq",
+     "optional": true,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-ReferenceTimeSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SystemTime",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID-Bitmap"
+     }
+    },
+    {
+     "default": false,
+     "name": "fta-Support",
+     "optional": true,
+     "type": {
+      "ref": "AccessTypes"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SatMeasElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "cNo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "mpathDet",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "notMeasured",
+       "low",
+       "medium",
+       "high"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "carrierQualityInd",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "codePhase",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2097151
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "integerCodePhase",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "codePhaseRMSError",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "doppler",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "adr",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       33554431
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SatMeasList": {
+   "elem": {
+    "ref": "GNSS-SatMeasElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GNSS-SgnMeasElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-CodePhaseAmbiguity",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-SatMeasList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SatMeasList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SgnMeasList": {
+   "elem": {
+    "ref": "GNSS-SgnMeasElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    8
+   ]
+  },
+  "GNSS-SignalID": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalID",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SignalIDs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-SignalIDs",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       8,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SignalMeasurementInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "measurementReferenceTime",
+     "optional": false,
+     "type": {
+      "ref": "MeasurementReferenceTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-MeasurementList",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-MeasurementList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SupportElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-ID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "sbas-IDs",
+     "optional": true,
+     "type": {
+      "ref": "SBAS-IDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "agnss-Modes",
+     "optional": false,
+     "type": {
+      "ref": "PositioningModes"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Signals",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-SignalIDs"
+     }
+    },
+    {
+     "default": false,
+     "name": "fta-MeasSupport",
+     "optional": true,
+     "type": {
+      "comps": [
+       {
+        "default": false,
+        "name": "cellTime",
+        "optional": false,
+        "type": {
+         "ref": "AccessTypes"
+        }
+       },
+       {
+        "default": false,
+        "name": "mode",
+        "optional": false,
+        "type": {
+         "ref": "PositioningModes"
+        }
+       }
+      ],
+      "ext": true,
+      "kind": "SEQUENCE"
+     }
+    },
+    {
+     "default": false,
+     "name": "adr-Support",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "velocityMeasurementSupport",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-SupportList": {
+   "elem": {
+    "ref": "GNSS-SupportElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    16
+   ]
+  },
+  "GNSS-SystemTime": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TimeID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-DayNumber",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeOfDay",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       86399
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeOfDayFrac-msec",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "notificationOfLeapSecond",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gps-TOW-Assist",
+     "optional": true,
+     "type": {
+      "ref": "GPS-TOW-Assist"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-TargetDeviceErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "thereWereNotEnoughSatellitesReceived",
+       "assistanceDataMissing",
+       "notAllRequestedMeasurementsPossible"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "fineTimeAssistanceMeasurementsNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "adrMeasurementsNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    },
+    {
+     "default": false,
+     "name": "multiFrequencyMeasurementsNotPossible",
+     "optional": true,
+     "type": {
+      "kind": "NULL"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-TimeModelElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TimeModelRefTime",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tA0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -67108864,
+       67108863
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tA1",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tA2",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TO-ID",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "weekNumber",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8191
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "deltaT",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-TimeModelElementReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TO-IDsReq",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "deltaTreq",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-TimeModelList": {
+   "elem": {
+    "ref": "GNSS-TimeModelElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    15
+   ]
+  },
+  "GNSS-TimeModelListReq": {
+   "elem": {
+    "ref": "GNSS-TimeModelElementReq"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    15
+   ]
+  },
+  "GNSS-TimeModelListSupport": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-UTC-Model": {
+   "alts": [
+    {
+     "name": "utcModel1",
+     "type": {
+      "ref": "UTC-ModelSet1"
+     }
+    },
+    {
+     "name": "utcModel2",
+     "type": {
+      "ref": "UTC-ModelSet2"
+     }
+    },
+    {
+     "name": "utcModel3",
+     "type": {
+      "ref": "UTC-ModelSet3"
+     }
+    },
+    {
+     "name": "utcModel4",
+     "type": {
+      "ref": "UTC-ModelSet4"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "GNSS-UTC-ModelReq": {
+   "comps": [
+    {
+     "default": false,
+     "name": "modelID",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GNSS-UTC-ModelSupport": {
+   "comps": [
+    {
+     "default": false,
+     "name": "utc-Model",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "model-1",
+       "model-2",
+       "model-3",
+       "model-4",
+       "model-5"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "GPS-TOW-Assist": {
+   "elem": {
+    "ref": "GPS-TOW-AssistElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "GPS-TOW-AssistElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "satelliteID",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       64
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tlmWord",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "antiSpoof",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "alert",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tlmRsvdBits",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "HorizontalAccuracy": {
+   "comps": [
+    {
+     "default": false,
+     "name": "accuracy",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "confidence",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       100
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "HorizontalVelocity": {
+   "comps": [
+    {
+     "default": false,
+     "name": "bearing",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       359
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "HorizontalVelocityWithUncertainty": {
+   "comps": [
+    {
+     "default": false,
+     "name": "bearing",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       359
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "uncertaintySpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "HorizontalWithVerticalVelocity": {
+   "comps": [
+    {
+     "default": false,
+     "name": "bearing",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       359
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalDirection",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "upward",
+       "downward"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "HorizontalWithVerticalVelocityAndUncertainty": {
+   "comps": [
+    {
+     "default": false,
+     "name": "bearing",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       359
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalDirection",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "upward",
+       "downward"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalSpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalUncertaintySpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalUncertaintySpeed",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "Initiator": {
+   "ext": [],
+   "kind": "ENUMERATED",
+   "root": [
+    "locationServer",
+    "targetDevice"
+   ]
+  },
+  "KlobucharModelParameter": {
+   "comps": [
+    {
+     "default": false,
+     "name": "dataID",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "alfa0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "alfa1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "alfa2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "alfa3",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "beta0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "beta1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "beta2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "beta3",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "LPP-Message": {
+   "comps": [
+    {
+     "default": false,
+     "name": "transactionID",
+     "optional": true,
+     "type": {
+      "ref": "LPP-TransactionID"
+     }
+    },
+    {
+     "default": false,
+     "name": "endTransaction",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "sequenceNumber",
+     "optional": true,
+     "type": {
+      "ref": "SequenceNumber"
+     }
+    },
+    {
+     "default": false,
+     "name": "acknowledgement",
+     "optional": true,
+     "type": {
+      "ref": "Acknowledgement"
+     }
+    },
+    {
+     "default": false,
+     "name": "lpp-MessageBody",
+     "optional": true,
+     "type": {
+      "ref": "LPP-MessageBody"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "LPP-MessageBody": {
+   "alts": [
+    {
+     "name": "c1",
+     "type": {
+      "alts": [
+       {
+        "name": "requestCapabilities",
+        "type": {
+         "ref": "RequestCapabilities"
+        }
+       },
+       {
+        "name": "provideCapabilities",
+        "type": {
+         "ref": "ProvideCapabilities"
+        }
+       },
+       {
+        "name": "requestAssistanceData",
+        "type": {
+         "ref": "RequestAssistanceData"
+        }
+       },
+       {
+        "name": "provideAssistanceData",
+        "type": {
+         "ref": "ProvideAssistanceData"
+        }
+       },
+       {
+        "name": "requestLocationInformation",
+        "type": {
+         "ref": "RequestLocationInformation"
+        }
+       },
+       {
+        "name": "provideLocationInformation",
+        "type": {
+         "ref": "ProvideLocationInformation"
+        }
+       },
+       {
+        "name": "abort",
+        "type": {
+         "ref": "Abort"
+        }
+       },
+       {
+        "name": "error",
+        "type": {
+         "ref": "Error"
+        }
+       },
+       {
+        "name": "spare7",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare6",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare5",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare4",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare3",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare2",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare1",
+        "type": {
+         "kind": "NULL"
+        }
+       },
+       {
+        "name": "spare0",
+        "type": {
+         "kind": "NULL"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    },
+    {
+     "name": "messageClassExtension",
+     "type": {
+      "comps": [],
+      "ext": false,
+      "kind": "SEQUENCE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "CHOICE"
+  },
+  "LPP-TransactionID": {
+   "comps": [
+    {
+     "default": false,
+     "name": "initiator",
+     "optional": false,
+     "type": {
+      "ref": "Initiator"
+     }
+    },
+    {
+     "default": false,
+     "name": "transactionNumber",
+     "optional": false,
+     "type": {
+      "ref": "TransactionNumber"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "LocationCoordinateTypes": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ellipsoidPoint",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ellipsoidPointWithUncertaintyCircle",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ellipsoidPointWithUncertaintyEllipse",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "polygon",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ellipsoidPointWithAltitude",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "ellipsoidArc",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "LocationCoordinates": {
+   "alts": [
+    {
+     "name": "ellipsoidPoint",
+     "type": {
+      "ref": "Ellipsoid-Point"
+     }
+    },
+    {
+     "name": "ellipsoidPointWithUncertaintyCircle",
+     "type": {
+      "ref": "Ellipsoid-PointWithUncertaintyCircle"
+     }
+    },
+    {
+     "name": "ellipsoidPointWithUncertaintyEllipse",
+     "type": {
+      "ref": "EllipsoidPointWithUncertaintyEllipse"
+     }
+    },
+    {
+     "name": "polygon",
+     "type": {
+      "ref": "Polygon"
+     }
+    },
+    {
+     "name": "ellipsoidPointWithAltitude",
+     "type": {
+      "ref": "EllipsoidPointWithAltitude"
+     }
+    },
+    {
+     "name": "ellipsoidPointWithAltitudeAndUncertaintyEllipsoid",
+     "type": {
+      "ref": "EllipsoidPointWithAltitudeAndUncertaintyEllipsoid"
+     }
+    },
+    {
+     "name": "ellipsoidArc",
+     "type": {
+      "ref": "EllipsoidArc"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "LocationError": {
+   "comps": [
+    {
+     "default": false,
+     "name": "locationfailurecause",
+     "optional": false,
+     "type": {
+      "ref": "LocationFailureCause"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "LocationFailureCause": {
+   "ext": [],
+   "kind": "ENUMERATED",
+   "root": [
+    "undefined",
+    "requestedMethodNotSupported",
+    "positionMethodFailure",
+    "periodicLocationMeasurementsNotAvailable"
+   ]
+  },
+  "LocationInformationType": {
+   "ext": [
+    "locationEstimateAndMeasurementsRequired-r18"
+   ],
+   "kind": "ENUMERATED",
+   "root": [
+    "locationEstimateRequired",
+    "locationMeasurementsRequired",
+    "locationEstimatePreferred",
+    "locationMeasurementsPreferred"
+   ]
+  },
+  "MeasuredResultsElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "physCellId",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellGlobalId",
+     "optional": true,
+     "type": {
+      "ref": "CellGlobalIdEUTRA-AndUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "arfcnEUTRA",
+     "optional": false,
+     "type": {
+      "ref": "ARFCN-ValueEUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "systemFrameNumber",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       10,
+       10
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "rsrp-Result",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       97
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "rsrq-Result",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       34
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ue-RxTxTimeDiff",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4095
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "MeasuredResultsList": {
+   "elem": {
+    "ref": "MeasuredResultsElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    32
+   ]
+  },
+  "MeasurementReferenceTime": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-TOD-msec",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3599999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TOD-frac",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TOD-unc",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-TimeID",
+     "optional": false,
+     "type": {
+      "ref": "GNSS-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "networkTime",
+     "optional": true,
+     "type": {
+      "alts": [
+       {
+        "name": "eUTRA",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "physCellId",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             503
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalId",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdEUTRA-AndUTRA"
+           }
+          },
+          {
+           "default": false,
+           "name": "systemFrameNumber",
+           "optional": false,
+           "type": {
+            "kind": "BIT STRING",
+            "names": [],
+            "size": [
+             10,
+             10
+            ]
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       },
+       {
+        "name": "uTRA",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "mode",
+           "optional": false,
+           "type": {
+            "alts": [
+             {
+              "name": "fdd",
+              "type": {
+               "comps": [
+                {
+                 "default": false,
+                 "name": "primary-CPICH-Info",
+                 "optional": false,
+                 "type": {
+                  "kind": "INTEGER",
+                  "range": [
+                   0,
+                   511
+                  ]
+                 }
+                }
+               ],
+               "ext": true,
+               "kind": "SEQUENCE"
+              }
+             },
+             {
+              "name": "tdd",
+              "type": {
+               "comps": [
+                {
+                 "default": false,
+                 "name": "cellParameters",
+                 "optional": false,
+                 "type": {
+                  "kind": "INTEGER",
+                  "range": [
+                   0,
+                   127
+                  ]
+                 }
+                }
+               ],
+               "ext": true,
+               "kind": "SEQUENCE"
+              }
+             }
+            ],
+            "ext": false,
+            "kind": "CHOICE"
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalId",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdEUTRA-AndUTRA"
+           }
+          },
+          {
+           "default": false,
+           "name": "referenceSystemFrameNumber",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             4095
+            ]
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       },
+       {
+        "name": "gSM",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "bcchCarrier",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             1023
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "bsic",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             63
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalId",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdGERAN"
+           }
+          },
+          {
+           "default": false,
+           "name": "referenceFrame",
+           "optional": false,
+           "type": {
+            "comps": [
+             {
+              "default": false,
+              "name": "referenceFN",
+              "optional": false,
+              "type": {
+               "kind": "INTEGER",
+               "range": [
+                0,
+                65535
+               ]
+              }
+             },
+             {
+              "default": false,
+              "name": "referenceFNMSB",
+              "optional": true,
+              "type": {
+               "kind": "INTEGER",
+               "range": [
+                0,
+                63
+               ]
+              }
+             }
+            ],
+            "ext": true,
+            "kind": "SEQUENCE"
+           }
+          },
+          {
+           "default": false,
+           "name": "deltaGNSS-TOD",
+           "optional": true,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             127
+            ]
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": true,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NAV-ClockModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "navToc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       37799
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navaf2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navaf1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navaf0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2097152,
+       2097151
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navTgd",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NavModel-GLONASS-ECEF": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gloEn",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       31
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloP1",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloP2",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "gloM",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloX",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -67108864,
+       67108863
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloXdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloXdotdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloY",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -67108864,
+       67108863
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloYdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloYdotdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloZ",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -67108864,
+       67108863
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloZdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gloZdotdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NavModel-SBAS-ECEF": {
+   "comps": [
+    {
+     "default": false,
+     "name": "sbasTo",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       5399
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAccuracy",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       4,
+       4
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasXg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -536870912,
+       536870911
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasYg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -536870912,
+       536870911
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasZg",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16777216,
+       16777215
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasXgDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -65536,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasYgDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -65536,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasZgDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -131072,
+       131071
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasXgDotDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbagYgDotDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasZgDotDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NavModelCNAV-KeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cnavTop",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2015
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavURAindex",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavDeltaA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -33554432,
+       33554431
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavAdot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16777216,
+       16777215
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavDeltaNo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -65536,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavDeltaNoDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4194304,
+       4194303
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavMo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4294967296,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8589934591
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavOmega",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4294967296,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavOMEGA0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4294967296,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavDeltaOmegaDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -65536,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavIo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4294967296,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavIoDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -16384,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCis",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCic",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCrs",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCrc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCus",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cnavCuc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NavModelKeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "keplerToe",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerW",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerDeltaN",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerM0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerOmegaDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerIDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8192,
+       8191
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerAPowerHalf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerI0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerOmega0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCrs",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCis",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCus",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCrc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCic",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "keplerCuc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NavModelNAV-KeplerianSet": {
+   "comps": [
+    {
+     "default": false,
+     "name": "navURA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navFitFlag",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navToe",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       37799
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navOmega",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navDeltaN",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navM0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navOmegaADot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navE",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navIDot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8192,
+       8191
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navAPowerHalf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4294967295
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navI0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navOmegaA0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCrs",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCis",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCus",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCrc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCic",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "navCuc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "addNAVparam",
+     "optional": true,
+     "type": {
+      "comps": [
+       {
+        "default": false,
+        "name": "ephemCodeOnL2",
+        "optional": false,
+        "type": {
+         "kind": "INTEGER",
+         "range": [
+          0,
+          3
+         ]
+        }
+       },
+       {
+        "default": false,
+        "name": "ephemL2Pflag",
+        "optional": false,
+        "type": {
+         "kind": "INTEGER",
+         "range": [
+          0,
+          1
+         ]
+        }
+       },
+       {
+        "default": false,
+        "name": "ephemSF1Rsvd",
+        "optional": false,
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "reserved1",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             8388607
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "reserved2",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             16777215
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "reserved3",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             16777215
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "reserved4",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             65535
+            ]
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       },
+       {
+        "default": false,
+        "name": "ephemAODA",
+        "optional": false,
+        "type": {
+         "kind": "INTEGER",
+         "range": [
+          0,
+          31
+         ]
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "SEQUENCE"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NeQuickModelParameter": {
+   "comps": [
+    {
+     "default": false,
+     "name": "ai0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ai1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ai2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8192,
+       8191
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ionoStormFlag1",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ionoStormFlag2",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ionoStormFlag3",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ionoStormFlag4",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "ionoStormFlag5",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NeighbourMeasurementElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "physCellIdNeighbour",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellGlobalIdNeighbour",
+     "optional": true,
+     "type": {
+      "ref": "ECGI"
+     }
+    },
+    {
+     "default": false,
+     "name": "earfcnNeighbour",
+     "optional": true,
+     "type": {
+      "ref": "ARFCN-ValueEUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "rstd",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       12711
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "rstd-Quality",
+     "optional": false,
+     "type": {
+      "ref": "OTDOA-MeasQuality"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "NeighbourMeasurementList": {
+   "elem": {
+    "ref": "NeighbourMeasurementElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    24
+   ]
+  },
+  "NetworkTime": {
+   "comps": [
+    {
+     "default": false,
+     "name": "secondsFromFrameStructureStart",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       12533
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "fractionalSecondsFromFrameStructureStart",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       3999999
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "frameDrift",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellID",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "eUTRA",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "physCellId",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             503
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalIdEUTRA",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdEUTRA-AndUTRA"
+           }
+          },
+          {
+           "default": false,
+           "name": "earfcn",
+           "optional": false,
+           "type": {
+            "ref": "ARFCN-ValueEUTRA"
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       },
+       {
+        "name": "uTRA",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "mode",
+           "optional": false,
+           "type": {
+            "alts": [
+             {
+              "name": "fdd",
+              "type": {
+               "comps": [
+                {
+                 "default": false,
+                 "name": "primary-CPICH-Info",
+                 "optional": false,
+                 "type": {
+                  "kind": "INTEGER",
+                  "range": [
+                   0,
+                   511
+                  ]
+                 }
+                }
+               ],
+               "ext": true,
+               "kind": "SEQUENCE"
+              }
+             },
+             {
+              "name": "tdd",
+              "type": {
+               "comps": [
+                {
+                 "default": false,
+                 "name": "cellParameters",
+                 "optional": false,
+                 "type": {
+                  "kind": "INTEGER",
+                  "range": [
+                   0,
+                   127
+                  ]
+                 }
+                }
+               ],
+               "ext": true,
+               "kind": "SEQUENCE"
+              }
+             }
+            ],
+            "ext": false,
+            "kind": "CHOICE"
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalIdUTRA",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdEUTRA-AndUTRA"
+           }
+          },
+          {
+           "default": false,
+           "name": "uarfcn",
+           "optional": false,
+           "type": {
+            "ref": "ARFCN-ValueUTRA"
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       },
+       {
+        "name": "gSM",
+        "type": {
+         "comps": [
+          {
+           "default": false,
+           "name": "bcchCarrier",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             1023
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "bsic",
+           "optional": false,
+           "type": {
+            "kind": "INTEGER",
+            "range": [
+             0,
+             63
+            ]
+           }
+          },
+          {
+           "default": false,
+           "name": "cellGlobalIdGERAN",
+           "optional": true,
+           "type": {
+            "ref": "CellGlobalIdGERAN"
+           }
+          }
+         ],
+         "ext": true,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": true,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-Error": {
+   "alts": [
+    {
+     "name": "locationServerErrorCauses",
+     "type": {
+      "ref": "OTDOA-LocationServerErrorCauses"
+     }
+    },
+    {
+     "name": "targetDeviceErrorCauses",
+     "type": {
+      "ref": "OTDOA-TargetDeviceErrorCauses"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "OTDOA-LocationServerErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "assistanceDataNotSupportedByServer",
+       "assistanceDataSupportedButCurrentlyNotAvailableByServer"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-MeasQuality": {
+   "comps": [
+    {
+     "default": false,
+     "name": "error-Resolution",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "error-Value",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       5,
+       5
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "error-NumSamples",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       3,
+       3
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-NeighbourCellInfoElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "physCellId",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellGlobalId",
+     "optional": true,
+     "type": {
+      "ref": "ECGI"
+     }
+    },
+    {
+     "default": false,
+     "name": "earfcn",
+     "optional": true,
+     "type": {
+      "ref": "ARFCN-ValueEUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "cpLength",
+     "optional": true,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "normal",
+       "extended"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "prsInfo",
+     "optional": true,
+     "type": {
+      "ref": "PRS-Info"
+     }
+    },
+    {
+     "default": false,
+     "name": "antennaPortConfig",
+     "optional": true,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "ports-1-or-2",
+       "ports-4"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "slotNumberOffset",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       19
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "prs-SubframeOffset",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1279
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "expectedRSTD",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "expectedRSTD-Uncertainty",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1023
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-NeighbourCellInfoList": {
+   "elem": {
+    "ref": "OTDOA-NeighbourFreqInfo"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    3
+   ]
+  },
+  "OTDOA-NeighbourFreqInfo": {
+   "elem": {
+    "ref": "OTDOA-NeighbourCellInfoElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    24
+   ]
+  },
+  "OTDOA-ProvideAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "otdoa-ReferenceCellInfo",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-ReferenceCellInfo"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-NeighbourCellInfo",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-NeighbourCellInfoList"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-Error",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-Error"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-ProvideCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "otdoa-Mode",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "ue-assisted",
+       "ue-assisted-NB-r14",
+       "ue-assisted-NB-TDD-r15"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-ProvideLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "otdoaSignalMeasurementInformation",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-SignalMeasurementInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-Error",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-Error"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-ReferenceCellInfo": {
+   "comps": [
+    {
+     "default": false,
+     "name": "physCellId",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellGlobalId",
+     "optional": true,
+     "type": {
+      "ref": "ECGI"
+     }
+    },
+    {
+     "default": false,
+     "name": "earfcnRef",
+     "optional": true,
+     "type": {
+      "ref": "ARFCN-ValueEUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "antennaPortConfig",
+     "optional": true,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "ports1-or-2",
+       "ports4"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cpLength",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "normal",
+       "extended"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "prsInfo",
+     "optional": true,
+     "type": {
+      "ref": "PRS-Info"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-RequestAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "physCellId",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-RequestCapabilities": {
+   "comps": [],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-RequestLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "assistanceAvailability",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-SignalMeasurementInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "systemFrameNumber",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       10,
+       10
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "physCellIdRef",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       503
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "cellGlobalIdRef",
+     "optional": true,
+     "type": {
+      "ref": "ECGI"
+     }
+    },
+    {
+     "default": false,
+     "name": "earfcnRef",
+     "optional": true,
+     "type": {
+      "ref": "ARFCN-ValueEUTRA"
+     }
+    },
+    {
+     "default": false,
+     "name": "referenceQuality",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-MeasQuality"
+     }
+    },
+    {
+     "default": false,
+     "name": "neighbourMeasurementList",
+     "optional": false,
+     "type": {
+      "ref": "NeighbourMeasurementList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "OTDOA-TargetDeviceErrorCauses": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cause",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "undefined",
+       "assistance-data-missing",
+       "unableToMeasureReferenceCell",
+       "unableToMeasureAnyNeighbourCell",
+       "attemptedButUnableToMeasureSomeNeighbourCells"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "PRS-Info": {
+   "comps": [
+    {
+     "default": false,
+     "name": "prs-Bandwidth",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "n6",
+       "n15",
+       "n25",
+       "n50",
+       "n75",
+       "n100"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "prs-ConfigurationIndex",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "numDL-Frames",
+     "optional": false,
+     "type": {
+      "ext": [
+       "sf-add-v1420"
+      ],
+      "kind": "ENUMERATED",
+      "root": [
+       "sf-1",
+       "sf-2",
+       "sf-4",
+       "sf-6"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "PeriodicalReportingCriteria": {
+   "comps": [
+    {
+     "default": true,
+     "name": "reportingAmount",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "ra1",
+       "ra2",
+       "ra4",
+       "ra8",
+       "ra16",
+       "ra32",
+       "ra64",
+       "ra-Infinity"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "reportingInterval",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "noPeriodicalReporting",
+       "ri0-25",
+       "ri0-5",
+       "ri1",
+       "ri2",
+       "ri4",
+       "ri8",
+       "ri16",
+       "ri32",
+       "ri64"
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "Polygon": {
+   "elem": {
+    "ref": "PolygonPoints"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    3,
+    15
+   ]
+  },
+  "PolygonPoints": {
+   "comps": [
+    {
+     "default": false,
+     "name": "latitudeSign",
+     "optional": false,
+     "type": {
+      "ext": null,
+      "kind": "ENUMERATED",
+      "root": [
+       "north",
+       "south"
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLatitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "degreesLongitude",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "PositioningModes": {
+   "comps": [
+    {
+     "default": false,
+     "name": "posModes",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "standalone",
+       "ue-based",
+       "ue-assisted"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ProvideAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "provideAssistanceData-r9",
+           "type": {
+            "ref": "ProvideAssistanceData-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ProvideAssistanceData-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsProvideAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsProvideAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-ProvideAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-ProvideAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-ProvideAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-ProvideAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-Provide-Assistance-Data",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ProvideCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "provideCapabilities-r9",
+           "type": {
+            "ref": "ProvideCapabilities-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ProvideCapabilities-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsProvideCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsProvideCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-ProvideCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-ProvideCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-ProvideCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-ProvideCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "ecid-ProvideCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "ECID-ProvideCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-ProvideCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ProvideLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "provideLocationInformation-r9",
+           "type": {
+            "ref": "ProvideLocationInformation-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "ProvideLocationInformation-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsProvideLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsProvideLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-ProvideLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-ProvideLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-ProvideLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-ProvideLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "ecid-ProvideLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "ECID-ProvideLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-ProvideLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "QoS": {
+   "comps": [
+    {
+     "default": false,
+     "name": "horizontalAccuracy",
+     "optional": true,
+     "type": {
+      "ref": "HorizontalAccuracy"
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalCoordinateRequest",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "verticalAccuracy",
+     "optional": true,
+     "type": {
+      "ref": "VerticalAccuracy"
+     }
+    },
+    {
+     "default": false,
+     "name": "responseTime",
+     "optional": true,
+     "type": {
+      "ref": "ResponseTime"
+     }
+    },
+    {
+     "default": false,
+     "name": "velocityRequest",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ReportingDuration": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    255
+   ]
+  },
+  "ReqNavListInfo": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svReqList",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       64,
+       64
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "clockModelID-PrefList",
+     "optional": true,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        1,
+        8
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "orbitModelID-PrefList",
+     "optional": true,
+     "type": {
+      "elem": {
+       "kind": "INTEGER",
+       "range": [
+        1,
+        8
+       ]
+      },
+      "kind": "SEQUENCE OF",
+      "size": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "addNavparamReq",
+     "optional": true,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "RequestAssistanceData": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "requestAssistanceData-r9",
+           "type": {
+            "ref": "RequestAssistanceData-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "RequestAssistanceData-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsRequestAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsRequestAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-RequestAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-RequestAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-RequestAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-RequestAssistanceData"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-RequestAssistanceData",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "RequestCapabilities": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "requestCapabilities-r9",
+           "type": {
+            "ref": "RequestCapabilities-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "RequestCapabilities-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsRequestCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsRequestCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-RequestCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-RequestCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-RequestCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-RequestCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "ecid-RequestCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "ECID-RequestCapabilities"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-RequestCapabilities",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "RequestLocationInformation": {
+   "comps": [
+    {
+     "default": false,
+     "name": "criticalExtensions",
+     "optional": false,
+     "type": {
+      "alts": [
+       {
+        "name": "c1",
+        "type": {
+         "alts": [
+          {
+           "name": "requestLocationInformation-r9",
+           "type": {
+            "ref": "RequestLocationInformation-r9-IEs"
+           }
+          },
+          {
+           "name": "spare3",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare2",
+           "type": {
+            "kind": "NULL"
+           }
+          },
+          {
+           "name": "spare1",
+           "type": {
+            "kind": "NULL"
+           }
+          }
+         ],
+         "ext": false,
+         "kind": "CHOICE"
+        }
+       },
+       {
+        "name": "criticalExtensionsFuture",
+        "type": {
+         "comps": [],
+         "ext": false,
+         "kind": "SEQUENCE"
+        }
+       }
+      ],
+      "ext": false,
+      "kind": "CHOICE"
+     }
+    }
+   ],
+   "ext": false,
+   "kind": "SEQUENCE"
+  },
+  "RequestLocationInformation-r9-IEs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "commonIEsRequestLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "CommonIEsRequestLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "a-gnss-RequestLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "A-GNSS-RequestLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "otdoa-RequestLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "OTDOA-RequestLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "ecid-RequestLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "ECID-RequestLocationInformation"
+     }
+    },
+    {
+     "default": false,
+     "name": "epdu-RequestLocationInformation",
+     "optional": true,
+     "type": {
+      "ref": "EPDU-Sequence"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "ResponseTime": {
+   "comps": [
+    {
+     "default": false,
+     "name": "time",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       128
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SBAS-ClockModel": {
+   "comps": [
+    {
+     "default": false,
+     "name": "sbasTo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       5399
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAgfo",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2048,
+       2047
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sbasAgf1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SBAS-ID": {
+   "comps": [
+    {
+     "default": false,
+     "name": "sbas-id",
+     "optional": false,
+     "type": {
+      "ext": [],
+      "kind": "ENUMERATED",
+      "root": [
+       "waas",
+       "egnos",
+       "msas",
+       "gagan"
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SBAS-IDs": {
+   "comps": [
+    {
+     "default": false,
+     "name": "sbas-IDs",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [
+       "waas",
+       "egnos",
+       "msas",
+       "gagan"
+      ],
+      "size": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SV-ID": {
+   "comps": [
+    {
+     "default": false,
+     "name": "satellite-id",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       63
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SatListRelatedDataElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "svID",
+     "optional": false,
+     "type": {
+      "ref": "SV-ID"
+     }
+    },
+    {
+     "default": false,
+     "name": "iod",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       11,
+       11
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "clockModelID",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       8
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "orbitModelID",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       8
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "SatListRelatedDataList": {
+   "elem": {
+    "ref": "SatListRelatedDataElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    64
+   ]
+  },
+  "SequenceNumber": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    255
+   ]
+  },
+  "StandardClockModelElement": {
+   "comps": [
+    {
+     "default": false,
+     "name": "stanClockToc",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       16383
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "stanClockAF2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32,
+       31
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "stanClockAF1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1048576,
+       1048575
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "stanClockAF0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1073741824,
+       1073741823
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "stanClockTgd",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "sisa",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "stanModelID",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       1
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "StandardClockModelList": {
+   "elem": {
+    "ref": "StandardClockModelElement"
+   },
+   "kind": "SEQUENCE OF",
+   "size": [
+    1,
+    2
+   ]
+  },
+  "StoredNavListInfo": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-WeekOrDay",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Toe",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "t-toeLimit",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       15
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "satListRelatedDataList",
+     "optional": true,
+     "type": {
+      "ref": "SatListRelatedDataList"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "TransactionNumber": {
+   "kind": "INTEGER",
+   "range": [
+    0,
+    255
+   ]
+  },
+  "TriggeredReportingCriteria": {
+   "comps": [
+    {
+     "default": false,
+     "name": "cellChange",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "reportingDuration",
+     "optional": false,
+     "type": {
+      "ref": "ReportingDuration"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "UTC-ModelSet1": {
+   "comps": [
+    {
+     "default": false,
+     "name": "gnss-Utc-A1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-A0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-Tot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-WNt",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-DeltaTls",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-WNlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-DN",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "gnss-Utc-DeltaTlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "UTC-ModelSet2": {
+   "comps": [
+    {
+     "default": false,
+     "name": "utcA0",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -32768,
+       32767
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcA1",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -4096,
+       4095
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcA2",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -64,
+       63
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDeltaTls",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcTot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       65535
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcWNot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       8191
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcWNlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDN",
+     "optional": false,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       4,
+       4
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDeltaTlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "UTC-ModelSet3": {
+   "comps": [
+    {
+     "default": false,
+     "name": "nA",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       1,
+       1461
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "tauC",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "b1",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -1024,
+       1023
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "b2",
+     "optional": true,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -512,
+       511
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "kp",
+     "optional": true,
+     "type": {
+      "kind": "BIT STRING",
+      "names": [],
+      "size": [
+       2,
+       2
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "UTC-ModelSet4": {
+   "comps": [
+    {
+     "default": false,
+     "name": "utcA1wnt",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -8388608,
+       8388607
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcA0wnt",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -2147483648,
+       2147483647
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcTot",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcWNt",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDeltaTls",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcWNlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       255
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDN",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcDeltaTlsf",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       -128,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "utcStandardID",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       7
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "Velocity": {
+   "alts": [
+    {
+     "name": "horizontalVelocity",
+     "type": {
+      "ref": "HorizontalVelocity"
+     }
+    },
+    {
+     "name": "horizontalWithVerticalVelocity",
+     "type": {
+      "ref": "HorizontalWithVerticalVelocity"
+     }
+    },
+    {
+     "name": "horizontalVelocityWithUncertainty",
+     "type": {
+      "ref": "HorizontalVelocityWithUncertainty"
+     }
+    },
+    {
+     "name": "horizontalWithVerticalVelocityAndUncertainty",
+     "type": {
+      "ref": "HorizontalWithVerticalVelocityAndUncertainty"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "CHOICE"
+  },
+  "VelocityTypes": {
+   "comps": [
+    {
+     "default": false,
+     "name": "horizontalVelocity",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalWithVerticalVelocity",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalVelocityWithUncertainty",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    },
+    {
+     "default": false,
+     "name": "horizontalWithVerticalVelocityAndUncertainty",
+     "optional": false,
+     "type": {
+      "kind": "BOOLEAN"
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  },
+  "VerticalAccuracy": {
+   "comps": [
+    {
+     "default": false,
+     "name": "accuracy",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       127
+      ]
+     }
+    },
+    {
+     "default": false,
+     "name": "confidence",
+     "optional": false,
+     "type": {
+      "kind": "INTEGER",
+      "range": [
+       0,
+       100
+      ]
+     }
+    }
+   ],
+   "ext": true,
+   "kind": "SEQUENCE"
+  }
+ }
+}
