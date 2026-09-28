@@ -60,7 +60,7 @@ func (e *ENB) AnswerLPP(ue *UE, enbUEID int64, fix LPPFix, timeout time.Duration
 
 		switch decoded.BodyKind {
 		case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
-			reply, err = lpp.EncodeProvideCapabilities(decoded.TransactionID, []int64{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
+			reply, err = lpp.EncodeProvideCapabilities(decoded.TransactionID, []int64{lpptype.GNSSIDGPS, lpptype.GNSSIDGLONASS})
 		case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
 			reply, err = lpp.EncodeProvideLocationInformation(decoded.TransactionID, fix.Latitude, fix.Longitude, fix.Altitude, fix.HorizontalAccuracy, fix.VerticalAccuracy)
 		case lpptype.LPPMessageBodyC1PresentAbort, lpptype.LPPMessageBodyC1PresentError:

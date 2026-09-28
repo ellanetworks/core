@@ -420,15 +420,15 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(e%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindOctetString:
-		fmt.Fprintf(r, "%sp, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
-			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+		fmt.Fprintf(r, "%sp%d, err := per.DecodeOctetString(r, enc, %d, %d, %t, %t, %t)\n",
+			prefix, fi.fieldIdx, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s%s = p\n", prefix, target)
+		fmt.Fprintf(r, "%s%s = p%d\n", prefix, target, fi.fieldIdx)
 	case kindBitString:
-		fmt.Fprintf(r, "%sbs, nbits, err := per.DecodeBitString(r, enc, %d, %d, %t, %t, %t)\n",
-			prefix, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
+		fmt.Fprintf(r, "%sbs%d, nbits%d, err := per.DecodeBitString(r, enc, %d, %d, %t, %t, %t)\n",
+			prefix, fi.fieldIdx, fi.fieldIdx, fi.sizeLB, fi.sizeUB, fi.hasSizeLB, fi.hasSizeUB, fi.sizeExt)
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
-		fmt.Fprintf(r, "%s_ = nbits\n%s%s = per.BitsToBools(bs, nbits)\n", prefix, prefix, target)
+		fmt.Fprintf(r, "%s%s = per.BitsToBools(bs%d, nbits%d)\n", prefix, target, fi.fieldIdx, fi.fieldIdx)
 	case kindDelegate:
 		if fi.delegateIsValue {
 			fmt.Fprintf(r, "%sif err := (&%s).UnmarshalPER(r, enc); err != nil {\n", prefix, target)

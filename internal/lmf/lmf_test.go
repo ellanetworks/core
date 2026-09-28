@@ -37,7 +37,7 @@ func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, 
 func provideCapabilitiesRequestingAck(t *testing.T, seq byte) []byte {
 	t.Helper()
 
-	raw, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GnssIDGps})
+	raw, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
 		t.Fatalf("StartSession: %v", err)
 	}
 
-	caps, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GnssIDGps})
+	caps, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}

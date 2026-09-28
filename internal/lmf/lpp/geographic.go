@@ -10,7 +10,7 @@ package lpp
 // is determined by a power-of-two range:
 //
 //   - Latitude:  23 bits, range 0..2^23-1,      resolution 90 / 2^23 degrees
-//   - Longitude: 24 bits, range 0..2^24-1,      resolution 360 / 2^24 degrees
+//   - Longitude: 24 bits, range -2^23..2^23-1,  resolution 360 / 2^24 degrees
 //   - Altitude:  15 bits, range 0..2^15-1,      resolution 1 metre
 //   - Uncertainty: 7 bits, range 0..127,         resolution C*((1+x)^k - 1)
 //
@@ -22,10 +22,10 @@ const (
 	maxDegreesLatitude = 8388607     // 2^23 - 1
 	maxLatitudeE7      = 900_000_000 // 90 degrees in 1e-7 units
 
-	// Longitude encoding: 2^24 range (24 bits), stored as unsigned offset.
+	// Longitude encoding: 2^24 range (24 bits), signed.
 	longitudeResolution = 16777216      // 2^24
-	maxDegreesLongitude = 16777215      // 2^24 - 1
-	longitudeOffset     = 8388608       // 2^23 — bias added to signed value
+	minDegreesLongitude = -8388608      // -2^23
+	maxDegreesLongitude = 8388607       // 2^23 - 1
 	maxLongitudeE7      = 3_600_000_000 // 360 degrees in 1e-7 units
 
 	// Altitude encoding: 2^15 range (15 bits), in metres.

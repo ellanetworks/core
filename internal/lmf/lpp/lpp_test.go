@@ -65,7 +65,7 @@ func TestEncodeDecodeRequestLocationInformation(t *testing.T) {
 }
 
 func TestEncodeDecodeProvideCapabilities(t *testing.T) {
-	encoded, err := EncodeProvideCapabilities(0x03, []int64{lpptype.GnssIDGps, lpptype.GnssIDGlonass})
+	encoded, err := EncodeProvideCapabilities(0x03, []int64{lpptype.GNSSIDGPS, lpptype.GNSSIDGLONASS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -101,6 +101,55 @@ func TestEncodeDecodeProvideCapabilities(t *testing.T) {
 
 	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDGlonass) {
 		t.Error("expected GLO capability to be true")
+	}
+}
+
+func TestDecodeMediaTekProvideCapabilities(t *testing.T) {
+	raw, err := hex.DecodeString("f0010142087800174027a68050300bf80ea15020701000100720641ec0501f0080")
+	if err != nil {
+		t.Fatalf("hex: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(raw)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if decoded.BodyKind != lpptype.LPPMessageBodyC1PresentProvideCapabilities {
+		t.Fatalf("expected body kind ProvideCapabilities, got %d", decoded.BodyKind)
+	}
+
+	if !decoded.AckRequested {
+		t.Error("expected an acknowledgement request")
+	}
+
+	if decoded.SequenceNumber == nil || *decoded.SequenceNumber != 1 {
+		t.Errorf("expected sequence number 1, got %v", decoded.SequenceNumber)
+	}
+
+	supported := decoded.ProvideCapabilities.GNSSCapability.Supported()
+	if len(supported) != 1 || supported[0] != models.GnssIDGps {
+		t.Errorf("expected GPS only, got %v", supported)
+	}
+}
+
+func TestEncodeDecodeProvideCapabilitiesExtensionGNSS(t *testing.T) {
+	encoded, err := EncodeProvideCapabilities(0x04, []int64{lpptype.GNSSIDBDS, lpptype.GNSSIDNavIC})
+	if err != nil {
+		t.Fatalf("EncodeProvideCapabilities: %v", err)
+	}
+
+	decoded, err := DecodeLPPMessage(encoded)
+	if err != nil {
+		t.Fatalf("DecodeLPPMessage: %v", err)
+	}
+
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDBds) {
+		t.Error("expected BDS capability to be true")
+	}
+
+	if !decoded.ProvideCapabilities.GNSSCapability.Supports(models.GnssIDNavic) {
+		t.Error("expected NavIC capability to be true")
 	}
 }
 
@@ -187,7 +236,7 @@ func TestEncodeDecodeProvideAssistanceData(t *testing.T) {
 
 func TestParseLPPMessage(t *testing.T) {
 	// Encode a ProvideCapabilities message and parse it with ParseLPPMessage.
-	encoded, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
+	encoded, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -300,7 +349,7 @@ func TestUERoundTrip(t *testing.T) {
 	}
 
 	// Step 2: UE → LMF: ProvideCapabilities
-	ueProvCaps, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GnssIDGps})
+	ueProvCaps, err := EncodeProvideCapabilities(0x01, []int64{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("step 2 encode: %v", err)
 	}

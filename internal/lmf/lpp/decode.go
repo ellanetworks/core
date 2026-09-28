@@ -81,11 +81,11 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 		out.Initiator = msg.TransactionID.Initiator.Value
 	}
 
-	if msg.LppMessageBody == nil || msg.LppMessageBody.C1 == nil {
+	if msg.LPPMessageBody == nil || msg.LPPMessageBody.C1 == nil {
 		return out, nil
 	}
 
-	c1 := msg.LppMessageBody.C1
+	c1 := msg.LPPMessageBody.C1
 
 	switch {
 	case c1.RequestCapabilities != nil:
@@ -134,27 +134,27 @@ func decodeProvideCapabilities(pc *lpptype.ProvideCapabilities) *models.ProvideL
 	}
 
 	r9 := c1.ProvideCapabilitiesR9
-	if r9.AGNSSProvideCapabilities == nil || r9.AGNSSProvideCapabilities.GnssSupportList == nil {
+	if r9.AGNSSProvideCapabilities == nil || r9.AGNSSProvideCapabilities.GNSSSupportList == nil {
 		return out
 	}
 
-	for _, elem := range r9.AGNSSProvideCapabilities.GnssSupportList.List {
+	for _, elem := range r9.AGNSSProvideCapabilities.GNSSSupportList.List {
 		var gnssID models.GnssID
 
-		switch elem.GnssID.Value {
-		case lpptype.GnssIDGps:
+		switch elem.GNSSID.GNSSID {
+		case lpptype.GNSSIDGPS:
 			gnssID = models.GnssIDGps
-		case lpptype.GnssIDSbas:
+		case lpptype.GNSSIDSBAS:
 			gnssID = models.GnssIDSbas
-		case lpptype.GnssIDQzss:
+		case lpptype.GNSSIDQZSS:
 			gnssID = models.GnssIDQzss
-		case lpptype.GnssIDGalileo:
+		case lpptype.GNSSIDGalileo:
 			gnssID = models.GnssIDGalileo
-		case lpptype.GnssIDGlonass:
+		case lpptype.GNSSIDGLONASS:
 			gnssID = models.GnssIDGlonass
-		case lpptype.GnssIDBds:
+		case lpptype.GNSSIDBDS:
 			gnssID = models.GnssIDBds
-		case lpptype.GnssIDNavic:
+		case lpptype.GNSSIDNavIC:
 			gnssID = models.GnssIDNavic
 		default:
 			continue
@@ -185,8 +185,8 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
-	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GnssError != nil && a.GnssError.TargetDeviceErrorCauses != nil {
-		cause := a.GnssError.TargetDeviceErrorCauses.Cause
+	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GNSSError != nil && a.GNSSError.TargetDeviceErrorCauses != nil {
+		cause := a.GNSSError.TargetDeviceErrorCauses.Cause
 		out.GNSSErrorCause = &cause
 	}
 
@@ -290,7 +290,7 @@ func decodeLocationEstimate(lc *lpptype.LocationCoordinates) (*lmfmodels.Geograp
 
 func latitudeDegrees(sign, encoded int64) float64 {
 	degrees := float64(encoded) * 90 / latitudeResolution
-	if sign == lpptype.EllipsoidPointLatitudeSignSouth {
+	if sign == lpptype.LatitudeSignSouth {
 		return -degrees
 	}
 
@@ -298,11 +298,11 @@ func latitudeDegrees(sign, encoded int64) float64 {
 }
 
 func longitudeDegrees(encoded int64) float64 {
-	return float64(encoded-longitudeOffset) * 360 / longitudeResolution
+	return float64(encoded) * 360 / longitudeResolution
 }
 
 func altitudeMeters(direction, encoded int64) float64 {
-	if direction == lpptype.EllipsoidPointWithAltitudeAltitudeDirectionDepth {
+	if direction == lpptype.AltitudeDirectionDepth {
 		return -float64(encoded)
 	}
 

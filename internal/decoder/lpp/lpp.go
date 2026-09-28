@@ -101,19 +101,19 @@ func mapCapabilities(caps *lppmodels.ProvideLocationCapabilities) *Capabilities 
 
 		switch gnssID {
 		case lppmodels.GnssIDGps:
-			lpptypeID = lpptype.GnssIDGps
+			lpptypeID = lpptype.GNSSIDGPS
 		case lppmodels.GnssIDSbas:
-			lpptypeID = lpptype.GnssIDSbas
+			lpptypeID = lpptype.GNSSIDSBAS
 		case lppmodels.GnssIDQzss:
-			lpptypeID = lpptype.GnssIDQzss
+			lpptypeID = lpptype.GNSSIDQZSS
 		case lppmodels.GnssIDGalileo:
-			lpptypeID = lpptype.GnssIDGalileo
+			lpptypeID = lpptype.GNSSIDGalileo
 		case lppmodels.GnssIDGlonass:
-			lpptypeID = lpptype.GnssIDGlonass
+			lpptypeID = lpptype.GNSSIDGLONASS
 		case lppmodels.GnssIDBds:
-			lpptypeID = lpptype.GnssIDBds
+			lpptypeID = lpptype.GNSSIDBDS
 		case lppmodels.GnssIDNavic:
-			lpptypeID = lpptype.GnssIDNavic
+			lpptypeID = lpptype.GNSSIDNavIC
 		default:
 			continue
 		}
@@ -172,13 +172,13 @@ func bodyKindEnum(present int) utils.EnumField {
 
 func gnssIDEnum(v int64) utils.EnumField {
 	labels := map[int64]string{
-		lpptype.GnssIDGps:     "GPS",
-		lpptype.GnssIDSbas:    "SBAS",
-		lpptype.GnssIDQzss:    "QZSS",
-		lpptype.GnssIDGalileo: "Galileo",
-		lpptype.GnssIDGlonass: "GLONASS",
-		lpptype.GnssIDBds:     "BeiDou",
-		lpptype.GnssIDNavic:   "NavIC",
+		lpptype.GNSSIDGPS:     "GPS",
+		lpptype.GNSSIDSBAS:    "SBAS",
+		lpptype.GNSSIDQZSS:    "QZSS",
+		lpptype.GNSSIDGalileo: "Galileo",
+		lpptype.GNSSIDGLONASS: "GLONASS",
+		lpptype.GNSSIDBDS:     "BeiDou",
+		lpptype.GNSSIDNavIC:   "NavIC",
 	}
 
 	label, ok := labels[v]

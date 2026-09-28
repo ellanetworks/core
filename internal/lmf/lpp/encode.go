@@ -29,7 +29,7 @@ func encodeLPPMessage(transactionID byte, initiator int64, body *lpptype.LPPMess
 		},
 		EndTransaction: endTransaction,
 		SequenceNumber: &seq,
-		LppMessageBody: body,
+		LPPMessageBody: body,
 	}
 
 	return Encoder(msg)
@@ -44,7 +44,7 @@ func EncodeRequestCapabilities(transactionID, sequenceNumber byte) ([]byte, erro
 					C1: &lpptype.RequestCapabilitiesCriticalExtensionsC1{
 						RequestCapabilitiesR9: &lpptype.RequestCapabilitiesR9IEs{
 							AGNSSRequestCapabilities: &lpptype.AGNSSRequestCapabilities{
-								GnssSupportListReq:           true,
+								GNSSSupportListReq:           true,
 								AssistanceDataSupportListReq: true,
 								LocationVelocityTypesReq:     true,
 							},
@@ -78,12 +78,12 @@ func EncodeRequestLocationInformation(transactionID, sequenceNumber byte, respon
 								},
 							},
 							AGNSSRequestLocationInformation: &lpptype.AGNSSRequestLocationInformation{
-								GnssPositioningInstructions: lpptype.GNSSPositioningInstructions{
-									GnssMethods: lpptype.GNSSIDBitmap{
-										GnssIDs: makeGnssIdBitmap(0), // GPS only
+								GNSSPositioningInstructions: lpptype.GNSSPositioningInstructions{
+									GNSSMethods: lpptype.GNSSIDBitmap{
+										GNSSIDs: makeGnssIdBitmap(0), // GPS only
 									},
 									FineTimeAssistanceMeasReq: false,
-									AdrMeasReq:                false,
+									ADRMeasReq:                false,
 									MultiFreqMeasReq:          false,
 									AssistanceAvailability:    false,
 								},
@@ -105,12 +105,12 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, err
 
 	for _, id := range gnssIDs {
 		supportList.List = append(supportList.List, lpptype.GNSSSupportElement{
-			GnssID:     lpptype.GNSSID{Value: id},
+			GNSSID:     lpptype.GNSSID{GNSSID: id},
 			AGNSSModes: lpptype.PositioningModes{PosModes: makePosModes(true, false, true)}, // standalone + ue-assisted
-			GnssSignals: lpptype.GNSSSignalIDs{
-				GnssSignalIDs: makeGnssSignalBitmap(0), // first signal type
+			GNSSSignals: lpptype.GNSSSignalIDs{
+				GNSSSignalIDs: makeGnssSignalBitmap(0), // first signal type
 			},
-			AdrSupport:                 false,
+			ADRSupport:                 false,
 			VelocityMeasurementSupport: false,
 		})
 	}
@@ -122,7 +122,7 @@ func EncodeProvideCapabilities(transactionID byte, gnssIDs []int64) ([]byte, err
 					C1: &lpptype.ProvideCapabilitiesCriticalExtensionsC1{
 						ProvideCapabilitiesR9: &lpptype.ProvideCapabilitiesR9IEs{
 							AGNSSProvideCapabilities: &lpptype.AGNSSProvideCapabilities{
-								GnssSupportList: supportList,
+								GNSSSupportList: supportList,
 							},
 						},
 					},
@@ -282,30 +282,26 @@ func encodeLatitude(latE7 int32) (int64, int64) {
 	}
 
 	if latE7 < 0 {
-		return lpptype.EllipsoidPointLatitudeSignSouth, encoded
+		return lpptype.LatitudeSignSouth, encoded
 	}
 
-	return lpptype.EllipsoidPointLatitudeSignNorth, encoded
+	return lpptype.LatitudeSignNorth, encoded
 }
 
 // encodeLongitude converts a signed 1e-7-degree longitude to TS 23.032 encoding.
-// Returns the unsigned offset (value + longitudeOffset) in range 0..maxDegreesLongitude.
-// TS 23.032: longitude = N * 360 / 2^24, so N = lon_deg * 2^24 / 360.
-// The spec uses signed N in range -2^23..2^23-1, but we store the unsigned
-// offset (N + longitudeOffset) for simpler handling of large negative bounds.
+// TS 23.032: longitude = N * 360 / 2^24, so N = lon_deg * 2^24 / 360, with N
+// in range minDegreesLongitude..maxDegreesLongitude.
 func encodeLongitude(lonE7 int32) int64 {
 	encoded := int64(lonE7) * longitudeResolution / maxLongitudeE7
-	// Shift to unsigned range: offset = N + longitudeOffset
-	offset := encoded + longitudeOffset
-	if offset > maxDegreesLongitude {
-		offset = maxDegreesLongitude
+	if encoded > maxDegreesLongitude {
+		encoded = maxDegreesLongitude
 	}
 
-	if offset < 0 {
-		offset = 0
+	if encoded < minDegreesLongitude {
+		encoded = minDegreesLongitude
 	}
 
-	return offset
+	return encoded
 }
 
 // encodeAltitude converts a signed centimetre altitude to TS 23.032 encoding.
@@ -317,7 +313,7 @@ func encodeAltitude(altCm int32) (int64, int64) {
 			altM = maxAltitude
 		}
 
-		return lpptype.EllipsoidPointWithAltitudeAltitudeDirectionDepth, altM
+		return lpptype.AltitudeDirectionDepth, altM
 	}
 
 	altM := int64(altCm) / centimetresPerMetre
@@ -325,7 +321,7 @@ func encodeAltitude(altCm int32) (int64, int64) {
 		altM = maxAltitude
 	}
 
-	return lpptype.EllipsoidPointWithAltitudeAltitudeDirectionHeight, altM
+	return lpptype.AltitudeDirectionHeight, altM
 }
 
 // encodeUncertainty converts a distance in metres to a TS 23.032 uncertainty
