@@ -122,7 +122,7 @@ func Dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 		return nil, dialError(network, laddr, raddr, err)
 	}
 
-	conn, err := dial(ctx, resolved, laddr, raddr, options)
+	conn, err := dial(ctx, resolved, laddr, raddr, options, nil)
 	if err != nil {
 		return nil, dialError(resolved, laddr, raddr, err)
 	}
@@ -130,7 +130,7 @@ func Dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 	return conn, nil
 }
 
-func dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options InitMsg) (*SCTPConn, error) {
+func dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options InitMsg, tune func(fd int) error) (*SCTPConn, error) {
 	if raddr == nil || len(raddr.IPAddrs) == 0 {
 		return nil, ErrMissingAddress
 	}
@@ -166,6 +166,12 @@ func dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 
 	if err := setNoDelay(sock); err != nil {
 		return nil, err
+	}
+
+	if tune != nil {
+		if err := tune(sock); err != nil {
+			return nil, err
+		}
 	}
 
 	if laddr != nil {
