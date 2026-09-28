@@ -59,6 +59,8 @@ type UeContext struct {
 	Tai      models.Tai
 	lastSeen atomic.Int64 // Unix nanoseconds
 
+	registeredAt atomic.Int64
+
 	handover *handoverContext
 
 	smf SmfSbi

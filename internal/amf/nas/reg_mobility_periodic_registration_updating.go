@@ -95,6 +95,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
+	if err := amfInstance.RegisterUE(ctx, ue); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to register the UE on registration update", zap.Error(err))
+	}
+
 	releaseLocallyDeactivatedEPSBearers(ctx, amfInstance, ue, conn)
 
 	var (

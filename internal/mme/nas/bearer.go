@@ -66,6 +66,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	ue.SetAccess(access)
 
+	if err := m.RegisterUE(ctx, ue); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("attach rejected: failed to register the UE", zap.Error(err))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ueConn.ESMRequest.PTI), eps.ESMCauseRequestRejectedUnspecified)
+
+		return
+	}
+
 	apn, err := mme.SubscribedAPN(ctx, m, ue.IMSI(), ueConn.ESMRequest.APN)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile

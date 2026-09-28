@@ -92,7 +92,7 @@ func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID string
 		Imsi:             imsi,
 		Type:             regType,
 		NodeID:           nodeID,
-		RegistrationTime: time.Now().Unix(),
+		RegistrationTime: time.Now().UnixMilli(),
 		Cancel:           cancel,
 	})
 	if err != nil {

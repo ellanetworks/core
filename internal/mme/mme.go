@@ -87,6 +87,8 @@ type MME struct {
 	NAS     NASHandler
 	FiveGS  interworking.FiveGSPeer
 
+	Registrations Registrar
+
 	LPPHandler LPPHandler
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301

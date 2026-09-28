@@ -107,6 +107,11 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
+	if err := amfInstance.RegisterUE(ctx, ue); err != nil {
+		abortRegistration(ctx, amfInstance, ue, "register UE", err)
+		return
+	}
+
 	ue.SetAllowedNssai(subscriberProfile.AllowedNssai)
 	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
