@@ -7,12 +7,6 @@ import (
 	"fmt"
 )
 
-// BuildAssistanceData constructs a ProvideAssistanceData message.
-// For the MVP, assistance data is a placeholder; real ephemeris is Phase 3+.
-func BuildAssistanceData(transactionID byte) ([]byte, error) {
-	return EncodeProvideAssistanceData(transactionID, nil)
-}
-
 // BuildRequestLocationInfo constructs an LPP RequestLocationInformation message
 // requesting a GNSS location estimate.
 func BuildRequestLocationInfo(transactionID, sequenceNumber byte, method uint8, responseTimeSeconds int64) ([]byte, error) {

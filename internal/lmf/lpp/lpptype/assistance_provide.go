@@ -3,10 +3,25 @@
 
 package lpptype
 
+//	CommonIEsProvideAssistanceData ::= SEQUENCE {
+//	    ...,
+//	    [[ segmentationInfo-r14 SegmentationInfo-r14 OPTIONAL ]],
+//	    [[ periodicAssistanceData-r15 PeriodicAssistanceDataControlParameters-r15 OPTIONAL ]]
+//	}
 type CommonIEsProvideAssistanceData struct {
 	_ [0]struct{} `per:"extseq"`
 }
 
+// =====================================================================
+// A-GNSS-ProvideAssistanceData (TS 37.355 §6.5.2.1)
+// =====================================================================
+
+//	A-GNSS-ProvideAssistanceData ::= SEQUENCE {
+//	    gnss-CommonAssistData   GNSS-CommonAssistData    OPTIONAL,
+//	    gnss-GenericAssistData   GNSS-GenericAssistData    OPTIONAL,
+//	    gnss-Error      A-GNSS-Error      OPTIONAL,
+//	    ...
+//	}
 type AGNSSProvideAssistanceData struct {
 	_                     [0]struct{}            `per:"extseq"`
 	GNSSCommonAssistData  *GNSSCommonAssistData  `per:",optional"`
@@ -52,15 +67,17 @@ type GPSTOWAssistElement struct {
 	TLMRsvdBits int64       `per:",range:0..3"`
 }
 
+type BSAlign int64
+
 const (
-	BSAlignTrue int64 = 0
+	BSAlignTrue BSAlign = 0
 )
 
 type GNSSReferenceTimeForOneCell struct {
 	_                [0]struct{} `per:"extseq"`
 	NetworkTime      NetworkTime
-	ReferenceTimeUnc int64  `per:",range:0..127"`
-	BSAlign          *int64 `per:"ENUMERATED,optional,range:0..0"`
+	ReferenceTimeUnc int64    `per:",range:0..127"`
+	BSAlign          *BSAlign `per:"ENUMERATED,optional,range:0..0"`
 }
 
 type NetworkTime struct {

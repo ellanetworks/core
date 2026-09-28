@@ -23,6 +23,11 @@ type conformanceVector struct {
 	Value     json.RawMessage `json:"value"`
 }
 
+type conformanceVectors struct {
+	Pycrate string              `json:"pycrate"`
+	Vectors []conformanceVector `json:"vectors"`
+}
+
 func loadVectors(t *testing.T) []conformanceVector {
 	t.Helper()
 
@@ -31,16 +36,16 @@ func loadVectors(t *testing.T) []conformanceVector {
 		t.Fatalf("read vectors: %v", err)
 	}
 
-	var vectors []conformanceVector
-	if err := json.Unmarshal(raw, &vectors); err != nil {
+	var file conformanceVectors
+	if err := json.Unmarshal(raw, &file); err != nil {
 		t.Fatalf("parse vectors: %v", err)
 	}
 
-	if len(vectors) == 0 {
+	if len(file.Vectors) == 0 {
 		t.Fatal("no vectors")
 	}
 
-	return vectors
+	return file.Vectors
 }
 
 func TestConformanceVectors(t *testing.T) {
@@ -52,8 +57,14 @@ func TestConformanceVectors(t *testing.T) {
 			}
 
 			var msg LPPMessage
-			if err := per.Unmarshal(data, &msg, per.Unaligned); err != nil {
+
+			r := per.NewReader(data)
+			if err := msg.UnmarshalPER(r, per.Unaligned); err != nil {
 				t.Fatalf("decode: %v", err)
+			}
+
+			if r.Bits() >= 8 {
+				t.Fatalf("decode left %d bits unread", r.Bits())
 			}
 
 			dec := json.NewDecoder(bytes.NewReader(v.Value))
@@ -143,7 +154,6 @@ func canonicalSlice(v reflect.Value) any {
 
 type canonicalField struct {
 	value    reflect.Value
-	tag      string
 	choice   int
 	optional bool
 }
@@ -164,7 +174,7 @@ func canonicalStruct(v reflect.Value) any {
 			continue
 		}
 
-		f := canonicalField{value: v.Field(i), tag: tag, choice: -1}
+		f := canonicalField{value: v.Field(i), choice: -1, optional: v.Field(i).Kind() == reflect.Pointer}
 
 		for opt := range strings.SplitSeq(tag, ",") {
 			switch {
@@ -192,14 +202,14 @@ func canonicalStruct(v reflect.Value) any {
 		return []any{"ext"}
 	}
 
-	if !extensible && len(fields) == 1 && fields[0].value.Kind() != reflect.Pointer && !fields[0].optional {
+	if !extensible && len(fields) == 1 && !fields[0].optional {
 		return canonicalValue(fields[0].value)
 	}
 
 	out := make([]any, len(fields))
 
 	for i, f := range fields {
-		if f.optional && f.value.Kind() == reflect.Slice && f.value.IsNil() {
+		if f.optional && f.value.Kind() != reflect.Pointer && f.value.IsNil() {
 			out[i] = nil
 			continue
 		}

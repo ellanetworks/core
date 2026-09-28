@@ -3,11 +3,32 @@
 
 package lpptype
 
+// =====================================================================
+// A-GNSS-RequestLocationInformation (TS 37.355 §6.5.2.7)
+// =====================================================================
+
+//	A-GNSS-RequestLocationInformation ::= SEQUENCE {
+//	    gnss-PositioningInstructions  GNSS-PositioningInstructions,
+//	    ...
+//	}
 type AGNSSRequestLocationInformation struct {
 	_                           [0]struct{} `per:"extseq"`
 	GNSSPositioningInstructions GNSSPositioningInstructions
 }
 
+// =====================================================================
+// GNSS-PositioningInstructions (TS 37.355 §6.5.2.8)
+// =====================================================================
+
+//	GNSS-PositioningInstructions ::= SEQUENCE {
+//	    gnss-Methods    GNSS-ID-Bitmap,
+//	    fineTimeAssistanceMeasReq BOOLEAN,
+//	    adrMeasReq     BOOLEAN,
+//	    multiFreqMeasReq   BOOLEAN,
+//	    assistanceAvailability  BOOLEAN,
+//	    ...,
+//	    [[ ... ]]
+//	}
 type GNSSPositioningInstructions struct {
 	_                         [0]struct{} `per:"extseq"`
 	GNSSMethods               GNSSIDBitmap
@@ -17,6 +38,16 @@ type GNSSPositioningInstructions struct {
 	AssistanceAvailability    bool
 }
 
+// =====================================================================
+// A-GNSS-ProvideLocationInformation (TS 37.355 §6.5.2.5)
+// =====================================================================
+
+//	A-GNSS-ProvideLocationInformation ::= SEQUENCE {
+//	    gnss-SignalMeasurementInformation GNSS-SignalMeasurementInformation  OPTIONAL,
+//	    gnss-LocationInformation   GNSS-LocationInformation    OPTIONAL,
+//	    gnss-Error       A-GNSS-Error       OPTIONAL,
+//	    ...
+//	}
 type AGNSSProvideLocationInformation struct {
 	_                                [0]struct{}                       `per:"extseq"`
 	GNSSSignalMeasurementInformation *GNSSSignalMeasurementInformation `per:",optional"`
@@ -30,6 +61,18 @@ type GNSSSignalMeasurementInformation struct {
 	GNSSMeasurementList      GNSSMeasurementList
 }
 
+// =====================================================================
+// MeasurementReferenceTime (TS 37.355 §6.5.2.6)
+// =====================================================================
+
+//	MeasurementReferenceTime ::= SEQUENCE {
+//	    gnss-TOD-msec   INTEGER (0..3599999),
+//	    gnss-TOD-frac   INTEGER (0..3999) OPTIONAL,
+//	    gnss-TOD-unc   INTEGER (0..127) OPTIONAL,
+//	    gnss-TimeID    GNSS-ID,
+//	    networkTime    CHOICE { eUTRA, uTRA, gSM, ..., nbIoT-r14, nr-r15 } OPTIONAL,
+//	    ...
+//	}
 type MeasurementReferenceTime struct {
 	_           [0]struct{} `per:"extseq"`
 	GNSSTODMsec int64       `per:",range:0..3599999"`
@@ -115,26 +158,38 @@ type GNSSSatMeasList struct {
 	List []GNSSSatMeasElement `per:"SEQUENCE-OF,size:1..64"`
 }
 
+type MpathDet int64
+
 const (
-	MpathDetNotMeasured int64 = 0
-	MpathDetLow         int64 = 1
-	MpathDetMedium      int64 = 2
-	MpathDetHigh        int64 = 3
+	MpathDetNotMeasured MpathDet = 0
+	MpathDetLow         MpathDet = 1
+	MpathDetMedium      MpathDet = 2
+	MpathDetHigh        MpathDet = 3
 )
 
 type GNSSSatMeasElement struct {
 	_                 [0]struct{} `per:"extseq"`
 	SVID              SVID
-	CNo               int64  `per:",range:0..63"`
-	MpathDet          int64  `per:"ENUMERATED,range:0..3,..."`
-	CarrierQualityInd *int64 `per:",optional,range:0..3"`
-	CodePhase         int64  `per:",range:0..2097151"`
-	IntegerCodePhase  *int64 `per:",optional,range:0..127"`
-	CodePhaseRMSError int64  `per:",range:0..63"`
-	Doppler           *int64 `per:",optional,range:-32768..32767"`
-	ADR               *int64 `per:",optional,range:0..33554431"`
+	CNo               int64    `per:",range:0..63"`
+	MpathDet          MpathDet `per:"ENUMERATED,range:0..3,...,extvalues:0"`
+	CarrierQualityInd *int64   `per:",optional,range:0..3"`
+	CodePhase         int64    `per:",range:0..2097151"`
+	IntegerCodePhase  *int64   `per:",optional,range:0..127"`
+	CodePhaseRMSError int64    `per:",range:0..63"`
+	Doppler           *int64   `per:",optional,range:-32768..32767"`
+	ADR               *int64   `per:",optional,range:0..33554431"`
 }
 
+// =====================================================================
+// GNSS-LocationInformation (TS 37.355 §6.5.2.6)
+// =====================================================================
+
+//	GNSS-LocationInformation ::= SEQUENCE {
+//	    measurementReferenceTime  MeasurementReferenceTime,
+//	    agnss-List      GNSS-ID-Bitmap,
+//	    ...,
+//	    [[ ... ]]
+//	}
 type GNSSLocationInformation struct {
 	_                        [0]struct{} `per:"extseq"`
 	MeasurementReferenceTime MeasurementReferenceTime

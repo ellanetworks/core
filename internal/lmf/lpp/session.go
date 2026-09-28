@@ -175,6 +175,12 @@ func (s *Session) HandleResponse(msg any) error {
 		return s.handleCapabilities(response)
 	case *models.ProvideLocationInformation:
 		return s.handleLocation(response)
+	case *models.RequestAssistanceData:
+		return s.handleAssistanceRequest(response)
+	case *models.Abort:
+		return fmt.Errorf("%w: cause %s", ErrUEAborted, causeName(abortCauseNames, response.Cause))
+	case *models.Error:
+		return fmt.Errorf("%w: cause %s", ErrUEReportedError, causeName(errorCauseNames, response.Cause))
 	default:
 		return fmt.Errorf("unexpected message type for state %s: %T", s.state, msg)
 	}
@@ -260,6 +266,28 @@ func (s *Session) handleLocation(msg *models.ProvideLocationInformation) error {
 	}
 
 	return nil
+}
+
+func (s *Session) handleAssistanceRequest(req *models.RequestAssistanceData) error {
+	msg, err := EncodeAssistanceDataNotSupported(req.TransactionID, s.NextSequenceNumber())
+	if err != nil {
+		return fmt.Errorf("build assistance data response: %w", err)
+	}
+
+	s.log.Info("UE requested assistance data, which the LMF does not provide", zap.Bool("agnss", req.AGNSS))
+
+	if err := s.send(msg); err != nil {
+		return fmt.Errorf("send assistance data response: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Session) ReserveSequenceNumber() byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.NextSequenceNumber()
 }
 
 // send wraps the transfer function with logging.

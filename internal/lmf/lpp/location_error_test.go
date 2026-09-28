@@ -167,7 +167,7 @@ func TestDecodeProvideLocationInformationEstimateWithGNSSError(t *testing.T) {
 	}
 
 	pli := decoded.ProvideLocationInformation
-	if pli.LocationEstimate == nil || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != lpptype.GNSSTargetDeviceErrorCauseNotAllRequestedMeasurementsPossible {
+	if pli.LocationEstimate == nil || pli.GNSSErrorCause == nil || *pli.GNSSErrorCause != int64(lpptype.GNSSTargetDeviceErrorCauseNotAllRequestedMeasurementsPossible) {
 		t.Fatalf("ProvideLocationInformation = %+v, want an estimate and a GNSS error", pli)
 	}
 

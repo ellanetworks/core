@@ -97,7 +97,7 @@ func mapCapabilities(caps *lppmodels.ProvideLocationCapabilities) *Capabilities 
 	out := &Capabilities{}
 
 	for _, gnssID := range caps.GNSSCapability.Supported() {
-		var lpptypeID int64
+		var lpptypeID lpptype.GNSSIDValue
 
 		switch gnssID {
 		case lppmodels.GnssIDGps:
@@ -139,7 +139,7 @@ func mapLocationInformation(li *lppmodels.ProvideLocationInformation) *LocationI
 
 // --- enum label helpers ---
 
-func initiatorEnum(v int64) utils.EnumField {
+func initiatorEnum(v lpptype.Initiator) utils.EnumField {
 	switch v {
 	case lpptype.InitiatorLocationServer:
 		return utils.MakeEnum(int(v), "locationServer", false)
@@ -170,8 +170,8 @@ func bodyKindEnum(present int) utils.EnumField {
 	return utils.MakeEnum(present, label, !ok)
 }
 
-func gnssIDEnum(v int64) utils.EnumField {
-	labels := map[int64]string{
+func gnssIDEnum(v lpptype.GNSSIDValue) utils.EnumField {
+	labels := map[lpptype.GNSSIDValue]string{
 		lpptype.GNSSIDGPS:     "GPS",
 		lpptype.GNSSIDSBAS:    "SBAS",
 		lpptype.GNSSIDQZSS:    "QZSS",

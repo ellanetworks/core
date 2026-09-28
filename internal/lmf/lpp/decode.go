@@ -25,18 +25,22 @@ func Decoder(data []byte) (*lpptype.LPPMessage, error) {
 // DecodeLPPMessage decodes unaligned-PER-encoded LPP bytes and returns
 // the transaction ID, initiator, and the discriminated message body.
 type DecodedMessage struct {
-	TransactionID  byte
-	Initiator      int64
-	EndTransaction bool
-	SequenceNumber *int64 // nil when absent (TS 37.355 §4.3.2)
-	AckRequested   bool   // the UE asked us to acknowledge this message
-	BodyKind       int    // LPPMessageBodyC1Present*
+	TransactionID        byte
+	TransactionIDPresent bool
+	Initiator            lpptype.Initiator
+	EndTransaction       bool
+	SequenceNumber       *int64 // nil when absent (TS 37.355 §4.3.2)
+	AckRequested         bool   // the UE asked us to acknowledge this message
+	BodyKind             int    // LPPMessageBodyC1Present*
 	// Typed payloads (only one is non-nil depending on BodyKind):
 	ProvideCapabilities        *models.ProvideLocationCapabilities
 	ProvideLocationInformation *models.ProvideLocationInformation
 	RequestCapabilities        *models.RequestLocationInformation
 	RequestLocationInformation *models.RequestLocationInformation
 	ProvideAssistanceData      *models.ProvideAssistanceData
+	RequestAssistanceData      *models.RequestAssistanceData
+	Abort                      *models.Abort
+	Error                      *models.Error
 }
 
 // Payload returns the typed model for the decoded body, or an error if the body
@@ -53,6 +57,12 @@ func (d *DecodedMessage) Payload() (any, error) {
 		return d.RequestLocationInformation, nil
 	case lpptype.LPPMessageBodyC1PresentProvideAssistanceData:
 		return d.ProvideAssistanceData, nil
+	case lpptype.LPPMessageBodyC1PresentRequestAssistanceData:
+		return d.RequestAssistanceData, nil
+	case lpptype.LPPMessageBodyC1PresentAbort:
+		return d.Abort, nil
+	case lpptype.LPPMessageBodyC1PresentError:
+		return d.Error, nil
 	case 0:
 		return nil, fmt.Errorf("LPP message has no body")
 	default:
@@ -78,7 +88,8 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 
 	if msg.TransactionID != nil {
 		out.TransactionID = byte(msg.TransactionID.TransactionNumber)
-		out.Initiator = msg.TransactionID.Initiator.Value
+		out.TransactionIDPresent = true
+		out.Initiator = msg.TransactionID.Initiator
 	}
 
 	if msg.LPPMessageBody == nil || msg.LPPMessageBody.C1 == nil {
@@ -108,8 +119,20 @@ func DecodeLPPMessage(data []byte) (*DecodedMessage, error) {
 		out.BodyKind = lpptype.LPPMessageBodyC1PresentProvideLocationInformation
 		out.ProvideLocationInformation = decodeProvideLocationInformation(c1.ProvideLocationInformation)
 
+	case c1.RequestAssistanceData != nil:
+		out.BodyKind = lpptype.LPPMessageBodyC1PresentRequestAssistanceData
+		out.RequestAssistanceData = decodeRequestAssistanceData(c1.RequestAssistanceData, out.TransactionID)
+
+	case c1.Abort != nil:
+		out.BodyKind = lpptype.LPPMessageBodyC1PresentAbort
+		out.Abort = decodeAbort(c1.Abort, out.TransactionID)
+
+	case c1.Error != nil:
+		out.BodyKind = lpptype.LPPMessageBodyC1PresentError
+		out.Error = decodeError(c1.Error, out.TransactionID)
+
 	default:
-		// Abort, Error, spare — not decoded into a model for the MVP.
+		// Spare — not decoded into a model.
 	}
 
 	return out, nil
@@ -186,7 +209,7 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 
 	r9 := c1.ProvideLocationInformationR9
 	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GNSSError != nil && a.GNSSError.TargetDeviceErrorCauses != nil {
-		cause := a.GNSSError.TargetDeviceErrorCauses.Cause
+		cause := int64(a.GNSSError.TargetDeviceErrorCauses.Cause)
 		out.GNSSErrorCause = &cause
 	}
 
@@ -196,7 +219,7 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 
 	common := r9.CommonIEsProvideLocationInformation
 	if common.LocationError != nil {
-		cause := common.LocationError.LocationFailureCause
+		cause := int64(common.LocationError.LocationFailureCause)
 		out.LocationFailureCause = &cause
 	}
 
@@ -222,6 +245,114 @@ func decodeRequestLocationInformation(_ *lpptype.RequestLocationInformation) *mo
 // decodeProvideAssistanceData extracts assistance data.
 func decodeProvideAssistanceData(pad *lpptype.ProvideAssistanceData) *models.ProvideAssistanceData {
 	return &models.ProvideAssistanceData{}
+}
+
+func decodeRequestAssistanceData(rad *lpptype.RequestAssistanceData, transactionID byte) *models.RequestAssistanceData {
+	out := &models.RequestAssistanceData{TransactionID: transactionID}
+
+	if c1 := rad.CriticalExtensions.C1; c1 != nil && c1.RequestAssistanceDataR9 != nil {
+		out.AGNSS = c1.RequestAssistanceDataR9.AGNSSRequestAssistanceData != nil
+	}
+
+	return out
+}
+
+func decodeAbort(a *lpptype.Abort, transactionID byte) *models.Abort {
+	out := &models.Abort{TransactionID: transactionID}
+
+	if c1 := a.CriticalExtensions.C1; c1 != nil && c1.AbortR9 != nil && c1.AbortR9.CommonIEsAbort != nil {
+		cause := int64(c1.AbortR9.CommonIEsAbort.AbortCause)
+		out.Cause = &cause
+	}
+
+	return out
+}
+
+func decodeError(e *lpptype.Error, transactionID byte) *models.Error {
+	out := &models.Error{TransactionID: transactionID}
+
+	if e.ErrorR9 != nil && e.ErrorR9.CommonIEsError != nil {
+		cause := int64(e.ErrorR9.CommonIEsError.ErrorCause)
+		out.Cause = &cause
+	}
+
+	return out
+}
+
+func DecodeLPPHeader(data []byte) (*DecodedMessage, error) {
+	r := per.NewReader(data)
+	enc := per.Unaligned
+
+	var present [4]bool
+
+	for i := range present {
+		b, err := r.ReadBit()
+		if err != nil {
+			return nil, fmt.Errorf("decode LPP-Message header: %w", err)
+		}
+
+		present[i] = b
+	}
+
+	out := &DecodedMessage{}
+
+	if present[0] {
+		var tid lpptype.LPPTransactionID
+		if err := tid.UnmarshalPER(r, enc); err != nil {
+			return nil, fmt.Errorf("decode LPP-TransactionID: %w", err)
+		}
+
+		out.TransactionID = byte(tid.TransactionNumber)
+		out.TransactionIDPresent = true
+		out.Initiator = tid.Initiator
+	}
+
+	end, err := per.DecodeBoolean(r, enc)
+	if err != nil {
+		return nil, fmt.Errorf("decode endTransaction: %w", err)
+	}
+
+	out.EndTransaction = end
+
+	if present[1] {
+		seq, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+		if err != nil {
+			return nil, fmt.Errorf("decode sequenceNumber: %w", err)
+		}
+
+		out.SequenceNumber = &seq
+	}
+
+	if present[2] {
+		var ack lpptype.Acknowledgement
+		if err := ack.UnmarshalPER(r, enc); err != nil {
+			return nil, fmt.Errorf("decode acknowledgement: %w", err)
+		}
+
+		out.AckRequested = ack.AckRequested
+	}
+
+	if !present[3] {
+		return out, nil
+	}
+
+	class, err := r.ReadBit()
+	if err != nil {
+		return nil, fmt.Errorf("decode LPP-MessageBody: %w", err)
+	}
+
+	if class {
+		return out, nil
+	}
+
+	idx, err := r.ReadBits(4)
+	if err != nil {
+		return nil, fmt.Errorf("decode LPP-MessageBody c1: %w", err)
+	}
+
+	out.BodyKind = int(idx) + lpptype.LPPMessageBodyC1PresentRequestCapabilities
+
+	return out, nil
 }
 
 func decodeLocationEstimate(lc *lpptype.LocationCoordinates) (*lmfmodels.GeographicEstimate, bool) {
@@ -288,7 +419,7 @@ func decodeLocationEstimate(lc *lpptype.LocationCoordinates) (*lmfmodels.Geograp
 	}
 }
 
-func latitudeDegrees(sign, encoded int64) float64 {
+func latitudeDegrees(sign lpptype.LatitudeSign, encoded int64) float64 {
 	degrees := float64(encoded) * 90 / latitudeResolution
 	if sign == lpptype.LatitudeSignSouth {
 		return -degrees
@@ -301,7 +432,7 @@ func longitudeDegrees(encoded int64) float64 {
 	return float64(encoded) * 360 / longitudeResolution
 }
 
-func altitudeMeters(direction, encoded int64) float64 {
+func altitudeMeters(direction lpptype.AltitudeDirection, encoded int64) float64 {
 	if direction == lpptype.AltitudeDirectionDepth {
 		return -float64(encoded)
 	}

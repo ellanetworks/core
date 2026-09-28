@@ -3,10 +3,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 
 import argparse
+import importlib.metadata
 import json
 import random
 
 from pycrate_asn1dir import LPP
+from pycrate_asn1rt.refobj import ASN1RefType
+
+PYCRATE_VERSION = "0.8.1"
 
 DEFS = LPP.LPP_PDU_Definitions
 MESSAGE = DEFS.LPP_Message
@@ -24,7 +28,7 @@ BODIES = [
 
 CAPTURES = [
     (
-        "capture/moto-g-play-2026-provide-capabilities",
+        "capture/provide-capabilities-agnss-gps",
         "f0010142087800174027a68050300bf80ea15020701000100720641ec0501f0080",
     ),
 ]
@@ -227,15 +231,87 @@ def vector(name, msg):
     }
 
 
+STRING_KINDS = ("VisibleString", "PrintableString", "IA5String", "UTF8String")
+
+
+def constraint(const):
+    rng = root_ranges(const)
+    return None if rng is None else list(rng)
+
+
+def describe(obj, types):
+    tr = obj._typeref
+    if isinstance(tr, ASN1RefType):
+        name = tr.called[1]
+        if name not in types:
+            types[name] = None
+            types[name] = describe_inline(getattr(DEFS, name.replace("-", "_")), types)
+        return {"ref": name}
+    return describe_inline(obj, types)
+
+
+def describe_inline(obj, types):
+    kind = obj.TYPE
+    if kind in ("SEQUENCE", "SET"):
+        opt = obj._root_opt or []
+        return {
+            "kind": "SEQUENCE",
+            "ext": obj._ext is not None,
+            "comps": [
+                {
+                    "name": name,
+                    "optional": name in opt and obj._cont[name]._def is None,
+                    "default": obj._cont[name]._def is not None,
+                    "type": describe(obj._cont[name], types),
+                }
+                for name in obj._root
+            ],
+        }
+    if kind == "CHOICE":
+        return {
+            "kind": "CHOICE",
+            "ext": obj._ext is not None,
+            "alts": [{"name": name, "type": describe(obj._cont[name], types)} for name in obj._root],
+        }
+    if kind in ("SEQUENCE OF", "SET OF"):
+        return {"kind": "SEQUENCE OF", "size": constraint(obj._const_sz), "elem": describe(obj._cont, types)}
+    if kind == "INTEGER":
+        return {"kind": "INTEGER", "range": constraint(obj._const_val)}
+    if kind == "ENUMERATED":
+        return {"kind": "ENUMERATED", "root": list(obj._root), "ext": None if obj._ext is None else list(obj._ext)}
+    if kind == "BIT STRING":
+        names = sorted(obj._cont.items(), key=lambda kv: kv[1]) if obj._cont else []
+        return {"kind": "BIT STRING", "size": constraint(obj._const_sz), "names": [n for n, _ in names]}
+    if kind == "OCTET STRING":
+        return {"kind": "OCTET STRING", "size": constraint(obj._const_sz)}
+    if kind in STRING_KINDS:
+        return {"kind": kind, "size": constraint(obj._const_sz)}
+    if kind in ("BOOLEAN", "NULL"):
+        return {"kind": kind}
+    raise NotImplementedError(kind)
+
+
+def schema():
+    types = {}
+    root = describe_inline(MESSAGE, types)
+    types["LPP-Message"] = root
+    return {"root": "LPP-Message", "types": types}
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Write TS 37.355 LPP-Message conformance vectors encoded by pycrate."
     )
     parser.add_argument("-o", "--output", default="vectors.json")
+    parser.add_argument("--schema", default="schema.json")
     parser.add_argument("-n", "--per-body", type=int, default=60)
     parser.add_argument("-c", "--candidates", type=int, default=4000)
     parser.add_argument("-s", "--seed", type=int, default=37355)
     args = parser.parse_args()
+
+    installed = importlib.metadata.version("pycrate")
+    if installed != PYCRATE_VERSION:
+        parser.error("pycrate %s is installed; the vectors are pinned to %s" % (installed, PYCRATE_VERSION))
 
     rnd = random.Random(args.seed)
     vectors = []
@@ -273,9 +349,13 @@ def main():
                 kept += 1
 
     with open(args.output, "w") as f:
-        f.write("[\n")
+        f.write('{"pycrate":%s,"vectors":[\n' % json.dumps(PYCRATE_VERSION))
         f.write(",\n".join(json.dumps(v, separators=(",", ":")) for v in vectors))
-        f.write("\n]\n")
+        f.write("\n]}\n")
+
+    with open(args.schema, "w") as f:
+        json.dump(schema(), f, indent=1, sort_keys=True)
+        f.write("\n")
 
 
 if __name__ == "__main__":

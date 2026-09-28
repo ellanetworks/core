@@ -1,5 +1,5 @@
-[
-{"name":"capture/moto-g-play-2026-provide-capabilities","hex":"f0010142087800174027a68050300bf80ea15020701000100720641ec0501f0080","roundTrip":false,"value":[[0,0],true,1,[true,null],[0,[1,[0,[0,[null,[[[[0],null,["111"],["10000000"],null,false,true]],[[[["1000000"],["100"]],[],["10"],[]],[[[0],null,[],null,["010000","010000"],[],[],[],["0100000"],["10000"],[]]]],[true,true,true,false,true,true,false],[false,false,false,true]],null,null,null]]]]]]},
+{"pycrate":"0.8.1","vectors":[
+{"name":"capture/provide-capabilities-agnss-gps","hex":"f0010142087800174027a68050300bf80ea15020701000100720641ec0501f0080","roundTrip":false,"value":[[0,0],true,1,[true,null],[0,[1,[0,[0,[null,[[[[0],null,["111"],["10000000"],null,false,true]],[[[["1000000"],["100"]],[],["10"],[]],[[[0],null,[],null,["010000","010000"],[],[],[],["0100000"],["10000"],[]]]],[true,true,true,false,true,true,false],[false,false,false,true]],null,null,null]]]]]]},
 {"name":"random/requestCapabilities/root/000","hex":"93fe04","roundTrip":true,"value":[[1,255],false,null,null,[0,[0,[1,"NULL"]]]]},
 {"name":"random/requestCapabilities/root/001","hex":"180302","roundTrip":true,"value":[null,true,null,null,[0,[0,[0,[0,[[],[false,true,false],null,null,null]]]]]]},
 {"name":"random/requestCapabilities/root/002","hex":"77f8004818d60c982a3453c5fa7f80a8bfe2e4c748323ab7bcb8b0aabc3f4e58e202a5d9","roundTrip":true,"value":[null,false,255,[false,null],[0,[0,[0,[0,[null,[false,false,false],null,null,[[[108,null],"4c151a29e2fd"],[[256,null],"51"],[[256,"r1i"],"4756f7971615"],[[95,"z91b"],"a5d9"]]]]]]]]},
@@ -515,4 +515,4 @@
 {"name":"random/error/ext/007","hex":"d3ff003b80010603fc0ed7a414","roundTrip":false,"value":[[1,255],true,0,null,[0,[7,[0,[5]]]]]},
 {"name":"random/error/ext/008","hex":"5001c880","roundTrip":true,"value":[null,false,0,null,[0,[7,[0,[1]]]]]},
 {"name":"random/error/ext/009","hex":"19c980","roundTrip":true,"value":[null,true,null,null,[0,[7,[0,[3]]]]]}
-]
+]}

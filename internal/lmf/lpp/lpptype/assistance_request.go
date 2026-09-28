@@ -5,11 +5,28 @@ package lpptype
 
 import "github.com/ellanetworks/core/per"
 
+//	CommonIEsRequestAssistanceData ::= SEQUENCE {
+//	    primaryCellID ECGI OPTIONAL,
+//	    ...,
+//	    [[ segmentationInfo-r14 SegmentationInfo-r14 OPTIONAL ]],
+//	    [[ periodicAssistanceDataReq-r15 PeriodicAssistanceDataControlParameters-r15 OPTIONAL,
+//	       primaryCellID-r15 NCGI-r15 OPTIONAL ]]
+//	}
 type CommonIEsRequestAssistanceData struct {
 	_             [0]struct{} `per:"extseq"`
 	PrimaryCellID *ECGI       `per:",optional"`
 }
 
+// =====================================================================
+// A-GNSS-RequestAssistanceData (TS 37.355 §6.5.2.3)
+// =====================================================================
+
+//	A-GNSS-RequestAssistanceData ::= SEQUENCE {
+//	    gnss-CommonAssistDataReq GNSS-CommonAssistDataReq OPTIONAL,
+//	    gnss-GenericAssistDataReq GNSS-GenericAssistDataReq OPTIONAL,
+//	    ...,
+//	    [[ gnss-PeriodicAssistDataReq-r15 GNSS-PeriodicAssistDataReq-r15 OPTIONAL ]]
+//	}
 type AGNSSRequestAssistanceData struct {
 	_                        [0]struct{}               `per:"extseq"`
 	GNSSCommonAssistDataReq  *GNSSCommonAssistDataReq  `per:",optional"`

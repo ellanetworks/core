@@ -26,7 +26,7 @@ func BuildLPPCapabilitiesResponse(opts *LPPCapabilitiesResponseOpts) ([]byte, er
 		return nil, nil
 	}
 
-	var gnssIDs []int64
+	var gnssIDs []lpptype.GNSSIDValue
 
 	if opts.GNSSGPS {
 		gnssIDs = append(gnssIDs, lpptype.GNSSIDGPS)

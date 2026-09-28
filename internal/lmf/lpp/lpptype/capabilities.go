@@ -7,6 +7,16 @@ type CommonIEsRequestCapabilities struct {
 	_ [0]struct{} `per:"extseq"`
 }
 
+// =====================================================================
+// A-GNSS-RequestCapabilities (TS 37.355 §6.5.2.11)
+// =====================================================================
+
+//	A-GNSS-RequestCapabilities ::= SEQUENCE {
+//	    gnss-SupportListReq    BOOLEAN,
+//	    assistanceDataSupportListReq BOOLEAN,
+//	    locationVelocityTypesReq  BOOLEAN,
+//	    ...
+//	}
 type AGNSSRequestCapabilities struct {
 	_                            [0]struct{} `per:"extseq"`
 	GNSSSupportListReq           bool
@@ -26,6 +36,10 @@ type CommonIEsProvideCapabilities struct {
 	_ [0]struct{} `per:"extseq"`
 }
 
+// =====================================================================
+// A-GNSS-ProvideCapabilities (TS 37.355 §6.5.2.9) — extensible SEQUENCE
+// =====================================================================
+
 type AGNSSProvideCapabilities struct {
 	_                         [0]struct{}                `per:"extseq"`
 	GNSSSupportList           *GNSSSupportList           `per:",optional"`
@@ -34,10 +48,26 @@ type AGNSSProvideCapabilities struct {
 	VelocityTypes             *VelocityTypes             `per:",optional"`
 }
 
+// =====================================================================
+// GNSS-SupportList (TS 37.355 §6.5.2.9)
+// =====================================================================
+
+// GNSS-SupportList ::= SEQUENCE (SIZE(1..16)) OF GNSS-SupportElement
 type GNSSSupportList struct {
 	List []GNSSSupportElement `per:"SEQUENCE-OF,size:1..16"`
 }
 
+//	GNSS-SupportElement ::= SEQUENCE {
+//	    gnss-ID       GNSS-ID,
+//	    sbas-IDs      SBAS-IDs     OPTIONAL,
+//	    agnss-Modes      PositioningModes,
+//	    gnss-Signals     GNSS-SignalIDs,
+//	    fta-MeasSupport     SEQUENCE { ... } OPTIONAL,
+//	    adr-Support      BOOLEAN,
+//	    velocityMeasurementSupport  BOOLEAN,
+//	    ...,
+//	    [[ ... ]]
+//	}
 type GNSSSupportElement struct {
 	_                          [0]struct{} `per:"extseq"`
 	GNSSID                     GNSSID
@@ -186,11 +216,11 @@ type OTDOAProvideCapabilities struct {
 }
 
 const (
-	ECIDMeasSupportedRSRP   = 0
-	ECIDMeasSupportedRSRQ   = 1
-	ECIDMeasSupportedUERxTx = 2
-	ECIDMeasSupportedNRSRP  = 3
-	ECIDMeasSupportedNRSRQ  = 4
+	ECIDMeasSupportedRSRPSup   = 0
+	ECIDMeasSupportedRSRQSup   = 1
+	ECIDMeasSupportedUERxTxSup = 2
+	ECIDMeasSupportedNRSRPSup  = 3
+	ECIDMeasSupportedNRSRQSup  = 4
 )
 
 type ECIDProvideCapabilities struct {

@@ -21,13 +21,15 @@ import (
 type captureLPPHandler struct {
 	mu             sync.Mutex
 	correlationIDs [][]byte
+	messages       [][]byte
 }
 
-func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, correlationID, _ []byte) error {
+func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, correlationID, lppData []byte) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.correlationIDs = append(h.correlationIDs, append([]byte(nil), correlationID...))
+	h.messages = append(h.messages, append([]byte(nil), lppData...))
 
 	return nil
 }
@@ -37,7 +39,7 @@ func (h *captureLPPHandler) ForwardLPPToUE(_ context.Context, _ Core, _ string, 
 func provideCapabilitiesRequestingAck(t *testing.T, seq byte) []byte {
 	t.Helper()
 
-	raw, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GNSSIDGPS})
+	raw, err := lpp.EncodeProvideCapabilities(0x00, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
@@ -148,7 +150,7 @@ func TestExpiredDeadlineFailsSessionAsTimeout(t *testing.T) {
 		t.Fatalf("StartSession: %v", err)
 	}
 
-	caps, err := lpp.EncodeProvideCapabilities(0x00, []int64{lpptype.GNSSIDGPS})
+	caps, err := lpp.EncodeProvideCapabilities(0x00, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS})
 	if err != nil {
 		t.Fatalf("EncodeProvideCapabilities: %v", err)
 	}
