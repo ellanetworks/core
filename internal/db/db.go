@@ -252,6 +252,12 @@ type Database struct {
 	listFramedRoutesByDNStmt     *sqlair.Statement
 	listAllFramedRoutesStmt      *sqlair.Statement
 
+	upsertUERegistrationStmt       *sqlair.Statement
+	purgeUERegistrationStmt        *sqlair.Statement
+	cancelUERegistrationStmt       *sqlair.Statement
+	purgeUERegistrationsByNodeStmt *sqlair.Statement
+	getUERegistrationStmt          *sqlair.Statement
+
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
 	upsertRetentionPolicyStmt *sqlair.Statement
@@ -1781,6 +1787,12 @@ func (db *Database) PrepareStatements() error {
 		{&db.listFramedRoutesByPairStmt, fmt.Sprintf(listFramedRoutesByPairStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
 		{&db.listFramedRoutesByDNStmt, fmt.Sprintf(listFramedRoutesByDNStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
 		{&db.listAllFramedRoutesStmt, fmt.Sprintf(listAllFramedRoutesStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
+
+		{&db.upsertUERegistrationStmt, fmt.Sprintf(upsertUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.purgeUERegistrationStmt, fmt.Sprintf(purgeUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.cancelUERegistrationStmt, fmt.Sprintf(cancelUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.purgeUERegistrationsByNodeStmt, fmt.Sprintf(purgeUERegistrationsByNodeStmt, UERegistrationsTableName), []any{UERegistration{}}},
+		{&db.getUERegistrationStmt, fmt.Sprintf(getUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},

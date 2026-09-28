@@ -223,6 +223,10 @@ func ExtractForRestore(bundlePath, dbPath string) error {
 		return err
 	}
 
+	if err := resetUERegistrationsPurgedInRestoredDB(ctx, partialPath); err != nil {
+		return err
+	}
+
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(partialPath + suffix)
 	}
@@ -524,6 +528,12 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
+	}
+
+	if err := resetUERegistrationsPurgedInRestoredDB(ctx, stagedDB); err != nil {
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	// Stream the validated SQLite file as an external snapshot into Raft.

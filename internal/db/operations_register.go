@@ -165,6 +165,11 @@ var (
 	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
 )
 
+var (
+	opRegisterUE          = registerChangesetOp("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+)
+
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.
 var (

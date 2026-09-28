@@ -42,6 +42,7 @@ var migrations = []migration{
 	{18, "add description column to subscribers", migrateV18},
 	{19, "store audit log, radio event and flow report timestamps as INTEGER epoch milliseconds (not seconds, unlike every other INTEGER time column)", migrateV19},
 	{20, "retype node identity to TEXT; add cluster_members.amfPointer and displayName; drop raftAddress and suffrage (owned by the Raft configuration)", migrateV20},
+	{21, "add ue_registrations table (HSS MME identity, UDM AMF registration)", migrateV21},
 }
 
 // baselineVersion is the highest migration that runs locally during
