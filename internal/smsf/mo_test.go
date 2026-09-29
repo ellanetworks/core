@@ -6,6 +6,7 @@ package smsf_test
 import (
 	"bytes"
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -364,4 +365,30 @@ func TestTheConnectionIsReleasableOnceTheReportIsSent(t *testing.T) {
 	}
 
 	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPAck{TransactionIdentifier: moTI(1)}))
+}
+
+func TestTheReportIsSentBeforeTheConnectionIsReleasable(t *testing.T) {
+	e := newEnv(t)
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	if _, ok := expectReport(t, e, moTI(1).Peer()).(*sms.RPAck); !ok {
+		t.Fatal("expected RP-ACK")
+	}
+
+	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() >= 1 })
+
+	events := e.ue.events()
+	report, settled := -1, slices.Index(events, "settled")
+
+	for i, ev := range events {
+		if ev == sms.CPMessageTypeData.String() {
+			report = i
+		}
+	}
+
+	if report < 0 || settled < report {
+		t.Fatalf("events = %v: the report must reach the core before the connection may be released", events)
+	}
 }

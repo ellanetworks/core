@@ -553,3 +553,31 @@ func TestAnAlertDoesNotRaceADeliveryInProgress(t *testing.T) {
 		t.Fatalf("SMSC alerted %d times during a delivery that succeeded", n)
 	}
 }
+
+func TestNonDeliveryBeforeTheCPDataIsSentDoesNotRetransmit(t *testing.T) {
+	timers := fastTimers()
+	timers.TC1 = time.Hour
+	e := newEnvWithTimers(t, timers)
+
+	gate := e.ue.holdReachability()
+	tfa := forwardAsync(t, e)
+
+	eventually(t, "the UE to be reached", func() bool { return e.ue.reachability() == 1 })
+
+	e.smsf.DeliveryFailed(imsi)
+	close(gate)
+
+	data, rp := receiveRPData(t, e)
+
+	select {
+	case m := <-e.ue.downlink:
+		t.Fatalf("spurious retransmission %s", m.MessageType())
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
+
+	if f := awaitTFA(t, tfa); f.err != nil {
+		t.Fatalf("TFA: %v", f.err)
+	}
+}

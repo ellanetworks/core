@@ -161,6 +161,7 @@ type fakeUE struct {
 	reached  int
 	accesses []smsf.Access
 	settled  int
+	order    []string
 	gate     chan struct{}
 	downlink chan sms.CPMessage
 }
@@ -197,6 +198,14 @@ func (u *fakeUE) SignallingSettled(context.Context, string, smsf.Access) {
 	defer u.mu.Unlock()
 
 	u.settled++
+	u.order = append(u.order, "settled")
+}
+
+func (u *fakeUE) events() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	return slices.Clone(u.order)
 }
 
 func (u *fakeUE) settlements() int {
@@ -233,6 +242,10 @@ func (u *fakeUE) SendSMS(_ context.Context, _ string, _ smsf.Access, payload []b
 	if parseErr != nil {
 		return parseErr
 	}
+
+	u.mu.Lock()
+	u.order = append(u.order, m.MessageType().String())
+	u.mu.Unlock()
 
 	u.downlink <- m
 

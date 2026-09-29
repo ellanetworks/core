@@ -35,6 +35,7 @@ type mtTransaction struct {
 	aborted    chan struct{}
 	retry      chan struct{}
 	abortCause sms.CPCause
+	sent       bool
 }
 
 type ueState struct {
@@ -63,7 +64,7 @@ func (s *SMSF) DeliveryFailed(imsi string) {
 		return
 	}
 
-	if u.mt != nil {
+	if u.mt != nil && u.mt.sent {
 		signal(u.mt.retry)
 	}
 
@@ -304,7 +305,7 @@ func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) 
 	return s.send(ctx, imsi, data)
 }
 
-func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, ack, aborted, retry <-chan struct{}) error {
+func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, ack, aborted, retry <-chan struct{}, sent func()) error {
 	for attempt := 0; ; attempt++ {
 		if err := s.reachAndSend(ctx, imsi, data); err != nil {
 			if attempt > 0 {
@@ -312,6 +313,10 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 			}
 
 			return err
+		}
+
+		if attempt == 0 {
+			sent()
 		}
 
 		timer := time.NewTimer(s.timers.TC1)

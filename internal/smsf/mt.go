@@ -161,7 +161,11 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 	}
 
-	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, t.ack, t.aborted, t.retry)
+	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, t.ack, t.aborted, t.retry, func() {
+		s.mu.Lock()
+		t.sent = true
+		s.mu.Unlock()
+	})
 
 	if outcome, failed := s.transferFailure(ctx, imsi, serviceCentre, err); failed {
 		return outcome
