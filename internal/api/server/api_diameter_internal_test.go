@@ -15,20 +15,20 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
-	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/diameternode"
 )
 
 type fakeDiameterNode struct {
-	identity    smsf.Identity
+	identity    diameternode.Identity
 	identityErr error
-	peers       []smsf.PeerStatus
+	peers       []diameternode.PeerStatus
 }
 
-func (f fakeDiameterNode) Identity(context.Context) (smsf.Identity, error) {
+func (f fakeDiameterNode) Identity(context.Context) (diameternode.Identity, error) {
 	return f.identity, f.identityErr
 }
 
-func (f fakeDiameterNode) Peers() []smsf.PeerStatus { return f.peers }
+func (f fakeDiameterNode) Peers() []diameternode.PeerStatus { return f.peers }
 
 func getDiameter(t *testing.T, node DiameterNode) DiameterStatus {
 	t.Helper()
@@ -55,9 +55,9 @@ func TestGetDiameterStatus(t *testing.T) {
 	since := time.Date(2026, 9, 29, 12, 0, 0, 0, time.FixedZone("EDT", -4*3600))
 
 	got := getDiameter(t, fakeDiameterNode{
-		identity: smsf.Identity{Host: "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org", Realm: "epc.mnc001.mcc001.3gppnetwork.org"},
-		peers: []smsf.PeerStatus{{
-			Role:    smsf.PeerRoleSMSC,
+		identity: diameternode.Identity{Host: "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org", Realm: "epc.mnc001.mcc001.3gppnetwork.org"},
+		peers: []diameternode.PeerStatus{{
+			Role:    "smsc",
 			Host:    "smsc.example.org",
 			Realm:   "example.org",
 			Address: netip.MustParseAddrPort("[2001:db8::10]:3868"),

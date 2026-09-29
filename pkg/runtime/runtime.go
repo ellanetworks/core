@@ -32,6 +32,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/lmf"
@@ -54,6 +55,7 @@ import (
 	"github.com/ellanetworks/core/internal/ueregistration"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	amfsctp "github.com/ellanetworks/core/sctp"
 	"github.com/ellanetworks/core/version"
@@ -544,15 +546,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
-	smscLink := smsf.NewLink(smscSource(dbInstance), diameterNodeSource(mmeInstance), nil, logger.SmsfLog)
-	smsf.RegisterMetrics(smscLink)
+	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), logger.DiameterLog)
+	diameternode.RegisterMetrics(diameterNode)
 
-	smsWakeup, stopSMSWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
+	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, diameterNode, logger.SmsfLog, smsf.DefaultTimers())
+	smsfInstance.Register(diameterNode)
+
+	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
 
 	wg.Go(func() {
-		defer stopSMSWakeup()
+		defer stopDiameterWakeup()
 
-		smscLink.Run(ctx, smsWakeup)
+		diameterNode.Run(ctx, diameterWakeup)
 	})
 
 	lmfAMF := &lmfBridge{amf: amfInstance, mme: mmeInstance, lmf: lmfInstance}
@@ -602,7 +607,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		MME:                 mmeInstance,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
-		Diameter:            smscLink,
+		Diameter:            diameterNode,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
@@ -1080,36 +1085,77 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 	))
 }
 
-func smscSource(dbInstance *db.Database) smsf.SMSCSource {
-	return func(ctx context.Context) (netip.AddrPort, error) {
+func diameterPeersSource(dbInstance *db.Database) diameternode.PeersSource {
+	return func(ctx context.Context) ([]diameternode.PeerConfig, error) {
 		settings, err := dbInstance.GetSMSSettings(ctx)
 		if err != nil {
-			return netip.AddrPort{}, err
+			return nil, err
 		}
 
 		if !settings.Enabled() {
-			return netip.AddrPort{}, nil
+			return nil, nil
 		}
 
 		addr, err := netip.ParseAddr(settings.SMSCAddress)
 		if err != nil {
-			return netip.AddrPort{}, fmt.Errorf("invalid SMSC address %q: %w", settings.SMSCAddress, err)
+			return nil, fmt.Errorf("invalid SMSC address %q: %w", settings.SMSCAddress, err)
 		}
 
-		return netip.AddrPortFrom(addr, uint16(settings.SMSCPort)), nil // #nosec G115 -- validated to 1-65535
+		return []diameternode.PeerConfig{
+			smsf.SMSCPeer(netip.AddrPortFrom(addr, uint16(settings.SMSCPort))), // #nosec G115 -- validated to 1-65535
+		}, nil
 	}
 }
 
-func diameterNodeSource(mmeInstance *mme.MME) smsf.NodeSource {
-	return func(ctx context.Context) (smsf.NodeSettings, error) {
-		op, err := mmeInstance.Operator(ctx)
-		if err != nil {
-			return smsf.NodeSettings{}, err
+func diameterNodeSource(dbInstance *db.Database) diameternode.NodeSource {
+	return func(ctx context.Context) (diameternode.NodeSettings, error) {
+		pointer := dbInstance.AMFPointer()
+		if pointer < 1 {
+			return diameternode.NodeSettings{}, errors.New("this node has no AMF Pointer yet; the leader allocates it into cluster_members on join")
 		}
 
-		plmn := op.PLMN()
-		group, code := op.GUMMEI()
+		op, err := dbInstance.GetOperator(ctx)
+		if err != nil {
+			return diameternode.NodeSettings{}, fmt.Errorf("get operator: %w", err)
+		}
 
-		return smsf.NodeSettings{MCC: plmn.Mcc, MNC: plmn.Mnc, MMEGroupID: group, MMECode: code}, nil
+		return diameterNodeSettings(op, pointer), nil
 	}
+}
+
+func diameterNodeSettings(op *db.Operator, pointer int) diameternode.NodeSettings {
+	mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{
+		AMFRegionID: op.GUAMIRegionID(),
+		AMFSetID:    uint16(op.AmfSetID), // #nosec G115 -- bounded to 10 bits by the operator API
+		AMFPointer:  uint8(pointer),      // #nosec G115 -- bounded to [1, 63]
+	})
+
+	return diameternode.NodeSettings{MCC: op.Mcc, MNC: op.Mnc, MMEGroupID: mapped.MMEGroupID, MMECode: mapped.MMECode}
+}
+
+type diameterDirectory struct {
+	db   *db.Database
+	node *diameternode.Manager
+}
+
+func (d *diameterDirectory) Identity(ctx context.Context, nodeID string) (diameternode.Identity, error) {
+	if nodeID == d.db.RaftID() {
+		return d.node.Identity(ctx)
+	}
+
+	member, err := d.db.GetClusterMember(ctx, nodeID)
+	if err != nil {
+		return diameternode.Identity{}, fmt.Errorf("cluster member %s: %w", nodeID, err)
+	}
+
+	if member.AMFPointer < 1 {
+		return diameternode.Identity{}, fmt.Errorf("cluster member %s has no AMF Pointer", nodeID)
+	}
+
+	op, err := d.db.GetOperator(ctx)
+	if err != nil {
+		return diameternode.Identity{}, fmt.Errorf("get operator: %w", err)
+	}
+
+	return diameternode.IdentityOf(diameterNodeSettings(op, member.AMFPointer))
 }

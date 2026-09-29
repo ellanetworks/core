@@ -37,6 +37,7 @@ var (
 	RaftLog     *zap.Logger
 	LmfLog      *zap.Logger
 	BgpLog      *zap.Logger
+	DiameterLog *zap.Logger
 	SmsfLog     *zap.Logger
 
 	atomicLevel = zap.NewAtomicLevelAt(zapcore.InfoLevel)
@@ -90,6 +91,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	RaftLog = Scope("Raft")
 	LmfLog = Scope("LMF")
 	BgpLog = Scope("BGP")
+	DiameterLog = Scope("Diameter")
 	SmsfLog = Scope("SMSF")
 
 	zap.RedirectStdLog(EllaLog)
@@ -210,6 +212,7 @@ func namedScopes() []namedScope {
 		{&RaftLog, "Raft"},
 		{&LmfLog, "LMF"},
 		{&BgpLog, "BGP"},
+		{&DiameterLog, "Diameter"},
 		{&SmsfLog, "SMSF"},
 	}
 }

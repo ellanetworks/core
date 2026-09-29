@@ -213,7 +213,7 @@ func NewSendRoutingInfoForSMAnswer(req *diameter.Message, id diameter.Identity, 
 		return nil, invalid("routing answer IMSI %q", routing.IMSI)
 	}
 
-	if routing.Serving == nil && !routing.hasSMSF() {
+	if _, notIntended := req.Find(AVPSMDeliveryNotIntended, tgpp.VendorID); routing.Serving == nil && !routing.hasSMSF() && !notIntended {
 		return nil, invalid("routing answer without a serving node")
 	}
 

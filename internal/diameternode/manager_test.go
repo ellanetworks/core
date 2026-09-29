@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package smsf_test
+package diameternode_test
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
-	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
 )
@@ -119,12 +119,12 @@ func (s *fakeSMSC) connectedHost() string {
 type settingsSource struct {
 	mu      sync.Mutex
 	smsc    netip.AddrPort
-	node    smsf.NodeSettings
+	node    diameternode.NodeSettings
 	nodeErr error
 }
 
 func newSettingsSource() *settingsSource {
-	return &settingsSource{node: smsf.NodeSettings{MCC: "001", MNC: "01", MMEGroupID: 0x8204, MMECode: 0x01}}
+	return &settingsSource{node: diameternode.NodeSettings{MCC: "001", MNC: "01", MMEGroupID: 0x8204, MMECode: 0x01}}
 }
 
 func (s *settingsSource) setSMSC(smsc netip.AddrPort) {
@@ -134,31 +134,46 @@ func (s *settingsSource) setSMSC(smsc netip.AddrPort) {
 	s.smsc = smsc
 }
 
-func (s *settingsSource) setNode(node smsf.NodeSettings, err error) {
+func (s *settingsSource) setNode(node diameternode.NodeSettings, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.node, s.nodeErr = node, err
 }
 
-func (s *settingsSource) getSMSC(context.Context) (netip.AddrPort, error) {
+func (s *settingsSource) getPeers(context.Context) ([]diameternode.PeerConfig, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.smsc, nil
+	if !s.smsc.IsValid() {
+		return nil, nil
+	}
+
+	return []diameternode.PeerConfig{{
+		Role:    "smsc",
+		Address: s.smsc,
+		Applications: []diameter.Application{
+			{ID: sgd.ApplicationID, VendorID: tgpp.VendorID},
+			{ID: s6c.ApplicationID, VendorID: tgpp.VendorID},
+		},
+	}}, nil
 }
 
-func (s *settingsSource) getNode(context.Context) (smsf.NodeSettings, error) {
+func (s *settingsSource) getNode(context.Context) (diameternode.NodeSettings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s.node, s.nodeErr
 }
 
-func startLink(t *testing.T, source *settingsSource) (*smsf.Link, chan struct{}) {
+func startManager(t *testing.T, source *settingsSource) (*diameternode.Manager, chan struct{}) {
 	t.Helper()
 
-	link := smsf.NewLink(source.getSMSC, source.getNode, nil, zap.NewNop())
+	link := diameternode.New(source.getNode, source.getPeers, zap.NewNop())
+	link.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameter.HandlerFunc(func(_ context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+		return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultUnableToComply)
+	}))
+
 	wakeup := make(chan struct{}, 1)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -184,17 +199,17 @@ func poke(wakeup chan struct{}) {
 	}
 }
 
-func smscPeer(link *smsf.Link) (smsf.PeerStatus, bool) {
+func smscPeer(link *diameternode.Manager) (diameternode.PeerStatus, bool) {
 	for _, p := range link.Peers() {
-		if p.Role == smsf.PeerRoleSMSC {
+		if p.Role == "smsc" {
 			return p, true
 		}
 	}
 
-	return smsf.PeerStatus{}, false
+	return diameternode.PeerStatus{}, false
 }
 
-func smscState(link *smsf.Link) diameter.PeerState {
+func smscState(link *diameternode.Manager) diameter.PeerState {
 	p, ok := smscPeer(link)
 	if !ok {
 		return -1
@@ -217,9 +232,9 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-func TestLinkDisabledWithoutSMSC(t *testing.T) {
+func TestNodeDisabledWithoutSMSC(t *testing.T) {
 	source := newSettingsSource()
-	link, _ := startLink(t, source)
+	link, _ := startManager(t, source)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -232,14 +247,14 @@ func TestLinkDisabledWithoutSMSC(t *testing.T) {
 	}
 }
 
-func TestLinkConnectsToSMSC(t *testing.T) {
+func TestNodeConnectsToSMSC(t *testing.T) {
 	requireSCTP(t)
 
 	smsc := startFakeSMSC(t, 0)
 	source := newSettingsSource()
 	source.setSMSC(smsc.addr)
 
-	link, _ := startLink(t, source)
+	link, _ := startManager(t, source)
 
 	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
 
@@ -260,14 +275,14 @@ func TestLinkConnectsToSMSC(t *testing.T) {
 	waitFor(t, "SMSC to see Ella", func() bool { return smsc.connectedHost() == ellaHost })
 }
 
-func TestLinkAnswersSMSCRequestsWhileSMSFIsPending(t *testing.T) {
+func TestNodeDispatchesRequestsToRegisteredHandlers(t *testing.T) {
 	requireSCTP(t)
 
 	smsc := startFakeSMSC(t, 0)
 	source := newSettingsSource()
 	source.setSMSC(smsc.addr)
 
-	link, _ := startLink(t, source)
+	link, _ := startManager(t, source)
 
 	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
 
@@ -302,7 +317,7 @@ func TestLinkAnswersSMSCRequestsWhileSMSFIsPending(t *testing.T) {
 	}
 }
 
-func TestLinkFollowsSettingsChanges(t *testing.T) {
+func TestNodeFollowsSettingsChanges(t *testing.T) {
 	requireSCTP(t)
 
 	first := startFakeSMSC(t, 0)
@@ -311,15 +326,21 @@ func TestLinkFollowsSettingsChanges(t *testing.T) {
 	source := newSettingsSource()
 	source.setSMSC(first.addr)
 
-	link, wakeup := startLink(t, source)
+	link, wakeup := startManager(t, source)
 
 	waitFor(t, "link up to the first SMSC", func() bool { return first.connectedHost() == ellaHost })
+
+	node := link.Node()
 
 	source.setSMSC(second.addr)
 	poke(wakeup)
 
 	waitFor(t, "link up to the second SMSC", func() bool { return second.connectedHost() == ellaHost })
 	waitFor(t, "first SMSC released", func() bool { return first.connectedHost() == "" })
+
+	if link.Node() != node {
+		t.Fatal("changing the SMSC rebuilt the Diameter node; it must only replace the peer")
+	}
 
 	source.setSMSC(netip.AddrPort{})
 	poke(wakeup)
@@ -332,14 +353,14 @@ func TestLinkFollowsSettingsChanges(t *testing.T) {
 	}
 }
 
-func TestLinkReconnectsAfterSMSCRestart(t *testing.T) {
+func TestNodeReconnectsAfterSMSCRestart(t *testing.T) {
 	requireSCTP(t)
 
 	smsc := startFakeSMSC(t, 0)
 	source := newSettingsSource()
 	source.setSMSC(smsc.addr)
 
-	link, _ := startLink(t, source)
+	link, _ := startManager(t, source)
 
 	waitFor(t, "link up", func() bool { return smscState(link) == diameter.PeerOpen })
 
@@ -356,12 +377,12 @@ func TestLinkReconnectsAfterSMSCRestart(t *testing.T) {
 	}
 }
 
-func TestLinkReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
+func TestNodeReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
 	source := newSettingsSource()
 	source.setSMSC(netip.MustParseAddrPort("127.0.0.1:3868"))
-	source.setNode(smsf.NodeSettings{MCC: "1", MNC: "01"}, nil)
+	source.setNode(diameternode.NodeSettings{MCC: "1", MNC: "01"}, nil)
 
-	link, _ := startLink(t, source)
+	link, _ := startManager(t, source)
 
 	waitFor(t, "down state", func() bool { return smscState(link) == diameter.PeerDown })
 
@@ -374,9 +395,9 @@ func TestLinkReportsTheSMSCDownWhenItCannotStart(t *testing.T) {
 	}
 }
 
-func TestLinkIdentityWithoutSMSC(t *testing.T) {
+func TestNodeIdentityWithoutSMSC(t *testing.T) {
 	source := newSettingsSource()
-	link := smsf.NewLink(source.getSMSC, source.getNode, nil, zap.NewNop())
+	link := diameternode.New(source.getNode, source.getPeers, zap.NewNop())
 
 	identity, err := link.Identity(context.Background())
 	if err != nil {
@@ -387,7 +408,7 @@ func TestLinkIdentityWithoutSMSC(t *testing.T) {
 		t.Fatalf("identity = %+v", identity)
 	}
 
-	source.setNode(smsf.NodeSettings{}, errors.New("this node has no AMF Pointer yet"))
+	source.setNode(diameternode.NodeSettings{}, errors.New("this node has no AMF Pointer yet"))
 
 	if _, err := link.Identity(context.Background()); err == nil {
 		t.Fatal("Identity hid a settings error")

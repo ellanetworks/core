@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package smsf_test
+package diameternode_test
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/smsf"
+	"github.com/ellanetworks/core/internal/diameternode"
 )
 
 func TestDiameterRealm(t *testing.T) {
@@ -20,7 +20,7 @@ func TestDiameterRealm(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got, err := smsf.DiameterRealm(tc.mcc, tc.mnc)
+		got, err := diameternode.DiameterRealm(tc.mcc, tc.mnc)
 		if err != nil {
 			t.Fatalf("DiameterRealm(%s, %s): %v", tc.mcc, tc.mnc, err)
 		}
@@ -33,21 +33,21 @@ func TestDiameterRealm(t *testing.T) {
 
 func TestDiameterRealmRejectsInvalidPLMN(t *testing.T) {
 	for _, plmn := range [][2]string{{"01", "01"}, {"001", "1"}, {"001", "0001"}, {"0a1", "01"}, {"001", ""}} {
-		if _, err := smsf.DiameterRealm(plmn[0], plmn[1]); err == nil {
+		if _, err := diameternode.DiameterRealm(plmn[0], plmn[1]); err == nil {
 			t.Fatalf("DiameterRealm(%s, %s) accepted an invalid PLMN", plmn[0], plmn[1])
 		}
 	}
 }
 
 func TestMMEHost(t *testing.T) {
-	got := smsf.MMEHost("epc.mnc001.mcc001.3gppnetwork.org", 0x8204, 0x1)
+	got := diameternode.MMEHost("epc.mnc001.mcc001.3gppnetwork.org", 0x8204, 0x1)
 	want := "mmec01.mmegi8204.mme.epc.mnc001.mcc001.3gppnetwork.org"
 
 	if got != want {
 		t.Fatalf("MMEHost = %q, want %q", got, want)
 	}
 
-	got = smsf.MMEHost("epc.mnc001.mcc001.3gppnetwork.org", 0x4, 0xab)
+	got = diameternode.MMEHost("epc.mnc001.mcc001.3gppnetwork.org", 0x4, 0xab)
 	want = "mmecab.mmegi0004.mme.epc.mnc001.mcc001.3gppnetwork.org"
 
 	if got != want {

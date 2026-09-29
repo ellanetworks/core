@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/internal/diameternode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smsf"
 )
 
 type DiameterNode interface {
-	Identity(ctx context.Context) (smsf.Identity, error)
-	Peers() []smsf.PeerStatus
+	Identity(ctx context.Context) (diameternode.Identity, error)
+	Peers() []diameternode.PeerStatus
 }
 
 type DiameterPeer struct {

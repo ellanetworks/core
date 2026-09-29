@@ -1,37 +1,33 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package smsf
+package diameternode
 
 import (
 	"github.com/ellanetworks/core/diameter"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func RegisterMetrics(link *Link) {
+func RegisterMetrics(m *Manager) {
 	up := prometheus.NewDesc(
-		"app_smsc_link_up",
-		"Whether this node's Diameter link to the SMSC is open (1) or not (0). Absent while SMS is disabled.",
-		nil,
+		"app_diameter_peer_up",
+		"Whether this node's Diameter connection to a configured peer is open (1) or not (0), by peer role.",
+		[]string{"role"},
 		nil,
 	)
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		if link == nil {
+		if m == nil {
 			return
 		}
 
-		for _, peer := range link.Peers() {
-			if peer.Role != PeerRoleSMSC {
-				continue
-			}
-
+		for _, peer := range m.Peers() {
 			value := 0.0
 			if peer.State == diameter.PeerOpen {
 				value = 1
 			}
 
-			ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, value)
+			ch <- prometheus.MustNewConstMetric(up, prometheus.GaugeValue, value, peer.Role)
 		}
 	}))
 }

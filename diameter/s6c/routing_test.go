@@ -252,6 +252,24 @@ func TestSendRoutingInfoForSMAnswerValidation(t *testing.T) {
 	}
 }
 
+func TestSendRoutingInfoForSMAnswerWithoutServingNodeWhenDeliveryNotIntended(t *testing.T) {
+	req := request(CommandSendRoutingInfoForSM,
+		diameter.Unsigned32(AVPSMDeliveryNotIntended, diameter.AVPFlagMandatory, tgpp.VendorID, SMDeliveryNotIntendedIMSI))
+
+	ans, err := NewSendRoutingInfoForSMAnswer(req, hssIdentity, Routing{IMSI: "001010000000001"}, true)
+	if err != nil {
+		t.Fatalf("NewSendRoutingInfoForSMAnswer: %v", err)
+	}
+
+	if name, ok := ans.Find(diameter.AVPUserName, 0); !ok || name.UTF8String() != "001010000000001" {
+		t.Fatalf("answer without the IMSI: %+v", ans)
+	}
+
+	if _, ok := ans.Find(AVPServingNode, tgpp.VendorID); ok {
+		t.Fatal("answer names a serving node")
+	}
+}
+
 func TestSendRoutingInfoForSMAllowedServingNodes(t *testing.T) {
 	req := request(CommandSendRoutingInfoForSM)
 
