@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
+	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -60,9 +61,17 @@ func (e *ENB) AnswerLPP(ue *UE, enbUEID int64, fix LPPFix, timeout time.Duration
 
 		switch decoded.BodyKind {
 		case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
-			reply, err = lpp.EncodeProvideCapabilities(decoded.TransactionID, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS, lpptype.GNSSIDGLONASS})
+			if decoded.RequestCapabilities.ECID != nil {
+				reply, err = lpp.EncodeProvideECIDCapabilities(decoded.TransactionID, 0, &lppmodels.ECIDMeasurements{RSRP: true, RSRQ: true}, nil)
+			} else {
+				reply, err = lpp.EncodeProvideCapabilities(decoded.TransactionID, []lpptype.GNSSIDValue{lpptype.GNSSIDGPS, lpptype.GNSSIDGLONASS})
+			}
 		case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
-			reply, err = lpp.EncodeProvideLocationInformation(decoded.TransactionID, fix.Latitude, fix.Longitude, fix.Altitude, fix.HorizontalAccuracy, fix.VerticalAccuracy)
+			if decoded.RequestLocationInformation.ECID != nil {
+				reply, err = lpp.EncodeProvideECIDLocationInformation(decoded.TransactionID, 0, ecidMeasurements(), nil)
+			} else {
+				reply, err = lpp.EncodeProvideLocationInformation(decoded.TransactionID, fix.Latitude, fix.Longitude, fix.Altitude, fix.HorizontalAccuracy, fix.VerticalAccuracy)
+			}
 		case lpptype.LPPMessageBodyC1PresentAbort, lpptype.LPPMessageBodyC1PresentError:
 			return fmt.Errorf("received LPP abort or error from the LMF")
 		default:
@@ -82,6 +91,20 @@ func (e *ENB) AnswerLPP(ue *UE, enbUEID int64, fix LPPFix, timeout time.Duration
 		if decoded.BodyKind == lpptype.LPPMessageBodyC1PresentRequestLocationInformation {
 			return nil
 		}
+	}
+}
+
+func ecidMeasurements() *lpptype.ECIDSignalMeasurementInformation {
+	servingRSRP, servingRSRQ := int64(60), int64(28)
+	neighbourRSRP, neighbourRSRQ := int64(43), int64(25)
+
+	return &lpptype.ECIDSignalMeasurementInformation{
+		PrimaryCellMeasuredResults: &lpptype.MeasuredResultsElement{
+			PhysCellID: 1, ARFCNEUTRA: 1300, RSRPResult: &servingRSRP, RSRQResult: &servingRSRQ,
+		},
+		MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{
+			{PhysCellID: 148, ARFCNEUTRA: 1300, RSRPResult: &neighbourRSRP, RSRQResult: &neighbourRSRQ},
+		}},
 	}
 }
 

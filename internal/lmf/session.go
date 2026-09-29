@@ -3,6 +3,14 @@
 
 package lmf
 
+import (
+	"errors"
+	"fmt"
+	"slices"
+
+	"github.com/ellanetworks/core/internal/lmf/models"
+)
+
 // RequestType identifies the type of location request.
 type RequestType string
 
@@ -58,4 +66,24 @@ func SessionTypeFromRequest(rt RequestType) SessionType {
 	default:
 		return SessionTypeImmediate
 	}
+}
+
+var ErrUnsupportedMode = errors.New("unsupported positioning mode")
+
+var supportedModes = map[RequestedMethod][]models.PositioningMode{
+	RequestedCellID: nil,
+	RequestedECID:   {models.PositioningModeUEAssisted, models.PositioningModeNetworkBased},
+	RequestedGNSS:   {models.PositioningModeStandalone},
+}
+
+func SupportedModes(method RequestedMethod) []models.PositioningMode {
+	return supportedModes[method]
+}
+
+func ValidateMode(method RequestedMethod, mode models.PositioningMode) error {
+	if mode == "" || slices.Contains(supportedModes[method], mode) {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %q for method %q", ErrUnsupportedMode, mode, method)
 }

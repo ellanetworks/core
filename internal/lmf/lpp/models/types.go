@@ -7,15 +7,39 @@ import lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 
 // RequestLocationInformation is sent by LMF to UE to request a location fix.
 type RequestLocationInformation struct {
-	TransactionID     byte
-	PositioningMethod uint8
-	NumberOfSVs       uint8
+	TransactionID byte
+	AGNSS         bool
+	ECID          *ECIDMeasurements
+	NRECID        *NRECIDMeasurements
+}
+
+type ECIDMeasurements struct {
+	RSRP   bool
+	RSRQ   bool
+	UERxTx bool
+}
+
+func (m ECIDMeasurements) Any() bool {
+	return m.RSRP || m.RSRQ || m.UERxTx
+}
+
+type NRECIDMeasurements struct {
+	SSRSRP  bool
+	SSRSRQ  bool
+	CSIRSRP bool
+	CSIRSRQ bool
+}
+
+func (m NRECIDMeasurements) Any() bool {
+	return m.SSRSRP || m.SSRSRQ || m.CSIRSRP || m.CSIRSRQ
 }
 
 // ProvideLocationCapabilities is sent by UE to LMF in response.
 type ProvideLocationCapabilities struct {
 	TransactionID  byte
 	GNSSCapability GNSSCapability
+	ECID           *ECIDMeasurements
+	NRECID         *NRECIDMeasurements
 }
 
 // GnssID represents a GNSS constellation identifier per TS 37.355 §6.4.1.
@@ -97,6 +121,9 @@ type ProvideLocationInformation struct {
 	UnsupportedLocationShape bool
 	LocationFailureCause     *int64
 	GNSSErrorCause           *int64
+	Measurements             []lmfmodels.CellMeasurement
+	ECIDErrorCause           *int64
+	NRECIDErrorCause         *int64
 }
 
 type RequestAssistanceData struct {

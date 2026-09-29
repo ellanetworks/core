@@ -4,10 +4,13 @@
 package lmf
 
 import (
+	"errors"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/lmf/models"
+	coremodels "github.com/ellanetworks/core/internal/models"
 )
 
 // TestNrTAToDistance checks the NR-TADV report-mapping bins against TS 38.133
@@ -102,19 +105,163 @@ func TestTAToDistance(t *testing.T) {
 	}
 }
 
-func TestHasRadioMeasurements(t *testing.T) {
-	if hasRadioMeasurements(nil) {
-		t.Fatal("nil measurements must not count as E-CID")
+func TestECIDPositioning(t *testing.T) {
+	anchor := &models.GeographicEstimate{LatitudeDegrees: 45}
+	cells := []models.CellMeasurement{{Source: models.MeasurementSourceNetwork, RAT: models.RATNR, Serving: true}}
+	cellID := models.PositioningAttempt{Method: models.PositioningMethodCellID, Mode: models.PositioningModeNetworkBased, Usage: models.PositioningUsageResultsUsedToGenerate}
+
+	attempt := func(mode models.PositioningMode, usage models.PositioningUsage) models.PositioningAttempt {
+		return models.PositioningAttempt{Method: models.PositioningMethodNRECID, Mode: mode, Usage: usage}
 	}
 
-	// Serving cell / AP position only (no UE-specific quantity) is a Cell-ID fix.
-	pos := &models.GeographicEstimate{LatitudeDegrees: 45}
-	if hasRadioMeasurements(&models.RadioMeasurements{APPosition: pos}) {
-		t.Fatal("AP position alone must not count as E-CID")
+	cases := []struct {
+		name        string
+		wantNetwork bool
+		wantUE      bool
+		network     *models.RadioMeasurements
+		ueErr       error
+		noAnchor    bool
+		want        []models.PositioningAttempt
+	}{
+		{
+			name:        "RAN anchor generates the estimate",
+			wantNetwork: true,
+			wantUE:      true,
+			network:     &models.RadioMeasurements{Cells: cells, APPosition: anchor},
+			want: []models.PositioningAttempt{
+				attempt(models.PositioningModeNetworkBased, models.PositioningUsageResultsUsedToGenerate),
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageResultsNotUsed),
+			},
+		},
+		{
+			name:        "cell table generates the estimate, measurements reported but unused",
+			wantNetwork: true,
+			wantUE:      true,
+			network:     &models.RadioMeasurements{Cells: cells},
+			want: []models.PositioningAttempt{
+				cellID,
+				attempt(models.PositioningModeNetworkBased, models.PositioningUsageResultsNotUsed),
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageResultsNotUsed),
+			},
+		},
+		{
+			name:        "both variants fail",
+			wantNetwork: true,
+			wantUE:      true,
+			ueErr:       errors.New("UE does not support E-CID"),
+			want: []models.PositioningAttempt{
+				cellID,
+				attempt(models.PositioningModeNetworkBased, models.PositioningUsageUnsuccess),
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageUnsuccess),
+			},
+		},
+		{
+			name:        "no position for the serving cell, measurements still reported",
+			wantNetwork: true,
+			wantUE:      true,
+			network:     &models.RadioMeasurements{Cells: cells},
+			noAnchor:    true,
+			want: []models.PositioningAttempt{
+				attempt(models.PositioningModeNetworkBased, models.PositioningUsageResultsNotUsed),
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageResultsNotUsed),
+			},
+		},
+		{
+			name:   "UE-assisted only",
+			wantUE: true,
+			want: []models.PositioningAttempt{
+				cellID,
+				attempt(models.PositioningModeUEAssisted, models.PositioningUsageResultsNotUsed),
+			},
+		},
 	}
 
-	rsrp := int32(-8500)
-	if !hasRadioMeasurements(&models.RadioMeasurements{RSRP: &rsrp}) {
-		t.Fatal("a populated RSRP must count as E-CID")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ecidPositioning(models.PositioningMethodNRECID, tc.wantNetwork, tc.wantUE, tc.network, tc.ueErr, !tc.noAnchor)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWithDistancePrefersNRTimingAdvance(t *testing.T) {
+	nrTA, ta := int64(10), int64(100)
+
+	cells := withDistance([]models.CellMeasurement{
+		{NRTimingAdvance: &nrTA, TimingAdvance: &ta},
+		{TimingAdvance: &ta},
+		{},
+	})
+
+	if d := cells[0].DistanceMeters; d == nil || *d != nrTAToDistance(10) {
+		t.Errorf("NR TA distance = %v, want %v", d, nrTAToDistance(10))
+	}
+
+	if d := cells[1].DistanceMeters; d == nil || *d != taToDistance(100) {
+		t.Errorf("TA distance = %v, want %v", d, taToDistance(100))
+	}
+
+	if cells[2].DistanceMeters != nil {
+		t.Errorf("distance without timing = %v, want nil", *cells[2].DistanceMeters)
+	}
+}
+
+func TestValidateMode(t *testing.T) {
+	cases := []struct {
+		method RequestedMethod
+		mode   models.PositioningMode
+		ok     bool
+	}{
+		{RequestedCellID, "", true},
+		{RequestedCellID, models.PositioningModeNetworkBased, false},
+		{RequestedECID, "", true},
+		{RequestedECID, models.PositioningModeUEAssisted, true},
+		{RequestedECID, models.PositioningModeNetworkBased, true},
+		{RequestedECID, models.PositioningModeUEBased, false},
+		{RequestedGNSS, models.PositioningModeStandalone, true},
+		{RequestedGNSS, models.PositioningModeUEAssisted, false},
+		{RequestedGNSS, "bogus", false},
+	}
+
+	for _, tc := range cases {
+		err := ValidateMode(tc.method, tc.mode)
+		if (err == nil) != tc.ok {
+			t.Errorf("ValidateMode(%q, %q) = %v, want ok=%t", tc.method, tc.mode, err, tc.ok)
+		}
+
+		if err != nil && !errors.Is(err, ErrUnsupportedMode) {
+			t.Errorf("ValidateMode(%q, %q) = %v, want ErrUnsupportedMode", tc.method, tc.mode, err)
+		}
+	}
+}
+
+func TestMarkServingMatchesTheServingCellGlobalID(t *testing.T) {
+	plmn := &coremodels.PlmnID{Mcc: "001", Mnc: "01"}
+	serving := &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0000"}
+
+	cells := markServing([]models.CellMeasurement{
+		{RAT: models.RATEUTRA, ECGI: &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0000"}},
+		{RAT: models.RATEUTRA, ECGI: &coremodels.Ecgi{PlmnID: plmn, EutraCellID: "5ee0001"}},
+		{RAT: models.RATEUTRA},
+		{RAT: models.RATNR, Serving: true},
+	}, nil, serving)
+
+	want := []bool{true, false, false, true}
+	for i, c := range cells {
+		if c.Serving != want[i] {
+			t.Errorf("cell %d serving = %t, want %t", i, c.Serving, want[i])
+		}
+	}
+}
+
+func TestUEECIDTimeoutKeepsTheDefaultWithinTheNetworkBudget(t *testing.T) {
+	if got := ueECIDTimeout(""); got != ecidMeasurementTimeout {
+		t.Errorf("default mode UE timeout = %s, want %s", got, ecidMeasurementTimeout)
+	}
+
+	if got := ueECIDTimeout(models.PositioningModeUEAssisted); got != ecidUETimeout {
+		t.Errorf("ue_assisted UE timeout = %s, want %s", got, ecidUETimeout)
 	}
 }

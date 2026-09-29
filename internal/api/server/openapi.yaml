@@ -3057,14 +3057,6 @@ paths:
       tags: [Location]
       summary: Locate a subscriber
       description: "Beta: Locates a subscriber, or creates or cancels a deferred positioning session."
-      parameters:
-        - name: verbose
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          description: Include `supplementaryMeasurements`.
       requestBody:
         required: true
         content:
@@ -6010,20 +6002,17 @@ components:
           type: string
           enum: [cell_id, ecid, gnss]
           description: Positioning method. Defaults to `cell_id`.
+        mode:
+          type: string
+          enum: [network_based, ue_assisted, standalone]
+          description: "Positioning mode. `ecid`: `network_based`, `ue_assisted`. `gnss`: `standalone`. `cell_id`: none. Defaults to every mode supported by `method`."
         session_id:
           type: string
           description: Session to terminate. Required when `request_type` is `cancel`.
-        qos_response_time_ms:
-          type: integer
-          description: Response time, in milliseconds.
-        qos_horizontal_accuracy_m:
-          type: integer
-          description: Horizontal accuracy, in metres.
 
     LocationData:
       type: object
-      description: Location estimate (TS 29.572 LocationData).
-      required: [locationEstimate]
+      description: Location estimate (TS 29.572 LocationData). `locationEstimate` is absent when E-CID returned measurements but no position is available for the serving cell.
       properties:
         locationEstimate:
           $ref: "#/components/schemas/GeographicArea"
@@ -6049,8 +6038,10 @@ components:
         altitude:
           type: number
           description: Altitude, in metres, when the locationEstimate shape does not carry it.
-        supplementaryMeasurements:
-          $ref: "#/components/schemas/SupplementaryMeasurements"
+        radioMeasurements:
+          type: array
+          items:
+            $ref: "#/components/schemas/RadioMeasurement"
 
     GeographicArea:
       type: object
@@ -6114,7 +6105,7 @@ components:
           enum: [CONVENTIONAL, UE_ASSISTED]
         usage:
           type: string
-          enum: [SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION]
+          enum: [SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION, SUCCESS_RESULTS_NOT_USED, UNSUCCESS]
 
     GnssPositioningMethodAndUsage:
       type: object
@@ -6122,7 +6113,7 @@ components:
       properties:
         mode:
           type: string
-          enum: [UE_BASED]
+          enum: [CONVENTIONAL]
         gnss:
           type: string
           enum: [GPS]
@@ -6157,42 +6148,85 @@ components:
         eutraCellId:
           type: string
 
-    SupplementaryMeasurements:
+    RadioMeasurement:
       type: object
-      description: "Raw E-CID measurements. Only with `verbose=true`."
+      description: One measured cell (vendor extension).
+      required: [source, rat, serving]
       properties:
+        source:
+          type: string
+          enum: [UE, NETWORK]
+        rat:
+          type: string
+          enum: [NR, EUTRA]
+        serving:
+          type: boolean
+        pci:
+          type: integer
+          format: int64
+        arfcn:
+          type: integer
+          format: int64
+          description: EARFCN for E-UTRA, NR-ARFCN for NR.
+        arfcnType:
+          type: string
+          enum: [SSB, CSI_RS_POINT_A]
+        ncgi:
+          $ref: "#/components/schemas/LocNcgi"
+        ecgi:
+          $ref: "#/components/schemas/LocEcgi"
         rsrp:
-          type: integer
-          format: int32
+          type: number
+          description: E-UTRA RSRP, in dBm.
         rsrq:
-          type: integer
-          format: int32
+          type: number
+          description: E-UTRA RSRQ, in dB.
+        ssRsrp:
+          type: number
+          description: NR SS-RSRP, in dBm.
+        ssRsrq:
+          type: number
+          description: NR SS-RSRQ, in dB.
+        csiRsrp:
+          type: number
+          description: NR CSI-RSRP, in dBm.
+        csiRsrq:
+          type: number
+          description: NR CSI-RSRQ, in dB.
+        ssbBeams:
+          type: array
+          items:
+            $ref: "#/components/schemas/BeamMeasurement"
+        csiRsBeams:
+          type: array
+          items:
+            $ref: "#/components/schemas/BeamMeasurement"
         timingAdvance:
           type: integer
-          format: int32
-        ssRsrp:
-          type: integer
-          format: int32
-        ssRsrq:
-          type: integer
-          format: int32
-        csiRsrp:
-          type: integer
-          format: int32
-        csiRsrq:
-          type: integer
-          format: int32
+          format: int64
         nrTimingAdvance:
           type: integer
-          format: int32
+          format: int64
         ueRxTxTimeDiff:
           type: integer
-          format: int32
+          format: int64
         aoaAzimuthDegrees:
           type: number
         aoaZenithDegrees:
           type: number
         distanceMeters:
+          type: number
+
+    BeamMeasurement:
+      type: object
+      required: [index]
+      properties:
+        index:
+          type: integer
+          format: int64
+        rsrp:
+          type: number
+        rsrq:
           type: number
 
     LocationDataResponseEnvelope:
@@ -6256,10 +6290,6 @@ components:
         status:
           type: integer
           description: "0 = active, 1 = completed, 2 = failed, 3 = cancelled."
-        qos_response_time_ms:
-          type: integer
-        qos_horizontal_accuracy_m:
-          type: integer
         last_result:
           $ref: "#/components/schemas/LocationData"
         created_at:

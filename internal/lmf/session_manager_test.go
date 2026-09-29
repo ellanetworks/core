@@ -217,8 +217,8 @@ func TestSessionManager_CompleteSession(t *testing.T) {
 	}
 
 	err = smgr.CompleteSession(context.Background(), sessionID, &models.LocationResult{
-		SUPI:   "imsi-123456789012345",
-		Method: models.PositioningMethodCellID,
+		SUPI:        "imsi-123456789012345",
+		Positioning: []models.PositioningAttempt{cellIDAttempt()},
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)

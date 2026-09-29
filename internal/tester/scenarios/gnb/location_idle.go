@@ -147,7 +147,7 @@ func locateIdleUE(
 	errCh := make(chan error, 1)
 
 	go func() {
-		result, err := common.GetLocation(ctx, cl, supi, method)
+		result, err := common.GetLocation(ctx, cl, supi, method, "")
 		locCh <- result
 
 		errCh <- err
@@ -231,8 +231,8 @@ func validateIdleResult(result *common.LocationData, method string) error {
 	case "ecid":
 		// A degradation to Cell-ID means the NRPPa exchange did not complete inside the
 		// LMF's measurement timeout, so the method check is the real assertion here.
-		if m := common.PositioningMethod(result); m != "ECID" && m != "NR_ECID" {
-			return fmt.Errorf("expected E-CID method, got %q", m)
+		if err := validateNRECID(result); err != nil {
+			return err
 		}
 
 		if result.Ncgi == nil {

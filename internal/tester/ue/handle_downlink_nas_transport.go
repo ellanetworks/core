@@ -6,7 +6,9 @@ package ue
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
+	lppmodels "github.com/ellanetworks/core/internal/lmf/lpp/models"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -43,15 +45,25 @@ func handleLPPPayload(ue *UE, lppPayload []byte, amfUENGAPID int64, ranUENGAPID 
 		return fmt.Errorf("LPP payload is empty")
 	}
 
-	transactionID, bodyKind, err := DecodeLPPMessage(lppPayload)
+	decoded, err := lpp.DecodeLPPMessage(lppPayload)
 	if err != nil {
 		return fmt.Errorf("decode LPP message: %w", err)
 	}
 
+	transactionID, bodyKind := decoded.TransactionID, decoded.BodyKind
+
 	switch bodyKind {
 	case lpptype.LPPMessageBodyC1PresentRequestCapabilities:
+		if req := decoded.RequestCapabilities; req.ECID != nil || req.NRECID != nil {
+			return handleLPPECIDCapabilitiesRequest(ue, transactionID, req, amfUENGAPID, ranUENGAPID)
+		}
+
 		return handleLPPCapabilitiesRequest(ue, transactionID, amfUENGAPID, ranUENGAPID)
 	case lpptype.LPPMessageBodyC1PresentRequestLocationInformation:
+		if req := decoded.RequestLocationInformation; req.ECID != nil || req.NRECID != nil {
+			return handleLPPECIDLocationRequest(ue, transactionID, req, amfUENGAPID, ranUENGAPID)
+		}
+
 		return handleLPPLocationRequest(ue, transactionID, amfUENGAPID, ranUENGAPID)
 	case lpptype.LPPMessageBodyC1PresentAbort:
 		logger.UeLogger.Error("Received LPP Abort message from LMF",
@@ -152,6 +164,95 @@ func handleLPPLocationRequest(ue *UE, transactionID byte, amfUENGAPID int64, ran
 		zap.Int32("latitude", 450000000),
 		zap.Int32("longitude", 214500000),
 	)
+
+	return nil
+}
+
+func handleLPPECIDCapabilitiesRequest(ue *UE, transactionID byte, req *lppmodels.RequestLocationInformation, amfUENGAPID int64, ranUENGAPID int64) error {
+	var (
+		ecid *lppmodels.ECIDMeasurements
+		nr   *lppmodels.NRECIDMeasurements
+	)
+
+	if req.ECID != nil {
+		ecid = &lppmodels.ECIDMeasurements{RSRP: true, RSRQ: true}
+	}
+
+	if req.NRECID != nil {
+		nr = &lppmodels.NRECIDMeasurements{SSRSRP: true, SSRSRQ: true}
+	}
+
+	payload, err := lpp.EncodeProvideECIDCapabilities(transactionID, 0, ecid, nr)
+	if err != nil {
+		return fmt.Errorf("build LPP E-CID capabilities response: %w", err)
+	}
+
+	if err := sendUplinkLPP(ue, payload, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	logger.UeLogger.Info("Sent LPP E-CID ProvideCapabilities")
+
+	return nil
+}
+
+func handleLPPECIDLocationRequest(ue *UE, transactionID byte, req *lppmodels.RequestLocationInformation, amfUENGAPID int64, ranUENGAPID int64) error {
+	var (
+		ecid *lpptype.ECIDSignalMeasurementInformation
+		nr   *lpptype.NRECIDSignalMeasurementInformation
+	)
+
+	if req.ECID != nil {
+		rsrp, rsrq := int64(43), int64(25)
+		ecid = &lpptype.ECIDSignalMeasurementInformation{
+			MeasuredResultsList: lpptype.MeasuredResultsList{List: []lpptype.MeasuredResultsElement{
+				{PhysCellID: 148, ARFCNEUTRA: 9310, RSRPResult: &rsrp, RSRQResult: &rsrq},
+			}},
+		}
+	}
+
+	if req.NRECID != nil {
+		rsrp, rsrq, arfcn := int64(73), int64(65), int64(632628)
+		nr = &lpptype.NRECIDSignalMeasurementInformation{
+			NRPrimaryCellMeasuredResults: lpptype.NRMeasuredResultsElement{
+				NRPhysCellID:   1,
+				NRARFCN:        lpptype.NRMeasuredResultsElementARFCN{SSBARFCN: &arfcn},
+				ResultsSSBCell: &lpptype.MeasQuantityResults{NRRSRP: &rsrp, NRRSRQ: &rsrq},
+				ResultsSSBIndexes: []lpptype.ResultsPerSSBIndex{
+					{SSBIndex: 0, SSBResults: lpptype.MeasQuantityResults{NRRSRP: &rsrp, NRRSRQ: &rsrq}},
+				},
+			},
+		}
+	}
+
+	payload, err := lpp.EncodeProvideECIDLocationInformation(transactionID, 0, ecid, nr)
+	if err != nil {
+		return fmt.Errorf("build LPP E-CID location response: %w", err)
+	}
+
+	if err := sendUplinkLPP(ue, payload, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	logger.UeLogger.Info("Sent LPP E-CID ProvideLocationInformation")
+
+	return nil
+}
+
+func sendUplinkLPP(ue *UE, payload []byte, amfUENGAPID int64, ranUENGAPID int64) error {
+	nasPdu, err := BuildUplinkNasTransportLPP(payload)
+	if err != nil {
+		return fmt.Errorf("build UL NAS Transport for LPP: %w", err)
+	}
+
+	secured, err := ue.EncodeNasPduWithSecurity(nasPdu, uint8(fgs.SHTIntegrityProtectedCiphered))
+	if err != nil {
+		return fmt.Errorf("encrypt LPP NAS PDU: %w", err)
+	}
+
+	if err := ue.Gnb.SendUplinkNAS(secured, amfUENGAPID, ranUENGAPID); err != nil {
+		return fmt.Errorf("send LPP response: %w", err)
+	}
 
 	return nil
 }

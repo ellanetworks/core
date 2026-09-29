@@ -157,6 +157,15 @@ func decodeProvideCapabilities(pc *lpptype.ProvideCapabilities) *models.ProvideL
 	}
 
 	r9 := c1.ProvideCapabilitiesR9
+
+	if r9.ECIDProvideCapabilities != nil {
+		out.ECID = ecidMeasurements(r9.ECIDProvideCapabilities.ECIDMeasSupported)
+	}
+
+	if r9.R16Additions != nil && r9.R16Additions.NRECIDProvideCapabilities != nil {
+		out.NRECID = nrECIDMeasurements(r9.R16Additions.NRECIDProvideCapabilities.NRECIDMeasSupported)
+	}
+
 	if r9.AGNSSProvideCapabilities == nil || r9.AGNSSProvideCapabilities.GNSSSupportList == nil {
 		return out
 	}
@@ -208,6 +217,8 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 	}
 
 	r9 := c1.ProvideLocationInformationR9
+	decodeECIDLocationInformation(r9, out)
+
 	if a := r9.AGNSSProvideLocationInformation; a != nil && a.GNSSError != nil && a.GNSSError.TargetDeviceErrorCauses != nil {
 		cause := int64(a.GNSSError.TargetDeviceErrorCauses.Cause)
 		out.GNSSErrorCause = &cause
@@ -233,13 +244,49 @@ func decodeProvideLocationInformation(pli *lpptype.ProvideLocationInformation) *
 }
 
 // decodeRequestCapabilities extracts capability request info.
-func decodeRequestCapabilities(_ *lpptype.RequestCapabilities) *models.RequestLocationInformation {
-	return &models.RequestLocationInformation{PositioningMethod: PosMethodGNSS}
+func decodeRequestCapabilities(rc *lpptype.RequestCapabilities) *models.RequestLocationInformation {
+	out := &models.RequestLocationInformation{}
+
+	c1 := rc.CriticalExtensions.C1
+	if c1 == nil || c1.RequestCapabilitiesR9 == nil {
+		return out
+	}
+
+	r9 := c1.RequestCapabilitiesR9
+	out.AGNSS = r9.AGNSSRequestCapabilities != nil
+
+	if r9.ECIDRequestCapabilities != nil {
+		out.ECID = &models.ECIDMeasurements{}
+	}
+
+	if r9.R16Additions != nil && r9.R16Additions.NRECIDRequestCapabilities != nil {
+		out.NRECID = &models.NRECIDMeasurements{}
+	}
+
+	return out
 }
 
 // decodeRequestLocationInformation extracts location request info.
-func decodeRequestLocationInformation(_ *lpptype.RequestLocationInformation) *models.RequestLocationInformation {
-	return &models.RequestLocationInformation{PositioningMethod: PosMethodGNSS}
+func decodeRequestLocationInformation(rli *lpptype.RequestLocationInformation) *models.RequestLocationInformation {
+	out := &models.RequestLocationInformation{}
+
+	c1 := rli.CriticalExtensions.C1
+	if c1 == nil || c1.RequestLocationInformationR9 == nil {
+		return out
+	}
+
+	r9 := c1.RequestLocationInformationR9
+	out.AGNSS = r9.AGNSSRequestLocationInformation != nil
+
+	if r9.ECIDRequestLocationInformation != nil {
+		out.ECID = ecidMeasurements(r9.ECIDRequestLocationInformation.RequestedMeasurements)
+	}
+
+	if r9.R16Additions != nil && r9.R16Additions.NRECIDRequestLocationInformation != nil {
+		out.NRECID = nrECIDMeasurements(r9.R16Additions.NRECIDRequestLocationInformation.RequestedMeasurements)
+	}
+
+	return out
 }
 
 // decodeProvideAssistanceData extracts assistance data.

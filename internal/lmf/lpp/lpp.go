@@ -13,10 +13,7 @@ const (
 	MsgProvideLocationInformation = 6
 )
 
-// PositioningMethod identifies the requested positioning method.
 const (
-	PosMethodGNSS    = 0x01
-	PosMethodOTDOA   = 0x02
-	PosMethodECID    = 0x03
-	PosMethodAIDGNSS = 0x04
+	MethodGNSS = "gnss"
+	MethodECID = "ecid"
 )

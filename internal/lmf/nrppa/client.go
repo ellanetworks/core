@@ -268,68 +268,83 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 		return m
 	}
 
-	switch {
-	case result.TimingAdvanceType1 != nil:
-		ta := int32(*result.TimingAdvanceType1)
-		m.TA = &ta
-	case result.TimingAdvanceType2 != nil:
-		ta := int32(*result.TimingAdvanceType2)
-		m.TA = &ta
+	cells := lmfmodels.NewCellCollector(lmfmodels.MeasurementSourceNetwork)
+
+	for _, it := range result.RSRP {
+		cell := cells.Cell(lmfmodels.RATEUTRA, it.PCI, it.EARFCN)
+		cell.ECGI = eutraCGI(it.CGI)
+		v := lmfmodels.EUTRARSRPDBm(it.ValueRSRP)
+		cell.RSRP = &v
 	}
 
-	// NR timing measurements (TS 38.455 §9.2.5 extension IEs).
-	if result.NRTimingAdvance != nil {
-		nrta := int32(*result.NRTimingAdvance)
-		m.NRTimingAdvance = &nrta
+	for _, it := range result.RSRQ {
+		cell := cells.Cell(lmfmodels.RATEUTRA, it.PCI, it.EARFCN)
+		cell.ECGI = eutraCGI(it.CGI)
+		v := lmfmodels.EUTRARSRQDB(it.ValueRSRQ)
+		cell.RSRQ = &v
 	}
 
-	if result.UERxTxTimeDiff != nil {
-		rxtx := int32(*result.UERxTxTimeDiff)
-		m.RxTxTimeDifference = &rxtx
-	}
+	for _, it := range result.SSRSRP {
+		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
+		cell.SSRSRP = nrRSRP(it.Value)
 
-	// NR Angle of Arrival (azimuth, optional zenith), decimal degrees.
-	if result.AoA != nil {
-		az := result.AoA.AzimuthDegrees
-		m.AoAAzimuthDegrees = &az
-
-		if result.AoA.ZenithDegrees != nil {
-			ze := *result.AoA.ZenithDegrees
-			m.AoAZenithDegrees = &ze
+		for _, b := range it.PerSSB {
+			lmfmodels.Beam(&cell.SSBBeams, b.SSBIndex).RSRP = lmfmodels.NRRSRPDBm(b.Value)
 		}
 	}
 
-	// NR SSB/CSI-RS measurements. The result list is not spec-ordered by strength,
-	// so the strongest reading is used as the best available proxy for the cell.
-	// An item may report a per-cell value, a per-beam list, or both (TS 38.455
-	// §9.2.32-35), so both are considered.
-	if v, ok := strongest(result.SSRSRP, func(it nrppa.SSRSRPItem) (*int64, []nrppa.SSBResultItem) {
-		return it.Value, it.PerSSB
-	}, ssbValue); ok {
-		ssrsrp := ssrsrpToDBm(v)
-		m.SSRSRP = &ssrsrp
+	for _, it := range result.SSRSRQ {
+		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
+		cell.SSRSRQ = nrValue(it.Value, lmfmodels.NRRSRQDB)
+
+		for _, b := range it.PerSSB {
+			v := lmfmodels.NRRSRQDB(b.Value)
+			lmfmodels.Beam(&cell.SSBBeams, b.SSBIndex).RSRQ = &v
+		}
 	}
 
-	if v, ok := strongest(result.SSRSRQ, func(it nrppa.SSRSRQItem) (*int64, []nrppa.SSBResultItem) {
-		return it.Value, it.PerSSB
-	}, ssbValue); ok {
-		ssrsrq := ssrsrqToDB(v)
-		m.SSRSRQ = &ssrsrq
+	for _, it := range result.CSIRSRP {
+		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
+		cell.CSIRSRP = nrRSRP(it.Value)
+
+		for _, b := range it.PerCSIRS {
+			lmfmodels.Beam(&cell.CSIRSBeams, b.CSIRSIndex).RSRP = lmfmodels.NRRSRPDBm(b.Value)
+		}
 	}
 
-	if v, ok := strongest(result.CSIRSRP, func(it nrppa.CSIRSRPItem) (*int64, []nrppa.CSIRSResultItem) {
-		return it.Value, it.PerCSIRS
-	}, csiRSValue); ok {
-		csirsrp := csirsrpToDBm(v)
-		m.CSIRSRP = &csirsrp
+	for _, it := range result.CSIRSRQ {
+		cell := nrCell(cells, it.NRPCI, it.NRARFCN, it.CGI)
+		cell.CSIRSRQ = nrValue(it.Value, lmfmodels.NRRSRQDB)
+
+		for _, b := range it.PerCSIRS {
+			v := lmfmodels.NRRSRQDB(b.Value)
+			lmfmodels.Beam(&cell.CSIRSBeams, b.CSIRSIndex).RSRQ = &v
+		}
 	}
 
-	if v, ok := strongest(result.CSIRSRQ, func(it nrppa.CSIRSRQItem) (*int64, []nrppa.CSIRSResultItem) {
-		return it.Value, it.PerCSIRS
-	}, csiRSValue); ok {
-		csirsrq := csirsrqToDB(v)
-		m.CSIRSRQ = &csirsrq
+	if serving := servingCell(cells, result.ServingCell); serving != nil {
+		switch {
+		case result.TimingAdvanceType1 != nil:
+			serving.TimingAdvance = result.TimingAdvanceType1
+		case result.TimingAdvanceType2 != nil:
+			serving.TimingAdvance = result.TimingAdvanceType2
+		}
+
+		serving.NRTimingAdvance = result.NRTimingAdvance
+		serving.UERxTxTimeDiff = result.UERxTxTimeDiff
+
+		switch {
+		case result.AoA != nil:
+			az := result.AoA.AzimuthDegrees
+			serving.AoAAzimuthDegrees = &az
+			serving.AoAZenithDegrees = result.AoA.ZenithDegrees
+		case result.AngleOfArrival != nil:
+			az := float64(*result.AngleOfArrival) * 0.5
+			serving.AoAAzimuthDegrees = &az
+		}
 	}
+
+	m.Cells = cells.Cells()
 
 	if result.APPosition != nil {
 		altitude := result.APPosition.Altitude
@@ -352,86 +367,61 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	return m
 }
 
-// strongestBy returns the highest projected value across a measurement item
-// list (higher RSRP/RSRQ report values are stronger).
-// strongest returns the highest reading across a per-cell result list. Each
-// item contributes its per-cell value when present plus every per-beam value,
-// since TS 38.455 makes both optional and a gNB may report either.
-func strongest[T, B any](items []T, split func(T) (*int64, []B), beam func(B) int64) (int64, bool) {
-	var (
-		best  int64
-		found bool
-	)
+func nrCell(cells *lmfmodels.CellCollector, pci, arfcn int64, cgi *nrppa.CGINR) *lmfmodels.CellMeasurement {
+	cell := cells.Cell(lmfmodels.RATNR, pci, arfcn)
 
-	consider := func(v int64) {
-		if !found || v > best {
-			best, found = v, true
+	if cgi != nil {
+		if plmn, err := lmfmodels.PlmnFromOctets(cgi.PLMNIdentity); err == nil {
+			cell.NCGI = lmfmodels.NewNcgi(plmn, cgi.NRCellIdentity)
 		}
 	}
 
-	for _, it := range items {
-		cell, beams := split(it)
-		if cell != nil {
-			consider(*cell)
-		}
-
-		for _, b := range beams {
-			consider(beam(b))
-		}
-	}
-
-	return best, found
+	return cell
 }
 
-func ssbValue(it nrppa.SSBResultItem) int64 { return it.Value }
-
-func csiRSValue(it nrppa.CSIRSResultItem) int64 { return it.Value }
-
-// ssrsrpToDBm converts an NR SS-RSRP report value (0..127) to dBm × 100.
-// Per TS 38.133 Table 10.1.6.1-1 (NR, not the E-UTRA table):
-//
-//	SS-RSRP_00  : SS-RSRP < -156 dBm
-//	SS-RSRP_k   : (-157 + k) ≤ SS-RSRP < (-156 + k) dBm   (k = 1..126)
-//	SS-RSRP_127 : SS-RSRP ≥ -30 dBm
-//
-// We report the lower bound of the band (dBm × 100).
-func ssrsrpToDBm(v int64) int32 {
-	if v <= 0 {
-		return -15600 // < -156 dBm
+func eutraCGI(cgi *nrppa.CGIEUTRA) *coremodels.Ecgi {
+	if cgi == nil {
+		return nil
 	}
 
-	return int32(v-157) * 100
-}
-
-// ssrsrqToDB converts an NR SS-RSRQ report value (0..127) to dB × 100.
-// Per TS 38.133 Table 10.1.11.1-1 (NR, range -43..+20 dB, 0.5 dB step):
-//
-//	SS-RSRQ_00  : SS-RSRQ < -43 dB
-//	SS-RSRQ_k   : (-43 + (k-1)*0.5) ≤ SS-RSRQ < (-43 + k*0.5) dB   (k = 1..126)
-//	SS-RSRQ_127 : SS-RSRQ ≥ 20 dB
-//
-// We report the lower bound of the band (dB × 100).
-func ssrsrqToDB(v int64) int32 {
-	if v <= 0 {
-		return -4300 // < -43 dB
+	plmn, err := lmfmodels.PlmnFromOctets(cgi.PLMNIdentity)
+	if err != nil {
+		return nil
 	}
 
-	return int32(-4300 + (v-1)*50)
+	return lmfmodels.NewEcgi(plmn, cgi.EUTRACellID)
 }
 
-// csirsrpToDBm converts an NR CSI-RSRP report value to dBm × 100. CSI-RSRP
-// shares the SS-RSRP report mapping (TS 38.133 Table 10.1.6.1-1).
-// NOTE: not validated against a live capture.
-func csirsrpToDBm(v int64) int32 {
-	if v <= 0 {
-		return -15600 // < -156 dBm
+func nrRSRP(v *int64) *float64 {
+	if v == nil {
+		return nil
 	}
 
-	return int32(v-157) * 100
+	return lmfmodels.NRRSRPDBm(*v)
 }
 
-// csirsrqToDB converts an NR CSI-RSRQ report value to dB × 100. CSI-RSRQ shares
-// the SS-RSRQ report mapping (TS 38.133 Table 10.1.11.1-1).
-func csirsrqToDB(v int64) int32 {
-	return ssrsrqToDB(v)
+func nrValue(v *int64, convert func(int64) float64) *float64 {
+	if v == nil {
+		return nil
+	}
+
+	out := convert(*v)
+
+	return &out
+}
+
+func servingCell(cells *lmfmodels.CellCollector, cgi nrppa.NGRANCGI) *lmfmodels.CellMeasurement {
+	plmn, err := lmfmodels.PlmnFromOctets(cgi.PLMNIdentity)
+	if err != nil {
+		return nil
+	}
+
+	switch {
+	case cgi.NRCellIdentity != nil:
+		return cells.Serving(lmfmodels.RATNR, lmfmodels.NewNcgi(plmn, *cgi.NRCellIdentity), nil)
+	case cgi.EUTRACellID != nil:
+		return cells.Serving(lmfmodels.RATEUTRA, nil, lmfmodels.NewEcgi(plmn, *cgi.EUTRACellID))
+	default:
+		return nil
+	}
 }

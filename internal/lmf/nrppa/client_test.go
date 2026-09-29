@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/nrppa"
 )
 
@@ -55,8 +56,17 @@ func TestMatchMeasurementResponse(t *testing.T) {
 		}
 
 		m := mapECIDResult(resp.Result)
-		if m.TA == nil || *m.TA != 100 {
-			t.Errorf("expected TA=100, got %v", m.TA)
+
+		var serving *lmfmodels.CellMeasurement
+
+		for i := range m.Cells {
+			if m.Cells[i].Serving {
+				serving = &m.Cells[i]
+			}
+		}
+
+		if serving == nil || serving.TimingAdvance == nil || *serving.TimingAdvance != 100 {
+			t.Errorf("expected serving cell TA=100, got %+v", serving)
 		}
 	})
 
@@ -146,45 +156,41 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	})
 }
 
-// TestNRRSRPRSRQConversions locks in the NR (not E-UTRA) SS-/CSI- RSRP/RSRQ
-// report-value → dBm/dB mappings from TS 38.133. The RSRP=101 / RSRQ=66 cases
-// correspond to the real gNB capture used to validate E-CID decoding.
-func TestNRRSRPRSRQConversions(t *testing.T) {
-	t.Run("SS-RSRP", func(t *testing.T) {
-		cases := map[int64]int32{
-			0:   -15600, // < -156 dBm
-			1:   -15600, // -156 dBm
-			101: -5600,  // -56 dBm (captured value)
-			127: -3000,  // -30 dBm
-		}
-		for v, want := range cases {
-			if got := ssrsrpToDBm(v); got != want {
-				t.Errorf("ssrsrpToDBm(%d) = %d, want %d", v, got, want)
-			}
-		}
+func TestMapECIDResultKeepsCellsAndBeams(t *testing.T) {
+	plmn := []byte{0x00, 0xf1, 0x10}
+	servingID := uint64(0x000000fc1)
+	cell := int64(101)
+	quality := int64(66)
+
+	m := mapECIDResult(&nrppa.ECIDResult{
+		ServingCell: nrppa.NGRANCGI{PLMNIdentity: plmn, NRCellIdentity: &servingID},
+		SSRSRP: []nrppa.SSRSRPItem{
+			{NRPCI: 180, NRARFCN: 662592, CGI: &nrppa.CGINR{PLMNIdentity: plmn, NRCellIdentity: servingID}, Value: &cell, PerSSB: []nrppa.SSBResultItem{{SSBIndex: 3, Value: 90}}},
+			{NRPCI: 181, NRARFCN: 662592, Value: &cell},
+		},
+		SSRSRQ: []nrppa.SSRSRQItem{
+			{NRPCI: 180, NRARFCN: 662592, Value: &quality, PerSSB: []nrppa.SSBResultItem{{SSBIndex: 3, Value: 60}}},
+		},
 	})
 
-	t.Run("SS-RSRQ", func(t *testing.T) {
-		cases := map[int64]int32{
-			0:   -4300, // < -43 dB
-			1:   -4300, // -43 dB
-			66:  -1050, // -10.5 dB (captured value)
-			127: 2000,  // +20 dB
-		}
-		for v, want := range cases {
-			if got := ssrsrqToDB(v); got != want {
-				t.Errorf("ssrsrqToDB(%d) = %d, want %d", v, got, want)
-			}
-		}
-	})
+	if len(m.Cells) != 2 {
+		t.Fatalf("cells = %+v, want 2", m.Cells)
+	}
 
-	t.Run("CSI shares SS mapping", func(t *testing.T) {
-		if got, want := csirsrpToDBm(101), ssrsrpToDBm(101); got != want {
-			t.Errorf("csirsrpToDBm(101) = %d, want %d", got, want)
-		}
+	serving := m.Cells[0]
+	if !serving.Serving || serving.Source != lmfmodels.MeasurementSourceNetwork || serving.RAT != lmfmodels.RATNR {
+		t.Fatalf("serving cell = %+v", serving)
+	}
 
-		if got, want := csirsrqToDB(66), ssrsrqToDB(66); got != want {
-			t.Errorf("csirsrqToDB(66) = %d, want %d", got, want)
-		}
-	})
+	if *serving.SSRSRP != -56 || *serving.SSRSRQ != -10.5 {
+		t.Errorf("SS-RSRP/RSRQ = %v/%v, want -56/-10.5", *serving.SSRSRP, *serving.SSRSRQ)
+	}
+
+	if len(serving.SSBBeams) != 1 || serving.SSBBeams[0].Index != 3 || *serving.SSBBeams[0].RSRP != -67 || *serving.SSBBeams[0].RSRQ != -13.5 {
+		t.Errorf("SSB beams = %+v", serving.SSBBeams)
+	}
+
+	if m.Cells[1].Serving || *m.Cells[1].PCI != 181 {
+		t.Errorf("neighbour cell = %+v", m.Cells[1])
+	}
 }
