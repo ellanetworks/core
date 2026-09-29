@@ -30,6 +30,7 @@ var smscApplications = []diameter.Application{
 var (
 	ErrUserUnknown         = errors.New("smsf: UE not known on this node")
 	ErrNotRegisteredForSMS = errors.New("smsf: UE is not registered for SMS")
+	ErrNotClusterMember    = errors.New("smsf: node is not a cluster member")
 	ErrSMSCUnavailable     = errors.New("smsf: SMSC not connected")
 )
 

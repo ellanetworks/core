@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-const resultAbsentUser = 5550
+const (
+	resultAbsentUser        = 5550
+	resultSMDeliveryFailure = 5555
+)
 
 type smscClient struct {
 	base string
@@ -23,15 +26,20 @@ type smscClient struct {
 }
 
 type smscMessage struct {
-	ID       int64         `json:"id"`
-	Status   string        `json:"status"`
-	Attempts []smscAttempt `json:"attempts"`
+	ID       int64  `json:"id"`
+	Status   string `json:"status"`
+	Attempts []smscAttempt
 }
 
 type smscAttempt struct {
-	Step       string  `json:"step"`
-	Outcome    string  `json:"outcome"`
-	ResultCode *uint32 `json:"result_code"`
+	Step              string            `json:"step"`
+	NodeType          string            `json:"node_type"`
+	Outcome           string            `json:"outcome"`
+	ResultCode        *uint32           `json:"result_code"`
+	FailureCause      string            `json:"failure_cause"`
+	TPFailureCause    string            `json:"tp_failure_cause"`
+	AbsentDiagnostic  string            `json:"absent_diagnostic"`
+	AbsentDiagnostics map[string]string `json:"absent_diagnostics"`
 }
 
 func newSMSC(p *params) (*smscClient, error) {
@@ -88,12 +96,12 @@ func (c *smscClient) do(ctx context.Context, method, path string, body any, out 
 	return json.Unmarshal(envelope.Result, out)
 }
 
-func (c *smscClient) submit(ctx context.Context, from, to, text string) (int64, error) {
+func (c *smscClient) submit(ctx context.Context, to, text string) (int64, error) {
 	var out struct {
 		Items []smscMessage `json:"items"`
 	}
 
-	if err := c.do(ctx, http.MethodPost, "/api/v1/messages", map[string]string{"from": from, "to": to, "text": text}, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/api/v1/messages", map[string]string{"from": injectedFrom, "to": to, "text": text}, &out); err != nil {
 		return 0, err
 	}
 
@@ -107,9 +115,21 @@ func (c *smscClient) submit(ctx context.Context, from, to, text string) (int64, 
 func (c *smscClient) message(ctx context.Context, id int64) (smscMessage, error) {
 	var m smscMessage
 
-	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/v1/messages/%d", id), nil, &m)
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/v1/messages/%d", id), nil, &m); err != nil {
+		return smscMessage{}, err
+	}
 
-	return m, err
+	var attempts struct {
+		Items []smscAttempt `json:"items"`
+	}
+
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/v1/messages/%d/attempts?per_page=100", id), nil, &attempts); err != nil {
+		return smscMessage{}, err
+	}
+
+	m.Attempts = attempts.Items
+
+	return m, nil
 }
 
 func (c *smscClient) latestTo(ctx context.Context, to string) (smscMessage, error) {
@@ -153,9 +173,41 @@ func (c *smscClient) waitFor(ctx context.Context, timeout time.Duration, what st
 	}
 }
 
-func (m smscMessage) absentAttempt() bool {
+func (m smscMessage) absentWith(diagnostic string) bool {
+	return m.any(func(a smscAttempt) bool {
+		if a.ResultCode == nil || *a.ResultCode != resultAbsentUser {
+			return false
+		}
+
+		if a.AbsentDiagnostic == diagnostic {
+			return true
+		}
+
+		for _, d := range a.AbsentDiagnostics {
+			if d == diagnostic {
+				return true
+			}
+		}
+
+		return false
+	})
+}
+
+func (m smscMessage) failedWith(cause, tpCause string) bool {
+	return m.any(func(a smscAttempt) bool {
+		return a.ResultCode != nil && *a.ResultCode == resultSMDeliveryFailure && a.FailureCause == cause && a.TPFailureCause == tpCause
+	})
+}
+
+func (m smscMessage) deliveredVia(nodeType string) bool {
+	return m.Status == "delivered" && m.any(func(a smscAttempt) bool {
+		return a.Step == "delivery" && a.Outcome == "success" && a.NodeType == nodeType
+	})
+}
+
+func (m smscMessage) any(match func(smscAttempt) bool) bool {
 	for _, a := range m.Attempts {
-		if a.ResultCode != nil && *a.ResultCode == resultAbsentUser {
+		if match(a) {
 			return true
 		}
 	}

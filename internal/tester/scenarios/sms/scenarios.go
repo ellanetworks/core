@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/sms"
 )
@@ -22,6 +23,8 @@ func init() {
 	registerPerRAT(ratScenario{suffix: "absent_then_alert", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 300) }, run: runAbsentThenAlert})
 	registerPerRAT(ratScenario{suffix: "injected", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 400)[:1] }, run: runInjected})
 	registerPerRAT(ratScenario{suffix: "memory_full", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 500) }, run: runMemoryFull})
+	registerPerRAT(ratScenario{suffix: "switched_off", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 900)[:1] }, run: runSwitchedOff})
+	registerPerRAT(ratScenario{suffix: "back_to_back", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 1000)[:1] }, run: runBackToBack})
 
 	lteNoMSISDN := subscriber("001017900000600", "")
 	register("sms/4g_not_granted", []scenarios.SubscriberSpec{lteNoMSISDN}, func(ctx context.Context, env scenarios.Env, p *params) error {
@@ -35,12 +38,12 @@ func init() {
 
 	lteWithdrawn := pair("4g", 700)[:1]
 	register("sms/4g_withdrawal", lteWithdrawn, func(ctx context.Context, env scenarios.Env, p *params) error {
-		return runLTEWithdrawal(ctx, env, lteWithdrawn[0])
+		return runLTEWithdrawal(ctx, env, p, lteWithdrawn[0])
 	})
 
 	nrWithdrawn := pair("5g", 700)[:1]
 	register("sms/5g_withdrawal", nrWithdrawn, func(ctx context.Context, env scenarios.Env, p *params) error {
-		return runNRWithdrawal(ctx, env, nrWithdrawn[0])
+		return runNRWithdrawal(ctx, env, p, nrWithdrawn[0])
 	})
 
 	crossRAT := []scenarios.SubscriberSpec{pair("4g", 800)[0], pair("5g", 800)[0]}
@@ -132,7 +135,9 @@ func runAbsentThenAlert(ctx context.Context, _ scenarios.Env, p *params, net net
 
 	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.latestTo(ctx, b.Number()) }
 
-	if err := smsc.waitFor(ctx, absentTimeout, "an absent-user delivery attempt", fetch, smscMessage.absentAttempt); err != nil {
+	if err := smsc.waitFor(ctx, absentTimeout, "an absent-user attempt with no paging response", fetch, func(m smscMessage) bool {
+		return m.absentWith("no_paging_response_msc")
+	}); err != nil {
 		return err
 	}
 
@@ -144,9 +149,7 @@ func runAbsentThenAlert(ctx context.Context, _ scenarios.Env, p *params, net net
 		return fmt.Errorf("no redelivery after the alert: %w", err)
 	}
 
-	err = smsc.waitFor(ctx, reportTimeout, "the message to be delivered", fetch, func(m smscMessage) bool { return m.Status == "delivered" })
-
-	return err
+	return smsc.waitFor(ctx, reportTimeout, "the message to be delivered", fetch, func(m smscMessage) bool { return m.deliveredVia(net.NodeType()) })
 }
 
 func runInjected(ctx context.Context, _ scenarios.Env, p *params, net network, subs []scenarios.SubscriberSpec) error {
@@ -164,7 +167,7 @@ func runInjected(ctx context.Context, _ scenarios.Env, p *params, net network, s
 
 	b := phones[0]
 
-	id, err := smsc.submit(ctx, injectedFrom, b.Number(), "Injected by the SMSC")
+	id, err := smsc.submit(ctx, b.Number(), "Injected by the SMSC")
 	if err != nil {
 		return err
 	}
@@ -175,12 +178,15 @@ func runInjected(ctx context.Context, _ scenarios.Env, p *params, net network, s
 
 	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
 
-	err = smsc.waitFor(ctx, reportTimeout, "the message to be delivered", fetch, func(m smscMessage) bool { return m.Status == "delivered" })
-
-	return err
+	return smsc.waitFor(ctx, reportTimeout, "the message to be delivered", fetch, func(m smscMessage) bool { return m.deliveredVia(net.NodeType()) })
 }
 
 func runMemoryFull(ctx context.Context, _ scenarios.Env, p *params, net network, subs []scenarios.SubscriberSpec) error {
+	smsc, err := newSMSC(p)
+	if err != nil {
+		return err
+	}
+
 	phones, err := attachAll(net, subs)
 	if err != nil {
 		return err
@@ -215,7 +221,114 @@ func runMemoryFull(ctx context.Context, _ scenarios.Env, p *params, net network,
 		return fmt.Errorf("memory available answered with %T", report)
 	}
 
-	return expectText(ctx, b, a.Number(), "Make some room")
+	if err := expectText(ctx, b, a.Number(), "Make some room"); err != nil {
+		return err
+	}
+
+	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.latestTo(ctx, b.Number()) }
+
+	return smsc.waitFor(ctx, reportTimeout, "a memory-full attempt followed by the delivery", fetch, func(m smscMessage) bool {
+		return m.failedWith("memory_capacity_exceeded", "memory_capacity_exceeded") && m.deliveredVia(net.NodeType())
+	})
+}
+
+func runSwitchedOff(ctx context.Context, _ scenarios.Env, p *params, net network, subs []scenarios.SubscriberSpec) error {
+	smsc, err := newSMSC(p)
+	if err != nil {
+		return err
+	}
+
+	phones, err := attachAll(net, subs)
+	if err != nil {
+		return err
+	}
+
+	if err := phones[0].SwitchOff(); err != nil {
+		closeAll(phones)
+		return fmt.Errorf("switch off: %w", err)
+	}
+
+	closeAll(phones)
+
+	id, err := smsc.submit(ctx, subs[0].MSISDN, "Welcome back")
+	if err != nil {
+		return err
+	}
+
+	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
+
+	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt while the phone is off", fetch, func(m smscMessage) bool {
+		return m.absentWith("imsi_detached")
+	}); err != nil {
+		return err
+	}
+
+	b, err := net.Attach(subs[0].IMSI, subs[0].MSISDN)
+	if err != nil {
+		return fmt.Errorf("attach after switching on: %w", err)
+	}
+
+	defer b.Close()
+
+	if err := expectText(ctx, b, injectedFrom, "Welcome back"); err != nil {
+		return fmt.Errorf("no delivery after switching on: %w", err)
+	}
+
+	return smsc.waitFor(ctx, reportTimeout, "the message to be delivered", fetch, func(m smscMessage) bool { return m.deliveredVia(net.NodeType()) })
+}
+
+func runBackToBack(ctx context.Context, _ scenarios.Env, p *params, net network, subs []scenarios.SubscriberSpec) error {
+	smsc, err := newSMSC(p)
+	if err != nil {
+		return err
+	}
+
+	phones, err := attachAll(net, subs)
+	if err != nil {
+		return err
+	}
+
+	defer closeAll(phones)
+
+	b := phones[0]
+	want := map[string]bool{"First of two": true, "Second of two": true}
+	ids := make([]int64, 0, len(want))
+
+	for text := range want {
+		id, err := smsc.submit(ctx, b.Number(), text)
+		if err != nil {
+			return err
+		}
+
+		ids = append(ids, id)
+	}
+
+	for range ids {
+		rctx, cancel := context.WithTimeout(ctx, deliveryTimeout)
+		m, err := b.Stack().Receive(rctx)
+
+		cancel()
+
+		if err != nil {
+			return fmt.Errorf("%s received %d of %d messages: %w", b.Number(), len(ids)-len(want), len(ids), err)
+		}
+
+		if !want[m.Text] {
+			return fmt.Errorf("%s received %q, want one of %v", b.Number(), m.Text, want)
+		}
+
+		delete(want, m.Text)
+	}
+
+	for _, id := range ids {
+		fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
+
+		if err := smsc.waitFor(ctx, reportTimeout, "both messages to be delivered", fetch, func(m smscMessage) bool { return m.deliveredVia(net.NodeType()) }); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func runLTENotGranted(env scenarios.Env, imsi string) error {
@@ -309,7 +422,7 @@ func eventually(timeout time.Duration, what string, cond func() bool) error {
 	return nil
 }
 
-func runLTEWithdrawal(ctx context.Context, env scenarios.Env, sub scenarios.SubscriberSpec) error {
+func runLTEWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, sub scenarios.SubscriberSpec) error {
 	l, err := startLTE(env)
 	if err != nil {
 		return err
@@ -330,11 +443,65 @@ func runLTEWithdrawal(ctx context.Context, env scenarios.Env, sub scenarios.Subs
 	}
 
 	return withSMSDisabled(ctx, env, func() error {
-		return eventually(deliveryTimeout, "the network to detach the UE from SMS", p.ue.SMSDetached)
+		if err := eventually(deliveryTimeout, "the network to detach the UE from SMS", p.ue.SMSDetached); err != nil {
+			return err
+		}
+
+		if err := expectNoReport(ctx, cfg, p); err != nil {
+			return err
+		}
+
+		if err := p.Idle(); err != nil {
+			return fmt.Errorf("release after the IMSI detach: %w", err)
+		}
+
+		var status nas.EPSBearerContextStatus
+
+		status.Active[p.ebi] = true
+
+		accept, err := l.enb.CombinedTrackingAreaUpdate(p.ue, p.guti, &status, registrationTimeout)
+		if err != nil {
+			return fmt.Errorf("combined tracking area update after the IMSI detach: %w", err)
+		}
+
+		if accept.EPSUpdateResult != eps.EPSUpdateResultTA || accept.AdditionalUpdateResult != nil {
+			return fmt.Errorf("combined TAU answered with result %s, additional update result %v, want EPS only", accept.EPSUpdateResult, accept.AdditionalUpdateResult)
+		}
+
+		if accept.Cause == nil || *accept.Cause != eps.EMMCauseCSDomainNotAvailable {
+			return fmt.Errorf("EMM cause = %v, want #18", accept.Cause)
+		}
+
+		if accept.EPSBearerContextStatus == nil || !accept.EPSBearerContextStatus.Active[p.ebi] {
+			return fmt.Errorf("the IMSI detach dropped the UE's default bearer %d (status %+v)", p.ebi, accept.EPSBearerContextStatus)
+		}
+
+		if accept.GUTI != nil {
+			p.guti = accept.GUTI
+		}
+
+		return nil
 	})
 }
 
-func runNRWithdrawal(ctx context.Context, env scenarios.Env, sub scenarios.SubscriberSpec) error {
+func expectNoReport(ctx context.Context, cfg *params, from phone) error {
+	ctx, cancel := context.WithTimeout(ctx, noReportTimeout)
+	defer cancel()
+
+	report, err := from.Stack().Submit(ctx, cfg.ServiceCentre, from.Number(), "Not allowed")
+	if err == nil {
+		return fmt.Errorf("an SMS submitted after the withdrawal was answered with %T", report)
+	}
+
+	return nil
+}
+
+func runNRWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, sub scenarios.SubscriberSpec) error {
+	smsc, err := newSMSC(cfg)
+	if err != nil {
+		return err
+	}
+
 	n, err := startNR(env)
 	if err != nil {
 		return err
@@ -358,7 +525,44 @@ func runNRWithdrawal(ctx context.Context, env scenarios.Env, sub scenarios.Subsc
 		return err
 	}
 
-	return eventually(deliveryTimeout, "the network to grant SMS over NAS again", p.ue.SMSAllowed)
+	if err := eventually(deliveryTimeout, "the network to indicate SMS over NAS is available", p.ue.SMSAvailable); err != nil {
+		return err
+	}
+
+	if p.ue.SMSAllowed() {
+		return fmt.Errorf("the UE considers SMS over NAS allowed before registering for it")
+	}
+
+	id, err := smsc.submit(ctx, p.Number(), "Before registering")
+	if err != nil {
+		return err
+	}
+
+	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
+
+	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt before the UE registers for SMS", fetch, func(m smscMessage) bool {
+		return m.absentWith("imsi_detached")
+	}); err != nil {
+		return err
+	}
+
+	if err := p.ReRegister(); err != nil {
+		return fmt.Errorf("register for SMS again: %w", err)
+	}
+
+	if !p.ue.SMSAllowed() {
+		return fmt.Errorf("the registration update was accepted without SMS over NAS")
+	}
+
+	if err := expectText(ctx, p, injectedFrom, "Before registering"); err != nil {
+		return fmt.Errorf("no delivery after the registration update: %w", err)
+	}
+
+	if err := submit(ctx, cfg, p, p.Number(), "Back again"); err != nil {
+		return err
+	}
+
+	return expectText(ctx, p, p.Number(), "Back again")
 }
 
 func runCrossRAT(ctx context.Context, env scenarios.Env, p *params, subs []scenarios.SubscriberSpec) error {

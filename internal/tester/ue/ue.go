@@ -114,6 +114,7 @@ type UE struct {
 	requestSMS             bool
 	SMS                    *smsue.Stack
 	smsAllowed             atomic.Bool
+	smsAvailable           atomic.Bool
 	smsMu                  sync.Mutex
 	lastAMFUENGAPID        atomic.Int64
 	lastRANUENGAPID        atomic.Int64

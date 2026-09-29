@@ -5,6 +5,7 @@ package smsf_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"os"
@@ -61,6 +62,7 @@ type fakeStore struct {
 	settingsErr   error
 	subscribers   map[string]db.Subscriber
 	registrations map[[2]string]db.UERegistration
+	regErr        error
 }
 
 func newFakeStore(smsc netip.AddrPort) *fakeStore {
@@ -111,6 +113,10 @@ func (f *fakeStore) GetUERegistration(_ context.Context, imsi, regType string) (
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.regErr != nil {
+		return nil, f.regErr
+	}
+
 	r, ok := f.registrations[[2]string{imsi, regType}]
 	if !ok {
 		return nil, db.ErrNotFound
@@ -144,10 +150,16 @@ func (f *fakeStore) setMSISDN(v string) {
 
 type fakeDirectory map[string]diameternode.Identity
 
+const unreadableNode = "node-unreadable"
+
 func (d fakeDirectory) Identity(_ context.Context, nodeID string) (diameternode.Identity, error) {
+	if nodeID == unreadableNode {
+		return diameternode.Identity{}, errors.New("get operator: leader changed")
+	}
+
 	id, ok := d[nodeID]
 	if !ok {
-		return diameternode.Identity{}, db.ErrNotFound
+		return diameternode.Identity{}, smsf.ErrNotClusterMember
 	}
 
 	return id, nil

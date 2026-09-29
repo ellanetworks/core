@@ -22,7 +22,11 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 	}
 
 	if cmd.SMSAvailable != nil {
-		ue.smsAllowed.Store(*cmd.SMSAvailable)
+		ue.smsAvailable.Store(*cmd.SMSAvailable)
+
+		if !*cmd.SMSAvailable {
+			ue.smsAllowed.Store(false)
+		}
 	}
 
 	logNITZ(ue, cmd)

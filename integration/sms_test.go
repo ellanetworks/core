@@ -105,7 +105,7 @@ func waitForSMSCLink(ctx context.Context, cl *client.Client) error {
 		status, err := cl.GetDiameterStatus(ctx)
 		if err == nil {
 			for _, p := range status.Peers {
-				coreOpen = coreOpen || p.State == "open"
+				coreOpen = coreOpen || (p.Role == "smsc" && p.State == "open")
 			}
 		}
 

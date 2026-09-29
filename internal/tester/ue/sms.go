@@ -13,6 +13,10 @@ func (ue *UE) SMSAllowed() bool {
 	return ue.smsAllowed.Load()
 }
 
+func (ue *UE) SMSAvailable() bool {
+	return ue.smsAvailable.Load()
+}
+
 func (ue *UE) sendSMS(cp []byte) error {
 	plain, err := (&fgs.ULNASTransport{PayloadContainerType: fgs.PayloadContainerTypeSMS, PayloadContainer: cp}).MarshalBinary()
 	if err != nil {

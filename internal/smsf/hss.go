@@ -6,6 +6,7 @@ package smsf
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ellanetworks/core/diameter"
@@ -48,9 +49,19 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		return fail(tgpp.ResultErrorServiceNotSubscribed, s6c.AbsentUserDiagnostics{})
 	}
 
-	nodes, absentDiagnostics := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, r.SMSFSupport)
+	nodes, absentDiagnostics, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, r.SMSFSupport)
+	if err != nil {
+		s.logger.Warn("Could not look up the serving node of a subscriber", zap.String("imsi", sub.Imsi), zap.Error(err))
+		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
+	}
+
 	if nodes.Serving == nil && nodes.SMSF3GPP == nil && r.DeliveryNotIntended == nil {
 		s.logger.Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
+
+		if !r.SingleAttempt {
+			s.markWaiting(sub.Imsi, r.ServiceCentreAddress)
+		}
+
 		return fail(tgpp.ResultErrorAbsentUser, absentDiagnostics)
 	}
 
@@ -87,8 +98,8 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	if failed := nodeNames(rep.Failed); len(failed) > 0 {
 		settings, err := s.store.GetSMSSettings(ctx)
 		if err == nil {
-			current, _ := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
-			if names := nodeNames(current); len(names) > 0 && !sameNames(names, failed) {
+			current, _, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, rep.SMSFSupport)
+			if names := nodeNames(current); err == nil && len(names) > 0 && !sameNames(names, failed) {
 				result.ServingNodes = current
 			}
 		}
@@ -134,13 +145,17 @@ func (s *SMSF) lookup(ctx context.Context, msisdn, imsi string) (*db.Subscriber,
 	return nil, db.ErrNotFound
 }
 
-func (s *SMSF) registration(ctx context.Context, imsi string) *db.UERegistration {
+func (s *SMSF) registration(ctx context.Context, imsi string) (*db.UERegistration, error) {
 	var active, purged *db.UERegistration
 
 	for _, regType := range []string{db.UERegistrationTypeMME, db.UERegistrationTypeAMF3GPPAccess} {
 		reg, err := s.store.GetUERegistration(ctx, imsi, regType)
-		if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
 			continue
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("get %s registration: %w", regType, err)
 		}
 
 		switch {
@@ -152,24 +167,28 @@ func (s *SMSF) registration(ctx context.Context, imsi string) *db.UERegistration
 	}
 
 	if active != nil {
-		return active
+		return active, nil
 	}
 
-	return purged
+	return purged, nil
 }
 
-func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSupport bool) (s6c.ServingNodes, s6c.AbsentUserDiagnostics) {
+func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSupport bool) (s6c.ServingNodes, s6c.AbsentUserDiagnostics, error) {
 	var (
 		nodes  s6c.ServingNodes
 		absent s6c.AbsentUserDiagnostics
 	)
 
-	reg := s.registration(ctx, imsi)
-	if reg == nil {
-		return nodes, absent
+	reg, err := s.registration(ctx, imsi)
+	if err != nil || reg == nil {
+		return nodes, absent, err
 	}
 
 	identity, err := s.directory.Identity(ctx, reg.NodeID)
+	if err != nil && !errors.Is(err, ErrNotClusterMember) {
+		return nodes, absent, err
+	}
+
 	if err != nil {
 		s.logger.Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
 
@@ -183,7 +202,7 @@ func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSup
 			}
 		}
 
-		return nodes, absent
+		return nodes, absent, nil
 	}
 
 	address := &s6c.NodeAddress{Name: identity.Host, Realm: identity.Realm, Number: smsNumber}
@@ -194,12 +213,12 @@ func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSup
 		nodes.Serving = &s6c.ServingNode{MME: address}
 	}
 
-	return nodes, absent
+	return nodes, absent, nil
 }
 
 func (s *SMSF) servedElsewhere(ctx context.Context, imsi string) bool {
-	reg := s.registration(ctx, imsi)
-	if reg == nil || reg.Purged {
+	reg, err := s.registration(ctx, imsi)
+	if err != nil || reg == nil || reg.Purged {
 		return false
 	}
 

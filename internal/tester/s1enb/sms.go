@@ -4,6 +4,7 @@
 package s1enb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -121,4 +122,38 @@ func (e *ENB) ServeNAS(ue *UE, mmeUEID, enbUEID int64) (stop func()) {
 		close(done)
 		<-finished
 	}
+}
+
+func (e *ENB) CombinedTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, status *nas.EPSBearerContextStatus, timeout time.Duration) (*eps.TrackingAreaUpdateAccept, error) {
+	if guti == nil {
+		return nil, fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
+	}
+
+	enbUEID := e.AllocateENBUEID()
+
+	tau, err := ue.buildTrackingAreaUpdateRequestWithBearerStatus(eps.EPSUpdateTypeCombinedTALA, false, guti, status)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), tau); err != nil {
+		return nil, err
+	}
+
+	_, accept, err := e.acceptIdleTrackingAreaUpdate(ue, enbUEID, timeout)
+
+	return accept, err
+}
+
+func (e *ENB) SwitchOff(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) error {
+	detach, err := ue.buildDetachRequestWith(true)
+	if err != nil {
+		return err
+	}
+
+	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, detach); err != nil {
+		return fmt.Errorf("send Detach Request (switch off): %w", err)
+	}
+
+	return e.completeContextRelease(enbUEID, timeout)
 }

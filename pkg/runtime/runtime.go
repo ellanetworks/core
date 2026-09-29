@@ -1158,6 +1158,10 @@ func (d *diameterDirectory) Identity(ctx context.Context, nodeID string) (diamet
 	}
 
 	member, err := d.db.GetClusterMember(ctx, nodeID)
+	if errors.Is(err, db.ErrNotFound) {
+		return diameternode.Identity{}, fmt.Errorf("%w: %s", smsf.ErrNotClusterMember, nodeID)
+	}
+
 	if err != nil {
 		return diameternode.Identity{}, fmt.Errorf("cluster member %s: %w", nodeID, err)
 	}

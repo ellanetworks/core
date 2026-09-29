@@ -79,7 +79,7 @@ nav:
     - Advertise subscriber routes with BGP: how_to/bgp.md
     - Enable UE-to-UE communication: how_to/enable_ue_to_ue.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
-    - Enable SMS: how_to/enable_sms.md
+    - Enable SMS (beta): how_to/enable_sms.md
   - Reference:
     - reference/index.md
     - API:

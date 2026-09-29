@@ -29,6 +29,7 @@ type ltePhone struct {
 	mme    int64
 	conn   int64
 	guti   *eps.EPSMobileIdentity
+	ebi    uint8
 	stop   func()
 }
 
@@ -64,6 +65,8 @@ func startLTE(env scenarios.Env) (*lte, error) {
 
 func (l *lte) Name() string { return "4G" }
 
+func (l *lte) NodeType() string { return "mme" }
+
 func (l *lte) Close() { _ = l.enb.Close() }
 
 func (l *lte) AwaitPage(timeout time.Duration) error {
@@ -81,7 +84,7 @@ func (l *lte) Attach(imsi, msisdn string) (phone, error) {
 		return nil, fmt.Errorf("combined attach accepted without \"SMS only\" (result %s, cause %v)", res.AttachResultValue, res.EMMCause)
 	}
 
-	p := &ltePhone{enb: l.enb, ue: ue, msisdn: msisdn, mme: res.MMEUES1APID, conn: res.ENBUES1APID, guti: res.GUTI}
+	p := &ltePhone{enb: l.enb, ue: ue, msisdn: msisdn, mme: res.MMEUES1APID, conn: res.ENBUES1APID, guti: res.GUTI, ebi: uint8(res.ERABID)}
 	p.stop = l.enb.ServeNAS(ue, p.mme, p.conn)
 
 	return p, nil
@@ -153,6 +156,12 @@ func (p *ltePhone) halt() {
 		p.stop()
 		p.stop = nil
 	}
+}
+
+func (p *ltePhone) SwitchOff() error {
+	p.halt()
+
+	return p.enb.SwitchOff(p.ue, p.mme, p.conn, releaseTimeout)
 }
 
 func (p *ltePhone) Close() { p.halt() }

@@ -209,6 +209,57 @@ func report(t *testing.T, s *smsf.SMSF, rep s6c.DeliveryReport) (s6c.ReportResul
 	return s6c.ParseReportSMDeliveryStatusAnswer(s.ReportSMDeliveryStatus(context.Background(), hssIdentity, req))
 }
 
+func TestATransientLookupErrorIsNotAnsweredAsAbsent(t *testing.T) {
+	cases := map[string]func(*fakeStore){
+		"registration unreadable": func(store *fakeStore) {
+			store.mu.Lock()
+			store.regErr = errors.New("leader changed")
+			store.mu.Unlock()
+		},
+		"serving node unreadable": func(store *fakeStore) {
+			store.register(db.UERegistrationTypeMME, unreadableNode, false)
+		},
+	}
+
+	for name, fail := range cases {
+		t.Run(name, func(t *testing.T) {
+			s, store := newHSS(t)
+			fail(store)
+
+			ans := s.SendRoutingInfoForSM(context.Background(), hssIdentity, routingRequest(t, s6c.RoutingRequest{MSISDN: msisdn}))
+
+			result, err := tgpp.ParseResult(ans)
+			if err != nil || result.Code != diameter.ResultUnableToComply {
+				t.Fatalf("SRA result = %v %v, want unable to comply", result, err)
+			}
+
+			if s.Waiting(imsi) {
+				t.Fatal("a transient lookup error recorded waiting data")
+			}
+		})
+	}
+}
+
+func TestAnAbsentRoutingAnswerRecordsWaitingData(t *testing.T) {
+	s, _ := newHSS(t)
+
+	if re := routeError(t, s, s6c.RoutingRequest{MSISDN: msisdn, SingleAttempt: true}); !re.IsExperimental(tgpp.ResultErrorAbsentUser) {
+		t.Fatalf("SRA = %s, want absent user", re)
+	}
+
+	if s.Waiting(imsi) {
+		t.Fatal("a single-attempt routing request left waiting data")
+	}
+
+	if re := routeError(t, s, s6c.RoutingRequest{MSISDN: msisdn}); !re.IsExperimental(tgpp.ResultErrorAbsentUser) {
+		t.Fatalf("SRA = %s, want absent user", re)
+	}
+
+	if !s.Waiting(imsi) {
+		t.Fatal("an absent routing answer left no waiting data")
+	}
+}
+
 func TestDeliveryReportIsAcknowledged(t *testing.T) {
 	s, store := newHSS(t)
 	store.register(db.UERegistrationTypeMME, localNode, false)

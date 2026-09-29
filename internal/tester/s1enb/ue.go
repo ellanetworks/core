@@ -462,8 +462,12 @@ func (ue *UE) buildAttachComplete(acceptESM []byte) ([]byte, error) {
 // buildDetachRequest builds a protected UE-originating DETACH REQUEST (EPS
 // detach, not switch-off, TS 24.301 §8.2.11) so the network acknowledges it.
 func (ue *UE) buildDetachRequest() ([]byte, error) {
+	return ue.buildDetachRequestWith(false)
+}
+
+func (ue *UE) buildDetachRequestWith(switchOff bool) ([]byte, error) {
 	req := &eps.DetachRequestUE{
-		SwitchOff:           false,
+		SwitchOff:           switchOff,
 		TypeOfDetach:        eps.DetachTypeEPS,
 		NASKeySetIdentifier: nas.KeySetIdentifier{},
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(ue.IMSI)),
@@ -510,12 +514,18 @@ func (ue *UE) buildTrackingAreaUpdateRequest(updateType eps.EPSUpdateType, activ
 func (ue *UE) buildTrackingAreaUpdateRequestWithBearerStatus(updateType eps.EPSUpdateType, activeFlag bool,
 	guti *eps.EPSMobileIdentity, status *nas.EPSBearerContextStatus,
 ) ([]byte, error) {
-	plain, err := (&eps.TrackingAreaUpdateRequest{
+	req := &eps.TrackingAreaUpdateRequest{
 		EPSUpdateType:          updateType,
 		ActiveFlag:             activeFlag,
 		OldGUTI:                *guti,
 		EPSBearerContextStatus: status,
-	}).MarshalBinary()
+	}
+
+	if ue.smsOnly && (updateType == eps.EPSUpdateTypeCombinedTALA || updateType == eps.EPSUpdateTypeCombinedTALAIMSI) {
+		req.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
+	}
+
+	plain, err := req.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("build Tracking Area Update Request: %w", err)
 	}

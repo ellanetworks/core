@@ -46,6 +46,8 @@ func New(send func(cp []byte) error) *Stack {
 	}
 }
 
+var memoryFullDeliverReport = []byte{0x00, 0xd3, 0x00}
+
 func (s *Stack) SetMemoryFull(full bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,7 +202,7 @@ func (s *Stack) terminate(data *sms.CPData) error {
 
 	var report sms.RPMessage = &sms.RPAck{Direction: nas.DirectionUplink, Reference: rpData.Reference}
 	if full {
-		report = &sms.RPError{Direction: nas.DirectionUplink, Reference: rpData.Reference, Cause: sms.RPCauseMemoryCapacityExceeded}
+		report = &sms.RPError{Direction: nas.DirectionUplink, Reference: rpData.Reference, Cause: sms.RPCauseMemoryCapacityExceeded, UserData: memoryFullDeliverReport}
 	}
 
 	payload, err := report.AppendBinary(nil)

@@ -60,6 +60,8 @@ func startNR(env scenarios.Env) (*nr, error) {
 
 func (n *nr) Name() string { return "5G" }
 
+func (n *nr) NodeType() string { return "smsf_3gpp" }
+
 func (n *nr) Close() { n.g.Close() }
 
 func (n *nr) AwaitPage(timeout time.Duration) error {
@@ -150,6 +152,30 @@ func (p *nrPhone) AnswerPage() error {
 	_, err := p.ue.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), registrationTimeout)
 
 	return err
+}
+
+func (p *nrPhone) ReRegister() error {
+	if err := p.Idle(); err != nil {
+		return fmt.Errorf("release before the registration update: %w", err)
+	}
+
+	if err := p.ue.SendMobilityRegistrationRequest(p.ranID, nil, nil); err != nil {
+		return err
+	}
+
+	if _, err := p.ue.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), registrationTimeout); err != nil {
+		return fmt.Errorf("await Registration Accept: %w", err)
+	}
+
+	if err := p.ue.WaitForRRCRelease(releaseTimeout); err != nil {
+		return fmt.Errorf("await release after the registration update: %w", err)
+	}
+
+	return p.Connect()
+}
+
+func (p *nrPhone) SwitchOff() error {
+	return p.g.Deregister(p.ue, p.ranID, releaseTimeout)
 }
 
 func (p *nrPhone) Close() {}

@@ -22,6 +22,7 @@ const (
 	deliveryTimeout     = 45 * time.Second
 	absentTimeout       = 60 * time.Second
 	pagingTimeout       = 20 * time.Second
+	noReportTimeout     = 5 * time.Second
 )
 
 type params struct {
@@ -35,11 +36,13 @@ type phone interface {
 	Connect() error
 	Idle() error
 	AnswerPage() error
+	SwitchOff() error
 	Close()
 }
 
 type network interface {
 	Name() string
+	NodeType() string
 	Attach(imsi, msisdn string) (phone, error)
 	AwaitPage(timeout time.Duration) error
 	Close()
