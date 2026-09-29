@@ -20,7 +20,7 @@ To follow this guide, you will need:
 
 - Ubuntu Server 26.04
 - A host with a wired network interface
-- An OCUDU-compatible SDR
+- A USB, UHD-compatible SDR
 
 The instructions below were written for a Raspberry Pi 5 running Ubuntu 26.04 and the Ettus Research B205-mini SDR. Please adapt the interface names and SDR configuration as needed for your setup.
 
