@@ -13,6 +13,7 @@ import (
 var (
 	ErrAlreadyExists            = errors.New("already exists")
 	ErrNotFound                 = errors.New("not found")
+	ErrMSISDNInUse              = errors.New("msisdn is assigned to another subscriber")
 	ErrDataNetworkNotFound      = errors.New("data network not found")
 	ErrNoMatchingPolicy         = errors.New("no matching policy for slice and DNN")
 	ErrDNNNotInSlice            = errors.New("data network not found in slice")

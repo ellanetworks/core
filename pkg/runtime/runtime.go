@@ -47,6 +47,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctplisten"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
@@ -543,6 +544,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
+	smscLink := smsf.NewLink(smscSource(dbInstance), diameterNodeSource(mmeInstance), nil, logger.SmsfLog)
+	smsf.RegisterMetrics(smscLink)
+
+	smsWakeup, stopSMSWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
+
+	wg.Go(func() {
+		defer stopSMSWakeup()
+
+		smscLink.Run(ctx, smsWakeup)
+	})
+
 	lmfAMF := &lmfBridge{amf: amfInstance, mme: mmeInstance, lmf: lmfInstance}
 	lmfInstance.SetLPPHandler(lmfAMF)
 	amfInstance.LPPHandler = lmfAMF
@@ -590,6 +602,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		MME:                 mmeInstance,
 		BGP:                 bgpService,
 		LMF:                 lmfInstance,
+		Diameter:            smscLink,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
@@ -1065,4 +1078,38 @@ func sctpLogger(log *zap.Logger, name string) *slog.Logger {
 		zapslog.WithCaller(true),
 		zapslog.AddStacktraceAt(slog.LevelError+1),
 	))
+}
+
+func smscSource(dbInstance *db.Database) smsf.SMSCSource {
+	return func(ctx context.Context) (netip.AddrPort, error) {
+		settings, err := dbInstance.GetSMSSettings(ctx)
+		if err != nil {
+			return netip.AddrPort{}, err
+		}
+
+		if !settings.Enabled() {
+			return netip.AddrPort{}, nil
+		}
+
+		addr, err := netip.ParseAddr(settings.SMSCAddress)
+		if err != nil {
+			return netip.AddrPort{}, fmt.Errorf("invalid SMSC address %q: %w", settings.SMSCAddress, err)
+		}
+
+		return netip.AddrPortFrom(addr, uint16(settings.SMSCPort)), nil // #nosec G115 -- validated to 1-65535
+	}
+}
+
+func diameterNodeSource(mmeInstance *mme.MME) smsf.NodeSource {
+	return func(ctx context.Context) (smsf.NodeSettings, error) {
+		op, err := mmeInstance.Operator(ctx)
+		if err != nil {
+			return smsf.NodeSettings{}, err
+		}
+
+		plmn := op.PLMN()
+		group, code := op.GUMMEI()
+
+		return smsf.NodeSettings{MCC: plmn.Mcc, MNC: plmn.Mnc, MMEGroupID: group, MMECode: code}, nil
+	}
 }

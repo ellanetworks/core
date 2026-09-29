@@ -28,9 +28,11 @@ const SubscribersTableName = "subscribers"
 // cachedAppliedSchema(); writes are gated by RequireSchema at op registration.
 const subscriberDescriptionSchema = 18
 
+const subscriberMSISDNSchema = 22
+
 const (
-	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description)"
-	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
+	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
 	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
@@ -39,13 +41,23 @@ const (
 
 const subscriberColumnsPreV18 = "&Subscriber.id, &Subscriber.imsi, &Subscriber.sequenceNumber, &Subscriber.permanentKey, &Subscriber.opc, &Subscriber.profileID"
 
+const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", &Subscriber.description"
+
 const (
-	getSubscriberStmt       = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberPreV18Stmt = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
 )
 
 const (
 	subscriberSearchClause = `
+    ($subscriberFilterArgs.search IS NULL
+     OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\'
+     OR (msisdn != '' AND '+' || msisdn LIKE $subscriberFilterArgs.search ESCAPE '\')
+     OR description LIKE $subscriberFilterArgs.search ESCAPE '\')`
+
+	subscriberSearchClausePreV22 = `
     ($subscriberFilterArgs.search IS NULL
      OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\'
      OR description LIKE $subscriberFilterArgs.search ESCAPE '\')`
@@ -66,6 +78,13 @@ const (
   ORDER BY imsi
   LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 
+	listSubscribersFilteredPreV22Stmt = `
+  SELECT ` + subscriberColumnsPreV22 + `, COUNT(*) OVER() AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause + `
+  ORDER BY imsi
+  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+
 	listSubscribersFilteredPreV18Stmt = `
   SELECT ` + subscriberColumnsPreV18 + `, COUNT(*) OVER() AS &NumItems.count
   FROM %s
@@ -77,6 +96,11 @@ const (
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
+
+	countSubscribersFilteredPreV22Stmt = `
+  SELECT COUNT(*) AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause
 
 	countSubscribersFilteredPreV18Stmt = `
   SELECT COUNT(*) AS &NumItems.count
@@ -92,6 +116,7 @@ type Subscriber struct {
 	Opc            string `db:"opc"`
 	ProfileID      string `db:"profileID"`
 	Description    string `db:"description"`
+	Msisdn         string `db:"msisdn"`
 }
 
 type SubscriberFilters struct {
@@ -158,6 +183,8 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	stmt := db.listSubscribersStmt
 	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.listSubscribersPreV18Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		stmt = db.listSubscribersPreV22Stmt
 	}
 
 	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
@@ -210,6 +237,8 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	stmt := db.countSubscribersFilteredStmt
 	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.countSubscribersFilteredPreV18Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		stmt = db.countSubscribersFilteredPreV22Stmt
 	}
 
 	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
@@ -247,9 +276,52 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	stmt := db.getSubscriberStmt
 	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.getSubscriberPreV18Stmt
+	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		stmt = db.getSubscriberPreV22Stmt
 	}
 
 	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		recordSpanError(span, err)
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return &row, nil
+}
+
+func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {
+	querySummary := fmt.Sprintf("%s %s (by msisdn)", "SELECT", SubscribersTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		return nil, ErrNotFound
+	}
+
+	row := Subscriber{Msisdn: msisdn}
+
+	err := db.conn().Query(ctx, db.getSubscriberByMSISDNStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

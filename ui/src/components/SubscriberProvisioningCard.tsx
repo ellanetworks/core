@@ -19,11 +19,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
 import ErrorAlert from "@/components/ErrorAlert";
 import { getSubscriberCredentials } from "@/queries/subscribers";
+import { getOperator } from "@/queries/operator";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
   onEditProfile?: () => void;
   onEditDescription?: () => void;
+  onEditMSISDN?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -122,6 +124,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
   onEditProfile,
   onEditDescription,
+  onEditMSISDN,
 }) => {
   const copy = useCopyToClipboard();
   const { role, accessToken, authReady } = useAuth();
@@ -139,6 +142,20 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   });
 
   const credentials = credentialsQuery.data;
+
+  const operatorQuery = useQuery({
+    queryKey: ["operator"],
+    queryFn: () => getOperator(accessToken!),
+    enabled: authReady && !!accessToken,
+  });
+
+  const smsStatus = !subscriber.msisdn
+    ? "Unavailable (no MSISDN)"
+    : !operatorQuery.data
+      ? ""
+      : operatorQuery.data.sms?.enabled
+        ? "Available"
+        : "Unavailable (no SMSC configured)";
 
   const handleToggleCredentials = () => {
     if (!credentialsVisible) {
@@ -190,6 +207,14 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
               : undefined
           }
         />
+        <FieldRow
+          label="MSISDN"
+          value={subscriber.msisdn ?? ""}
+          actionIcon={
+            onEditMSISDN ? editIcon("Edit MSISDN", onEditMSISDN) : undefined
+          }
+        />
+        <FieldRow label="SMS" value={smsStatus} wrapProse />
         <FieldRow
           label="Profile"
           value={subscriber.profile_name || "—"}

@@ -62,6 +62,7 @@ export interface EditSubscriberFields {
   imsi: string;
   profileName: string;
   description: string;
+  msisdn: string;
 }
 
 // The API trims the description and counts runes; yup's own .max() counts
@@ -73,4 +74,20 @@ export const descriptionSchema = yup
     "description-length",
     `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
     (value) => [...(value ?? "").trim()].length <= MAX_DESCRIPTION_LENGTH,
+  );
+
+export const MSISDN_MAX_DIGITS = 15;
+
+export const normalizeMSISDN = (value: string) => value.trim();
+
+export const msisdnSchema = yup
+  .string()
+  .default("")
+  .test(
+    "msisdn-format",
+    `Must be an E.164 number: + followed by 1 to ${MSISDN_MAX_DIGITS} digits, for example +15551230001.`,
+    (value) => {
+      const number = normalizeMSISDN(value ?? "");
+      return number === "" || /^\+[1-9][0-9]{0,14}$/.test(number);
+    },
   );

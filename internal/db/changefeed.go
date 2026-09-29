@@ -33,6 +33,7 @@ const (
 	TopicClusterMembers         Topic = "cluster_members"
 	TopicFramedRoutes           Topic = "subscriber_framed_routes"
 	TopicUERegistrations        Topic = "ue_registrations"
+	TopicSMSSettings            Topic = "sms_settings"
 )
 
 // Changefeed is an in-process publish/subscribe broker. One per

@@ -19,6 +19,16 @@ export interface OperatorData {
     integrity: string[];
   };
   spn: { fullName: string; shortName: string };
+  sms: OperatorSMS;
+}
+
+export const DEFAULT_SMSC_PORT = 3868;
+
+export interface OperatorSMS {
+  enabled: boolean;
+  smscAddress: string;
+  smscPort: number;
+  smsNumber: string;
 }
 
 export const getOperator = async (authToken: string): Promise<OperatorData> => {
@@ -113,5 +123,18 @@ export const updateOperatorSPN = async (
     method: "PUT",
     authToken,
     body: { fullName, shortName },
+  });
+};
+
+export const updateOperatorSMS = async (
+  authToken: string,
+  smscAddress: string,
+  smscPort: number,
+  smsNumber: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/operator/sms`, {
+    method: "PUT",
+    authToken,
+    body: { smscAddress, smscPort, smsNumber },
   });
 };

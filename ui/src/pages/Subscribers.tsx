@@ -112,6 +112,13 @@ const SubscriberPage: React.FC = () => {
         ),
       },
       {
+        field: "msisdn",
+        headerName: "MSISDN",
+        flex: 0.8,
+        minWidth: 130,
+        valueGetter: (_v, row: APISubscriberSummary) => row.msisdn || "—",
+      },
+      {
         field: "description",
         headerName: "Description",
         flex: 1.2,
@@ -326,7 +333,7 @@ const SubscriberPage: React.FC = () => {
             <TextField
               label="Search"
               type="search"
-              placeholder="IMSI or description"
+              placeholder="IMSI, MSISDN or description"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               size="small"

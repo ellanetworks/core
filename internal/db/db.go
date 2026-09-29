@@ -64,6 +64,10 @@ type Database struct {
 	countSubscribersFilteredPreV18Stmt *sqlair.Statement
 	getSubscriberStmt                  *sqlair.Statement
 	getSubscriberPreV18Stmt            *sqlair.Statement
+	listSubscribersPreV22Stmt          *sqlair.Statement
+	countSubscribersFilteredPreV22Stmt *sqlair.Statement
+	getSubscriberPreV22Stmt            *sqlair.Statement
+	getSubscriberByMSISDNStmt          *sqlair.Statement
 	createSubscriberStmt               *sqlair.Statement
 	updateSubscriberProfileStmt        *sqlair.Statement
 	updateSubscriberSqnNumStmt         *sqlair.Statement
@@ -258,6 +262,9 @@ type Database struct {
 	purgeUERegistrationsByNodeStmt *sqlair.Statement
 	getUERegistrationStmt          *sqlair.Statement
 	maxUERegistrationVersionStmt   *sqlair.Statement
+
+	getSMSSettingsStmt    *sqlair.Statement
+	upsertSMSSettingsStmt *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -1602,6 +1609,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSubscribersFilteredPreV18Stmt, fmt.Sprintf(countSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberPreV18Stmt, fmt.Sprintf(getSubscriberPreV18Stmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.listSubscribersPreV22Stmt, fmt.Sprintf(listSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
+		{&db.countSubscribersFilteredPreV22Stmt, fmt.Sprintf(countSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
+		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -1795,6 +1806,9 @@ func (db *Database) PrepareStatements() error {
 		{&db.purgeUERegistrationsByNodeStmt, fmt.Sprintf(purgeUERegistrationsByNodeStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.getUERegistrationStmt, fmt.Sprintf(getUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
 		{&db.maxUERegistrationVersionStmt, fmt.Sprintf(maxUERegistrationVersionStmt, UERegistrationsTableName), []any{ueRegistrationVersion{}}},
+
+		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
+		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},

@@ -9,6 +9,7 @@ import { setupApiServer, httpError } from "@/test/apiServer";
 import EditOperatorIdModal from "./EditOperatorIdModal";
 import EditOperatorCodeModal from "./EditOperatorCodeModal";
 import EditOperatorSPNModal from "./EditOperatorSPNModal";
+import EditOperatorSMSModal from "./EditOperatorSMSModal";
 import EditOperatorTrackingModal from "./EditOperatorTrackingModal";
 
 const api = setupApiServer();
@@ -249,5 +250,96 @@ describe("EditOperatorTrackingModal", () => {
     expect(api.lastRequest(TRACKING_PATH)?.body).toEqual({
       supportedTacs: ["00000A"],
     });
+  });
+});
+
+describe("EditOperatorSMSModal", () => {
+  const SMS_PATH = "/api/v1/operator/sms";
+
+  const render = (
+    initialData = { smscAddress: "", smscPort: 3868, smsNumber: "" },
+  ) => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <EditOperatorSMSModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        initialData={initialData}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  it("submits the SMSC and the SMS number", async () => {
+    const user = userEvent.setup();
+    api.put(SMS_PATH, () => ({}));
+    const { onClose } = render();
+
+    await retype(user, /SMSC Address/, "192.0.2.10");
+    await retype(user, /SMS Number/, "+15550001111");
+    await waitFor(() => expect(updateButton()).toBeEnabled());
+    await user.click(updateButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(SMS_PATH)?.body).toEqual({
+      smscAddress: "192.0.2.10",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+  });
+
+  it("requires an SMS number when an SMSC is set", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await retype(user, /SMSC Address/, "192.0.2.10");
+    await retype(user, /SMS Number/, "");
+
+    await screen.findByText("SMS number is required");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("rejects an SMSC address that is not an IP address", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await retype(user, /SMSC Address/, "smsc.example.org");
+
+    await screen.findByText("SMSC address must be an IPv4 or IPv6 address");
+    expect(updateButton()).toBeDisabled();
+  });
+
+  it("disables SMS when the SMSC address is cleared", async () => {
+    const user = userEvent.setup();
+    api.put(SMS_PATH, () => ({}));
+    const { onClose } = render({
+      smscAddress: "192.0.2.10",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+
+    expect(field(/SMS Number/)).toHaveValue("+15550001111");
+    await retype(user, /SMSC Address/, "");
+    await waitFor(() => expect(updateButton()).toBeEnabled());
+    await user.click(updateButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(SMS_PATH)?.body).toEqual({
+      smscAddress: "",
+      smscPort: 3868,
+      smsNumber: "+15550001111",
+    });
+  });
+
+  it("rejects an SMS number without the + prefix", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await retype(user, /SMS Number/, "15550001111");
+
+    await screen.findByText(/Must be an E.164 number/);
+    expect(updateButton()).toBeDisabled();
   });
 });

@@ -32,8 +32,15 @@ import {
   getOperator,
   deleteHomeNetworkKey,
   getHomeNetworkKeyPrivateKey,
+  DEFAULT_SMSC_PORT,
   type OperatorData,
 } from "@/queries/operator";
+import {
+  getDiameterStatus,
+  type DiameterPeer,
+  type DiameterPeerState,
+  type DiameterStatus,
+} from "@/queries/diameter";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
@@ -41,6 +48,7 @@ import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
+import EditOperatorSMSModal from "@/components/EditOperatorSMSModal";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -58,6 +66,58 @@ const algTooltips: Record<string, string> = {
   NULL: "Null algorithm (no security)",
   SNOW3G: "NAS security with SNOW 3G",
   AES: "NAS security with AES (AES-CTR ciphering / AES-CMAC integrity)",
+};
+
+const smscPeerLabels: Record<
+  DiameterPeerState,
+  { label: string; color: "success" | "warning" | "error" | "default" }
+> = {
+  open: { label: "Connected", color: "success" },
+  connecting: { label: "Connecting", color: "warning" },
+  reopen: { label: "Reconnecting", color: "warning" },
+  suspect: { label: "Unresponsive", color: "warning" },
+  closing: { label: "Disconnecting", color: "warning" },
+  down: { label: "Disconnected", color: "error" },
+};
+
+const SMSCLinkValue: React.FC<{
+  enabled: boolean;
+  diameter?: DiameterStatus;
+}> = ({ enabled, diameter }) => {
+  if (!enabled) {
+    return <Chip label="Disabled" size="small" variant="outlined" />;
+  }
+
+  const peer: DiameterPeer | undefined = diameter?.peers.find(
+    (p) => p.role === "smsc",
+  );
+  if (!peer) return <>N/A</>;
+
+  const { label, color } = smscPeerLabels[peer.state] ?? {
+    label: peer.state,
+    color: "default",
+  };
+
+  const tooltip = diameter?.host
+    ? `This node connects as ${diameter.host} in realm ${diameter.realm}`
+    : "";
+
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+      <Tooltip title={tooltip} arrow>
+        <Chip label={label} color={color} size="small" variant="outlined" />
+      </Tooltip>
+      {peer.host && (
+        <Typography
+          variant="body2"
+          color="textSecondary"
+          sx={{ wordBreak: "break-word" }}
+        >
+          {[peer.host, peer.realm].filter(Boolean).join(" · ")}
+        </Typography>
+      )}
+    </Stack>
+  );
 };
 
 const Operator = () => {
@@ -79,6 +139,8 @@ const Operator = () => {
     setEditOperatorNASSecurityModalOpen,
   ] = useState(false);
   const [isEditOperatorSPNModalOpen, setEditOperatorSPNModalOpen] =
+    useState(false);
+  const [isEditOperatorSMSModalOpen, setEditOperatorSMSModalOpen] =
     useState(false);
   const [visiblePrivateKeys, setVisiblePrivateKeys] = useState<
     Record<number, string>
@@ -104,7 +166,8 @@ const Operator = () => {
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
-    isEditOperatorSPNModalOpen;
+    isEditOperatorSPNModalOpen ||
+    isEditOperatorSMSModalOpen;
 
   const queryClient = useQueryClient();
   const operatorQuery = useQuery<OperatorData>({
@@ -114,6 +177,12 @@ const Operator = () => {
     placeholderData: (prev) => prev,
   });
   const operator = operatorQuery.data ?? null;
+  const diameterQuery = useQuery<DiameterStatus>({
+    queryKey: ["diameter"],
+    enabled: authReady && !!accessToken && !!operator?.sms?.enabled,
+    queryFn: () => getDiameterStatus(accessToken!),
+    refetchInterval: 5000,
+  });
   const isLoading = operatorQuery.isLoading && !operator;
 
   const { showSnackbar } = useSnackbar();
@@ -185,6 +254,10 @@ const Operator = () => {
   const handleEditOperatorSPNSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
     showSnackbar("Network name (SPN) updated successfully.", "success");
+  };
+  const handleEditOperatorSMSSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["operator"] });
+    showSnackbar("SMS settings updated successfully.", "success");
   };
 
   const clearPrivateKey = (keyId: number) => {
@@ -794,6 +867,90 @@ const Operator = () => {
         )}
       </Box>
 
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          SMS
+        </Typography>
+        <TableContainer sx={TABLE_CONTAINER_SX}>
+          <Table>
+            <TableBody>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="External SMSC that each node connects to over Diameter (SGd and S6c)"
+                    arrow
+                  >
+                    <span>SMSC</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={160} />
+                  ) : operator?.sms?.enabled ? (
+                    operator.sms.smscAddress.includes(":") ? (
+                      `[${operator.sms.smscAddress}]:${operator.sms.smscPort}`
+                    ) : (
+                      `${operator.sms.smscAddress}:${operator.sms.smscPort}`
+                    )
+                  ) : (
+                    <Chip label="Disabled" size="small" variant="outlined" />
+                  )}
+                </TableCell>
+                <TableCell sx={actionCellSx} rowSpan={3}>
+                  {canEdit && (
+                    <Tooltip title="Edit SMS settings" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() => setEditOperatorSMSModalOpen(true)}
+                        aria-label="Edit SMS settings"
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip title="This network's E.164 number for SMS" arrow>
+                    <span>SMS Number</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={120} />
+                  ) : operator?.sms?.smsNumber ? (
+                    operator.sms.smsNumber
+                  ) : (
+                    "N/A"
+                  )}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={settingCellSx}>
+                  <Tooltip
+                    title="State of the Diameter connection from this node to the SMSC"
+                    arrow
+                  >
+                    <span>SMSC Link</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  {isLoading ? (
+                    <Skeleton variant="text" width={120} />
+                  ) : (
+                    <SMSCLinkValue
+                      enabled={!!operator?.sms?.enabled}
+                      diameter={diameterQuery.data}
+                    />
+                  )}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
       {isEditOperatorIdModalOpen && (
         <EditOperatorIdModal
           open
@@ -872,6 +1029,18 @@ const Operator = () => {
           initialData={{
             fullName: operator?.spn?.fullName ?? "Ella Networks",
             shortName: operator?.spn?.shortName ?? "Ella",
+          }}
+        />
+      )}
+      {isEditOperatorSMSModalOpen && (
+        <EditOperatorSMSModal
+          open
+          onClose={() => setEditOperatorSMSModalOpen(false)}
+          onSuccess={handleEditOperatorSMSSuccess}
+          initialData={{
+            smscAddress: operator?.sms?.smscAddress ?? "",
+            smscPort: operator?.sms?.smscPort ?? DEFAULT_SMSC_PORT,
+            smsNumber: operator?.sms?.smsNumber ?? "",
           }}
         />
       )}

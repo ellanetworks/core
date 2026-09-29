@@ -124,6 +124,7 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		SequenceNumber: "000000000022",
 		ProfileName:    profileA,
 		OPc:            "cb698a2341629c3241ae01de9d89de4f",
+		Msisdn:         "+15559990001",
 	}
 
 	if err := c.CreateSubscriber(ctx, createOpts); err != nil {
@@ -147,8 +148,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("get subscriber %q after create: %v", imsi, err)
 	}
 
-	if got.Imsi != imsi || got.ProfileName != profileA {
-		t.Fatalf("post-create round-trip mismatch: got %+v, want imsi=%s profile=%s", got, imsi, profileA)
+	if got.Imsi != imsi || got.ProfileName != profileA || got.Msisdn != "+15559990001" {
+		t.Fatalf("post-create round-trip mismatch: got %+v, want imsi=%s profile=%s msisdn=+15559990001", got, imsi, profileA)
 	}
 
 	// Defaults for a never-attached subscriber. Locks the contract
@@ -202,6 +203,21 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 		break
 	}
+
+	t.Run("update_Msisdn", func(t *testing.T) {
+		if err := c.UpdateSubscriber(ctx, imsi, &client.UpdateSubscriberOptions{ProfileName: profileA, Msisdn: "+15559990002"}); err != nil {
+			t.Fatalf("update subscriber: %v", err)
+		}
+
+		updated, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
+		if err != nil {
+			t.Fatalf("get subscriber after update: %v", err)
+		}
+
+		if updated.Msisdn != "+15559990002" {
+			t.Fatalf("Msisdn: got %q, want %q", updated.Msisdn, "+15559990002")
+		}
+	})
 
 	t.Run("update_ProfileName", func(t *testing.T) {
 		if err := c.UpdateSubscriber(ctx, imsi, &client.UpdateSubscriberOptions{ProfileName: profileB}); err != nil {

@@ -29,6 +29,7 @@ var (
 		"retention_policies",
 		"schema_version",
 		"sessions",
+		"sms_settings",
 		"subscriber_framed_routes",
 		"subscribers",
 		"ue_registrations",

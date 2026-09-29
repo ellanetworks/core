@@ -1066,3 +1066,43 @@ None
     }
 }
 ```
+
+# Diameter
+
+## Get Diameter Status
+
+This path returns the Diameter identity of the node that serves the request and the state of its Diameter peers. Each node reports only its own connections.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/networking/diameter` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "host": "mmec41.mmegi8100.mme.epc.mnc001.mcc001.3gppnetwork.org",
+        "realm": "epc.mnc001.mcc001.3gppnetwork.org",
+        "peers": [
+            {
+                "role": "smsc",
+                "host": "smsc.example.org",
+                "realm": "example.org",
+                "address": "192.0.2.10",
+                "port": 3868,
+                "state": "open",
+                "since": "2026-09-29T13:44:09Z"
+            }
+        ]
+    }
+}
+```
+
+- `host` and `realm` are the node's Diameter identity. The realm is `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`, derived from the operator ID, and the host is the node's MME FQDN (3GPP TS 23.003 clauses 19.2 and 19.4.2.4). Both are absent until the node has joined its cluster.
+- `peers` lists the node's Diameter peers. It holds the SMSC (`role` `smsc`) while an SMSC is set in the [SMS settings](operator.md#update-the-sms-settings), and is empty otherwise. `host` and `realm` are the peer's identity, present once it has answered a capabilities exchange.
+- `state` is one of `down`, `connecting`, `open`, `suspect`, `reopen` and `closing`. A peer is usable only while `open`. It is `suspect` when it stops answering watchdog requests, and `reopen` after a reconnect until it has answered three of them (RFC 3539). `since` is when the peer entered its current state.

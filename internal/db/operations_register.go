@@ -14,8 +14,8 @@ import (
 // carries every column of the new row, and the profile update writes the
 // column outright.
 var (
-	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber, RequireSchema(18))
-	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, RequireSchema(18), AffectsTopic(TopicSessionReconcile))
+	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber, RequireSchema(22))
+	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, RequireSchema(22), AffectsTopic(TopicSessionReconcile))
 	opEditSubscriberSeqNum    = registerChangesetOp("EditSubscriberSeqNum", (*Database).applyEditSubscriberSeqNum)
 	opAdvanceSubscriberSQN    = registerChangesetOpReturning[AdvanceSQNPayload, *AdvancedCredentials]("AdvanceSubscriberSQN", (*Database).applyAdvanceSubscriberSQN)
 	opDeleteSubscriber        = registerChangesetOp("DeleteSubscriber", (*Database).applyDeleteSubscriber)
@@ -169,6 +169,8 @@ var (
 	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 )
+
+var opUpdateSMSSettings = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, RequireSchema(22), AffectsTopic(TopicSMSSettings))
 
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.

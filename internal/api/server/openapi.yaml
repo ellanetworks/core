@@ -65,6 +65,8 @@ tags:
     description: Manage static routes.
   - name: NAT
     description: NAT settings.
+  - name: Diameter
+    description: Diameter identity and peer state of a node.
   - name: Flow Accounting
     description: Flow accounting settings.
   - name: Interfaces
@@ -898,6 +900,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteSubscriber
       tags: [Subscribers]
@@ -1541,6 +1545,26 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/operator/sms:
+    put:
+      operationId: updateOperatorSMS
+      tags: [Operator]
+      summary: Update SMS settings
+      description: Sets the external SMSC and Ella Core's SMS number. SMS is enabled whenever smscAddress is set. Every node connects to the SMSC over Diameter (SGd and S6c) on SCTP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOperatorSMSParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
     get:
@@ -1940,6 +1964,22 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   # -- NAT -----------------------------------------------------------------
+  /api/v1/networking/diameter:
+    get:
+      operationId: getDiameterStatus
+      tags: [Diameter]
+      summary: Get Diameter status
+      description: Returns the Diameter identity of the node that serves the request and the state of its Diameter peers.
+      responses:
+        "200":
+          description: Diameter status of this node.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiameterStatusResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/networking/nat:
     get:
       operationId: getNATInfo
@@ -3780,6 +3820,10 @@ components:
           type: string
           maxLength: 64
           description: Free-text note. Absent when unset.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -3874,6 +3918,10 @@ components:
           type: string
           maxLength: 64
           description: Free-text note. Absent when unset.
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, for example +15551230001. Absent when unset."
         registrations:
           type: array
           description: "Mobility-management contexts, 5G first."
@@ -3987,6 +4035,10 @@ components:
           type: string
           maxLength: 64
           description: "Free-text note."
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, for example +15551230001. Unique across subscribers."
 
     UpdateSubscriberParams:
       type: object
@@ -3999,6 +4051,10 @@ components:
           type: string
           maxLength: 64
           description: "Free-text note. Omitting it clears the value."
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9][0-9]{0,14}$"
+          description: "MSISDN in E.164 format, for example +15551230001. Unique across subscribers. Omitting it clears the value."
 
     # -- Subscriber Usage ------------------------------------------------
     DailySubscriberUsage:
@@ -4413,6 +4469,8 @@ components:
           $ref: "#/components/schemas/OperatorNASSecurity"
         spn:
           $ref: "#/components/schemas/OperatorSPN"
+        sms:
+          $ref: "#/components/schemas/OperatorSMS"
 
     OperatorResponseEnvelope:
       type: object
@@ -4556,6 +4614,41 @@ components:
         shortName:
           type: string
           description: "Short network name."
+
+    OperatorSMS:
+      type: object
+      required: [enabled, smscAddress, smscPort, smsNumber]
+      properties:
+        enabled:
+          type: boolean
+          description: "True when smscAddress is set."
+        smscAddress:
+          type: string
+          description: "IP address of the SMSC's Diameter endpoint. Empty when SMS is disabled."
+        smscPort:
+          type: integer
+          description: "SCTP port of the SMSC's Diameter endpoint."
+        smsNumber:
+          type: string
+          description: "Ella Core's E.164 number, for example +15550001111. Empty when unset."
+
+    UpdateOperatorSMSParams:
+      type: object
+      required: [smscAddress, smsNumber]
+      properties:
+        smscAddress:
+          type: string
+          description: "IPv4 or IPv6 address of the SMSC's Diameter endpoint. An empty value disables SMS."
+        smscPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          default: 3868
+          description: "SCTP port of the SMSC's Diameter endpoint."
+        smsNumber:
+          type: string
+          pattern: "^(\\+[1-9][0-9]{0,14})?$"
+          description: "Ella Core's E.164 number, for example +15550001111. Required when smscAddress is set."
 
     UpdateOperatorSPNParams:
       type: object
@@ -4936,6 +5029,56 @@ components:
           $ref: "#/components/schemas/CreateSuccessResponse"
 
     # -- NAT -------------------------------------------------------------
+    DiameterStatus:
+      type: object
+      required: [peers]
+      properties:
+        host:
+          type: string
+          description: "This node's Diameter identity, the MME FQDN of TS 23.003 clause 19.4.2.4. Absent until the node has its MME code."
+        realm:
+          type: string
+          description: "This node's Diameter realm, the home network domain of TS 23.003 clause 19.2."
+        peers:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiameterPeer"
+
+    DiameterPeer:
+      type: object
+      required: [role, address, port, state, since]
+      properties:
+        role:
+          type: string
+          enum: [smsc]
+          description: "What the peer is to Ella Core."
+        host:
+          type: string
+          description: "The peer's Diameter identity, learned from the capabilities exchange."
+        realm:
+          type: string
+          description: "The peer's Diameter realm, learned from the capabilities exchange."
+        address:
+          type: string
+          description: "The peer's IP address."
+        port:
+          type: integer
+          description: "The peer's SCTP port."
+        state:
+          type: string
+          enum: [down, connecting, open, suspect, reopen, closing]
+          description: "Peer state. open once the capabilities exchange completes; suspect when watchdog answers stop (RFC 3539); reopen after a reconnect until watchdog answers resume."
+        since:
+          type: string
+          format: date-time
+          description: "When the peer entered its current state."
+
+    DiameterStatusResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/DiameterStatus"
+
     NATInfo:
       type: object
       properties:
