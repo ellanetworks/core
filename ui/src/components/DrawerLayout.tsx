@@ -48,7 +48,7 @@ import DeploymentIdentity from "@/components/DeploymentIdentity";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useColorScheme, useTheme } from "@mui/material/styles";
+import { type Theme, useColorScheme, useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
@@ -64,7 +64,7 @@ const THEME_MODES = [
 ] as const;
 
 const drawerSelectedSx = {
-  "& .MuiListItemText-primary": { color: "primary.main" },
+  "& .MuiListItemText-primary": { color: "text.primary" },
 
   "&:hover": { bgcolor: "transparent" },
   "&.Mui-selected": { bgcolor: "transparent" },
@@ -73,14 +73,14 @@ const drawerSelectedSx = {
   "&.Mui-selected .MuiListItemText-primary": {
     fontWeight: 700,
     textDecoration: "underline",
-    textDecorationColor: "primary.main",
+    textDecorationColor: (t: Theme) => (t.vars ?? t).palette.primary.main,
     textUnderlineOffset: "4px",
     textDecorationThickness: "2px",
   },
 
   "&:hover .MuiListItemText-primary": {
     textDecoration: "underline",
-    textDecorationColor: "primary.main",
+    textDecorationColor: (t: Theme) => (t.vars ?? t).palette.primary.main,
     textUnderlineOffset: "4px",
     textDecorationThickness: "2px",
   },
@@ -227,7 +227,7 @@ export default function DrawerLayout({
             </IconButton>
           )}
 
-          <Logo width={50} height={50} />
+          <Logo />
           <ProductTitle />
 
           <Box sx={{ flexGrow: 1 }} />

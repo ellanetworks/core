@@ -1,0 +1,7 @@
+{
+  "appName": "Ella Core",
+  "logo": "logo.svg",
+  "favicon": ["favicon.ico", "favicon.svg"],
+  "colorPrimary": "#26374A",
+  "colorPrimaryDark": "#5B9DFF"
+}

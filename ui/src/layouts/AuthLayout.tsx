@@ -21,7 +21,7 @@ export default function AuthLayout() {
         <Box sx={{ display: "flex" }}>
           <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
             <Toolbar>
-              <Logo width={50} height={50} />
+              <Logo />
               <ProductTitle />
             </Toolbar>
           </AppBar>

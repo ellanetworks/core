@@ -2,16 +2,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { logoAlt } from "@/utils/product";
+import { logoAlt, logoHeight } from "@/utils/product";
 
-export default function Logo({
-  width = 50,
-  height = 50,
-}: {
-  width?: number;
-  height?: number;
-}) {
+export default function Logo() {
   return (
-    <img src="/logo-mark.svg" alt={logoAlt()} width={width} height={height} />
+    <img
+      src={BRANDING.logoUrl}
+      alt={logoAlt()}
+      height={logoHeight()}
+      style={{ width: "auto", maxWidth: 220, objectFit: "contain" }}
+    />
   );
 }

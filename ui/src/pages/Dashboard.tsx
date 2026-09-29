@@ -67,7 +67,6 @@ import {
   type TimeRangeFilter,
 } from "@/components/TimeRangePicker";
 import PageTitle from "@/components/PageTitle";
-import { PRODUCT } from "@/utils/product";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -392,7 +391,7 @@ const Dashboard = () => {
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       <Box sx={{ mb: 3 }}>
-        <PageTitle title={PRODUCT.name} documentTitle="Dashboard" />
+        <PageTitle title="Dashboard" />
       </Box>
 
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>

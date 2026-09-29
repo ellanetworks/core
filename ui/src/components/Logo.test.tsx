@@ -7,7 +7,7 @@ import Logo from "@/components/Logo";
 
 describe("Logo", () => {
   it("renders the mark", () => {
-    render(<Logo width={50} height={50} />);
+    render(<Logo />);
     expect(screen.getByRole("img")).toHaveAttribute("src", "/logo-mark.svg");
   });
 });

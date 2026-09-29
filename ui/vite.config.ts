@@ -4,27 +4,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { PRODUCT } from "./src/utils/product";
-import { dark, light } from "./src/utils/tokens";
+import { brandingPlugin, loadBranding } from "./branding/branding";
 
 const apiTarget = process.env.ELLA_API_PROXY_TARGET ?? "http://localhost:5000";
+const branding = loadBranding();
 
 export default defineConfig({
-  plugins: [
-    react(),
-    {
-      name: "ella-index-html",
-      transformIndexHtml(html: string) {
-        return html
-          .replace(
-            /<title>[^<]*<\/title>/,
-            () => `<title>${PRODUCT.name}</title>`,
-          )
-          .replaceAll("%CANVAS_LIGHT%", light.backgroundDefault)
-          .replaceAll("%CANVAS_DARK%", dark.backgroundDefault);
-      },
-    },
-  ],
+  plugins: [react(), brandingPlugin(branding)],
+  define: {
+    BRANDING: JSON.stringify(branding.client),
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

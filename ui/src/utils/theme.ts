@@ -30,11 +30,11 @@ declare module "@mui/material/styles" {
   }
 }
 
-const paletteFor = (tokens: Tokens) => ({
+const paletteFor = (tokens: Tokens, primary: string) => ({
   // MUI defaults to 3, which lets getContrastText return white on backgrounds
   // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
   contrastThreshold: 4.5,
-  primary: { main: tokens.primary },
+  primary: { main: primary },
   success: { main: tokens.success },
   error: { main: tokens.error },
   warning: { main: tokens.warning },
@@ -54,13 +54,39 @@ const paletteFor = (tokens: Tokens) => ({
   DataGrid: { headerBg: tokens.backgroundSubtle },
 });
 
+const { topBar } = BRANDING;
+
 const theme = createTheme({
   cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
-    light: { palette: { mode: "light", ...paletteFor(light) } },
-    dark: { palette: { mode: "dark", ...paletteFor(dark) } },
+    light: {
+      palette: {
+        mode: "light",
+        ...paletteFor(light, BRANDING.colorPrimary),
+      },
+    },
+    dark: {
+      palette: {
+        mode: "dark",
+        ...paletteFor(dark, BRANDING.colorPrimaryDark),
+        ...(topBar && {
+          AppBar: { darkBg: topBar.background, darkColor: topBar.text },
+        }),
+      },
+    },
   },
   components: {
+    ...(topBar && {
+      MuiAppBar: {
+        styleOverrides: {
+          root: {
+            "--AppBar-background": topBar.background,
+            "--AppBar-color": topBar.text,
+            backgroundImage: "none",
+          },
+        },
+      },
+    }),
     MuiDataGrid: {
       styleOverrides: {
         columnHeaderTitle: {

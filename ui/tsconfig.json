@@ -20,6 +20,7 @@
   "include": [
     "src",
     "e2e",
+    "branding",
     "vite.config.ts",
     "vitest.config.ts",
     "vitest.setup.ts",

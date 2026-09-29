@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 export interface Tokens {
-  primary: string;
   success: string;
   error: string;
   warning: string;
@@ -23,7 +22,6 @@ export interface Tokens {
 }
 
 export const light: Tokens = {
-  primary: "#26374A",
   success: "#1B6C1C",
   error: "#C62828",
   warning: "#ED6C02",
@@ -64,7 +62,6 @@ export const light: Tokens = {
 };
 
 export const dark: Tokens = {
-  primary: "#5B9DFF",
   success: "#4ABF4B",
   error: "#EC9393",
   warning: "#F09142",

@@ -77,7 +77,7 @@ describe("theme color schemes", () => {
     renderIn("light");
 
     expect(value("mode")).toBe("light");
-    expect(value("primary")).toBe(light.primary);
+    expect(value("primary")).toBe(BRANDING.colorPrimary);
     expect(value("link")).toBe(light.link);
     expect(value("info")).toBe(light.info);
     expect(value("subtle")).toBe(light.backgroundSubtle);
@@ -93,7 +93,7 @@ describe("theme color schemes", () => {
     renderIn("dark");
 
     expect(value("mode")).toBe("dark");
-    expect(value("primary")).toBe(dark.primary);
+    expect(value("primary")).toBe(BRANDING.colorPrimaryDark);
     expect(value("link")).toBe(dark.link);
     expect(value("info")).toBe(dark.info);
     expect(value("subtle")).toBe(dark.backgroundSubtle);
@@ -115,7 +115,7 @@ describe("dark palette contrast", () => {
 
   it("keeps the semantic accents readable on every dark surface", () => {
     for (const color of [
-      dark.primary,
+      BRANDING.colorPrimaryDark,
       dark.success,
       dark.error,
       dark.warning,
@@ -194,7 +194,7 @@ describe("light palette contrast", () => {
 
   it("keeps the semantic accents readable as text on the page", () => {
     for (const color of [
-      light.primary,
+      BRANDING.colorPrimary,
       light.success,
       light.error,
       light.info,
