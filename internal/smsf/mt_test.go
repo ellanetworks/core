@@ -558,3 +558,23 @@ func TestAnAbsentAttemptKeepsTheMemoryFullFlag(t *testing.T) {
 		t.Fatal("SMSC alerted on reachability while the UE memory is still full")
 	}
 }
+
+func TestTheUEBecomingReachableDuringAFailingDeliveryAlerts(t *testing.T) {
+	e := newEnv(t)
+	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+
+	gate := e.ue.holdReachability()
+	tfa := forwardAsync(t, e)
+
+	eventually(t, "the delivery to start", func() bool { return e.ue.reachability() == 1 })
+
+	e.smsf.UEReachable(context.Background(), imsi)
+	close(gate)
+
+	re := failure(t, awaitTFA(t, tfa))
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) {
+		t.Fatalf("TFA = %+v, want absent user", re)
+	}
+
+	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+}

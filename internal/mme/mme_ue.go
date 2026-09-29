@@ -173,7 +173,8 @@ type UeContext struct {
 
 	handover *handoverContext
 
-	emmState EMMState
+	emmState     EMMState
+	stateChanged chan struct{}
 
 	idleMobilityFrom5GS    bool
 	idleMobilityTo5GSUntil time.Time

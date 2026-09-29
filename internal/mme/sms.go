@@ -165,7 +165,7 @@ func (m *MME) EnableUEReachabilityForSMS(ctx context.Context, imsi string) error
 	ctx, span := Tracer.Start(ctx, "mme/enable_ue_reachability_for_sms")
 	defer span.End()
 
-	ue, err := m.smsUE(imsi)
+	ue, err := m.smsUE(imsi, true)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (m *MME) EnableUEReachabilityForSMS(ctx context.Context, imsi string) error
 }
 
 func (m *MME) SendSMS(ctx context.Context, imsi string, payload []byte) error {
-	ue, err := m.smsUE(imsi)
+	ue, err := m.smsUE(imsi, false)
 	if err != nil {
 		return err
 	}
@@ -200,17 +200,18 @@ func (m *MME) SendSMS(ctx context.Context, imsi string, payload []byte) error {
 	return nil
 }
 
-func (m *MME) smsUE(imsi string) (*UeContext, error) {
+func (m *MME) smsUE(imsi string, registering bool) (*UeContext, error) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return nil, ErrSMSUENotRegistered
 	}
 
-	if ue.EMMState() != EMMRegistered {
-		if ue.Conn() == nil {
-			return nil, ErrSMSUENotRegistered
-		}
-
+	switch state := ue.EMMState(); {
+	case state == EMMRegistered:
+	case registering && state == EMMRegistrationInitiated && ue.Conn() != nil:
+	case ue.Conn() == nil:
+		return nil, ErrSMSUENotRegistered
+	default:
 		return nil, ErrSMSUEUnreachable
 	}
 
@@ -238,15 +239,25 @@ func (m *MME) reachForSMS(ctx context.Context, ue *UeContext) error {
 			}
 		}
 
-		if ue.Conn() != nil {
-			if ue.EMMState() != EMMRegistered {
-				return ErrSMSUEUnreachable
+		state, changed := ue.watchEMMState()
+
+		switch {
+		case state == EMMRegistrationInitiated && ue.Conn() != nil:
+			select {
+			case <-changed:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-
+		case state == EMMDeregistered:
+			return ErrSMSUENotRegistered
+		case state != EMMRegistered:
+			return ErrSMSUEUnreachable
+		case !ue.SMSOnly():
+			return ErrSMSNotAllowed
+		case ue.Conn() != nil:
 			return nil
-		}
-
-		if paged || ue.EMMState() != EMMRegistered {
+		case paged:
 			return ErrSMSUEUnreachable
 		}
 
@@ -368,7 +379,7 @@ func (ue *UeContext) AbortSMSIMSIDetach() {
 }
 
 func (m *MME) SMSRoute(imsi string) (granted, connected bool) {
-	ue, err := m.smsUE(imsi)
+	ue, err := m.smsUE(imsi, true)
 	if err != nil {
 		return false, false
 	}

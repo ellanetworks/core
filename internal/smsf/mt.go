@@ -124,13 +124,21 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	s.mu.Unlock()
 
 	defer func() {
+		var alert, memoryAvailable bool
+
 		s.mu.Lock()
 		if u, ok := s.ues[imsi]; ok && u.mt == t {
 			u.mt = nil
+			alert, memoryAvailable = u.deferredAlert, u.deferredMemoryAvailable
+			u.deferredAlert, u.deferredMemoryAvailable = false, false
 		}
 		s.mu.Unlock()
 
 		s.transactionEnded(context.WithoutCancel(ctx), imsi)
+
+		if alert {
+			s.startAlert(context.WithoutCancel(ctx), imsi, memoryAvailable)
+		}
 	}()
 
 	rpdu, err := (&sms.RPData{

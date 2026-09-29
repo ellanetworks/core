@@ -56,7 +56,16 @@ func (s *SMSF) startAlert(ctx context.Context, imsi string, memoryAvailable bool
 	s.mu.Lock()
 	w, ok := s.waiting[imsi]
 
-	if !ok || w.alerting || (w.memoryFull && !memoryAvailable) || s.deliveringLocked(imsi) {
+	if s.deliveringLocked(imsi) {
+		u := s.ues[imsi]
+		u.deferredAlert = true
+		u.deferredMemoryAvailable = u.deferredMemoryAvailable || memoryAvailable
+		s.mu.Unlock()
+
+		return
+	}
+
+	if !ok || w.alerting || (w.memoryFull && !memoryAvailable) {
 		s.mu.Unlock()
 		return
 	}

@@ -102,6 +102,11 @@ func (ue *UeContext) transitionEMMLocked(ctx context.Context, target EMMState) {
 func (ue *UeContext) setEMMStateLocked(target EMMState) {
 	ue.emmState = target
 
+	if ue.stateChanged != nil {
+		close(ue.stateChanged)
+		ue.stateChanged = nil
+	}
+
 	if target == EMMRegistrationInitiated {
 		ue.regStep = RegStepAuthenticating
 	} else {
@@ -137,6 +142,17 @@ func (ue *UeContext) AdvanceRegStep(step RegStep) {
 // EMMState returns the UE's EMM registration state, read under ue.mu. Reading it
 // while EMM-REGISTERED carries the happens-before that lets the caller then read
 // the UE's other registered data (the mutex acts as the publication barrier).
+func (ue *UeContext) watchEMMState() (EMMState, <-chan struct{}) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.stateChanged == nil {
+		ue.stateChanged = make(chan struct{})
+	}
+
+	return ue.emmState, ue.stateChanged
+}
+
 func (ue *UeContext) EMMState() EMMState {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

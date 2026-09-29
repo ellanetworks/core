@@ -46,6 +46,9 @@ type ueState struct {
 	mt      *mtTransaction
 	nextTI  uint8
 	nextRef uint8
+
+	deferredAlert           bool
+	deferredMemoryAvailable bool
 }
 
 func (s *SMSF) ue(imsi string) *ueState {

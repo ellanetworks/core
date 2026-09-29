@@ -402,3 +402,35 @@ func nasGuardName(m *MME, ue *UeContext) string {
 
 	return ue.Conn().nasGuardName
 }
+
+func TestSMSToAUECompletingItsAttachWaitsForTheAttachComplete(t *testing.T) {
+	m, _, _ := smsTestMME(t)
+	ue, _ := securedUE(t, m)
+	grantSMS(t, m, ue)
+	ue.ForceStateForTest(EMMRegistrationInitiated)
+
+	if granted, connected := m.SMSRoute(ue.imsiOrEmpty()); !granted || !connected {
+		t.Fatalf("route = granted %t, connected %t, want the MME to hold a UE completing its attach", granted, connected)
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- m.EnableUEReachabilityForSMS(t.Context(), ue.imsiOrEmpty()) }()
+
+	select {
+	case err := <-done:
+		t.Fatalf("reachability reported (%v) before the Attach Complete", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	ue.ForceStateForTest(EMMRegistered)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("EnableUEReachabilityForSMS: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("reachability not reported after the Attach Complete")
+	}
+}
