@@ -269,7 +269,7 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ## Update the SMS Settings
 
-This path sets the external SMSC and Ella Core's SMS number. SMS is enabled whenever `smscAddress` is set; an empty `smscAddress` disables it. Every Ella Core node connects to the SMSC over Diameter (SGd and S6c) on SCTP, with its own Diameter identity in the realm `epc.mnc<MNC>.mcc<MCC>.3gppnetwork.org`. Configure that realm as the HSS realm in the SMSC. [Get Diameter Status](networking.md#get-diameter-status) reports each node's identity and connection to the SMSC.
+This path sets the external SMSC and Ella Core's SMS number.
 
 | Method | Path                    |
 | ------ | ----------------------- |

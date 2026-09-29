@@ -19,7 +19,7 @@ func (c *UeConn) MTSignallingPending() bool {
 		return false
 	}
 
-	if c.UeContext().MTDeliveryInProgress() {
+	if ue := c.UeContext(); ue.MTDeliveryInProgress() || ue.smsTransactionPending() {
 		return true
 	}
 

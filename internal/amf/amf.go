@@ -126,6 +126,16 @@ type LPPHandler interface {
 	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
 }
 
+type SMSHandler interface {
+	Allowed(ctx context.Context, imsi string) (bool, error)
+	Activate(imsi string, owner any)
+	Deactivate(imsi string, owner any)
+	Uplink(ctx context.Context, imsi string, payload []byte)
+	UEReachable(ctx context.Context, imsi string)
+	TransactionPending(imsi string) bool
+	DeliveryFailed(imsi string)
+}
+
 // Concurrency model:
 //
 //   - AMF.mu guards the registry and connection lifecycle: the UE, radio and conn
@@ -176,6 +186,7 @@ type AMF struct {
 	Session                  SmfSbi
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
+	SMS                      SMSHandler
 	EPS                      interworking.EPSPeer
 
 	handoversToEPS interworking.HandoverGroup
@@ -221,6 +232,7 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	superseded = superseded && old != ue
 	amf.UEs[ue.supi] = ue
 	ue.smf = amf.Session
+	ue.sms = amf.SMS
 
 	if ue.supi.IsIMSI() {
 		var radioID, radioName string

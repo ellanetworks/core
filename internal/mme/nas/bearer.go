@@ -322,12 +322,10 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		NetworkFeatureSupport: nfs,
 	}
 
-	// The MME has no SGs interface, so a combined EPS/IMSI attach succeeds for
-	// EPS services only. EMM cause #18 makes the UE stop attempting CS
-	// registration on this PLMN (TS 24.301).
 	if ue.CombinedAttach {
-		cause := eps.EMMCauseCSDomainNotAvailable
-		accept.Cause = &cause
+		accept.EPSAttachResult, accept.NonEPSServices, accept.Cause = combinedResult(ctx, m, ue, plmn, eps.AttachResultCombined, eps.AttachResultEPS)
+	} else {
+		m.DecideSMS(ctx, ue, false)
 	}
 
 	return accept.MarshalBinary()
@@ -353,6 +351,8 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 
 	sendNITZ(ctx, m, ue, ueConn)
+
+	m.SyncSMSRegistration(ctx, ue)
 
 	return nasreply.Handled()
 }

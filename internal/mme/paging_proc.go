@@ -46,6 +46,7 @@ type pagingProc struct {
 	deferred *MTRequest
 	guard    guard.Guard
 	attempt  uint64
+	settled  chan struct{}
 }
 
 func (ue *UeContext) PagingState() PagingState {
@@ -138,7 +139,7 @@ func (ue *UeContext) PagingDelivered(ctx context.Context) {
 	ue.paging.mu.Lock()
 
 	ue.paging.pending = nil
-	ue.paging.state = PagingIdle
+	ue.settlePagingLocked()
 
 	ue.paging.mu.Unlock()
 
@@ -210,9 +211,42 @@ func (ue *UeContext) settleDeliveryOnRelease(ctx context.Context) {
 func (ue *UeContext) takePendingLocked() *MTRequest {
 	dropped := ue.paging.pending
 	ue.paging.pending = nil
-	ue.paging.state = PagingIdle
+	ue.settlePagingLocked()
 
 	return dropped
+}
+
+func (ue *UeContext) withdrawPage(req *MTRequest) {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	if ue.paging.pending == req {
+		ue.takePendingLocked()
+	}
+}
+
+func (ue *UeContext) settlePagingLocked() {
+	ue.paging.state = PagingIdle
+
+	if ue.paging.settled != nil {
+		close(ue.paging.settled)
+		ue.paging.settled = nil
+	}
+}
+
+func (ue *UeContext) pagingSettled() <-chan struct{} {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	if ue.paging.state == PagingIdle {
+		return nil
+	}
+
+	if ue.paging.settled == nil {
+		ue.paging.settled = make(chan struct{})
+	}
+
+	return ue.paging.settled
 }
 
 func (ue *UeContext) notifyMTDeliveryFailure(ctx context.Context, req *MTRequest, cause models.EPSPagingFailureCause) {

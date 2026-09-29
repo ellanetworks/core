@@ -9,6 +9,7 @@ type N1MessageClass string
 const (
 	N1ClassSM  N1MessageClass = "SM"
 	N1ClassLPP N1MessageClass = "LPP"
+	N1ClassSMS N1MessageClass = "SMS"
 )
 
 // N2InformationClass is the class of N2 information (TS 29.518 §6.1.6.3.4).

@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/diameter"
@@ -70,6 +71,7 @@ type Manager struct {
 	peers     []PeerConfig
 	lastError string
 	since     time.Time
+	stopping  atomic.Bool
 }
 
 func New(nodeSource NodeSource, peersSource PeersSource, logger *zap.Logger) *Manager {
@@ -299,12 +301,15 @@ func (m *Manager) peerStateChanged(s diameter.PeerStatus) {
 		zap.String("peer_realm", s.Realm),
 	}
 
-	switch s.State {
-	case diameter.PeerOpen:
+	switch {
+	case s.State == diameter.PeerOpen:
 		m.logger.Info("Diameter peer connected", fields...)
 		return
-	case diameter.PeerConnecting, diameter.PeerReopen:
+	case s.State == diameter.PeerConnecting, s.State == diameter.PeerReopen:
 		m.logger.Debug("Diameter peer connecting", fields...)
+		return
+	case m.stopping.Load():
+		m.logger.Info("Diameter peer disconnected", fields...)
 		return
 	}
 
@@ -355,6 +360,9 @@ func (m *Manager) stop() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
+	m.stopping.Store(true)
+	defer m.stopping.Store(false)
 
 	if err := node.Shutdown(ctx); err != nil && !errors.Is(err, diameter.ErrClosed) {
 		m.logger.Warn("Diameter node did not shut down cleanly", zap.Error(err))

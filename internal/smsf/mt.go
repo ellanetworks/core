@@ -106,6 +106,20 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	}
 
 	s.mu.Lock()
+	_, registered := s.registered[imsi]
+	s.mu.Unlock()
+
+	if !registered {
+		if s.servedElsewhere(context.WithoutCancel(ctx), imsi) {
+			return experimental(tgpp.ResultErrorUserUnknown)
+		}
+
+		s.markWaiting(imsi, serviceCentre, false)
+
+		return absent(tgpp.AbsentUserIMSIDetached)
+	}
+
+	s.mu.Lock()
 	u := s.ue(imsi)
 
 	if u.mt != nil {
@@ -119,6 +133,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		ack:       make(chan struct{}, 1),
 		report:    make(chan sms.RPMessage, maxPendingReports),
 		aborted:   make(chan struct{}, 1),
+		retry:     make(chan struct{}, 1),
 	}
 
 	u.mt = t
@@ -132,6 +147,8 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 			u.mt = nil
 		}
 		s.mu.Unlock()
+
+		s.transactionEnded(context.WithoutCancel(ctx), imsi)
 	}()
 
 	rpdu, err := (&sms.RPData{
@@ -144,7 +161,8 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 	}
 
-	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, t.ack, t.aborted)
+	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, t.ack, t.aborted, t.retry)
+
 	if outcome, failed := s.transferFailure(ctx, imsi, serviceCentre, err); failed {
 		return outcome
 	}
@@ -187,8 +205,9 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 	case errors.Is(err, context.DeadlineExceeded):
 		s.markWaiting(imsi, serviceCentre, false)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
-	case errors.Is(err, ErrNotSMSCapable):
-		return deliveryFailure(sgd.CauseEquipmentNotSMEquipped, nil), true
+	case errors.Is(err, ErrNotRegisteredForSMS):
+		s.markWaiting(imsi, serviceCentre, false)
+		return absent(tgpp.AbsentUserIMSIDetached), true
 	default:
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
 	}

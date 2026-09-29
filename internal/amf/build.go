@@ -259,6 +259,7 @@ func BuildRegistrationAccept(
 
 	m := &fgs.RegistrationAccept{
 		RegistrationResult: fgs.RegistrationResult3GPP,
+		SMSAllowed:         ue.SMSOverNAS(),
 		EquivalentPLMNs:    equivalentPLMNs,
 		T3512:              &t3512,
 	}

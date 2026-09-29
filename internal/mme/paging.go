@@ -95,6 +95,10 @@ func (m *MME) DropDeferredServiceRequest(ctx context.Context, ue *UeContext) {
 // before the Paging is sent, because the UE may answer on another goroutine the moment it
 // leaves the MME. No undo is needed: pageRadios reports send failures at the chokepoint.
 func (m *MME) page(ctx context.Context, ue *UeContext, arm func() error) error {
+	return m.sendPage(ctx, ue, arm, true)
+}
+
+func (m *MME) sendPage(ctx context.Context, ue *UeContext, arm func() error, supervised bool) error {
 	m.mu.RLock()
 
 	skip := ue.Connected() || ue.paging.guard.Active()
@@ -126,7 +130,9 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func() error) error {
 
 	logger.From(ctx, logger.MmeLog).Info("Paging", logger.SUPIFromIMSI(imsi), zap.Uint32("m_tmsi", ue.Tmsi().Uint32()))
 
-	m.armPaging(ctx, ue, b)
+	if supervised {
+		m.armPaging(ctx, ue, b)
+	}
 
 	return nil
 }
@@ -162,7 +168,7 @@ func (ue *UeContext) clearPaging() {
 
 	ue.paging.mu.Lock()
 	ue.paging.pending = nil
-	ue.paging.state = PagingIdle
+	ue.settlePagingLocked()
 	ue.paging.mu.Unlock()
 
 	ue.clearPagingBuffers()

@@ -235,7 +235,7 @@ func TestMobileTerminatedSMSToAnIMSIThatIsNotASubscriber(t *testing.T) {
 	}
 }
 
-func TestReleasedUEStateIsFreed(t *testing.T) {
+func TestDeactivationFreesTheUEState(t *testing.T) {
 	e := newEnv(t)
 	tfa := forwardAsync(t, e)
 
@@ -243,20 +243,94 @@ func TestReleasedUEStateIsFreed(t *testing.T) {
 	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference})
 	awaitTFA(t, tfa)
 
-	e.smsf.ReleaseUE(imsi)
+	e.smsf.Deactivate(imsi, smsf.AccessEPS, liveOwner)
+
+	if _, ok := e.smsf.RegisteredAccess(imsi); !ok || e.smsf.TrackedUEs() != 1 {
+		t.Fatal("a deactivation for another access removed the registration")
+	}
+
+	e.smsf.Deactivate(imsi, smsf.Access5GS, new(int))
+
+	if _, ok := e.smsf.RegisteredAccess(imsi); !ok || e.smsf.TrackedUEs() != 1 {
+		t.Fatal("a deactivation by a stale context removed the registration")
+	}
+
+	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
+
+	if _, ok := e.smsf.RegisteredAccess(imsi); ok {
+		t.Fatal("the UE is still registered for SMS")
+	}
 
 	if n := e.smsf.TrackedUEs(); n != 0 {
-		t.Fatalf("SMSF tracks %d UEs after the UE context was released", n)
+		t.Fatalf("SMSF tracks %d UEs after the deactivation", n)
 	}
 }
 
-func TestMobileTerminatedSMSToAUENotRegisteredForSMS(t *testing.T) {
+func TestMobileTerminatedSMSToAUENotRegisteredForSMSIsAbsent(t *testing.T) {
 	e := newEnv(t)
-	e.ue.fail(smsf.ErrNotSMSCapable)
+	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
 
 	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
-	if !re.IsExperimental(tgpp.ResultErrorSMDeliveryFailure) || re.DeliveryFailureCause == nil || *re.DeliveryFailureCause != sgd.CauseEquipmentNotSMEquipped {
-		t.Fatalf("TFA = %+v, want SM delivery failure (not SM equipped)", re)
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
+		t.Fatalf("TFA = %+v, want absent user (IMSI detached)", re)
+	}
+
+	if n := e.ue.reachability(); n != 0 {
+		t.Fatalf("paged %d times for a UE not registered for SMS", n)
+	}
+
+	if !e.smsf.Waiting(imsi) {
+		t.Fatal("no waiting flag for a UE not registered for SMS")
+	}
+
+	e.smsf.Activate(imsi, smsf.AccessEPS, liveOwner)
+	e.smsf.UEReachable(context.Background(), imsi)
+
+	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+}
+
+func TestMobileTerminatedSMSToAUENotRegisteredForSMSServedElsewhere(t *testing.T) {
+	e := newEnv(t)
+	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
+	e.store.register(db.UERegistrationTypeMME, remoteNode, false)
+
+	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
+	if !re.IsExperimental(tgpp.ResultErrorUserUnknown) {
+		t.Fatalf("TFA = %+v, want user unknown", re)
+	}
+
+	if e.smsf.Waiting(imsi) {
+		t.Fatal("waiting flag set on the wrong node")
+	}
+}
+
+func TestMobileTerminatedSMSUsesTheRegisteredAccess(t *testing.T) {
+	e := newEnv(t)
+	e.smsf.Activate(imsi, smsf.AccessEPS, liveOwner)
+	tfa := forwardAsync(t, e)
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference})
+	awaitTFA(t, tfa)
+
+	for _, a := range e.ue.usedAccesses() {
+		if a != smsf.AccessEPS {
+			t.Fatalf("reached the UE over %s, want EPS", a)
+		}
+	}
+}
+
+func TestTheCoreLosingTheSMSGrantMakesTheUEAbsent(t *testing.T) {
+	e := newEnv(t)
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
+
+	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
+		t.Fatalf("TFA = %+v, want absent user (IMSI detached)", re)
+	}
+
+	if !e.smsf.Waiting(imsi) {
+		t.Fatal("no waiting flag")
 	}
 }
 
@@ -423,5 +497,59 @@ func TestReportWithAnotherReferenceIsIgnored(t *testing.T) {
 
 	if f := awaitTFA(t, tfa); f.err != nil {
 		t.Fatalf("TFA = %v, want success from the matching report", f.err)
+	}
+}
+
+func TestNonDeliveryRetransmitsAtOnce(t *testing.T) {
+	timers := fastTimers()
+	timers.TC1 = time.Hour
+	e := newEnvWithTimers(t, timers)
+	tfa := forwardAsync(t, e)
+
+	first, _ := receiveRPData(t, e)
+
+	e.smsf.DeliveryFailed(imsi)
+
+	again, rp := receiveRPData(t, e)
+	if again.TransactionIdentifier != first.TransactionIdentifier {
+		t.Fatalf("retransmission on %s, want %s", again.TransactionIdentifier, first.TransactionIdentifier)
+	}
+
+	answerMT(t, e, again, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
+
+	if f := awaitTFA(t, tfa); f.err != nil {
+		t.Fatalf("TFA: %v", f.err)
+	}
+}
+
+func TestAnAlertDoesNotRaceADeliveryInProgress(t *testing.T) {
+	e := newEnv(t)
+	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserIMSIDetached})
+	awaitTFA(t, forwardAsync(t, e))
+	e.ue.fail(nil)
+
+	if !e.smsf.Waiting(imsi) {
+		t.Fatal("precondition: waiting flag")
+	}
+
+	gate := e.ue.holdReachability()
+	tfa := forwardAsync(t, e)
+
+	eventually(t, "the redelivery to start", func() bool { return e.ue.reachability() == 2 })
+
+	e.smsf.UEReachable(context.Background(), imsi)
+	close(gate)
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
+
+	if f := awaitTFA(t, tfa); f.err != nil {
+		t.Fatalf("TFA: %v", f.err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	if n := len(e.smsc.alerted()); n != 0 {
+		t.Fatalf("SMSC alerted %d times during a delivery that succeeded", n)
 	}
 }

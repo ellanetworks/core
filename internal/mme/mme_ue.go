@@ -132,11 +132,16 @@ type UeContext struct {
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 
+	smsOnly          atomic.Bool
+	smsDetachPending atomic.Bool
+	smsIMSIDetaching atomic.Bool
+
 	lastSeen atomic.Int64
 
 	registrationVersion atomic.Int64
 
 	session  epsSessionManager
+	sms      SMSHandler
 	Pdns     map[uint8]*PdnConnection
 	Ambr     *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	tmsi     etsi.TMSI
@@ -255,8 +260,9 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 
 	m.UEs[supi] = ue
 	ue.session = m.Session
+	ue.sms = m.SMS
 	m.recordLastSeenLocked(ue, ue.Conn())
-	m.mu.Unlock()
+	m.unlockAndDeactivateSMS()
 
 	// TS 24.301 §5.5.1.2.7 f): a genuine re-attach supersedes the old context and
 	// its EPS bearer contexts are deleted. The anchor sessions are released outside
@@ -762,7 +768,7 @@ func (m *MME) FreeUeConn(ctx context.Context, ue *UeContext) {
 // release race.
 func (m *MME) RemoveUe(ue *UeContext) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlockAndDeactivateSMS()
 
 	m.removeContextLocked(ue)
 }
@@ -782,6 +788,20 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
 		m.purgeRegistration(supi)
+
+		if m.SMS != nil {
+			m.smsDeactivations = append(m.smsDeactivations, ue)
+		}
+	}
+}
+
+func (m *MME) unlockAndDeactivateSMS() {
+	pending := m.smsDeactivations
+	m.smsDeactivations = nil
+	m.mu.Unlock()
+
+	for _, ue := range pending {
+		m.SMS.Deactivate(ue.imsiOrEmpty(), ue)
 	}
 }
 
@@ -888,7 +908,7 @@ func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 // post-release logging.
 func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlockAndDeactivateSMS()
 
 	if expected != nil && ue.Conn() != expected {
 		return false, false, ""
@@ -956,7 +976,7 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 // eNB UE id) does not leak the previous context.
 func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlockAndDeactivateSMS()
 
 	var stale []*UeContext
 

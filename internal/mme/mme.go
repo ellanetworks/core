@@ -91,6 +91,8 @@ type MME struct {
 
 	LPPHandler LPPHandler
 
+	SMS SMSHandler
+
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.
 	EPSNetworkFeatureSupport *eps.NetworkFeatureSupport
@@ -131,6 +133,8 @@ type MME struct {
 	handoversToFiveGS interworking.HandoverGroup
 
 	lcsCorrelationSeq atomic.Uint32
+
+	smsDeactivations []*UeContext
 }
 
 func (m *MME) HandoverGuardTimeout() time.Duration {

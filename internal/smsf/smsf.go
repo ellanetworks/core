@@ -28,9 +28,9 @@ var smscApplications = []diameter.Application{
 }
 
 var (
-	ErrUserUnknown     = errors.New("smsf: UE not known on this node")
-	ErrNotSMSCapable   = errors.New("smsf: UE is not registered for SMS")
-	ErrSMSCUnavailable = errors.New("smsf: SMSC not connected")
+	ErrUserUnknown         = errors.New("smsf: UE not known on this node")
+	ErrNotRegisteredForSMS = errors.New("smsf: UE is not registered for SMS")
+	ErrSMSCUnavailable     = errors.New("smsf: SMSC not connected")
 )
 
 type AbsentError struct {
@@ -41,8 +41,28 @@ func (e *AbsentError) Error() string {
 	return fmt.Sprintf("smsf: UE absent (diagnostic %d)", e.Diagnostic)
 }
 
+type Access uint8
+
+const (
+	AccessEPS Access = iota + 1
+	Access5GS
+)
+
+func (a Access) String() string {
+	switch a {
+	case AccessEPS:
+		return "EPS"
+	case Access5GS:
+		return "5GS"
+	default:
+		return "unknown"
+	}
+}
+
 type Transport interface {
-	SendSMS(ctx context.Context, imsi string, payload []byte) error
+	EnableUEReachability(ctx context.Context, imsi string, access Access) error
+	SendSMS(ctx context.Context, imsi string, access Access, payload []byte) error
+	SignallingSettled(ctx context.Context, imsi string, access Access)
 }
 
 type Store interface {
@@ -92,20 +112,27 @@ type SMSF struct {
 
 	transport Transport
 
-	mu      sync.Mutex
-	ues     map[string]*ueState
-	waiting map[string]waiting
+	mu         sync.Mutex
+	ues        map[string]*ueState
+	waiting    map[string]waiting
+	registered map[string]registration
+}
+
+type registration struct {
+	access Access
+	owner  any
 }
 
 func New(store Store, directory Directory, node DiameterNode, logger *zap.Logger, timers Timers) *SMSF {
 	return &SMSF{
-		store:     store,
-		directory: directory,
-		diameter:  node,
-		logger:    logger,
-		timers:    timers,
-		ues:       make(map[string]*ueState),
-		waiting:   make(map[string]waiting),
+		store:      store,
+		directory:  directory,
+		diameter:   node,
+		logger:     logger,
+		timers:     timers,
+		ues:        make(map[string]*ueState),
+		waiting:    make(map[string]waiting),
+		registered: make(map[string]registration),
 	}
 }
 
@@ -121,6 +148,62 @@ func (s *SMSF) currentTransport() Transport {
 	defer s.mu.Unlock()
 
 	return s.transport
+}
+
+func (s *SMSF) route(imsi string) (Transport, Access, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, ok := s.registered[imsi]
+	if !ok {
+		return nil, 0, ErrNotRegisteredForSMS
+	}
+
+	if s.transport == nil {
+		return nil, 0, ErrUserUnknown
+	}
+
+	return s.transport, r.access, nil
+}
+
+func (s *SMSF) Activate(imsi string, access Access, owner any) {
+	s.mu.Lock()
+	previous, ok := s.registered[imsi]
+	s.registered[imsi] = registration{access: access, owner: owner}
+	s.mu.Unlock()
+
+	if !ok || previous.access != access {
+		s.logger.Info("UE registered for SMS", zap.String("imsi", imsi), zap.Stringer("access", access))
+	}
+}
+
+func (s *SMSF) Deactivate(imsi string, access Access, owner any) {
+	s.mu.Lock()
+
+	current, ok := s.registered[imsi]
+	if !ok || current.access != access || current.owner != owner {
+		s.mu.Unlock()
+		return
+	}
+
+	delete(s.registered, imsi)
+
+	if u, ok := s.ues[imsi]; ok && u.mt == nil && len(u.mo) == 0 {
+		delete(s.ues, imsi)
+	}
+
+	s.mu.Unlock()
+
+	s.logger.Info("UE deregistered from SMS", zap.String("imsi", imsi), zap.Stringer("access", access))
+}
+
+func (s *SMSF) RegisteredAccess(imsi string) (Access, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, ok := s.registered[imsi]
+
+	return r.access, ok
 }
 
 func SMSCPeer(address netip.AddrPort) diameternode.PeerConfig {
@@ -139,15 +222,26 @@ func (s *SMSF) Register(r Registrar) {
 	}))
 }
 
-func (s *SMSF) Allowed(ctx context.Context, imsi string) bool {
+func (s *SMSF) Allowed(ctx context.Context, imsi string) (bool, error) {
 	settings, err := s.store.GetSMSSettings(ctx)
-	if err != nil || !settings.Enabled() {
-		return false
+	if err != nil {
+		return false, fmt.Errorf("get SMS settings: %w", err)
+	}
+
+	if !settings.Enabled() {
+		return false, nil
 	}
 
 	sub, err := s.store.GetSubscriber(ctx, imsi)
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
 
-	return err == nil && sub.Msisdn != ""
+	if err != nil {
+		return false, fmt.Errorf("get subscriber: %w", err)
+	}
+
+	return sub.Msisdn != "", nil
 }
 
 type smscEndpoint struct {

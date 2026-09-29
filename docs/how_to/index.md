@@ -14,6 +14,7 @@ Initial setup and configuration of Ella Core.
 - [Use native XDP with veth interfaces](native_xdp_veth.md)
 - [Disable Merged Packets](disable_merged_packets.md)
 - [Integrate with a Radio](integrate_with_radio.md)
+- [Enable SMS](enable_sms.md)
 
 ## Day 2 Operations
 

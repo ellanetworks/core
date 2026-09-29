@@ -42,8 +42,9 @@ type SmContext struct {
 type UeContext struct {
 	mu sync.Mutex
 
-	state   StateType
-	regStep RegStep
+	state        StateType
+	regStep      RegStep
+	stateChanged chan struct{}
 
 	arrivedFromEPSHandover bool
 	exportableToEPSUntil   time.Time
@@ -64,6 +65,7 @@ type UeContext struct {
 	handover *handoverContext
 
 	smf SmfSbi
+	sms SMSHandler
 
 	active atomic.Pointer[UeConn]
 
@@ -103,6 +105,10 @@ type UeContext struct {
 	SmContextList            map[uint8]*SmContext
 
 	allow4G bool
+
+	smsOverNAS           atomic.Bool
+	smsRequested         atomic.Bool
+	smsIndicationPending atomic.Pointer[bool]
 
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard
@@ -722,6 +728,8 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.endKeyChainProcs()
 	ue.PagingFailed(ctx, models.N1N2FailureCauseUnspecified)
+
+	ue.deactivateSMS()
 
 	ue.mu.Lock()
 

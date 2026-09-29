@@ -131,7 +131,7 @@ func (ue *UeContext) forcePagingStateForTest(req *MTRequest) {
 
 	if req == nil {
 		ue.paging.pending = nil
-		ue.paging.state = PagingIdle
+		ue.settlePagingLocked()
 
 		return
 	}

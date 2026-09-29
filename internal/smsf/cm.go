@@ -19,11 +19,12 @@ const maxTransactionValue = 6
 type moTransaction struct {
 	ack        chan struct{}
 	aborted    chan struct{}
+	retry      chan struct{}
 	reportSent bool
 }
 
 func newMOTransaction() *moTransaction {
-	return &moTransaction{ack: make(chan struct{}, 1), aborted: make(chan struct{}, 1)}
+	return &moTransaction{ack: make(chan struct{}, 1), aborted: make(chan struct{}, 1), retry: make(chan struct{}, 1)}
 }
 
 type mtTransaction struct {
@@ -32,6 +33,7 @@ type mtTransaction struct {
 	ack        chan struct{}
 	report     chan sms.RPMessage
 	aborted    chan struct{}
+	retry      chan struct{}
 	abortCause sms.CPCause
 }
 
@@ -52,13 +54,62 @@ func (s *SMSF) ue(imsi string) *ueState {
 	return u
 }
 
-func (s *SMSF) ReleaseUE(imsi string) {
+func (s *SMSF) DeliveryFailed(imsi string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if u, ok := s.ues[imsi]; ok && u.mt == nil && len(u.mo) == 0 {
-		delete(s.ues, imsi)
+	u, ok := s.ues[imsi]
+	if !ok {
+		return
 	}
+
+	if u.mt != nil {
+		signal(u.mt.retry)
+	}
+
+	for _, t := range u.mo {
+		if t.reportSent {
+			signal(t.retry)
+		}
+	}
+}
+
+func (s *SMSF) TransactionPending(imsi string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	u, ok := s.ues[imsi]
+
+	return ok && u.holdsConnection()
+}
+
+func (u *ueState) holdsConnection() bool {
+	if u.mt != nil {
+		return true
+	}
+
+	for _, t := range u.mo {
+		if !t.reportSent {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *SMSF) transactionEnded(ctx context.Context, imsi string) {
+	s.mu.Lock()
+	u, ok := s.ues[imsi]
+	idle := !ok || !u.holdsConnection()
+	r, registered := s.registered[imsi]
+	s.mu.Unlock()
+
+	transport := s.currentTransport()
+	if !idle || !registered || transport == nil {
+		return
+	}
+
+	transport.SignallingSettled(ctx, imsi, r.access)
 }
 
 func (s *SMSF) Uplink(ctx context.Context, imsi string, payload []byte) {
@@ -167,22 +218,22 @@ func (s *SMSF) cpData(ctx context.Context, imsi string, m *sms.CPData) {
 	u := s.ue(imsi)
 	_, duplicate := u.mo[ti.Value]
 
-	if !duplicate {
-		u.mo[ti.Value] = newMOTransaction()
+	if duplicate {
+		s.mu.Unlock()
+		return
+	}
 
-		for value, t := range u.mo {
-			if value != ti.Value && t.reportSent {
-				signal(t.ack)
-			}
+	t := newMOTransaction()
+	u.mo[ti.Value] = t
+
+	for value, other := range u.mo {
+		if value != ti.Value && other.reportSent {
+			signal(other.ack)
 		}
 	}
 	s.mu.Unlock()
 
-	if duplicate {
-		return
-	}
-
-	go s.mobileOriginated(context.WithoutCancel(ctx), imsi, ti, m.UserData)
+	go s.mobileOriginated(context.WithoutCancel(ctx), imsi, ti, t, m.UserData)
 }
 
 func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
@@ -226,12 +277,12 @@ func (s *SMSF) send(ctx context.Context, imsi string, m sms.CPMessage) error {
 		return fmt.Errorf("encode %s: %w", m.MessageType(), err)
 	}
 
-	transport := s.currentTransport()
-	if transport == nil {
-		return ErrUserUnknown
+	transport, access, err := s.route(imsi)
+	if err != nil {
+		return err
 	}
 
-	if err := transport.SendSMS(ctx, imsi, payload); err != nil {
+	if err := transport.SendSMS(ctx, imsi, access, payload); err != nil {
 		s.logger.Debug("Could not send an SMS CP message", zap.String("imsi", imsi), zap.Stringer("type", m.MessageType()), zap.Error(err))
 		return err
 	}
@@ -239,9 +290,23 @@ func (s *SMSF) send(ctx context.Context, imsi string, m sms.CPMessage) error {
 	return nil
 }
 
-func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, ack <-chan struct{}, aborted <-chan struct{}) error {
+func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) error {
+	transport, access, err := s.route(imsi)
+	if err != nil {
+		return err
+	}
+
+	if err := transport.EnableUEReachability(ctx, imsi, access); err != nil {
+		s.logger.Debug("Could not reach the UE for an SMS", zap.String("imsi", imsi), zap.Error(err))
+		return err
+	}
+
+	return s.send(ctx, imsi, data)
+}
+
+func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, ack, aborted, retry <-chan struct{}) error {
 	for attempt := 0; ; attempt++ {
-		if err := s.send(ctx, imsi, data); err != nil {
+		if err := s.reachAndSend(ctx, imsi, data); err != nil {
 			if attempt > 0 {
 				return fmt.Errorf("%w: retransmission failed: %w", errNoCPAck, err)
 			}
@@ -261,6 +326,8 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 		case <-ctx.Done():
 			timer.Stop()
 			return fmt.Errorf("%w: %w", errNoCPAck, ctx.Err())
+		case <-retry:
+			timer.Stop()
 		case <-timer.C:
 		}
 

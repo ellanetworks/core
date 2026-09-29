@@ -56,7 +56,7 @@ func (s *SMSF) startAlert(ctx context.Context, imsi string, memoryAvailable bool
 	s.mu.Lock()
 	w, ok := s.waiting[imsi]
 
-	if !ok || w.alerting || (w.memoryFull && !memoryAvailable) {
+	if !ok || w.alerting || (w.memoryFull && !memoryAvailable) || s.deliveringLocked(imsi) {
 		s.mu.Unlock()
 		return
 	}
@@ -118,6 +118,11 @@ func (s *SMSF) alert(ctx context.Context, imsi string, w waiting) {
 		return
 	}
 
+	if !s.stillWaiting(imsi) {
+		log.Debug("Dropped an SMSC alert made redundant by a delivery")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, s.timers.AlertTimeout)
 	defer cancel()
 
@@ -134,4 +139,19 @@ func (s *SMSF) alert(ctx context.Context, imsi string, w waiting) {
 	alerted = true
 
 	log.Info("Alerted the SMSC that the UE can receive SMS again")
+}
+
+func (s *SMSF) deliveringLocked(imsi string) bool {
+	u, ok := s.ues[imsi]
+
+	return ok && u.mt != nil
+}
+
+func (s *SMSF) stillWaiting(imsi string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.waiting[imsi]
+
+	return ok && !s.deliveringLocked(imsi)
 }

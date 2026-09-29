@@ -551,6 +551,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, diameterNode, logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
+	smsfInstance.SetTransport(newSMSTransport(mmeInstance, amfInstance))
+	amfInstance.SMS = smsHandler{smsf: smsfInstance, access: smsf.Access5GS}
+	mmeInstance.SMS = smsHandler{smsf: smsfInstance, access: smsf.AccessEPS}
 
 	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
 
@@ -558,6 +561,22 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		defer stopDiameterWakeup()
 
 		diameterNode.Run(ctx, diameterWakeup)
+	})
+
+	smsGrantsWakeup, stopSMSGrantsWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicSessionReconcile)
+
+	wg.Go(func() {
+		defer stopSMSGrantsWakeup()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-smsGrantsWakeup:
+				amfInstance.ReevaluateSMS(ctx)
+				mmeInstance.ReevaluateSMS(ctx)
+			}
+		}
 	})
 
 	lmfAMF := &lmfBridge{amf: amfInstance, mme: mmeInstance, lmf: lmfInstance}

@@ -15,17 +15,15 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.TransactionIdentifier, rpdu []byte) {
-	s.mu.Lock()
-	t := s.ue(imsi).mo[ti.Value]
-	s.mu.Unlock()
-
+func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.TransactionIdentifier, t *moTransaction, rpdu []byte) {
 	defer func() {
 		s.mu.Lock()
 		if u, ok := s.ues[imsi]; ok && u.mo[ti.Value] == t {
 			delete(u.mo, ti.Value)
 		}
 		s.mu.Unlock()
+
+		s.transactionEnded(context.WithoutCancel(ctx), imsi)
 	}()
 
 	report := s.relay(ctx, imsi, rpdu)
@@ -45,7 +43,9 @@ func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.Transac
 	t.reportSent = true
 	s.mu.Unlock()
 
-	if err := s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: ti.Peer(), UserData: payload}, t.ack, t.aborted); err != nil {
+	s.transactionEnded(context.WithoutCancel(ctx), imsi)
+
+	if err := s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: ti.Peer(), UserData: payload}, t.ack, t.aborted, t.retry); err != nil {
 		s.logger.Info("UE did not acknowledge an SMS report", zap.String("imsi", imsi), zap.Stringer("ti", ti), zap.Error(err))
 	}
 }

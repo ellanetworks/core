@@ -94,6 +94,7 @@ type UERegistrationExport struct {
 	IdentityTypeUsed uint8 `json:"identity_type_used"`
 	Retransmission   bool  `json:"retransmission"`
 	ResyncTried      bool  `json:"resync_tried"`
+	SMSOverNAS       bool  `json:"sms_over_nas"`
 }
 
 type TimerStatusExport struct {
@@ -372,6 +373,7 @@ func (amf *AMF) collectUeExport(guami *models.Guami, ue *UeContext) (UeContextEx
 			IdentityTypeUsed: identityType,
 			Retransmission:   retransmit,
 			ResyncTried:      resyncTried,
+			SMSOverNAS:       ue.SMSOverNAS(),
 		},
 		Timers: UETimersExport{
 			T3512ValueSeconds: int64(amf.T3512Value / time.Second),

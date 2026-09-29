@@ -283,3 +283,85 @@ func TestNextMobileOriginatedSMSImplicitlyAcknowledgesThePreviousReport(t *testi
 	case <-time.After(3 * fastTimers().TC1):
 	}
 }
+
+func TestOnlyTheReportWaitsForTheUEToBeReachable(t *testing.T) {
+	e := newEnv(t)
+
+	reachedBeforeReport := make(chan int, 1)
+
+	e.smsc.setAnswer(func(req *diameter.Message, id diameter.Identity) *diameter.Message {
+		reachedBeforeReport <- e.ue.reachability()
+
+		ans, _ := sgd.NewMOForwardShortMessageAnswer(req, id, nil)
+
+		return ans
+	})
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	if n := <-reachedBeforeReport; n != 0 {
+		t.Fatalf("the CP-ACK asked for UE reachability %d times", n)
+	}
+
+	if _, ok := expectReport(t, e, moTI(1).Peer()).(*sms.RPAck); !ok {
+		t.Fatal("expected RP-ACK")
+	}
+
+	if n := e.ue.reachability(); n != 1 {
+		t.Fatalf("the report asked for UE reachability %d times, want 1", n)
+	}
+}
+
+func TestAPendingTransactionHoldsTheConnectionUntilItEnds(t *testing.T) {
+	e := newEnv(t)
+
+	answered := make(chan struct{})
+
+	e.smsc.setAnswer(func(req *diameter.Message, id diameter.Identity) *diameter.Message {
+		<-answered
+
+		ans, _ := sgd.NewMOForwardShortMessageAnswer(req, id, nil)
+
+		return ans
+	})
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	if !e.smsf.TransactionPending(imsi) {
+		t.Fatal("no transaction pending while the SMSC has not answered")
+	}
+
+	if n := e.ue.settlements(); n != 0 {
+		t.Fatalf("signalling settled %d times with a transaction open", n)
+	}
+
+	close(answered)
+
+	if _, ok := expectReport(t, e, moTI(1).Peer()).(*sms.RPAck); !ok {
+		t.Fatal("expected RP-ACK")
+	}
+
+	eventually(t, "the transaction to end", func() bool { return !e.smsf.TransactionPending(imsi) })
+	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() == 1 })
+}
+
+func TestTheConnectionIsReleasableOnceTheReportIsSent(t *testing.T) {
+	e := newEnv(t)
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	if data, _ := e.ue.nextData(t); data.TransactionIdentifier != moTI(1).Peer() {
+		t.Fatalf("report on %s", data.TransactionIdentifier)
+	}
+
+	eventually(t, "the connection to be releasable", func() bool { return !e.smsf.TransactionPending(imsi) })
+
+	if n := e.ue.settlements(); n != 1 {
+		t.Fatalf("signalling settled %d times, want once", n)
+	}
+
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPAck{TransactionIdentifier: moTI(1)}))
+}

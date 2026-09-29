@@ -91,6 +91,7 @@ func (a *AMF) MarkRegistered(ctx context.Context, ue *UeContext) {
 	}
 
 	a.SupersedeEPSRegistration(ctx, ue)
+	a.syncSMSRegistration(ctx, ue)
 }
 
 // SupersedeEPSRegistration asks the MME to drop any EPS registration the subscriber still

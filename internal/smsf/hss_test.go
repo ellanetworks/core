@@ -255,24 +255,31 @@ func TestDeliveryReportForAnUnknownUser(t *testing.T) {
 func TestSMSAllowed(t *testing.T) {
 	s, store := newHSS(t)
 
-	if !s.Allowed(context.Background(), imsi) {
-		t.Fatal("SMS not allowed for a subscriber with an MSISDN while an SMSC is set")
+	check := func(name, subscriber string, wantAllowed, wantErr bool) {
+		t.Helper()
+
+		allowed, err := s.Allowed(context.Background(), subscriber)
+		if allowed != wantAllowed || (err != nil) != wantErr {
+			t.Fatalf("%s: allowed = %t, err = %v", name, allowed, err)
+		}
 	}
+
+	check("subscriber with an MSISDN", imsi, true, false)
+	check("unknown subscriber", "001010000009999", false, false)
 
 	store.setMSISDN("")
-
-	if s.Allowed(context.Background(), imsi) {
-		t.Fatal("SMS allowed for a subscriber without an MSISDN")
-	}
+	check("subscriber without an MSISDN", imsi, false, false)
 
 	store.setMSISDN(msisdn)
 	store.mu.Lock()
 	store.settings.SMSCAddress = ""
 	store.mu.Unlock()
+	check("no SMSC", imsi, false, false)
 
-	if s.Allowed(context.Background(), imsi) {
-		t.Fatal("SMS allowed while no SMSC is set")
-	}
+	store.mu.Lock()
+	store.settingsErr = errors.New("leader changed")
+	store.mu.Unlock()
+	check("settings unavailable", imsi, false, true)
 }
 
 func TestRoutingWithDeliveryNotIntendedReturnsTheIMSI(t *testing.T) {
