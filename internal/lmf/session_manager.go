@@ -29,11 +29,9 @@ func NewSessionManager(d *db.Database) *SessionManager {
 
 // CreateSessionParams holds the parameters for creating a positioning session.
 type CreateSessionParams struct {
-	SUPI              string
-	RequestType       RequestType
-	Method            RequestedMethod
-	QoSResponseTimeMs *int
-	QOSHAccuracyM     *int
+	SUPI        string
+	RequestType RequestType
+	Method      RequestedMethod
 }
 
 // CreateSession creates a new positioning session and returns its ID.
@@ -44,12 +42,10 @@ func (m *SessionManager) CreateSession(ctx context.Context, params CreateSession
 	}
 
 	s := &db.PositioningSession{
-		SUPI:              params.SUPI,
-		SessionType:       int(SessionTypeFromRequest(params.RequestType)),
-		Method:            string(method),
-		QoSResponseTimeMs: params.QoSResponseTimeMs,
-		QOSHAccuracyM:     params.QOSHAccuracyM,
-		Status:            int(SessionStatusActive),
+		SUPI:        params.SUPI,
+		SessionType: int(SessionTypeFromRequest(params.RequestType)),
+		Method:      string(method),
+		Status:      int(SessionStatusActive),
 	}
 
 	if err := m.db.CreatePositioningSession(ctx, s); err != nil {

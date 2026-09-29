@@ -128,7 +128,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// canonical serving NCGI we use to provision the cell-position table.
 	logger.Logger.Info("=== Testing E-CID location ===")
 
-	ecidResult, err := common.GetLocation(ctx, cl, supi, "ecid")
+	ecidResult, err := common.GetLocation(ctx, cl, supi, "ecid", "")
 	if err != nil {
 		return fmt.Errorf("E-CID location failed: %v", err)
 	}
@@ -141,8 +141,8 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		return fmt.Errorf("E-CID result missing ncgi")
 	}
 
-	if m := common.PositioningMethod(ecidResult); m != "ECID" && m != "NR_ECID" {
-		return fmt.Errorf("expected E-CID positioning method, got %q", m)
+	if err := validateNRECID(ecidResult); err != nil {
+		return err
 	}
 
 	logger.Logger.Info("E-CID location validated successfully",
@@ -164,7 +164,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// the table.
 	logger.Logger.Info("=== Testing Cell ID location ===")
 
-	cellIDResult, err := common.GetLocation(ctx, cl, supi, "cell_id")
+	cellIDResult, err := common.GetLocation(ctx, cl, supi, "cell_id", "")
 	if err != nil {
 		return fmt.Errorf("cell ID location failed: %v", err)
 	}
@@ -189,7 +189,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	// --- Phase 4: A-GNSS location ---
 	logger.Logger.Info("=== Testing A-GNSS location ===")
 
-	agnssResult, err := common.GetLocation(ctx, cl, supi, "gnss")
+	agnssResult, err := common.GetLocation(ctx, cl, supi, "gnss", "")
 	if err != nil {
 		return fmt.Errorf("A-GNSS location failed: %v", err)
 	}
@@ -222,6 +222,28 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 	}
 
 	logger.Logger.Info("Location scenario completed successfully")
+
+	return nil
+}
+
+func validateNRECID(result *common.LocationData) error {
+	if !common.HasPositioning(result, "NR_ECID", "CONVENTIONAL", "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION") {
+		return fmt.Errorf("expected a network-based NR_ECID result that generated the location, got %+v", result.PositioningDataList)
+	}
+
+	if !common.HasPositioning(result, "NR_ECID", "UE_ASSISTED", "SUCCESS_RESULTS_NOT_USED") {
+		return fmt.Errorf("expected a successful UE-assisted NR_ECID result, got %+v", result.PositioningDataList)
+	}
+
+	if common.CountMeasurements(result, "NETWORK") == 0 || common.CountMeasurements(result, "UE") == 0 {
+		return fmt.Errorf("expected gNB and UE measurements, got %+v", result.RadioMeasurements)
+	}
+
+	for _, m := range result.RadioMeasurements {
+		if m.Serving && m.RAT != "NR" {
+			return fmt.Errorf("a %s cell is marked serving on NR access: %+v", m.RAT, result.RadioMeasurements)
+		}
+	}
 
 	return nil
 }

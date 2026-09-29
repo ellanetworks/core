@@ -14,6 +14,8 @@ var (
 	ErrUEAborted                = errors.New("UE aborted the LPP procedure")
 	ErrUEReportedError          = errors.New("UE reported an LPP error")
 	ErrUndecodableMessage       = errors.New("UE sent an LPP message that could not be decoded")
+	ErrUEECIDNotSupported       = errors.New("UE does not support E-CID measurements")
+	ErrUENoMeasurements         = errors.New("UE provided no E-CID measurements")
 )
 
 var locationFailureCauseNames = map[int64]string{
@@ -28,6 +30,12 @@ var gnssErrorCauseNames = map[int64]string{
 	1: "thereWereNotEnoughSatellitesReceived",
 	2: "assistanceDataMissing",
 	3: "notAllRequestedMeasurementsPossible",
+}
+
+var ecidErrorCauseNames = map[int64]string{
+	0: "undefined",
+	1: "requestedMeasurementNotAvailable",
+	2: "notAllrequestedMeasurementsPossible",
 }
 
 var abortCauseNames = map[int64]string{

@@ -118,7 +118,7 @@ func TestDetermineLocation_IdleUE_RefreshUnanswered_ReturnsLastKnownWithAge(t *t
 
 	start := time.Now()
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected the last known location to be returned, got error: %v", err)
 	}

@@ -89,7 +89,7 @@ func TestDetermineLocation_NR_StaleTriggersRefresh(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestDetermineLocation_NR_MissingLocationReturnsError(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err == nil {
 		t.Fatal("expected error for UE with no location")
 	}
@@ -190,7 +190,7 @@ func TestDetermineLocation_NR_FreshNoRefresh(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestDetermineLocation_EUTRA_StaleTriggersRefresh(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestDetermineLocation_NoCellPosition(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	_, _, err = lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != ErrNoLocationEstimate {
 		t.Fatalf("expected ErrNoLocationEstimate, got: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestDetermineLocation_N3IWF(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	if _, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID); !errors.Is(err, ErrNoLocationEstimate) {
+	if _, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, ""); !errors.Is(err, ErrNoLocationEstimate) {
 		t.Fatalf("DetermineLocation = %v, want ErrNoLocationEstimate: an N3IWF UE has no cell coordinate", err)
 	}
 }
@@ -511,7 +511,7 @@ func TestDetermineLocation_DefaultMaxAge(t *testing.T) {
 		t.Fatalf("failed to add UE to AMF: %v", err)
 	}
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected no error for location within default maxAge, got: %v", err)
 	}
@@ -679,7 +679,7 @@ func TestRefreshLocation_Timeout(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(radio, 1, 1)
 	ueConn.AMFForTest().AttachUeConn(t.Context(), ue, ueConn)
 
-	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID)
+	result, _, err := lmfInstance.DetermineLocation(context.Background(), supi, RequestedCellID, "")
 	if err != nil {
 		t.Fatalf("expected no error (stale location returned), got: %v", err)
 	}

@@ -24,6 +24,7 @@ import (
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	coremodels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/lppa"
 	"go.uber.org/zap"
 )
@@ -298,7 +299,7 @@ func failureOf(parsed *lppa.ParsedPDU) *lppa.ECIDFailure {
 
 // mapECIDResult converts a decoded LPPa E-CID measurement result into the shared
 // radio-measurement shape. Timing advance is taken from valueTimingAdvanceType1
-// (or type2 as fallback); RSRP/RSRQ use the strongest reported cell; the serving
+// (or type2 as fallback); RSRP/RSRQ are kept per reported cell; the serving
 // cell access point position is carried through when present.
 func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	m := &lmfmodels.RadioMeasurements{}
@@ -307,30 +308,40 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 		return m
 	}
 
-	switch {
-	case result.TimingAdvanceType1 != nil:
-		ta := int32(*result.TimingAdvanceType1)
-		m.TA = &ta
-	case result.TimingAdvanceType2 != nil:
-		ta := int32(*result.TimingAdvanceType2)
-		m.TA = &ta
+	cells := lmfmodels.NewCellCollector(lmfmodels.MeasurementSourceNetwork)
+
+	for _, it := range result.RSRP {
+		cell := cells.Cell(lmfmodels.RATEUTRA, it.PCI, it.EARFCN)
+		cell.ECGI = ecgi(it.ECGI)
+		v := lmfmodels.EUTRARSRPDBm(it.ValueRSRP)
+		cell.RSRP = &v
 	}
 
-	if result.AngleOfArrival != nil {
-		// valueAngleOfArrival is 0..719 in 0.5-degree units (TS 36.455 §9.2.x).
-		az := float64(*result.AngleOfArrival) * 0.5
-		m.AoAAzimuthDegrees = &az
+	for _, it := range result.RSRQ {
+		cell := cells.Cell(lmfmodels.RATEUTRA, it.PCI, it.EARFCN)
+		cell.ECGI = ecgi(it.ECGI)
+		v := lmfmodels.EUTRARSRQDB(it.ValueRSRQ)
+		cell.RSRQ = &v
 	}
 
-	if len(result.RSRP) > 0 {
-		rsrp := valueRSRPToDBm(strongestRSRP(result.RSRP))
-		m.RSRP = &rsrp
+	if serving := ecgi(&result.ServingCell); serving != nil {
+		cell := cells.Serving(lmfmodels.RATEUTRA, nil, serving)
+
+		switch {
+		case result.TimingAdvanceType1 != nil:
+			cell.TimingAdvance = result.TimingAdvanceType1
+		case result.TimingAdvanceType2 != nil:
+			cell.TimingAdvance = result.TimingAdvanceType2
+		}
+
+		if result.AngleOfArrival != nil {
+			// valueAngleOfArrival is 0..719 in 0.5-degree units (TS 36.455 §9.2.x).
+			az := float64(*result.AngleOfArrival) * 0.5
+			cell.AoAAzimuthDegrees = &az
+		}
 	}
 
-	if len(result.RSRQ) > 0 {
-		rsrq := valueRSRQToDB(strongestRSRQ(result.RSRQ))
-		m.RSRQ = &rsrq
-	}
+	m.Cells = cells.Cells()
 
 	if result.APPosition != nil {
 		altitude := result.APPosition.Altitude
@@ -353,43 +364,15 @@ func mapECIDResult(result *lppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	return m
 }
 
-// strongestRSRP returns the highest ValueRSRP in the E-CID result list. The
-// LPPa ResultRSRP list is not spec-ordered by strength, and the serving cell is
-// not tagged, so the strongest cell is used as the best available proxy.
-func strongestRSRP(items []lppa.RSRPItem) int64 {
-	best := items[0].ValueRSRP
-
-	for _, it := range items[1:] {
-		if it.ValueRSRP > best {
-			best = it.ValueRSRP
-		}
+func ecgi(cgi *lppa.ECGI) *coremodels.Ecgi {
+	if cgi == nil {
+		return nil
 	}
 
-	return best
-}
-
-func strongestRSRQ(items []lppa.RSRQItem) int64 {
-	best := items[0].ValueRSRQ
-
-	for _, it := range items[1:] {
-		if it.ValueRSRQ > best {
-			best = it.ValueRSRQ
-		}
+	plmn, err := lmfmodels.PlmnFromOctets(cgi.PLMNIdentity)
+	if err != nil {
+		return nil
 	}
 
-	return best
-}
-
-// valueRSRPToDBm converts an E-UTRA ValueRSRP report (0..97) to dBm × 100.
-// Per TS 36.133 Table 9.1.4-1, RSRP_n maps to the band [-141+n, -140+n) dBm; we
-// report the band's lower bound.
-func valueRSRPToDBm(v int64) int32 {
-	return int32((-141 + v) * 100)
-}
-
-// valueRSRQToDB converts an E-UTRA ValueRSRQ report (0..34) to dB × 100.
-// Per TS 36.133 Table 9.1.7-1, RSRQ_n maps to the band [-20+0.5n, -19.5+0.5n) dB;
-// we report the band's lower bound.
-func valueRSRQToDB(v int64) int32 {
-	return int32(-2000 + 50*v)
+	return lmfmodels.NewEcgi(plmn, cgi.EUTRACellID)
 }

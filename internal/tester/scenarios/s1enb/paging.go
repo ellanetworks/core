@@ -91,7 +91,7 @@ func runS1ENBPaging(ctx context.Context, env scenarios.Env, p *pagingParams) err
 	errCh := make(chan error, 1)
 
 	go func() {
-		_, err := common.GetLocation(ctx, cl, "imsi-"+pagingIMSI, "ecid")
+		_, err := common.GetLocation(ctx, cl, "imsi-"+pagingIMSI, "ecid", "network_based")
 		errCh <- err
 	}()
 

@@ -252,7 +252,7 @@ func makeGnssIdBitmap(gnssBits ...int) []bool {
 		}
 	}
 
-	return bs
+	return namedBits(bs...)
 }
 
 // makeGnssSignalBitmap creates a GNSS-SignalIDs bitmap (8 bits, MSB = signal 0).
@@ -294,7 +294,7 @@ func makePosModes(standalone, ueBased, ueAssisted bool) []bool {
 		bs[lpptype.PosModesUEAssisted] = true
 	}
 
-	return bs
+	return namedBits(bs...)
 }
 
 // encodeLatitude converts a signed 1e-7-degree latitude to TS 23.032 encoding.

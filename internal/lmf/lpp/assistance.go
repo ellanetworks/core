@@ -7,13 +7,6 @@ import (
 	"fmt"
 )
 
-// BuildRequestLocationInfo constructs an LPP RequestLocationInformation message
-// requesting a GNSS location estimate.
-func BuildRequestLocationInfo(transactionID, sequenceNumber byte, method uint8, responseTimeSeconds int64) ([]byte, error) {
-	_ = method // All methods use GNSS for MVP
-	return EncodeRequestLocationInformation(transactionID, sequenceNumber, responseTimeSeconds)
-}
-
 // ParseLPPMessage decodes an APER-encoded LPP message and returns the
 // appropriate model struct based on the message body type.
 func ParseLPPMessage(data []byte) (any, error) {

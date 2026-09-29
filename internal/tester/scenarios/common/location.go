@@ -16,11 +16,18 @@ import (
 // LocationData is a view of the spec-shaped LocationData response (TS 29.572)
 // from POST /api/beta/location. Ncgi is set for NR, Ecgi for E-UTRA.
 type LocationData struct {
-	LocationEstimate        *GeoArea          `json:"locationEstimate"`
-	PositioningDataList     []MethodUsage     `json:"positioningDataList"`
-	GnssPositioningDataList []GnssMethodUsage `json:"gnssPositioningDataList"`
-	Ncgi                    *Ncgi             `json:"ncgi"`
-	Ecgi                    *Ecgi             `json:"ecgi"`
+	LocationEstimate        *GeoArea           `json:"locationEstimate"`
+	PositioningDataList     []MethodUsage      `json:"positioningDataList"`
+	GnssPositioningDataList []GnssMethodUsage  `json:"gnssPositioningDataList"`
+	Ncgi                    *Ncgi              `json:"ncgi"`
+	Ecgi                    *Ecgi              `json:"ecgi"`
+	RadioMeasurements       []RadioMeasurement `json:"radioMeasurements"`
+}
+
+type RadioMeasurement struct {
+	Source  string `json:"source"`
+	RAT     string `json:"rat"`
+	Serving bool   `json:"serving"`
 }
 
 type GeoArea struct {
@@ -70,6 +77,28 @@ func PositioningMethod(d *LocationData) string {
 	return d.PositioningDataList[0].Method
 }
 
+func HasPositioning(d *LocationData, method, mode, usage string) bool {
+	for _, p := range d.PositioningDataList {
+		if p.Method == method && p.Mode == mode && p.Usage == usage {
+			return true
+		}
+	}
+
+	return false
+}
+
+func CountMeasurements(d *LocationData, source string) int {
+	n := 0
+
+	for _, m := range d.RadioMeasurements {
+		if m.Source == source {
+			n++
+		}
+	}
+
+	return n
+}
+
 func GNSSPositioning(d *LocationData) string {
 	if len(d.GnssPositioningDataList) == 0 {
 		return ""
@@ -80,12 +109,18 @@ func GNSSPositioning(d *LocationData) string {
 
 // GetLocation calls POST /api/beta/location for the given method and decodes the
 // spec-shaped LocationData response.
-func GetLocation(ctx context.Context, cl *client.Client, supi, method string) (*LocationData, error) {
-	body, err := json.Marshal(map[string]string{
+func GetLocation(ctx context.Context, cl *client.Client, supi, method, mode string) (*LocationData, error) {
+	request := map[string]string{
 		"supi":         supi,
 		"request_type": "immediate",
 		"method":       method,
-	})
+	}
+
+	if mode != "" {
+		request["mode"] = mode
+	}
+
+	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}

@@ -94,7 +94,7 @@ func runS1ENBLocationIdle(ctx context.Context, env scenarios.Env, p *locationIdl
 	errCh := make(chan error, 1)
 
 	go func() {
-		result, err := common.GetLocation(ctx, cl, supi, "ecid")
+		result, err := common.GetLocation(ctx, cl, supi, "ecid", "network_based")
 		locCh <- result
 
 		errCh <- err
@@ -131,8 +131,8 @@ func runS1ENBLocationIdle(ctx context.Context, env scenarios.Env, p *locationIdl
 			return fmt.Errorf("E-CID result missing ecgi")
 		}
 
-		if m := common.PositioningMethod(result); m != "ECID" {
-			return fmt.Errorf("expected ECID positioning method, got %q", m)
+		if !common.HasPositioning(result, "ECID", "CONVENTIONAL", "SUCCESS_RESULTS_USED_TO_GENERATE_LOCATION") {
+			return fmt.Errorf("expected a network-based ECID result that generated the location, got %+v", result.PositioningDataList)
 		}
 
 		logger.Logger.Info("E-CID idle location validated",
