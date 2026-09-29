@@ -24,13 +24,13 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 }
 
 func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
-	ueConn.StopNASGuard(ctx)
-
-	if ue.TakeSMSIMSIDetach() {
+	if ueConn.TakeSMSIMSIDetach(ctx) {
 		logger.From(ctx, logger.MmeLog).Info("Detach Accept (IMSI detach)")
 
 		return nasreply.Handled()
 	}
+
+	ueConn.StopNASGuard(ctx)
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
 	ue.TransitionTo(ctx, mme.EMMDeregistered)

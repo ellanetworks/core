@@ -132,9 +132,10 @@ type UeContext struct {
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 
-	smsOnly          atomic.Bool
-	smsDetachPending atomic.Bool
-	smsIMSIDetaching atomic.Bool
+	smsOnly       atomic.Bool
+	smsDetach     atomic.Uint32
+	smsMu         sync.Mutex
+	smsGeneration uint64
 
 	lastSeen atomic.Int64
 
@@ -262,7 +263,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	ue.session = m.Session
 	ue.sms = m.SMS
 	m.recordLastSeenLocked(ue, ue.Conn())
-	m.unlockAndDeactivateSMS()
+	m.mu.Unlock()
 
 	// TS 24.301 §5.5.1.2.7 f): a genuine re-attach supersedes the old context and
 	// its EPS bearer contexts are deleted. The anchor sessions are released outside
@@ -768,7 +769,7 @@ func (m *MME) FreeUeConn(ctx context.Context, ue *UeContext) {
 // release race.
 func (m *MME) RemoveUe(ue *UeContext) {
 	m.mu.Lock()
-	defer m.unlockAndDeactivateSMS()
+	defer m.mu.Unlock()
 
 	m.removeContextLocked(ue)
 }
@@ -788,20 +789,6 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 		m.lastSeen.refresh(supi.IMSI(), "", "", ue.lastSeenTime())
 		delete(m.UEs, supi)
 		m.purgeRegistration(supi)
-
-		if m.SMS != nil {
-			m.smsDeactivations = append(m.smsDeactivations, ue)
-		}
-	}
-}
-
-func (m *MME) unlockAndDeactivateSMS() {
-	pending := m.smsDeactivations
-	m.smsDeactivations = nil
-	m.mu.Unlock()
-
-	for _, ue := range pending {
-		m.SMS.Deactivate(ue.imsiOrEmpty(), ue)
 	}
 }
 
@@ -908,7 +895,7 @@ func (m *MME) claimRelease(ue *UeContext) (*UeConn, bool) {
 // post-release logging.
 func (m *MME) releaseContextLockedPart(ue *UeContext, expected *UeConn) (released, registered bool, imsi string) {
 	m.mu.Lock()
-	defer m.unlockAndDeactivateSMS()
+	defer m.mu.Unlock()
 
 	if expected != nil && ue.Conn() != expected {
 		return false, false, ""
@@ -976,7 +963,7 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 // eNB UE id) does not leak the previous context.
 func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	m.mu.Lock()
-	defer m.unlockAndDeactivateSMS()
+	defer m.mu.Unlock()
 
 	var stale []*UeContext
 

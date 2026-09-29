@@ -133,8 +133,6 @@ type MME struct {
 	handoversToFiveGS interworking.HandoverGroup
 
 	lcsCorrelationSeq atomic.Uint32
-
-	smsDeactivations []*UeContext
 }
 
 func (m *MME) HandoverGuardTimeout() time.Duration {

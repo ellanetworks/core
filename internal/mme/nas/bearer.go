@@ -352,7 +352,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	sendNITZ(ctx, m, ue, ueConn)
 
-	m.SyncSMSRegistration(ctx, ue)
+	m.SMSReachable(ctx, ue)
 
 	return nasreply.Handled()
 }

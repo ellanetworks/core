@@ -153,13 +153,10 @@ func (d fakeDirectory) Identity(_ context.Context, nodeID string) (diameternode.
 	return id, nil
 }
 
-var liveOwner = new(int)
-
 type fakeUE struct {
 	mu       sync.Mutex
 	err      error
 	reached  int
-	accesses []smsf.Access
 	settled  int
 	order    []string
 	gate     chan struct{}
@@ -170,10 +167,9 @@ func newFakeUE() *fakeUE {
 	return &fakeUE{downlink: make(chan sms.CPMessage, 64)}
 }
 
-func (u *fakeUE) EnableUEReachability(_ context.Context, _ string, access smsf.Access) error {
+func (u *fakeUE) EnableUEReachability(context.Context, string) error {
 	u.mu.Lock()
 	u.reached++
-	u.accesses = append(u.accesses, access)
 	err, gate := u.err, u.gate
 	u.mu.Unlock()
 
@@ -193,7 +189,7 @@ func (u *fakeUE) holdReachability() chan struct{} {
 	return u.gate
 }
 
-func (u *fakeUE) SignallingSettled(context.Context, string, smsf.Access) {
+func (u *fakeUE) SignallingSettled(context.Context, string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
@@ -215,13 +211,6 @@ func (u *fakeUE) settlements() int {
 	return u.settled
 }
 
-func (u *fakeUE) usedAccesses() []smsf.Access {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	return slices.Clone(u.accesses)
-}
-
 func (u *fakeUE) reachability() int {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -229,7 +218,7 @@ func (u *fakeUE) reachability() int {
 	return u.reached
 }
 
-func (u *fakeUE) SendSMS(_ context.Context, _ string, _ smsf.Access, payload []byte) error {
+func (u *fakeUE) SendSMS(_ context.Context, _ string, payload []byte) error {
 	u.mu.Lock()
 	err := u.err
 	u.mu.Unlock()
@@ -484,12 +473,9 @@ func newEnvWithTimers(t *testing.T, timers smsf.Timers) *env {
 	}
 
 	manager := diameternode.New(nodeSettings, peers, zap.NewNop())
-	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, manager, zap.NewNop(), timers)
-	s.Register(manager)
-
 	ue := newFakeUE()
-	s.SetTransport(ue)
-	s.Activate(imsi, smsf.Access5GS, liveOwner)
+	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, manager, ue, zap.NewNop(), timers)
+	s.Register(manager)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})

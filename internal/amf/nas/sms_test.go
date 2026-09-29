@@ -34,9 +34,14 @@ func (h *fakeSMSHandler) Uplink(_ context.Context, _ string, payload []byte) {
 
 func (h *fakeSMSHandler) UEReachable(context.Context, string) {}
 
-func (h *fakeSMSHandler) Activate(_ string, _ any) {}
+func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
+	allowed := make(map[string]bool, len(imsis))
+	for _, imsi := range imsis {
+		allowed[imsi] = true
+	}
 
-func (h *fakeSMSHandler) Deactivate(_ string, _ any) {}
+	return allowed, nil
+}
 
 func (h *fakeSMSHandler) DeliveryFailed(string) {}
 

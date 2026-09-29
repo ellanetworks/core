@@ -200,7 +200,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete")
 
-	m.SyncSMSRegistration(ctx, ue)
+	m.SMSReachable(ctx, ue)
 
 	if ueConn.TauReleaseOnComplete {
 		ueConn.TauReleaseOnComplete = false

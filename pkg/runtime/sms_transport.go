@@ -15,50 +15,53 @@ import (
 )
 
 type smsCore interface {
+	SMSRoute(imsi string) (granted, connected bool)
 	EnableUEReachabilityForSMS(ctx context.Context, imsi string) error
 	SendSMS(ctx context.Context, imsi string, payload []byte) error
 	SMSSignallingSettled(ctx context.Context, imsi string)
 }
 
 type smsTransport struct {
-	cores map[smsf.Access]smsCore
+	cores []smsCore
 }
 
-func newSMSTransport(m *mme.MME, a *amf.AMF) *smsTransport {
-	return &smsTransport{cores: map[smsf.Access]smsCore{smsf.AccessEPS: m, smsf.Access5GS: a}}
+func newSMSTransport(a *amf.AMF, m *mme.MME) *smsTransport {
+	return &smsTransport{cores: []smsCore{a, m}}
 }
 
-func (t *smsTransport) EnableUEReachability(ctx context.Context, imsi string, access smsf.Access) error {
-	core, err := t.core(access)
-	if err != nil {
-		return err
-	}
-
-	return smsTransportError(core.EnableUEReachabilityForSMS(ctx, imsi))
+func (t *smsTransport) EnableUEReachability(ctx context.Context, imsi string) error {
+	return smsTransportError(t.route(imsi).EnableUEReachabilityForSMS(ctx, imsi))
 }
 
-func (t *smsTransport) SendSMS(ctx context.Context, imsi string, access smsf.Access, payload []byte) error {
-	core, err := t.core(access)
-	if err != nil {
-		return err
-	}
-
-	return smsTransportError(core.SendSMS(ctx, imsi, payload))
+func (t *smsTransport) SendSMS(ctx context.Context, imsi string, payload []byte) error {
+	return smsTransportError(t.route(imsi).SendSMS(ctx, imsi, payload))
 }
 
-func (t *smsTransport) SignallingSettled(ctx context.Context, imsi string, access smsf.Access) {
-	if core, err := t.core(access); err == nil {
+func (t *smsTransport) SignallingSettled(ctx context.Context, imsi string) {
+	for _, core := range t.cores {
 		core.SMSSignallingSettled(ctx, imsi)
 	}
 }
 
-func (t *smsTransport) core(access smsf.Access) (smsCore, error) {
-	core, ok := t.cores[access]
-	if !ok {
-		return nil, fmt.Errorf("%w: no core for access %s", smsf.ErrUserUnknown, access)
+func (t *smsTransport) route(imsi string) smsCore {
+	var fallback smsCore
+
+	for _, core := range t.cores {
+		granted, connected := core.SMSRoute(imsi)
+
+		switch {
+		case granted && connected:
+			return core
+		case granted && fallback == nil:
+			fallback = core
+		}
 	}
 
-	return core, nil
+	if fallback != nil {
+		return fallback
+	}
+
+	return t.cores[0]
 }
 
 func smsTransportError(err error) error {
@@ -74,37 +77,4 @@ func smsTransportError(err error) error {
 	default:
 		return err
 	}
-}
-
-type smsHandler struct {
-	smsf   *smsf.SMSF
-	access smsf.Access
-}
-
-func (h smsHandler) Allowed(ctx context.Context, imsi string) (bool, error) {
-	return h.smsf.Allowed(ctx, imsi)
-}
-
-func (h smsHandler) Activate(imsi string, owner any) {
-	h.smsf.Activate(imsi, h.access, owner)
-}
-
-func (h smsHandler) Deactivate(imsi string, owner any) {
-	h.smsf.Deactivate(imsi, h.access, owner)
-}
-
-func (h smsHandler) Uplink(ctx context.Context, imsi string, payload []byte) {
-	h.smsf.Uplink(ctx, imsi, payload)
-}
-
-func (h smsHandler) UEReachable(ctx context.Context, imsi string) {
-	h.smsf.UEReachable(ctx, imsi)
-}
-
-func (h smsHandler) DeliveryFailed(imsi string) {
-	h.smsf.DeliveryFailed(imsi)
-}
-
-func (h smsHandler) TransactionPending(imsi string) bool {
-	return h.smsf.TransactionPending(imsi)
 }

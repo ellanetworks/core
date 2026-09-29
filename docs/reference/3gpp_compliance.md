@@ -44,18 +44,18 @@ Ella Core carries IP data sessions for 4G and 5G subscribers.
 - **Session types.** IPv4, IPv6, and IPv4v6.
 - **QoS.** One non-GBR QoS flow per session.
 
-### SMS
-
-- **SMS over NAS.** 4G (SMS in MME) and 5G.
-- **Mobile-originated and mobile-terminated SMS.** Relayed to and from an external SMSC over SGd.
-- **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
-
 ### Security
 
 - **Procedures.** Identity, authentication, and security mode control.
 - **Authentication.** EPS-AKA on 4G, 5G-AKA on 5G.
 - **Subscriber identity concealment.** SUCI with the null scheme, Profile A, and Profile B, on 5G.
 - **Ciphering and integrity.** The null, SNOW 3G, and AES algorithms: EEA0/1/2 and EIA0/1/2 on 4G, NEA0/1/2 and NIA0/1/2 on 5G.
+
+### SMS (beta)
+
+- **SMS over NAS.** 4G (SMS in MME) and 5G.
+- **Mobile-originated and mobile-terminated SMS.** Relayed to and from an external SMSC over SGd.
+- **HSS for the SMSC.** Send Routing Info for SM, Report SM Delivery Status, and Alert Service Centre over S6c.
 
 ### Location (beta)
 
@@ -66,4 +66,3 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. GNSS positioning i
 - **No voice.** Ella Core provides no VoLTE, or VoNR, or IMS integration.
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
 - **No roaming.** Ella Core does not support roaming between networks.
-- **No SMS over SGs or IMS.**

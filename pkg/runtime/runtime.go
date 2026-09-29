@@ -545,11 +545,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), logger.DiameterLog)
 	diameternode.RegisterMetrics(diameterNode)
 
-	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, diameterNode, logger.SmsfLog, smsf.DefaultTimers())
+	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, diameterNode, newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)
-	smsfInstance.SetTransport(newSMSTransport(mmeInstance, amfInstance))
-	amfInstance.SMS = smsHandler{smsf: smsfInstance, access: smsf.Access5GS}
-	mmeInstance.SMS = smsHandler{smsf: smsfInstance, access: smsf.AccessEPS}
+	amfInstance.SMS = smsfInstance
+	mmeInstance.SMS = smsfInstance
 
 	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
 

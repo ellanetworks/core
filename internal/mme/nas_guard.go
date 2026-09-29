@@ -97,19 +97,53 @@ func (c *UeConn) armNASGuardMode(ctx context.Context, name string, plain []byte,
 		return
 	}
 
-	m := c.m
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	c.armNASGuardLocked(ctx, ue, name, plain, sht, onAbort)
+}
 
+func (c *UeConn) armNASGuardLocked(ctx context.Context, ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
 	c.nasGuardName = name
 	link := trace.SpanContextFromContext(ctx)
 
 	c.nasGuard.ArmWith(
-		m.nasGuardCfg,
+		c.m.nasGuardCfg,
 		func(attempt int32) { c.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
 		func() { c.expireNASGuard(link, ue, name, onAbort) },
 	)
+}
+
+func (c *UeConn) claimNASGuard(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) bool {
+	ue := c.UeContext()
+	if ue == nil {
+		return false
+	}
+
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+
+	if ue.Conn() != c || c.nasGuard.Active() {
+		return false
+	}
+
+	c.armNASGuardLocked(ctx, ue, name, plain, sht, onAbort)
+
+	return true
+}
+
+func (c *UeConn) stopNASGuardNamed(ctx context.Context, name string) {
+	defer c.ResumeDeferredReleaseIfSettled(ctx)
+
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+
+	if c.nasGuardName != name {
+		return
+	}
+
+	c.nasGuardName = ""
+	c.nasGuard.Stop()
 }
 
 func (m *MME) ArmESMGuard(ctx context.Context, ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType) {

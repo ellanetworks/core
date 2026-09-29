@@ -128,8 +128,7 @@ type LPPHandler interface {
 
 type SMSHandler interface {
 	Allowed(ctx context.Context, imsi string) (bool, error)
-	Activate(imsi string, owner any)
-	Deactivate(imsi string, owner any)
+	AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error)
 	Uplink(ctx context.Context, imsi string, payload []byte)
 	UEReachable(ctx context.Context, imsi string)
 	TransactionPending(imsi string) bool

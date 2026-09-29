@@ -27,14 +27,46 @@ type fakeSMSHandler struct {
 	pending   bool
 	uplinks   [][]byte
 	reachable []string
-	events    []string
+	hold      chan struct{}
+	held      chan struct{}
 }
 
 func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) {
 	h.mu.Lock()
+	allowed, err, hold, held := h.allowed, h.err, h.hold, h.held
+	h.mu.Unlock()
+
+	if hold != nil {
+		close(held)
+		<-hold
+	}
+
+	return allowed, err
+}
+
+func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
+	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	return h.allowed, h.err
+	if h.err != nil {
+		return nil, h.err
+	}
+
+	allowed := make(map[string]bool, len(imsis))
+	for _, imsi := range imsis {
+		allowed[imsi] = h.allowed
+	}
+
+	return allowed, nil
+}
+
+func (h *fakeSMSHandler) holdDecision() (held, release chan struct{}) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.hold, h.held = make(chan struct{}), make(chan struct{})
+
+	return h.held, h.hold
 }
 
 func (h *fakeSMSHandler) setAllowed(allowed bool, err error) {
@@ -42,20 +74,6 @@ func (h *fakeSMSHandler) setAllowed(allowed bool, err error) {
 	defer h.mu.Unlock()
 
 	h.allowed, h.err = allowed, err
-}
-
-func (h *fakeSMSHandler) Activate(imsi string, _ any) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.events = append(h.events, "activate "+imsi)
-}
-
-func (h *fakeSMSHandler) Deactivate(imsi string, _ any) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.events = append(h.events, "deactivate "+imsi)
 }
 
 func (h *fakeSMSHandler) Uplink(_ context.Context, _ string, payload []byte) {
@@ -88,11 +106,11 @@ func (h *fakeSMSHandler) setPending(p bool) {
 	h.pending = p
 }
 
-func (h *fakeSMSHandler) snapshot() (uplinks [][]byte, reachable, events []string) {
+func (h *fakeSMSHandler) snapshot() (uplinks [][]byte, reachable []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	return slices.Clone(h.uplinks), slices.Clone(h.reachable), slices.Clone(h.events)
+	return slices.Clone(h.uplinks), slices.Clone(h.reachable)
 }
 
 var smsTestTAI = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
@@ -323,13 +341,13 @@ func TestUplinkSMSIsForwardedOnlyForAUEWithSMSOverNAS(t *testing.T) {
 	a.GrantSMSOverNAS(t.Context(), ue, false)
 	a.ForwardSMS(t.Context(), ue, []byte{0x09, 0x02})
 
-	uplinks, _, _ := handler.snapshot()
+	uplinks, _ := handler.snapshot()
 	if len(uplinks) != 1 || uplinks[0][1] != 0x01 {
 		t.Fatalf("uplinks = %x, want only the one sent while SMS over NAS was allowed", uplinks)
 	}
 }
 
-func TestCompletingARegistrationRegistersTheUEForSMS(t *testing.T) {
+func TestCompletingARegistrationReportsTheUEReachableForSMS(t *testing.T) {
 	a, handler, _ := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 	ue.ForceStateForTest(amf.RegistrationInitiated)
@@ -340,40 +358,34 @@ func TestCompletingARegistrationRegistersTheUEForSMS(t *testing.T) {
 	ue.ForceStateForTest(amf.RegistrationInitiated)
 	a.MarkRegistered(t.Context(), ue)
 
-	_, reachable, events := handler.snapshot()
-
-	if !slices.Equal(reachable, []string{"001019756139901"}) {
+	if _, reachable := handler.snapshot(); !slices.Equal(reachable, []string{"001019756139901"}) {
 		t.Fatalf("reachable = %v, want one report while SMS over NAS was allowed", reachable)
-	}
-
-	if !slices.Equal(events, []string{"activate 001019756139901", "deactivate 001019756139901"}) {
-		t.Fatalf("events = %v", events)
 	}
 }
 
 func TestDeregistrationDeregistersTheUEFromSMS(t *testing.T) {
-	a, handler, _ := newSMSTestAMF(t)
+	a, _, _ := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 
 	ue.Deregister(t.Context())
 
-	if _, _, events := handler.snapshot(); !slices.Equal(events, []string{"deactivate 001019756139901"}) {
-		t.Fatalf("events = %v", events)
-	}
-
 	if ue.SMSOverNAS() {
 		t.Fatal("the grant survived the deregistration")
+	}
+
+	if granted, _ := a.SMSRoute("001019756139901"); granted {
+		t.Fatal("the AMF still routes SMS to a deregistered UE")
 	}
 }
 
 func TestRemovingTheUEContextDeregistersItFromSMS(t *testing.T) {
-	a, handler, _ := newSMSTestAMF(t)
+	a, _, _ := newSMSTestAMF(t)
 	ue := newIdleSMSUE(t, a)
 
 	a.DeregisterAndRemoveUeContext(t.Context(), ue)
 
-	if _, _, events := handler.snapshot(); !slices.Contains(events, "deactivate 001019756139901") {
-		t.Fatalf("events = %v", events)
+	if granted, _ := a.SMSRoute("001019756139901"); granted {
+		t.Fatal("the AMF still routes SMS to a removed UE")
 	}
 }
 
@@ -477,12 +489,40 @@ func TestSMSGrantFollowsConfigurationChanges(t *testing.T) {
 	handler.setAllowed(true, nil)
 	a.ReevaluateSMS(t.Context())
 
-	if !ue.SMSOverNAS() || sender.downlinkNasTransportCalls != 2 {
-		t.Fatalf("SMS over NAS = %t, downlinks = %d, want the grant restored and a second SMS indication", ue.SMSOverNAS(), sender.downlinkNasTransportCalls)
+	if ue.SMSOverNAS() || sender.downlinkNasTransportCalls != 2 {
+		t.Fatalf("SMS over NAS = %t, downlinks = %d, want the grant left withdrawn and an \"available\" indication", ue.SMSOverNAS(), sender.downlinkNasTransportCalls)
 	}
 
-	if _, _, events := handler.snapshot(); !slices.Equal(events, []string{"deactivate 001019756139901", "activate 001019756139901"}) {
-		t.Fatalf("events = %v", events)
+	a.ReevaluateSMS(t.Context())
+
+	if sender.downlinkNasTransportCalls != 2 {
+		t.Fatal("the \"available\" indication was sent twice")
+	}
+
+	if !a.GrantSMSOverNAS(t.Context(), ue, true) || !ue.SMSOverNAS() {
+		t.Fatal("the grant was not restored by the registration")
+	}
+}
+
+func TestARevocationDuringARegistrationWins(t *testing.T) {
+	a, handler, _ := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+
+	held, release := handler.holdDecision()
+	granted := make(chan bool)
+
+	go func() { granted <- a.GrantSMSOverNAS(t.Context(), ue, true) }()
+
+	<-held
+	handler.mu.Lock()
+	handler.allowed, handler.hold = false, nil
+	handler.mu.Unlock()
+
+	a.ReevaluateSMS(t.Context())
+	close(release)
+
+	if <-granted || ue.SMSOverNAS() {
+		t.Fatal("a registration that read the old configuration restored the revoked grant")
 	}
 }
 

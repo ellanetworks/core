@@ -43,9 +43,14 @@ func (h *fakeSMSHandler) UEReachable(context.Context, string) {
 	h.reachable++
 }
 
-func (h *fakeSMSHandler) Activate(_ string, _ any) {}
+func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[string]bool, error) {
+	allowed := make(map[string]bool, len(imsis))
+	for _, imsi := range imsis {
+		allowed[imsi] = h.allowed
+	}
 
-func (h *fakeSMSHandler) Deactivate(_ string, _ any) {}
+	return allowed, h.err
+}
 
 func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
@@ -247,7 +252,7 @@ func TestUplinkNASTransportIsHandedToTheSMSF(t *testing.T) {
 
 	HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
 
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 
 	if d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true); d.Action != nasreply.ActionHandled {
 		t.Fatalf("disposition = %+v, want handled", d)
@@ -271,7 +276,7 @@ func TestIMSIDetachRevokesSMSOnly(t *testing.T) {
 	m.SMS = &fakeSMSHandler{allowed: true}
 	ue, cc := securedUE(t, m)
 	testPDN(ue)
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 
 	d := handleDetachRequest(context.Background(), m, ue, ue.Conn(), &eps.DetachRequestUE{TypeOfDetach: eps.DetachTypeIMSI}, true)
 	if d.Action != nasreply.ActionHandled {
@@ -306,7 +311,7 @@ func TestIMSIDetachAtSwitchOffIsNotAnswered(t *testing.T) {
 	m := newTestMME(t)
 	m.SMS = &fakeSMSHandler{allowed: true}
 	ue, cc := securedUE(t, m)
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 
 	handleDetachRequest(context.Background(), m, ue, ue.Conn(), &eps.DetachRequestUE{TypeOfDetach: eps.DetachTypeIMSI, SwitchOff: true}, true)
 
@@ -348,7 +353,7 @@ func TestTAUAnsweringAnSMSPageKeepsTheConnectionForTheSMS(t *testing.T) {
 	handler := &fakeSMSHandler{allowed: true}
 	m.SMS = handler
 	ue, cc := securedUE(t, m)
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 
 	ue.AnswerSignallingPageForTest()
 	handleTAU(t, m, ue, tauRequest(eps.EPSUpdateTypePeriodic))
@@ -389,7 +394,7 @@ func TestWithdrawingSMSDetachesTheUEFromSMSOnly(t *testing.T) {
 	m.SMS = handler
 	ue, cc := securedUE(t, m)
 	testPDN(ue)
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 
 	handler.mu.Lock()
 	handler.err = errors.New("leader changed")
@@ -429,7 +434,7 @@ func TestAnIdleUEIsDetachedFromSMSWhenItReconnects(t *testing.T) {
 	handler := &fakeSMSHandler{allowed: true}
 	m.SMS = handler
 	ue, cc := securedUE(t, m)
-	m.GrantSMSOnly(context.Background(), ue, true)
+	m.DecideSMS(context.Background(), ue, true)
 	m.FreeUeConn(context.Background(), ue)
 
 	handler.mu.Lock()

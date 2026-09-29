@@ -29,12 +29,9 @@ func (ue *UeContext) SMSOverNAS() bool {
 
 func (amf *AMF) GrantSMSOverNAS(ctx context.Context, ue *UeContext, requested bool) bool {
 	ue.smsRequested.Store(requested)
-	ue.smsIndicationPending.Store(nil)
 
-	return amf.decideSMS(ctx, ue)
-}
+	generation := ue.beginSMSDecision()
 
-func (amf *AMF) decideSMS(ctx context.Context, ue *UeContext) bool {
 	granted, err := amf.evaluateSMS(ctx, ue)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("could not decide whether the UE may use SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
@@ -42,9 +39,27 @@ func (amf *AMF) decideSMS(ctx context.Context, ue *UeContext) bool {
 		granted = false
 	}
 
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
+	if ue.smsGeneration != generation {
+		return ue.smsOverNAS.Load()
+	}
+
+	ue.smsIndicationPending.Store(nil)
+	ue.smsIndicated = granted
 	amf.storeSMSGrant(ctx, ue, granted)
 
 	return granted
+}
+
+func (ue *UeContext) beginSMSDecision() uint64 {
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
+	ue.smsGeneration++
+
+	return ue.smsGeneration
 }
 
 func (amf *AMF) evaluateSMS(ctx context.Context, ue *UeContext) (bool, error) {
@@ -56,35 +71,73 @@ func (amf *AMF) evaluateSMS(ctx context.Context, ue *UeContext) (bool, error) {
 	return amf.SMS.Allowed(ctx, supi.IMSI())
 }
 
-func (amf *AMF) storeSMSGrant(ctx context.Context, ue *UeContext, granted bool) bool {
-	previous := ue.smsOverNAS.Swap(granted)
-	if previous != granted {
+func (amf *AMF) storeSMSGrant(ctx context.Context, ue *UeContext, granted bool) {
+	if ue.smsOverNAS.Swap(granted) != granted {
 		logger.From(ctx, logger.AmfLog).Info("SMS over NAS grant changed", logger.SUPI(ue.Supi().String()), zap.Bool("allowed", granted))
 	}
-
-	return previous != granted
 }
 
 func (amf *AMF) ReevaluateSMS(ctx context.Context) {
-	for _, ue := range amf.registeredUEs() {
-		if !ue.smsRequested.Load() {
-			continue
-		}
-
-		granted, err := amf.evaluateSMS(ctx, ue)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("could not re-evaluate SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
-			continue
-		}
-
-		if !amf.storeSMSGrant(ctx, ue, granted) {
-			continue
-		}
-
-		ue.smsIndicationPending.Store(&granted)
-		amf.syncSMSRegistration(ctx, ue)
-		amf.deliverSMSIndication(ctx, ue)
+	if amf.SMS == nil {
+		return
 	}
+
+	type decision struct {
+		ue         *UeContext
+		imsi       string
+		generation uint64
+	}
+
+	var pending []decision
+
+	for _, ue := range amf.registeredUEs() {
+		if supi := ue.Supi(); ue.smsRequested.Load() && supi.IsIMSI() {
+			pending = append(pending, decision{ue: ue, imsi: supi.IMSI(), generation: ue.beginSMSDecision()})
+		}
+	}
+
+	if len(pending) == 0 {
+		return
+	}
+
+	imsis := make([]string, len(pending))
+	for i, d := range pending {
+		imsis[i] = d.imsi
+	}
+
+	allowed, err := amf.SMS.AllowedEach(ctx, imsis)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not re-evaluate SMS over NAS", zap.Error(err))
+		return
+	}
+
+	for _, d := range pending {
+		if amf.applySMSDecision(ctx, d.ue, d.generation, allowed[d.imsi]) {
+			amf.deliverSMSIndication(ctx, d.ue)
+		}
+	}
+}
+
+func (amf *AMF) applySMSDecision(ctx context.Context, ue *UeContext, generation uint64, allowed bool) bool {
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
+	if ue.smsGeneration != generation {
+		return false
+	}
+
+	if !allowed {
+		amf.storeSMSGrant(ctx, ue, false)
+	}
+
+	if ue.smsIndicated == allowed {
+		return false
+	}
+
+	ue.smsIndicated = allowed
+	ue.smsIndicationPending.Store(&allowed)
+
+	return true
 }
 
 func (amf *AMF) deliverSMSIndication(ctx context.Context, ue *UeContext) {
@@ -127,29 +180,15 @@ func (amf *AMF) SMSReachable(ctx context.Context, ue *UeContext) {
 	amf.SMS.UEReachable(ctx, supi.IMSI())
 }
 
-func (amf *AMF) syncSMSRegistration(ctx context.Context, ue *UeContext) {
-	supi := ue.Supi()
-	if amf.SMS == nil || !supi.IsIMSI() {
-		return
-	}
-
-	if !ue.SMSOverNAS() {
-		amf.SMS.Deactivate(supi.IMSI(), ue)
-		return
-	}
-
-	amf.SMS.Activate(supi.IMSI(), ue)
-	amf.SMS.UEReachable(ctx, supi.IMSI())
-}
-
 func (ue *UeContext) deactivateSMS() {
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
+	ue.smsGeneration++
+	ue.smsIndicated = false
 	ue.smsOverNAS.Store(false)
 	ue.smsRequested.Store(false)
 	ue.smsIndicationPending.Store(nil)
-
-	if supi := ue.Supi(); ue.sms != nil && supi.IsIMSI() {
-		ue.sms.Deactivate(supi.IMSI(), ue)
-	}
 }
 
 func (ue *UeContext) smsTransactionPending() bool {
@@ -321,4 +360,13 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 			return fmt.Errorf("%w: %w", ErrSMSUEUnreachable, err)
 		}
 	}
+}
+
+func (amf *AMF) SMSRoute(imsi string) (granted, connected bool) {
+	ue, err := amf.smsUE(imsi)
+	if err != nil {
+		return false, false
+	}
+
+	return true, ue.Conn() != nil
 }

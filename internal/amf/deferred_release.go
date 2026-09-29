@@ -51,6 +51,8 @@ func (ueConn *UeConn) DeferRelease(ctx context.Context, cause ngap.Cause) {
 
 		ueConn.resumeDeferredRelease(guardCtx)
 	})
+
+	ueConn.ResumeDeferredReleaseIfSettled(ctx)
 }
 
 func (ueConn *UeConn) ResumeDeferredReleaseIfSettled(ctx context.Context) {

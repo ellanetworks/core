@@ -348,7 +348,7 @@ func TestAPendingTransactionHoldsTheConnectionUntilItEnds(t *testing.T) {
 	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() == 1 })
 }
 
-func TestTheConnectionIsReleasableOnceTheReportIsSent(t *testing.T) {
+func TestTheConnectionIsHeldUntilTheReportIsAcknowledged(t *testing.T) {
 	e := newEnv(t)
 
 	sendRPData(t, e, moTI(1), 7)
@@ -358,13 +358,14 @@ func TestTheConnectionIsReleasableOnceTheReportIsSent(t *testing.T) {
 		t.Fatalf("report on %s", data.TransactionIdentifier)
 	}
 
-	eventually(t, "the connection to be releasable", func() bool { return !e.smsf.TransactionPending(imsi) })
-
-	if n := e.ue.settlements(); n != 1 {
-		t.Fatalf("signalling settled %d times, want once", n)
+	if !e.smsf.TransactionPending(imsi) {
+		t.Fatal("the connection is releasable before the report is acknowledged")
 	}
 
 	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPAck{TransactionIdentifier: moTI(1)}))
+
+	eventually(t, "the connection to be releasable", func() bool { return !e.smsf.TransactionPending(imsi) })
+	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() == 1 })
 }
 
 func TestTheReportIsSentBeforeTheConnectionIsReleasable(t *testing.T) {

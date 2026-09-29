@@ -2,7 +2,7 @@
 description: Step-by-step instructions to enable SMS in Ella Core.
 ---
 
-# Enable SMS
+# Enable SMS (beta)
 
 Ella Core can be integrated with an external Short Message Service Center (SMSC) to allow subscribers in your private mobile network to communicate via SMS.
 

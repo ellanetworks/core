@@ -109,6 +109,9 @@ type UeContext struct {
 	smsOverNAS           atomic.Bool
 	smsRequested         atomic.Bool
 	smsIndicationPending atomic.Pointer[bool]
+	smsMu                sync.Mutex
+	smsGeneration        uint64
+	smsIndicated         bool
 
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard

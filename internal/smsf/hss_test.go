@@ -29,7 +29,7 @@ func newHSS(t *testing.T) (*smsf.SMSF, *fakeStore) {
 	t.Helper()
 
 	store := newFakeStore(netip.MustParseAddrPort("192.0.2.10:3868"))
-	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, idleNode{}, zap.NewNop(), fastTimers())
+	s := smsf.New(store, fakeDirectory{localNode: localIdent, remoteNode: remoteIdent}, idleNode{}, newFakeUE(), zap.NewNop(), fastTimers())
 
 	return s, store
 }
@@ -222,6 +222,40 @@ func TestDeliveryReportIsAcknowledged(t *testing.T) {
 	})
 	if err != nil || res.Serving != nil || res.SMSF3GPP != nil {
 		t.Fatalf("RDA = %+v %v, want a bare success", res, err)
+	}
+}
+
+func TestDeliveryReportRecordsWaitingData(t *testing.T) {
+	s, store := newHSS(t)
+	store.register(db.UERegistrationTypeMME, localNode, false)
+
+	absent := tgpp.AbsentUserNoPagingResponseMSC
+
+	if _, err := report(t, s, s6c.DeliveryReport{
+		MSISDN: msisdn,
+		MME:    &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseAbsentUser, AbsentDiagnostic: &absent},
+	}); err != nil {
+		t.Fatalf("RDR: %v", err)
+	}
+
+	if !s.Waiting(imsi) {
+		t.Fatal("an absent-user report left no waiting data")
+	}
+
+	if _, err := report(t, s, s6c.DeliveryReport{MSISDN: msisdn, SingleAttempt: true, MME: &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseSuccessfulTransfer}}); err != nil {
+		t.Fatalf("RDR: %v", err)
+	}
+
+	if !s.Waiting(imsi) {
+		t.Fatal("a single-attempt report changed the waiting data")
+	}
+
+	if _, err := report(t, s, s6c.DeliveryReport{MSISDN: msisdn, MME: &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseSuccessfulTransfer}}); err != nil {
+		t.Fatalf("RDR: %v", err)
+	}
+
+	if s.Waiting(imsi) {
+		t.Fatal("a successful transfer report left the waiting data")
 	}
 }
 

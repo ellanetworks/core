@@ -17,10 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	deliveryTimerMargin = 2 * time.Second
-	maxPendingReports   = 4
-)
+const deliveryTimerMargin = 2 * time.Second
 
 type mtOutcome struct {
 	result     uint32
@@ -106,20 +103,6 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	}
 
 	s.mu.Lock()
-	_, registered := s.registered[imsi]
-	s.mu.Unlock()
-
-	if !registered {
-		if s.servedElsewhere(context.WithoutCancel(ctx), imsi) {
-			return experimental(tgpp.ResultErrorUserUnknown)
-		}
-
-		s.markWaiting(imsi, serviceCentre)
-
-		return absent(tgpp.AbsentUserIMSIDetached)
-	}
-
-	s.mu.Lock()
 	u := s.ue(imsi)
 
 	if u.mt != nil {
@@ -128,13 +111,10 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	}
 
 	t := &mtTransaction{
-		ti:        sms.TransactionIdentifier{Value: u.nextTI},
-		reference: u.nextRef,
-		ack:       make(chan struct{}, 1),
-		report:    make(chan sms.RPMessage, maxPendingReports),
-		aborted:   make(chan struct{}, 1),
-		retry:     make(chan struct{}, 1),
-
+		cpTxn:         newCPTxn(),
+		ti:            sms.TransactionIdentifier{Value: u.nextTI},
+		reference:     u.nextRef,
+		report:        make(chan sms.RPMessage, 1),
 		serviceCentre: serviceCentre,
 	}
 
@@ -163,32 +143,19 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 	}
 
-	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, t.ack, t.aborted, t.retry, func() {
-		s.mu.Lock()
-		t.sent = true
-		s.mu.Unlock()
-	})
+	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, &t.cpTxn)
 
 	if outcome, failed := s.transferFailure(ctx, imsi, serviceCentre, err); failed {
 		return outcome
 	}
 
-	for {
-		select {
-		case rp := <-t.report:
-			if rp.MessageReference() != t.reference {
-				s.logger.Info("Ignored an RP report for another message reference",
-					zap.String("imsi", imsi), zap.Uint8("rp_reference", rp.MessageReference()), zap.Uint8("expected", t.reference))
-
-				continue
-			}
-
-			return reportOutcome(rp)
-		case <-t.aborted:
-			return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
-		case <-ctx.Done():
-			return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
-		}
+	select {
+	case rp := <-t.report:
+		return reportOutcome(rp)
+	case <-t.aborted:
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+	case <-ctx.Done():
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 	}
 }
 
@@ -200,9 +167,9 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 		return mtOutcome{}, false
 	case errors.Is(err, errNoCPAck), errors.Is(err, errAborted):
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
-	case errors.Is(err, ErrUserUnknown) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
+	case (errors.Is(err, ErrUserUnknown) || errors.Is(err, ErrNotRegisteredForSMS)) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
 		return experimental(tgpp.ResultErrorUserUnknown), true
-	case errors.Is(err, ErrUserUnknown):
+	case errors.Is(err, ErrUserUnknown), errors.Is(err, ErrNotRegisteredForSMS):
 		s.markWaiting(imsi, serviceCentre)
 		return absent(tgpp.AbsentUserIMSIDetached), true
 	case errors.As(err, &absentErr):
@@ -211,9 +178,6 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 	case errors.Is(err, context.DeadlineExceeded):
 		s.markWaiting(imsi, serviceCentre)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
-	case errors.Is(err, ErrNotRegisteredForSMS):
-		s.markWaiting(imsi, serviceCentre)
-		return absent(tgpp.AbsentUserIMSIDetached), true
 	default:
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
 	}

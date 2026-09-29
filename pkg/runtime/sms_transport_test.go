@@ -15,9 +15,15 @@ import (
 )
 
 type fakeSMSCore struct {
-	err     error
-	calls   int
-	settled int
+	granted   bool
+	connected bool
+	err       error
+	calls     int
+	settled   int
+}
+
+func (c *fakeSMSCore) SMSRoute(string) (bool, bool) {
+	return c.granted, c.connected
 }
 
 func (c *fakeSMSCore) EnableUEReachabilityForSMS(context.Context, string) error {
@@ -34,23 +40,46 @@ func (c *fakeSMSCore) SMSSignallingSettled(context.Context, string) {
 	c.settled++
 }
 
-func TestSMSTransportRoutesToTheRegisteredAccess(t *testing.T) {
-	eps := &fakeSMSCore{}
-	fiveGS := &fakeSMSCore{}
-	transport := &smsTransport{cores: map[smsf.Access]smsCore{smsf.AccessEPS: eps, smsf.Access5GS: fiveGS}}
-
-	if err := transport.SendSMS(context.Background(), "001010000000001", smsf.Access5GS, []byte{0x09}); err != nil {
-		t.Fatalf("SendSMS: %v", err)
+func TestSMSTransportRoutesToTheGrantedCore(t *testing.T) {
+	cases := []struct {
+		name         string
+		fiveGS, eps  fakeSMSCore
+		wantEPSCalls int
+	}{
+		{name: "granted on EPS only", eps: fakeSMSCore{granted: true}, wantEPSCalls: 2},
+		{name: "granted on 5GS only", fiveGS: fakeSMSCore{granted: true}, wantEPSCalls: 0},
+		{name: "granted on both, connected on EPS", fiveGS: fakeSMSCore{granted: true}, eps: fakeSMSCore{granted: true, connected: true}, wantEPSCalls: 2},
+		{name: "granted on both, neither connected", fiveGS: fakeSMSCore{granted: true}, eps: fakeSMSCore{granted: true}, wantEPSCalls: 0},
+		{name: "granted nowhere", wantEPSCalls: 0},
 	}
 
-	if err := transport.EnableUEReachability(context.Background(), "001010000000001", smsf.AccessEPS); err != nil {
-		t.Fatalf("EnableUEReachability: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			transport := &smsTransport{cores: []smsCore{&tc.fiveGS, &tc.eps}}
+
+			if err := transport.EnableUEReachability(context.Background(), "001010000000001"); err != nil {
+				t.Fatalf("EnableUEReachability: %v", err)
+			}
+
+			if err := transport.SendSMS(context.Background(), "001010000000001", []byte{0x09}); err != nil {
+				t.Fatalf("SendSMS: %v", err)
+			}
+
+			if tc.eps.calls != tc.wantEPSCalls || tc.fiveGS.calls != 2-tc.wantEPSCalls {
+				t.Fatalf("EPS calls = %d, 5GS calls = %d, want %d EPS calls", tc.eps.calls, tc.fiveGS.calls, tc.wantEPSCalls)
+			}
+		})
 	}
+}
 
-	transport.SignallingSettled(context.Background(), "001010000000001", smsf.AccessEPS)
+func TestSMSTransportSettlesSignallingOnBothCores(t *testing.T) {
+	fiveGS, eps := &fakeSMSCore{}, &fakeSMSCore{granted: true}
+	transport := &smsTransport{cores: []smsCore{fiveGS, eps}}
 
-	if eps.calls != 1 || fiveGS.calls != 1 || eps.settled != 1 || fiveGS.settled != 0 {
-		t.Fatalf("EPS calls = %d settled = %d, 5GS calls = %d settled = %d", eps.calls, eps.settled, fiveGS.calls, fiveGS.settled)
+	transport.SignallingSettled(context.Background(), "001010000000001")
+
+	if fiveGS.settled != 1 || eps.settled != 1 {
+		t.Fatalf("settled 5GS %d, EPS %d times, want once each", fiveGS.settled, eps.settled)
 	}
 }
 
@@ -87,9 +116,9 @@ func TestSMSTransportMapsCoreErrorsToSMSFOutcomes(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			transport := &smsTransport{cores: map[smsf.Access]smsCore{smsf.AccessEPS: &fakeSMSCore{err: tc.err}}}
+			transport := &smsTransport{cores: []smsCore{&fakeSMSCore{granted: true, err: tc.err}}}
 
-			if err := transport.EnableUEReachability(context.Background(), "001010000000001", smsf.AccessEPS); !tc.check(err) {
+			if err := transport.EnableUEReachability(context.Background(), "001010000000001"); !tc.check(err) {
 				t.Fatalf("err = %v", err)
 			}
 		})

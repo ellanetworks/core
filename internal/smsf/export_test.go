@@ -9,3 +9,12 @@ func (s *SMSF) TrackedUEs() int {
 
 	return len(s.ues)
 }
+
+func (s *SMSF) Waiting(imsi string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, ok := s.waiting[imsi]
+
+	return ok
+}

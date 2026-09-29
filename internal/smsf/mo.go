@@ -39,15 +39,7 @@ func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.Transac
 	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 
-	reportSent := func() {
-		s.mu.Lock()
-		t.reportSent = true
-		s.mu.Unlock()
-
-		s.transactionEnded(context.WithoutCancel(ctx), imsi)
-	}
-
-	if err := s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: ti.Peer(), UserData: payload}, t.ack, t.aborted, t.retry, reportSent); err != nil {
+	if err := s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: ti.Peer(), UserData: payload}, &t.cpTxn); err != nil {
 		s.logger.Info("UE did not acknowledge an SMS report", zap.String("imsi", imsi), zap.Stringer("ti", ti), zap.Error(err))
 	}
 }

@@ -235,92 +235,7 @@ func TestMobileTerminatedSMSToAnIMSIThatIsNotASubscriber(t *testing.T) {
 	}
 }
 
-func TestDeactivationFreesTheUEState(t *testing.T) {
-	e := newEnv(t)
-	tfa := forwardAsync(t, e)
-
-	data, rp := receiveRPData(t, e)
-	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference})
-	awaitTFA(t, tfa)
-
-	e.smsf.Deactivate(imsi, smsf.AccessEPS, liveOwner)
-
-	if _, ok := e.smsf.RegisteredAccess(imsi); !ok || e.smsf.TrackedUEs() != 1 {
-		t.Fatal("a deactivation for another access removed the registration")
-	}
-
-	e.smsf.Deactivate(imsi, smsf.Access5GS, new(int))
-
-	if _, ok := e.smsf.RegisteredAccess(imsi); !ok || e.smsf.TrackedUEs() != 1 {
-		t.Fatal("a deactivation by a stale context removed the registration")
-	}
-
-	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
-
-	if _, ok := e.smsf.RegisteredAccess(imsi); ok {
-		t.Fatal("the UE is still registered for SMS")
-	}
-
-	if n := e.smsf.TrackedUEs(); n != 0 {
-		t.Fatalf("SMSF tracks %d UEs after the deactivation", n)
-	}
-}
-
 func TestMobileTerminatedSMSToAUENotRegisteredForSMSIsAbsent(t *testing.T) {
-	e := newEnv(t)
-	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
-
-	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
-	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
-		t.Fatalf("TFA = %+v, want absent user (IMSI detached)", re)
-	}
-
-	if n := e.ue.reachability(); n != 0 {
-		t.Fatalf("paged %d times for a UE not registered for SMS", n)
-	}
-
-	if !e.smsf.Waiting(imsi) {
-		t.Fatal("no waiting flag for a UE not registered for SMS")
-	}
-
-	e.smsf.Activate(imsi, smsf.AccessEPS, liveOwner)
-	e.smsf.UEReachable(context.Background(), imsi)
-
-	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
-}
-
-func TestMobileTerminatedSMSToAUENotRegisteredForSMSServedElsewhere(t *testing.T) {
-	e := newEnv(t)
-	e.smsf.Deactivate(imsi, smsf.Access5GS, liveOwner)
-	e.store.register(db.UERegistrationTypeMME, remoteNode, false)
-
-	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
-	if !re.IsExperimental(tgpp.ResultErrorUserUnknown) {
-		t.Fatalf("TFA = %+v, want user unknown", re)
-	}
-
-	if e.smsf.Waiting(imsi) {
-		t.Fatal("waiting flag set on the wrong node")
-	}
-}
-
-func TestMobileTerminatedSMSUsesTheRegisteredAccess(t *testing.T) {
-	e := newEnv(t)
-	e.smsf.Activate(imsi, smsf.AccessEPS, liveOwner)
-	tfa := forwardAsync(t, e)
-
-	data, rp := receiveRPData(t, e)
-	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference})
-	awaitTFA(t, tfa)
-
-	for _, a := range e.ue.usedAccesses() {
-		if a != smsf.AccessEPS {
-			t.Fatalf("reached the UE over %s, want EPS", a)
-		}
-	}
-}
-
-func TestTheCoreLosingTheSMSGrantMakesTheUEAbsent(t *testing.T) {
 	e := newEnv(t)
 	e.ue.fail(smsf.ErrNotRegisteredForSMS)
 
@@ -330,7 +245,27 @@ func TestTheCoreLosingTheSMSGrantMakesTheUEAbsent(t *testing.T) {
 	}
 
 	if !e.smsf.Waiting(imsi) {
-		t.Fatal("no waiting flag")
+		t.Fatal("no waiting flag for a UE not registered for SMS")
+	}
+
+	e.ue.fail(nil)
+	e.smsf.UEReachable(context.Background(), imsi)
+
+	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+}
+
+func TestMobileTerminatedSMSToAUENotRegisteredForSMSServedElsewhere(t *testing.T) {
+	e := newEnv(t)
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
+	e.store.register(db.UERegistrationTypeMME, remoteNode, false)
+
+	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
+	if !re.IsExperimental(tgpp.ResultErrorUserUnknown) {
+		t.Fatalf("TFA = %+v, want user unknown", re)
+	}
+
+	if e.smsf.Waiting(imsi) {
+		t.Fatal("waiting flag set on the wrong node")
 	}
 }
 
@@ -601,5 +536,25 @@ func TestMemoryAvailableRightAfterAMemoryFullReportAlerts(t *testing.T) {
 
 		eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
 		eventually(t, "the waiting flag to clear", func() bool { return !e.smsf.Waiting(imsi) })
+	}
+}
+
+func TestAnAbsentAttemptKeepsTheMemoryFullFlag(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseMemoryCapacityExceeded})
+	awaitTFA(t, tfa)
+
+	e.ue.fail(&smsf.AbsentError{Diagnostic: tgpp.AbsentUserNoPagingResponseMSC})
+	awaitTFA(t, forwardAsync(t, e))
+	e.ue.fail(nil)
+
+	e.smsf.UEReachable(context.Background(), imsi)
+	time.Sleep(200 * time.Millisecond)
+
+	if n := len(e.smsc.alerted()); n != 0 {
+		t.Fatal("SMSC alerted on reachability while the UE memory is still full")
 	}
 }

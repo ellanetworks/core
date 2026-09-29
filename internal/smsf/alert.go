@@ -23,16 +23,23 @@ func (s *SMSF) markWaiting(imsi, serviceCentre string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.waiting[imsi] = waiting{serviceCentre: serviceCentre}
+	w := s.waiting[imsi]
+	w.serviceCentre = serviceCentre
+	s.waiting[imsi] = w
 }
 
-func (s *SMSF) Waiting(imsi string) bool {
+func (s *SMSF) markMemoryFullLocked(imsi, serviceCentre string) {
+	w := s.waiting[imsi]
+	w.serviceCentre = serviceCentre
+	w.memoryFull = true
+	s.waiting[imsi] = w
+}
+
+func (s *SMSF) clearWaiting(imsi string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, ok := s.waiting[imsi]
-
-	return ok
+	delete(s.waiting, imsi)
 }
 
 func (s *SMSF) UEReachable(ctx context.Context, imsi string) {
