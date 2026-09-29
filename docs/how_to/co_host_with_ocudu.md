@@ -35,7 +35,7 @@ The instructions below were written for a Raspberry Pi 5 running Ubuntu 26.04 an
 Install Ella Core using the [How-to Install guide](install.md) and install OCUDU using the snap:
 
 ```shell
-sudo snap install ocudu --channel 26.04/stable
+sudo snap install ocudu
 sudo snap connect ocudu:kernel-module-observe
 sudo snap connect ocudu:process-control
 sudo snap connect ocudu:network-control
