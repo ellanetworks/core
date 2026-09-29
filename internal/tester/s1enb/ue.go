@@ -5,7 +5,10 @@ package s1enb
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 
+	"github.com/ellanetworks/core/internal/tester/smsue"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
@@ -61,16 +64,28 @@ type UE struct {
 	msNetCap                  *eps.MSNetworkCapability
 	sentNetCap                eps.UENetworkCapability
 	sentMSNetCap              *eps.MSNetworkCapability
+	smsOnly                   bool
+	SMS                       *smsue.Stack
+	enb                       *ENB
+	nasMu                     sync.Mutex
+	mmeUEID                   atomic.Int64
+	enbUEID                   atomic.Int64
+	smsDetached               atomic.Bool
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
-	return &UE{
+	ue := &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
 		netCapUEA: 0xc0, netCapUIA: 0x40,
 		msNetCap:   &eps.MSNetworkCapability{GEAExtended: 0x18, Rest: []byte{0x65, 0xb1, 0x3e}},
 		attachType: eps.AttachTypeEPS, requestType: eps.RequestTypeInitialRequest,
+		enb: e,
 	}
+
+	ue.SMS = smsue.New(ue.sendSMS)
+
+	return ue
 }
 
 // nextPTI allocates the next ESM procedure transaction identity for a UE-initiated
@@ -182,6 +197,10 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSMobileIdentity:   identity,
 		UENetworkCapability: *ue.advertise(ue.ueNetworkCapability(), nil),
 		ESMMessageContainer: esm,
+	}
+
+	if ue.smsOnly {
+		attach.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
 	}
 
 	return attach.MarshalBinary()

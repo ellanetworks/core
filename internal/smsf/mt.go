@@ -114,7 +114,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 			return experimental(tgpp.ResultErrorUserUnknown)
 		}
 
-		s.markWaiting(imsi, serviceCentre, false)
+		s.markWaiting(imsi, serviceCentre)
 
 		return absent(tgpp.AbsentUserIMSIDetached)
 	}
@@ -134,6 +134,8 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		report:    make(chan sms.RPMessage, maxPendingReports),
 		aborted:   make(chan struct{}, 1),
 		retry:     make(chan struct{}, 1),
+
+		serviceCentre: serviceCentre,
 	}
 
 	u.mt = t
@@ -181,7 +183,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 				continue
 			}
 
-			return s.reportOutcome(imsi, serviceCentre, rp)
+			return reportOutcome(rp)
 		case <-t.aborted:
 			return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 		case <-ctx.Done():
@@ -201,30 +203,28 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 	case errors.Is(err, ErrUserUnknown) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
 		return experimental(tgpp.ResultErrorUserUnknown), true
 	case errors.Is(err, ErrUserUnknown):
-		s.markWaiting(imsi, serviceCentre, false)
+		s.markWaiting(imsi, serviceCentre)
 		return absent(tgpp.AbsentUserIMSIDetached), true
 	case errors.As(err, &absentErr):
-		s.markWaiting(imsi, serviceCentre, false)
+		s.markWaiting(imsi, serviceCentre)
 		return absent(absentErr.Diagnostic), true
 	case errors.Is(err, context.DeadlineExceeded):
-		s.markWaiting(imsi, serviceCentre, false)
+		s.markWaiting(imsi, serviceCentre)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
 	case errors.Is(err, ErrNotRegisteredForSMS):
-		s.markWaiting(imsi, serviceCentre, false)
+		s.markWaiting(imsi, serviceCentre)
 		return absent(tgpp.AbsentUserIMSIDetached), true
 	default:
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
 	}
 }
 
-func (s *SMSF) reportOutcome(imsi, serviceCentre string, rp sms.RPMessage) mtOutcome {
+func reportOutcome(rp sms.RPMessage) mtOutcome {
 	switch m := rp.(type) {
 	case *sms.RPAck:
-		s.clearWaiting(imsi)
 		return delivered(m.UserData)
 	case *sms.RPError:
 		if m.Cause == sms.RPCauseMemoryCapacityExceeded {
-			s.markWaiting(imsi, serviceCentre, true)
 			return deliveryFailure(sgd.CauseMemoryCapacityExceeded, m.UserData)
 		}
 

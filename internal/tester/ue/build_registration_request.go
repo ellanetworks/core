@@ -27,6 +27,7 @@ type RegistrationRequestOpts struct {
 	MobileIdentity         *fgs.MobileIdentity
 	InitialNASMessage      bool
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
+	RequestSMS             bool
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -70,7 +71,8 @@ func hasNonCleartextIEs(m *fgs.RegistrationRequest) bool {
 		m.S1UENetworkCapability != nil ||
 		m.RequestedNSSAI != nil ||
 		m.PDUSessionStatus != nil ||
-		m.UplinkDataStatus != nil
+		m.UplinkDataStatus != nil ||
+		m.UpdateType5GS != nil
 }
 
 func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.RegistrationRequest, error) {
@@ -99,6 +101,10 @@ func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.Registratio
 
 	if opts.IncludeCapability {
 		m.GMMCapability = &fgs.GMMCapability{RestrictEC: true, LPP: true, HOAttach: true, S1Mode: true}
+	}
+
+	if opts.RequestSMS {
+		m.UpdateType5GS = &fgs.UpdateType5GS{SMSRequested: true}
 	}
 
 	m.UESecurityCapability = &opts.UESecurity.UeSecurityCapability

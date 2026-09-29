@@ -214,6 +214,7 @@ func (f *F) scopedSubscriber(spec scenarios.SubscriberSpec) {
 		SequenceNumber: spec.SequenceNumber,
 		ProfileName:    spec.ProfileName,
 		OPc:            spec.OPc,
+		Msisdn:         spec.MSISDN,
 	}); err != nil {
 		f.fatalf("create scoped subscriber %q: %v", spec.IMSI, err)
 	}

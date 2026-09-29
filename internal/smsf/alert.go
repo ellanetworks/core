@@ -19,18 +19,11 @@ type waiting struct {
 	alerting      bool
 }
 
-func (s *SMSF) markWaiting(imsi, serviceCentre string, memoryFull bool) {
+func (s *SMSF) markWaiting(imsi, serviceCentre string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.waiting[imsi] = waiting{serviceCentre: serviceCentre, memoryFull: memoryFull}
-}
-
-func (s *SMSF) clearWaiting(imsi string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.waiting, imsi)
+	s.waiting[imsi] = waiting{serviceCentre: serviceCentre}
 }
 
 func (s *SMSF) Waiting(imsi string) bool {
@@ -144,7 +137,7 @@ func (s *SMSF) alert(ctx context.Context, imsi string, w waiting) {
 func (s *SMSF) deliveringLocked(imsi string) bool {
 	u, ok := s.ues[imsi]
 
-	return ok && u.mt != nil
+	return ok && u.mt != nil && !u.mt.reported
 }
 
 func (s *SMSF) stillWaiting(imsi string) bool {

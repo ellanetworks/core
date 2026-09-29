@@ -2,6 +2,7 @@ name: Integration tests
 
 permissions:
   contents: read
+  packages: read
 
 on:
   workflow_call:
@@ -59,6 +60,18 @@ jobs:
           if [ "${{ matrix.needs_tester }}" = "true" ]; then
             docker load -i ellacore_tester_latest-${{ matrix.arch }}.tar
           fi
+
+      - name: Log in to the Container registry
+        if: ${{ matrix.needs_smsc }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Ella SMSC image
+        if: ${{ matrix.needs_smsc }}
+        run: docker pull ghcr.io/ellanetworks/ella-smsc:latest
 
       - uses: actions/setup-go@v7
         with:

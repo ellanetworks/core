@@ -152,6 +152,8 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 		return nil, err
 	}
 
+	ue.UseConnection(int64(ics.MMEUES1APID), enbUEID)
+
 	reallocated, err := e.answerGUTIReallocation(ue, int64(ics.MMEUES1APID), enbUEID, timeout)
 	if err != nil {
 		return nil, err
@@ -255,6 +257,10 @@ func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, time
 
 		if mt == want {
 			return mmeUEID, plain, nil
+		}
+
+		if _, err := ue.dispatchUnsolicited(mmeUEID, enbUEID, plain); err != nil {
+			return 0, nil, err
 		}
 	}
 }

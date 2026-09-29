@@ -581,3 +581,25 @@ func TestNonDeliveryBeforeTheCPDataIsSentDoesNotRetransmit(t *testing.T) {
 		t.Fatalf("TFA: %v", f.err)
 	}
 }
+
+func TestMemoryAvailableRightAfterAMemoryFullReportAlerts(t *testing.T) {
+	for range 20 {
+		e := newEnv(t)
+		tfa := forwardAsync(t, e)
+
+		data, rp := receiveRPData(t, e)
+		answerMT(t, e, data, &sms.RPError{Direction: nas.DirectionUplink, Reference: rp.Reference, Cause: sms.RPCauseMemoryCapacityExceeded})
+
+		e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPData{TransactionIdentifier: moTI(0), UserData: encode(t, &sms.RPSMMA{Reference: 1})}))
+		expectCPAck(t, e, moTI(0).Peer())
+
+		if _, ok := expectReport(t, e, moTI(0).Peer()).(*sms.RPAck); !ok {
+			t.Fatal("expected RP-ACK to RP-SMMA")
+		}
+
+		awaitTFA(t, tfa)
+
+		eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+		eventually(t, "the waiting flag to clear", func() bool { return !e.smsf.Waiting(imsi) })
+	}
+}

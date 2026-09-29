@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,6 +176,10 @@ func TestIntegrationTester(t *testing.T) {
 	// Run each scenario with reporter tracking.
 	for _, name := range scenarioNames {
 		name := name
+
+		if strings.HasPrefix(name, smsScenarioPrefix) {
+			continue
+		}
 
 		if reason, skip := scenariosSkipped[name]; skip {
 			tr := registerScenarioTest(name)

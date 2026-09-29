@@ -28,14 +28,16 @@ func newMOTransaction() *moTransaction {
 }
 
 type mtTransaction struct {
-	ti         sms.TransactionIdentifier
-	reference  uint8
-	ack        chan struct{}
-	report     chan sms.RPMessage
-	aborted    chan struct{}
-	retry      chan struct{}
-	abortCause sms.CPCause
-	sent       bool
+	ti            sms.TransactionIdentifier
+	reference     uint8
+	ack           chan struct{}
+	report        chan sms.RPMessage
+	aborted       chan struct{}
+	retry         chan struct{}
+	abortCause    sms.CPCause
+	sent          bool
+	serviceCentre string
+	reported      bool
 }
 
 type ueState struct {
@@ -266,9 +268,29 @@ func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
 		rp = &sms.RPError{Direction: nas.DirectionUplink, Reference: t.reference, Cause: sms.RPCauseInvalidMandatoryInformation}
 	}
 
+	if rp.MessageReference() == t.reference {
+		s.recordReport(imsi, t, rp)
+	}
+
 	select {
 	case t.report <- rp:
 	default:
+	}
+}
+
+func (s *SMSF) recordReport(imsi string, t *mtTransaction, rp sms.RPMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	t.reported = true
+
+	switch m := rp.(type) {
+	case *sms.RPAck:
+		delete(s.waiting, imsi)
+	case *sms.RPError:
+		if m.Cause == sms.RPCauseMemoryCapacityExceeded {
+			s.waiting[imsi] = waiting{serviceCentre: t.serviceCentre, memoryFull: true}
+		}
 	}
 }
 
