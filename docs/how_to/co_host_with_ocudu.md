@@ -18,23 +18,30 @@ Ella Core can be hosted with radio software like [OCUDU](https://ocudu.org/) (pr
 
 To follow this guide, you will need:
 
-- Ubuntu Server 24.04
-- A host with a network interface
-- An OCUDU-compatible SDR
+- Ubuntu Server 26.04
+- A host with a wired network interface
+- A USB, UHD-compatible SDR
 
-The instructions below were written for a Raspberry Pi 5 running Ubuntu 24.04 and the Ettus Research B205-mini SDR. Please adapt the interface names and SDR configuration as needed for your setup.
+The instructions below were written for a Raspberry Pi 5 running Ubuntu 26.04 and the Ettus Research B205-mini SDR. Please adapt the interface names and SDR configuration as needed for your setup.
 
 !!! tip
     OCUDU requires some performance tuning for stable operation, especially on resource-constrained hosts like a Raspberry Pi. We recommend the following optimizations for OCUDU performance:
     
-    - Use Ubuntu Real-Time (with [pro client](https://documentation.ubuntu.com/pro-client/en/latest/howtoguides/enable_realtime_kernel/#enable-and-install-automatically))
+    - Use Ubuntu Real-Time (following [documentation](https://ubuntu.com/real-time/docs/how-to/enable-real-time-ubuntu/))
     - Use a high real-time scheduling priority (with [chrt](https://man7.org/linux/man-pages/man1/chrt.1.html))
-    - Set scaling governor to Performance (with [OCUDU performance script](https://gitlab.com/ocudu/ocudu/-/blob/dev/scripts/ocudu_performance?ref_type=heads))
-    - Disable DRM KMS polling (with [OCUDU performance script](https://gitlab.com/ocudu/ocudu/-/blob/dev/scripts/ocudu_performance?ref_type=heads))
 
 ## 1. Install Ella Core and OCUDU
 
-Install Ella Core using the [How-to Install guide](install.md) and install OCUDU using the [official documentation](https://ocudu.gitlab.io/ocudu_docs/user_manual/installation/).
+Install Ella Core using the [How-to Install guide](install.md) and install OCUDU using the snap:
+
+```shell
+sudo snap install ocudu
+sudo snap connect ocudu:kernel-module-observe
+sudo snap connect ocudu:process-control
+sudo snap connect ocudu:network-control
+sudo snap connect ocudu:system-observe
+sudo snap connect ocudu:raw-usb
+```
 
 ## 2. Create a network namespace for N3
 
@@ -201,7 +208,7 @@ cell_cfg:
     mcs_table: qam64
 
 log:
-  filename: /tmp/gnb.log
+  filename: stdout
   all_level: warning
 
 pcap:
@@ -209,62 +216,26 @@ pcap:
   ngap_enable: disable
 ```
 
-Save this configuration to `/etc/gnb.yml`, then create a systemd service to run OCUDU in the `n3ns` namespace.
+Save this configuration to `/var/snap/ocudu/common/gnb.yml`.
 
-Create `/etc/systemd/system/gnb.service`:
+Override the ocudu `gnb` service by writing `/etc/systemd/system/snap.ocudu.gnb.service.d/override.conf`:
 
 ```ini
-[Unit]
-Description=OCUDU gNB
-Documentation=https://docs.ocudu.org/
-Requires=n3ns.service
-Wants=network-online.target
-After=n3ns.service network-online.target
-
 [Service]
-User=root
-Group=root
-Restart=on-failure
 NetworkNamespacePath=/var/run/netns/n3ns
-ExecStart=/usr/local/bin/gnb -c /etc/gnb.yml
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 Enable and start OCUDU:
 
 ```shell
 sudo systemctl daemon-reload
-sudo systemctl enable --now gnb.service
+sudo snap start --enable ocudu.gnb
 ```
 
-You should see OCUDU logs indicating successful connection to Ella Core
+You should see the LEDs light up on your USRP, and see the radio appear in Ella Core's UI.
+
+You can validate OCUDU is running properly by looking at the logs:
 
 ```shell
---== OCUDU gNB (commit d1ca6d2744) ==--
-
-2026-02-16T18:34:35.963576 [GNB     ] [I] Built in Release mode using commit d1ca6d2744 on branch dev
-Lower PHY in dual baseband executor mode.
-Available radio types: uhd.
-[INFO] [UHD] linux; GNU C++ version 13.2.0; Boost_108300; UHD_4.6.0.0+ds1-5.1ubuntu0.24.04.1
-Making USRP object with args 'type=b200'
-[INFO] [LOGGING] Fastpath logging disabled at runtime.
-[INFO] [B200] Detected Device: B205mini
-[INFO] [B200] Operating over USB 3.
-[INFO] [B200] Initialize CODEC control...
-[INFO] [B200] Initialize Radio control...
-[INFO] [B200] Performing register loopback test... 
-[INFO] [B200] Register loopback test passed
-[INFO] [B200] Setting master clock rate selection to 'automatic'.
-[INFO] [B200] Asking for clock rate 16.000000 MHz... 
-[INFO] [B200] Actually got clock rate 16.000000 MHz.
-[INFO] [MULTI_USRP] Setting master clock rate selection to 'manual'.
-[INFO] [B200] Asking for clock rate 23.040000 MHz... 
-[INFO] [B200] Actually got clock rate 23.040000 MHz.
-Cell pci=1, bw=20 MHz, 1T1R, dl_arfcn=665000 (n77), dl_freq=3975 MHz, dl_ssb_arfcn=664704, ul_freq=3975 MHz
-
-N2: Connection to AMF on 10.202.0.3:38412 completed
-Remote control server listening on 0.0.0.0:8001
-==== gNB started ===
+sudo snap logs ocudu -n 1000 -f
 ```

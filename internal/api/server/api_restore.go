@@ -17,6 +17,7 @@ import (
 const (
 	RestoreAction              = "restore_database"
 	RestoreDisabledInHAMessage = "Online restore is disabled in HA mode; use the restore.bundle drop-in path."
+	RestoreBackupAheadMessage  = "This backup cannot be restored online because it is newer than the current database state. Use offline restore instead."
 )
 
 func Restore(dbInstance *db.Database) http.HandlerFunc {
@@ -81,6 +82,11 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		if err := dbInstance.Restore(r.Context(), tempFile); err != nil {
 			if errors.Is(err, db.ErrRestoreInProgress) {
 				writeError(r.Context(), w, http.StatusConflict, "A restore is already in progress", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrRestoreBackupAhead) {
+				writeError(r.Context(), w, http.StatusConflict, RestoreBackupAheadMessage, err, logger.APILog)
 				return
 			}
 

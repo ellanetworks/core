@@ -19,6 +19,7 @@ var (
 	ErrDNNNotInSlice            = errors.New("data network not found in slice")
 	ErrRestoreInProgress        = errors.New("a restore is already in progress")
 	ErrInvalidBackupFile        = errors.New("uploaded file is not a valid SQLite database")
+	ErrRestoreBackupAhead       = errors.New("backup state is ahead of the current database state")
 	ErrProposeTimeout           = errors.New("raft commit timeout")
 	ErrOutcomeUnknown           = ellaraft.ErrOutcomeUnknown
 	ErrMigrationPending         = errors.New("schema migration pending")

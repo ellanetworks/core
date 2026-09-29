@@ -55,6 +55,24 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
+func readFSMStateLastApplied(ctx context.Context, path string) (int64, error) {
+	conn, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return 0, fmt.Errorf("open SQLite database: %w", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	var lastApplied int64
+
+	if err := conn.QueryRowContext(ctx,
+		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&lastApplied); err != nil {
+		return 0, fmt.Errorf("read fsm_state.lastApplied: %w", err)
+	}
+
+	return lastApplied, nil
+}
+
 // extractBackupArchive reads a backup tar.gz from r and writes the
 // database file to dbDestPath. The archive carries exactly two members:
 // manifest.json and ella.db. Unknown members, missing required members,
@@ -528,6 +546,27 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
+	}
+
+	backupLastApplied, err := readFSMStateLastApplied(ctx, stagedDB)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
+	}
+
+	currentLastApplied, err := readFSMStateLastApplied(ctx, db.Path())
+	if err != nil {
+		recordSpanError(span, err)
+
+		return fmt.Errorf("read current fsm_state.lastApplied: %w", err)
+	}
+
+	if backupLastApplied > currentLastApplied {
+		err := fmt.Errorf("%w: backup=%d current=%d", ErrRestoreBackupAhead, backupLastApplied, currentLastApplied)
+		recordSpanError(span, err)
+
+		return err
 	}
 
 	if err := resetUERegistrationsInRestoredDB(ctx, stagedDB); err != nil {
