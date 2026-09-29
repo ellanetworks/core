@@ -174,6 +174,42 @@ func (p *nrPhone) ReRegister() error {
 	return p.Connect()
 }
 
+func (p *nrPhone) AwaitWithdrawal(timeout time.Duration) error {
+	return eventually(timeout, "the network to withdraw SMS over NAS", func() bool { return !p.ue.SMSAllowed() })
+}
+
+func (p *nrPhone) UpdateRegistration() (bool, error) {
+	if err := p.ReRegister(); err != nil {
+		return false, err
+	}
+
+	return p.ue.SMSAllowed(), nil
+}
+
+func (p *nrPhone) AwaitAvailable(timeout time.Duration) error {
+	if err := eventually(timeout, "the network to indicate SMS over NAS is available", p.ue.SMSAvailable); err != nil {
+		return err
+	}
+
+	if p.ue.SMSAllowed() {
+		return fmt.Errorf("the UE considers SMS over NAS allowed before registering for it")
+	}
+
+	return nil
+}
+
+func (p *nrPhone) RegainSMS() error {
+	if err := p.ReRegister(); err != nil {
+		return err
+	}
+
+	if !p.ue.SMSAllowed() {
+		return fmt.Errorf("the registration update was accepted without SMS over NAS")
+	}
+
+	return nil
+}
+
 func (p *nrPhone) SwitchOff() error {
 	return p.g.Deregister(p.ue, p.ranID, releaseTimeout)
 }

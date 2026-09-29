@@ -33,13 +33,13 @@ type smscMessage struct {
 
 type smscAttempt struct {
 	Step              string            `json:"step"`
+	Node              string            `json:"node"`
 	NodeType          string            `json:"node_type"`
 	Outcome           string            `json:"outcome"`
 	ResultCode        *uint32           `json:"result_code"`
 	FailureCause      string            `json:"failure_cause"`
 	TPFailureCause    string            `json:"tp_failure_cause"`
-	AbsentDiagnostic  string            `json:"absent_diagnostic"`
-	AbsentDiagnostics map[string]string `json:"absent_diagnostics"`
+	AbsentDiagnostics map[string]string `json:"absent_user_diagnostics"`
 }
 
 func newSMSC(p *params) (*smscClient, error) {
@@ -137,7 +137,7 @@ func (c *smscClient) latestTo(ctx context.Context, to string) (smscMessage, erro
 		Items []smscMessage `json:"items"`
 	}
 
-	if err := c.do(ctx, http.MethodGet, "/api/v1/messages?to="+url.QueryEscape(to), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/api/v1/messages?per_page=100&to="+url.QueryEscape(to), nil, &out); err != nil {
 		return smscMessage{}, err
 	}
 
@@ -173,23 +173,9 @@ func (c *smscClient) waitFor(ctx context.Context, timeout time.Duration, what st
 	}
 }
 
-func (m smscMessage) absentWith(diagnostic string) bool {
+func (m smscMessage) absentWith(nodeType, diagnostic string) bool {
 	return m.any(func(a smscAttempt) bool {
-		if a.ResultCode == nil || *a.ResultCode != resultAbsentUser {
-			return false
-		}
-
-		if a.AbsentDiagnostic == diagnostic {
-			return true
-		}
-
-		for _, d := range a.AbsentDiagnostics {
-			if d == diagnostic {
-				return true
-			}
-		}
-
-		return false
+		return a.ResultCode != nil && *a.ResultCode == resultAbsentUser && a.AbsentDiagnostics[nodeType] == diagnostic
 	})
 }
 
@@ -203,6 +189,24 @@ func (m smscMessage) deliveredVia(nodeType string) bool {
 	return m.Status == "delivered" && m.any(func(a smscAttempt) bool {
 		return a.Step == "delivery" && a.Outcome == "success" && a.NodeType == nodeType
 	})
+}
+
+func (m smscMessage) deliveredByHost(host string) bool {
+	return m.Status == "delivered" && m.any(func(a smscAttempt) bool {
+		return a.Step == "delivery" && a.Outcome == "success" && strings.EqualFold(a.Node, host)
+	})
+}
+
+func (m smscMessage) routedBy() []string {
+	var hosts []string
+
+	for _, a := range m.Attempts {
+		if a.Step == "routing" && a.Outcome == "success" && a.Node != "" {
+			hosts = append(hosts, a.Node)
+		}
+	}
+
+	return hosts
 }
 
 func (m smscMessage) any(match func(smscAttempt) bool) bool {

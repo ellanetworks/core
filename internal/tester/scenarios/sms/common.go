@@ -28,6 +28,7 @@ const (
 type params struct {
 	SMSCAPI       string
 	ServiceCentre string
+	NodeHosts     []string
 }
 
 type phone interface {
@@ -38,6 +39,14 @@ type phone interface {
 	AnswerPage() error
 	SwitchOff() error
 	Close()
+}
+
+type withdrawalPhone interface {
+	phone
+	AwaitWithdrawal(timeout time.Duration) error
+	UpdateRegistration() (smsGranted bool, err error)
+	AwaitAvailable(timeout time.Duration) error
+	RegainSMS() error
 }
 
 type network interface {
@@ -58,6 +67,7 @@ func bindFlags(fs *pflag.FlagSet) any {
 	p := &params{}
 	fs.StringVar(&p.SMSCAPI, "smsc-api-address", "", "SMSC API address (e.g. http://10.3.0.5:5010)")
 	fs.StringVar(&p.ServiceCentre, "service-centre", "+15550000000", "the SMSC's service centre address")
+	fs.StringSliceVar(&p.NodeHosts, "node-host", nil, "Diameter Origin-Host of each core, in --ella-core-n2-address order")
 
 	return p
 }

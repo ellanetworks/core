@@ -1,0 +1,36 @@
+configs:
+  smsc_config:
+    content: |
+      db:
+        path: "/smsc.db"
+      service_centre:
+        address: "15550000000"
+      diameter:
+        origin_host: smsc.example.org
+        origin_realm: example.org
+        address: 10.3.0.5
+        port: 3868
+      hss:
+        realm: epc.mnc001.mcc001.3gppnetwork.org
+        allowed_networks: [10.3.0.0/24]
+      numbering:
+        country_code: "1"
+      delivery:
+        default_validity: 1h
+        retry_intervals: [5s]
+        attempt_timeout: 40s
+        concurrency: 4
+      api:
+        address: 10.3.0.5
+        port: 5010
+
+services:
+  smsc:
+    image: ghcr.io/ellanetworks/ella-smsc:latest
+    configs:
+      - source: smsc_config
+        target: /smsc.yaml
+    restart: unless-stopped
+    networks:
+      n3:
+        ipv4_address: 10.3.0.5

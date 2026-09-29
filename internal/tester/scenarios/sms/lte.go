@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/smsue"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -23,6 +24,7 @@ type lte struct {
 }
 
 type ltePhone struct {
+	net    *lte
 	enb    *s1enb.ENB
 	ue     *s1enb.UE
 	msisdn string
@@ -34,9 +36,13 @@ type ltePhone struct {
 }
 
 func startLTE(env scenarios.Env) (*lte, error) {
-	host, _, err := net.SplitHostPort(env.FirstCore())
+	return startLTEAt(env, env.FirstCore(), 0)
+}
+
+func startLTEAt(env scenarios.Env, core string, index int) (*lte, error) {
+	host, _, err := net.SplitHostPort(core)
 	if err != nil {
-		return nil, fmt.Errorf("parse core N2 address %q: %w", env.FirstCore(), err)
+		return nil, fmt.Errorf("parse core N2 address %q: %w", core, err)
 	}
 
 	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
@@ -47,11 +53,11 @@ func startLTE(env scenarios.Env) (*lte, error) {
 	g := env.FirstGNB()
 
 	e, err := s1enb.Start(&s1enb.StartOpts{
-		ENBID:            uint32(enbID),
+		ENBID:            uint32(enbID) + uint32(index), // #nosec G115 -- index is a small core position
 		MCC:              scenarios.DefaultMCC,
 		MNC:              scenarios.DefaultMNC,
 		TAC:              scenarios.DefaultTAC,
-		Name:             "Ella-Core-Tester-SMS-eNB",
+		Name:             fmt.Sprintf("Ella-Core-Tester-SMS-eNB-%d", index),
 		CoreS1MMEAddress: net.JoinHostPort(host, s1MMEPort),
 		ENBAddress:       g.N2Address,
 		ENBN3Address:     g.N3Address,
@@ -84,8 +90,8 @@ func (l *lte) Attach(imsi, msisdn string) (phone, error) {
 		return nil, fmt.Errorf("combined attach accepted without \"SMS only\" (result %s, cause %v)", res.AttachResultValue, res.EMMCause)
 	}
 
-	p := &ltePhone{enb: l.enb, ue: ue, msisdn: msisdn, mme: res.MMEUES1APID, conn: res.ENBUES1APID, guti: res.GUTI, ebi: uint8(res.ERABID)}
-	p.stop = l.enb.ServeNAS(ue, p.mme, p.conn)
+	p := &ltePhone{net: l, enb: l.enb, msisdn: msisdn}
+	p.adopt(ue, res)
 
 	return p, nil
 }
@@ -112,6 +118,11 @@ func (l *lte) attach(imsi string, smsOnly bool) (*s1enb.AttachResult, *s1enb.UE,
 	}
 
 	return res, ue, nil
+}
+
+func (p *ltePhone) adopt(ue *s1enb.UE, res *s1enb.AttachResult) {
+	p.ue, p.mme, p.conn, p.guti, p.ebi = ue, res.MMEUES1APID, res.ENBUES1APID, res.GUTI, uint8(res.ERABID)
+	p.stop = p.enb.ServeNAS(ue, p.mme, p.conn)
 }
 
 func (p *ltePhone) Stack() *smsue.Stack { return p.ue.SMS }
@@ -156,6 +167,68 @@ func (p *ltePhone) halt() {
 		p.stop()
 		p.stop = nil
 	}
+}
+
+func (p *ltePhone) AwaitWithdrawal(timeout time.Duration) error {
+	return eventually(timeout, "the network to detach the UE from SMS", p.ue.SMSDetached)
+}
+
+func (p *ltePhone) UpdateRegistration() (bool, error) {
+	if err := p.Idle(); err != nil {
+		return false, err
+	}
+
+	var status nas.EPSBearerContextStatus
+
+	status.Active[p.ebi] = true
+
+	accept, err := p.enb.CombinedTrackingAreaUpdate(p.ue, p.guti, &status, registrationTimeout)
+	if err != nil {
+		return false, err
+	}
+
+	if accept.GUTI != nil {
+		p.guti = accept.GUTI
+	}
+
+	if accept.EPSBearerContextStatus == nil || !accept.EPSBearerContextStatus.Active[p.ebi] {
+		return false, fmt.Errorf("the network dropped the UE's default bearer %d (status %+v)", p.ebi, accept.EPSBearerContextStatus)
+	}
+
+	if accept.EPSUpdateResult == eps.EPSUpdateResultCombined && accept.AdditionalUpdateResult != nil {
+		return true, nil
+	}
+
+	if accept.Cause == nil || *accept.Cause != eps.EMMCauseCSDomainNotAvailable {
+		return false, fmt.Errorf("combined TAU answered EPS only with EMM cause %v, want #18", accept.Cause)
+	}
+
+	return false, nil
+}
+
+func (p *ltePhone) AwaitAvailable(time.Duration) error { return nil }
+
+func (p *ltePhone) RegainSMS() error {
+	if err := p.Connect(); err != nil {
+		return fmt.Errorf("connect before switching off: %w", err)
+	}
+
+	if err := p.SwitchOff(); err != nil {
+		return err
+	}
+
+	res, ue, err := p.net.attach(p.ue.IMSI, true)
+	if err != nil {
+		return fmt.Errorf("attach after switching on: %w", err)
+	}
+
+	if !res.SMSOnly {
+		return fmt.Errorf("combined attach after switching on accepted without \"SMS only\" (result %s, cause %v)", res.AttachResultValue, res.EMMCause)
+	}
+
+	p.adopt(ue, res)
+
+	return nil
 }
 
 func (p *ltePhone) SwitchOff() error {

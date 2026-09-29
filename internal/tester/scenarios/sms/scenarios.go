@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/sms"
 )
@@ -24,6 +23,7 @@ func init() {
 	registerPerRAT(ratScenario{suffix: "injected", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 400)[:1] }, run: runInjected})
 	registerPerRAT(ratScenario{suffix: "memory_full", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 500) }, run: runMemoryFull})
 	registerPerRAT(ratScenario{suffix: "switched_off", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 900)[:1] }, run: runSwitchedOff})
+	registerPerRAT(ratScenario{suffix: "withdrawal", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 700)[:1] }, run: runWithdrawal})
 	registerPerRAT(ratScenario{suffix: "back_to_back", imsis: func(rat string) []scenarios.SubscriberSpec { return pair(rat, 1000)[:1] }, run: runBackToBack})
 
 	lteNoMSISDN := subscriber("001017900000600", "")
@@ -34,16 +34,6 @@ func init() {
 	nrNoMSISDN := subscriber("001018900000600", "")
 	register("sms/5g_not_granted", []scenarios.SubscriberSpec{nrNoMSISDN}, func(ctx context.Context, env scenarios.Env, p *params) error {
 		return runNRNotGranted(env, nrNoMSISDN.IMSI)
-	})
-
-	lteWithdrawn := pair("4g", 700)[:1]
-	register("sms/4g_withdrawal", lteWithdrawn, func(ctx context.Context, env scenarios.Env, p *params) error {
-		return runLTEWithdrawal(ctx, env, p, lteWithdrawn[0])
-	})
-
-	nrWithdrawn := pair("5g", 700)[:1]
-	register("sms/5g_withdrawal", nrWithdrawn, func(ctx context.Context, env scenarios.Env, p *params) error {
-		return runNRWithdrawal(ctx, env, p, nrWithdrawn[0])
 	})
 
 	crossRAT := []scenarios.SubscriberSpec{pair("4g", 800)[0], pair("5g", 800)[0]}
@@ -136,7 +126,7 @@ func runAbsentThenAlert(ctx context.Context, _ scenarios.Env, p *params, net net
 	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.latestTo(ctx, b.Number()) }
 
 	if err := smsc.waitFor(ctx, absentTimeout, "an absent-user attempt with no paging response", fetch, func(m smscMessage) bool {
-		return m.absentWith("no_paging_response_msc")
+		return m.absentWith(net.NodeType(), "no_paging_response_msc")
 	}); err != nil {
 		return err
 	}
@@ -258,7 +248,7 @@ func runSwitchedOff(ctx context.Context, _ scenarios.Env, p *params, net network
 	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
 
 	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt while the phone is off", fetch, func(m smscMessage) bool {
-		return m.absentWith("imsi_detached")
+		return m.absentWith(net.NodeType(), "imsi_detached")
 	}); err != nil {
 		return err
 	}
@@ -422,28 +412,26 @@ func eventually(timeout time.Duration, what string, cond func() bool) error {
 	return nil
 }
 
-func runLTEWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, sub scenarios.SubscriberSpec) error {
-	l, err := startLTE(env)
+func runWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, net network, subs []scenarios.SubscriberSpec) error {
+	smsc, err := newSMSC(cfg)
 	if err != nil {
 		return err
 	}
 
-	defer l.Close()
-
-	ph, err := l.Attach(sub.IMSI, sub.MSISDN)
+	phones, err := attachAll(net, subs)
 	if err != nil {
 		return err
 	}
 
-	defer ph.Close()
+	defer closeAll(phones)
 
-	p, ok := ph.(*ltePhone)
+	p, ok := phones[0].(withdrawalPhone)
 	if !ok {
-		return fmt.Errorf("unexpected phone %T", ph)
+		return fmt.Errorf("%T cannot run the withdrawal scenario", phones[0])
 	}
 
-	return withSMSDisabled(ctx, env, func() error {
-		if err := eventually(deliveryTimeout, "the network to detach the UE from SMS", p.ue.SMSDetached); err != nil {
+	if err := withSMSDisabled(ctx, env, func() error {
+		if err := p.AwaitWithdrawal(deliveryTimeout); err != nil {
 			return err
 		}
 
@@ -451,37 +439,54 @@ func runLTEWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, sub s
 			return err
 		}
 
-		if err := p.Idle(); err != nil {
-			return fmt.Errorf("release after the IMSI detach: %w", err)
-		}
-
-		var status nas.EPSBearerContextStatus
-
-		status.Active[p.ebi] = true
-
-		accept, err := l.enb.CombinedTrackingAreaUpdate(p.ue, p.guti, &status, registrationTimeout)
+		granted, err := p.UpdateRegistration()
 		if err != nil {
-			return fmt.Errorf("combined tracking area update after the IMSI detach: %w", err)
+			return fmt.Errorf("registration update while SMS is disabled: %w", err)
 		}
 
-		if accept.EPSUpdateResult != eps.EPSUpdateResultTA || accept.AdditionalUpdateResult != nil {
-			return fmt.Errorf("combined TAU answered with result %s, additional update result %v, want EPS only", accept.EPSUpdateResult, accept.AdditionalUpdateResult)
-		}
-
-		if accept.Cause == nil || *accept.Cause != eps.EMMCauseCSDomainNotAvailable {
-			return fmt.Errorf("EMM cause = %v, want #18", accept.Cause)
-		}
-
-		if accept.EPSBearerContextStatus == nil || !accept.EPSBearerContextStatus.Active[p.ebi] {
-			return fmt.Errorf("the IMSI detach dropped the UE's default bearer %d (status %+v)", p.ebi, accept.EPSBearerContextStatus)
-		}
-
-		if accept.GUTI != nil {
-			p.guti = accept.GUTI
+		if granted {
+			return fmt.Errorf("a registration update while SMS is disabled was granted SMS")
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := p.AwaitAvailable(deliveryTimeout); err != nil {
+		return err
+	}
+
+	id, err := smsc.submit(ctx, p.Number(), "Before registering")
+	if err != nil {
+		return err
+	}
+
+	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
+
+	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt before the UE registers for SMS", fetch, func(m smscMessage) bool {
+		return m.absentWith(net.NodeType(), "imsi_detached")
+	}); err != nil {
+		return err
+	}
+
+	if err := p.RegainSMS(); err != nil {
+		return fmt.Errorf("register for SMS again: %w", err)
+	}
+
+	if err := expectText(ctx, p, injectedFrom, "Before registering"); err != nil {
+		return fmt.Errorf("no delivery after registering for SMS again: %w", err)
+	}
+
+	if err := smsc.waitFor(ctx, reportTimeout, "the waiting message to be delivered", fetch, func(m smscMessage) bool { return m.deliveredVia(net.NodeType()) }); err != nil {
+		return err
+	}
+
+	if err := submit(ctx, cfg, p, p.Number(), "Back again"); err != nil {
+		return err
+	}
+
+	return expectText(ctx, p, p.Number(), "Back again")
 }
 
 func expectNoReport(ctx context.Context, cfg *params, from phone) error {
@@ -494,75 +499,6 @@ func expectNoReport(ctx context.Context, cfg *params, from phone) error {
 	}
 
 	return nil
-}
-
-func runNRWithdrawal(ctx context.Context, env scenarios.Env, cfg *params, sub scenarios.SubscriberSpec) error {
-	smsc, err := newSMSC(cfg)
-	if err != nil {
-		return err
-	}
-
-	n, err := startNR(env)
-	if err != nil {
-		return err
-	}
-
-	defer n.Close()
-
-	ph, err := n.Attach(sub.IMSI, sub.MSISDN)
-	if err != nil {
-		return err
-	}
-
-	p, ok := ph.(*nrPhone)
-	if !ok {
-		return fmt.Errorf("unexpected phone %T", ph)
-	}
-
-	if err := withSMSDisabled(ctx, env, func() error {
-		return eventually(deliveryTimeout, "the network to withdraw SMS over NAS", func() bool { return !p.ue.SMSAllowed() })
-	}); err != nil {
-		return err
-	}
-
-	if err := eventually(deliveryTimeout, "the network to indicate SMS over NAS is available", p.ue.SMSAvailable); err != nil {
-		return err
-	}
-
-	if p.ue.SMSAllowed() {
-		return fmt.Errorf("the UE considers SMS over NAS allowed before registering for it")
-	}
-
-	id, err := smsc.submit(ctx, p.Number(), "Before registering")
-	if err != nil {
-		return err
-	}
-
-	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
-
-	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt before the UE registers for SMS", fetch, func(m smscMessage) bool {
-		return m.absentWith("imsi_detached")
-	}); err != nil {
-		return err
-	}
-
-	if err := p.ReRegister(); err != nil {
-		return fmt.Errorf("register for SMS again: %w", err)
-	}
-
-	if !p.ue.SMSAllowed() {
-		return fmt.Errorf("the registration update was accepted without SMS over NAS")
-	}
-
-	if err := expectText(ctx, p, injectedFrom, "Before registering"); err != nil {
-		return fmt.Errorf("no delivery after the registration update: %w", err)
-	}
-
-	if err := submit(ctx, cfg, p, p.Number(), "Back again"); err != nil {
-		return err
-	}
-
-	return expectText(ctx, p, p.Number(), "Back again")
 }
 
 func runCrossRAT(ctx context.Context, env scenarios.Env, p *params, subs []scenarios.SubscriberSpec) error {
