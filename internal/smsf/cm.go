@@ -21,6 +21,7 @@ type cpTxn struct {
 	aborted chan struct{}
 	retry   chan struct{}
 	sent    bool
+	sentAt  time.Time
 }
 
 func newCPTxn() cpTxn {
@@ -29,6 +30,8 @@ func newCPTxn() cpTxn {
 
 type moTransaction struct {
 	cpTxn
+
+	reference uint8
 }
 
 type mtTransaction struct {
@@ -47,8 +50,8 @@ type ueState struct {
 	nextTI  uint8
 	nextRef uint8
 
-	deferredAlert           bool
-	deferredMemoryAvailable bool
+	deferredAlert bool
+	moreMessages  *time.Timer
 }
 
 func (s *SMSF) ue(imsi string) *ueState {
@@ -91,7 +94,34 @@ func (s *SMSF) TransactionPending(imsi string) bool {
 }
 
 func (u *ueState) holdsConnection() bool {
-	return u.mt != nil || len(u.mo) > 0
+	return u.mt != nil || len(u.mo) > 0 || u.moreMessages != nil
+}
+
+func (s *SMSF) holdForMoreMessagesLocked(ctx context.Context, imsi string, u *ueState) {
+	var hold *time.Timer
+
+	hold = time.AfterFunc(s.timers.MoreMessages, func() {
+		s.mu.Lock()
+
+		expired := u.moreMessages == hold
+		if expired {
+			u.moreMessages = nil
+		}
+		s.mu.Unlock()
+
+		if expired {
+			s.transactionEnded(context.WithoutCancel(ctx), imsi)
+		}
+	})
+
+	u.moreMessages = hold
+}
+
+func (u *ueState) stopHoldingForMoreMessages() {
+	if u.moreMessages != nil {
+		u.moreMessages.Stop()
+		u.moreMessages = nil
+	}
 }
 
 func (s *SMSF) transactionEnded(ctx context.Context, imsi string) {
@@ -108,11 +138,23 @@ func (s *SMSF) transactionEnded(ctx context.Context, imsi string) {
 	s.transport.SignallingSettled(ctx, imsi)
 }
 
+func rpReference(rpdu []byte) (uint8, bool) {
+	if len(rpdu) < 2 {
+		return 0, false
+	}
+
+	return rpdu[1], true
+}
+
 func (s *SMSF) Uplink(ctx context.Context, imsi string, payload []byte) {
 	msg, err := sms.ParseCP(payload)
-	if err != nil {
+	if msg == nil {
 		s.rejectCP(ctx, imsi, payload, err)
 		return
+	}
+
+	if err != nil {
+		s.logger.Debug("Ignored non-imperative errors in a CP message", zap.String("imsi", imsi), zap.Error(err))
 	}
 
 	switch m := msg.(type) {
@@ -209,16 +251,21 @@ func (s *SMSF) cpData(ctx context.Context, imsi string, m *sms.CPData) {
 
 	_ = s.send(ctx, imsi, &sms.CPAck{TransactionIdentifier: ti.Peer()})
 
+	reference, _ := rpReference(m.UserData)
+
 	s.mu.Lock()
 	u := s.ue(imsi)
-	_, duplicate := u.mo[ti.Value]
 
-	if duplicate {
-		s.mu.Unlock()
-		return
+	if old, ok := u.mo[ti.Value]; ok {
+		if !old.sent || old.reference == reference {
+			s.mu.Unlock()
+			return
+		}
+
+		signal(old.ack)
 	}
 
-	t := &moTransaction{cpTxn: newCPTxn()}
+	t := &moTransaction{cpTxn: newCPTxn(), reference: reference}
 	u.mo[ti.Value] = t
 
 	for value, other := range u.mo {
@@ -254,13 +301,13 @@ func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
 
 	signal(t.ack)
 
-	if err != nil {
+	if rp == nil {
 		s.logger.Warn("UE answered a mobile-terminated SMS with an invalid RP message", zap.String("imsi", imsi), zap.Error(err))
 
 		rp = &sms.RPError{Direction: nas.DirectionUplink, Reference: t.reference, Cause: sms.RPCauseInvalidMandatoryInformation}
 	}
 
-	if !s.recordReport(imsi, t, rp) {
+	if !s.recordReport(ctx, imsi, t, rp) {
 		s.logger.Info("Ignored an RP report for another message reference",
 			zap.String("imsi", imsi), zap.Uint8("rp_reference", rp.MessageReference()), zap.Uint8("expected", t.reference))
 
@@ -273,24 +320,27 @@ func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
 	}
 }
 
-func (s *SMSF) recordReport(imsi string, t *mtTransaction, rp sms.RPMessage) bool {
+func (s *SMSF) recordReport(ctx context.Context, imsi string, t *mtTransaction, rp sms.RPMessage) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	ok := rp.MessageReference() == t.reference
+	s.mu.Unlock()
 
-	if rp.MessageReference() != t.reference {
+	if !ok {
 		return false
 	}
 
-	t.reported = true
-
 	switch m := rp.(type) {
 	case *sms.RPAck:
-		delete(s.waiting, imsi)
+		s.delivered(ctx, imsi, t.serviceCentre)
 	case *sms.RPError:
 		if m.Cause == sms.RPCauseMemoryCapacityExceeded {
-			s.markMemoryFullLocked(imsi, t.serviceCentre)
+			s.markMemoryFull(ctx, imsi, t.serviceCentre)
 		}
 	}
+
+	s.mu.Lock()
+	t.reported = true
+	s.mu.Unlock()
 
 	return true
 }
@@ -310,7 +360,12 @@ func (s *SMSF) send(ctx context.Context, imsi string, m sms.CPMessage) error {
 }
 
 func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) error {
-	if err := s.transport.EnableUEReachability(ctx, imsi); err != nil {
+	pagingCtx, cancel := context.WithTimeout(ctx, s.timers.Paging)
+	err := s.transport.EnableUEReachability(pagingCtx, imsi)
+
+	cancel()
+
+	if err != nil {
 		s.logger.Debug("Could not reach the UE for an SMS", zap.String("imsi", imsi), zap.Error(err))
 		return err
 	}
@@ -320,6 +375,12 @@ func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) 
 
 func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, t *cpTxn) error {
 	for attempt := 0; ; attempt++ {
+		select {
+		case <-t.aborted:
+			return errAborted
+		default:
+		}
+
 		if err := s.reachAndSend(ctx, imsi, data); err != nil {
 			if attempt > 0 {
 				return fmt.Errorf("%w: retransmission failed: %w", errNoCPAck, err)
@@ -329,24 +390,15 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 		}
 
 		s.mu.Lock()
+		if !t.sent {
+			t.sentAt = time.Now()
+		}
+
 		t.sent = true
 		s.mu.Unlock()
 
-		timer := time.NewTimer(s.timers.TC1)
-
-		select {
-		case <-t.ack:
-			timer.Stop()
-			return nil
-		case <-t.aborted:
-			timer.Stop()
-			return errAborted
-		case <-ctx.Done():
-			timer.Stop()
-			return fmt.Errorf("%w: %w", errNoCPAck, ctx.Err())
-		case <-t.retry:
-			timer.Stop()
-		case <-timer.C:
+		if err := s.awaitCPAck(ctx, t); err != errTC1Expired {
+			return err
 		}
 
 		if attempt >= s.timers.MaxRetransmissions {
@@ -355,9 +407,36 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 	}
 }
 
+func (s *SMSF) awaitCPAck(ctx context.Context, t *cpTxn) error {
+	deadline := time.Now().Add(s.timers.TC1)
+
+	timer := time.NewTimer(s.timers.TC1)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-t.ack:
+			return nil
+		case <-t.aborted:
+			return errAborted
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %w", errNoCPAck, ctx.Err())
+		case <-t.retry:
+			if lost := time.Now().Add(s.timers.TC1Lost); lost.Before(deadline) {
+				deadline = lost
+				timer.Reset(time.Until(deadline))
+			}
+		case <-timer.C:
+			return errTC1Expired
+		}
+	}
+}
+
 var (
 	errNoCPAck = errors.New("smsf: no CP-ACK after the last CP-DATA retransmission")
 	errAborted = errors.New("smsf: UE aborted the transaction with CP-ERROR")
+
+	errTC1Expired = errors.New("smsf: TC1* expired")
 )
 
 func signal(ch chan struct{}) {

@@ -29,6 +29,8 @@ var (
 		"retention_policies",
 		"schema_version",
 		"sessions",
+		"sms_message_waiting",
+		"sms_message_waiting_centres",
 		"sms_settings",
 		"subscriber_framed_routes",
 		"subscribers",

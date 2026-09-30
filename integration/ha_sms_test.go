@@ -45,7 +45,7 @@ func TestIntegrationHASMS(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	overlays := []string{"../sms/smsc-ha.yaml"}
+	overlays := []string{"../sms/smsc.yaml"}
 
 	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, haSMSComposeDir, haSMSComposeFile, bringUpHA3GPPClusterOpts{
 		ExtraServices: []string{"ella-core-tester", "smsc"},
@@ -121,7 +121,7 @@ func TestIntegrationHASMS(t *testing.T) {
 		)
 	}
 
-	for _, name := range []string{"ha_sms/cross_node_routing", "ha_sms/ue_moves", "ha_sms/node_failure"} {
+	for _, name := range []string{"ha_sms/cross_node_routing", "ha_sms/ue_moves", "ha_sms/absent_then_attach_elsewhere", "ha_sms/node_failure"} {
 		sc, ok := scenarios.Get(name)
 		Assert(t, ok, fmt.Sprintf("scenario %q not registered", name))
 

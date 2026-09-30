@@ -109,6 +109,7 @@ type UeContext struct {
 	smsOverNAS           atomic.Bool
 	smsRequested         atomic.Bool
 	smsIndicationPending atomic.Pointer[bool]
+	smsIndicationSent    atomic.Pointer[bool]
 	smsMu                sync.Mutex
 	smsGeneration        uint64
 	smsIndicated         bool

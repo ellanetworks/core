@@ -27,30 +27,46 @@ func (ue *UeContext) SMSOverNAS() bool {
 	return ue.smsOverNAS.Load()
 }
 
+const maxSMSDecisionAttempts = 3
+
 func (amf *AMF) GrantSMSOverNAS(ctx context.Context, ue *UeContext, requested bool) bool {
 	ue.smsRequested.Store(requested)
 
-	generation := ue.beginSMSDecision()
+	for range maxSMSDecisionAttempts {
+		generation := ue.beginSMSDecision()
 
-	granted, err := amf.evaluateSMS(ctx, ue)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Warn("could not decide whether the UE may use SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
+		granted, err := amf.evaluateSMS(ctx, ue)
+		if err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not decide whether the UE may use SMS over NAS", logger.SUPI(ue.Supi().String()), zap.Error(err))
 
-		granted = false
+			granted = false
+		}
+
+		if amf.commitSMSGrant(ctx, ue, generation, granted) {
+			return granted
+		}
 	}
 
+	logger.From(ctx, logger.AmfLog).Warn("SMS over NAS decision kept racing configuration changes; not allowing SMS", logger.SUPI(ue.Supi().String()))
+
+	amf.commitSMSGrant(ctx, ue, ue.beginSMSDecision(), false)
+
+	return false
+}
+
+func (amf *AMF) commitSMSGrant(ctx context.Context, ue *UeContext, generation uint64, granted bool) bool {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
 
 	if ue.smsGeneration != generation {
-		return ue.smsOverNAS.Load()
+		return false
 	}
 
 	ue.smsIndicationPending.Store(nil)
 	ue.smsIndicated = granted
 	amf.storeSMSGrant(ctx, ue, granted)
 
-	return granted
+	return true
 }
 
 func (ue *UeContext) beginSMSDecision() uint64 {
@@ -90,9 +106,11 @@ func (amf *AMF) ReevaluateSMS(ctx context.Context) {
 
 	var pending []decision
 
-	for _, ue := range amf.registeredUEs() {
-		if supi := ue.Supi(); ue.smsRequested.Load() && supi.IsIMSI() {
-			pending = append(pending, decision{ue: ue, imsi: supi.IMSI(), generation: ue.beginSMSDecision()})
+	for _, ue := range amf.smsRequestingUEs() {
+		generation := ue.beginSMSDecision()
+
+		if ue.State() == Registered {
+			pending = append(pending, decision{ue: ue, imsi: ue.Supi().IMSI(), generation: generation})
 		}
 	}
 
@@ -118,6 +136,21 @@ func (amf *AMF) ReevaluateSMS(ctx context.Context) {
 	}
 }
 
+func (amf *AMF) smsRequestingUEs() []*UeContext {
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
+
+	var ues []*UeContext
+
+	for _, ue := range amf.UEs {
+		if ue.smsRequested.Load() && ue.Supi().IsIMSI() {
+			ues = append(ues, ue)
+		}
+	}
+
+	return ues
+}
+
 func (amf *AMF) applySMSDecision(ctx context.Context, ue *UeContext, generation uint64, allowed bool) bool {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
@@ -140,33 +173,84 @@ func (amf *AMF) applySMSDecision(ctx context.Context, ue *UeContext, generation 
 	return true
 }
 
+const smsIndicationProcedure = "T3555 (SMS indication)"
+
 func (amf *AMF) deliverSMSIndication(ctx context.Context, ue *UeContext) {
 	conn := ue.Conn()
 	if conn == nil || ue.State() != Registered {
 		return
 	}
 
-	available := ue.smsIndicationPending.Swap(nil)
+	available := ue.smsIndicationPending.Load()
 	if available == nil {
 		return
 	}
 
-	plain, err := (&fgs.ConfigurationUpdateCommand{SMSAvailable: available}).MarshalBinary()
+	plain, err := (&fgs.ConfigurationUpdateCommand{
+		ConfigurationUpdateIndication: &fgs.ConfigurationUpdateIndication{ACK: true},
+		SMSAvailable:                  available,
+	}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not build the SMS indication", zap.Error(err))
 		return
 	}
 
-	if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		return conn.SendDownlinkNASTransport(ctx, wire)
-	}); err != nil {
-		ue.smsIndicationPending.CompareAndSwap(nil, available)
+	send := func(ctx context.Context) error {
+		return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+			return conn.SendDownlinkNASTransport(ctx, wire)
+		})
+	}
+
+	if !amf.NASGuardCfg.Enable {
+		if err := send(ctx); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not send the SMS indication", logger.SUPI(ue.Supi().String()), zap.Error(err))
+			return
+		}
+
+		ue.smsIndicationPending.CompareAndSwap(available, nil)
+
+		return
+	}
+
+	retransmit := func(ctx context.Context, _ int32) {
+		if err := send(ctx); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("could not retransmit the SMS indication", logger.SUPI(ue.Supi().String()), zap.Error(err))
+		}
+	}
+
+	abort := func(ctx context.Context) {
+		ue.smsIndicationPending.CompareAndSwap(available, nil)
+		logger.From(ctx, logger.AmfLog).Warn("T3555 expired; abandoned the SMS indication", logger.SUPI(ue.Supi().String()))
+	}
+
+	if !conn.claimNASGuard(ctx, amf.NASGuardCfg, smsIndicationProcedure, retransmit, abort) {
+		return
+	}
+
+	ue.smsIndicationSent.Store(available)
+
+	if err := send(ctx); err != nil {
+		conn.stopNASGuardNamed(ctx, smsIndicationProcedure)
 		logger.From(ctx, logger.AmfLog).Warn("could not send the SMS indication", logger.SUPI(ue.Supi().String()), zap.Error(err))
 
 		return
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("sent SMS indication", logger.SUPI(ue.Supi().String()), zap.Bool("sms_available", *available))
+}
+
+func (amf *AMF) SMSIndicationAcknowledged(ctx context.Context, ue *UeContext, conn *UeConn) {
+	if conn == nil || conn.nasGuardProcName() != smsIndicationProcedure {
+		return
+	}
+
+	conn.StopNASGuard(ctx)
+
+	if sent := ue.smsIndicationSent.Swap(nil); sent != nil {
+		ue.smsIndicationPending.CompareAndSwap(sent, nil)
+	}
+
+	amf.deliverSMSIndication(ctx, ue)
 }
 
 func (amf *AMF) SMSReachable(ctx context.Context, ue *UeContext) {

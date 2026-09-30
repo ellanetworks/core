@@ -550,7 +550,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.SMS = smsfInstance
 	mmeInstance.SMS = smsfInstance
 
-	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers)
+	diameterWakeup, stopDiameterWakeup := dbInstance.Changefeed().Wakeup(db.TopicSMSSettings, db.TopicClusterMembers, db.TopicOperatorIdentity)
 
 	wg.Go(func() {
 		defer stopDiameterWakeup()

@@ -53,39 +53,59 @@ const (
 
 const smsIMSIDetachProcedure = "Detach Request (IMSI detach)"
 
+const maxSMSDetachAttempts = 2
+
+const maxSMSDecisionAttempts = 3
+
 func (m *MME) DecideSMS(ctx context.Context, ue *UeContext, requested bool) SMSDecision {
-	imsi := ue.imsiOrEmpty()
-	decision := SMSDenied
-	generation := ue.beginSMSDecision()
+	for range maxSMSDecisionAttempts {
+		generation := ue.beginSMSDecision()
+		decision := m.evaluateSMS(ctx, ue, requested)
 
-	if requested && m.SMS != nil && imsi != "" {
-		allowed, err := m.SMS.Allowed(ctx, imsi)
-
-		switch {
-		case err != nil:
-			logger.From(ctx, logger.MmeLog).Warn("could not decide whether the UE may use SMS", logger.SUPIFromIMSI(imsi), zap.Error(err))
-
-			decision = SMSUnavailable
-		case allowed:
-			decision = SMSGranted
+		if m.commitSMSDecision(ctx, ue, generation, decision) {
+			return decision
 		}
 	}
 
+	logger.From(ctx, logger.MmeLog).Warn("SMS decision kept racing configuration changes; answering it as temporarily unavailable", logger.SUPIFromIMSI(ue.imsiOrEmpty()))
+
+	m.commitSMSDecision(ctx, ue, ue.beginSMSDecision(), SMSUnavailable)
+
+	return SMSUnavailable
+}
+
+func (m *MME) evaluateSMS(ctx context.Context, ue *UeContext, requested bool) SMSDecision {
+	imsi := ue.imsiOrEmpty()
+	if !requested || m.SMS == nil || imsi == "" {
+		return SMSDenied
+	}
+
+	allowed, err := m.SMS.Allowed(ctx, imsi)
+
+	switch {
+	case err != nil:
+		logger.From(ctx, logger.MmeLog).Warn("could not decide whether the UE may use SMS", logger.SUPIFromIMSI(imsi), zap.Error(err))
+
+		return SMSUnavailable
+	case allowed:
+		return SMSGranted
+	default:
+		return SMSDenied
+	}
+}
+
+func (m *MME) commitSMSDecision(ctx context.Context, ue *UeContext, generation uint64, decision SMSDecision) bool {
 	ue.smsMu.Lock()
 	defer ue.smsMu.Unlock()
 
 	if ue.smsGeneration != generation {
-		if ue.SMSOnly() {
-			return SMSGranted
-		}
-
-		return SMSDenied
+		return false
 	}
 
 	ue.smsDetach.CompareAndSwap(smsDetachPending, smsDetachIdle)
 	storeSMSGrant(ctx, ue, decision == SMSGranted)
 
-	return decision
+	return true
 }
 
 func (ue *UeContext) beginSMSDecision() uint64 {
@@ -256,7 +276,17 @@ func (m *MME) reachForSMS(ctx context.Context, ue *UeContext) error {
 		case !ue.SMSOnly():
 			return ErrSMSNotAllowed
 		case ue.Conn() != nil:
-			return nil
+			released := ue.Conn().releaseInProgress()
+			if released == nil {
+				return nil
+			}
+
+			select {
+			case <-released:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		case paged:
 			return ErrSMSUEUnreachable
 		}
@@ -275,17 +305,24 @@ func (m *MME) ReevaluateSMS(ctx context.Context) {
 		return
 	}
 
-	ues := m.smsGrantedUEs()
-	if len(ues) == 0 {
-		return
+	var (
+		ues         []*UeContext
+		generations []uint64
+		imsis       []string
+	)
+
+	for _, ue := range m.uesWithIMSI() {
+		generation := ue.beginSMSDecision()
+
+		if ue.SMSOnly() {
+			ues = append(ues, ue)
+			generations = append(generations, generation)
+			imsis = append(imsis, ue.imsiOrEmpty())
+		}
 	}
 
-	generations := make([]uint64, len(ues))
-	imsis := make([]string, len(ues))
-
-	for i, ue := range ues {
-		generations[i] = ue.beginSMSDecision()
-		imsis[i] = ue.imsiOrEmpty()
+	if len(ues) == 0 {
+		return
 	}
 
 	allowed, err := m.SMS.AllowedEach(ctx, imsis)
@@ -310,18 +347,19 @@ func (m *MME) revokeSMSGrant(ctx context.Context, ue *UeContext, generation uint
 	}
 
 	ue.smsDetach.CompareAndSwap(smsDetachIdle, smsDetachPending)
+	ue.smsDetachAborts.Store(0)
 
 	return true
 }
 
-func (m *MME) smsGrantedUEs() []*UeContext {
+func (m *MME) uesWithIMSI() []*UeContext {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	ues := make([]*UeContext, 0, len(m.UEs))
 
 	for _, ue := range m.UEs {
-		if ue.SMSOnly() && ue.imsiOrEmpty() != "" {
+		if ue.imsiOrEmpty() != "" {
 			ues = append(ues, ue)
 		}
 	}
@@ -341,19 +379,26 @@ func (m *MME) deliverSMSDetach(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	onAbort := func(context.Context) { ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachIdle) }
+	onAbort := func(context.Context) {
+		next := smsDetachPending
+		if ue.smsDetachAborts.Add(1) >= maxSMSDetachAttempts {
+			next = smsDetachIdle
+		}
+
+		ue.smsDetach.CompareAndSwap(smsDetachSent, next)
+	}
 
 	if !conn.claimNASGuard(ctx, smsIMSIDetachProcedure, plain, eps.SHTIntegrityProtectedCiphered, onAbort) {
 		return
 	}
 
 	if !ue.smsDetach.CompareAndSwap(smsDetachPending, smsDetachSent) {
-		conn.stopNASGuardNamed(ctx, smsIMSIDetachProcedure)
+		conn.stopSMSIMSIDetachGuard(ctx)
 		return
 	}
 
 	if err := conn.SendProtectedNASTransport(ctx, plain, eps.SHTIntegrityProtectedCiphered); err != nil {
-		conn.stopNASGuardNamed(ctx, smsIMSIDetachProcedure)
+		conn.stopSMSIMSIDetachGuard(ctx)
 		ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending)
 		ReportProtectFailure(ctx, conn, smsIMSIDetachProcedure, err)
 
@@ -369,13 +414,27 @@ func (c *UeConn) TakeSMSIMSIDetach(ctx context.Context) bool {
 		return false
 	}
 
-	c.stopNASGuardNamed(ctx, smsIMSIDetachProcedure)
+	c.stopSMSIMSIDetachGuard(ctx)
 
 	return true
 }
 
-func (ue *UeContext) AbortSMSIMSIDetach() {
-	ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending)
+func (c *UeConn) AbortSMSIMSIDetach(ctx context.Context) {
+	ue := c.UeContext()
+	if ue == nil || !ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending) {
+		return
+	}
+
+	c.stopSMSIMSIDetachGuard(ctx)
+}
+
+func (c *UeConn) CancelSMSIMSIDetach(ctx context.Context) {
+	ue := c.UeContext()
+	if ue == nil || ue.smsDetach.Swap(smsDetachIdle) != smsDetachSent {
+		return
+	}
+
+	c.stopSMSIMSIDetachGuard(ctx)
 }
 
 func (m *MME) SMSRoute(imsi string) (granted, connected bool) {
@@ -385,4 +444,15 @@ func (m *MME) SMSRoute(imsi string) (granted, connected bool) {
 	}
 
 	return true, ue.Conn() != nil
+}
+
+func (c *UeConn) releaseInProgress() <-chan struct{} {
+	c.m.mu.RLock()
+	defer c.m.mu.RUnlock()
+
+	if !c.releasing || c.released == nil {
+		return nil
+	}
+
+	return c.released
 }

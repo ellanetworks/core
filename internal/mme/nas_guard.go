@@ -104,6 +104,10 @@ func (c *UeConn) armNASGuardMode(ctx context.Context, name string, plain []byte,
 }
 
 func (c *UeConn) armNASGuardLocked(ctx context.Context, ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func(context.Context)) {
+	if c.nasGuardName == smsIMSIDetachProcedure && name != smsIMSIDetachProcedure {
+		ue.smsDetach.CompareAndSwap(smsDetachSent, smsDetachPending)
+	}
+
 	c.nasGuardName = name
 	link := trace.SpanContextFromContext(ctx)
 
@@ -132,13 +136,13 @@ func (c *UeConn) claimNASGuard(ctx context.Context, name string, plain []byte, s
 	return true
 }
 
-func (c *UeConn) stopNASGuardNamed(ctx context.Context, name string) {
+func (c *UeConn) stopSMSIMSIDetachGuard(ctx context.Context) {
 	defer c.ResumeDeferredReleaseIfSettled(ctx)
 
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 
-	if c.nasGuardName != name {
+	if c.nasGuardName != smsIMSIDetachProcedure {
 		return
 	}
 

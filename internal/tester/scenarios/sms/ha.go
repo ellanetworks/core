@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ func init() {
 	register("ha_sms/cross_node_routing", pair("4g", 1100), runCrossNodeRouting)
 	register("ha_sms/ue_moves", pair("4g", 1200)[:1], runUEMoves)
 	register("ha_sms/node_failure", pair("4g", 1300)[:1], runNodeFailure)
+	register("ha_sms/absent_then_attach_elsewhere", pair("4g", 1400)[:1], runAbsentThenAttachElsewhere)
 }
 
 type cluster struct {
@@ -69,6 +71,15 @@ func (c *cluster) deliveredBy(ctx context.Context, id int64, node int) error {
 
 	return c.smsc.waitFor(ctx, haDeliveryTimeout, fmt.Sprintf("message %d to be delivered by node %d (%s)", id, node+1, c.hosts[node]), fetch,
 		func(m smscMessage) bool { return m.deliveredByHost(c.hosts[node]) })
+}
+
+func (c *cluster) awaitSMSCDropped(ctx context.Context, node int) error {
+	host := strings.ToLower(c.hosts[node])
+
+	return eventually(nodeFailureTimeout, fmt.Sprintf("the SMSC to drop node %d (%s)", node+1, host), func() bool {
+		open, err := c.smsc.openPeers(ctx)
+		return err == nil && !slices.Contains(open, host)
+	})
 }
 
 func (c *cluster) inject(ctx context.Context, to phone, text string, node int) error {
@@ -224,6 +235,10 @@ func runNodeFailure(ctx context.Context, env scenarios.Env, p *params) error {
 		return fmt.Errorf("the eNB of node 2 moved to %s instead of losing its MME", peer)
 	}
 
+	if err := c.awaitSMSCDropped(ctx, 1); err != nil {
+		return err
+	}
+
 	moved, err := c.nodes[2].Attach(sub.IMSI, sub.MSISDN)
 	if err != nil {
 		return fmt.Errorf("attach on node 3 after node 2 failed: %w", err)
@@ -232,4 +247,51 @@ func runNodeFailure(ctx context.Context, env scenarios.Env, p *params) error {
 	defer moved.Close()
 
 	return c.inject(ctx, moved, "After the failure", 2)
+}
+
+func runAbsentThenAttachElsewhere(ctx context.Context, env scenarios.Env, p *params) error {
+	c, err := startCluster(env, p)
+	if err != nil {
+		return err
+	}
+
+	defer c.Close()
+
+	sub := pair("4g", 1400)[0]
+
+	b, err := c.nodes[1].Attach(sub.IMSI, sub.MSISDN)
+	if err != nil {
+		return fmt.Errorf("attach on node 2: %w", err)
+	}
+
+	if err := b.SwitchOff(); err != nil {
+		b.Close()
+		return fmt.Errorf("switch off on node 2: %w", err)
+	}
+
+	b.Close()
+
+	id, err := c.smsc.submit(ctx, sub.MSISDN, "Waiting across the cluster")
+	if err != nil {
+		return err
+	}
+
+	fetch := func(ctx context.Context) (smscMessage, error) { return c.smsc.message(ctx, id) }
+
+	if err := c.smsc.waitFor(ctx, reportTimeout, "an absent-user attempt while the phone is off", fetch, smscMessage.anyAbsent); err != nil {
+		return err
+	}
+
+	moved, err := c.nodes[2].Attach(sub.IMSI, sub.MSISDN)
+	if err != nil {
+		return fmt.Errorf("attach on node 3: %w", err)
+	}
+
+	defer moved.Close()
+
+	if err := expectText(ctx, moved, injectedFrom, "Waiting across the cluster"); err != nil {
+		return fmt.Errorf("no delivery after attaching on another node: %w", err)
+	}
+
+	return c.deliveredBy(ctx, id, 2)
 }

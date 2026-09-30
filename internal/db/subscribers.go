@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -48,6 +49,7 @@ const (
 	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
 	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
+	listIMSIsWithMSISDNStmt   = "SELECT &subscriberIMSI.imsi FROM %s WHERE msisdn!='' AND imsi IN ($SliceIDs[:])"
 )
 
 const (
@@ -292,6 +294,55 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	}
 
 	return &row, nil
+}
+
+const maxIMSIsPerQuery = 500
+
+type subscriberIMSI struct {
+	Imsi string `db:"imsi"`
+}
+
+func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[string]bool, error) {
+	querySummary := fmt.Sprintf("%s %s (with msisdn)", "SELECT", SubscribersTableName)
+
+	ctx, span := tracer.Start(
+		ctx,
+		querySummary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBQuerySummary(querySummary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			semconv.DBCollectionName(SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	found := make(map[string]bool, len(imsis))
+
+	if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+		return found, nil
+	}
+
+	for chunk := range slices.Chunk(imsis, maxIMSIsPerQuery) {
+		var rows []subscriberIMSI
+
+		if err := db.conn().Query(ctx, db.listIMSIsWithMSISDNStmt, SliceIDs(chunk)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			recordSpanError(span, err)
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		for _, r := range rows {
+			found[r.Imsi] = true
+		}
+	}
+
+	return found, nil
 }
 
 func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {

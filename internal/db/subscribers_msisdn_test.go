@@ -177,3 +177,23 @@ func TestIsValidMSISDN(t *testing.T) {
 		}
 	}
 }
+
+func TestIMSIsWithMSISDN(t *testing.T) {
+	ctx := context.Background()
+	database, profileID := setupMSISDNTestDB(t)
+
+	for imsi, msisdn := range map[string]string{"001010000000001": "15551230001", "001010000000002": ""} {
+		if err := database.CreateSubscriber(ctx, newMSISDNSubscriber(imsi, msisdn, profileID)); err != nil {
+			t.Fatalf("CreateSubscriber: %s", err)
+		}
+	}
+
+	found, err := database.IMSIsWithMSISDN(ctx, []string{"001010000000001", "001010000000002", "001019999999999"})
+	if err != nil {
+		t.Fatalf("IMSIsWithMSISDN: %s", err)
+	}
+
+	if len(found) != 1 || !found["001010000000001"] {
+		t.Fatalf("found = %v, want only the subscriber with an MSISDN", found)
+	}
+}

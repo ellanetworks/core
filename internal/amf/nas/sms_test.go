@@ -21,6 +21,7 @@ const smsTestIMSI = "001019756139935"
 type fakeSMSHandler struct {
 	mu      sync.Mutex
 	uplinks [][]byte
+	pending bool
 }
 
 func (h *fakeSMSHandler) Allowed(context.Context, string) (bool, error) { return true, nil }
@@ -45,7 +46,12 @@ func (h *fakeSMSHandler) AllowedEach(_ context.Context, imsis []string) (map[str
 
 func (h *fakeSMSHandler) DeliveryFailed(string) {}
 
-func (h *fakeSMSHandler) TransactionPending(string) bool { return false }
+func (h *fakeSMSHandler) TransactionPending(string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.pending
+}
 
 func smsTestAMF(t *testing.T) (*amf.AMF, *amf.UeContext, [16]uint8, nas.CipheringAlgorithm) {
 	t.Helper()

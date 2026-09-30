@@ -69,7 +69,7 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 		return tgpp.NewErrorAnswer(req, id, err)
 	}
 
-	deadline := time.Now().Add(s.timers.TR1N)
+	deadline := time.Now().Add(s.timers.Paging + s.timers.TR1N)
 
 	if m.DeliveryTimer > 0 {
 		start := m.DeliveryStartTime
@@ -82,10 +82,10 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 		}
 	}
 
-	ctx, cancel := context.WithDeadline(ctx, deadline)
+	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 	defer cancel()
 
-	outcome := s.mobileTerminated(ctx, m.IMSI, m.ServiceCentreAddress, m.SMRPUI)
+	outcome := s.mobileTerminated(ctx, m.IMSI, m.ServiceCentreAddress, m.SMRPUI, m.MoreMessagesToSend)
 
 	s.logger.Info("Mobile-terminated SMS delivery attempt",
 		zap.String("imsi", m.IMSI),
@@ -97,7 +97,7 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 	return outcome.answer(req, id)
 }
 
-func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string, tpdu []byte) mtOutcome {
+func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string, tpdu []byte, moreMessages bool) (outcome mtOutcome) {
 	if _, err := s.store.GetSubscriber(ctx, imsi); errors.Is(err, db.ErrNotFound) {
 		return experimental(tgpp.ResultErrorUserUnknown)
 	}
@@ -119,25 +119,29 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	}
 
 	u.mt = t
+	u.stopHoldingForMoreMessages()
 	u.nextTI = (u.nextTI + 1) % (maxTransactionValue + 1)
 	u.nextRef++
 	s.mu.Unlock()
 
 	defer func() {
-		var alert, memoryAvailable bool
+		var alert bool
 
 		s.mu.Lock()
 		if u, ok := s.ues[imsi]; ok && u.mt == t {
 			u.mt = nil
-			alert, memoryAvailable = u.deferredAlert, u.deferredMemoryAvailable
-			u.deferredAlert, u.deferredMemoryAvailable = false, false
+			alert, u.deferredAlert = u.deferredAlert, false
+
+			if moreMessages && outcome.result == diameter.ResultSuccess {
+				s.holdForMoreMessagesLocked(ctx, imsi, u)
+			}
 		}
 		s.mu.Unlock()
 
 		s.transactionEnded(context.WithoutCancel(ctx), imsi)
 
 		if alert {
-			s.startAlert(context.WithoutCancel(ctx), imsi, memoryAvailable)
+			s.startAlert(context.WithoutCancel(ctx), imsi)
 		}
 	}()
 
@@ -157,10 +161,18 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		return outcome
 	}
 
+	s.mu.Lock()
+	tr1n := time.NewTimer(time.Until(t.sentAt.Add(s.timers.TR1N)))
+	s.mu.Unlock()
+
+	defer tr1n.Stop()
+
 	select {
 	case rp := <-t.report:
 		return reportOutcome(rp)
 	case <-t.aborted:
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+	case <-tr1n.C:
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
 	case <-ctx.Done():
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
@@ -173,18 +185,20 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 	switch {
 	case err == nil:
 		return mtOutcome{}, false
-	case errors.Is(err, errNoCPAck), errors.Is(err, errAborted):
+	case errors.Is(err, errAborted):
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
 	case (errors.Is(err, ErrUserUnknown) || errors.Is(err, ErrNotRegisteredForSMS)) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
 		return experimental(tgpp.ResultErrorUserUnknown), true
 	case errors.Is(err, ErrUserUnknown), errors.Is(err, ErrNotRegisteredForSMS):
-		s.markWaiting(imsi, serviceCentre)
+		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(tgpp.AbsentUserIMSIDetached), true
 	case errors.As(err, &absentErr):
-		s.markWaiting(imsi, serviceCentre)
+		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(absentErr.Diagnostic), true
+	case errors.Is(err, errNoCPAck):
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
 	case errors.Is(err, context.DeadlineExceeded):
-		s.markWaiting(imsi, serviceCentre)
+		s.markWaiting(ctx, imsi, serviceCentre)
 		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
 	default:
 		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true

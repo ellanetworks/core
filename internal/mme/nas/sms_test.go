@@ -203,9 +203,11 @@ func TestTrackingAreaUpdatesMaintainTheSMSOnlyGrant(t *testing.T) {
 	handleTAU(t, m, ue, tauRequest(eps.EPSUpdateTypePeriodic))
 
 	periodic := parseTAUAccept(t, ue, cc.sent[len(cc.sent)-1])
-	if periodic.EPSUpdateResult != eps.EPSUpdateResultTA || periodic.LAI != nil || periodic.AdditionalUpdateResult != nil {
-		t.Fatalf("periodic update result = %d, LAI = %v, additional update result = %v", periodic.EPSUpdateResult, periodic.LAI, periodic.AdditionalUpdateResult)
+	if periodic.EPSUpdateResult != eps.EPSUpdateResultCombined {
+		t.Fatalf("periodic update result = %d, want combined TA/LA updated for a UE attached for SMS", periodic.EPSUpdateResult)
 	}
+
+	expectSMSOnly(t, m, periodic.LAI, periodic.AdditionalUpdateResult, periodic.Cause)
 
 	if !ue.SMSOnly() {
 		t.Fatal("a periodic update dropped the SMS-only grant")
@@ -275,6 +277,7 @@ func TestIMSIDetachRevokesSMSOnly(t *testing.T) {
 	m := newTestMME(t)
 	m.SMS = &fakeSMSHandler{allowed: true}
 	ue, cc := securedUE(t, m)
+	ue.Conn().SetICS(mme.ICSCompleted)
 	testPDN(ue)
 	m.DecideSMS(context.Background(), ue, true)
 
@@ -315,9 +318,11 @@ func TestIMSIDetachAtSwitchOffIsNotAnswered(t *testing.T) {
 
 	handleDetachRequest(context.Background(), m, ue, ue.Conn(), &eps.DetachRequestUE{TypeOfDetach: eps.DetachTypeIMSI, SwitchOff: true}, true)
 
-	if ue.SMSOnly() || ue.EMMState() != mme.EMMRegistered || cc.count() != 0 {
-		t.Fatalf("SMS only = %t, EMM state = %s, downlinks = %d", ue.SMSOnly(), ue.EMMState(), cc.count())
+	if ue.SMSOnly() || ue.EMMState() != mme.EMMRegistered || len(cc.sent) != 1 {
+		t.Fatalf("SMS only = %t, EMM state = %s, messages = %d, want only the release of the connection", ue.SMSOnly(), ue.EMMState(), len(cc.sent))
 	}
+
+	parseUEContextReleaseCommand(t, cc.sent[0])
 }
 
 func downlinkPlain(t *testing.T, ue *mme.UeContext, sent []byte) []byte {
@@ -457,5 +462,75 @@ func TestAnIdleUEIsDetachedFromSMSWhenItReconnects(t *testing.T) {
 
 	if cc.count() != before+1 {
 		t.Fatalf("sent %d messages on reconnection, want the IMSI detach", cc.count()-before)
+	}
+}
+
+// TS 24.301 §5.3.1.3 c)
+func TestIMSIDetachFromIdleReleasesTheConnection(t *testing.T) {
+	m := newTestMME(t)
+	m.SMS = &fakeSMSHandler{allowed: true}
+	ue, cc := securedUE(t, m)
+	testPDN(ue)
+	m.DecideSMS(context.Background(), ue, true)
+
+	handleDetachRequest(context.Background(), m, ue, ue.Conn(), &eps.DetachRequestUE{TypeOfDetach: eps.DetachTypeIMSI}, true)
+
+	if len(cc.sent) != 2 {
+		t.Fatalf("sent %d messages, want the DETACH ACCEPT and a UE Context Release Command", len(cc.sent))
+	}
+
+	parseUEContextReleaseCommand(t, cc.sent[1])
+
+	if ue.EMMState() != mme.EMMRegistered || len(m.SnapshotPDNs(ue)) != 1 {
+		t.Fatalf("EMM state = %s, PDNs = %d: releasing after an IMSI detach must keep the EPS registration", ue.EMMState(), len(m.SnapshotPDNs(ue)))
+	}
+}
+
+// TS 24.301 §5.5.2.3.3
+func TestAStrayDetachAcceptKeepsTheUEAttached(t *testing.T) {
+	m := newTestMME(t)
+	m.SMS = &fakeSMSHandler{allowed: true}
+	ue, _ := securedUE(t, m)
+	testPDN(ue)
+
+	d := handleDetachAccept(context.Background(), m, ue, ue.Conn())
+	if d.Action == nasreply.ActionHandled {
+		t.Fatalf("disposition = %+v, want the Detach Accept ignored", d)
+	}
+
+	if ue.EMMState() != mme.EMMRegistered || ue.Conn() == nil || len(m.SnapshotPDNs(ue)) != 1 {
+		t.Fatalf("EMM state = %s, connected = %t, PDNs = %d: a Detach Accept with no detach in progress detached the UE", ue.EMMState(), ue.Conn() != nil, len(m.SnapshotPDNs(ue)))
+	}
+}
+
+// TS 24.301 §5.5.2.3.5 c)
+func TestAUEIMSIDetachCancelsThePendingNetworkIMSIDetach(t *testing.T) {
+	m := newTestMME(t)
+	handler := &fakeSMSHandler{allowed: true}
+	m.SMS = handler
+	ue, cc := securedUE(t, m)
+	ue.Conn().SetICS(mme.ICSCompleted)
+	m.DecideSMS(context.Background(), ue, true)
+	m.FreeUeConn(context.Background(), ue)
+
+	handler.mu.Lock()
+	handler.allowed = false
+	handler.mu.Unlock()
+
+	m.ReevaluateSMS(context.Background())
+
+	c := m.NewUeConn(cc, 9)
+	m.AttachUeConn(context.Background(), ue, c)
+	c.MarkSecureExchangeEstablished()
+	c.SetICS(mme.ICSCompleted)
+
+	handleDetachRequest(context.Background(), m, ue, c, &eps.DetachRequestUE{TypeOfDetach: eps.DetachTypeIMSI}, true)
+
+	before := cc.count()
+
+	m.SMSReachable(context.Background(), ue)
+
+	if cc.count() != before {
+		t.Fatalf("sent %d messages after the UE detached itself from SMS, want no network IMSI detach", cc.count()-before)
 	}
 }

@@ -3,6 +3,8 @@
 
 package smsf
 
+import "context"
+
 func (s *SMSF) TrackedUEs() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -11,10 +13,19 @@ func (s *SMSF) TrackedUEs() int {
 }
 
 func (s *SMSF) Waiting(imsi string) bool {
+	_, err := s.store.GetSMSWaiting(context.Background(), imsi)
+
+	return err == nil
+}
+
+func (s *SMSF) HoldAlertForTest(imsi string) func() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.alerting[imsi] = false
+	s.mu.Unlock()
 
-	_, ok := s.waiting[imsi]
-
-	return ok
+	return func() {
+		if !s.alertSettled(imsi) {
+			go s.alertUntilSettled(context.Background(), imsi)
+		}
+	}
 }

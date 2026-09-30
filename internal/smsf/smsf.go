@@ -52,7 +52,13 @@ type Store interface {
 	GetSMSSettings(ctx context.Context) (*db.SMSSettings, error)
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*db.Subscriber, error)
+	IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[string]bool, error)
 	GetUERegistration(ctx context.Context, imsi, regType string) (*db.UERegistration, error)
+	GetSMSWaiting(ctx context.Context, imsi string) (*db.SMSWaiting, error)
+	RecordSMSWaiting(ctx context.Context, u db.SMSWaitingUpdate) error
+	ClearSMSMemoryFull(ctx context.Context, imsi string) error
+	RemoveSMSWaitingCentre(ctx context.Context, imsi, serviceCentre string) error
+	DeleteSMSWaiting(ctx context.Context, imsi string) error
 }
 
 type Directory interface {
@@ -70,6 +76,9 @@ type Registrar interface {
 
 type Timers struct {
 	TC1                time.Duration
+	TC1Lost            time.Duration
+	Paging             time.Duration
+	MoreMessages       time.Duration
 	MaxRetransmissions int
 	TR1N               time.Duration
 	TR2N               time.Duration
@@ -79,6 +88,9 @@ type Timers struct {
 func DefaultTimers() Timers {
 	return Timers{
 		TC1:                6 * time.Second,
+		TC1Lost:            time.Second,
+		Paging:             10 * time.Second,
+		MoreMessages:       5 * time.Second,
 		MaxRetransmissions: 2,
 		TR1N:               25 * time.Second,
 		TR2N:               25 * time.Second,
@@ -95,9 +107,9 @@ type SMSF struct {
 
 	transport Transport
 
-	mu      sync.Mutex
-	ues     map[string]*ueState
-	waiting map[string]waiting
+	mu       sync.Mutex
+	ues      map[string]*ueState
+	alerting map[string]bool
 }
 
 func New(store Store, directory Directory, node DiameterNode, transport Transport, logger *zap.Logger, timers Timers) *SMSF {
@@ -109,7 +121,7 @@ func New(store Store, directory Directory, node DiameterNode, transport Transpor
 		logger:    logger,
 		timers:    timers,
 		ues:       make(map[string]*ueState),
-		waiting:   make(map[string]waiting),
+		alerting:  make(map[string]bool),
 	}
 }
 
@@ -141,35 +153,16 @@ func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool
 		return nil, fmt.Errorf("get SMS settings: %w", err)
 	}
 
-	allowed := make(map[string]bool, len(imsis))
-
 	if !settings.Enabled() {
-		return allowed, nil
+		return map[string]bool{}, nil
 	}
 
-	for _, imsi := range imsis {
-		ok, err := s.subscriberHasMSISDN(ctx, imsi)
-		if err != nil {
-			return nil, err
-		}
-
-		allowed[imsi] = ok
+	allowed, err := s.store.IMSIsWithMSISDN(ctx, imsis)
+	if err != nil {
+		return nil, fmt.Errorf("get subscribers: %w", err)
 	}
 
 	return allowed, nil
-}
-
-func (s *SMSF) subscriberHasMSISDN(ctx context.Context, imsi string) (bool, error) {
-	sub, err := s.store.GetSubscriber(ctx, imsi)
-	if errors.Is(err, db.ErrNotFound) {
-		return false, nil
-	}
-
-	if err != nil {
-		return false, fmt.Errorf("get subscriber: %w", err)
-	}
-
-	return sub.Msisdn != "", nil
 }
 
 type smscEndpoint struct {

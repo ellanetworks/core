@@ -393,3 +393,81 @@ func TestTheReportIsSentBeforeTheConnectionIsReleasable(t *testing.T) {
 		t.Fatalf("events = %v: the report must reach the core before the connection may be released", events)
 	}
 }
+
+func TestNoReportIsSentAfterTheUEAbortedTheSubmission(t *testing.T) {
+	e := newEnv(t)
+	release := make(chan struct{})
+
+	e.smsc.setAnswer(func(req *diameter.Message, id diameter.Identity) *diameter.Message {
+		<-release
+
+		ans, _ := sgd.NewMOForwardShortMessageAnswer(req, id, nil)
+
+		return ans
+	})
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	eventually(t, "the submission to reach the SMSC", func() bool { return len(e.smsc.submitted()) == 1 })
+
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPError{TransactionIdentifier: moTI(1), Cause: sms.CPCauseProtocolErrorUnspecified}))
+	close(release)
+
+	e.ue.expectNothing(t, 300*time.Millisecond)
+
+	if n := e.ue.reachability(); n != 0 {
+		t.Fatalf("paged the UE %d times for a report it aborted", n)
+	}
+}
+
+func TestAReportIsSentWithoutADiagnosticTooLongForTheRPError(t *testing.T) {
+	e := newEnv(t)
+
+	e.smsc.setAnswer(func(req *diameter.Message, id diameter.Identity) *diameter.Message {
+		ans, _ := sgd.NewDeliveryFailureAnswer(req, id, sgd.CauseUnknownServiceCentre, make([]byte, 240))
+
+		return ans
+	})
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+
+	rpErr, ok := expectReport(t, e, moTI(1).Peer()).(*sms.RPError)
+	if !ok || rpErr.UserData != nil {
+		t.Fatalf("report = %+v, want an RP-ERROR without the diagnostic it cannot carry", rpErr)
+	}
+}
+
+func TestAFinalCPAckWithTrailingOctetsCompletesTheSubmission(t *testing.T) {
+	e := newEnv(t)
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+	expectReport(t, e, moTI(1).Peer())
+
+	e.smsf.Uplink(context.Background(), imsi, append(encode(t, &sms.CPAck{TransactionIdentifier: moTI(1)}), 0x00))
+
+	eventually(t, "the submission to complete", func() bool { return !e.smsf.TransactionPending(imsi) })
+	e.ue.expectNothing(t, 100*time.Millisecond)
+}
+
+func TestANewSubmissionOnAReusedTransactionIdentifierIsRelayed(t *testing.T) {
+	e := newEnv(t)
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+	expectReport(t, e, moTI(1).Peer())
+
+	sendRPData(t, e, moTI(1), 7)
+	expectCPAck(t, e, moTI(1).Peer())
+	e.ue.expectNothing(t, 100*time.Millisecond)
+
+	sendRPData(t, e, moTI(1), 8)
+	expectCPAck(t, e, moTI(1).Peer())
+	expectReport(t, e, moTI(1).Peer())
+
+	if n := len(e.smsc.submitted()); n != 2 {
+		t.Fatalf("relayed %d submissions, want the retransmission dropped and the new message relayed", n)
+	}
+}

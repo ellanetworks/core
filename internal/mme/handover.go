@@ -105,7 +105,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid)}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), released: make(chan struct{})}
 	targetConn.ue.Store(ue)
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)
@@ -239,7 +239,7 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 
 	held.prepared = true
 
-	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid)}
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), released: make(chan struct{})}
 	targetConn.ue.Store(ue)
 	targetConn.setENBUES1APID(enbUES1APIDUnspecified)
 	targetConn.setConn(target)

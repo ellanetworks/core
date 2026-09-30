@@ -68,6 +68,7 @@ type Database struct {
 	countSubscribersFilteredPreV22Stmt *sqlair.Statement
 	getSubscriberPreV22Stmt            *sqlair.Statement
 	getSubscriberByMSISDNStmt          *sqlair.Statement
+	listIMSIsWithMSISDNStmt            *sqlair.Statement
 	createSubscriberStmt               *sqlair.Statement
 	updateSubscriberProfileStmt        *sqlair.Statement
 	updateSubscriberSqnNumStmt         *sqlair.Statement
@@ -265,6 +266,18 @@ type Database struct {
 
 	getSMSSettingsStmt    *sqlair.Statement
 	upsertSMSSettingsStmt *sqlair.Statement
+
+	getSMSWaitingStmt             *sqlair.Statement
+	listSMSWaitingCentresStmt     *sqlair.Statement
+	upsertSMSWaitingStmt          *sqlair.Statement
+	insertSMSWaitingCentreStmt    *sqlair.Statement
+	clearSMSMemoryFullStmt        *sqlair.Statement
+	deleteSMSWaitingCentreStmt    *sqlair.Statement
+	deleteSMSWaitingCentresStmt   *sqlair.Statement
+	deleteSMSWaitingStmt          *sqlair.Statement
+	deleteSMSWaitingIfEmptyStmt   *sqlair.Statement
+	deleteStaleSMSWaitingCentStmt *sqlair.Statement
+	deleteStaleSMSWaitingStmt     *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -1613,6 +1626,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSubscribersFilteredPreV22Stmt, fmt.Sprintf(countSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.listIMSIsWithMSISDNStmt, fmt.Sprintf(listIMSIsWithMSISDNStmt, SubscribersTableName), []any{subscriberIMSI{}, SliceIDs{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
@@ -1809,6 +1823,17 @@ func (db *Database) PrepareStatements() error {
 
 		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
 		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
+		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
+		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.insertSMSWaitingCentreStmt, fmt.Sprintf(insertSMSWaitingCentreStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
+		{&db.clearSMSMemoryFullStmt, fmt.Sprintf(clearSMSMemoryFullStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.deleteSMSWaitingCentreStmt, fmt.Sprintf(deleteSMSWaitingCentreStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
+		{&db.deleteSMSWaitingCentresStmt, fmt.Sprintf(deleteSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
+		{&db.deleteSMSWaitingStmt, fmt.Sprintf(deleteSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.deleteSMSWaitingIfEmptyStmt, fmt.Sprintf(deleteSMSWaitingIfEmptyStmt, SMSWaitingTableName, SMSWaitingCentresTableName), []any{smsWaitingRow{}}},
+		{&db.deleteStaleSMSWaitingCentStmt, fmt.Sprintf(deleteStaleSMSWaitingCentStmt, SMSWaitingCentresTableName, SMSWaitingTableName), []any{smsWaitingRow{}}},
+		{&db.deleteStaleSMSWaitingStmt, fmt.Sprintf(deleteStaleSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},

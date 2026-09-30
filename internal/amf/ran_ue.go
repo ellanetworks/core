@@ -292,23 +292,44 @@ func (ueConn *UeConn) armNASGuardWith(ctx context.Context, cfg guard.TimerValue,
 		return
 	}
 
-	link := trace.SpanContextFromContext(ctx)
+	retransmit, abort := guardCallbacks(ctx, name, onRetransmit, onAbort)
 
 	ueConn.nasGuardName.Store(&name)
-	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes,
-		func(attempt int32) {
+	ueConn.nasGuard.Arm(cfg.ExpireTime, cfg.MaxRetryTimes, retransmit, abort)
+}
+
+func (ueConn *UeConn) claimNASGuard(ctx context.Context, cfg guard.TimerValue, name string, onRetransmit func(context.Context, int32), onAbort func(context.Context)) bool {
+	retransmit, abort := guardCallbacks(ctx, name, onRetransmit, onAbort)
+
+	if !ueConn.nasGuard.TryArm(cfg.ExpireTime, cfg.MaxRetryTimes, retransmit, abort) {
+		return false
+	}
+
+	ueConn.nasGuardName.Store(&name)
+
+	return true
+}
+
+func (ueConn *UeConn) stopNASGuardNamed(ctx context.Context, name string) {
+	if ueConn.nasGuardProcName() == name {
+		ueConn.StopNASGuard(ctx)
+	}
+}
+
+func guardCallbacks(ctx context.Context, name string, onRetransmit func(context.Context, int32), onAbort func(context.Context)) (func(int32), func()) {
+	link := trace.SpanContextFromContext(ctx)
+
+	return func(attempt int32) {
 			guardCtx, span := guardSpan(link, "amf/nas_guard_retransmit", name, attempt)
 			defer span.End()
 
 			onRetransmit(guardCtx, attempt)
-		},
-		func() {
+		}, func() {
 			guardCtx, span := guardSpan(link, "amf/nas_guard_expire", name, 0)
 			defer span.End()
 
 			onAbort(guardCtx)
-		},
-	)
+		}
 }
 
 func guardSpan(link trace.SpanContext, spanName string, timer string, attempt int32) (context.Context, trace.Span) {

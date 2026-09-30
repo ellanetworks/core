@@ -156,6 +156,29 @@ func (c *smscClient) latestTo(ctx context.Context, to string) (smscMessage, erro
 	return c.message(ctx, latest.ID)
 }
 
+func (c *smscClient) openPeers(ctx context.Context) ([]string, error) {
+	var status struct {
+		Peers []struct {
+			Host  string `json:"host"`
+			State string `json:"state"`
+		} `json:"peers"`
+	}
+
+	if err := c.do(ctx, http.MethodGet, "/api/v1/diameter", nil, &status); err != nil {
+		return nil, err
+	}
+
+	var hosts []string
+
+	for _, p := range status.Peers {
+		if p.State == "open" {
+			hosts = append(hosts, strings.ToLower(p.Host))
+		}
+	}
+
+	return hosts, nil
+}
+
 func (c *smscClient) waitFor(ctx context.Context, timeout time.Duration, what string, fetch func(context.Context) (smscMessage, error), done func(smscMessage) bool) error {
 	deadline := time.Now().Add(timeout)
 
@@ -177,6 +200,10 @@ func (m smscMessage) absentWith(nodeType, diagnostic string) bool {
 	return m.any(func(a smscAttempt) bool {
 		return a.ResultCode != nil && *a.ResultCode == resultAbsentUser && a.AbsentDiagnostics[nodeType] == diagnostic
 	})
+}
+
+func (m smscMessage) anyAbsent() bool {
+	return m.any(func(a smscAttempt) bool { return a.ResultCode != nil && *a.ResultCode == resultAbsentUser })
 }
 
 func (m smscMessage) failedWith(cause, tpCause string) bool {

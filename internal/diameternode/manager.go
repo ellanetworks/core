@@ -167,7 +167,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 	m.setPeers(peers)
 
 	if len(peers) == 0 {
-		m.stop()
+		m.stopWithCause(diameter.DisconnectCauseDoNotWantToTalkToYou)
 		return
 	}
 
@@ -348,6 +348,10 @@ func (m *Manager) fail(err error) {
 }
 
 func (m *Manager) stop() {
+	m.stopWithCause(diameter.DisconnectCauseRebooting)
+}
+
+func (m *Manager) stopWithCause(cause uint32) {
 	m.mu.Lock()
 	node := m.node
 	m.node = nil
@@ -364,7 +368,7 @@ func (m *Manager) stop() {
 	m.stopping.Store(true)
 	defer m.stopping.Store(false)
 
-	if err := node.Shutdown(ctx); err != nil && !errors.Is(err, diameter.ErrClosed) {
+	if err := node.ShutdownWithCause(ctx, cause); err != nil && !errors.Is(err, diameter.ErrClosed) {
 		m.logger.Warn("Diameter node did not shut down cleanly", zap.Error(err))
 	}
 

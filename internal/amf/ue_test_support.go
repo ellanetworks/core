@@ -315,3 +315,7 @@ func (ue *UeContext) SetPlmnIDForTest(plmnID models.PlmnID) {
 
 	ue.plmnID = plmnID
 }
+
+func (ue *UeContext) SetSMSForTest(h SMSHandler) {
+	ue.sms = h
+}

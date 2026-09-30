@@ -23,7 +23,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update_type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active_flag", req.ActiveFlag))
 
-	ue.AbortSMSIMSIDetach()
+	ueConn.AbortSMSIMSIDetach(ctx)
 
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept")
@@ -289,6 +289,8 @@ func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeCo
 	switch {
 	case isCombinedUpdate(uint8(opts.updateType)):
 		accept.EPSUpdateResult, accept.NonEPSServices, accept.Cause = combinedResult(ctx, m, ue, plmn, eps.EPSUpdateResultCombined, eps.EPSUpdateResultTA)
+	case opts.updateType == eps.EPSUpdateTypePeriodic && ue.SMSOnly():
+		accept.EPSUpdateResult, accept.NonEPSServices = eps.EPSUpdateResultCombined, smsOnlyServices(plmn)
 	case opts.updateType != eps.EPSUpdateTypePeriodic:
 		m.DecideSMS(ctx, ue, false)
 	}
@@ -337,11 +339,15 @@ func bearerContextStatus(m *mme.MME, ue *mme.UeContext) nas.EPSBearerContextStat
 	return status
 }
 
+func smsOnlyServices(plmn models.PlmnID) eps.NonEPSServices {
+	result := eps.AdditionalUpdateResultSMSOnly
+	return eps.NonEPSServices{LAI: mme.SMSOnlyLAI(plmn), AdditionalUpdateResult: &result}
+}
+
 func combinedResult[R ~uint8](ctx context.Context, m *mme.MME, ue *mme.UeContext, plmn models.PlmnID, combined, epsOnly R) (R, eps.NonEPSServices, *eps.EMMCause) {
 	switch m.DecideSMS(ctx, ue, true) {
 	case mme.SMSGranted:
-		result := eps.AdditionalUpdateResultSMSOnly
-		return combined, eps.NonEPSServices{LAI: mme.SMSOnlyLAI(plmn), AdditionalUpdateResult: &result}, nil
+		return combined, smsOnlyServices(plmn), nil
 	case mme.SMSUnavailable:
 		return epsOnly, eps.NonEPSServices{}, new(eps.EMMCauseNetworkFailure)
 	default:

@@ -30,6 +30,12 @@ func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCo
 		return nasreply.Handled()
 	}
 
+	if ue.EMMState() != mme.EMMDeregistrationInitiated {
+		logger.From(ctx, logger.MmeLog).Info("ignoring a Detach Accept with no network detach in progress", zap.Stringer("emm_state", ue.EMMState()))
+
+		return nasreply.Silent(nasreply.ReasonOutOfState)
+	}
+
 	ueConn.StopNASGuard(ctx)
 
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
@@ -55,11 +61,17 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		zap.Stringer("type", req.TypeOfDetach),
 	)
 
+	ueConn.CancelSMSIMSIDetach(ctx)
+
 	if req.TypeOfDetach == eps.DetachTypeIMSI {
 		m.RevokeSMS(ctx, ue)
 
 		if !req.SwitchOff {
 			ueConn.SendDownlink(ctx, &eps.DetachAccept{})
+		}
+
+		if ueConn.ICS() != mme.ICSCompleted {
+			releaseSignallingConnection(ctx, m, ue, ueConn)
 		}
 
 		return nasreply.Handled()
@@ -80,4 +92,13 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 
 	return nasreply.Handled()
+}
+
+func releaseSignallingConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+	if ueConn.MTSignallingPending() {
+		ueConn.DeferRelease(ctx, mme.CauseNASNormalRelease)
+		return
+	}
+
+	m.ReleaseUEContext(ctx, ue, mme.CauseNASNormalRelease)
 }

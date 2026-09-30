@@ -435,17 +435,25 @@ func TestReportWithAnotherReferenceIsIgnored(t *testing.T) {
 	}
 }
 
-func TestNonDeliveryRetransmitsAtOnce(t *testing.T) {
+func TestNonDeliveryBringsTheRetransmissionForward(t *testing.T) {
 	timers := fastTimers()
 	timers.TC1 = time.Hour
+	timers.TC1Lost = 150 * time.Millisecond
 	e := newEnvWithTimers(t, timers)
 	tfa := forwardAsync(t, e)
 
 	first, _ := receiveRPData(t, e)
 
+	lost := time.Now()
+
 	e.smsf.DeliveryFailed(imsi)
+	e.ue.expectNothing(t, 100*time.Millisecond)
 
 	again, rp := receiveRPData(t, e)
+	if elapsed := time.Since(lost); elapsed < timers.TC1Lost {
+		t.Fatalf("retransmitted %s after the non-delivery, want TC1* brought forward to %s rather than an immediate resend", elapsed, timers.TC1Lost)
+	}
+
 	if again.TransactionIdentifier != first.TransactionIdentifier {
 		t.Fatalf("retransmission on %s, want %s", again.TransactionIdentifier, first.TransactionIdentifier)
 	}
@@ -577,4 +585,108 @@ func TestTheUEBecomingReachableDuringAFailingDeliveryAlerts(t *testing.T) {
 	}
 
 	eventually(t, "the SMSC alert", func() bool { return len(e.smsc.alerted()) == 1 })
+}
+
+func TestAnMTInterruptedByDeregistrationIsAbsent(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	receiveRPData(t, e)
+	e.ue.fail(smsf.ErrNotRegisteredForSMS)
+
+	re := failure(t, awaitTFA(t, tfa))
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserIMSIDetached {
+		t.Fatalf("TFA = %+v, want absent user (IMSI detached)", re)
+	}
+
+	if !e.smsf.Waiting(imsi) {
+		t.Fatal("no waiting data for a UE that deregistered during the delivery")
+	}
+}
+
+func TestAnRPAckWithATruncatedOptionalElementIsADelivery(t *testing.T) {
+	e := newEnv(t)
+	tfa := forwardAsync(t, e)
+
+	data, rp := receiveRPData(t, e)
+	report := append(encode(t, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference}), 0x41, 0x05, 0x01)
+	e.smsf.Uplink(context.Background(), imsi, encode(t, &sms.CPData{TransactionIdentifier: data.TransactionIdentifier.Peer(), UserData: report}))
+
+	if f := awaitTFA(t, tfa); f.err != nil {
+		t.Fatalf("TFA: %v, want a delivery for an RP-ACK with a truncated optional RP-User-Data", f.err)
+	}
+}
+
+func TestPagingIsBoundedSeparatelyFromTR1N(t *testing.T) {
+	timers := fastTimers()
+	timers.Paging = 100 * time.Millisecond
+	e := newEnvWithTimers(t, timers)
+	gate := e.ue.holdReachability()
+
+	defer close(gate)
+
+	re := failure(t, awaitTFA(t, forwardAsync(t, e)))
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AbsentUserDiagnostic == nil || *re.AbsentUserDiagnostic != tgpp.AbsentUserNoPagingResponseMSC {
+		t.Fatalf("TFA = %+v, want absent user (no paging response) once the paging bound expires", re)
+	}
+}
+
+func TestAnMTDeliverySurvivesTheLossOfItsDiameterConnection(t *testing.T) {
+	e := newEnv(t)
+
+	req, err := sgd.NewMTForwardShortMessageRequest(tgpp.Envelope{
+		SessionID:        "smsc.example.org;1;9",
+		Origin:           diameter.Identity{OriginHost: smscHost, OriginRealm: smscRealm},
+		DestinationHost:  localIdent.Host,
+		DestinationRealm: localIdent.Realm,
+	}, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connection, drop := context.WithCancel(context.Background())
+	answered := make(chan *diameter.Message, 1)
+
+	go func() { answered <- e.smsf.MTForwardShortMessage(connection, hssIdentity, req) }()
+
+	data, rp := receiveRPData(t, e)
+
+	drop()
+	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference, UserData: deliverRpt})
+
+	select {
+	case ans := <-answered:
+		if _, err := sgd.ParseMTForwardShortMessageAnswer(ans); err != nil {
+			t.Fatalf("TFA = %v, want the delivery's real outcome after the connection dropped", err)
+		}
+	case <-time.After(waitTimeout):
+		t.Fatal("no answer")
+	}
+}
+
+func TestMoreMessagesToSendKeepsTheConnectionForTheNextPart(t *testing.T) {
+	e := newEnv(t)
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := e.smsc.forwardMessage(t, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: deliverTPDU, MoreMessagesToSend: true})
+		done <- err
+	}()
+
+	data, rp := receiveRPData(t, e)
+	answerMT(t, e, data, &sms.RPAck{Direction: nas.DirectionUplink, Reference: rp.Reference})
+
+	if err := <-done; err != nil {
+		t.Fatalf("TFR: %v", err)
+	}
+
+	if !e.smsf.TransactionPending(imsi) {
+		t.Fatal("the connection was released although the SMSC has more messages to send")
+	}
+
+	settled := e.ue.settlements()
+
+	eventually(t, "the hold to expire", func() bool { return !e.smsf.TransactionPending(imsi) })
+	eventually(t, "the signalling to settle", func() bool { return e.ue.settlements() == settled+1 })
 }

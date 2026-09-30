@@ -486,6 +486,7 @@ func TestSMSGrantFollowsConfigurationChanges(t *testing.T) {
 		t.Fatalf("SMS over NAS = %t, downlinks = %d, want the grant withdrawn and one SMS indication", ue.SMSOverNAS(), sender.downlinkNasTransportCalls)
 	}
 
+	a.SMSIndicationAcknowledged(t.Context(), ue, ue.Conn())
 	handler.setAllowed(true, nil)
 	a.ReevaluateSMS(t.Context())
 
@@ -577,4 +578,130 @@ func TestSMSPagingWaitsOutAHandoverInProgress(t *testing.T) {
 
 	cancel()
 	ue.StopPagingForTest(t.Context())
+}
+
+func TestTheSMSIndicationIsRetransmittedUntilT3555Expires(t *testing.T) {
+	a, handler, sender := newSMSTestAMF(t)
+	a.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 10 * time.Millisecond, MaxRetryTimes: 2}
+	ue := newIdleSMSUE(t, a)
+	connectSMSUE(t, a, ue, sender)
+
+	handler.setAllowed(false, nil)
+	a.ReevaluateSMS(t.Context())
+
+	deadline := time.Now().Add(time.Second)
+	for ue.Conn().NASGuardActive() {
+		if time.Now().After(deadline) {
+			t.Fatal("T3555 never expired")
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if n := sender.downlinkNasTransportCalls; n != 3 {
+		t.Fatalf("sent %d SMS indications, want the original and two retransmissions", n)
+	}
+
+	a.SMSReachable(t.Context(), ue)
+
+	if n := sender.downlinkNasTransportCalls; n != 3 {
+		t.Fatal("an SMS indication abandoned by T3555 was sent again")
+	}
+}
+
+func TestTheSMSIndicationWaitsForAnotherProcedure(t *testing.T) {
+	a, handler, sender := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+	connectSMSUE(t, a, ue, sender)
+
+	ue.Conn().NASGuardForTest().Arm(time.Hour, 1, func(int32) {}, func() {})
+
+	handler.setAllowed(false, nil)
+	a.ReevaluateSMS(t.Context())
+
+	if n := sender.downlinkNasTransportCalls; n != 0 {
+		t.Fatalf("sent %d SMS indications while another procedure held the NAS guard", n)
+	}
+
+	ue.Conn().StopNASGuard(t.Context())
+	a.SMSReachable(t.Context(), ue)
+
+	if n := sender.downlinkNasTransportCalls; n != 1 {
+		t.Fatalf("sent %d SMS indications once the guard was free, want 1", n)
+	}
+}
+
+func TestAnUnacknowledgedSMSIndicationIsResentOnTheNextConnection(t *testing.T) {
+	a, handler, sender := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+	connectSMSUE(t, a, ue, sender)
+
+	handler.setAllowed(false, nil)
+	a.ReevaluateSMS(t.Context())
+
+	if n := sender.downlinkNasTransportCalls; n != 1 {
+		t.Fatalf("sent %d SMS indications, want 1", n)
+	}
+
+	connectSMSUE(t, a, ue, sender)
+	a.SMSReachable(t.Context(), ue)
+
+	if n := sender.downlinkNasTransportCalls; n != 2 {
+		t.Fatalf("sent %d SMS indications, want it resent on the new connection", n)
+	}
+
+	a.SMSIndicationAcknowledged(t.Context(), ue, ue.Conn())
+	connectSMSUE(t, a, ue, sender)
+	a.SMSReachable(t.Context(), ue)
+
+	if n := sender.downlinkNasTransportCalls; n != 2 {
+		t.Fatal("an acknowledged SMS indication was sent again")
+	}
+}
+
+func TestARevocationDuringARegistrationInProgressWins(t *testing.T) {
+	a, handler, _ := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	held, release := handler.holdDecision()
+	granted := make(chan bool)
+
+	go func() { granted <- a.GrantSMSOverNAS(t.Context(), ue, true) }()
+
+	<-held
+	handler.mu.Lock()
+	handler.allowed, handler.hold = false, nil
+	handler.mu.Unlock()
+
+	a.ReevaluateSMS(t.Context())
+	close(release)
+
+	if <-granted || ue.SMSOverNAS() {
+		t.Fatal("a registration in progress that read the old configuration was granted SMS over NAS")
+	}
+}
+
+func TestAnUnrelatedReevaluationDuringARegistrationKeepsTheGrant(t *testing.T) {
+	a, handler, _ := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+	a.GrantSMSOverNAS(t.Context(), ue, false)
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	held, release := handler.holdDecision()
+	granted := make(chan bool)
+
+	go func() { granted <- a.GrantSMSOverNAS(t.Context(), ue, true) }()
+
+	<-held
+	handler.mu.Lock()
+	handler.hold = nil
+	handler.mu.Unlock()
+
+	a.ReevaluateSMS(t.Context())
+	close(release)
+
+	if !<-granted || !ue.SMSOverNAS() {
+		t.Fatal("a re-evaluation that changed nothing withdrew SMS over NAS from a registration in progress")
+	}
 }

@@ -26,9 +26,7 @@ func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.Transac
 		s.transactionEnded(context.WithoutCancel(ctx), imsi)
 	}()
 
-	report := s.relay(ctx, imsi, rpdu)
-
-	payload, err := report.MarshalBinary()
+	payload, err := encodeReport(s.relay(ctx, imsi, rpdu))
 	if err != nil {
 		s.logger.Error("Could not encode an RP report", zap.String("imsi", imsi), zap.Error(err))
 		return
@@ -44,10 +42,40 @@ func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.Transac
 	}
 }
 
+func encodeReport(report sms.RPMessage) ([]byte, error) {
+	b, err := report.MarshalBinary()
+	if err == nil {
+		return b, nil
+	}
+
+	switch m := report.(type) {
+	case *sms.RPAck:
+		m.UserData = nil
+	case *sms.RPError:
+		m.UserData = nil
+	default:
+		return nil, err
+	}
+
+	return report.MarshalBinary()
+}
+
+func userData(b []byte) []byte {
+	if len(b) == 0 {
+		return nil
+	}
+
+	return b
+}
+
 func (s *SMSF) relay(ctx context.Context, imsi string, rpdu []byte) sms.RPMessage {
 	msg, err := sms.ParseRP(rpdu, nas.DirectionUplink)
-	if err != nil {
+	if msg == nil {
 		return rpErrorFor(rpdu, err)
+	}
+
+	if err != nil {
+		s.logger.Debug("Ignored non-imperative errors in an RP message", zap.String("imsi", imsi), zap.Error(err))
 	}
 
 	switch m := msg.(type) {
@@ -80,7 +108,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	reject := func(cause sms.RPCause, diagnostic []byte, reason string, err error) sms.RPMessage {
 		log.Info("Rejected a mobile-originated SMS", zap.String("reason", reason), zap.Stringer("rp_cause", cause), zap.Error(err))
 
-		return &sms.RPError{Direction: nas.DirectionDownlink, Reference: m.Reference, Cause: cause, UserData: diagnostic}
+		return &sms.RPError{Direction: nas.DirectionDownlink, Reference: m.Reference, Cause: cause, UserData: userData(diagnostic)}
 	}
 
 	settings, err := s.store.GetSMSSettings(ctx)
@@ -131,7 +159,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 	case err == nil:
 		log.Info("Forwarded a mobile-originated SMS", zap.String("service_centre", m.Destination.Digits))
 
-		return &sms.RPAck{Direction: nas.DirectionDownlink, Reference: m.Reference, UserData: res.SMRPUI}
+		return &sms.RPAck{Direction: nas.DirectionDownlink, Reference: m.Reference, UserData: userData(res.SMRPUI)}
 	case errors.As(err, &failure):
 		return reject(moFailureCause(failure), failure.DiagnosticInfo, "SMSC rejected the message", err)
 	default:

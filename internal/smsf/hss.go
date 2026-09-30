@@ -22,8 +22,10 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		return s6c.NewErrorAnswer(req, id, err)
 	}
 
+	var alertMSISDN string
+
 	fail := func(code uint32, absent s6c.AbsentUserDiagnostics) *diameter.Message {
-		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent}, r.SMSFSupport)
+		ans, err := s6c.NewSendRoutingInfoForSMErrorAnswer(req, id, s6c.ResultError{Result: tgpp.Experimental(code), Absent: absent, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
 		if err != nil {
 			return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 		}
@@ -39,6 +41,8 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
+
+	alertMSISDN = storedMSISDN(sub.Msisdn, r.MSISDN)
 
 	settings, err := s.store.GetSMSSettings(ctx)
 	if err != nil {
@@ -59,13 +63,13 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 		s.logger.Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
 
 		if !r.SingleAttempt {
-			s.markWaiting(sub.Imsi, r.ServiceCentreAddress)
+			s.markWaiting(ctx, sub.Imsi, r.ServiceCentreAddress)
 		}
 
 		return fail(tgpp.ResultErrorAbsentUser, absentDiagnostics)
 	}
 
-	ans, err := s6c.NewSendRoutingInfoForSMAnswer(req, id, s6c.Routing{ServingNodes: nodes, IMSI: sub.Imsi}, r.SMSFSupport)
+	ans, err := s6c.NewSendRoutingInfoForSMAnswer(req, id, s6c.Routing{ServingNodes: nodes, IMSI: sub.Imsi, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
 	if err != nil {
 		s.logger.Warn("Could not build a routing answer", zap.String("imsi", sub.Imsi), zap.Error(err))
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
@@ -90,10 +94,10 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	}
 
 	if !rep.SingleAttempt {
-		s.recordDeliveryReport(sub.Imsi, rep)
+		s.recordDeliveryReport(ctx, sub.Imsi, rep)
 	}
 
-	var result s6c.ReportResult
+	result := s6c.ReportResult{AlertMSISDN: storedMSISDN(sub.Msisdn, rep.MSISDN)}
 
 	if failed := nodeNames(rep.Failed); len(failed) > 0 {
 		settings, err := s.store.GetSMSSettings(ctx)
@@ -113,7 +117,7 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 	return ans
 }
 
-func (s *SMSF) recordDeliveryReport(imsi string, rep s6c.DeliveryReport) {
+func (s *SMSF) recordDeliveryReport(ctx context.Context, imsi string, rep s6c.DeliveryReport) {
 	for _, o := range []*s6c.DeliveryOutcome{rep.MME, rep.SMSF3GPP, rep.SMSFNon3GPP, rep.MSC, rep.SGSN, rep.IPSMGW} {
 		if o == nil {
 			continue
@@ -121,16 +125,22 @@ func (s *SMSF) recordDeliveryReport(imsi string, rep s6c.DeliveryReport) {
 
 		switch o.Cause {
 		case s6c.DeliveryCauseSuccessfulTransfer:
-			s.clearWaiting(imsi)
+			s.delivered(ctx, imsi, rep.ServiceCentreAddress)
 			return
 		case s6c.DeliveryCauseAbsentUser:
-			s.markWaiting(imsi, rep.ServiceCentreAddress)
+			s.markWaiting(ctx, imsi, rep.ServiceCentreAddress)
 		case s6c.DeliveryCauseMemoryCapacityExceeded:
-			s.mu.Lock()
-			s.markMemoryFullLocked(imsi, rep.ServiceCentreAddress)
-			s.mu.Unlock()
+			s.markMemoryFull(ctx, imsi, rep.ServiceCentreAddress)
 		}
 	}
+}
+
+func storedMSISDN(stored, received string) string {
+	if stored == received {
+		return ""
+	}
+
+	return stored
 }
 
 func (s *SMSF) lookup(ctx context.Context, msisdn, imsi string) (*db.Subscriber, error) {
@@ -184,30 +194,33 @@ func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSup
 		return nodes, absent, err
 	}
 
-	identity, err := s.directory.Identity(ctx, reg.NodeID)
-	if err != nil && !errors.Is(err, ErrNotClusterMember) {
-		return nodes, absent, err
-	}
+	smsf := reg.Type == db.UERegistrationTypeAMF3GPPAccess && smsfSupport
 
-	if err != nil {
-		s.logger.Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
+	if reg.Purged {
+		purged := tgpp.AbsentUserPurgedNonGPRS
 
-		if reg.Purged {
-			purged := tgpp.AbsentUserPurgedNonGPRS
-
-			if reg.Type == db.UERegistrationTypeAMF3GPPAccess && smsfSupport {
-				absent.SMSF3GPP = &purged
-			} else {
-				absent.MME = &purged
-			}
+		if smsf {
+			absent.SMSF3GPP = &purged
+		} else {
+			absent.MME = &purged
 		}
 
 		return nodes, absent, nil
 	}
 
+	identity, err := s.directory.Identity(ctx, reg.NodeID)
+	if errors.Is(err, ErrNotClusterMember) {
+		s.logger.Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
+		return nodes, absent, nil
+	}
+
+	if err != nil {
+		return nodes, absent, err
+	}
+
 	address := &s6c.NodeAddress{Name: identity.Host, Realm: identity.Realm, Number: smsNumber}
 
-	if reg.Type == db.UERegistrationTypeAMF3GPPAccess && smsfSupport {
+	if smsf {
 		nodes.SMSF3GPP = address
 	} else {
 		nodes.Serving = &s6c.ServingNode{MME: address}

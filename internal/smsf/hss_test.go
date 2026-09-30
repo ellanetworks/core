@@ -399,16 +399,51 @@ func TestRoutingPicksTheMostRecentRegistration(t *testing.T) {
 	}
 }
 
-func TestRoutingToTheNodeThatLastServedADetachedUE(t *testing.T) {
+func TestADetachedUEIsAbsentAndWaiting(t *testing.T) {
 	s, store := newHSS(t)
 	store.register(db.UERegistrationTypeMME, remoteNode, true)
 
-	routing, err := route(t, s, s6c.RoutingRequest{MSISDN: msisdn})
+	re := routeError(t, s, s6c.RoutingRequest{MSISDN: msisdn})
+	if !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.Absent.MME == nil || *re.Absent.MME != tgpp.AbsentUserPurgedNonGPRS {
+		t.Fatalf("SRA = %+v, want absent user (MS purged) for a UE whose registration was purged", re)
+	}
+
+	if !s.Waiting(imsi) {
+		t.Fatal("an absent routing answer for a detached UE left no waiting data")
+	}
+}
+
+func TestRoutingByIMSIReturnsTheStoredMSISDN(t *testing.T) {
+	s, store := newHSS(t)
+	store.register(db.UERegistrationTypeMME, localNode, false)
+
+	routing, err := route(t, s, s6c.RoutingRequest{IMSI: imsi})
 	if err != nil {
 		t.Fatalf("SRA: %v", err)
 	}
 
-	if routing.Serving == nil || routing.Serving.MME == nil || routing.Serving.MME.Name != remoteIdent.Host {
-		t.Fatalf("routing = %+v, want the node that last served the UE, which holds its not-reachable flag", routing)
+	if routing.AlertMSISDN != msisdn {
+		t.Fatalf("alert MSISDN = %q, want the stored %q (29.338 table 5.2.1.1-2)", routing.AlertMSISDN, msisdn)
+	}
+
+	if routing, err := route(t, s, s6c.RoutingRequest{MSISDN: msisdn}); err != nil || routing.AlertMSISDN != "" {
+		t.Fatalf("SRA = %+v (%v), want no alert MSISDN when the request carried the stored one", routing, err)
+	}
+}
+
+func TestAnAbsentRoutingAnswerByIMSIReturnsTheStoredMSISDN(t *testing.T) {
+	s, _ := newHSS(t)
+
+	if re := routeError(t, s, s6c.RoutingRequest{IMSI: imsi}); !re.IsExperimental(tgpp.ResultErrorAbsentUser) || re.AlertMSISDN != msisdn {
+		t.Fatalf("SRA = %+v, want absent user with the stored MSISDN", re)
+	}
+}
+
+func TestADeliveryReportByIMSIReturnsTheStoredMSISDN(t *testing.T) {
+	s, _ := newHSS(t)
+
+	res, err := report(t, s, s6c.DeliveryReport{IMSI: imsi, MME: &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseSuccessfulTransfer}})
+	if err != nil || res.AlertMSISDN != msisdn {
+		t.Fatalf("RDA = %+v (%v), want the stored MSISDN (29.338 §5.2.3.4)", res, err)
 	}
 }

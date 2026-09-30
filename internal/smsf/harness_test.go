@@ -49,6 +49,9 @@ var (
 func fastTimers() smsf.Timers {
 	return smsf.Timers{
 		TC1:                200 * time.Millisecond,
+		TC1Lost:            20 * time.Millisecond,
+		Paging:             2 * time.Second,
+		MoreMessages:       300 * time.Millisecond,
 		MaxRetransmissions: 2,
 		TR1N:               3 * time.Second,
 		TR2N:               3 * time.Second,
@@ -63,6 +66,8 @@ type fakeStore struct {
 	subscribers   map[string]db.Subscriber
 	registrations map[[2]string]db.UERegistration
 	regErr        error
+	waiting       map[string]*db.SMSWaiting
+	clearErr      error
 }
 
 func newFakeStore(smsc netip.AddrPort) *fakeStore {
@@ -72,7 +77,90 @@ func newFakeStore(smsc netip.AddrPort) *fakeStore {
 			imsi: {Imsi: imsi, Msisdn: msisdn},
 		},
 		registrations: make(map[[2]string]db.UERegistration),
+		waiting:       make(map[string]*db.SMSWaiting),
 	}
+}
+
+func (f *fakeStore) GetSMSWaiting(_ context.Context, imsi string) (*db.SMSWaiting, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	w, ok := f.waiting[imsi]
+	if !ok {
+		return nil, db.ErrNotFound
+	}
+
+	out := *w
+	out.ServiceCentres = slices.Clone(w.ServiceCentres)
+
+	return &out, nil
+}
+
+func (f *fakeStore) RecordSMSWaiting(_ context.Context, u db.SMSWaitingUpdate) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, ok := f.subscribers[u.IMSI]; !ok {
+		return db.ErrNotFound
+	}
+
+	w, ok := f.waiting[u.IMSI]
+	if !ok {
+		w = &db.SMSWaiting{IMSI: u.IMSI}
+		f.waiting[u.IMSI] = w
+	}
+
+	w.MemoryFull = w.MemoryFull || u.MemoryFull
+
+	if !slices.Contains(w.ServiceCentres, u.ServiceCentre) {
+		w.ServiceCentres = append(w.ServiceCentres, u.ServiceCentre)
+		slices.Sort(w.ServiceCentres)
+	}
+
+	return nil
+}
+
+func (f *fakeStore) ClearSMSMemoryFull(_ context.Context, imsi string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.clearErr != nil {
+		return f.clearErr
+	}
+
+	if w, ok := f.waiting[imsi]; ok {
+		w.MemoryFull = false
+	}
+
+	return nil
+}
+
+func (f *fakeStore) RemoveSMSWaitingCentre(_ context.Context, imsi, serviceCentre string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	w, ok := f.waiting[imsi]
+	if !ok {
+		return nil
+	}
+
+	w.ServiceCentres = slices.DeleteFunc(w.ServiceCentres, func(sc string) bool { return sc == serviceCentre })
+	w.MemoryFull = false
+
+	if len(w.ServiceCentres) == 0 {
+		delete(f.waiting, imsi)
+	}
+
+	return nil
+}
+
+func (f *fakeStore) DeleteSMSWaiting(_ context.Context, imsi string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	delete(f.waiting, imsi)
+
+	return nil
 }
 
 func (f *fakeStore) GetSMSSettings(context.Context) (*db.SMSSettings, error) {
@@ -94,6 +182,21 @@ func (f *fakeStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscribe
 	}
 
 	return &s, nil
+}
+
+func (f *fakeStore) IMSIsWithMSISDN(_ context.Context, imsis []string) (map[string]bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	found := map[string]bool{}
+
+	for _, imsi := range imsis {
+		if s, ok := f.subscribers[imsi]; ok && s.Msisdn != "" {
+			found[imsi] = true
+		}
+	}
+
+	return found, nil
 }
 
 func (f *fakeStore) GetSubscriberByMSISDN(_ context.Context, msisdn string) (*db.Subscriber, error) {
@@ -179,14 +282,18 @@ func newFakeUE() *fakeUE {
 	return &fakeUE{downlink: make(chan sms.CPMessage, 64)}
 }
 
-func (u *fakeUE) EnableUEReachability(context.Context, string) error {
+func (u *fakeUE) EnableUEReachability(ctx context.Context, _ string) error {
 	u.mu.Lock()
 	u.reached++
 	err, gate := u.err, u.gate
 	u.mu.Unlock()
 
 	if gate != nil {
-		<-gate
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	return err
@@ -317,10 +424,11 @@ type fakeSMSC struct {
 	node *diameter.Node
 	addr netip.AddrPort
 
-	mu     sync.Mutex
-	ofrs   []sgd.MOForwardShortMessage
-	alerts []s6c.Alert
-	answer func(req *diameter.Message, id diameter.Identity) *diameter.Message
+	mu         sync.Mutex
+	ofrs       []sgd.MOForwardShortMessage
+	alerts     []s6c.Alert
+	answer     func(req *diameter.Message, id diameter.Identity) *diameter.Message
+	failAlerts bool
 }
 
 func requireSCTP(t *testing.T) {
@@ -373,7 +481,12 @@ func startFakeSMSC(t *testing.T) *fakeSMSC {
 
 		f.mu.Lock()
 		f.alerts = append(f.alerts, a)
+		fail := f.failAlerts
 		f.mu.Unlock()
+
+		if fail {
+			return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultUnableToComply)
+		}
 
 		return tgpp.NewAnswer(req, c.LocalIdentity(), diameter.ResultSuccess)
 	}))
@@ -432,6 +545,13 @@ func (f *fakeSMSC) submitted() []sgd.MOForwardShortMessage {
 	return append([]sgd.MOForwardShortMessage(nil), f.ofrs...)
 }
 
+func (f *fakeSMSC) setFailAlerts(fail bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.failAlerts = fail
+}
+
 func (f *fakeSMSC) alerted() []s6c.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -442,12 +562,18 @@ func (f *fakeSMSC) alerted() []s6c.Alert {
 func (f *fakeSMSC) forward(t *testing.T, tpdu []byte) (*diameter.Message, error) {
 	t.Helper()
 
+	return f.forwardMessage(t, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: tpdu})
+}
+
+func (f *fakeSMSC) forwardMessage(t *testing.T, m sgd.MTForwardShortMessage) (*diameter.Message, error) {
+	t.Helper()
+
 	req, err := sgd.NewMTForwardShortMessageRequest(tgpp.Envelope{
 		SessionID:        f.node.NewSessionID(),
 		Origin:           f.node.Identity(),
 		DestinationHost:  localIdent.Host,
 		DestinationRealm: localIdent.Realm,
-	}, sgd.MTForwardShortMessage{IMSI: imsi, ServiceCentreAddress: serviceCentre, SMRPUI: tpdu})
+	}, m)
 	if err != nil {
 		t.Fatalf("build TFR: %v", err)
 	}

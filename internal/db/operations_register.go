@@ -142,11 +142,11 @@ var (
 var (
 	opInitializeOperator               = registerChangesetOp("InitializeOperator", (*Database).applyInitializeOperator)
 	opUpdateOperatorTracking           = registerChangesetOp("UpdateOperatorTracking", (*Database).applyUpdateOperatorTracking)
-	opUpdateOperatorID                 = registerChangesetOp("UpdateOperatorID", (*Database).applyUpdateOperatorID)
+	opUpdateOperatorID                 = registerChangesetOp("UpdateOperatorID", (*Database).applyUpdateOperatorID, AffectsTopic(TopicOperatorIdentity))
 	opUpdateOperatorCode               = registerChangesetOp("UpdateOperatorCode", (*Database).applyUpdateOperatorCode)
 	opUpdateOperatorSecurityAlgorithms = registerChangesetOp("UpdateOperatorSecurityAlgorithms", (*Database).applyUpdateOperatorSecurityAlgorithms)
 	opUpdateOperatorSPN                = registerChangesetOp("UpdateOperatorSPN", (*Database).applyUpdateOperatorSPN)
-	opUpdateOperatorAMFIdentity        = registerChangesetOp("UpdateOperatorAMFIdentity", (*Database).applyUpdateOperatorAMFIdentity, RequireSchema(9))
+	opUpdateOperatorAMFIdentity        = registerChangesetOp("UpdateOperatorAMFIdentity", (*Database).applyUpdateOperatorAMFIdentity, RequireSchema(9), AffectsTopic(TopicOperatorIdentity))
 	opUpdateOperatorClusterID          = registerChangesetOp("UpdateOperatorClusterID", (*Database).applyUpdateOperatorClusterID)
 )
 
@@ -170,7 +170,14 @@ var (
 	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 )
 
-var opUpdateSMSSettings = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, RequireSchema(22), AffectsTopic(TopicSMSSettings))
+var (
+	opUpdateSMSSettings      = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, RequireSchema(22), AffectsTopic(TopicSMSSettings))
+	opRecordSMSWaiting       = registerChangesetOp("RecordSMSWaiting", (*Database).applyRecordSMSWaiting, RequireSchema(22))
+	opClearSMSMemoryFull     = registerChangesetOp("ClearSMSMemoryFull", (*Database).applyClearSMSMemoryFull, RequireSchema(22))
+	opRemoveSMSWaitingCentre = registerChangesetOp("RemoveSMSWaitingCentre", (*Database).applyRemoveSMSWaitingCentre, RequireSchema(22))
+	opDeleteSMSWaiting       = registerChangesetOp("DeleteSMSWaiting", (*Database).applyDeleteSMSWaiting, RequireSchema(22))
+	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting, RequireSchema(22))
+)
 
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.

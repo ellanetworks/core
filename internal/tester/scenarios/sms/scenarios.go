@@ -247,8 +247,8 @@ func runSwitchedOff(ctx context.Context, _ scenarios.Env, p *params, net network
 
 	fetch := func(ctx context.Context) (smscMessage, error) { return smsc.message(ctx, id) }
 
-	if err := smsc.waitFor(ctx, reportTimeout, "an IMSI-detached absent-user attempt while the phone is off", fetch, func(m smscMessage) bool {
-		return m.absentWith(net.NodeType(), "imsi_detached")
+	if err := smsc.waitFor(ctx, reportTimeout, "an absent-user answer while the phone is off", fetch, func(m smscMessage) bool {
+		return m.absentWith(net.NodeType(), "ms_purged_non_gprs") || m.absentWith(net.NodeType(), "imsi_detached")
 	}); err != nil {
 		return err
 	}

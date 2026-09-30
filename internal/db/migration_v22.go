@@ -20,6 +20,17 @@ func migrateV22(ctx context.Context, tx *sql.Tx) error {
 			smsNumber   TEXT    NOT NULL DEFAULT '',
 			CHECK (singleton)
 		)`, SMSSettingsTableName, DefaultSMSCPort),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi      TEXT    PRIMARY KEY REFERENCES subscribers(imsi) ON DELETE CASCADE,
+			mcef      INTEGER NOT NULL DEFAULT 0,
+			updatedAt INTEGER NOT NULL
+		)`, SMSWaitingTableName),
+		fmt.Sprintf(`CREATE TABLE %s (
+			imsi          TEXT NOT NULL REFERENCES %s(imsi) ON DELETE CASCADE,
+			serviceCentre TEXT NOT NULL,
+			PRIMARY KEY (imsi, serviceCentre)
+		)`, SMSWaitingCentresTableName, SMSWaitingTableName),
+		fmt.Sprintf("CREATE INDEX idx_sms_message_waiting_updated ON %s(updatedAt)", SMSWaitingTableName),
 	}
 
 	for _, stmt := range stmts {

@@ -889,6 +889,9 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 }
 
 func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, serviceType uint8) error {
+	ue.smsMu.Lock()
+	defer ue.smsMu.Unlock()
+
 	serviceRequest, err := BuildServiceRequest(&ServiceRequestOpts{
 		ServiceType:      serviceType,
 		AMFSetID:         ue.GetAmfSetId(),
