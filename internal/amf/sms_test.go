@@ -590,7 +590,7 @@ func TestTheSMSIndicationIsRetransmittedUntilT3555Expires(t *testing.T) {
 	a.ReevaluateSMS(t.Context())
 
 	deadline := time.Now().Add(time.Second)
-	for ue.Conn().NASGuardActive() {
+	for ue.Conn().NASGuardActive() || ue.SMSIndicationPendingForTest() {
 		if time.Now().After(deadline) {
 			t.Fatal("T3555 never expired")
 		}

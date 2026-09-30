@@ -320,3 +320,7 @@ func (ue *UeContext) SetPlmnIDForTest(plmnID models.PlmnID) {
 func (ue *UeContext) SetSMSForTest(h smsf.Handler) {
 	ue.sms = h
 }
+
+func (ue *UeContext) SMSIndicationPendingForTest() bool {
+	return ue.smsIndicationPending.Load() != nil
+}
