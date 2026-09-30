@@ -226,3 +226,149 @@ func TestIntegrationHAStandaloneGrowsIntoCluster(t *testing.T) {
 		t.Fatalf("leadership never moved off node %s", leaderStatus.Cluster.NodeID)
 	}
 }
+
+func TestIntegrationStandaloneDisasterRecovery(t *testing.T) {
+	suites.Require(t, suites.HA)
+
+	beginHATest(t)
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("create Docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Fatalf("close Docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeCleanup(ctx)
+
+	composeFile := ComposeFile()
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDownWithFile(ctx, haComposeDir, composeFile)
+	})
+
+	if err := writeStandaloneNodeConfig(haComposeDir, 1); err != nil {
+		t.Fatalf("write standalone config: %v", err)
+	}
+
+	if err := dockerClient.ComposeUpServicesWithFile(ctx, haComposeDir, composeFile, haNodeServices[0]); err != nil {
+		t.Fatalf("start standalone node: %v", err)
+	}
+
+	node, err := newInsecureClient(APIAddressForCluster(1))
+	if err != nil {
+		t.Fatalf("create standalone client: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices[:1], []*client.Client{node})
+	})
+
+	if err := waitForNodeReady(ctx, node); err != nil {
+		t.Fatalf("standalone node never became ready: %v", err)
+	}
+
+	initialStatus, err := node.GetStatus(ctx)
+	if err != nil {
+		t.Fatalf("get standalone status: %v", err)
+	}
+
+	if initialStatus.Cluster.Enabled {
+		t.Fatal("source node must be standalone")
+	}
+
+	adminToken, err := initializeAndGetAdminToken(ctx, node)
+	if err != nil {
+		t.Fatalf("initialize standalone node: %v", err)
+	}
+
+	node.SetToken(adminToken)
+
+	const imsi = "001019756139972"
+
+	if err := node.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           imsi,
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	}); err != nil {
+		t.Fatalf("create subscriber: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup.tar.gz")
+
+	if err := node.CreateBackup(ctx, &client.CreateBackupParams{Path: backupPath}); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	if info, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("stat backup: %v", err)
+	} else if info.Size() == 0 {
+		t.Fatal("backup file is empty")
+	}
+
+	// Removing the compose project with its volumes simulates losing the
+	// standalone instance and ensures the restore starts from an empty /data.
+	dockerClient.ComposeDownWithFile(ctx, haComposeDir, composeFile)
+
+	if err := writeStandaloneNodeConfig(haComposeDir, 1); err != nil {
+		t.Fatalf("write restored standalone config: %v", err)
+	}
+
+	if err := dockerClient.ComposeCreateWithFile(ctx, haComposeDir, composeFile, haNodeServices[0]); err != nil {
+		t.Fatalf("create restored standalone node: %v", err)
+	}
+
+	container, err := dockerClient.ResolveComposeContainer(ctx, "ha", haNodeServices[0])
+	if err != nil {
+		t.Fatalf("resolve restored standalone container: %v", err)
+	}
+
+	if err := dockerClient.CopyFileToContainer(ctx, container, backupPath, "/data/restore.bundle"); err != nil {
+		t.Fatalf("copy restore bundle: %v", err)
+	}
+
+	if err := dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, haNodeServices[0]); err != nil {
+		t.Fatalf("start restored standalone node: %v", err)
+	}
+
+	restoredNode, err := newInsecureClient(APIAddressForCluster(1))
+	if err != nil {
+		t.Fatalf("create restored standalone client: %v", err)
+	}
+
+	if err := waitForNodeReady(ctx, restoredNode); err != nil {
+		t.Fatalf("restored standalone node never became ready: %v", err)
+	}
+
+	status, err := restoredNode.GetStatus(ctx)
+	if err != nil {
+		t.Fatalf("get restored standalone status: %v", err)
+	}
+
+	if status.Cluster.Enabled {
+		t.Fatal("restored node must remain standalone")
+	}
+
+	if !status.Initialized {
+		t.Fatal("restored standalone node is not initialized; restore.bundle was not applied")
+	}
+
+	restoredNode.SetToken(adminToken)
+
+	subscriber, err := restoredNode.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
+	if err != nil {
+		t.Fatalf("get restored subscriber: %v", err)
+	}
+
+	if subscriber.Imsi != imsi {
+		t.Fatalf("restored subscriber IMSI = %q, want %q", subscriber.Imsi, imsi)
+	}
+}

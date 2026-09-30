@@ -74,6 +74,56 @@ func TestRestore_InvalidFile(t *testing.T) {
 	}
 }
 
+func TestRestore_RejectsBackupAheadOfCurrentState(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "ella.db"), ellaraft.FastTestConfig())
+	if err != nil {
+		t.Fatalf("create database: %v", err)
+	}
+
+	t.Cleanup(func() { _ = database.Close() })
+
+	if err := database.WaitUntilReady(ctx); err != nil {
+		t.Fatalf("wait for database: %v", err)
+	}
+
+	if _, err := database.PlainDB().ExecContext(ctx,
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1", 42); err != nil {
+		t.Fatalf("set backup lastApplied: %v", err)
+	}
+
+	backupFile, err := os.CreateTemp(t.TempDir(), "backup_*.tar.gz")
+	if err != nil {
+		t.Fatalf("create backup file: %v", err)
+	}
+
+	t.Cleanup(func() { _ = backupFile.Close() })
+
+	if err := database.Backup(ctx, backupFile); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	if _, err := database.PlainDB().ExecContext(ctx,
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1", 41); err != nil {
+		t.Fatalf("set current lastApplied: %v", err)
+	}
+
+	if err := database.Restore(ctx, backupFile); !errors.Is(err, db.ErrRestoreBackupAhead) {
+		t.Fatalf("Restore error = %v, want ErrRestoreBackupAhead", err)
+	}
+
+	var currentLastApplied int64
+	if err := database.PlainDB().QueryRowContext(ctx,
+		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&currentLastApplied); err != nil {
+		t.Fatalf("read current lastApplied: %v", err)
+	}
+
+	if currentLastApplied != 41 {
+		t.Fatalf("current lastApplied = %d, want 41 after rejected restore", currentLastApplied)
+	}
+}
+
 // TestRestore_RoundTripPreservesData populates a database with rows in both
 // replicated tables and local-only tables, takes a backup, mutates the live
 // data, then restores the backup. Replicated rows come from the backup image;

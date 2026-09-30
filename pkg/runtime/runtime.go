@@ -184,19 +184,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var pki *pkiState
 
-	var restoredFromBundle bool
+	restoredFromBundle, err := maybeRestoreFromBundle(cfg.DB.Path)
+	if err != nil {
+		return fmt.Errorf("restore bundle: %w", err)
+	}
 
 	if cfg.Cluster.Enabled {
 		dataDir := filepath.Dir(cfg.DB.Path)
 
-		restored, err := maybeRestoreFromBundle(cfg.DB.Path)
-		if err != nil {
-			return fmt.Errorf("restore bundle: %w", err)
-		}
-
-		restoredFromBundle = restored
-
-		raftCfg.Bootstrap = restored
+		raftCfg.Bootstrap = restoredFromBundle
 
 		// cluster-id is unknown at construction; on a fresh first
 		// boot the agent gets it from the leader-init path; on a

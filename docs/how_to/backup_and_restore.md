@@ -16,53 +16,53 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 !!! note
     This operation can also be done using the API. Please see the [backup API documentation](../reference/api/backup.md) for more information.
 
-## Restore
+## Restore on same instance
 
-Restoring a backup will overwrite all existing data in your Ella Core installation. The UI/API restore path is different whether you are restoring to a standalone installation or a high-availability cluster.
+Restoring on the same instance will overwrite all existing data in your Ella Core installation. It is only supported on standalone deployments. For High Availability deployment, see the disaster recovery procedure.
 
-=== "Standalone"
+1. Open Ella Core in your web browser.
+2. Navigate to the **Backup and Restore** tab in the left-hand menu.
+3. Click on the **Upload File** button.
+4. Select the backup file you want to restore.
 
-    On a new installation of Ella Core, you can restore a backup to recover your data.
+!!! note
+    This operation can also be done using the API. Please see the [restore API documentation](../reference/api/restore.md) for more information.
 
-    1. Open Ella Core in your web browser.
-    2. Navigate to the **Backup and Restore** tab in the left-hand menu.
-    3. Click on the **Upload File** button.
-    4. Select the backup file you want to restore.
+## Offline Restore (Disaster Recovery)
 
-    !!! note
-        This operation can also be done using the API. Please see the [restore API documentation](../reference/api/restore.md) for more information.
+This procedure can be used on new instances.
 
-=== "High Availability"
+Paths below assume the default data directory `/var/snap/ella-core/common/data` (the directory holding `db.path`).
 
-    Paths below assume the default data directory `/var/snap/ella-core/common/data` (the directory holding `db.path`).
+1. Stop the daemon on every node in the cluster, or the single standalone node:
 
-    1. Stop the daemon on every node in the cluster:
+    ```shell
+    sudo snap stop ella-core.cored
+    ```
 
-        ```shell
-        sudo snap stop ella-core.cored
-        ```
+2. On the node you seed from the backup, delete the old cluster state:
 
-    2. On the node you seed from the backup, delete the old cluster state:
+    ```shell
+    sudo rm -rf /var/snap/ella-core/common/data/ella.db \
+                /var/snap/ella-core/common/data/ella.db-wal \
+                /var/snap/ella-core/common/data/ella.db-shm \
+                /var/snap/ella-core/common/data/raft \
+                /var/snap/ella-core/common/data/cluster-tls
+    ```
 
-        ```shell
-        sudo rm -rf /var/snap/ella-core/common/data/ella.db \
-                    /var/snap/ella-core/common/data/ella.db-wal \
-                    /var/snap/ella-core/common/data/ella.db-shm \
-                    /var/snap/ella-core/common/data/raft \
-                    /var/snap/ella-core/common/data/cluster-tls
-        ```
+3. Drop the backup archive into the data directory as `restore.bundle`:
 
-    3. Drop the backup archive into the data directory as `restore.bundle`:
+    ```shell
+    sudo cp backup.tar.gz /var/snap/ella-core/common/data/restore.bundle
+    sudo chmod 600 /var/snap/ella-core/common/data/restore.bundle
+    ```
 
-        ```shell
-        sudo cp backup.tar.gz /var/snap/ella-core/common/data/restore.bundle
-        sudo chmod 600 /var/snap/ella-core/common/data/restore.bundle
-        ```
+4. Start the daemon on that node:
 
-    4. Start the daemon on that node:
+    ```shell
+    sudo snap start --enable ella-core.cored
+    ```
 
-        ```shell
-        sudo snap start --enable ella-core.cored
-        ```
+5. For a Standalone deployment, stop here.
 
-    5. On each remaining node, repeat step 2, then add it via the [join-token flow](deploy_ha_cluster.md).
+6. On each remaining node, repeat step 2, then add it via the [join-token flow](deploy_ha_cluster.md).
