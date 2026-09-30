@@ -544,6 +544,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	diameterNode := diameternode.New(diameterNodeSource(dbInstance), diameterPeersSource(dbInstance), logger.DiameterLog)
 	diameternode.RegisterMetrics(diameterNode)
+	smsf.RegisterMetrics()
 
 	smsfInstance := smsf.New(dbInstance, &diameterDirectory{db: dbInstance, node: diameterNode}, smsf.SMSCOver(diameterNode), newSMSTransport(amfInstance, mmeInstance), logger.SmsfLog, smsf.DefaultTimers())
 	smsfInstance.Register(diameterNode)

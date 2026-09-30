@@ -117,7 +117,14 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		zap.Int("tpdu_length", len(m.UserData)),
 	)
 
-	reject := func(level zapcore.Level, cause sms.RPCause, diagnostic []byte, reason string, err error) sms.RPMessage {
+	reject := func(result string, cause sms.RPCause, diagnostic []byte, reason string, err error) sms.RPMessage {
+		recordAttempt(directionMO, result)
+
+		level := zapcore.WarnLevel
+		if result == moNotAllowed || result == moInvalid {
+			level = zapcore.InfoLevel
+		}
+
 		log.Log(level, "Rejected a mobile-originated SMS", zap.String("reason", reason), zap.Stringer("rp_cause", cause), zap.Error(err))
 
 		return &sms.RPError{Direction: nas.DirectionDownlink, Reference: m.Reference, Cause: cause, UserData: userData(diagnostic)}
@@ -125,25 +132,25 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 
 	settings, err := s.store.GetSMSSettings(ctx)
 	if err != nil {
-		return reject(zapcore.WarnLevel, sms.RPCauseNetworkOutOfOrder, nil, "SMS settings unavailable", err)
+		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "SMS settings unavailable", err)
 	}
 
 	if !settings.Enabled {
-		return reject(zapcore.InfoLevel, sms.RPCauseRequestedFacilityNotImplemented, nil, "SMS is disabled", nil)
+		return reject(moNotAllowed, sms.RPCauseRequestedFacilityNotImplemented, nil, "SMS is disabled", nil)
 	}
 
 	sub, err := s.store.GetSubscriber(ctx, imsi)
 	if err != nil {
-		return reject(zapcore.WarnLevel, sms.RPCauseNetworkOutOfOrder, nil, "subscriber unavailable", err)
+		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "subscriber unavailable", err)
 	}
 
 	if sub.Msisdn == "" {
-		return reject(zapcore.InfoLevel, sms.RPCauseRequestedFacilityNotSubscribed, nil, "subscriber has no MSISDN", nil)
+		return reject(moNotAllowed, sms.RPCauseRequestedFacilityNotSubscribed, nil, "subscriber has no MSISDN", nil)
 	}
 
 	envelope, err := s.smsc.Envelope()
 	if err != nil {
-		return reject(zapcore.WarnLevel, sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
+		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC not connected", err)
 	}
 
 	req, err := sgd.NewMOForwardShortMessageRequest(envelope, sgd.MOForwardShortMessage{
@@ -152,7 +159,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 		SMRPUI:               m.UserData,
 	})
 	if err != nil {
-		return reject(zapcore.InfoLevel, sms.RPCauseInvalidMandatoryInformation, nil, "RP-DATA cannot be forwarded", err)
+		return reject(moInvalid, sms.RPCauseInvalidMandatoryInformation, nil, "RP-DATA cannot be forwarded", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, s.timers.TR2N)
@@ -160,7 +167,7 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 
 	ans, err := s.smsc.Do(ctx, req)
 	if err != nil {
-		return reject(zapcore.WarnLevel, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
+		return reject(moSMSCUnavailable, sms.RPCauseNetworkOutOfOrder, nil, "SMSC did not answer", err)
 	}
 
 	res, err := sgd.ParseMOForwardShortMessageAnswer(ans)
@@ -169,13 +176,15 @@ func (s *SMSF) submit(ctx context.Context, imsi string, m *sms.RPData) sms.RPMes
 
 	switch {
 	case err == nil:
+		recordAttempt(directionMO, moForwarded)
+
 		log.Info("Forwarded a mobile-originated SMS")
 
 		return &sms.RPAck{Direction: nas.DirectionDownlink, Reference: m.Reference, UserData: userData(res.SMRPUI)}
 	case errors.As(err, &failure):
-		return reject(zapcore.WarnLevel, moFailureCause(failure), failure.DiagnosticInfo, "SMSC rejected the message", err)
+		return reject(moSMSCRejected, moFailureCause(failure), failure.DiagnosticInfo, "SMSC rejected the message", err)
 	default:
-		return reject(zapcore.WarnLevel, sms.RPCauseNetworkOutOfOrder, nil, "invalid answer from the SMSC", err)
+		return reject(moError, sms.RPCauseNetworkOutOfOrder, nil, "invalid answer from the SMSC", err)
 	}
 }
 
