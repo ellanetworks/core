@@ -69,6 +69,7 @@ type Server struct {
 	cfg        config.Config
 	ready      atomic.Bool
 	upgraded   chan struct{}
+	conns      *connTracker
 }
 
 // handlerRef is a concurrency-safe swappable HTTP handler.
@@ -111,7 +112,7 @@ type UpgradeConfig struct {
 // required for cluster discovery (status, cluster membership, metrics,
 // OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
 func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config, frontendFS fs.FS) (*Server, error) {
-	s := &Server{cfg: cfg, upgraded: make(chan struct{})}
+	s := &Server{cfg: cfg, upgraded: make(chan struct{}), conns: newConnTracker()}
 
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
 		DB:          dbInstance,
@@ -136,6 +137,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       120 * time.Second,
+		ConnState:         s.conns.connState,
 	}
 
 	s.httpServer = srv
@@ -164,7 +166,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		var serveErr error
 
 		if scheme == HTTPS {
-			srv.Handler = &s.handler
+			srv.Handler = s.conns.wrap(&s.handler)
 
 			srv.TLSConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
@@ -189,7 +191,7 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 			protocols.SetHTTP1(true)
 			protocols.SetUnencryptedHTTP2(true)
 			srv.Protocols = protocols
-			srv.Handler = &s.handler
+			srv.Handler = s.conns.wrap(&s.handler)
 
 			serveErr = srv.Serve(ln)
 		}
@@ -357,7 +359,12 @@ func (s *Server) Handler() http.Handler {
 
 // Shutdown gracefully shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.httpServer.Shutdown(ctx)
+	err := s.httpServer.Shutdown(ctx)
+	if err != nil {
+		s.conns.logOpen(logger.APILog)
+	}
+
+	return err
 }
 
 func listenAPI(ctx context.Context, api config.APIInterface, addr string) (net.Listener, string, error) {
