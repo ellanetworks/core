@@ -118,19 +118,33 @@ func (s *SMSF) ReportSMDeliveryStatus(ctx context.Context, id diameter.Identity,
 }
 
 func (s *SMSF) recordDeliveryReport(ctx context.Context, imsi string, rep s6c.DeliveryReport) {
-	for _, o := range []*s6c.DeliveryOutcome{rep.MME, rep.SMSF3GPP, rep.SMSFNon3GPP, rep.MSC, rep.SGSN, rep.IPSMGW} {
-		if o == nil {
+	for _, n := range []struct {
+		outcome *s6c.DeliveryOutcome
+		local   bool
+	}{
+		{rep.MME, true},
+		{rep.SMSF3GPP, true},
+		{rep.SMSFNon3GPP, false},
+		{rep.MSC, false},
+		{rep.SGSN, false},
+		{rep.IPSMGW, false},
+	} {
+		if n.outcome == nil {
 			continue
 		}
 
-		switch o.Cause {
+		switch n.outcome.Cause {
 		case s6c.DeliveryCauseSuccessfulTransfer:
 			s.delivered(ctx, imsi, rep.ServiceCentreAddress)
 			return
 		case s6c.DeliveryCauseAbsentUser:
 			s.markWaiting(ctx, imsi, rep.ServiceCentreAddress)
 		case s6c.DeliveryCauseMemoryCapacityExceeded:
-			s.markMemoryFull(ctx, imsi, rep.ServiceCentreAddress)
+			if n.local {
+				s.markWaiting(ctx, imsi, rep.ServiceCentreAddress)
+			} else {
+				s.markMemoryFull(ctx, imsi, rep.ServiceCentreAddress)
+			}
 		}
 	}
 }

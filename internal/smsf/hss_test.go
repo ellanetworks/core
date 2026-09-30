@@ -6,6 +6,7 @@ package smsf_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/diameter"
@@ -308,6 +309,34 @@ func TestDeliveryReportRecordsWaitingData(t *testing.T) {
 
 	if s.Waiting(imsi) {
 		t.Fatal("a successful transfer report left the waiting data")
+	}
+}
+
+func TestALateMemoryFullReportDoesNotUndoTheUEsMemoryAvailable(t *testing.T) {
+	s, store := newHSS(t)
+	store.register(db.UERegistrationTypeMME, localNode, false)
+
+	if _, err := report(t, s, s6c.DeliveryReport{
+		MSISDN: msisdn,
+		MME:    &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseMemoryCapacityExceeded},
+	}); err != nil {
+		t.Fatalf("RDR: %v", err)
+	}
+
+	w, err := store.GetSMSWaiting(context.Background(), imsi)
+	if err != nil || w.MemoryFull || !slices.Equal(w.ServiceCentres, []string{serviceCentre}) {
+		t.Fatalf("waiting = %+v (%v), want the service centre recorded without the memory-full flag the SMSF owns", w, err)
+	}
+
+	if _, err := report(t, s, s6c.DeliveryReport{
+		MSISDN: msisdn,
+		MSC:    &s6c.DeliveryOutcome{Cause: s6c.DeliveryCauseMemoryCapacityExceeded},
+	}); err != nil {
+		t.Fatalf("RDR: %v", err)
+	}
+
+	if w, err := store.GetSMSWaiting(context.Background(), imsi); err != nil || !w.MemoryFull {
+		t.Fatalf("waiting = %+v (%v), want the memory-full flag set for a delivery by another node", w, err)
 	}
 }
 
