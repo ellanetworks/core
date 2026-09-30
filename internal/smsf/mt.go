@@ -13,8 +13,10 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -110,6 +112,8 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 		return tgpp.NewErrorAnswer(req, id, err)
 	}
 
+	trace.SpanFromContext(ctx).SetAttributes(attrs.SUPIFromIMSI(m.IMSI))
+
 	deadline := time.Now().Add(s.timers.Paging + s.timers.TR1N)
 
 	if m.DeliveryTimer > 0 {
@@ -163,6 +167,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		reference:     u.nextRef,
 		report:        make(chan sms.RPMessage, 1),
 		serviceCentre: serviceCentre,
+		span:          trace.SpanFromContext(ctx),
 	}
 
 	u.mt = t

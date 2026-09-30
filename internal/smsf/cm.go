@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -42,6 +44,7 @@ type mtTransaction struct {
 	report        chan sms.RPMessage
 	serviceCentre string
 	reported      bool
+	span          trace.Span
 }
 
 type ueState struct {
@@ -276,6 +279,14 @@ func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
 		_ = s.send(ctx, imsi, &sms.CPError{TransactionIdentifier: ti.Peer(), Cause: sms.CPCauseInvalidTransactionIdentifier})
 		return
 	}
+
+	ctx, span := tracer.Start(ctx, "smsf/mt-report",
+		trace.WithLinks(trace.Link{SpanContext: t.span.SpanContext()}),
+		trace.WithAttributes(attrs.SUPIFromIMSI(imsi)),
+	)
+	defer span.End()
+
+	t.span.AddLink(trace.Link{SpanContext: span.SpanContext()})
 
 	_ = s.send(ctx, imsi, &sms.CPAck{TransactionIdentifier: ti.Peer()})
 

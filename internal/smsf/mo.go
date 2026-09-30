@@ -11,13 +11,18 @@ import (
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 func (s *SMSF) mobileOriginated(ctx context.Context, imsi string, ti sms.TransactionIdentifier, t *moTransaction, rpdu []byte) {
+	ctx, span := tracer.Start(ctx, "smsf/mo-submit", trace.WithAttributes(attrs.SUPIFromIMSI(imsi)))
+	defer span.End()
+
 	defer func() {
 		s.mu.Lock()
 		if u, ok := s.ues[imsi]; ok && u.mo[ti.Value] == t {

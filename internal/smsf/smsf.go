@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/diameternode"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -221,7 +222,30 @@ func (c nodeSMSC) Do(ctx context.Context, req *diameter.Message) (*diameter.Mess
 		return nil, ErrSMSCUnavailable
 	}
 
-	return node.Do(ctx, PeerRoleSMSC, req)
+	ctx, span := tracer.Start(ctx, "diameter/request",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("network.protocol.name", "diameter"),
+			attribute.String("diameter.peer", PeerRoleSMSC),
+			attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
+			attribute.Int64("diameter.command_code", int64(req.CommandCode)),
+		),
+	)
+	defer span.End()
+
+	ans, err := node.Do(ctx, PeerRoleSMSC, req)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return nil, err
+	}
+
+	if r, err := tgpp.ParseResult(ans); err == nil {
+		span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
+	}
+
+	return ans, nil
 }
 
 func (c nodeSMSC) LocalHost() (string, bool) {
