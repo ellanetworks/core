@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -55,12 +56,12 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 
 	nodes, absentDiagnostics, err := s.servingNodes(ctx, sub.Imsi, settings.SMSNumber, r.SMSFSupport)
 	if err != nil {
-		s.logger.Warn("Could not look up the serving node of a subscriber", zap.String("imsi", sub.Imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Could not look up the serving node of a subscriber", zap.String("imsi", sub.Imsi), zap.Error(err))
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
 	if nodes.Serving == nil && nodes.SMSF3GPP == nil && r.DeliveryNotIntended == nil {
-		s.logger.Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
+		logger.From(ctx, s.logger).Info("Answered a routing request for an unreachable subscriber", zap.String("imsi", sub.Imsi))
 
 		if !r.SingleAttempt {
 			s.markWaiting(ctx, sub.Imsi, r.ServiceCentreAddress)
@@ -71,7 +72,7 @@ func (s *SMSF) SendRoutingInfoForSM(ctx context.Context, id diameter.Identity, r
 
 	ans, err := s6c.NewSendRoutingInfoForSMAnswer(req, id, s6c.Routing{ServingNodes: nodes, IMSI: sub.Imsi, AlertMSISDN: alertMSISDN}, r.SMSFSupport)
 	if err != nil {
-		s.logger.Warn("Could not build a routing answer", zap.String("imsi", sub.Imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Could not build a routing answer", zap.String("imsi", sub.Imsi), zap.Error(err))
 		return s6c.NewAnswer(req, id, tgpp.Result{Code: diameter.ResultUnableToComply})
 	}
 
@@ -224,7 +225,7 @@ func (s *SMSF) servingNodes(ctx context.Context, imsi, smsNumber string, smsfSup
 
 	identity, err := s.directory.Identity(ctx, reg.NodeID)
 	if errors.Is(err, ErrNotClusterMember) {
-		s.logger.Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
+		logger.From(ctx, s.logger).Info("Serving node of a subscriber is not a cluster member", zap.String("imsi", imsi), zap.String("node_id", reg.NodeID), zap.Error(err))
 		return nodes, absent, nil
 	}
 

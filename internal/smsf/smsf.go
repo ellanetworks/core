@@ -17,8 +17,13 @@ import (
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/diameternode"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/smsf")
 
 const PeerRoleSMSC = "smsc"
 
@@ -133,15 +138,35 @@ func SMSCPeer(address netip.AddrPort) diameternode.PeerConfig {
 }
 
 func (s *SMSF) Register(r Registrar) {
-	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		return s.SendRoutingInfoForSM(ctx, c.LocalIdentity(), req)
-	}))
-	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		return s.ReportSMDeliveryStatus(ctx, c.LocalIdentity(), req)
-	}))
-	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
-		return s.MTForwardShortMessage(ctx, c.LocalIdentity(), req)
-	}))
+	r.Handle(s6c.ApplicationID, s6c.CommandSendRoutingInfoForSM, traced("s6c/send-routing-info-for-sm", s.SendRoutingInfoForSM))
+	r.Handle(s6c.ApplicationID, s6c.CommandReportSMDeliveryStatus, traced("s6c/report-sm-delivery-status", s.ReportSMDeliveryStatus))
+	r.Handle(sgd.ApplicationID, sgd.CommandMTForwardShortMessage, traced("sgd/mt-forward-short-message", s.MTForwardShortMessage))
+}
+
+func traced(name string, h func(context.Context, diameter.Identity, *diameter.Message) *diameter.Message) diameter.Handler {
+	return diameter.HandlerFunc(func(ctx context.Context, c *diameter.Conn, req *diameter.Message) *diameter.Message {
+		ctx, span := tracer.Start(ctx, name,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(
+				attribute.String("network.protocol.name", "diameter"),
+				attribute.Int64("diameter.application_id", int64(req.ApplicationID)),
+				attribute.Int64("diameter.command_code", int64(req.CommandCode)),
+			),
+		)
+		defer span.End()
+
+		ans := h(ctx, c.LocalIdentity(), req)
+
+		if ans == nil {
+			return nil
+		}
+
+		if r, err := tgpp.ParseResult(ans); err == nil {
+			span.SetAttributes(attribute.Int64("diameter.result_code", int64(r.Code)))
+		}
+
+		return ans
+	})
 }
 
 func (s *SMSF) AllowedEach(ctx context.Context, imsis []string) (map[string]bool, error) {

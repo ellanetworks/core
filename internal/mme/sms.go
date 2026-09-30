@@ -144,7 +144,7 @@ func (m *MME) SendSMS(ctx context.Context, imsi string, payload []byte) error {
 		return fmt.Errorf("send Downlink NAS Transport: %w", err)
 	}
 
-	logger.From(ctx, logger.MmeLog).Debug("sent SMS to UE", logger.SUPIFromIMSI(imsi))
+	conn.Log(ctx).Debug("Sent an SMS message to the UE", logger.SUPIFromIMSI(imsi))
 
 	return nil
 }

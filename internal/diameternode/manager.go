@@ -80,7 +80,7 @@ func New(nodeSource NodeSource, peersSource PeersSource, logger *zap.Logger) *Ma
 		peersSource: peersSource,
 		mux:         diameter.NewMux(),
 		logger:      logger,
-		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("diameter"))),
+		slog:        slog.New(zapslog.NewHandler(logger.Core(), zapslog.WithName("Diameter"), zapslog.WithCaller(true))),
 		localAddr:   routeSource,
 		since:       time.Now(),
 	}
@@ -307,6 +307,9 @@ func (m *Manager) peerStateChanged(s diameter.PeerStatus) {
 		return
 	case s.State == diameter.PeerConnecting, s.State == diameter.PeerReopen:
 		m.logger.Debug("Diameter peer connecting", fields...)
+		return
+	case s.State == diameter.PeerClosing:
+		m.logger.Debug("Diameter peer closing", fields...)
 		return
 	case m.stopping.Load():
 		m.logger.Info("Diameter peer disconnected", fields...)

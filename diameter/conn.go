@@ -634,12 +634,7 @@ func (c *Conn) open(cea *Message) {
 		c.available.Store(true)
 	}
 
-	level := slog.LevelInfo
-	if c.peer != nil && c.peer.cfg == nil {
-		level = slog.LevelDebug
-	}
-
-	c.logger().Log(context.Background(), level, "Diameter peer connected",
+	c.logger().Debug("Diameter peer connected",
 		slog.String("host", c.peerHost), slog.String("realm", c.peerRealm), slog.String("transport", c.t.kind().String()))
 
 	c.n.connStateChanged(c)

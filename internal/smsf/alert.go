@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/diameter/s6c"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 	"go.uber.org/zap"
@@ -30,7 +31,7 @@ func (s *SMSF) recordWaiting(ctx context.Context, u db.SMSWaitingUpdate) {
 	}
 
 	if err := s.store.RecordSMSWaiting(context.WithoutCancel(ctx), u); err != nil {
-		s.logger.Warn("Could not record message waiting data", zap.String("imsi", u.IMSI), zap.String("service_centre", u.ServiceCentre), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Could not record message waiting data", zap.String("imsi", u.IMSI), zap.String("service_centre", u.ServiceCentre), zap.Error(err))
 	}
 }
 
@@ -40,14 +41,14 @@ func (s *SMSF) delivered(ctx context.Context, imsi, serviceCentre string) {
 	w, err := s.store.GetSMSWaiting(ctx, imsi)
 	if err != nil {
 		if !errors.Is(err, db.ErrNotFound) {
-			s.logger.Warn("Could not read message waiting data", zap.String("imsi", imsi), zap.Error(err))
+			logger.From(ctx, s.logger).Warn("Could not read message waiting data", zap.String("imsi", imsi), zap.Error(err))
 		}
 
 		return
 	}
 
 	if err := s.store.RemoveSMSWaitingCentre(ctx, imsi, serviceCentre); err != nil {
-		s.logger.Warn("Could not clear message waiting data", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Could not clear message waiting data", zap.String("imsi", imsi), zap.Error(err))
 		return
 	}
 
@@ -62,7 +63,7 @@ func (s *SMSF) UEReachable(ctx context.Context, imsi string) {
 
 func (s *SMSF) memoryAvailable(ctx context.Context, imsi string, m *sms.RPSMMA) sms.RPMessage {
 	if err := s.clearMemoryFull(ctx, imsi); err != nil {
-		s.logger.Warn("Could not clear the memory capacity exceeded flag; asking the UE to retry", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Could not clear the memory capacity exceeded flag; asking the UE to retry", zap.String("imsi", imsi), zap.Error(err))
 
 		return &sms.RPError{Direction: nas.DirectionDownlink, Reference: m.Reference, Cause: sms.RPCauseTemporaryFailure}
 	}
@@ -137,7 +138,7 @@ func (s *SMSF) alertSettled(imsi string) bool {
 }
 
 func (s *SMSF) alert(ctx context.Context, imsi string) {
-	log := s.logger.With(zap.String("imsi", imsi))
+	log := logger.From(ctx, s.logger, zap.String("imsi", imsi))
 
 	w, err := s.store.GetSMSWaiting(ctx, imsi)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 	"go.uber.org/zap"
@@ -133,14 +134,14 @@ func (s *SMSF) Uplink(ctx context.Context, imsi string, payload []byte) {
 	}
 
 	if err != nil {
-		s.logger.Debug("Ignored non-imperative errors in a CP message", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Debug("Ignored non-imperative errors in a CP message", zap.String("imsi", imsi), zap.Error(err))
 	}
 
 	switch m := msg.(type) {
 	case *sms.CPAck:
 		s.cpAck(imsi, m.TransactionIdentifier)
 	case *sms.CPError:
-		s.cpError(imsi, m)
+		s.cpError(ctx, imsi, m)
 	case *sms.CPData:
 		s.cpData(ctx, imsi, m)
 	}
@@ -149,7 +150,7 @@ func (s *SMSF) Uplink(ctx context.Context, imsi string, payload []byte) {
 func (s *SMSF) rejectCP(ctx context.Context, imsi string, payload []byte, err error) {
 	header, headerErr := sms.ParseCPHeader(payload)
 	if headerErr != nil {
-		s.logger.Warn("Dropped an undecodable SMS CP message", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("Dropped an undecodable SMS CP message", zap.String("imsi", imsi), zap.Error(err))
 		return
 	}
 
@@ -162,7 +163,7 @@ func (s *SMSF) rejectCP(ctx context.Context, imsi string, payload []byte, err er
 		cause = sms.CPCauseInvalidMandatoryInformation
 	}
 
-	s.logger.Warn("Rejected an invalid SMS CP message", zap.String("imsi", imsi), zap.Error(err))
+	logger.From(ctx, s.logger).Warn("Rejected an invalid SMS CP message", zap.String("imsi", imsi), zap.Error(err))
 
 	if header.MessageType == sms.CPMessageTypeError {
 		return
@@ -193,10 +194,10 @@ func (s *SMSF) cpAck(imsi string, ti sms.TransactionIdentifier) {
 	}
 }
 
-func (s *SMSF) cpError(imsi string, m *sms.CPError) {
+func (s *SMSF) cpError(ctx context.Context, imsi string, m *sms.CPError) {
 	ti := m.TransactionIdentifier
 
-	s.logger.Info("UE aborted an SMS transaction",
+	logger.From(ctx, s.logger).Info("UE aborted an SMS transaction",
 		zap.String("imsi", imsi), zap.Stringer("ti", ti), zap.Stringer("cause", m.Cause))
 
 	s.mu.Lock()
@@ -281,13 +282,13 @@ func (s *SMSF) mtReport(ctx context.Context, imsi string, m *sms.CPData) {
 	signal(t.ack)
 
 	if rp == nil {
-		s.logger.Warn("UE answered a mobile-terminated SMS with an invalid RP message", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Warn("UE answered a mobile-terminated SMS with an invalid RP message", zap.String("imsi", imsi), zap.Error(err))
 
 		rp = &sms.RPError{Direction: nas.DirectionUplink, Reference: t.reference, Cause: sms.RPCauseInvalidMandatoryInformation}
 	}
 
 	if !s.recordReport(ctx, imsi, t, rp) {
-		s.logger.Info("Ignored an RP report for another message reference",
+		logger.From(ctx, s.logger).Info("Ignored an RP report for another message reference",
 			zap.String("imsi", imsi), zap.Uint8("rp_reference", rp.MessageReference()), zap.Uint8("expected", t.reference))
 
 		return
@@ -330,12 +331,29 @@ func (s *SMSF) send(ctx context.Context, imsi string, m sms.CPMessage) error {
 		return fmt.Errorf("encode %s: %w", m.MessageType(), err)
 	}
 
+	ctx = logger.Into(ctx, smsMessageFields(m)...)
+
 	if err := s.transport.SendSMS(ctx, imsi, payload); err != nil {
-		s.logger.Debug("Could not send an SMS CP message", zap.String("imsi", imsi), zap.Stringer("type", m.MessageType()), zap.Error(err))
+		logger.From(ctx, s.logger).Debug("Could not send an SMS CP message", zap.String("imsi", imsi), zap.Error(err))
 		return err
 	}
 
 	return nil
+}
+
+func smsMessageFields(m sms.CPMessage) []zap.Field {
+	fields := []zap.Field{zap.Stringer("cp_message_type", m.MessageType())}
+
+	data, ok := m.(*sms.CPData)
+	if !ok {
+		return fields
+	}
+
+	if h, err := sms.ParseRPHeader(data.UserData, nas.DirectionDownlink); err == nil {
+		fields = append(fields, zap.Stringer("rp_message_type", h.MTI), zap.Uint8("rp_reference", h.Reference))
+	}
+
+	return fields
 }
 
 func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) error {
@@ -345,7 +363,7 @@ func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) 
 	cancel()
 
 	if err != nil {
-		s.logger.Debug("Could not reach the UE for an SMS", zap.String("imsi", imsi), zap.Error(err))
+		logger.From(ctx, s.logger).Debug("Could not reach the UE for an SMS", zap.String("imsi", imsi), zap.Error(err))
 		return err
 	}
 

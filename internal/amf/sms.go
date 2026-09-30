@@ -307,7 +307,7 @@ func (amf *AMF) SendSMS(ctx context.Context, imsi string, payload []byte) error 
 			return fmt.Errorf("send DL NAS Transport: %w", err)
 		}
 
-		logger.From(ctx, logger.AmfLog).Debug("sent SMS to UE", logger.SUPI(ue.Supi().String()))
+		conn.Log(ctx).Debug("Sent an SMS message to the UE", logger.SUPI(ue.Supi().String()))
 
 		return nil
 	})

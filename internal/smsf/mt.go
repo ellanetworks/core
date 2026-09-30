@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/diameter/sgd"
 	"github.com/ellanetworks/core/diameter/tgpp"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/sms"
 	"go.uber.org/zap"
@@ -24,6 +25,46 @@ type mtOutcome struct {
 	cause      uint32
 	report     []byte
 	diagnostic *uint32
+	reason     string
+	err        error
+}
+
+func (o mtOutcome) because(reason string, err error) mtOutcome {
+	o.reason = reason
+	o.err = err
+
+	return o
+}
+
+func (o mtOutcome) resultName() string {
+	if o.result == diameter.ResultSuccess {
+		return diameter.ResultName(o.result)
+	}
+
+	return tgpp.Experimental(o.result).Name()
+}
+
+func (o mtOutcome) logFields() []zap.Field {
+	fields := []zap.Field{
+		zap.Uint32("result", o.result),
+		zap.String("result_name", o.resultName()),
+		zap.String("reason", o.reason),
+	}
+
+	switch o.result {
+	case tgpp.ResultErrorSMDeliveryFailure:
+		fields = append(fields, zap.Uint32("delivery_failure_cause", o.cause))
+	case tgpp.ResultErrorAbsentUser:
+		if o.diagnostic != nil {
+			fields = append(fields, zap.Uint32("absent_user_diagnostic", *o.diagnostic))
+		}
+	}
+
+	if o.err != nil {
+		fields = append(fields, zap.Error(o.err))
+	}
+
+	return fields
 }
 
 func delivered(report []byte) mtOutcome {
@@ -87,19 +128,25 @@ func (s *SMSF) MTForwardShortMessage(ctx context.Context, id diameter.Identity, 
 
 	outcome := s.mobileTerminated(ctx, m.IMSI, m.ServiceCentreAddress, m.SMRPUI, m.MoreMessagesToSend)
 
-	s.logger.Info("Mobile-terminated SMS delivery attempt",
+	log := logger.From(ctx, s.logger,
 		zap.String("imsi", m.IMSI),
 		zap.String("service_centre", m.ServiceCentreAddress),
-		zap.Uint32("result", outcome.result),
+		zap.Int("tpdu_length", len(m.SMRPUI)),
 		zap.Bool("more_messages_to_send", m.MoreMessagesToSend),
 	)
+
+	if outcome.result == diameter.ResultSuccess {
+		log.Info("Delivered a mobile-terminated SMS")
+	} else {
+		log.Warn("Could not deliver a mobile-terminated SMS", outcome.logFields()...)
+	}
 
 	return outcome.answer(req, id)
 }
 
 func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string, tpdu []byte, moreMessages bool) (outcome mtOutcome) {
 	if _, err := s.store.GetSubscriber(ctx, imsi); errors.Is(err, db.ErrNotFound) {
-		return experimental(tgpp.ResultErrorUserUnknown)
+		return experimental(tgpp.ResultErrorUserUnknown).because("IMSI is not a subscriber", nil)
 	}
 
 	s.mu.Lock()
@@ -107,7 +154,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 
 	if u.mt != nil {
 		s.mu.Unlock()
-		return experimental(tgpp.ResultErrorUserBusyForMTSMS)
+		return experimental(tgpp.ResultErrorUserBusyForMTSMS).because("another mobile-terminated SMS is in progress", nil)
 	}
 
 	t := &mtTransaction{
@@ -152,7 +199,7 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 		UserData:   tpdu,
 	}).MarshalBinary()
 	if err != nil {
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("RP-DATA cannot be encoded", err)
 	}
 
 	err = s.sendReliably(ctx, imsi, &sms.CPData{TransactionIdentifier: t.ti, UserData: rpdu}, &t.cpTxn)
@@ -171,11 +218,11 @@ func (s *SMSF) mobileTerminated(ctx context.Context, imsi, serviceCentre string,
 	case rp := <-t.report:
 		return reportOutcome(rp)
 	case <-t.aborted:
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("UE aborted the transaction with CP-ERROR", nil)
 	case <-tr1n.C:
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("UE sent no RP report before TR1N expired", nil)
 	case <-ctx.Done():
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("delivery deadline expired before the UE sent an RP report", ctx.Err())
 	}
 }
 
@@ -184,19 +231,19 @@ func (s *SMSF) transferFailure(ctx context.Context, imsi, serviceCentre string, 
 	case err == nil:
 		return mtOutcome{}, false
 	case errors.Is(err, errAborted):
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("UE aborted the transaction with CP-ERROR", err), true
 	case errors.Is(err, ErrNotRegisteredForSMS) && s.servedElsewhere(context.WithoutCancel(ctx), imsi):
-		return experimental(tgpp.ResultErrorUserUnknown), true
+		return experimental(tgpp.ResultErrorUserUnknown).because("UE is served by another node", err), true
 	case errors.Is(err, ErrNotRegisteredForSMS):
 		s.markWaiting(ctx, imsi, serviceCentre)
-		return absent(tgpp.AbsentUserIMSIDetached), true
+		return absent(tgpp.AbsentUserIMSIDetached).because("UE is not registered for SMS", err), true
 	case errors.Is(err, errNoCPAck):
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("UE did not acknowledge the CP-DATA", err), true
 	case errors.Is(err, ErrUnreachable), errors.Is(err, context.DeadlineExceeded):
 		s.markWaiting(ctx, imsi, serviceCentre)
-		return absent(tgpp.AbsentUserNoPagingResponseMSC), true
+		return absent(tgpp.AbsentUserNoPagingResponseMSC).because("UE did not respond to paging", err), true
 	default:
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil), true
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("could not send the SMS to the UE", err), true
 	}
 }
 
@@ -205,12 +252,14 @@ func reportOutcome(rp sms.RPMessage) mtOutcome {
 	case *sms.RPAck:
 		return delivered(m.UserData)
 	case *sms.RPError:
+		reason := "UE rejected the message with RP-ERROR (" + m.Cause.String() + ")"
+
 		if m.Cause == sms.RPCauseMemoryCapacityExceeded {
-			return deliveryFailure(sgd.CauseMemoryCapacityExceeded, m.UserData)
+			return deliveryFailure(sgd.CauseMemoryCapacityExceeded, m.UserData).because(reason, nil)
 		}
 
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, m.UserData)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, m.UserData).because(reason, nil)
 	default:
-		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil)
+		return deliveryFailure(sgd.CauseEquipmentProtocolError, nil).because("UE sent an unexpected RP report", nil)
 	}
 }

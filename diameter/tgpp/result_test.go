@@ -51,3 +51,21 @@ func TestParseResultMalformed(t *testing.T) {
 		}
 	}
 }
+
+func TestResultString(t *testing.T) {
+	cases := []struct {
+		result Result
+		want   string
+	}{
+		{Result{Code: diameter.ResultSuccess}, "result 2001 DIAMETER_SUCCESS"},
+		{Experimental(ResultErrorSMDeliveryFailure), "experimental result 5555 (vendor 10415) DIAMETER_ERROR_SM_DELIVERY_FAILURE"},
+		{Result{Code: ResultErrorAbsentUser, Experimental: true, VendorID: 9999}, "experimental result 5550 (vendor 9999)"},
+		{Result{Code: 4999}, "result 4999"},
+	}
+
+	for _, tc := range cases {
+		if got := tc.result.String(); got != tc.want {
+			t.Errorf("String() = %q, want %q", got, tc.want)
+		}
+	}
+}
